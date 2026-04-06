@@ -1,0 +1,53 @@
+# Flutter
+.dart_tool/
+.packages
+.pub/
+build/
+*.iml
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+macos/Pods/
+macos/Flutter/ephemeral/
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+*.apk
+*.aab
+
+# iOS
+ios/Pods/
+ios/Flutter/ephemeral/
+
+# Windows
+windows/flutter/ephemeral/
+
+# Backup files
+*.bak
+*.bak2
+*.bak3
+*.bak4
+*.bak5
+*.bak6
+*.bak7
+*.bak8
+*.bak9
+
+# SSH keys - NEVER commit
+vps_icd360sev_icd360s.de
+vps_icd360sev_icd360s.de.pub
+
+# Secrets
+.env
+*.keystore
+*.jks
+key.properties
