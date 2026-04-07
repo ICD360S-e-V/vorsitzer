@@ -393,6 +393,8 @@ jobs:
     name: "🍎 macOS"
     needs: version
     runs-on: macos-latest
+    env:
+      HAS_MACOS_CERT: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -408,7 +410,7 @@ jobs:
         run: cd macos && pod install --repo-update
 
       - name: Setup macOS signing
-        if: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
+        if: env.HAS_MACOS_CERT == 'true'
         run: |
           echo "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" | base64 -d > certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -421,7 +423,7 @@ jobs:
           rm certificate.p12
 
       - name: Disable code signing for CI (when no certs)
-        if: ${{ secrets.MACOS_CERTIFICATE_BASE64 == '' }}
+        if: env.HAS_MACOS_CERT == 'false'
         run: |
           # Patch Xcode project to disable signing for CI builds
           sed -i '' 's/CODE_SIGN_IDENTITY = .*/CODE_SIGN_IDENTITY = "-";/' macos/Runner.xcodeproj/project.pbxproj
@@ -462,6 +464,8 @@ jobs:
     name: "📱 iOS IPA"
     needs: version
     runs-on: macos-latest
+    env:
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -477,7 +481,7 @@ jobs:
         run: cd ios && pod install --repo-update
 
       - name: Setup iOS signing
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        if: env.HAS_APPLE_CERT == 'true'
         run: |
           echo "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 -d > certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -492,7 +496,7 @@ jobs:
           echo "${{ secrets.APPLE_PROVISIONING_PROFILE }}" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
 
       - name: Build iOS (signed)
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        if: env.HAS_APPLE_CERT == 'true'
         run: |
           flutter build ipa \
             --release \
@@ -501,7 +505,7 @@ jobs:
             --export-options-plist=ios/ExportOptions.plist
 
       - name: Build iOS (unsigned)
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 == '' }}
+        if: env.HAS_APPLE_CERT == 'false'
         run: |
           flutter build ios \
             --release \
