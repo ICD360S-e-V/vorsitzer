@@ -398,6 +398,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -448,9 +452,15 @@ jobs:
 
       - name: Create DMG
         run: |
-          APP_PATH="build/macos/Build/Products/Release/vorsitzer.app"
           VERSION="${{ needs.version.outputs.version_name }}"
           DMG_NAME="${{ env.APP_NAME }}-${VERSION}-macos.dmg"
+          APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app bundle found in build/macos/Build/Products/Release"
+            ls -la build/macos/Build/Products/Release/ || true
+            exit 1
+          fi
+          echo "Packaging: $APP_PATH"
           hdiutil create -volname "${{ env.APP_NAME }}" \
             -srcfolder "$APP_PATH" \
             -ov -format UDZO \
@@ -476,6 +486,10 @@ jobs:
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - uses: subosito/flutter-action@v2
         with:
