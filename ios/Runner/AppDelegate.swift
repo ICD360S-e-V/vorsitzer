@@ -175,8 +175,16 @@ import UIKit
     // CHECK 4: fork() execution (blocked on clean iOS)
     // =========================================================================
     private func checkForkExecution() -> String? {
-        // fork() is restricted on sandboxed iOS apps
-        let pid = fork()
+        // fork() is restricted on sandboxed iOS apps.
+        // Xcode 16 SDK marks fork() as `unavailable`, so we resolve the symbol
+        // dynamically from libSystem via dlsym to bypass the compile-time block
+        // while preserving the runtime jailbreak-detection behaviour.
+        typealias ForkFunc = @convention(c) () -> pid_t
+        guard let forkPtr = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "fork") else {
+            return nil
+        }
+        let forkFn = unsafeBitCast(forkPtr, to: ForkFunc.self)
+        let pid = forkFn()
         if pid >= 0 {
             // fork succeeded - jailbroken!
             if pid > 0 {
