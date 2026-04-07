@@ -387,6 +387,51 @@ jobs:
           path: build/${{ env.APP_NAME }}-*-windows-x64.zip
 
   # ──────────────────────────────────────────────
+  # 6b. Linux (tar.gz)
+  # ──────────────────────────────────────────────
+  linux:
+    name: "🐧 Linux"
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake git ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            libsecret-1-dev libsecret-1-0 libjsoncpp-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux
+        run: |
+          flutter config --enable-linux-desktop
+          flutter build linux \
+            --release \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Package tar.gz
+        run: |
+          VERSION="${{ needs.version.outputs.version_name }}"
+          cd build/linux/x64/release/bundle
+          tar -czf "../../../../../${{ env.APP_NAME }}-${VERSION}-linux-x64.tar.gz" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-targz
+          path: ${{ env.APP_NAME }}-*-linux-x64.tar.gz
+
+  # ──────────────────────────────────────────────
   # 7. macOS (DMG)
   # ──────────────────────────────────────────────
   macos:
@@ -569,6 +614,7 @@ jobs:
       - android-fdroid
       - android-huawei
       - windows
+      - linux
       - macos
       - ios
     runs-on: ubuntu-latest
@@ -584,11 +630,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "v${{ needs.version.outputs.version_name }}"
+          tag_name: ${{ github.ref_name }}
           generate_release_notes: true
-          draft: true
+          draft: false
+          prerelease: false
           files: |
             artifacts/**/*.apk
             artifacts/**/*.aab
             artifacts/**/*.zip
+            artifacts/**/*.tar.gz
             artifacts/**/*.dmg
             artifacts/**/*.ipa
