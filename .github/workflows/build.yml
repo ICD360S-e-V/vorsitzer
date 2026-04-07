@@ -405,12 +405,10 @@ jobs:
         run: flutter pub get
 
       - name: Install CocoaPods dependencies
-        run: cd macos && pod install
+        run: cd macos && pod install --repo-update
 
       - name: Setup macOS signing
-        if: ${{ env.MACOS_CERT != '' }}
-        env:
-          MACOS_CERT: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+        if: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
         run: |
           echo "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" | base64 -d > certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -421,6 +419,15 @@ jobs:
           security import certificate.p12 -P "${{ secrets.MACOS_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
           rm certificate.p12
+
+      - name: Disable code signing for CI (when no certs)
+        if: ${{ secrets.MACOS_CERTIFICATE_BASE64 == '' }}
+        run: |
+          # Patch Xcode project to disable signing for CI builds
+          sed -i '' 's/CODE_SIGN_IDENTITY = .*/CODE_SIGN_IDENTITY = "-";/' macos/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/DEVELOPMENT_TEAM = .*/DEVELOPMENT_TEAM = "";/' macos/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_STYLE = .*/CODE_SIGN_STYLE = Manual;/' macos/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*/PROVISIONING_PROFILE_SPECIFIER = "";/' macos/Runner.xcodeproj/project.pbxproj
 
       - name: Build macOS
         run: |
@@ -467,14 +474,11 @@ jobs:
         run: flutter pub get
 
       - name: Install CocoaPods dependencies
-        run: cd ios && pod install
+        run: cd ios && pod install --repo-update
 
       - name: Setup iOS signing
-        if: ${{ env.APPLE_CERT != '' }}
-        env:
-          APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
         run: |
-          # Import certificate
           echo "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 -d > certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           KEYCHAIN_PASSWORD=$(uuidgen)
@@ -484,33 +488,33 @@ jobs:
           security import certificate.p12 -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
           rm certificate.p12
-
-          # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "${{ secrets.APPLE_PROVISIONING_PROFILE }}" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
 
-      - name: Build iOS (no codesign for CI)
+      - name: Build iOS (signed)
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
         run: |
           flutter build ipa \
             --release \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }} \
-            --export-options-plist=ios/ExportOptions.plist || \
+            --export-options-plist=ios/ExportOptions.plist
+
+      - name: Build iOS (unsigned)
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 == '' }}
+        run: |
           flutter build ios \
             --release \
             --no-codesign \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
-      - name: Create IPA (unsigned fallback)
-        if: always()
+      - name: Package IPA
         run: |
           VERSION="${{ needs.version.outputs.version_name }}"
-          # If IPA was built via export
           if ls build/ios/ipa/*.ipa 1>/dev/null 2>&1; then
             mv build/ios/ipa/*.ipa "build/${{ env.APP_NAME }}-${VERSION}-ios.ipa"
           else
-            # Create IPA from .app (unsigned)
             mkdir -p Payload
             cp -r build/ios/iphoneos/Runner.app Payload/
             zip -r "build/${{ env.APP_NAME }}-${VERSION}-ios-unsigned.ipa" Payload
