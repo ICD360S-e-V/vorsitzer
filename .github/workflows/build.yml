@@ -406,8 +406,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Install CocoaPods dependencies
-        run: cd macos && pod install --repo-update
+      - name: Refresh CocoaPods
+        run: |
+          cd macos
+          rm -f Podfile.lock
+          pod install --repo-update
 
       - name: Setup macOS signing
         if: env.HAS_MACOS_CERT == 'true'
@@ -425,11 +428,16 @@ jobs:
       - name: Disable code signing for CI (when no certs)
         if: env.HAS_MACOS_CERT == 'false'
         run: |
-          # Patch Xcode project to disable signing for CI builds
-          sed -i '' 's/CODE_SIGN_IDENTITY = .*/CODE_SIGN_IDENTITY = "-";/' macos/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/DEVELOPMENT_TEAM = .*/DEVELOPMENT_TEAM = "";/' macos/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGN_STYLE = .*/CODE_SIGN_STYLE = Manual;/' macos/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = .*/PROVISIONING_PROFILE_SPECIFIER = "";/' macos/Runner.xcodeproj/project.pbxproj
+          # Append signing-disable directives to Release xcconfig (overrides project settings)
+          cat >> macos/Runner/Configs/Release.xcconfig <<'EOF'
+
+          // CI: disable code signing when no Apple certs are available
+          CODE_SIGN_IDENTITY =
+          CODE_SIGNING_REQUIRED = NO
+          CODE_SIGNING_ALLOWED = NO
+          DEVELOPMENT_TEAM =
+          PROVISIONING_PROFILE_SPECIFIER =
+          EOF
 
       - name: Build macOS
         run: |
@@ -477,8 +485,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Install CocoaPods dependencies
-        run: cd ios && pod install --repo-update
+      - name: Refresh CocoaPods
+        run: |
+          cd ios
+          rm -f Podfile.lock
+          pod install --repo-update
 
       - name: Setup iOS signing
         if: env.HAS_APPLE_CERT == 'true'
