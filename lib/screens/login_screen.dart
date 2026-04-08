@@ -51,11 +51,27 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadSavedCredentials();
   }
 
+  /// Resilient secure read with SharedPreferences fallback (handles -34018 on unsigned macOS)
+  Future<String?> _safeRead(String key) async {
+    try {
+      final value = await _secureStorage.read(key: key);
+      if (value != null) return value;
+    } catch (e) {
+      _log.warning('Secure read failed for $key, trying SharedPreferences fallback: $e', tag: 'AUTH');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('_fallback_$key');
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _loadSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedMitgliedernummer = await _secureStorage.read(key: 'mitgliedernummer');
-    final savedPassword = await _secureStorage.read(key: 'password');
-    final savedToken = await _secureStorage.read(key: 'access_token');
+    final savedMitgliedernummer = await _safeRead('mitgliedernummer');
+    final savedPassword = await _safeRead('password');
+    final savedToken = await _safeRead('access_token');
     final rememberMe = prefs.getBool('remember_me') ?? true;
     final autoLogin = prefs.getBool('auto_login') ?? true;
 
@@ -144,16 +160,37 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) setState(() { _isLoading = false; });
   }
 
+  /// Resilient secure write with SharedPreferences fallback (handles -34018 on unsigned macOS)
+  Future<void> _safeWrite(String key, String value) async {
+    try {
+      await _secureStorage.write(key: key, value: value);
+    } catch (e) {
+      _log.warning('Secure write failed for $key, falling back to SharedPreferences: $e', tag: 'AUTH');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('_fallback_$key', value);
+    }
+  }
+
+  Future<void> _safeDelete(String key) async {
+    try {
+      await _secureStorage.delete(key: key);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('_fallback_$key');
+    } catch (_) {}
+  }
+
   Future<void> _saveCredentials() async {
     final prefs = await SharedPreferences.getInstance();
     if (_rememberMe) {
-      await _secureStorage.write(key: 'mitgliedernummer', value: _mitgliedernummerController.text.trim());
-      await _secureStorage.write(key: 'password', value: _loginPasswordController.text);
+      await _safeWrite('mitgliedernummer', _mitgliedernummerController.text.trim());
+      await _safeWrite('password', _loginPasswordController.text);
       await prefs.setBool('remember_me', true);
       await prefs.setBool('auto_login', _autoLogin);
     } else {
-      await _secureStorage.delete(key: 'mitgliedernummer');
-      await _secureStorage.delete(key: 'password');
+      await _safeDelete('mitgliedernummer');
+      await _safeDelete('password');
       await prefs.setBool('remember_me', false);
       await prefs.setBool('auto_login', false);
     }
@@ -182,7 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Save mitgliedernummer for auto-login
     final mitgliedernummer = user['mitgliedernummer'] ?? '';
-    await _secureStorage.write(key: 'mitgliedernummer', value: mitgliedernummer);
+    await _safeWrite('mitgliedernummer', mitgliedernummer);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('remember_me', true);
     await prefs.setBool('auto_login', true);
@@ -190,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // Save approval token for passwordless re-login
     final approvalToken = loginData['approval_token'] as String?;
     if (approvalToken != null) {
-      await _secureStorage.write(key: 'approval_token', value: approvalToken);
+      await _safeWrite('approval_token', approvalToken);
     }
 
     if (mounted) {
