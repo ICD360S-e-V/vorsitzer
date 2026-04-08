@@ -1562,235 +1562,79 @@ ls build/windows/x64/runner/Release/*.dll
 
 ## Comenzi Build & Deploy
 
-### ⚠️ CHECKLIST RELEASE NOU (NU SĂRI PAȘI!)
+### Release Flow (NEW — tag-based, fully automated, v1.0.37+)
 
-**REGULA #1: NU actualizezi changelog sau version pe server FĂRĂ să fi urcat EXE-ul mai întâi!**
-**REGULA #2: NU adaugi versiune nouă în changelog FĂRĂ să actualizezi și version_vorsitzer.json!**
-**REGULA #3: Versiunea din version_vorsitzer.json TREBUIE să fie = versiunea din EXE-ul de pe server!**
+**TL;DR:** bump 2 files, push 1 tag, CI does the rest.
 
----
-
-**Pas 1: Actualizează versiunea în CODUL APLICAȚIEI:**
-```
-□ pubspec.yaml                     → version: X.X.X+Y
-□ lib/services/update_service.dart → currentVersion = 'X.X.X', currentBuildNumber = Y
-□ installer/icd360sev_setup.iss    → #define MyAppVersion "X.X.X"
-```
-
-**Pas 2: Build & Compile (DOAR pe Windows!):**
 ```bash
-cd /c/Users/icd_U/Documents/icd360sev_vorsitzer
-/c/flutter/bin/flutter build windows --release
-"/c/Program Files (x86)/Inno Setup 6/ISCC.exe" installer/icd360sev_setup.iss
+# 1. Bump version in BOTH files (must match — CI guard fails the build otherwise)
+#    pubspec.yaml                        → version: X.Y.Z+B
+#    lib/services/update_service.dart    → currentVersion = 'X.Y.Z'; currentBuildNumber = B
+git add pubspec.yaml lib/services/update_service.dart
+git commit -m "chore: bump version to X.Y.Z+B"
+
+# 2. Tag and push
+git tag vX.Y.Z
+git push origin main vX.Y.Z
+
+# 3. CI does everything else automatically (~15 min total):
+#    - 9 builds in parallel: Android (universal/samsung/play/fdroid/huawei), Windows, Linux, macOS, iOS
+#    - GitHub Release with all artifacts attached
+#    - SCP artifacts to /var/www/icd360sev.icd360s.de/downloads/vorsitzer/{platform}/
+#    - Update version_vorsitzer.json on the prod server (with new version + URLs)
+#    - Update changelog_vorsitzer.json on the prod server (mark new version as is_latest)
 ```
 
-**Pas 3: Upload .exe pe server:**
-```bash
-# Creează backup stabil (versiunea curentă devine fallback)
-ssh -i "vps_icd360sev_icd360s.de" -p 36000 root@icd360sev.icd360s.de \
-  "cp /var/www/icd360sev.icd360s.de/downloads/vorsitzer/windows/icd360sev_vorsitzer_setup.exe \
-      /var/www/icd360sev.icd360s.de/downloads/vorsitzer/windows/icd360sev_vorsitzer_setup_stable.exe"
+**That is it.** No SSH, no manual JSON editing, no separate Windows machine.
 
-# Încarcă installer
-scp -i "vps_icd360sev_icd360s.de" -P 36000 \
-  "build/installer/icd360sev_vorsitzer_setup.exe" \
-  root@icd360sev.icd360s.de:/var/www/icd360sev.icd360s.de/downloads/vorsitzer/windows/
-```
+### Required for the flow above to work
 
-**Pas 4: VERIFICĂ starea curentă pe server (OBLIGATORIU!):**
-```bash
-ssh -i "vps_icd360sev_icd360s.de" -p 36000 root@icd360sev.icd360s.de << 'EOF'
-echo "=== EXE pe server ==="
-ls -la --time-style=long-iso /var/www/icd360sev.icd360s.de/downloads/vorsitzer/windows/*.exe
+**1. `pubspec.yaml` and `lib/services/update_service.dart` MUST be in sync.**
+The Version Info job in `.github/workflows/build.yml` greps both and fails the build with a `::error` annotation if they disagree. Footer / changelog dialog read `UpdateService.currentVersion` so a mismatch ships a wrong version to the user.
 
-echo ""
-echo "=== version_vorsitzer.json ==="
-python3 -c "
-import json
-v=json.load(open('/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json'))
-print('  Version: {} (build {})'.format(v['version'], v['build_number']))
-print('  Release: {}'.format(v['release_date']))
-"
+**2. The tag MUST be on a commit where pubspec.yaml has the same version.**
+Tag `v1.0.45` requires `version: 1.0.45+...` in pubspec on that commit.
 
-echo ""
-echo "=== changelog latest ==="
-python3 -c "
-import json
-d=json.load(open('/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json'))
-latest = [v for v in d['versions'] if v.get('is_latest')]
-if latest:
-    print('  Changelog latest: {} ({})'.format(latest[0]['version'], latest[0]['date']))
-else:
-    print('  WARNING: No version has is_latest: true!')
-first = d['versions'][0]
-print('  First in list: {} ({}) is_latest={}'.format(first['version'], first['date'], first['is_latest']))
-"
+**3. The CI workflow needs these GitHub Secrets** (already configured, see CI/CD Pipeline section below):
+- Android signing: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+- Deploy: `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_PORT`, `DEPLOY_USER`, `DEPLOY_PATH`
 
-echo ""
-echo "=== CONSISTENCY CHECK ==="
-python3 -c "
-import json, os
-ver = json.load(open('/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json'))
-cl = json.load(open('/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json'))
-latest_cl = [v for v in cl['versions'] if v.get('is_latest')]
-exe_date = os.path.getmtime('/var/www/icd360sev.icd360s.de/downloads/vorsitzer/windows/icd360sev_vorsitzer_setup.exe')
-import datetime
-exe_dt = datetime.datetime.fromtimestamp(exe_date).strftime('%Y-%m-%d')
+### What gets updated on the prod server (automatically)
 
-errors = []
-if latest_cl and latest_cl[0]['version'] != ver['version']:
-    errors.append('MISMATCH: changelog latest={} but version_vorsitzer={}'.format(latest_cl[0]['version'], ver['version']))
-if not latest_cl:
-    errors.append('NO is_latest:true in changelog!')
+After the `📤 Deploy to Server` job finishes, two extra workflow steps run:
 
-if errors:
-    for e in errors:
-        print('  ERROR: {}'.format(e))
-else:
-    print('  OK: changelog latest ({}) == version_vorsitzer ({})'.format(latest_cl[0]['version'], ver['version']))
-print('  EXE last modified: {}'.format(exe_dt))
-"
-EOF
-```
+| Step | What it does | File on server |
+|------|--------------|----------------|
+| `Update version_vorsitzer.json on server` | Generates a fresh manifest with the current version, fallback set to previous patch, and 5 platform download URLs that point to the artifacts that were just uploaded (`vorsitzer-X.Y.Z-{universal.apk,windows-x64.zip,macos.dmg,linux-x64.tar.gz,ios-unsigned.ipa}`). | `/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json` |
+| `Update changelog_vorsitzer.json on server` | Remote Python one-liner that clears `is_latest` from every existing entry, prepends a stub for the new version pointing to the GitHub Release page, and marks the new entry as `is_latest=true`. Idempotent — re-running the job is safe. | `/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json` |
 
-**STOP! Citește output-ul de mai sus și verifică:**
-- [ ] EXE-ul e proaspăt (data = azi sau recent)
-- [ ] version_vorsitzer.json NU e deja la versiunea nouă
-- [ ] changelog latest = version_vorsitzer (nu mai mare!)
-- [ ] CONSISTENCY CHECK = OK
+The stub changelog entry contains a link to the GitHub Release. **If you want a richer in-app changelog**, edit `changelog_vorsitzer.json` on the server *after* the tag deploy and replace the stub with a proper bullet list — the next deploy will not overwrite it (the script only inserts when the version is missing from the array).
 
-**Pas 5: Actualizează CHANGELOG pe server (detaliat):**
-```bash
-# Editează changelog_vorsitzer.json
-ssh -i "vps_icd360sev_icd360s.de" -p 36000 root@icd360sev.icd360s.de \
-  "nano /var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json"
+### Manual server edits (only when CI is not enough)
 
-# Adaugă noua versiune la ÎNCEPUTUL array-ului "versions":
-# {
-#   "version": "X.X.X",
-#   "date": "DD.MM.YYYY",
-#   "changes": [
-#     "Prima modificare făcută",
-#     "A doua modificare făcută",
-#     "..."
-#   ],
-#   "is_latest": true
-# }
-#
-# IMPORTANT: Setează "is_latest": false pentru versiunea veche!
-# VERIFICĂ că noua versiune e mai mare decât versiunea anterioară!
-# Actualizează "last_updated": "YYYY-MM-DDTHH:MM:SSZ"
-```
+If you ever need to touch the manifests by hand (e.g. to fix a typo in a published changelog), the rules are:
 
-**Pas 6: Actualizează VERSION INFO pe server (trigger update):**
-```bash
-# Editează version_vorsitzer.json
-ssh -i "vps_icd360sev_icd360s.de" -p 36000 root@icd360sev.icd360s.de \
-  "nano /var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json"
+- **Never** put real Mitgliedernummern in `changelog_vorsitzer.json` — it is a public file. Use generic phrases like "randomized for security".
+- `version_vorsitzer.json.version` MUST equal the `is_latest` entry in `changelog_vorsitzer.json`. Quick consistency check:
+  ```bash
+  ssh -i ~/.ssh/icd360sev.icd360s.de -p 36000 root@icd360sev.icd360s.de \
+    "python3 -c \"
+  import json
+  v = json.load(open('/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json'))
+  c = json.load(open('/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json'))
+  latest = next((x['version'] for x in c['versions'] if x.get('is_latest')), None)
+  print('version_vorsitzer:', v['version'])
+  print('changelog latest :', latest)
+  print('OK' if v['version'] == latest else 'MISMATCH')
+  \""
+  ```
+- Backup before editing: `cp file.json file.json.bak.$(date +%Y%m%d_%H%M%S)`
 
-# Actualizează TOATE câmpurile:
-# {
-#     "version": "X.X.X",                    # = EXACT versiunea din EXE-ul urcat!
-#     "build_number": Y,                     # = EXACT build number din pubspec.yaml
-#     "download_url": "...",                 # Același URL (nu se schimbă)
-#     "fallback_url": "...",                 # Același URL (nu se schimbă)
-#     "fallback_version": "X.X.Z",           # Versiunea anterioară stabilă
-#     "changelog": "Version X.X.X\n\n- Modificarea principală făcută...",  # Changelog SCURT
-#     "min_version": null,
-#     "force_update": false,
-#     "release_date": "YYYY-MM-DD",
-#     "file_size": "XX MB"
-# }
-```
+### ⚠️ DEPRECATED — old manual Windows-based release flow
 
-**Pas 7: VERIFICARE FINALĂ (OBLIGATORIU - nu sări!):**
-```bash
-ssh -i "vps_icd360sev_icd360s.de" -p 36000 root@icd360sev.icd360s.de << 'EOF'
-echo "=== FINAL VERIFICATION ==="
-python3 -c "
-import json, os, datetime
+The previous "Pas 1 → Pas 7" checklist (build on Windows + Inno Setup + scp `.exe` + edit JSON manually) is **no longer used** as of v1.0.37. The CI pipeline replaces all of it. If you find yourself running `flutter build windows` locally for a release, you are doing it wrong — push a tag instead.
 
-ver = json.load(open('/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json'))
-cl = json.load(open('/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json'))
-latest_cl = [v for v in cl['versions'] if v.get('is_latest')]
-exe_date = os.path.getmtime('/var/www/icd360sev.icd360s.de/downloads/vorsitzer/windows/icd360sev_vorsitzer_setup.exe')
-exe_dt = datetime.datetime.fromtimestamp(exe_date).strftime('%Y-%m-%d %H:%M')
-
-print('version_vorsitzer.json: {} (build {})'.format(ver['version'], ver['build_number']))
-print('changelog is_latest:    {}'.format(latest_cl[0]['version'] if latest_cl else 'NONE!'))
-print('EXE last modified:      {}'.format(exe_dt))
-print()
-
-errors = []
-# Check 1: changelog latest == version_vorsitzer
-if latest_cl and latest_cl[0]['version'] != ver['version']:
-    errors.append('changelog latest ({}) != version_vorsitzer ({})'.format(latest_cl[0]['version'], ver['version']))
-
-# Check 2: only ONE version has is_latest: true
-latest_count = sum(1 for v in cl['versions'] if v.get('is_latest'))
-if latest_count != 1:
-    errors.append('{} versions have is_latest:true (should be exactly 1)'.format(latest_count))
-
-# Check 3: first version in changelog should be is_latest
-if cl['versions'] and not cl['versions'][0].get('is_latest'):
-    errors.append('First version in changelog ({}) is NOT is_latest'.format(cl['versions'][0]['version']))
-
-# Check 4: EXE should be recent (within last 7 days for new release)
-exe_age = (datetime.datetime.now() - datetime.datetime.fromtimestamp(exe_date)).days
-if exe_age > 7:
-    errors.append('EXE is {} days old! Was it actually uploaded?'.format(exe_age))
-
-if errors:
-    print('ERRORS FOUND:')
-    for e in errors:
-        print('  ERROR: {}'.format(e))
-    print()
-    print('FIX THESE BEFORE CONTINUING!')
-else:
-    print('ALL CHECKS PASSED - Release is consistent!')
-"
-EOF
-```
-
-**Dacă verificarea finală arată ERRORS → OPREȘTE și repară ÎNAINTE de a considera release-ul complet!**
-
----
-
-### ⚠️ IMPORTANT: ORDINE & TIMING
-
-**Flowul corect (STRICT în această ordine):**
-
-```
-[1] Code version (pubspec.yaml, update_service.dart, icd360sev_setup.iss)
-                    ↓
-[2] Build Windows + Compile Installer (DOAR pe Windows!)
-                    ↓
-[3] Upload EXE pe server (+ backup stable)
-                    ↓
-[4] VERIFICARE: Rulează consistency check (Pas 4)
-                    ↓
-[5] Changelog: Adaugă versiunea nouă cu is_latest: true
-                    ↓
-[6] Version info: Actualizează version_vorsitzer.json (= trigger update)
-                    ↓
-[7] VERIFICARE FINALĂ: Rulează Pas 7 - TREBUIE "ALL CHECKS PASSED"
-```
-
-**GREȘELI FRECVENTE (și cum se manifestă):**
-
-| Greșeală | Simptom | Cum se repară |
-|----------|---------|---------------|
-| Changelog actualizat FĂRĂ upload EXE | Changelog arată versiune nouă dar EXE e vechi | Upload EXE sau revert changelog |
-| version_vorsitzer.json > EXE real | **INFINITE UPDATE LOOP!** App descarcă mereu EXE vechi | Setează version_vorsitzer.json = versiunea din EXE |
-| changelog is_latest != version_vorsitzer | Utilizatorii văd versiuni diferite în changelog vs update dialog | Sync cele 2 fișiere |
-| Changelog is_latest: true pe 2+ versiuni | Changelog afișează greșit | Doar UNA trebuie să fie is_latest |
-| Upload EXE FĂRĂ version_vorsitzer update | Nimeni nu primește notificare de update | Actualizează version_vorsitzer.json |
-
-**REGULA DE AUR pentru Claude (AI assistant):**
-- NU actualizezi changelog sau version_vorsitzer.json pe server DECÂT dacă utilizatorul CONFIRMĂ că a urcat EXE-ul!
-- ÎNTOTDEAUNA rulează consistency check (Pas 4) înainte de orice modificare pe server
-- ÎNTOTDEAUNA rulează verificare finală (Pas 7) după modificări
-- Dacă dezvoltarea e pe macOS dar deploy-ul e pe Windows → NU modifica fișierele de pe server până nu se face build Windows!
+The legacy installer at `installer/icd360sev_setup.iss` is kept in the repo for reference but is not part of the release flow anymore. Releases ship as a Windows ZIP (`vorsitzer-X.Y.Z-windows-x64.zip`) generated by CI.
 
 ### Comenzi Flutter (Bash - pentru Claude)
 
