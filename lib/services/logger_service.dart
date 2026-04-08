@@ -19,7 +19,9 @@ class LoggerService {
 
   final List<LogEntry> _logs = [];
   final _controller = StreamController<List<LogEntry>>.broadcast();
-  final _secureStorage = const FlutterSecureStorage();
+  final _secureStorage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
   late final http.Client _httpClient;
 
   String? _deviceId;
