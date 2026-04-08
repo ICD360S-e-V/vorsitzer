@@ -916,19 +916,23 @@ class ApiService {
   }
 
   // Save platform credentials (encrypted in DB)
+  // [totpSecret] is optional. Pass `null` to leave the existing 2FA secret untouched,
+  // an empty string to clear it, or a Base32 secret to set/replace it.
   Future<Map<String, dynamic>> savePlatformCredentials({
     required String platform,
     required String email,
     required String password,
     String? website,
+    String? totpSecret,
   }) async {
     try {
-      final body = {
+      final body = <String, dynamic>{
         'platform': platform,
         'email': email,
         'password': password,
       };
       if (website != null) body['website'] = website;
+      if (totpSecret != null) body['totp_secret'] = totpSecret;
       final response = await _client.post(
         Uri.parse('$baseUrl/platform/save_credentials.php'),
         headers: _headers,
