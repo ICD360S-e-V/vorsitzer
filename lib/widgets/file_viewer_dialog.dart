@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 /// In-app file viewer for PDFs and images
@@ -96,32 +96,66 @@ class _FileViewerDialogState extends State<FileViewerDialog> {
     setState(() => _rotation = 0);
   }
 
+  /// Persist the current file to ~/Downloads (or the platform equivalent).
+  ///
+  /// We deliberately avoid `FilePicker.platform.saveFile` here: on macOS it
+  /// shells out to NSSavePanel, which on unsigned/hardened-runtime builds
+  /// fails with "entitlement required" because it tries to mint a
+  /// security-scoped bookmark for the user-selected URL. Writing directly to
+  /// the Downloads folder works without any entitlement on a non-sandboxed
+  /// app and is what the user expects from a "Download" button anyway.
+  ///
+  /// If a file with the same name already exists we append `(1)`, `(2)`, …
+  /// before the extension so we never silently overwrite.
   Future<void> _saveFile(BuildContext context) async {
     try {
-      final dotIndex = widget.fileName.lastIndexOf('.');
-      final ext = dotIndex != -1 ? widget.fileName.substring(dotIndex) : '';
+      Directory? targetDir;
+      try {
+        targetDir = await getDownloadsDirectory();
+      } catch (_) {
+        targetDir = null;
+      }
+      // Mobile (iOS/Android) returns null — fall back to documents dir there.
+      targetDir ??= await getApplicationDocumentsDirectory();
+      if (!await targetDir.exists()) {
+        await targetDir.create(recursive: true);
+      }
 
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'Datei speichern',
-        fileName: widget.fileName,
-      );
+      final safeName = _sanitize(widget.fileName);
+      final savePath = await _uniquePath(targetDir.path, safeName);
 
-      if (result != null) {
-        final savePath = result.endsWith(ext) ? result : '$result$ext';
-        if (widget.fileBytes != null) {
-          await File(savePath).writeAsBytes(widget.fileBytes!);
-        } else if (widget.filePath != null) {
-          await File(widget.filePath!).copy(savePath);
-        }
-        if (context.mounted) {
-          final savedName = savePath.split(Platform.pathSeparator).last;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gespeichert: $savedName'),
-              backgroundColor: Colors.green,
+      if (widget.fileBytes != null) {
+        await File(savePath).writeAsBytes(widget.fileBytes!, flush: true);
+      } else if (widget.filePath != null) {
+        await File(widget.filePath!).copy(savePath);
+      } else {
+        throw StateError('Keine Datei zum Speichern vorhanden');
+      }
+
+      if (context.mounted) {
+        final savedName = savePath.split(Platform.pathSeparator).last;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gespeichert in Downloads: $savedName'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'Öffnen',
+              textColor: Colors.white,
+              onPressed: () {
+                // Reveal the containing folder via the OS default handler.
+                // Best-effort: ignore failures.
+                try {
+                  Process.run(
+                    Platform.isMacOS
+                        ? 'open'
+                        : (Platform.isWindows ? 'explorer' : 'xdg-open'),
+                    [targetDir!.path],
+                  );
+                } catch (_) {}
+              },
             ),
-          );
-        }
+          ),
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -133,6 +167,31 @@ class _FileViewerDialogState extends State<FileViewerDialog> {
         );
       }
     }
+  }
+
+  String _sanitize(String name) {
+    var s = name.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_').trim();
+    s = s.replaceFirst(RegExp(r'^\.+'), '');
+    if (s.isEmpty) s = 'attachment';
+    return s;
+  }
+
+  /// Build a path that doesn't collide with an existing file by inserting
+  /// `(1)`, `(2)`, … before the extension.
+  Future<String> _uniquePath(String dir, String fileName) async {
+    final sep = Platform.pathSeparator;
+    var candidate = '$dir$sep$fileName';
+    if (!await File(candidate).exists()) return candidate;
+
+    final dot = fileName.lastIndexOf('.');
+    final base = dot > 0 ? fileName.substring(0, dot) : fileName;
+    final ext = dot > 0 ? fileName.substring(dot) : '';
+    for (var i = 1; i < 1000; i++) {
+      candidate = '$dir$sep$base($i)$ext';
+      if (!await File(candidate).exists()) return candidate;
+    }
+    // Give up after 1000 attempts and return the last candidate.
+    return candidate;
   }
 
   Future<void> _printFile(BuildContext context) async {
