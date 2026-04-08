@@ -19,7 +19,9 @@ class ApiService {
   String? _refreshToken;
   late http.Client _client;
   final DeviceKeyService _deviceKeyService = DeviceKeyService();
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
 
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();
