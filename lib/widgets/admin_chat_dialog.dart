@@ -1048,135 +1048,187 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         mitgliedernummer: widget.mitgliedernummer,
       );
 
-      if (result['success'] == true) {
-        if (result['content'] != null) {
-          final bytes = base64Decode(result['content']);
-          final fileName = result['filename']?.toString() ?? 'file';
-          final ext = fileName.split('.').last.toLowerCase();
-          final isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(ext);
-          final isPdf = ext == 'pdf';
+      if (result['success'] != true) {
+        _showError(result['message'] ?? 'Download fehlgeschlagen');
+        return;
+      }
 
-          if (isImage && mounted) {
-            // Open image in-memory viewer
-            showDialog(
-              context: context,
-              barrierDismissible: true,
-              builder: (imgCtx) {
-                final transformController = TransformationController();
-                int rotation = 0; // 0, 90, 180, 270
-                return StatefulBuilder(
-                  builder: (imgCtx, setImgState) => Dialog(
-                  insetPadding: const EdgeInsets.all(20),
-                  child: Column(
+      final fileName = result['filename']?.toString() ?? 'file';
+
+      // Two server response shapes:
+      //   1. Inline base64 in `content` (small files, <= 5 MB)
+      //   2. `download_url` to chat/stream.php (large files)
+      Uint8List? bytes;
+      if (result['content'] != null) {
+        bytes = base64Decode(result['content']);
+      } else if (result['download_url'] != null) {
+        bytes = await _apiService.fetchBytesAuthenticated(result['download_url']);
+        if (bytes == null) {
+          _showError('Download fehlgeschlagen (Streaming-Endpoint nicht erreichbar)');
+          return;
+        }
+      } else {
+        _showError('Server hat keine Datei zurückgegeben');
+        return;
+      }
+
+      await _openAttachmentBytes(bytes, fileName);
+    } catch (e) {
+      _showError('Download Fehler: $e');
+    }
+  }
+
+  /// Open an in-memory attachment without ever touching the disk for images
+  /// and PDFs (the two formats we can render natively). Other formats fall
+  /// back to writing the bytes to the system temp dir and asking the OS to
+  /// open them — there is no in-app viewer for arbitrary file types.
+  Future<void> _openAttachmentBytes(Uint8List bytes, String fileName) async {
+    final ext = fileName.split('.').last.toLowerCase();
+    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(ext);
+    final isPdf = ext == 'pdf';
+
+    if (isImage && mounted) {
+      _showInMemoryImageDialog(bytes, fileName);
+      return;
+    }
+
+    if (isPdf && mounted) {
+      // FileViewerDialog supports `fileBytes:` and renders the PDF directly
+      // from RAM via PdfViewer.data — no disk write needed, which is critical
+      // for unsigned macOS builds where Documents/Caches are restricted.
+      showDialog(
+        context: context,
+        builder: (_) => FileViewerDialog(fileBytes: bytes, fileName: fileName),
+      );
+      return;
+    }
+
+    // Fallback for non-renderable formats: write to temp dir and ask the OS
+    // to open it. This is the only path that requires disk access.
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$fileName';
+      await File(filePath).writeAsBytes(bytes);
+      await OpenFilex.open(filePath);
+    } catch (e) {
+      _showError('Datei konnte nicht geöffnet werden: $e');
+    }
+  }
+
+  /// In-memory image viewer (Image.memory + InteractiveViewer + zoom/rotate
+  /// controls). The Save button still writes the file to a temp location
+  /// because OpenFilex needs a path; for the *primary* view path we never
+  /// touch the disk.
+  void _showInMemoryImageDialog(Uint8List bytes, String fileName) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (imgCtx) {
+        final transformController = TransformationController();
+        int rotation = 0; // 0, 90, 180, 270
+        return StatefulBuilder(
+          builder: (imgCtx, setImgState) => Dialog(
+            insetPadding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade900,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  ),
+                  child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade900,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.image, size: 18, color: Colors.blue.shade300),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(fileName, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
-                            IconButton(
-                              icon: const Icon(Icons.zoom_out, size: 20, color: Colors.white70),
-                              tooltip: 'Verkleinern',
-                              onPressed: () {
-                                final scale = transformController.value.getMaxScaleOnAxis();
-                                if (scale > 0.5) transformController.value = Matrix4.diagonal3Values(scale * 0.75, scale * 0.75, 1.0);
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.fit_screen, size: 20, color: Colors.white70),
-                              tooltip: 'Zurücksetzen',
-                              onPressed: () => transformController.value = Matrix4.identity(),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.zoom_in, size: 20, color: Colors.white70),
-                              tooltip: 'Vergrößern',
-                              onPressed: () {
-                                final scale = transformController.value.getMaxScaleOnAxis();
-                                if (scale < 5.0) transformController.value = Matrix4.diagonal3Values(scale * 1.5, scale * 1.5, 1.0);
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.rotate_right, size: 20, color: Colors.white70),
-                              tooltip: 'Drehen (90°)',
-                              onPressed: () => setImgState(() => rotation = (rotation + 90) % 360),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.save_alt, size: 20, color: Colors.white70),
-                              tooltip: 'Speichern',
-                              onPressed: () async {
-                                final tempDir = await getTemporaryDirectory();
-                                final filePath = '${tempDir.path}/$fileName';
-                                await File(filePath).writeAsBytes(bytes);
-                                await OpenFilex.open(filePath);
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 20, color: Colors.white),
-                              tooltip: 'Schließen',
-                              onPressed: () => Navigator.pop(imgCtx),
-                            ),
-                          ],
+                      Icon(Icons.image, size: 18, color: Colors.blue.shade300),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          fileName,
+                          style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Expanded(
-                        child: Container(
-                          color: Colors.black87,
-                          child: ClipRect(
-                            child: InteractiveViewer(
-                              transformationController: transformController,
-                              constrained: false,
-                              minScale: 0.3,
-                              maxScale: 5.0,
-                              boundaryMargin: const EdgeInsets.all(double.infinity),
-                              child: Transform.rotate(
-                                angle: rotation * 3.14159265 / 180,
-                                child: Image.memory(bytes),
-                              ),
-                            ),
-                          ),
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.zoom_out, size: 20, color: Colors.white70),
+                        tooltip: 'Verkleinern',
+                        onPressed: () {
+                          final scale = transformController.value.getMaxScaleOnAxis();
+                          if (scale > 0.5) {
+                            transformController.value = Matrix4.diagonal3Values(scale * 0.75, scale * 0.75, 1.0);
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.fit_screen, size: 20, color: Colors.white70),
+                        tooltip: 'Zurücksetzen',
+                        onPressed: () => transformController.value = Matrix4.identity(),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.zoom_in, size: 20, color: Colors.white70),
+                        tooltip: 'Vergrößern',
+                        onPressed: () {
+                          final scale = transformController.value.getMaxScaleOnAxis();
+                          if (scale < 5.0) {
+                            transformController.value = Matrix4.diagonal3Values(scale * 1.5, scale * 1.5, 1.0);
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.rotate_right, size: 20, color: Colors.white70),
+                        tooltip: 'Drehen (90°)',
+                        onPressed: () => setImgState(() => rotation = (rotation + 90) % 360),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.save_alt, size: 20, color: Colors.white70),
+                        tooltip: 'Speichern',
+                        // The Save button is the only path that touches disk: it
+                        // writes the bytes to the system temp dir and asks the OS
+                        // to open the saved copy (NSWorkspace / xdg-open / etc.).
+                        onPressed: () async {
+                          try {
+                            final tempDir = await getTemporaryDirectory();
+                            final filePath = '${tempDir.path}/$fileName';
+                            await File(filePath).writeAsBytes(bytes);
+                            await OpenFilex.open(filePath);
+                          } catch (e) {
+                            _showError('Speichern fehlgeschlagen: $e');
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20, color: Colors.white),
+                        tooltip: 'Schließen',
+                        onPressed: () => Navigator.pop(imgCtx),
                       ),
                     ],
                   ),
                 ),
-              );
-              },
-            );
-          } else if (isPdf && mounted) {
-            // Save to temp and open with FileViewerDialog
-            final tempDir = await getTemporaryDirectory();
-            final filePath = '${tempDir.path}/$fileName';
-            await File(filePath).writeAsBytes(bytes);
-            if (mounted) {
-              showDialog(
-                context: context,
-                builder: (_) => FileViewerDialog(filePath: filePath, fileName: fileName),
-              );
-            }
-          } else {
-            // Other files - open externally
-            final tempDir = await getTemporaryDirectory();
-            final filePath = '${tempDir.path}/$fileName';
-            await File(filePath).writeAsBytes(bytes);
-            await OpenFilex.open(filePath);
-          }
-        } else if (result['download_url'] != null) {
-          _showError('Große Datei - Download via URL nicht implementiert');
-        }
-      } else {
-        _showError(result['message'] ?? 'Download fehlgeschlagen');
-      }
-    } catch (e) {
-      _showError('Download Fehler: $e');
-    }
+                Expanded(
+                  child: Container(
+                    color: Colors.black87,
+                    child: ClipRect(
+                      child: InteractiveViewer(
+                        transformationController: transformController,
+                        constrained: false,
+                        minScale: 0.3,
+                        maxScale: 5.0,
+                        boundaryMargin: const EdgeInsets.all(double.infinity),
+                        child: Transform.rotate(
+                          angle: rotation * 3.14159265 / 180,
+                          child: Image.memory(bytes),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   /// Mark all unread messages as read when user focuses on input
