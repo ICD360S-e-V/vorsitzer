@@ -51,18 +51,13 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadSavedCredentials();
   }
 
-  /// Resilient secure read with SharedPreferences fallback (handles -34018 on unsigned macOS)
+  /// Best-effort secure read. Returns null on any failure (e.g. -34018 on unsigned macOS).
+  /// We never fall back to plaintext storage — secrets stay secret or are not persisted.
   Future<String?> _safeRead(String key) async {
     try {
-      final value = await _secureStorage.read(key: key);
-      if (value != null) return value;
+      return await _secureStorage.read(key: key);
     } catch (e) {
-      _log.warning('Secure read failed for $key, trying SharedPreferences fallback: $e', tag: 'AUTH');
-    }
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('_fallback_$key');
-    } catch (_) {
+      _log.warning('Secure read unavailable for $key (skipped): $e', tag: 'AUTH');
       return null;
     }
   }
@@ -160,24 +155,20 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) setState(() { _isLoading = false; });
   }
 
-  /// Resilient secure write with SharedPreferences fallback (handles -34018 on unsigned macOS)
+  /// Best-effort secure write. On failure (e.g. -34018 on unsigned macOS) we silently
+  /// drop the value — better than persisting secrets to plaintext disk storage.
+  /// Side effect: "remember me" / auto-login becomes a no-op on such platforms.
   Future<void> _safeWrite(String key, String value) async {
     try {
       await _secureStorage.write(key: key, value: value);
     } catch (e) {
-      _log.warning('Secure write failed for $key, falling back to SharedPreferences: $e', tag: 'AUTH');
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('_fallback_$key', value);
+      _log.warning('Secure write unavailable for $key (skipped, no plaintext fallback): $e', tag: 'AUTH');
     }
   }
 
   Future<void> _safeDelete(String key) async {
     try {
       await _secureStorage.delete(key: key);
-    } catch (_) {}
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('_fallback_$key');
     } catch (_) {}
   }
 
