@@ -971,6 +971,112 @@ class ApiService {
     }
   }
 
+  // ============================================================
+  // Platform Korrespondenz (Eingang/Ausgang)
+  // ============================================================
+
+  /// List korrespondenz entries for a platform + direction (eingang|ausgang).
+  /// Each entry contains the embedded list of attached files.
+  Future<Map<String, dynamic>> getPlatformKorrespondenz({
+    required String platform,
+    required String direction,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/platform/korrespondenz_list.php'),
+        headers: _headers,
+        body: jsonEncode({'platform': platform, 'direction': direction}),
+      ).timeout(const Duration(seconds: 15));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load Korrespondenz: $e'};
+    }
+  }
+
+  /// Create a new korrespondenz entry. Files are optional. The endpoint is
+  /// multipart so we cannot use the standard JSON helper.
+  Future<Map<String, dynamic>> createPlatformKorrespondenz({
+    required String platform,
+    required String direction,
+    required String betreff,
+    required DateTime datum,
+    String? inhalt,
+    String? absender,
+    String? empfaenger,
+    List<File> files = const [],
+  }) async {
+    try {
+      final deviceKey = _deviceKeyService.deviceKey;
+      if (deviceKey == null) {
+        return {'success': false, 'message': 'Device not registered'};
+      }
+
+      final uri = Uri.parse('$baseUrl/platform/korrespondenz_create.php');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
+      request.headers['X-Device-Key'] = deviceKey;
+
+      request.fields['platform'] = platform;
+      request.fields['direction'] = direction;
+      request.fields['betreff'] = betreff;
+      // Server accepts ISO datetime "YYYY-MM-DD HH:MM:SS".
+      request.fields['datum'] =
+          '${datum.year.toString().padLeft(4, '0')}-${datum.month.toString().padLeft(2, '0')}-${datum.day.toString().padLeft(2, '0')} '
+          '${datum.hour.toString().padLeft(2, '0')}:${datum.minute.toString().padLeft(2, '0')}:${datum.second.toString().padLeft(2, '0')}';
+      if (inhalt != null && inhalt.isNotEmpty) request.fields['inhalt'] = inhalt;
+      if (absender != null && absender.isNotEmpty) request.fields['absender'] = absender;
+      if (empfaenger != null && empfaenger.isNotEmpty) request.fields['empfaenger'] = empfaenger;
+
+      for (final f in files) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'files[]',
+          f.path,
+          filename: f.uri.pathSegments.isNotEmpty ? f.uri.pathSegments.last : 'attachment',
+        ));
+      }
+
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 120));
+      final response = await http.Response.fromStream(streamed);
+
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to create Korrespondenz: $e'};
+    }
+  }
+
+  /// Delete a korrespondenz entry by id (cascades to files on disk).
+  Future<Map<String, dynamic>> deletePlatformKorrespondenz(int id) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/platform/korrespondenz_delete.php'),
+        headers: _headers,
+        body: jsonEncode({'id': id}),
+      ).timeout(const Duration(seconds: 15));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to delete Korrespondenz: $e'};
+    }
+  }
+
+  /// Download a single korrespondenz attachment as raw bytes (already
+  /// decrypted server-side). Returns null on any failure.
+  Future<Uint8List?> downloadPlatformKorrespondenzFile(int fileId) async {
+    final url = '$baseUrl/platform/korrespondenz_download.php?file_id=$fileId';
+    return fetchBytesAuthenticated(url);
+  }
+
   // List platform Aufgaben
   Future<Map<String, dynamic>> getPlatformAufgaben(String platform) async {
     try {
