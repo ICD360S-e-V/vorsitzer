@@ -73,6 +73,26 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
           echo "📦 Version: $VERSION_NAME+$BUILD_NUMBER"
 
+      - name: Verify update_service.dart matches pubspec.yaml
+        run: |
+          # The footer in the running app reads UpdateService.currentVersion /
+          # currentBuildNumber, which are hardcoded constants in
+          # lib/services/update_service.dart. If they desync from pubspec.yaml,
+          # the user sees the wrong version in the footer (and the changelog
+          # dialog will not match the running build). Fail the build EARLY so
+          # the developer notices before publishing the release.
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+          BUILD_NUMBER="${{ steps.version.outputs.build_number }}"
+          DART_VERSION=$(grep -oE "currentVersion = '[^']*'" lib/services/update_service.dart | sed -E "s/currentVersion = '([^']*)'/\\1/")
+          DART_BUILD=$(grep -oE 'currentBuildNumber = [0-9]+' lib/services/update_service.dart | awk '{print $3}')
+          echo "  pubspec.yaml          → $VERSION_NAME+$BUILD_NUMBER"
+          echo "  update_service.dart   → $DART_VERSION+$DART_BUILD"
+          if [ "$DART_VERSION" != "$VERSION_NAME" ] || [ "$DART_BUILD" != "$BUILD_NUMBER" ]; then
+            echo "::error file=lib/services/update_service.dart::Version mismatch — bump currentVersion='$VERSION_NAME' / currentBuildNumber=$BUILD_NUMBER to match pubspec.yaml"
+            exit 1
+          fi
+          echo "  ✅ versions match"
+
   # ══════════════════════════════════════════════
   #  ANDROID BUILDS
   # ══════════════════════════════════════════════
@@ -704,3 +724,83 @@ jobs:
 
           # Fix ownership for nginx + list deployed files
           ssh $SSH_BASE -p "$PORT" "$REMOTE" "chown -R nginx:nginx '$BASE' && find '$BASE' -name 'vorsitzer-${VERSION}*' -type f | sort"
+
+      - name: Update version_vorsitzer.json on server
+        run: |
+          VERSION="${{ needs.version.outputs.version_name }}"
+          BUILD="${{ needs.version.outputs.build_number }}"
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          SSH_BASE="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          DATA_DIR="/var/www/icd360sev.icd360s.de/api/data"
+
+          # Compute the previous (fallback) version: drop one from the patch component.
+          PREV_VERSION=$(echo "$VERSION" | awk -F. '{ if ($3 > 0) print $1"."$2"."($3-1); else print $1"."$2"."$3 }')
+
+          # Generate version_vorsitzer.json on the runner so we can scp it (avoids
+          # tricky inline JSON quoting through the SSH layer).
+          cat > /tmp/version_vorsitzer.json <<JSON
+          {
+              "version": "$VERSION",
+              "build_number": $BUILD,
+              "download_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/vorsitzer-$VERSION-windows-x64.zip",
+              "fallback_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/vorsitzer-$PREV_VERSION-windows-x64.zip",
+              "fallback_version": "$PREV_VERSION",
+              "changelog": "Version $VERSION\n\nSee full changelog at https://github.com/${{ github.repository }}/releases/tag/v$VERSION",
+              "min_version": null,
+              "force_update": false,
+              "release_date": "$(date -u +%Y-%m-%d)",
+              "file_size": "32 MB",
+              "download_url_android": "https://icd360sev.icd360s.de/downloads/vorsitzer/android/vorsitzer-$VERSION-universal.apk",
+              "download_url_macos": "https://icd360sev.icd360s.de/downloads/vorsitzer/macos/vorsitzer-$VERSION-macos.dmg",
+              "download_url_linux": "https://icd360sev.icd360s.de/downloads/vorsitzer/linux/vorsitzer-$VERSION-linux-x64.tar.gz",
+              "download_url_ios": "https://icd360sev.icd360s.de/downloads/vorsitzer/ios/vorsitzer-$VERSION-ios-unsigned.ipa"
+          }
+          JSON
+
+          scp $SSH_BASE -P "$PORT" /tmp/version_vorsitzer.json "$REMOTE:$DATA_DIR/version_vorsitzer.json"
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "chown nginx:nginx $DATA_DIR/version_vorsitzer.json && cat $DATA_DIR/version_vorsitzer.json | python3 -c 'import json,sys; v=json.load(sys.stdin); print(\"version_vorsitzer.json updated to\", v[\"version\"], \"build\", v[\"build_number\"])'"
+
+      - name: Update changelog_vorsitzer.json on server (mark new version as latest)
+        run: |
+          VERSION="${{ needs.version.outputs.version_name }}"
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          SSH_BASE="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          DATA_DIR="/var/www/icd360sev.icd360s.de/api/data"
+
+          # Run a Python one-liner remotely that:
+          #   1. Loads changelog_vorsitzer.json
+          #   2. Clears is_latest from every existing entry
+          #   3. If the new version isn't in the array yet, prepends a stub entry
+          #      pointing to the GitHub release for the full changelog
+          #   4. Marks the new version as is_latest=true
+          #   5. Updates last_updated timestamp
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "python3 - <<'PYEOF'
+          import json
+          from datetime import datetime, timezone
+          path = '$DATA_DIR/changelog_vorsitzer.json'
+          version = '$VERSION'
+          with open(path) as f:
+              data = json.load(f)
+          for v in data.get('versions', []):
+              v['is_latest'] = False
+          existing = next((v for v in data['versions'] if v.get('version') == version), None)
+          if existing is None:
+              today = datetime.now(timezone.utc).strftime('%d.%m.%Y')
+              data['versions'].insert(0, {
+                  'version': version,
+                  'date': today,
+                  'changes': [
+                      'Siehe vollstaendigen Changelog: https://github.com/${{ github.repository }}/releases/tag/v' + version,
+                  ],
+                  'is_latest': True,
+              })
+          else:
+              existing['is_latest'] = True
+          data['last_updated'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+          with open(path, 'w') as f:
+              json.dump(data, f, indent=2, ensure_ascii=False)
+          print('changelog updated, latest =', version)
+          PYEOF
+          chown nginx:nginx $DATA_DIR/changelog_vorsitzer.json"
