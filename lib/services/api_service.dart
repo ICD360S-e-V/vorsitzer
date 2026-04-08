@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
@@ -48,38 +49,63 @@ class ApiService {
 
   /// ✅ SECURITY FIX (2026-02-10): Tokens stored in FlutterSecureStorage (encrypted)
   /// Previous implementation used SharedPreferences (plain text) - CRITICAL vulnerability!
-  Future<void> loadTokens() async {
+  /// Falls back to SharedPreferences (with `_fallback_` prefix) on platforms where
+  /// the keychain is unavailable (e.g. unsigned macOS builds → -34018).
+  Future<String?> _safeRead(String key) async {
     try {
-      _token = await _secureStorage.read(key: 'access_token');
-      _refreshToken = await _secureStorage.read(key: 'refresh_token');
+      final value = await _secureStorage.read(key: key);
+      if (value != null) return value;
     } catch (e) {
-      LoggerService().error('Failed to load tokens from secure storage: $e', tag: 'API');
-      _token = null;
-      _refreshToken = null;
+      LoggerService().warning('Secure read failed for $key: $e', tag: 'API');
     }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('_fallback_$key');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _safeWrite(String key, String value) async {
+    try {
+      await _secureStorage.write(key: key, value: value);
+      return;
+    } catch (e) {
+      LoggerService().warning('Secure write failed for $key, falling back to SharedPreferences: $e', tag: 'API');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('_fallback_$key', value);
+    } catch (e) {
+      LoggerService().error('SharedPreferences fallback also failed for $key: $e', tag: 'API');
+    }
+  }
+
+  Future<void> _safeDelete(String key) async {
+    try {
+      await _secureStorage.delete(key: key);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('_fallback_$key');
+    } catch (_) {}
+  }
+
+  Future<void> loadTokens() async {
+    _token = await _safeRead('access_token');
+    _refreshToken = await _safeRead('refresh_token');
   }
 
   Future<void> saveTokens(String token, String refreshToken) async {
-    try {
-      await _secureStorage.write(key: 'access_token', value: token);
-      await _secureStorage.write(key: 'refresh_token', value: refreshToken);
-      _token = token;
-      _refreshToken = refreshToken;
-    } catch (e) {
-      LoggerService().error('Failed to save tokens to secure storage: $e', tag: 'API');
-      // Fallback: keep tokens in memory only
-      _token = token;
-      _refreshToken = refreshToken;
-    }
+    await _safeWrite('access_token', token);
+    await _safeWrite('refresh_token', refreshToken);
+    _token = token;
+    _refreshToken = refreshToken;
   }
 
   Future<void> clearTokens() async {
-    try {
-      await _secureStorage.delete(key: 'access_token');
-      await _secureStorage.delete(key: 'refresh_token');
-    } catch (e) {
-      LoggerService().error('Failed to clear tokens from secure storage: $e', tag: 'API');
-    }
+    await _safeDelete('access_token');
+    await _safeDelete('refresh_token');
     _token = null;
     _refreshToken = null;
   }
