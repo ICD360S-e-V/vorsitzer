@@ -643,3 +643,51 @@ jobs:
             artifacts/**/*.tar.gz
             artifacts/**/*.dmg
             artifacts/**/*.ipa
+
+  # ══════════════════════════════════════════════
+  #  DEPLOY TO SERVER (only on tag push)
+  # ══════════════════════════════════════════════
+  deploy:
+    name: "📤 Deploy to Server"
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - version
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p deploy
+          find artifacts -type f \( \
+            -name "*.apk" -o -name "*.aab" -o -name "*.zip" \
+            -o -name "*.tar.gz" -o -name "*.dmg" -o -name "*.ipa" \
+          \) -exec cp {} deploy/ \;
+          ls -lh deploy/
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.DEPLOY_PORT }} -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload to server
+        run: |
+          VERSION="${{ needs.version.outputs.version_name }}"
+          REMOTE_DIR="${{ secrets.DEPLOY_PATH }}/v${VERSION}"
+          # Create remote dir
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }} \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "mkdir -p '$REMOTE_DIR'"
+          # SCP all artifacts
+          scp -i ~/.ssh/deploy_key -P ${{ secrets.DEPLOY_PORT }} \
+              deploy/* \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:"$REMOTE_DIR/"
+          # Update 'latest' symlink
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }} \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              "ln -sfn '$REMOTE_DIR' '${{ secrets.DEPLOY_PATH }}/latest' && ls -la '${{ secrets.DEPLOY_PATH }}/'"
