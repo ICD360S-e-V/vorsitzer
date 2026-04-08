@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:otp/otp.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../widgets/file_viewer_dialog.dart';
 
 class MicrosoftNonprofitScreen extends StatefulWidget {
   final ApiService apiService;
@@ -37,6 +41,14 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
   String? _totpError;
   Timer? _totpTimer;
 
+  // Korrespondenz state (Eingang / Ausgang tabs)
+  static const String _platformId = 'microsoft-nonprofit';
+  String _korrTab = 'eingang'; // 'eingang' | 'ausgang'
+  List<Map<String, dynamic>> _korrEingang = [];
+  List<Map<String, dynamic>> _korrAusgang = [];
+  bool _korrLoading = false;
+  final Set<int> _korrExpanded = <int>{};
+
   // Aufgaben
   List<Map<String, dynamic>> _aufgaben = [];
 
@@ -51,7 +63,12 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
-    await Future.wait([_loadCredentials(), _loadAufgaben(), _loadNotizen()]);
+    await Future.wait([
+      _loadCredentials(),
+      _loadAufgaben(),
+      _loadNotizen(),
+      _loadKorrespondenz(),
+    ]);
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -736,6 +753,11 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
 
                         const SizedBox(height: 16),
 
+                        // ==================== Korrespondenz Card ====================
+                        _buildKorrespondenzCard(),
+
+                        const SizedBox(height: 16),
+
                         // ==================== Aufgaben Card ====================
                         Card(
                           child: Padding(
@@ -1276,6 +1298,529 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ====================================================================
+  // Korrespondenz — Eingang / Ausgang persisted server-side
+  // ====================================================================
+
+  Future<void> _loadKorrespondenz() async {
+    try {
+      final results = await Future.wait([
+        widget.apiService.getPlatformKorrespondenz(platform: _platformId, direction: 'eingang'),
+        widget.apiService.getPlatformKorrespondenz(platform: _platformId, direction: 'ausgang'),
+      ]);
+      if (results[0]['success'] == true && results[0]['korrespondenz'] != null) {
+        _korrEingang = List<Map<String, dynamic>>.from(results[0]['korrespondenz']);
+      }
+      if (results[1]['success'] == true && results[1]['korrespondenz'] != null) {
+        _korrAusgang = List<Map<String, dynamic>>.from(results[1]['korrespondenz']);
+      }
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  List<Map<String, dynamic>> get _currentKorrList =>
+      _korrTab == 'eingang' ? _korrEingang : _korrAusgang;
+
+  Future<void> _showCreateKorrespondenzDialog() async {
+    final betreffCtrl = TextEditingController();
+    final inhaltCtrl = TextEditingController();
+    final absenderCtrl = TextEditingController();
+    final empfaengerCtrl = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    List<File> pickedFiles = [];
+    bool saving = false;
+
+    final isEingang = _korrTab == 'eingang';
+
+    final created = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setDState) => AlertDialog(
+          title: Text(isEingang ? 'Neue Eingang-Mail' : 'Neue Ausgang-Mail'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Date picker
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: dctx,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now().add(const Duration(days: 1)),
+                      );
+                      if (picked != null) {
+                        setDState(() {
+                          selectedDate = DateTime(picked.year, picked.month, picked.day,
+                              selectedDate.hour, selectedDate.minute);
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Datum',
+                        prefixIcon: Icon(Icons.calendar_today),
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Text(DateFormat('dd.MM.yyyy').format(selectedDate)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: betreffCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Betreff *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.subject),
+                    ),
+                    maxLength: 500,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: isEingang ? absenderCtrl : empfaengerCtrl,
+                    decoration: InputDecoration(
+                      labelText: isEingang ? 'Absender' : 'Empfaenger',
+                      hintText: isEingang ? 'z.B. nonprofit@microsoft.com' : 'z.B. support@microsoft.com',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: Icon(isEingang ? Icons.mail : Icons.send),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: inhaltCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Inhalt',
+                      hintText: 'Volltext der Nachricht (optional)',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: 8,
+                    minLines: 4,
+                  ),
+                  const SizedBox(height: 12),
+                  // File picker
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.attach_file),
+                        label: Text('Datei hinzufuegen (${pickedFiles.length})'),
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final res = await FilePicker.platform.pickFiles(
+                                  allowMultiple: true,
+                                  withData: false,
+                                );
+                                if (res != null) {
+                                  setDState(() {
+                                    for (final f in res.files) {
+                                      if (f.path != null) pickedFiles.add(File(f.path!));
+                                    }
+                                  });
+                                }
+                              },
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'max 25 MB pro Datei',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                  if (pickedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: pickedFiles.asMap().entries.map((e) {
+                        final i = e.key;
+                        final f = e.value;
+                        final name = f.uri.pathSegments.isNotEmpty ? f.uri.pathSegments.last : 'datei';
+                        return Chip(
+                          label: Text(name, style: const TextStyle(fontSize: 12)),
+                          deleteIcon: const Icon(Icons.close, size: 16),
+                          onDeleted: saving ? null : () => setDState(() => pickedFiles.removeAt(i)),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dctx, false),
+              child: const Text('Abbrechen'),
+            ),
+            ElevatedButton.icon(
+              icon: saving
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save),
+              label: Text(saving ? 'Speichern...' : 'Speichern'),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (betreffCtrl.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(dctx).showSnackBar(
+                          const SnackBar(content: Text('Betreff ist erforderlich')),
+                        );
+                        return;
+                      }
+                      setDState(() => saving = true);
+                      final result = await widget.apiService.createPlatformKorrespondenz(
+                        platform: _platformId,
+                        direction: _korrTab,
+                        betreff: betreffCtrl.text.trim(),
+                        datum: selectedDate,
+                        inhalt: inhaltCtrl.text.trim().isEmpty ? null : inhaltCtrl.text.trim(),
+                        absender: isEingang ? absenderCtrl.text.trim() : null,
+                        empfaenger: !isEingang ? empfaengerCtrl.text.trim() : null,
+                        files: pickedFiles,
+                      );
+                      if (!dctx.mounted) return;
+                      if (result['success'] == true) {
+                        Navigator.pop(dctx, true);
+                      } else {
+                        setDState(() => saving = false);
+                        ScaffoldMessenger.of(dctx).showSnackBar(
+                          SnackBar(
+                            content: Text('Fehler: ${result['message'] ?? 'Unbekannter Fehler'}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
+
+    betreffCtrl.dispose();
+    inhaltCtrl.dispose();
+    absenderCtrl.dispose();
+    empfaengerCtrl.dispose();
+
+    if (created == true) {
+      await _loadKorrespondenz();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Korrespondenz gespeichert'), backgroundColor: Colors.green),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteKorrespondenz(int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Loeschen?'),
+        content: const Text('Diese Korrespondenz und alle Anhaenge werden dauerhaft entfernt.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dctx, true),
+            child: const Text('Loeschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final result = await widget.apiService.deletePlatformKorrespondenz(id);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      await _loadKorrespondenz();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geloescht'), backgroundColor: Colors.green),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler: ${result['message']}'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _openKorrespondenzAttachment(Map<String, dynamic> file) async {
+    final fileId = file['id'] as int;
+    final fileName = (file['datei_name'] as String?) ?? 'attachment';
+
+    // Show a transient loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+          const SizedBox(width: 12),
+          Text('Lade $fileName ...'),
+        ]),
+        duration: const Duration(seconds: 30),
+      ),
+    );
+
+    final Uint8List? bytes = await widget.apiService.downloadPlatformKorrespondenzFile(fileId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    if (bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Datei konnte nicht geladen werden'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final ext = fileName.toLowerCase().split('.').last;
+    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(ext);
+    final isPdf = ext == 'pdf';
+
+    if (isImage || isPdf) {
+      // Both formats render directly from bytes via FileViewerDialog (PDF
+      // uses PdfViewer.data, images use Image.memory).
+      showDialog(
+        context: context,
+        builder: (_) => FileViewerDialog(fileBytes: bytes, fileName: fileName),
+      );
+    } else {
+      // Other formats: best-effort hint, no in-app viewer.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${ext.toUpperCase()} Format kann nicht direkt angezeigt werden'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  Widget _buildKorrespondenzCard() {
+    final list = _currentKorrList;
+    final isEingang = _korrTab == 'eingang';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.email, color: Colors.teal.shade700, size: 24),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Korrespondenz',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.add_circle, color: Colors.teal.shade700, size: 28),
+                  onPressed: _showCreateKorrespondenzDialog,
+                  tooltip: 'Neue ${isEingang ? "Eingang" : "Ausgang"}-Mail',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'E-Mails von / an Microsoft for Nonprofits speichern',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 16),
+
+            // Tab toggle
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.inbox, size: 18),
+                        const SizedBox(width: 6),
+                        Text('Eingang (${_korrEingang.length})'),
+                      ],
+                    ),
+                    selected: _korrTab == 'eingang',
+                    onSelected: (_) => setState(() => _korrTab = 'eingang'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.send, size: 18),
+                        const SizedBox(width: 6),
+                        Text('Ausgang (${_korrAusgang.length})'),
+                      ],
+                    ),
+                    selected: _korrTab == 'ausgang',
+                    onSelected: (_) => setState(() => _korrTab = 'ausgang'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            if (list.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                alignment: Alignment.center,
+                child: Column(
+                  children: [
+                    Icon(Icons.email_outlined, size: 48, color: Colors.grey.shade300),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Keine ${isEingang ? "Eingang" : "Ausgang"}-Mails',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...list.map(_buildKorrespondenzItem),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKorrespondenzItem(Map<String, dynamic> entry) {
+    final id = entry['id'] as int;
+    final betreff = (entry['betreff'] as String?) ?? '(ohne Betreff)';
+    final inhalt = (entry['inhalt'] as String?) ?? '';
+    final datumStr = (entry['datum'] as String?) ?? '';
+    DateTime? datum;
+    try { datum = DateTime.parse(datumStr); } catch (_) {}
+    final dateLabel = datum != null ? DateFormat('dd.MM.yyyy HH:mm').format(datum) : datumStr;
+    final partner = _korrTab == 'eingang'
+        ? ((entry['absender'] as String?) ?? '')
+        : ((entry['empfaenger'] as String?) ?? '');
+    final files = List<Map<String, dynamic>>.from(entry['files'] ?? const []);
+    final expanded = _korrExpanded.contains(id);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            dense: true,
+            leading: Icon(
+              _korrTab == 'eingang' ? Icons.inbox : Icons.send,
+              color: Colors.teal.shade700,
+            ),
+            title: Text(
+              betreff,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(dateLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                if (partner.isNotEmpty)
+                  Text(
+                    '${_korrTab == "eingang" ? "Von" : "An"}: $partner',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                  ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (files.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Chip(
+                      visualDensity: VisualDensity.compact,
+                      label: Text('${files.length}'),
+                      avatar: const Icon(Icons.attach_file, size: 14),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                IconButton(
+                  icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                  onPressed: () => setState(() {
+                    if (expanded) {
+                      _korrExpanded.remove(id);
+                    } else {
+                      _korrExpanded.add(id);
+                    }
+                  }),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  color: Colors.red.shade400,
+                  onPressed: () => _deleteKorrespondenz(id),
+                  tooltip: 'Loeschen',
+                ),
+              ],
+            ),
+          ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (inhalt.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: SelectableText(
+                        inhalt,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (files.isNotEmpty) ...[
+                    Text(
+                      'Anhaenge:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: files.map((f) {
+                        final name = (f['datei_name'] as String?) ?? 'datei';
+                        final size = (f['datei_groesse'] as int?) ?? 0;
+                        final sizeKb = size > 0 ? '${(size / 1024).toStringAsFixed(0)} KB' : '';
+                        return ActionChip(
+                          avatar: const Icon(Icons.insert_drive_file, size: 16),
+                          label: Text('$name${sizeKb.isNotEmpty ? " · $sizeKb" : ""}',
+                              style: const TextStyle(fontSize: 12)),
+                          onPressed: () => _openKorrespondenzAttachment(f),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
