@@ -161,7 +161,9 @@ dependencies:
   archive: ^4.0.9
 
   # TOTP/HOTP RFC 6238 — generate 2FA codes for stored platform secrets
-  otp: ^3.1.4
+  # Pinned to 3.1.3 because 3.1.4+ requires timezone ^0.9.0/^0.10.0 which conflicts
+  # with flutter_local_notifications ^21.0.0 (needs timezone ^0.11.0).
+  otp: 3.1.3
 
 dev_dependencies:
   flutter_test:
