@@ -22,7 +22,9 @@ class DeviceKeyService {
   static const String _deviceKeyStorageKey = 'device_key';
   static const String _deviceIdStorageKey = 'device_id';
 
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
   final LoggerService _logger = LoggerService();
   bool _useSharedPrefsFallback = false;
 
