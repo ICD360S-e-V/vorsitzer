@@ -23,7 +23,9 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _apiService = ApiService();
-  final _secureStorage = const FlutterSecureStorage();
+  final _secureStorage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
 
   // Login form controllers (shared with LoginTab)
   final _mitgliedernummerController = TextEditingController();
