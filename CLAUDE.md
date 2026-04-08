@@ -2168,3 +2168,96 @@ ssh -i "vps_icd360sev_icd360s.de" -p 36000 root@icd360sev.icd360s.de \
 - File size: 48 MB
 
 ---
+
+## CI/CD Pipeline & Release Flow (v1.0.37+)
+
+### GitHub Actions Workflow
+**File:** `.github/workflows/build.yml`
+
+**Triggers:**
+- `workflow_dispatch` (manual run, no release)
+- Tag push `v*` → full build + GitHub Release + auto-deploy to prod server
+
+**Jobs (10 total, run in parallel):**
+
+| Job | Output | Runner |
+|-----|--------|--------|
+| 📋 Version Info | Reads version from pubspec.yaml | ubuntu |
+| 🤖 Android Universal APK | `vorsitzer-X.Y.Z-universal.apk` (fat APK, all ABIs) | ubuntu |
+| 📱 Samsung Galaxy Store | Per-ABI splits: `samsung-arm64-v8a`, `samsung-armeabi-v7a`, `samsung-x86_64` | ubuntu |
+| ▶️ Google Play AAB | `vorsitzer-X.Y.Z-googleplay.aab` (signed) | ubuntu |
+| 🔓 F-Droid APK | `vorsitzer-X.Y.Z-fdroid.apk` (`--dart-define=STORE=fdroid`) | ubuntu |
+| 📲 Huawei AppGallery | `vorsitzer-X.Y.Z-huawei.apk` (`--dart-define=STORE=huawei`) | ubuntu |
+| 🪟 Windows | `vorsitzer-X.Y.Z-windows-x64.zip` | windows |
+| 🐧 Linux | `vorsitzer-X.Y.Z-linux-x64.tar.gz` (deps: libgtk-3, libsecret, libayatana-appindicator3, libmpv) | ubuntu |
+| 🍎 macOS | `vorsitzer-X.Y.Z-macos.dmg` (unsigned, ad-hoc; signing disabled via Release.xcconfig override) | macos (Xcode latest-stable) |
+| 📱 iOS | `vorsitzer-X.Y.Z-ios-unsigned.ipa` (Podfile.lock refreshed pre-build) | macos (Xcode latest-stable) |
+| 🚀 Create Release | GitHub Release with all artifacts attached | ubuntu |
+| 📤 Deploy to Server | SCP artifacts to prod, organized by platform | ubuntu |
+
+### Release Process
+```bash
+# 1. Bump version in pubspec.yaml (e.g. 1.0.40+41 → 1.0.41+42)
+# 2. Tag and push
+git tag v1.0.41
+git push origin v1.0.41
+# 3. GitHub Actions runs everything automatically:
+#    - 9 builds in parallel (~10-15 min)
+#    - Creates GitHub Release at https://github.com/ICD360S-e-V/vorsitzer/releases/tag/v1.0.41
+#    - SCPs all artifacts to prod under /var/www/icd360sev.icd360s.de/downloads/vorsitzer/{platform}/
+```
+
+### Public Download URLs (after deploy)
+```
+https://icd360sev.icd360s.de/downloads/vorsitzer/windows/vorsitzer-X.Y.Z-windows-x64.zip
+https://icd360sev.icd360s.de/downloads/vorsitzer/linux/vorsitzer-X.Y.Z-linux-x64.tar.gz
+https://icd360sev.icd360s.de/downloads/vorsitzer/macos/vorsitzer-X.Y.Z-macos.dmg
+https://icd360sev.icd360s.de/downloads/vorsitzer/ios/vorsitzer-X.Y.Z-ios-unsigned.ipa
+https://icd360sev.icd360s.de/downloads/vorsitzer/android/vorsitzer-X.Y.Z-{universal,fdroid,huawei,googleplay,samsung-*}.{apk,aab}
+```
+
+### GitHub Secrets Required
+**Android signing (configured):**
+- `KEYSTORE_BASE64` — base64-encoded `.jks` keystore
+- `KEYSTORE_PASSWORD`, `KEY_PASSWORD` — same complex password
+- `KEY_ALIAS` — `vorsitzer-icd360sev`
+
+Keystore details: RSA 2048, 10000 days validity, CN=ICD360S e.V., L=Neu-Ulm, C=DE.
+**Backup file:** `/root/upload-keystore.jks` on alma-8gb-fsn1-1 (DO NOT LOSE — only copy).
+
+**Auto-deploy SSH (configured):**
+- `DEPLOY_SSH_KEY` — private key `icd360sev.icd360s.de`
+- `DEPLOY_HOST=icd360sev.icd360s.de`, `DEPLOY_PORT=36000`, `DEPLOY_USER=root`
+- `DEPLOY_PATH=/var/www/icd360sev.icd360s.de/downloads/vorsitzer`
+
+**Apple signing (NOT configured — builds are unsigned):**
+- `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE`
+- `MACOS_CERTIFICATE_BASE64`, `MACOS_CERTIFICATE_PASSWORD`
+- Workflow auto-detects: if present → signs; if absent → unsigned (current state).
+
+### Known limitations on unsigned macOS builds
+**`flutter_secure_storage` -34018 errSecMissingEntitlement**
+- macOS Sequoia/Tahoe (26.x) refuses Keychain access for binaries without ANY code signature.
+- CI builds use `CODE_SIGNING_ALLOWED = NO` (no Apple Developer cert) → no signature → keychain blocked.
+- **Mitigation in code** (`api_service.dart`, `login_screen.dart`): try/catch around `_secureStorage.read/write/delete`, **memory-only fallback**. NO plaintext disk fallback (security).
+- **Consequence:** "Remember me" / auto-login is a no-op on macOS unsigned builds. Tokens kept in RAM only — user re-logs in on each app start. Login itself works fine.
+- **Real fix (not yet applied):** ad-hoc or self-signed code signing in CI workflow, OR Apple Developer ID ($99/year).
+- iOS unsigned builds: same flow but `flutter_secure_storage` works without entitlements via fallback.
+
+### iOS code-level fix (also in v1.0.39+)
+`ios/Runner/AppDelegate.swift` `checkForkExecution()` resolves `fork()` symbol via `dlsym(RTLD_DEFAULT, "fork")` instead of calling it directly. This bypasses the Xcode 16 SDK `unavailable` annotation while preserving the runtime jailbreak-detection behaviour. Required imports: `import MachO; import Darwin`.
+
+### Last release
+- **v1.0.40** (2026-04-08) — keychain fallback (memory-only, no plaintext disk), Vorsitzer credentials reset
+
+## Vorsitzer Account (production)
+| Field | Value |
+|-------|-------|
+| Mitgliedernummer | `V27655` (was `V00001`, randomized 2026-04-08 for security) |
+| Password | `12345678901` |
+| Role | `vorsitzer` |
+| User ID | `2` |
+| Email | `icd@icd360s.de` |
+| Name | Ionut Duinea |
+
+**Second vorsitzer:** `V75715` (Michaela-Christine Weber) — already had random ID, untouched.
