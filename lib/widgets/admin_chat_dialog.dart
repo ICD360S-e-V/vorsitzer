@@ -1107,13 +1107,63 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     // Fallback for non-renderable formats: write to temp dir and ask the OS
     // to open it. This is the only path that requires disk access.
     try {
-      final tempDir = await getTemporaryDirectory();
-      final filePath = '${tempDir.path}/$fileName';
-      await File(filePath).writeAsBytes(bytes);
+      final filePath = await _writeBytesToWritableDir(bytes, fileName);
       await OpenFilex.open(filePath);
     } catch (e) {
       _showError('Datei konnte nicht geöffnet werden: $e');
     }
+  }
+
+  /// Persist [bytes] to a writable on-disk location and return the absolute
+  /// path. Tries the system temp dir first, falls back to ApplicationSupport
+  /// (always writable for the current user) and finally Documents.
+  ///
+  /// On macOS without code-signing, `getTemporaryDirectory()` returns
+  /// `~/Library/Caches/<bundle-id>/` which may not exist yet — we create the
+  /// parent recursively to avoid PathNotFoundException.
+  ///
+  /// The filename is also sanitized: path separators and reserved characters
+  /// are replaced with `_` so we never accidentally try to write into a
+  /// non-existent subdirectory.
+  Future<String> _writeBytesToWritableDir(Uint8List bytes, String rawName) async {
+    final safeName = _sanitizeFilename(rawName);
+
+    // Try in order: temp → application support → documents.
+    final candidates = <Future<Directory> Function()>[
+      getTemporaryDirectory,
+      getApplicationSupportDirectory,
+      getApplicationDocumentsDirectory,
+    ];
+
+    Object? lastError;
+    for (final getDir in candidates) {
+      try {
+        final dir = await getDir();
+        // Make sure the directory actually exists (path_provider does NOT
+        // guarantee this for all platforms, e.g. unsigned macOS Caches).
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        final filePath = '${dir.path}${Platform.pathSeparator}$safeName';
+        await File(filePath).writeAsBytes(bytes, flush: true);
+        return filePath;
+      } catch (e) {
+        lastError = e;
+        // try next candidate
+      }
+    }
+    throw lastError ?? Exception('Kein beschreibbares Verzeichnis gefunden');
+  }
+
+  /// Strip path separators and characters that are illegal on common
+  /// filesystems so we never end up with a sub-path the OS would have to
+  /// resolve. Empty result falls back to a generic name.
+  String _sanitizeFilename(String name) {
+    var s = name.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_').trim();
+    // Disallow leading dots (hidden files on unix) — keep extension though.
+    s = s.replaceFirst(RegExp(r'^\.+'), '');
+    if (s.isEmpty) s = 'attachment';
+    return s;
   }
 
   /// In-memory image viewer (Image.memory + InteractiveViewer + zoom/rotate
@@ -1189,9 +1239,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                         // to open the saved copy (NSWorkspace / xdg-open / etc.).
                         onPressed: () async {
                           try {
-                            final tempDir = await getTemporaryDirectory();
-                            final filePath = '${tempDir.path}/$fileName';
-                            await File(filePath).writeAsBytes(bytes);
+                            final filePath = await _writeBytesToWritableDir(bytes, fileName);
                             await OpenFilex.open(filePath);
                           } catch (e) {
                             _showError('Speichern fehlgeschlagen: $e');
