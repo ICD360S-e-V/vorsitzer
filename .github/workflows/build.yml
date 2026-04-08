@@ -686,19 +686,19 @@ jobs:
         run: |
           VERSION="${{ needs.version.outputs.version_name }}"
           BASE="${{ secrets.DEPLOY_PATH }}"
-          REMOTE_VER="$BASE/v${VERSION}"
-          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }}"
+          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }} -o StrictHostKeyChecking=no"
           REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
 
-          # Create remote dirs
-          ssh $SSH_OPTS $REMOTE "mkdir -p '$REMOTE_VER'/{android,windows,linux,macos,ios}"
+          # Ensure platform dirs exist
+          ssh $SSH_OPTS $REMOTE "mkdir -p '$BASE'/{android,windows,linux,macos,ios}"
 
-          # Upload by platform
+          # Upload by platform — files land directly under e.g. /downloads/vorsitzer/windows/
           for plat in android windows linux macos ios; do
             if [ -n "$(ls -A deploy/$plat/ 2>/dev/null)" ]; then
-              scp $SSH_OPTS deploy/$plat/* $REMOTE:"$REMOTE_VER/$plat/"
+              echo "==> Uploading $plat ..."
+              scp $SSH_OPTS deploy/$plat/* $REMOTE:"$BASE/$plat/"
             fi
           done
 
-          # Update 'latest' symlink
-          ssh $SSH_OPTS $REMOTE "ln -sfn '$REMOTE_VER' '$BASE/latest' && find '$REMOTE_VER' -type f"
+          # Fix ownership for nginx
+          ssh $SSH_OPTS $REMOTE "chown -R nginx:nginx '$BASE' && find '$BASE' -type f -newer /tmp -o -name 'vorsitzer-${VERSION}*' | sort"
