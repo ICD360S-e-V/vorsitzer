@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:otp/otp.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
@@ -26,7 +28,14 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _totpSecretController = TextEditingController();
   String _website = 'https://nonprofit.microsoft.com/';
+
+  // 2FA / TOTP state
+  String _currentTotpCode = '';
+  int _totpSecondsRemaining = 30;
+  String? _totpError;
+  Timer? _totpTimer;
 
   // Aufgaben
   List<Map<String, dynamic>> _aufgaben = [];
@@ -53,9 +62,75 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
         final creds = result['credentials'];
         _emailController.text = creds['email'] ?? '';
         _passwordController.text = creds['password'] ?? '';
+        _totpSecretController.text = creds['totp_secret'] ?? '';
         _website = creds['website'] ?? 'https://nonprofit.microsoft.com/';
+        _refreshTotpCode();
+        _ensureTotpTimer();
       }
     } catch (_) {}
+  }
+
+  // ====================================================================
+  // 2FA / TOTP — RFC 6238, 30s window, 6 digits, SHA-1, Base32 secret
+  // ====================================================================
+
+  /// Normalize a Base32 secret: strip whitespace, force uppercase. Spaces are
+  /// commonly present when copy-pasting from setup screens (e.g. "JBSW Y3DP").
+  String _normalizeSecret(String raw) =>
+      raw.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+
+  /// Generate the current TOTP code using the package `otp` (Base32 → HMAC-SHA1).
+  /// Returns null if the secret is invalid (not Base32).
+  String? _generateTotp(String secret) {
+    final clean = _normalizeSecret(secret);
+    if (clean.isEmpty) return null;
+    try {
+      return OTP.generateTOTPCodeString(
+        clean,
+        DateTime.now().millisecondsSinceEpoch,
+        length: 6,
+        interval: 30,
+        algorithm: Algorithm.SHA1,
+        isGoogle: true,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Recompute current code + remaining seconds in the 30s window.
+  void _refreshTotpCode() {
+    final secret = _totpSecretController.text;
+    if (secret.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _currentTotpCode = '';
+          _totpError = null;
+          _totpSecondsRemaining = 30;
+        });
+      }
+      return;
+    }
+    final code = _generateTotp(secret);
+    final epochSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final remaining = 30 - (epochSec % 30);
+    if (mounted) {
+      setState(() {
+        if (code == null) {
+          _currentTotpCode = '';
+          _totpError = 'Ungültiger Base32-Schlüssel';
+        } else {
+          _currentTotpCode = code;
+          _totpError = null;
+        }
+        _totpSecondsRemaining = remaining;
+      });
+    }
+  }
+
+  /// Start the 1Hz refresh timer (idempotent — safe to call repeatedly).
+  void _ensureTotpTimer() {
+    _totpTimer ??= Timer.periodic(const Duration(seconds: 1), (_) => _refreshTotpCode());
   }
 
   Future<void> _loadAufgaben() async {
@@ -84,6 +159,9 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         website: _website,
+        // Always send the TOTP secret (normalized) so the server stores
+        // it consistently. Empty string = explicit clear.
+        totpSecret: _normalizeSecret(_totpSecretController.text),
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -653,6 +731,11 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
 
                         const SizedBox(height: 16),
 
+                        // ==================== 2FA / TOTP Card ====================
+                        _build2FACard(),
+
+                        const SizedBox(height: 16),
+
                         // ==================== Aufgaben Card ====================
                         Card(
                           child: Padding(
@@ -965,10 +1048,245 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
     );
   }
 
+  // ====================================================================
+  // 2FA / TOTP Card
+  // ====================================================================
+  Widget _build2FACard() {
+    final hasSecret = _totpSecretController.text.trim().isNotEmpty;
+    final formattedCode = _currentTotpCode.length == 6
+        ? '${_currentTotpCode.substring(0, 3)} ${_currentTotpCode.substring(3)}'
+        : '------';
+    final progress = _totpSecondsRemaining / 30.0;
+    final urgentColor = _totpSecondsRemaining <= 5;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.shield_outlined, color: Colors.indigo.shade700, size: 24),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Zwei-Faktor-Authentifizierung (2FA)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ),
+                if (hasSecret && !_isEditing && _currentTotpCode.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Aktiv',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'TOTP-Code (RFC 6238) wird alle 30 Sekunden neu generiert',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 16),
+
+            if (_isEditing) ...[
+              // ===== EDIT MODE =====
+              TextField(
+                controller: _totpSecretController,
+                decoration: InputDecoration(
+                  labelText: '2FA Schlüssel (Base32)',
+                  hintText: 'z.B. JBSWY3DPEHPK3PXP',
+                  helperText: 'Aus Microsoft Account-Einrichtung kopieren (Leerzeichen werden ignoriert)',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.vpn_key),
+                  suffixIcon: _totpSecretController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          tooltip: 'Löschen',
+                          onPressed: () {
+                            setState(() {
+                              _totpSecretController.clear();
+                              _currentTotpCode = '';
+                              _totpError = null;
+                            });
+                          },
+                        )
+                      : null,
+                ),
+                style: const TextStyle(fontFamily: 'monospace', letterSpacing: 1.5),
+                onChanged: (_) => _refreshTotpCode(),
+              ),
+              if (_totpError != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                    const SizedBox(width: 8),
+                    Text(_totpError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                  ],
+                ),
+              ],
+            ] else ...[
+              // ===== READ MODE =====
+              if (!hasSecret)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.grey.shade600),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Kein 2FA-Schlüssel konfiguriert. Auf Bearbeiten klicken, um einen Schlüssel hinzuzufügen.',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.indigo.shade200, width: 2),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Aktueller Code',
+                                  style: TextStyle(fontSize: 12, color: Colors.indigo.shade700, fontWeight: FontWeight.w500),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  formattedCode,
+                                  style: TextStyle(
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'monospace',
+                                    letterSpacing: 4,
+                                    color: _totpError != null
+                                        ? Colors.red.shade700
+                                        : (urgentColor ? Colors.orange.shade700 : Colors.indigo.shade900),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_currentTotpCode.isNotEmpty)
+                            Column(
+                              children: [
+                                SizedBox(
+                                  width: 50,
+                                  height: 50,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        value: progress,
+                                        strokeWidth: 4,
+                                        backgroundColor: Colors.indigo.shade100,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          urgentColor ? Colors.orange.shade700 : Colors.indigo.shade600,
+                                        ),
+                                      ),
+                                      Text(
+                                        '$_totpSecondsRemaining',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: urgentColor ? Colors.orange.shade700 : Colors.indigo.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text('Sek.', style: TextStyle(fontSize: 10, color: Colors.indigo.shade700)),
+                              ],
+                            ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.copy, size: 22),
+                            color: Colors.indigo.shade700,
+                            tooltip: 'Code kopieren',
+                            onPressed: _currentTotpCode.isEmpty
+                                ? null
+                                : () => _copyToClipboard(_currentTotpCode, '2FA Code'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_totpError != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                          const SizedBox(width: 8),
+                          Text(_totpError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+            ],
+            const SizedBox(height: 12),
+
+            // Encryption info
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.shield, size: 16, color: Colors.green.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '2FA-Schlüssel wird AES-256 verschlüsselt in der Datenbank gespeichert',
+                      style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    _totpTimer?.cancel();
+    _totpTimer = null;
     _emailController.dispose();
     _passwordController.dispose();
+    _totpSecretController.dispose();
     super.dispose();
   }
 }
