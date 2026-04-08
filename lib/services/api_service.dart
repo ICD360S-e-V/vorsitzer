@@ -819,6 +819,28 @@ class ApiService {
   }
 
   // Download chat attachment
+  /// Download arbitrary bytes from one of our own endpoints (e.g. chat/stream.php).
+  /// Sends the device-key headers so the server can authenticate the request.
+  /// Returns null on any failure (network, non-200, etc.).
+  Future<Uint8List?> fetchBytesAuthenticated(String url) async {
+    try {
+      final response = await _client
+          .get(Uri.parse(url), headers: _headers)
+          .timeout(const Duration(seconds: 60));
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+      LoggerService().warning(
+        'fetchBytesAuthenticated $url -> HTTP ${response.statusCode}',
+        tag: 'API',
+      );
+      return null;
+    } catch (e) {
+      LoggerService().error('fetchBytesAuthenticated $url failed: $e', tag: 'API');
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> downloadChatAttachment({
     required int attachmentId,
     required String mitgliedernummer,
