@@ -659,14 +659,21 @@ jobs:
         with:
           path: artifacts
 
-      - name: Flatten artifacts
+      - name: Organize artifacts by platform
         run: |
-          mkdir -p deploy
-          find artifacts -type f \( \
-            -name "*.apk" -o -name "*.aab" -o -name "*.zip" \
-            -o -name "*.tar.gz" -o -name "*.dmg" -o -name "*.ipa" \
-          \) -exec cp {} deploy/ \;
-          ls -lh deploy/
+          mkdir -p deploy/{android,windows,linux,macos,ios}
+          # Android (APK + AAB)
+          find artifacts -type f \( -name "*.apk" -o -name "*.aab" \) -exec cp {} deploy/android/ \;
+          # Windows
+          find artifacts -type f -name "*windows*.zip" -exec cp {} deploy/windows/ \;
+          # Linux
+          find artifacts -type f -name "*linux*.tar.gz" -exec cp {} deploy/linux/ \;
+          # macOS
+          find artifacts -type f -name "*.dmg" -exec cp {} deploy/macos/ \;
+          # iOS
+          find artifacts -type f -name "*.ipa" -exec cp {} deploy/ios/ \;
+          echo "=== Deploy tree ==="
+          find deploy -type f -exec ls -lh {} \;
 
       - name: Setup SSH
         run: |
@@ -678,16 +685,20 @@ jobs:
       - name: Upload to server
         run: |
           VERSION="${{ needs.version.outputs.version_name }}"
-          REMOTE_DIR="${{ secrets.DEPLOY_PATH }}/v${VERSION}"
-          # Create remote dir
-          ssh -i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }} \
-              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              "mkdir -p '$REMOTE_DIR'"
-          # SCP all artifacts
-          scp -i ~/.ssh/deploy_key -P ${{ secrets.DEPLOY_PORT }} \
-              deploy/* \
-              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:"$REMOTE_DIR/"
+          BASE="${{ secrets.DEPLOY_PATH }}"
+          REMOTE_VER="$BASE/v${VERSION}"
+          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }}"
+          REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+
+          # Create remote dirs
+          ssh $SSH_OPTS $REMOTE "mkdir -p '$REMOTE_VER'/{android,windows,linux,macos,ios}"
+
+          # Upload by platform
+          for plat in android windows linux macos ios; do
+            if [ -n "$(ls -A deploy/$plat/ 2>/dev/null)" ]; then
+              scp $SSH_OPTS deploy/$plat/* $REMOTE:"$REMOTE_VER/$plat/"
+            fi
+          done
+
           # Update 'latest' symlink
-          ssh -i ~/.ssh/deploy_key -p ${{ secrets.DEPLOY_PORT }} \
-              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              "ln -sfn '$REMOTE_DIR' '${{ secrets.DEPLOY_PATH }}/latest' && ls -la '${{ secrets.DEPLOY_PATH }}/'"
+          ssh $SSH_OPTS $REMOTE "ln -sfn '$REMOTE_VER' '$BASE/latest' && find '$REMOTE_VER' -type f"
