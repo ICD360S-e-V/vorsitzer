@@ -100,7 +100,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
   // ==================== PDF Loading ====================
 
   Future<void> _openPdf() async {
-    final result = await FilePickerHelper.pickFiles(
+    final result = await FilePickerHelper.saveFile(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
       dialogTitle: 'PDF öffnen',
@@ -830,7 +830,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
 
   Future<void> _mergePdfs() async {
     // Pick multiple PDF files
-    final result = await FilePickerHelper.pickFiles(
+    final result = await FilePickerHelper.saveFile(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
       allowMultiple: true,
