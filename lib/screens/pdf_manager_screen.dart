@@ -11,6 +11,7 @@ import 'package:printing/printing.dart';
 import 'package:signature/signature.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
+import '../utils/file_picker_helper.dart';
 
 // ==================== Data Models ====================
 
@@ -99,7 +100,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
   // ==================== PDF Loading ====================
 
   Future<void> _openPdf() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
       dialogTitle: 'PDF öffnen',
@@ -829,7 +830,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
 
   Future<void> _mergePdfs() async {
     // Pick multiple PDF files
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
       allowMultiple: true,
