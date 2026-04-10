@@ -19,6 +19,7 @@ import 'chat_input_area.dart';
 import 'chat_header.dart';
 import 'file_viewer_dialog.dart';
 import 'eastern.dart';
+import '../utils/file_picker_helper.dart';
 
 final _log = LoggerService();
 
@@ -956,7 +957,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     if (_selectedConversation == null) return;
 
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePickerHelper.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'txt'],
         allowMultiple: true,
