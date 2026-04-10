@@ -1589,48 +1589,28 @@ git push origin main vX.Y.Z
 #   - GitHub Release with all artifacts attached
 #   - SCP artifacts to /var/www/icd360sev.icd360s.de/downloads/vorsitzer/{platform}/
 #   - Update version_vorsitzer.json on the prod server (version + URLs)
-#   - Create STUB entry in changelog_vorsitzer.json (just marks is_latest=true)
-
-# ═══════════════════════════════════════════════════════════════
-# STEP 4: ⚠️ OBLIGATORIU — Documentează changelog-ul PE SERVER
-# ═══════════════════════════════════════════════════════════════
-# CI creează doar un STUB (placeholder). TREBUIE să-l înlocuiești cu
-# descrieri REALE ale modificărilor. Fără acest pas, utilizatorii
-# văd în changelog doar un link la GitHub — INACCEPTABIL.
-#
-# Conectează-te la server și rulează scriptul de mai jos:
-
-ssh -i ~/.ssh/icd360sev.icd360s.de -p 36000 root@icd360sev.icd360s.de
-python3 << 'PYEOF'
-import json
-
-path = "/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json"
-d = json.load(open(path))
-
-# Găsește versiunea nouă (is_latest=True) și înlocuiește changes:
-for v in d["versions"]:
-    if v.get("is_latest"):
-        v["changes"] = [
-            # ← SCRIE AICI modificările reale, câte una per linie:
-            "Prima modificare descriere",
-            "A doua modificare descriere",
-            "..."
-        ]
-        print(f"Updated {v['version']}: {len(v['changes'])} entries")
-        break
-
-json.dump(d, open(path, "w"), indent=2, ensure_ascii=False)
-print("OK saved")
-PYEOF
+#   - AUTO-generate changelog_vorsitzer.json from git commit messages
+#     (extracts commits between previous tag and current tag, filters noise)
 ```
 
-### ⚠️ REGULI CHANGELOG (NU SE NEGOCIAZĂ)
+**That is it.** Changelog-ul se documentează **automat** din commit messages — nu mai trebuie niciun pas manual.
 
-1. **FIECARE versiune TREBUIE să aibă descrieri reale în changelog** — nu linkuri GitHub, nu stubs, nu "see release notes"
-2. **Limba: Germană** — changelog-ul este afișat utilizatorilor în app
-3. **NICIODATĂ nu pune date sensibile** (Mitgliedernummern reale, parole, IP-uri, chei) — fișierul este public
-4. **Format: bullet points scurte** — fiecare schimbare pe o linie separată, max 1-2 propoziții
-5. **Verificare:** după editare, deschide changelog-ul din app și confirmă că arată corect
+### Cum funcționează changelog-ul automat
+
+CI face automat la fiecare tag push:
+1. `git log PREV_TAG..CURRENT_TAG` → extrage commit messages
+2. Filtrează zgomot (`chore: bump`, `merge`, `wip`)
+3. Insertează lista de commit subjects ca bullet points în `changelog_vorsitzer.json`
+4. Marchează versiunea nouă ca `is_latest=true`
+
+**Consecință practică:** commit messages-urile SUNT changelog-ul. Scrie commit messages **descriptive și în formatul final** pe care vrei să-l vadă utilizatorii.
+
+### ⚠️ REGULI CHANGELOG (aplicate AUTOMAT de CI)
+
+1. **Changelog-ul vine din git commit messages** — scrie mesaje descriptive, nu "fix stuff"
+2. **NICIODATĂ nu pune date sensibile în commit messages** — ele ajung public în changelog
+3. **Commits filtrate automat:** `chore:`, `bump`, `merge`, `wip` — nu apar în changelog
+4. Dacă changelog-ul automat nu e satisfăcător, poți edita manual pe server după deploy
 
 ### Required for the flow above to work
 
@@ -1651,9 +1631,10 @@ After the `📤 Deploy to Server` job finishes, two extra workflow steps run:
 | Step | What it does | File on server |
 |------|--------------|----------------|
 | `Update version_vorsitzer.json on server` | Generates a fresh manifest with the current version, fallback set to previous patch, and 5 platform download URLs that point to the artifacts that were just uploaded (`vorsitzer-X.Y.Z-{universal.apk,windows-x64.zip,macos.dmg,linux-x64.tar.gz,ios-unsigned.ipa}`). | `/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json` |
-| `Update changelog_vorsitzer.json on server` | Remote Python one-liner that clears `is_latest` from every existing entry, prepends a **STUB** entry, and marks it `is_latest=true`. The stub is a **PLACEHOLDER** that **MUST be replaced** with real descriptions in STEP 4 above. | `/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json` |
+| `Generate changelog from git commits` | Extracts commit messages between previous tag and current tag via `git log`. Filters noise (chore/bump/merge/wip). | (runner local) |
+| `Update changelog_vorsitzer.json on server` | Uploads the extracted commit entries to the prod server. Inserts them as the changelog for the new version with `is_latest=true`. If an entry already exists with real descriptions (not a stub), it is preserved — CI only overwrites GitHub link stubs. | `/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json` |
 
-**⚠️ CI creează doar un placeholder în changelog. STEP 4 (documentarea manuală a changelog-ului) este OBLIGATORIU după fiecare release. Dacă se sare STEP 4, utilizatorii văd în app doar un link la GitHub în loc de descrieri reale — asta NU este acceptabil.**
+**Changelog este 100% automat.** CI extrage descrierile din commit messages — nu mai e nevoie de niciun pas manual.
 
 ### Manual server edits (only when CI is not enough)
 
