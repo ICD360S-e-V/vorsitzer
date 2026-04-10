@@ -12471,7 +12471,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   // ═══════════════════════════════════════════════════════════════
   Widget _buildBerichteTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
     final List<dynamic> berichteList = data['berichte'] is List ? data['berichte'] as List : [];
-    final userId = widget.userId;
+    final userId = widget.user.id;
 
     void showBerichtDialog({Map<String, dynamic>? existing, int? editIndex}) {
       final titelC = TextEditingController(text: existing?['titel'] ?? '');
