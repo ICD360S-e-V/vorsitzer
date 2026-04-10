@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class BehordeGerichtContent extends StatefulWidget {
   final User user;
@@ -1136,7 +1137,7 @@ class _GerichtDokumenteTabState extends State<_GerichtDokumenteTab> {
   }
 
   Future<void> _upload() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
       allowMultiple: true,
