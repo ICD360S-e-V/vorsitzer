@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
+import '../utils/file_picker_helper.dart';
 
 class Jpg2PdfScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -23,7 +24,7 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
   double _margin = 10; // mm
 
   Future<void> _pickImages() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'bmp', 'webp', 'tiff', 'tif'],
       allowMultiple: true,
