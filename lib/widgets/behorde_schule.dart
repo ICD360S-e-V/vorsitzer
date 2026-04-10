@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class BehordeSchuleContent extends StatefulWidget {
   final ApiService apiService;
@@ -134,7 +135,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
           }
 
           Future<void> uploadDok(String dokTyp) async {
-            final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+            final picked = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
             if (picked == null || picked.files.isEmpty || picked.files.first.path == null) return;
             final file = picked.files.first;
             try {
