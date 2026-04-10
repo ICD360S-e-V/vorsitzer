@@ -9,6 +9,7 @@ import '../screens/webview_screen.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
 import 'behorde_finanzamt_steuerklarung.dart';
+import '../utils/file_picker_helper.dart';
 
 class BehordeFinanzamtContent extends StatefulWidget {
   final Map<String, dynamic> Function(String type) getData;
@@ -853,7 +854,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                               width: double.infinity,
                               child: OutlinedButton.icon(
                                 onPressed: () async {
-                                  final result = await FilePicker.platform.pickFiles(
+                                  final result = await FilePickerHelper.pickFiles(
                                     type: FileType.custom,
                                     allowedExtensions: ['pfx', 'p12'],
                                     withData: true,
@@ -1091,7 +1092,7 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
   Future<void> _uploadBrief() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
       dialogTitle: 'Brief vom Finanzamt hochladen',
     );
@@ -1180,7 +1181,7 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
           const SizedBox(height: 10),
           Row(children: [
             OutlinedButton.icon(onPressed: () async {
-              final res = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+              final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
               if (res != null && res.files.isNotEmpty) setDialogState(() => attachment = res.files.first);
             }, icon: const Icon(Icons.attach_file, size: 16), label: Text(attachment != null ? 'Anhang ändern' : 'Anhang hinzufügen (optional)', style: const TextStyle(fontSize: 11)),
               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6))),
@@ -1309,7 +1310,7 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
                   const SizedBox(height: 16),
                   SizedBox(width: double.infinity, child: ElevatedButton.icon(
                     onPressed: () async {
-                      final res = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+                      final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
                       if (res == null || res.files.isEmpty || res.files.first.path == null) return;
                       final file = res.files.first;
                       if (!context.mounted) return;
