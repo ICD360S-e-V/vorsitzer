@@ -28,6 +28,7 @@ import 'behorde_polizei.dart';
 import 'behorde_sozialamt.dart';
 import 'file_viewer_dialog.dart';
 import '../screens/webview_screen.dart';
+import '../utils/file_picker_helper.dart';
 
 class BehoerdeTabContent extends StatefulWidget {
   final User user;
@@ -1666,7 +1667,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       TextButton.icon(
                         onPressed: () async {
                           final remaining = 10 - docs.length;
-                          final result = await FilePicker.platform.pickFiles(
+                          final result = await FilePickerHelper.pickFiles(
                             type: FileType.custom,
                             allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
                             allowMultiple: true,
@@ -1791,7 +1792,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                   try {
                                     final response = await widget.apiService.downloadAntragDokument(doc['id'] as int);
                                     if (response.statusCode == 200) {
-                                      final savePath = await FilePicker.platform.saveFile(
+                                      final savePath = await FilePickerHelper.pickFiles(
                                         dialogTitle: 'Dokument speichern',
                                         fileName: doc['filename'] ?? 'dokument',
                                       );
