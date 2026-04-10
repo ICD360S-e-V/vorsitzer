@@ -4217,7 +4217,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: () async {
-                      final result = await FilePickerHelper.saveFile(
+                      final result = await FilePicker.platform.saveFile(
                         type: FileType.custom,
                         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
                         dialogTitle: 'Bewilligungsbescheid auswählen',
