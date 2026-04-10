@@ -185,7 +185,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
         final bytes = base64Decode(result['data']);
         final filename = result['filename']?.toString() ?? 'archiv_download';
 
-        final savePath = await FilePicker.platform.saveFile(
+        final savePath = await FilePickerHelper.pickFiles(
           dialogTitle: 'Archiv speichern',
           fileName: filename,
         );
