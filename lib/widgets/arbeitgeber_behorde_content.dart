@@ -93,11 +93,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
     }
   }
 
-  Future<void> _saveArbeitgeberToDB(Map<String, dynamic> ag) async {
+  Future<Map<String, dynamic>> _saveArbeitgeberToDB(Map<String, dynamic> ag) async {
     final data = Map<String, dynamic>.from(ag);
     data['funktion'] = data['position'] ?? data['funktion'] ?? '';
     data['aktuell'] = (data['aktuell'] == true || data['aktuell'] == 'true') ? 1 : 0;
-    await widget.apiService.saveBerufserfahrung(widget.user.id, data);
+    return await widget.apiService.saveBerufserfahrung(widget.user.id, data);
   }
 
   Future<void> _deleteArbeitgeberFromDB(int id) async {
@@ -134,13 +134,17 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
   /// Saves arbeitgeber data with the given list and selected ID
   void _saveWithData(List<Map<String, dynamic>> arbeitgeberListe, String selectedArbeitgeberId) {
-    // Save changed item to DB (find which one changed by comparing)
     for (int i = 0; i < arbeitgeberListe.length; i++) {
       final ag = arbeitgeberListe[i];
       ag['sort_order'] = i;
-      if (ag['id'] != null) {
-        _saveArbeitgeberToDB(ag);
-      }
+      // Save ALL entries — PHP handles INSERT (id=0/null) vs UPDATE (id>0)
+      _saveArbeitgeberToDB(ag).then((result) {
+        // If this was a new entry (INSERT), store the returned ID so future
+        // saves become UPDATEs instead of creating duplicates.
+        if (ag['id'] == null && result['success'] == true && result['id'] != null) {
+          ag['id'] = result['id'];
+        }
+      }).catchError((_) {});
     }
     widget.onDataChanged({
       'liste': arbeitgeberListe,
