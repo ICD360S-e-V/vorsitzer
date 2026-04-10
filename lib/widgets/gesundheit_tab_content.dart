@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
+import '../utils/file_picker_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -2019,7 +2021,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: 9,
+          length: 10,
           child: Column(
             children: [
               // Multi-doctor selector
@@ -2070,6 +2072,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Überweisung'),
                   Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
                   Tab(icon: Icon(Icons.healing, size: 16), text: 'Heilmittel'),
+                  Tab(icon: Icon(Icons.description, size: 16), text: 'Berichte'),
                 ],
               ),
               Expanded(
@@ -2378,6 +2381,9 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
                     // ===== TAB 9: HEILMITTEL =====
                     _buildHeilmittelTab(type, arztTitle, data, saveAll, setLocalState),
+
+                    // ===== TAB 10: BERICHTE =====
+                    _buildBerichteTab(type, arztTitle, data, saveAll, setLocalState),
                   ],
                 ),
               ),
@@ -12455,6 +12461,409 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           ),
         ]),
       ]),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // TAB 10: BERICHTE (medical reports per doctor, with file upload)
+  // Uses the existing gesundheit_dokumente table via gesundheit_doc_* APIs
+  // with gesundheit_type = "berichte_<arzt_type>" and analyse_id = report ID.
+  // ═══════════════════════════════════════════════════════════════
+  Widget _buildBerichteTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
+    final List<dynamic> berichteList = data['berichte'] is List ? data['berichte'] as List : [];
+    final userId = widget.userId;
+
+    void showBerichtDialog({Map<String, dynamic>? existing, int? editIndex}) {
+      final titelC = TextEditingController(text: existing?['titel'] ?? '');
+      final datumC = TextEditingController(text: existing?['datum'] ?? DateFormat('yyyy-MM-dd').format(DateTime.now()));
+      final beschreibungC = TextEditingController(text: existing?['beschreibung'] ?? '');
+      final kategorie = ValueNotifier<String>(existing?['kategorie'] ?? 'Befundbericht');
+
+      const kategorien = [
+        'Befundbericht', 'Arztbrief', 'OP-Bericht', 'Entlassungsbericht',
+        'Laborbericht', 'Radiologie / Bildgebung', 'Pathologie',
+        'Gutachten', 'Rehabilitationsbericht', 'Sonstiges',
+      ];
+
+      showDialog(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          title: Text(existing != null ? 'Bericht bearbeiten' : 'Neuer Bericht'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Datum
+                  TextFormField(
+                    controller: datumC,
+                    decoration: InputDecoration(
+                      labelText: 'Datum',
+                      prefixIcon: const Icon(Icons.calendar_today),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      isDense: true,
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.today),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: dctx,
+                            initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(const Duration(days: 30)),
+                          );
+                          if (picked != null) datumC.text = DateFormat('yyyy-MM-dd').format(picked);
+                        },
+                      ),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: dctx,
+                        initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                      );
+                      if (picked != null) datumC.text = DateFormat('yyyy-MM-dd').format(picked);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Kategorie
+                  ValueListenableBuilder<String>(
+                    valueListenable: kategorie,
+                    builder: (_, kat, __) => DropdownButtonFormField<String>(
+                      value: kategorien.contains(kat) ? kat : 'Befundbericht',
+                      decoration: InputDecoration(
+                        labelText: 'Kategorie',
+                        prefixIcon: const Icon(Icons.category),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        isDense: true,
+                      ),
+                      items: kategorien.map((k) => DropdownMenuItem(value: k, child: Text(k, style: const TextStyle(fontSize: 13)))).toList(),
+                      onChanged: (v) { if (v != null) kategorie.value = v; },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Titel
+                  TextFormField(
+                    controller: titelC,
+                    decoration: InputDecoration(
+                      labelText: 'Titel *',
+                      hintText: 'z.B. MRT Knie rechts',
+                      prefixIcon: const Icon(Icons.title),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Beschreibung
+                  TextFormField(
+                    controller: beschreibungC,
+                    decoration: InputDecoration(
+                      labelText: 'Beschreibung / Befund',
+                      hintText: 'Zusammenfassung des Berichts',
+                      prefixIcon: const Icon(Icons.notes),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      alignLabelWithHint: true,
+                      isDense: true,
+                    ),
+                    maxLines: 5,
+                    minLines: 3,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Abbrechen')),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.save),
+              label: Text(existing != null ? 'Aktualisieren' : 'Hinzufuegen'),
+              onPressed: () {
+                if (titelC.text.trim().isEmpty) return;
+                final entry = {
+                  'titel': titelC.text.trim(),
+                  'datum': datumC.text.trim(),
+                  'kategorie': kategorie.value,
+                  'beschreibung': beschreibungC.text.trim(),
+                  'id': existing?['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                };
+                final list = List<dynamic>.from(berichteList);
+                if (editIndex != null) {
+                  list[editIndex] = entry;
+                } else {
+                  list.insert(0, entry);
+                }
+                data['berichte'] = list;
+                saveAll();
+                setLocalState(() {});
+                Navigator.pop(dctx);
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Format date for display
+    String fmtDate(String d) {
+      final dt = DateTime.tryParse(d);
+      return dt != null ? DateFormat('dd.MM.yyyy').format(dt) : d;
+    }
+
+    // Icon per kategorie
+    IconData katIcon(String k) {
+      switch (k) {
+        case 'Arztbrief': return Icons.mail;
+        case 'OP-Bericht': return Icons.medical_services;
+        case 'Entlassungsbericht': return Icons.exit_to_app;
+        case 'Laborbericht': return Icons.science;
+        case 'Radiologie / Bildgebung': return Icons.image;
+        case 'Pathologie': return Icons.biotech;
+        case 'Gutachten': return Icons.gavel;
+        case 'Rehabilitationsbericht': return Icons.accessibility_new;
+        default: return Icons.description;
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Icon(Icons.description, color: Colors.indigo.shade700),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Berichte — $arztTitle', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Neuer Bericht'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                onPressed: () => showBerichtDialog(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Befundberichte, Arztbriefe, OP-Berichte, Laborergebnisse',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(height: 16),
+
+          if (berichteList.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.description, size: 48, color: Colors.grey.shade300),
+                  const SizedBox(height: 8),
+                  Text('Keine Berichte vorhanden', style: TextStyle(color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  Text('Klicken Sie auf "Neuer Bericht" um einen hinzuzufuegen', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                ],
+              ),
+            )
+          else
+            ...berichteList.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final b = entry.value as Map<String, dynamic>;
+              final berichtId = (b['id'] ?? idx).toString();
+              final titel = b['titel'] ?? '(kein Titel)';
+              final datum = b['datum'] ?? '';
+              final kategorie = b['kategorie'] ?? 'Befundbericht';
+              final beschreibung = b['beschreibung'] ?? '';
+              final docType = 'berichte_$type';
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Colors.indigo.shade200),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ExpansionTile(
+                  leading: Icon(katIcon(kategorie), color: Colors.indigo.shade600),
+                  title: Text(titel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: Text('$kategorie — ${fmtDate(datum)}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Beschreibung
+                          if (beschreibung.isNotEmpty) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: SelectableText(beschreibung, style: const TextStyle(fontSize: 13)),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+
+                          // Dokumente section — uses existing gesundheit_doc_* API
+                          _buildBerichteDokumente(docType, berichtId, userId),
+
+                          // Action buttons
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton.icon(
+                                icon: const Icon(Icons.edit, size: 16),
+                                label: const Text('Bearbeiten'),
+                                onPressed: () => showBerichtDialog(existing: b, editIndex: idx),
+                              ),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
+                                label: Text('Loeschen', style: TextStyle(color: Colors.red.shade400)),
+                                onPressed: () {
+                                  final list = List<dynamic>.from(berichteList)..removeAt(idx);
+                                  data['berichte'] = list;
+                                  saveAll();
+                                  setLocalState(() {});
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  /// Inline document list + upload for a single Bericht entry.
+  /// Re-uses the existing gesundheit_doc_* API system.
+  Widget _buildBerichteDokumente(String docType, String berichtId, int userId) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: widget.apiService.listGesundheitDocs(
+        userId: userId,
+        gesundheitType: docType,
+        analyseId: berichtId,
+      ),
+      builder: (context, snapshot) {
+        final docs = <Map<String, dynamic>>[];
+        if (snapshot.hasData && snapshot.data!['success'] == true && snapshot.data!['docs'] != null) {
+          docs.addAll(List<Map<String, dynamic>>.from(snapshot.data!['docs']));
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.attach_file, size: 16, color: Colors.grey.shade700),
+                const SizedBox(width: 4),
+                Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const Spacer(),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.upload_file, size: 16),
+                  label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () async {
+                    final files = await FilePickerHelper.pickFiles(allowMultiple: true);
+                    if (files == null || files.files.isEmpty) return;
+                    for (final f in files.files) {
+                      if (f.path == null) continue;
+                      try {
+                        await widget.apiService.uploadGesundheitDoc(
+                          userId: userId,
+                          gesundheitType: docType,
+                          analyseId: berichtId,
+                          filePath: f.path!,
+                          fileName: f.name,
+                        );
+                      } catch (_) {}
+                    }
+                    // Force rebuild to show newly uploaded docs
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ],
+            ),
+            if (docs.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...docs.map((doc) {
+                final docId = doc['id'] as int;
+                final name = doc['filename'] ?? 'datei';
+                final size = doc['file_size'] ?? 0;
+                final sizeKb = size > 0 ? '${(size / 1024).toStringAsFixed(0)} KB' : '';
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.insert_drive_file, size: 16, color: Colors.indigo.shade400),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '$name${sizeKb.isNotEmpty ? " · $sizeKb" : ""}',
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.visibility, size: 16),
+                        tooltip: 'Anzeigen',
+                        onPressed: () async {
+                          final bytes = await widget.apiService.downloadGesundheitDoc(docId);
+                          if (!context.mounted || bytes == null) return;
+                          showDialog(
+                            context: context,
+                            builder: (_) => FileViewerDialog(
+                              fileBytes: Uint8List.fromList(bytes),
+                              fileName: name,
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
+                        tooltip: 'Loeschen',
+                        onPressed: () async {
+                          await widget.apiService.deleteGesundheitDoc(docId);
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ] else
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Keine Dokumente', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+              ),
+          ],
+        );
+      },
     );
   }
 }
