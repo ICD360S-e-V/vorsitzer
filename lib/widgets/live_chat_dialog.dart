@@ -12,6 +12,7 @@ import '../services/chat_service.dart';
 import '../services/voice_call_service.dart';
 import '../services/logger_service.dart';
 import 'incoming_call_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 final _log = LoggerService();
 
@@ -739,7 +740,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
 
   Future<void> _pickFiles() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePickerHelper.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'txt'],
         allowMultiple: true,
