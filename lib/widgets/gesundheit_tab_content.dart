@@ -12799,6 +12799,19 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   onPressed: () async {
                     final files = await FilePickerHelper.pickFiles(allowMultiple: true);
                     if (files == null || files.files.isEmpty) return;
+                    if (!context.mounted) return;
+                    // Show loading
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(children: [
+                          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                          const SizedBox(width: 12),
+                          Text('${files.files.length} Datei(en) werden hochgeladen...'),
+                        ]),
+                        duration: const Duration(seconds: 30),
+                      ),
+                    );
+                    int uploaded = 0;
                     for (final f in files.files) {
                       if (f.path == null) continue;
                       try {
@@ -12809,8 +12822,18 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                           filePath: f.path!,
                           fileName: f.name,
                         );
+                        uploaded++;
                       } catch (_) {}
                     }
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('$uploaded Datei(en) hochgeladen'),
+                        backgroundColor: uploaded > 0 ? Colors.green : Colors.red,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
                     // Force rebuild to show newly uploaded docs
                     if (mounted) setState(() {});
                   },
