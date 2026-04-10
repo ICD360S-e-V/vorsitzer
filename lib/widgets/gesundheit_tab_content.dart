@@ -12776,8 +12776,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       ),
       builder: (context, snapshot) {
         final docs = <Map<String, dynamic>>[];
-        if (snapshot.hasData && snapshot.data!['success'] == true && snapshot.data!['docs'] != null) {
-          docs.addAll(List<Map<String, dynamic>>.from(snapshot.data!['docs']));
+        if (snapshot.hasData && snapshot.data!['success'] == true && snapshot.data!['documents'] != null) {
+          docs.addAll(List<Map<String, dynamic>>.from(snapshot.data!['documents']));
         }
 
         return Column(
