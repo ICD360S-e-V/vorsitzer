@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 import '../services/ticket_service.dart';
 import '../models/user.dart';
+import '../utils/file_picker_helper.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -1613,7 +1614,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                           label: Text('Hochladen', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
                           style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.indigo.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
                           onPressed: () async {
-                            final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+                            final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
                             if (result != null && result.files.isNotEmpty) {
                               List<Map<String, dynamic>> docs = k['dokumente'] is List ? List<Map<String, dynamic>>.from((k['dokumente'] as List).whereType<Map>()) : [];
                               for (final file in result.files) {
@@ -1695,7 +1696,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                     try {
                                       final response = await widget.apiService.downloadKKKorrespondenzDoc(dId);
                                       if (response.statusCode == 200) {
-                                        final savePath = await FilePicker.platform.saveFile(dialogTitle: 'Speichern', fileName: doc['name']?.toString() ?? '');
+                                        final savePath = await FilePickerHelper.pickFiles(dialogTitle: 'Speichern', fileName: doc['name']?.toString() ?? '');
                                         if (savePath != null) {
                                           await File(savePath).writeAsBytes(response.bodyBytes);
                                           if (ctx2.mounted) ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
@@ -1978,7 +1979,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             label: Text('Dokumente hochladen (max. 20)', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
             style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.indigo.shade300), minimumSize: const Size(double.infinity, 36)),
             onPressed: () async {
-              final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+              final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
               if (result != null && result.files.isNotEmpty) {
                 setDlg(() {
                   for (final f in result.files) {
