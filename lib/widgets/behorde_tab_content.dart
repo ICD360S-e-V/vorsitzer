@@ -1792,7 +1792,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                   try {
                                     final response = await widget.apiService.downloadAntragDokument(doc['id'] as int);
                                     if (response.statusCode == 200) {
-                                      final savePath = await FilePicker.platform.saveFile(
+                                      final savePath = await FilePickerHelper.pickFiles(
                                         dialogTitle: 'Dokument speichern',
                                         fileName: doc['filename'] ?? 'dokument',
                                       );
