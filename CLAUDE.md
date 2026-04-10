@@ -10,9 +10,9 @@
 
 **Development Environment:**
 - **Windows**: `c:\Users\icd_U\Documents\icd360sev_vorsitzer`
-- **macOS**: `/Users/ionut-claudiuduinea/Documents/icd360sev_vorsitzer`
+- **macOS**: `~/Documents/icd360sev_vorsitzer`
 - **Server**: `ssh -i "vps_icd360sev_icd360s.de" -p 36000 root@icd360sev.icd360s.de`
-- **Database**: MySQL - `icd360sev_user:SecureDB2026@localhost/icd360sev_db`
+- **Database**: MySQL on localhost (credentials in server environment, NOT stored here)
 
 ---
 
@@ -40,7 +40,7 @@ cp lib/screens/fisier_original.dart.bak lib/screens/fisier_original.dart
 
 | Rol | Prefix | Format |
 |-----|--------|--------|
-| Vorsitzer | V | V00001 |
+| Vorsitzer | V | VXXXXX |
 | Schatzmeister | S | S00001 |
 | Kassierer | K | K00001 |
 | Mitgliedergrunder | MG | MG00001 |
@@ -274,7 +274,7 @@ Accesibil pentru: vorsitzer, schatzmeister, kassierer, mitgliedergrunder
 
 **Architecture:**
 - **Server**: ntfy v2.11.0 on port 2586, proxied via nginx at `/ntfy/`
-- **Topic pattern**: `vorsitzer_{mitgliedernummer}` (e.g., `vorsitzer_v00001`)
+- **Topic pattern**: `vorsitzer_{mitgliedernummer}` (e.g., `vorsitzer_vXXXXX`)
 - **Auth**: Anonymous read-only on `vorsitzer_*` topics; admin write via `icd360s_admin`
 - **App**: HTTP NDJSON streaming (long-poll), auto-reconnect 5s
 
@@ -431,7 +431,7 @@ C:\Program Files\ICD360S e.V\
 **Payload JSON:**
 ```json
 {
-  "mitgliedernummer": "V00001",
+  "mitgliedernummer": "VXXXXX",
   "device_id": "WIN_ABC123...",
   "machine_name": "DESKTOP-XYZ",
   "platform": "windows \"Windows 10 Pro\" 10.0",
@@ -1704,22 +1704,22 @@ cd /c/Users/icd_U/Documents/icd360sev_vorsitzer
 **macOS:**
 ```bash
 # Navigare la proiect
-cd /Users/ionut-claudiuduinea/Documents/icd360sev_vorsitzer
+cd ~/Documents/icd360sev_vorsitzer
 
 # Flutter analyze (verificare erori)
-/Users/ionut-claudiuduinea/development/flutter/bin/flutter analyze
+flutter analyze
 
 # Flutter build macOS release
-/Users/ionut-claudiuduinea/development/flutter/bin/flutter build macos --release
+flutter build macos --release
 
 # Flutter run (development mode)
-/Users/ionut-claudiuduinea/development/flutter/bin/flutter run -d macos
+flutter run -d macos
 
 # Flutter pub get (instalare dependențe)
-/Users/ionut-claudiuduinea/development/flutter/bin/flutter pub get
+flutter pub get
 
 # Flutter pub upgrade (actualizare pachete)
-/Users/ionut-claudiuduinea/development/flutter/bin/flutter pub upgrade --major-versions
+flutter pub upgrade --major-versions
 ```
 
 ### Build & Upload (PowerShell - pentru user)
@@ -1773,7 +1773,7 @@ c:\Users\icd_U\Documents\icd360sev_vorsitzer\  (Project Root)
 
 **macOS:**
 ```
-/Users/ionut-claudiuduinea/Documents/icd360sev_vorsitzer/  (Project Root)
+~/Documents/icd360sev_vorsitzer/  (Project Root)
 ├── vps_icd360sev_icd360s.de           # SSH Key (in project folder!)
 ├── vps_icd360sev_icd360s.de.pub
 ├── lib/                                # Flutter source code
@@ -2142,11 +2142,11 @@ Keystore details: RSA 2048, 10000 days validity, CN=ICD360S e.V., L=Neu-Ulm, C=D
 ## Vorsitzer Account (production)
 | Field | Value |
 |-------|-------|
-| Mitgliedernummer | `V27655` (was `V00001`, randomized 2026-04-08 for security) |
-| Password | `12345678901` |
+| Mitgliedernummer | Randomized format `VXXXXX` (changed 2026-04-08 for security, stored in DB only) |
+| Password | Stored as bcrypt hash in DB only — NOT documented here |
 | Role | `vorsitzer` |
 | User ID | `2` |
-| Email | `icd@icd360s.de` |
-| Name | Ionut Duinea |
+| Email | (stored in DB — not documented here) |
+| Name | (stored in DB — not documented here) |
 
-**Second vorsitzer:** `V75715` (Michaela-Christine Weber) — already had random ID, untouched.
+**Note:** Multiple Vorsitzer accounts exist. All use randomized Mitgliedernummern. Personal data is in the DB only.
