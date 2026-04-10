@@ -503,12 +503,31 @@ jobs:
           cat >> macos/Runner/Configs/Release.xcconfig <<'EOF'
 
           // CI: disable code signing when no Apple certs are available
-          CODE_SIGN_IDENTITY =
+          CODE_SIGN_IDENTITY = -
           CODE_SIGNING_REQUIRED = NO
-          CODE_SIGNING_ALLOWED = NO
+          CODE_SIGNING_ALLOWED = YES
           DEVELOPMENT_TEAM =
           PROVISIONING_PROFILE_SPECIFIER =
+          CODE_SIGN_ENTITLEMENTS =
           EOF
+
+          # Strip ALL sandbox-related entitlements from the Release entitlements
+          # file. On unsigned builds, residual entitlements confuse macOS into
+          # thinking the app needs sandbox permissions it cannot prove — causing
+          # NSOpenPanel (file_picker), NSSavePanel and other system dialogs to
+          # fail with "entitlement required". An ad-hoc signed binary (-) with
+          # NO entitlements is treated as a plain non-sandboxed app and all
+          # system dialogs work normally.
+          cat > macos/Runner/Release.entitlements <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>com.apple.security.network.client</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
 
       - name: Build macOS
         run: |
