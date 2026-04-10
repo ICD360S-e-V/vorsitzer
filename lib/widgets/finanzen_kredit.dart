@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../screens/webview_screen.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class FinanzenKreditWidget extends StatefulWidget {
   final Map<String, dynamic> Function(String) getData;
@@ -1241,7 +1242,7 @@ class _KreditKorrespondenzTabState extends State<_KreditKorrespondenzTab> {
             label: Text(selectedFiles.isEmpty ? 'Dokumente anhängen (max. 20)' : '${selectedFiles.length} Datei${selectedFiles.length > 1 ? 'en' : ''} ausgewählt', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
             style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
             onPressed: () async {
-              final result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+              final result = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
               if (result != null) {
                 setDlg(() {
                   selectedFiles.addAll(result.files);
