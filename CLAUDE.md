@@ -1564,28 +1564,73 @@ ls build/windows/x64/runner/Release/*.dll
 
 ### Release Flow (NEW — tag-based, fully automated, v1.0.37+)
 
-**TL;DR:** bump 2 files, push 1 tag, CI does the rest.
+**TL;DR:** bump 2 files, push 1 tag, CI builds & deploys, then **document the changelog**.
 
 ```bash
-# 1. Bump version in BOTH files (must match — CI guard fails the build otherwise)
+# ═══════════════════════════════════════════════════════════════
+# STEP 1: Bump version in BOTH files (must match — CI guard fails otherwise)
+# ═══════════════════════════════════════════════════════════════
 #    pubspec.yaml                        → version: X.Y.Z+B
 #    lib/services/update_service.dart    → currentVersion = 'X.Y.Z'; currentBuildNumber = B
 git add pubspec.yaml lib/services/update_service.dart
 git commit -m "chore: bump version to X.Y.Z+B"
 
-# 2. Tag and push
+# ═══════════════════════════════════════════════════════════════
+# STEP 2: Tag and push
+# ═══════════════════════════════════════════════════════════════
 git tag vX.Y.Z
 git push origin main vX.Y.Z
 
-# 3. CI does everything else automatically (~15 min total):
-#    - 9 builds in parallel: Android (universal/samsung/play/fdroid/huawei), Windows, Linux, macOS, iOS
-#    - GitHub Release with all artifacts attached
-#    - SCP artifacts to /var/www/icd360sev.icd360s.de/downloads/vorsitzer/{platform}/
-#    - Update version_vorsitzer.json on the prod server (with new version + URLs)
-#    - Update changelog_vorsitzer.json on the prod server (mark new version as is_latest)
+# ═══════════════════════════════════════════════════════════════
+# STEP 3: Wait for CI (~15 min) — builds, release, deploy, version.json update
+# ═══════════════════════════════════════════════════════════════
+# CI does automatically:
+#   - 9 builds in parallel: Android (universal/samsung/play/fdroid/huawei), Windows, Linux, macOS, iOS
+#   - GitHub Release with all artifacts attached
+#   - SCP artifacts to /var/www/icd360sev.icd360s.de/downloads/vorsitzer/{platform}/
+#   - Update version_vorsitzer.json on the prod server (version + URLs)
+#   - Create STUB entry in changelog_vorsitzer.json (just marks is_latest=true)
+
+# ═══════════════════════════════════════════════════════════════
+# STEP 4: ⚠️ OBLIGATORIU — Documentează changelog-ul PE SERVER
+# ═══════════════════════════════════════════════════════════════
+# CI creează doar un STUB (placeholder). TREBUIE să-l înlocuiești cu
+# descrieri REALE ale modificărilor. Fără acest pas, utilizatorii
+# văd în changelog doar un link la GitHub — INACCEPTABIL.
+#
+# Conectează-te la server și rulează scriptul de mai jos:
+
+ssh -i ~/.ssh/icd360sev.icd360s.de -p 36000 root@icd360sev.icd360s.de
+python3 << 'PYEOF'
+import json
+
+path = "/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json"
+d = json.load(open(path))
+
+# Găsește versiunea nouă (is_latest=True) și înlocuiește changes:
+for v in d["versions"]:
+    if v.get("is_latest"):
+        v["changes"] = [
+            # ← SCRIE AICI modificările reale, câte una per linie:
+            "Prima modificare descriere",
+            "A doua modificare descriere",
+            "..."
+        ]
+        print(f"Updated {v['version']}: {len(v['changes'])} entries")
+        break
+
+json.dump(d, open(path, "w"), indent=2, ensure_ascii=False)
+print("OK saved")
+PYEOF
 ```
 
-**That is it.** No SSH, no manual JSON editing, no separate Windows machine.
+### ⚠️ REGULI CHANGELOG (NU SE NEGOCIAZĂ)
+
+1. **FIECARE versiune TREBUIE să aibă descrieri reale în changelog** — nu linkuri GitHub, nu stubs, nu "see release notes"
+2. **Limba: Germană** — changelog-ul este afișat utilizatorilor în app
+3. **NICIODATĂ nu pune date sensibile** (Mitgliedernummern reale, parole, IP-uri, chei) — fișierul este public
+4. **Format: bullet points scurte** — fiecare schimbare pe o linie separată, max 1-2 propoziții
+5. **Verificare:** după editare, deschide changelog-ul din app și confirmă că arată corect
 
 ### Required for the flow above to work
 
@@ -1606,9 +1651,9 @@ After the `📤 Deploy to Server` job finishes, two extra workflow steps run:
 | Step | What it does | File on server |
 |------|--------------|----------------|
 | `Update version_vorsitzer.json on server` | Generates a fresh manifest with the current version, fallback set to previous patch, and 5 platform download URLs that point to the artifacts that were just uploaded (`vorsitzer-X.Y.Z-{universal.apk,windows-x64.zip,macos.dmg,linux-x64.tar.gz,ios-unsigned.ipa}`). | `/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json` |
-| `Update changelog_vorsitzer.json on server` | Remote Python one-liner that clears `is_latest` from every existing entry, prepends a stub for the new version pointing to the GitHub Release page, and marks the new entry as `is_latest=true`. Idempotent — re-running the job is safe. | `/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json` |
+| `Update changelog_vorsitzer.json on server` | Remote Python one-liner that clears `is_latest` from every existing entry, prepends a **STUB** entry, and marks it `is_latest=true`. The stub is a **PLACEHOLDER** that **MUST be replaced** with real descriptions in STEP 4 above. | `/var/www/icd360sev.icd360s.de/api/data/changelog_vorsitzer.json` |
 
-The stub changelog entry contains a link to the GitHub Release. **If you want a richer in-app changelog**, edit `changelog_vorsitzer.json` on the server *after* the tag deploy and replace the stub with a proper bullet list — the next deploy will not overwrite it (the script only inserts when the version is missing from the array).
+**⚠️ CI creează doar un placeholder în changelog. STEP 4 (documentarea manuală a changelog-ului) este OBLIGATORIU după fiecare release. Dacă se sare STEP 4, utilizatorii văd în app doar un link la GitHub în loc de descrieri reale — asta NU este acceptabil.**
 
 ### Manual server edits (only when CI is not enough)
 
