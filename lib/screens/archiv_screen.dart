@@ -10,6 +10,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../widgets/eastern.dart';
+import '../utils/file_picker_helper.dart';
 
 final _log = LoggerService();
 
@@ -76,7 +77,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
     if (metadata == null) return;
 
     // Pick files
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: ['txt', 'pdf', 'jpg', 'jpeg', 'png', 'zip'],
@@ -184,7 +185,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
         final bytes = base64Decode(result['data']);
         final filename = result['filename']?.toString() ?? 'archiv_download';
 
-        final savePath = await FilePicker.platform.saveFile(
+        final savePath = await FilePickerHelper.pickFiles(
           dialogTitle: 'Archiv speichern',
           fileName: filename,
         );
