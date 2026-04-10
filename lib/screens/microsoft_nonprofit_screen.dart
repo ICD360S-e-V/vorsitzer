@@ -1416,16 +1416,9 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                         onPressed: saving
                             ? null
                             : () async {
-                                final res = await FilePicker.platform.pickFiles(
-                                  allowMultiple: true,
-                                  withData: false,
-                                );
-                                if (res != null) {
-                                  setDState(() {
-                                    for (final f in res.files) {
-                                      if (f.path != null) pickedFiles.add(File(f.path!));
-                                    }
-                                  });
+                                final files = await _pickFilesNative();
+                                if (files.isNotEmpty) {
+                                  setDState(() => pickedFiles.addAll(files));
                                 }
                               },
                       ),
@@ -1823,6 +1816,62 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
         ],
       ),
     );
+  }
+
+  /// Pick one or more files using a platform-appropriate dialog.
+  ///
+  /// On **macOS** the standard `file_picker` plugin (NSOpenPanel) fails
+  /// silently on unsigned / ad-hoc signed builds because the system refuses
+  /// to grant the open-panel entitlement. We bypass this by calling
+  /// `osascript -e 'choose file'` which invokes an AppleScript file dialog
+  /// that works without ANY entitlement on non-sandboxed apps.
+  ///
+  /// On all other platforms we fall back to the regular `file_picker` plugin.
+  Future<List<File>> _pickFilesNative() async {
+    if (Platform.isMacOS) {
+      return _pickFilesViaMacOSDialog();
+    }
+    // Non-macOS: use standard file_picker
+    try {
+      final res = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        withData: false,
+      );
+      if (res == null) return [];
+      return res.files
+          .where((f) => f.path != null)
+          .map((f) => File(f.path!))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// macOS-only: show a native AppleScript file dialog via `osascript`.
+  /// Returns the selected files as a list of `File` objects.
+  Future<List<File>> _pickFilesViaMacOSDialog() async {
+    try {
+      final result = await Process.run('osascript', [
+        '-e', 'set theFiles to choose file with prompt "Dateien auswählen" with multiple selections allowed',
+        '-e', 'set filePaths to ""',
+        '-e', 'repeat with f in theFiles',
+        '-e', '  set filePaths to filePaths & POSIX path of f & linefeed',
+        '-e', 'end repeat',
+        '-e', 'return filePaths',
+      ]);
+      if (result.exitCode != 0) return []; // user cancelled or error
+      final output = (result.stdout as String).trim();
+      if (output.isEmpty) return [];
+      return output
+          .split('\n')
+          .map((p) => p.trim())
+          .where((p) => p.isNotEmpty)
+          .map((p) => File(p))
+          .where((f) => f.existsSync())
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   @override
