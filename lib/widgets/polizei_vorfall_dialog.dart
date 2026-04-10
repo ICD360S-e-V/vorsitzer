@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class PolizeiVorfallDialog extends StatefulWidget {
   final ApiService apiService;
@@ -125,7 +126,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
   }
 
   Future<void> _uploadDokumente() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp', 'doc', 'docx'],
       allowMultiple: true,
