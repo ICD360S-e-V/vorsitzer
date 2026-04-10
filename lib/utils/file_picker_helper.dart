@@ -1,25 +1,25 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart' as fs;
 
-/// Drop-in replacement for `FilePicker.platform.pickFiles(...)` that works on
-/// ALL platforms including unsigned / ad-hoc signed macOS builds.
+/// Drop-in replacement for [FilePicker.platform] that works on ALL platforms
+/// including unsigned / ad-hoc signed macOS builds.
 ///
-/// Usage — just replace:
-///   `FilePicker.platform.pickFiles(allowMultiple: true)`
-/// with:
-///   `FilePickerHelper.pickFiles(allowMultiple: true)`
+/// **Problem:** `file_picker` has a built-in entitlement check on macOS that
+/// refuses to open NSOpenPanel when `com.apple.security.files.user-selected.*`
+/// is not found — even though NSOpenPanel works fine without it on non-sandboxed
+/// apps. See: https://github.com/miguelpruivo/flutter_file_picker/issues/1845
 ///
-/// Returns the same `FilePickerResult?` type so no other code changes are needed.
+/// **Solution:** On macOS we delegate to `file_selector` (Google's official
+/// Flutter file selection plugin) which has NO entitlement check and just calls
+/// NSOpenPanel directly. On all other platforms, the standard `file_picker` is
+/// used unchanged.
 ///
-/// On **macOS**, `NSOpenPanel` silently fails on unsigned builds. We bypass it
-/// with `osascript -e 'choose file'` (AppleScript dialog, no entitlements needed).
-/// On all other platforms, the standard `file_picker` plugin is used unchanged.
+/// Returns the same `FilePickerResult?` type so callers don't need changes.
 class FilePickerHelper {
   FilePickerHelper._();
 
-  /// Drop-in replacement for `FilePicker.platform.pickFiles(...)`.
-  /// Same return type (`FilePickerResult?`). Accepts all common parameters
-  /// from the original API so callers don't need any changes.
+  /// Drop-in for `FilePicker.platform.pickFiles(...)`.
   static Future<FilePickerResult?> pickFiles({
     String? dialogTitle,
     String? fileName,
@@ -30,9 +30,12 @@ class FilePickerHelper {
     bool withReadStream = false,
   }) async {
     if (Platform.isMacOS) {
-      return _pickViaMacOS(allowMultiple: allowMultiple, withData: withData);
+      return _pickViaMacOSFileSelector(
+        allowMultiple: allowMultiple,
+        withData: withData,
+        dialogTitle: dialogTitle,
+      );
     }
-    // Non-macOS: delegate to standard plugin
     return FilePicker.platform.pickFiles(
       dialogTitle: dialogTitle,
       allowMultiple: allowMultiple,
@@ -43,9 +46,7 @@ class FilePickerHelper {
     );
   }
 
-  /// Drop-in replacement for `FilePicker.platform.saveFile(...)`.
-  /// On macOS, writes to ~/Downloads directly (no NSSavePanel).
-  /// On other platforms, delegates to standard plugin.
+  /// Drop-in for `FilePicker.platform.saveFile(...)`.
   static Future<String?> saveFile({
     String? dialogTitle,
     String? fileName,
@@ -63,65 +64,42 @@ class FilePickerHelper {
     );
   }
 
-  /// macOS: save to ~/Downloads with unique filename (no NSSavePanel).
-  static Future<String?> _saveViaMacOS({String? fileName}) async {
-    try {
-      final home = Platform.environment['HOME'] ?? '/tmp';
-      final dir = Directory('$home/Downloads');
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final safeName = (fileName ?? 'download').replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_');
-      var path = '${dir.path}/$safeName';
-      // Unique filename
-      if (await File(path).exists()) {
-        final dot = safeName.lastIndexOf('.');
-        final base = dot > 0 ? safeName.substring(0, dot) : safeName;
-        final ext = dot > 0 ? safeName.substring(dot) : '';
-        for (var i = 1; i < 1000; i++) {
-          path = '${dir.path}/$base($i)$ext';
-          if (!await File(path).exists()) break;
-        }
-      }
-      return path;
-    } catch (_) {
-      return null;
-    }
-  }
+  // ──────────────────────────────────────────────────────────────
+  //  macOS implementation via file_selector (no entitlement check)
+  // ──────────────────────────────────────────────────────────────
 
-  /// macOS: use AppleScript `choose file` dialog via osascript.
-  /// Constructs a FilePickerResult from the selected paths so callers
-  /// don't need any code changes.
-  static Future<FilePickerResult?> _pickViaMacOS({
-    bool allowMultiple = false,
-    bool withData = false,
+  static Future<FilePickerResult?> _pickViaMacOSFileSelector({
+    required bool allowMultiple,
+    required bool withData,
+    String? dialogTitle,
   }) async {
     try {
-      final multiFlag = allowMultiple ? ' with multiple selections allowed' : '';
-      final result = await Process.run('osascript', [
-        '-e',
-        'set theFiles to choose file with prompt "Dateien auswählen"$multiFlag',
-        '-e', 'set filePaths to ""',
-        '-e', 'repeat with f in theFiles',
-        '-e', '  set filePaths to filePaths & POSIX path of f & linefeed',
-        '-e', 'end repeat',
-        '-e', 'return filePaths',
-      ]);
-      if (result.exitCode != 0) return null; // user cancelled
-      final output = (result.stdout as String).trim();
-      if (output.isEmpty) return null;
+      // file_selector's openFile / openFiles use NSOpenPanel without
+      // any entitlement verification — exactly what we need.
+      final acceptAll = const fs.XTypeGroup(label: 'Alle Dateien');
 
-      final paths = output
-          .split('\n')
-          .map((p) => p.trim())
-          .where((p) => p.isNotEmpty && File(p).existsSync())
-          .toList();
+      List<fs.XFile> xFiles;
+      if (allowMultiple) {
+        xFiles = await fs.openFiles(
+          acceptedTypeGroups: [acceptAll],
+          confirmButtonText: dialogTitle,
+        );
+      } else {
+        final single = await fs.openFile(
+          acceptedTypeGroups: [acceptAll],
+          confirmButtonText: dialogTitle,
+        );
+        xFiles = single != null ? [single] : [];
+      }
 
-      if (paths.isEmpty) return null;
+      if (xFiles.isEmpty) return null;
 
-      // Build PlatformFile objects that mirror what FilePicker would return.
+      // Convert XFile → PlatformFile so the return type is FilePickerResult
       final platformFiles = <PlatformFile>[];
-      for (final path in paths) {
+      for (final xf in xFiles) {
+        final path = xf.path;
+        final name = xf.name;
         final file = File(path);
-        final name = path.split('/').last;
         final size = await file.length();
         final bytes = withData ? await file.readAsBytes() : null;
         platformFiles.add(PlatformFile(
@@ -134,7 +112,7 @@ class FilePickerHelper {
 
       return FilePickerResult(platformFiles);
     } catch (_) {
-      // If osascript fails, try standard plugin as last resort
+      // Last resort: try the original file_picker anyway
       try {
         return await FilePicker.platform.pickFiles(
           allowMultiple: allowMultiple,
@@ -143,6 +121,30 @@ class FilePickerHelper {
       } catch (_) {
         return null;
       }
+    }
+  }
+
+  /// macOS saveFile: write directly to ~/Downloads (no NSSavePanel).
+  static Future<String?> _saveViaMacOS({String? fileName}) async {
+    try {
+      final home = Platform.environment['HOME'] ?? '/tmp';
+      final dir = Directory('$home/Downloads');
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final safeName = (fileName ?? 'download')
+          .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_');
+      var path = '${dir.path}/$safeName';
+      if (await File(path).exists()) {
+        final dot = safeName.lastIndexOf('.');
+        final base = dot > 0 ? safeName.substring(0, dot) : safeName;
+        final ext = dot > 0 ? safeName.substring(dot) : '';
+        for (var i = 1; i < 1000; i++) {
+          path = '${dir.path}/$base($i)$ext';
+          if (!await File(path).exists()) break;
+        }
+      }
+      return path;
+    } catch (_) {
+      return null;
     }
   }
 }
