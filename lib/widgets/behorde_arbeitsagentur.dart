@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class BehordeArbeitsagenturContent extends StatefulWidget {
   final ApiService apiService;
@@ -835,7 +836,7 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
             label: Text(selectedFiles.isEmpty ? 'Dokumente anhängen (max. 20)' : '${selectedFiles.length} Datei${selectedFiles.length > 1 ? 'en' : ''} ausgewählt', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
             style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
             onPressed: () async {
-              final result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+              final result = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
               if (result != null) {
                 setDlg(() {
                   selectedFiles.addAll(result.files);
@@ -986,7 +987,7 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
             OutlinedButton.icon(icon: Icon(Icons.upload_file, size: 14, color: Colors.teal.shade600), label: Text('Hinzufügen', style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero, side: BorderSide(color: Colors.teal.shade300)),
               onPressed: () async {
-                final result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+                final result = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
                 if (result == null || result.files.isEmpty) return;
                 final gId = gruppeId ?? const Uuid().v4();
                 for (final f in result.files) { if (f.path == null) continue; await widget.apiService.uploadAAKorrespondenz(userId: widget.userId, richtung: first['richtung']?.toString() ?? 'eingang', titel: first['titel']?.toString() ?? '', datum: first['datum']?.toString() ?? '', betreff: first['betreff']?.toString() ?? '', notiz: '', methode: m, gruppeId: gId, filePath: f.path!, fileName: f.name); }
@@ -1095,7 +1096,7 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
                       TextFormField(controller: wGrundC, maxLines: 3, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
                       const SizedBox(height: 10),
                       OutlinedButton.icon(icon: Icon(Icons.upload_file, size: 14, color: Colors.red.shade600), label: Text(newWDocs.isEmpty ? 'Widerspruch-Dokumente' : '${newWDocs.length} Dok.', style: TextStyle(fontSize: 11, color: Colors.red.shade700)), style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300)),
-                        onPressed: () async { final r = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newWDocs.addAll(r.files); }); }),
+                        onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newWDocs.addAll(r.files); }); }),
                       ...newWDocs.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [Icon(Icons.description, size: 13, color: Colors.red.shade400), const SizedBox(width: 6), Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)), IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setW(() => newWDocs.removeAt(e.key)))]))),
                     ])),
                   const SizedBox(height: 10),
@@ -1133,7 +1134,7 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
                         child: Row(children: [Icon(wEb ? Icons.check_box : Icons.check_box_outline_blank, size: 18, color: wEb ? Colors.green.shade700 : Colors.grey.shade400), const SizedBox(width: 8), Expanded(child: Text('Eingangsbestätigung erhalten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: wEb ? Colors.green.shade800 : Colors.grey.shade700)))]))),
                       if (wEb) ...[const SizedBox(height: 8),
                         OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 14, color: Colors.green.shade600), label: Text(newEbDocs.isEmpty ? 'EB anhängen' : '${newEbDocs.length} Datei(en)', style: TextStyle(fontSize: 11, color: Colors.green.shade700)), style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.green.shade300)),
-                          onPressed: () async { final r = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newEbDocs.addAll(r.files); }); }),
+                          onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newEbDocs.addAll(r.files); }); }),
                         ...newEbDocs.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [Icon(Icons.description, size: 13, color: Colors.green.shade500), const SizedBox(width: 6), Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)), IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setW(() => newEbDocs.removeAt(e.key)))]))),
                       ],
                     ])),
