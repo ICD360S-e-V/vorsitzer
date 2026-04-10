@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/ticket_service.dart';
 import '../services/logger_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 final _log = LoggerService();
 
@@ -453,7 +454,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
   }
 
   Future<void> _pickAndUploadFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'pdf', 'txt', 'zip'],
       allowMultiple: true,
