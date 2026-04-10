@@ -1562,38 +1562,29 @@ ls build/windows/x64/runner/Release/*.dll
 
 ## Comenzi Build & Deploy
 
-### Release Flow (NEW — tag-based, fully automated, v1.0.37+)
+### Release Flow (100% automat — zero editare manuală de versiuni)
 
-**TL;DR:** bump 2 files, push 1 tag, CI builds & deploys, then **document the changelog**.
+**TL;DR:** push codul, click "Run workflow" în GitHub Actions. Gata.
 
-```bash
-# ═══════════════════════════════════════════════════════════════
-# STEP 1: Bump version in BOTH files (must match — CI guard fails otherwise)
-# ═══════════════════════════════════════════════════════════════
-#    pubspec.yaml                        → version: X.Y.Z+B
-#    lib/services/update_service.dart    → currentVersion = 'X.Y.Z'; currentBuildNumber = B
-git add pubspec.yaml lib/services/update_service.dart
-git commit -m "chore: bump version to X.Y.Z+B"
-
-# ═══════════════════════════════════════════════════════════════
-# STEP 2: Tag and push
-# ═══════════════════════════════════════════════════════════════
-git tag vX.Y.Z
-git push origin main vX.Y.Z
-
-# ═══════════════════════════════════════════════════════════════
-# STEP 3: Wait for CI (~15 min) — builds, release, deploy, version.json update
-# ═══════════════════════════════════════════════════════════════
-# CI does automatically:
-#   - 9 builds in parallel: Android (universal/samsung/play/fdroid/huawei), Windows, Linux, macOS, iOS
-#   - GitHub Release with all artifacts attached
-#   - SCP artifacts to /var/www/icd360sev.icd360s.de/downloads/vorsitzer/{platform}/
-#   - Update version_vorsitzer.json on the prod server (version + URLs)
-#   - AUTO-generate changelog_vorsitzer.json from git commit messages
-#     (extracts commits between previous tag and current tag, filters noise)
+```
+STEP 1: Push modificările tale pe main (git push origin main)
+STEP 2: GitHub → Actions → "Release (auto-bump + build)" → Run workflow → patch/minor
+STEP 3: Gata. CI face TOTUL automat:
+         - Bump pubspec.yaml + update_service.dart (patch sau minor)
+         - Commit + tag + push
+         - 9 builds in parallel
+         - GitHub Release
+         - Deploy la server
+         - Update version_vorsitzer.json
+         - Changelog din git commits
 ```
 
-**That is it.** Changelog-ul se documentează **automat** din commit messages — nu mai trebuie niciun pas manual.
+### ⚠️ REGULI ABSOLUTE
+
+1. **NICIODATĂ nu edita manual** `pubspec.yaml` version sau `update_service.dart` currentVersion — workflow-ul `release.yml` face asta automat
+2. **NICIODATĂ nu retag aceeași versiune** — fiecare modificare de cod = versiune nouă
+3. **NICIODATĂ nu folosi `git tag` manual** — folosește workflow-ul din GitHub Actions UI
+4. **Scrie commit messages descriptive** — ele devin changelog-ul automat
 
 ### Cum funcționează changelog-ul automat
 
