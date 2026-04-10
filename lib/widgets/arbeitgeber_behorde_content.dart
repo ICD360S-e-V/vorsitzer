@@ -11,6 +11,7 @@ import '../services/ticket_service.dart';
 import '../models/user.dart';
 import 'file_viewer_dialog.dart';
 import 'lebenslauf.dart';
+import '../utils/file_picker_helper.dart';
 
 class ArbeitgeberBehoerdeContent extends StatefulWidget {
   final User user;
@@ -356,7 +357,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                     alignment: Alignment.centerRight,
                     child: ElevatedButton.icon(
                       onPressed: () async {
-                        final picked = await FilePicker.platform.pickFiles(
+                        final picked = await FilePickerHelper.pickFiles(
                           type: FileType.custom,
                           allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
                         );
@@ -3490,7 +3491,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       const SizedBox(height: 6),
                       ElevatedButton.icon(
                         onPressed: () async {
-                          final picked = await FilePicker.platform.pickFiles(
+                          final picked = await FilePickerHelper.pickFiles(
                             type: FileType.custom,
                             allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
                           );
