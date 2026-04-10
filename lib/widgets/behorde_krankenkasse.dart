@@ -1696,7 +1696,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                     try {
                                       final response = await widget.apiService.downloadKKKorrespondenzDoc(dId);
                                       if (response.statusCode == 200) {
-                                        final savePath = await FilePickerHelper.pickFiles(dialogTitle: 'Speichern', fileName: doc['name']?.toString() ?? '');
+                                        final savePath = await FilePickerHelper.saveFile(dialogTitle: 'Speichern', fileName: doc['name']?.toString() ?? '');
                                         if (savePath != null) {
                                           await File(savePath).writeAsBytes(response.bodyBytes);
                                           if (ctx2.mounted) ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
