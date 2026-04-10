@@ -92,3 +92,11 @@ jobs:
           git tag "v$NEW_VERSION"
           git push origin main "v$NEW_VERSION"
           echo "✅ Tagged v$NEW_VERSION and pushed to main"
+
+      - name: Trigger build workflow
+        run: |
+          # GitHub doesn't trigger workflows from GITHUB_TOKEN pushes (loop prevention).
+          # We explicitly dispatch the build workflow for the new tag.
+          gh workflow run build.yml --ref "v${{ steps.bump.outputs.new_version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
