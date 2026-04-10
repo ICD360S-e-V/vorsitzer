@@ -20,6 +20,7 @@ import 'gesundheit_tab_content.dart';
 import 'finanzen_tab_content.dart';
 import 'freizeit_tab_content.dart';
 import 'mitglieder_device.dart';
+import '../utils/file_picker_helper.dart';
 
 class UserDetailsDialog extends StatefulWidget {
   final User user;
@@ -1392,7 +1393,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Future<void> _uploadDokument({String kategorie = 'vereindokumente'}) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'txt'],
       allowMultiple: true,
@@ -4216,7 +4217,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: () async {
-                      final result = await FilePicker.platform.pickFiles(
+                      final result = await FilePickerHelper.pickFiles(
                         type: FileType.custom,
                         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
                         dialogTitle: 'Bewilligungsbescheid auswählen',
