@@ -12470,7 +12470,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   // with gesundheit_type = "berichte_<arzt_type>" and analyse_id = report ID.
   // ═══════════════════════════════════════════════════════════════
   Widget _buildBerichteTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
-    final List<dynamic> berichteList = data['berichte'] is List ? data['berichte'] as List : [];
+    // Read directly from the live data source — the `data` parameter may be a
+    // stale closure captured before the server round-trip completed.
+    final liveData = _gesundheitData[type] ?? data;
+    final List<dynamic> berichteList = liveData['berichte'] is List ? liveData['berichte'] as List : [];
     final userId = widget.user.id;
 
     void showBerichtDialog({Map<String, dynamic>? existing, int? editIndex}) {
@@ -12594,9 +12597,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 } else {
                   list.insert(0, entry);
                 }
+                // Write to BOTH data references to cover stale-closure edge case
                 data['berichte'] = list;
+                liveData['berichte'] = list;
                 saveAll();
                 setLocalState(() {});
+                // Also trigger widget-level rebuild so the tab reflects new data
+                if (mounted) setState(() {});
                 Navigator.pop(dctx);
               },
             ),
@@ -12738,8 +12745,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                 onPressed: () {
                                   final list = List<dynamic>.from(berichteList)..removeAt(idx);
                                   data['berichte'] = list;
+                                  liveData['berichte'] = list;
                                   saveAll();
                                   setLocalState(() {});
+                                  if (mounted) setState(() {});
                                 },
                               ),
                             ],
