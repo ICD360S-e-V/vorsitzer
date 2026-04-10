@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class BehordeDeutschlandticketContent extends StatefulWidget {
   final ApiService apiService;
@@ -143,7 +144,7 @@ class _BehordeDeutschlandticketContentState extends State<BehordeDeutschlandtick
   }
 
   Future<void> _uploadRechnungDoks() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
       allowMultiple: true,
@@ -243,7 +244,7 @@ class _BehordeDeutschlandticketContentState extends State<BehordeDeutschlandtick
 
   Future<void> _uploadKorrespondenzDoks(String richtung) async {
     final kategorie = richtung == 'eingang' ? 'korrespondenz_eingang' : 'korrespondenz_ausgang';
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
       allowMultiple: true,
