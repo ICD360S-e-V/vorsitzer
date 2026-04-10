@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../widgets/file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class MicrosoftNonprofitScreen extends StatefulWidget {
   final ApiService apiService;
@@ -1833,7 +1834,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
     }
     // Non-macOS: use standard file_picker
     try {
-      final res = await FilePicker.platform.pickFiles(
+      final res = await FilePickerHelper.pickFiles(
         allowMultiple: true,
         withData: false,
       );
