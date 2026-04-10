@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../widgets/file_viewer_dialog.dart';
+import '../utils/file_picker_helper.dart';
 
 class FinanzamtScreen extends StatefulWidget {
   final ApiService apiService;
@@ -287,7 +288,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
   // ==================== DOCUMENT METHODS ====================
 
   Future<void> _uploadDokument() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx', 'tiff', 'bmp'],
       dialogTitle: 'Dokument auswählen',
