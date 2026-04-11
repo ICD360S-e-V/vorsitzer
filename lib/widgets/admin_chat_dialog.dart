@@ -68,6 +68,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   String? _memberNetworkQuality;
   int? _memberBatteryLevel;
   String? _memberBatteryState;
+
+  // Cached network data per member (mitgliedernummer -> data)
+  final Map<String, Map<String, dynamic>> _memberNetworkCache = {};
   bool _isConnected = false;
   bool _isSending = false;
   bool _isUrgent = false;  // 🆕 URGENT notifications flag
@@ -328,6 +331,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           _memberNetworkQuality = result['network_quality']?.toString();
           _memberBatteryLevel = int.tryParse(result['battery_level']?.toString() ?? '');
           _memberBatteryState = result['battery_state']?.toString();
+          // Cache per member for list display
+          _memberNetworkCache[mitgliedernummer] = {
+            'connection_type': _memberConnectionType,
+            'latency_ms': _memberLatencyMs,
+            'battery_level': _memberBatteryLevel,
+            'battery_state': _memberBatteryState,
+          };
         });
       }
     } catch (_) {}
@@ -1852,6 +1862,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           hasActiveCall: hasActiveCall,
           isOnline: isOnline,
           isMuted: conv['is_muted'] == true,
+          networkData: _memberNetworkCache[memberNumber],
           onTap: () => _selectConversation(conv),
         );
       },
