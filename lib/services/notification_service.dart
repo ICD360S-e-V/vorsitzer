@@ -310,8 +310,8 @@ class NotificationService {
     if (!_isChatDialogOpen) {
       // Native notification on all platforms
       await show(
-        title: 'Neue Nachricht von $senderName',
-        body: message,
+        title: 'Neue Nachricht im Live-Chat',
+        body: 'Sie haben eine neue Nachricht erhalten.',
         payload: 'chat:$conversationId',
       );
 
