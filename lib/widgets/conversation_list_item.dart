@@ -7,6 +7,7 @@ class ConversationListItem extends StatelessWidget {
   final bool hasActiveCall;
   final bool isOnline;
   final bool isMuted;
+  final Map<String, dynamic>? networkData;
   final VoidCallback onTap;
 
   const ConversationListItem({
@@ -17,6 +18,7 @@ class ConversationListItem extends StatelessWidget {
     required this.isOnline,
     required this.onTap,
     this.isMuted = false,
+    this.networkData,
   });
 
   @override
@@ -24,7 +26,6 @@ class ConversationListItem extends StatelessWidget {
     final unreadCount = conversation['unread_count'] ?? 0;
     final status = conversation['status'] ?? 'open';
     final memberName = conversation['member_name'] ?? 'Unbekannt';
-    final lastMessage = conversation['last_message'] ?? 'Keine Nachrichten';
     final lastSeenStr = conversation['last_seen'] as String?;
 
     return Container(
@@ -36,16 +37,11 @@ class ConversationListItem extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              hasActiveCall ? 'Im Anruf...' : lastMessage,
-              style: TextStyle(
-                fontSize: 11,
-                color: hasActiveCall ? Colors.green.shade700 : null,
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-            if (!isOnline && lastSeenStr != null)
+            // Network status row (connection type, ping, battery)
+            if (networkData != null || hasActiveCall)
+              _buildNetworkRow(),
+            // Last seen (offline only)
+            if (!isOnline && !hasActiveCall && lastSeenStr != null)
               Text(
                 _formatLastSeen(lastSeenStr),
                 style: TextStyle(
@@ -57,6 +53,93 @@ class ConversationListItem extends StatelessWidget {
           ],
         ),
         onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildNetworkRow() {
+    if (hasActiveCall) {
+      return Text(
+        'Im Anruf...',
+        style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+      );
+    }
+
+    final connType = networkData?['connection_type']?.toString();
+    final latency = networkData?['latency_ms'];
+    final batteryLevel = networkData?['battery_level'];
+    final batteryState = networkData?['battery_state']?.toString();
+
+    if (connType == null && latency == null && batteryLevel == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Connection type icon
+          if (connType != null) ...[
+            Icon(
+              connType.toLowerCase().contains('wifi')
+                  ? Icons.wifi
+                  : connType.toLowerCase().contains('ethernet')
+                      ? Icons.lan
+                      : Icons.signal_cellular_alt,
+              size: 11,
+              color: Colors.grey.shade600,
+            ),
+            const SizedBox(width: 2),
+          ],
+          // Ping
+          if (latency != null) ...[
+            Text(
+              '${latency}ms',
+              style: TextStyle(
+                fontSize: 9,
+                color: latency <= 50
+                    ? Colors.green.shade700
+                    : latency <= 150
+                        ? Colors.orange.shade700
+                        : Colors.red.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          // Battery
+          if (batteryLevel != null && batteryLevel >= 0) ...[
+            Icon(
+              batteryState == 'charging' || batteryState == 'full'
+                  ? Icons.battery_charging_full
+                  : batteryLevel <= 15
+                      ? Icons.battery_alert
+                      : batteryLevel <= 50
+                          ? Icons.battery_3_bar
+                          : Icons.battery_full,
+              size: 11,
+              color: batteryLevel <= 15
+                  ? Colors.red.shade700
+                  : batteryLevel <= 30
+                      ? Colors.orange.shade700
+                      : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 1),
+            Text(
+              '$batteryLevel%',
+              style: TextStyle(
+                fontSize: 9,
+                color: batteryLevel <= 15
+                    ? Colors.red.shade700
+                    : batteryLevel <= 30
+                        ? Colors.orange.shade700
+                        : Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
