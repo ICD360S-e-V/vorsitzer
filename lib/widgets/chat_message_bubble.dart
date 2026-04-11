@@ -6,9 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
 import 'chat_attachment_item.dart';
 
-/// A chat message bubble with auto-masking privacy feature.
-/// Non-own messages auto-mask with stars after 10 seconds of being visible.
-/// Swipe right to temporarily reveal a masked message.
+/// A chat message bubble with privacy masking.
+/// Non-own messages are hidden by default (★★★). Tap the lock icon
+/// to reveal for 10 seconds, then auto-hides again.
 class ChatMessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
   final bool isOwn;
@@ -25,79 +25,48 @@ class ChatMessageBubble extends StatefulWidget {
   State<ChatMessageBubble> createState() => _ChatMessageBubbleState();
 }
 
-class _ChatMessageBubbleState extends State<ChatMessageBubble>
-    with SingleTickerProviderStateMixin {
-  bool _isMasked = false;
+class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   bool _isRevealed = false;
-  Timer? _autoMaskTimer;
   Timer? _revealTimer;
-  late AnimationController _countdownController;
-  int _countdownSeconds = 10;
-  Timer? _countdownTickTimer;
+  int _revealCountdown = 0;
+  Timer? _countdownTicker;
 
-  // Swipe detection
-  double _dragStartX = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _countdownController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    );
-
-    // Only auto-mask non-own messages (member messages)
-    if (!widget.isOwn) {
-      _startAutoMaskCountdown();
-    }
-  }
-
-  void _startAutoMaskCountdown() {
-    _countdownSeconds = 10;
-    _countdownController.forward(from: 0);
-
-    _countdownTickTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        _countdownSeconds--;
-      });
-      if (_countdownSeconds <= 0) {
-        timer.cancel();
-      }
-    });
-
-    _autoMaskTimer = Timer(const Duration(seconds: 10), () {
-      if (mounted) {
-        setState(() {
-          _isMasked = true;
-          _isRevealed = false;
-        });
-      }
-    });
-  }
-
-  void _onSwipeRight() {
-    if (!_isMasked) return; // Not masked yet, nothing to toggle
-
-    if (!_isRevealed) {
-      // Reveal temporarily
-      setState(() => _isRevealed = true);
+  void _toggleReveal() {
+    if (_isRevealed) {
+      // Manual re-hide
       _revealTimer?.cancel();
-      _revealTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) setState(() => _isRevealed = false);
+      _countdownTicker?.cancel();
+      setState(() {
+        _isRevealed = false;
+        _revealCountdown = 0;
       });
     } else {
-      // Manual re-mask
+      // Reveal for 10 seconds
+      setState(() {
+        _isRevealed = true;
+        _revealCountdown = 10;
+      });
+
+      _countdownTicker?.cancel();
+      _countdownTicker = Timer.periodic(const Duration(seconds: 1), (t) {
+        if (!mounted) { t.cancel(); return; }
+        setState(() => _revealCountdown--);
+        if (_revealCountdown <= 0) t.cancel();
+      });
+
       _revealTimer?.cancel();
-      setState(() => _isRevealed = false);
+      _revealTimer = Timer(const Duration(seconds: 10), () {
+        if (mounted) {
+          setState(() {
+            _isRevealed = false;
+            _revealCountdown = 0;
+          });
+        }
+      });
     }
   }
 
   String _maskText(String text) {
-    // Replace each word with stars of the same length
     return text.replaceAllMapped(RegExp(r'\S+'), (match) {
       return '★' * min(match.group(0)!.length, 12);
     });
@@ -105,10 +74,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
 
   @override
   void dispose() {
-    _autoMaskTimer?.cancel();
     _revealTimer?.cancel();
-    _countdownTickTimer?.cancel();
-    _countdownController.dispose();
+    _countdownTicker?.cancel();
     super.dispose();
   }
 
@@ -129,199 +96,181 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble>
     final hasTextMessage = messageText.toString().isNotEmpty &&
         !messageText.toString().startsWith('[');
 
-    final showMasked = !widget.isOwn && _isMasked && !_isRevealed;
-    final showCountdown = !widget.isOwn && !_isMasked && _countdownSeconds > 0;
+    // Non-own messages are masked unless actively revealed
+    final showMasked = !widget.isOwn && !_isRevealed;
 
-    final bubble = Container(
-      margin: EdgeInsets.only(
-        bottom: _getResponsiveSpacing(context, 8),
-        left: widget.isOwn ? _getResponsiveSpacing(context, 50) : 0,
-        right: widget.isOwn ? 0 : _getResponsiveSpacing(context, 50),
-      ),
-      padding: EdgeInsets.all(_getResponsiveSpacing(context, 10)),
-      decoration: BoxDecoration(
-        color: widget.isOwn
-            ? const Color(0xFF1a1a2e)
-            : showMasked
-                ? Colors.grey.shade300
-                : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: showMasked
-            ? Border.all(color: Colors.grey.shade400, width: 0.5)
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Sender name (only for non-own messages)
-          if (!widget.isOwn)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.message['sender_name'] ??
-                        AppLocalizations.of(context)!.member,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                  // Countdown badge
-                  if (showCountdown) ...[
-                    const SizedBox(width: 6),
-                    _buildCountdownBadge(),
-                  ],
-                  // Lock icon when masked
-                  if (showMasked) ...[
-                    const SizedBox(width: 6),
-                    Icon(Icons.lock_outline,
-                        size: 12, color: Colors.grey.shade600),
-                    const SizedBox(width: 2),
+    return Align(
+      alignment: widget.isOwn ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: EdgeInsets.only(
+          bottom: _getResponsiveSpacing(context, 8),
+          left: widget.isOwn ? _getResponsiveSpacing(context, 50) : 0,
+          right: widget.isOwn ? 0 : _getResponsiveSpacing(context, 50),
+        ),
+        padding: EdgeInsets.all(_getResponsiveSpacing(context, 10)),
+        decoration: BoxDecoration(
+          color: widget.isOwn
+              ? const Color(0xFF1a1a2e)
+              : showMasked
+                  ? Colors.grey.shade200
+                  : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: showMasked
+              ? Border.all(color: Colors.grey.shade300, width: 0.5)
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Sender name + lock button (non-own messages)
+            if (!widget.isOwn)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      '← swipe',
+                      widget.message['sender_name'] ??
+                          AppLocalizations.of(context)!.member,
                       style: TextStyle(
-                        fontSize: 9,
-                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Lock/unlock button
+                    _buildLockButton(),
+                  ],
+                ),
+              ),
+            // Message text
+            if (hasTextMessage)
+              showMasked
+                  ? Text(
+                      _maskText(messageText),
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        letterSpacing: 1.2,
+                        fontSize: 14,
+                      ),
+                    )
+                  : _buildLinkifiedText(messageText, widget.isOwn),
+            // Attachments
+            if (attachments.isNotEmpty) ...[
+              if (hasTextMessage) const SizedBox(height: 8),
+              if (showMasked)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.attach_file,
+                        size: 14, color: Colors.grey.shade400),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${attachments.length} ${attachments.length == 1 ? 'Anhang' : 'Anhänge'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
                         fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
+                )
+              else
+                ...attachments.map((att) => ChatAttachmentItem(
+                      attachment: att,
+                      isOwn: widget.isOwn,
+                      onDownload: widget.onDownloadAttachment,
+                    )),
+            ],
+            // Time and read receipt
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatTime(widget.message['created_at']),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color:
+                          widget.isOwn ? Colors.white70 : Colors.grey.shade500,
+                    ),
+                  ),
+                  if (widget.isOwn) ...[
+                    const SizedBox(width: 4),
+                    _buildReadReceipt(status),
+                  ],
                 ],
               ),
             ),
-          // Message text (masked or clear)
-          if (hasTextMessage)
-            showMasked
-                ? Text(
-                    _maskText(messageText),
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      letterSpacing: 1.5,
-                      fontSize: 14,
-                    ),
-                  )
-                : _buildLinkifiedText(messageText, widget.isOwn),
-          // Attachments (also masked when text is masked)
-          if (attachments.isNotEmpty) ...[
-            if (hasTextMessage) const SizedBox(height: 8),
-            if (showMasked)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.attach_file,
-                      size: 14, color: Colors.grey.shade500),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${attachments.length} ${attachments.length == 1 ? 'Anhang' : 'Anhänge'} (ausgeblendet)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              )
-            else
-              ...attachments.map((att) => ChatAttachmentItem(
-                    attachment: att,
-                    isOwn: widget.isOwn,
-                    onDownload: widget.onDownloadAttachment,
-                  )),
           ],
-          // Time and read receipt
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _formatTime(widget.message['created_at']),
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: widget.isOwn
-                        ? Colors.white70
-                        : Colors.grey.shade500,
-                  ),
-                ),
-                // Read receipt checkmarks (only for own messages)
-                if (widget.isOwn) ...[
-                  const SizedBox(width: 4),
-                  _buildReadReceipt(status),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    // Wrap non-own messages with swipe gesture detector
-    if (!widget.isOwn) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: GestureDetector(
-          onHorizontalDragStart: (details) {
-            _dragStartX = details.localPosition.dx;
-          },
-          onHorizontalDragEnd: (details) {
-            final velocity = details.primaryVelocity ?? 0;
-            // Swipe right detection (positive velocity = right direction)
-            if (velocity > 200) {
-              _onSwipeRight();
-            }
-          },
-          child: bubble,
         ),
-      );
-    }
-
-    return Align(
-      alignment: Alignment.centerRight,
-      child: bubble,
+      ),
     );
   }
 
-  Widget _buildCountdownBadge() {
-    return AnimatedBuilder(
-      animation: _countdownController,
-      builder: (context, child) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+  Widget _buildLockButton() {
+    if (_isRevealed) {
+      // Unlocked state with countdown
+      return InkWell(
+        onTap: _toggleReveal,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: _countdownSeconds <= 3
-                ? Colors.red.shade100
-                : Colors.orange.shade100,
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.green.shade300, width: 0.5),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.timer_outlined,
-                size: 10,
-                color: _countdownSeconds <= 3
-                    ? Colors.red.shade700
-                    : Colors.orange.shade700,
-              ),
-              const SizedBox(width: 2),
+              Icon(Icons.lock_open, size: 12, color: Colors.green.shade700),
+              const SizedBox(width: 3),
               Text(
-                '${_countdownSeconds}s',
+                '${_revealCountdown}s',
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: _countdownSeconds <= 3
-                      ? Colors.red.shade700
-                      : Colors.orange.shade700,
+                  color: _revealCountdown <= 3
+                      ? Colors.red.shade600
+                      : Colors.green.shade700,
                 ),
               ),
             ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    } else {
+      // Locked state
+      return InkWell(
+        onTap: _toggleReveal,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade300, width: 0.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, size: 12, color: Colors.grey.shade600),
+              const SizedBox(width: 3),
+              Text(
+                'Lesen',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   static final _urlRegex = RegExp(
