@@ -96,8 +96,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     final hasTextMessage = messageText.toString().isNotEmpty &&
         !messageText.toString().startsWith('[');
 
-    // Non-own messages are masked unless actively revealed
-    final showMasked = !widget.isOwn && !_isRevealed;
+    // ALL messages are masked unless actively revealed
+    final showMasked = !_isRevealed;
 
     return Align(
       alignment: widget.isOwn ? Alignment.centerRight : Alignment.centerLeft,
@@ -109,26 +109,28 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         ),
         padding: EdgeInsets.all(_getResponsiveSpacing(context, 10)),
         decoration: BoxDecoration(
-          color: widget.isOwn
-              ? const Color(0xFF1a1a2e)
-              : showMasked
-                  ? Colors.grey.shade200
-                  : Colors.white,
+          color: showMasked
+              ? (widget.isOwn ? const Color(0xFF12121f) : Colors.grey.shade200)
+              : (widget.isOwn ? const Color(0xFF1a1a2e) : Colors.white),
           borderRadius: BorderRadius.circular(12),
           border: showMasked
-              ? Border.all(color: Colors.grey.shade300, width: 0.5)
+              ? Border.all(
+                  color: widget.isOwn
+                      ? Colors.grey.shade700
+                      : Colors.grey.shade300,
+                  width: 0.5)
               : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Sender name + lock button (non-own messages)
-            if (!widget.isOwn)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+            // Sender name (non-own) or lock row (own)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!widget.isOwn)
                     Text(
                       widget.message['sender_name'] ??
                           AppLocalizations.of(context)!.member,
@@ -138,19 +140,21 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         color: Colors.blue.shade700,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    // Lock/unlock button
-                    _buildLockButton(),
-                  ],
-                ),
+                  if (!widget.isOwn) const SizedBox(width: 6),
+                  // Lock/unlock button for ALL messages
+                  _buildLockButton(),
+                ],
               ),
+            ),
             // Message text
             if (hasTextMessage)
               showMasked
                   ? Text(
                       _maskText(messageText),
                       style: TextStyle(
-                        color: Colors.grey.shade400,
+                        color: widget.isOwn
+                            ? Colors.white24
+                            : Colors.grey.shade400,
                         letterSpacing: 1.2,
                         fontSize: 14,
                       ),
@@ -164,13 +168,18 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.attach_file,
-                        size: 14, color: Colors.grey.shade400),
+                        size: 14,
+                        color: widget.isOwn
+                            ? Colors.white24
+                            : Colors.grey.shade400),
                     const SizedBox(width: 4),
                     Text(
                       '${attachments.length} ${attachments.length == 1 ? 'Anhang' : 'Anhänge'}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade400,
+                        color: widget.isOwn
+                            ? Colors.white24
+                            : Colors.grey.shade400,
                         fontStyle: FontStyle.italic,
                       ),
                     ),
@@ -211,6 +220,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   }
 
   Widget _buildLockButton() {
+    final isOwn = widget.isOwn;
+
     if (_isRevealed) {
       // Unlocked state with countdown
       return InkWell(
@@ -219,14 +230,19 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: Colors.green.shade50,
+            color: isOwn ? Colors.green.shade900 : Colors.green.shade50,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.green.shade300, width: 0.5),
+            border: Border.all(
+              color: isOwn ? Colors.green.shade700 : Colors.green.shade300,
+              width: 0.5,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_open, size: 12, color: Colors.green.shade700),
+              Icon(Icons.lock_open,
+                  size: 12,
+                  color: isOwn ? Colors.green.shade300 : Colors.green.shade700),
               const SizedBox(width: 3),
               Text(
                 '${_revealCountdown}s',
@@ -234,8 +250,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: _revealCountdown <= 3
-                      ? Colors.red.shade600
-                      : Colors.green.shade700,
+                      ? Colors.red.shade400
+                      : isOwn
+                          ? Colors.green.shade300
+                          : Colors.green.shade700,
                 ),
               ),
             ],
@@ -250,20 +268,25 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
+            color: isOwn ? Colors.white12 : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.grey.shade300, width: 0.5),
+            border: Border.all(
+              color: isOwn ? Colors.white24 : Colors.grey.shade300,
+              width: 0.5,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_outline, size: 12, color: Colors.grey.shade600),
+              Icon(Icons.lock_outline,
+                  size: 12,
+                  color: isOwn ? Colors.white60 : Colors.grey.shade600),
               const SizedBox(width: 3),
               Text(
                 'Lesen',
                 style: TextStyle(
                   fontSize: 10,
-                  color: Colors.grey.shade600,
+                  color: isOwn ? Colors.white60 : Colors.grey.shade600,
                 ),
               ),
             ],
