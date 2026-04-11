@@ -1,10 +1,14 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../utils/clipboard_helper.dart';
+import '../l10n/app_localizations.dart';
 import 'chat_attachment_item.dart';
 
-/// A chat message bubble with optional attachments
+/// A chat message bubble with auto-masking privacy feature.
+/// Non-own messages auto-mask with stars after 10 seconds of being visible.
+/// Swipe right to temporarily reveal a masked message.
 class ChatMessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
   final bool isOwn;
@@ -21,230 +25,352 @@ class ChatMessageBubble extends StatefulWidget {
   State<ChatMessageBubble> createState() => _ChatMessageBubbleState();
 }
 
-class _ChatMessageBubbleState extends State<ChatMessageBubble> {
-  bool _showCopied = false;
-  bool _isHidden = false;
-  int _tapCount = 0;
-  DateTime? _lastTapTime;
+class _ChatMessageBubbleState extends State<ChatMessageBubble>
+    with SingleTickerProviderStateMixin {
+  bool _isMasked = false;
+  bool _isRevealed = false;
+  Timer? _autoMaskTimer;
+  Timer? _revealTimer;
+  late AnimationController _countdownController;
+  int _countdownSeconds = 10;
+  Timer? _countdownTickTimer;
 
-  void _copyMessage(String text) {
-    ClipboardHelper.copy(context, text, 'Nachricht');
-    setState(() => _showCopied = true);
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) setState(() => _showCopied = false);
+  // Swipe detection
+  double _dragStartX = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _countdownController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    );
+
+    // Only auto-mask non-own messages (member messages)
+    if (!widget.isOwn) {
+      _startAutoMaskCountdown();
+    }
+  }
+
+  void _startAutoMaskCountdown() {
+    _countdownSeconds = 10;
+    _countdownController.forward(from: 0);
+
+    _countdownTickTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _countdownSeconds--;
+      });
+      if (_countdownSeconds <= 0) {
+        timer.cancel();
+      }
+    });
+
+    _autoMaskTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted) {
+        setState(() {
+          _isMasked = true;
+          _isRevealed = false;
+        });
+      }
     });
   }
 
-  void _handleTap() {
-    final now = DateTime.now();
-    if (_lastTapTime != null && now.difference(_lastTapTime!).inMilliseconds < 400) {
-      _tapCount++;
-    } else {
-      _tapCount = 1;
-    }
-    _lastTapTime = now;
+  void _onSwipeRight() {
+    if (!_isMasked) return; // Not masked yet, nothing to toggle
 
-    // Triple tap = hide/show message
-    if (_tapCount >= 3) {
-      setState(() => _isHidden = !_isHidden);
-      _tapCount = 0;
-    }
-    // Double tap = copy (handled after short delay to not conflict with triple)
-    else if (_tapCount == 2) {
-      Future.delayed(const Duration(milliseconds: 400), () {
-        if (_tapCount == 2) {
-          final messageText = widget.message['message'] ?? '';
-          if (messageText.toString().isNotEmpty && !messageText.toString().startsWith('[')) {
-            _copyMessage(messageText);
-          }
-          _tapCount = 0;
-        }
+    if (!_isRevealed) {
+      // Reveal temporarily
+      setState(() => _isRevealed = true);
+      _revealTimer?.cancel();
+      _revealTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted) setState(() => _isRevealed = false);
       });
+    } else {
+      // Manual re-mask
+      _revealTimer?.cancel();
+      setState(() => _isRevealed = false);
     }
+  }
+
+  String _maskText(String text) {
+    // Replace each word with stars of the same length
+    return text.replaceAllMapped(RegExp(r'\S+'), (match) {
+      return '★' * min(match.group(0)!.length, 12);
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoMaskTimer?.cancel();
+    _revealTimer?.cancel();
+    _countdownTickTimer?.cancel();
+    _countdownController.dispose();
+    super.dispose();
+  }
+
+  // Responsive spacing helper
+  double _getResponsiveSpacing(BuildContext context, double baseSize) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 360) return baseSize * 0.5;
+    if (width < 400) return baseSize * 0.75;
+    return baseSize;
   }
 
   @override
   Widget build(BuildContext context) {
-    final attachments = List<Map<String, dynamic>>.from(widget.message['attachments'] ?? []);
+    final attachments = List<Map<String, dynamic>>.from(
+        widget.message['attachments'] ?? []);
     final status = widget.message['status'] ?? 'sent';
     final messageText = widget.message['message'] ?? '';
     final hasTextMessage = messageText.toString().isNotEmpty &&
-                           !messageText.toString().startsWith('[');
+        !messageText.toString().startsWith('[');
 
-    // 🆕 URGENT message support
-    final isUrgent = widget.message['is_urgent'] == true || widget.message['is_urgent'] == 1;
+    final showMasked = !widget.isOwn && _isMasked && !_isRevealed;
+    final showCountdown = !widget.isOwn && !_isMasked && _countdownSeconds > 0;
 
-    // Generate stars based on message length
-    final msgLen = messageText?.toString().length ?? 0;
-    final hiddenText = _isHidden ? '★' * (msgLen.clamp(3, 20)) : messageText;
-
-    return Align(
-      alignment: widget.isOwn ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onTap: hasTextMessage ? _handleTap : null,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              margin: EdgeInsets.only(
-                bottom: 8,
-                left: widget.isOwn ? 50 : 0,
-                right: widget.isOwn ? 0 : 50,
-              ),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                // 🆕 Red background for urgent messages
-                color: isUrgent
-                    ? (widget.isOwn ? Colors.red.shade900 : Colors.red.shade50)
-                    : (widget.isOwn ? const Color(0xFF1a1a2e) : Colors.white),
-                // 🆕 Red border for urgent messages
-                border: isUrgent ? Border.all(color: Colors.red, width: 2) : null,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final bubble = Container(
+      margin: EdgeInsets.only(
+        bottom: _getResponsiveSpacing(context, 8),
+        left: widget.isOwn ? _getResponsiveSpacing(context, 50) : 0,
+        right: widget.isOwn ? 0 : _getResponsiveSpacing(context, 50),
+      ),
+      padding: EdgeInsets.all(_getResponsiveSpacing(context, 10)),
+      decoration: BoxDecoration(
+        color: widget.isOwn
+            ? const Color(0xFF1a1a2e)
+            : showMasked
+                ? Colors.grey.shade300
+                : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: showMasked
+            ? Border.all(color: Colors.grey.shade400, width: 0.5)
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sender name (only for non-own messages)
+          if (!widget.isOwn)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 🆕 URGENT badge (shows for all urgent messages)
-                  if (isUrgent)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.warning, color: Colors.white, size: 14),
-                            SizedBox(width: 4),
-                            Text(
-                              'DRINGEND',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // Sender name (only for non-own messages)
-                  if (!widget.isOwn)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        widget.message['sender_name'] ?? 'Benutzer',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                          color: isUrgent ? Colors.red.shade900 : Colors.blue.shade700,
-                        ),
-                      ),
-                    ),
-                  // Message text (hidden = stars, links clickable)
-                  if (hasTextMessage)
-                    _isHidden
-                        ? Text(
-                            hiddenText,
-                            style: TextStyle(
-                              color: widget.isOwn ? Colors.white38 : Colors.black38,
-                              letterSpacing: 2,
-                            ),
-                          )
-                        : _buildLinkifiedText(hiddenText.toString(), widget.isOwn),
-                  // Translation indicator
-                  if (widget.message['is_translated'] == true && !_isHidden)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.translate,
-                            size: 10,
-                            color: widget.isOwn ? Colors.white54 : Colors.grey.shade400,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            'Übersetzt',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontStyle: FontStyle.italic,
-                              color: widget.isOwn ? Colors.white54 : Colors.grey.shade400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  // Attachments
-                  if (attachments.isNotEmpty) ...[
-                    if (hasTextMessage) const SizedBox(height: 8),
-                    ...attachments.map((att) => ChatAttachmentItem(
-                      attachment: att,
-                      isOwn: widget.isOwn,
-                      onDownload: widget.onDownloadAttachment,
-                    )),
-                  ],
-                  // Time and read receipt
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _formatTime(widget.message['created_at']),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: widget.isOwn ? Colors.white70 : Colors.grey.shade500,
-                          ),
-                        ),
-                        // Read receipt checkmarks (only for own messages)
-                        if (widget.isOwn) ...[
-                          const SizedBox(width: 4),
-                          _buildReadReceipt(status),
-                        ],
-                      ],
+                  Text(
+                    widget.message['sender_name'] ??
+                        AppLocalizations.of(context)!.member,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      color: Colors.blue.shade700,
                     ),
                   ),
+                  // Countdown badge
+                  if (showCountdown) ...[
+                    const SizedBox(width: 6),
+                    _buildCountdownBadge(),
+                  ],
+                  // Lock icon when masked
+                  if (showMasked) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.lock_outline,
+                        size: 12, color: Colors.grey.shade600),
+                    const SizedBox(width: 2),
+                    Text(
+                      '← swipe',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: Colors.grey.shade500,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-            // "Kopiert!" tooltip - appears briefly after double-click
-            if (_showCopied)
-              Positioned(
-                top: -25,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade700,
-                      borderRadius: BorderRadius.circular(8),
+          // Message text (masked or clear)
+          if (hasTextMessage)
+            showMasked
+                ? Text(
+                    _maskText(messageText),
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      letterSpacing: 1.5,
+                      fontSize: 14,
                     ),
-                    child: const Text(
-                      'Kopiert!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  )
+                : _buildLinkifiedText(messageText, widget.isOwn),
+          // Attachments (also masked when text is masked)
+          if (attachments.isNotEmpty) ...[
+            if (hasTextMessage) const SizedBox(height: 8),
+            if (showMasked)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.attach_file,
+                      size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${attachments.length} ${attachments.length == 1 ? 'Anhang' : 'Anhänge'} (ausgeblendet)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
+                ],
+              )
+            else
+              ...attachments.map((att) => ChatAttachmentItem(
+                    attachment: att,
+                    isOwn: widget.isOwn,
+                    onDownload: widget.onDownloadAttachment,
+                  )),
+          ],
+          // Time and read receipt
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _formatTime(widget.message['created_at']),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: widget.isOwn
+                        ? Colors.white70
+                        : Colors.grey.shade500,
+                  ),
+                ),
+                // Read receipt checkmarks (only for own messages)
+                if (widget.isOwn) ...[
+                  const SizedBox(width: 4),
+                  _buildReadReceipt(status),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // Wrap non-own messages with swipe gesture detector
+    if (!widget.isOwn) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: GestureDetector(
+          onHorizontalDragStart: (details) {
+            _dragStartX = details.localPosition.dx;
+          },
+          onHorizontalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            // Swipe right detection (positive velocity = right direction)
+            if (velocity > 200) {
+              _onSwipeRight();
+            }
+          },
+          child: bubble,
+        ),
+      );
+    }
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: bubble,
+    );
+  }
+
+  Widget _buildCountdownBadge() {
+    return AnimatedBuilder(
+      animation: _countdownController,
+      builder: (context, child) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+          decoration: BoxDecoration(
+            color: _countdownSeconds <= 3
+                ? Colors.red.shade100
+                : Colors.orange.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                size: 10,
+                color: _countdownSeconds <= 3
+                    ? Colors.red.shade700
+                    : Colors.orange.shade700,
+              ),
+              const SizedBox(width: 2),
+              Text(
+                '${_countdownSeconds}s',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: _countdownSeconds <= 3
+                      ? Colors.red.shade700
+                      : Colors.orange.shade700,
                 ),
               ),
-          ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static final _urlRegex = RegExp(
+    r'https?://[^\s<>\"\)]+',
+    caseSensitive: false,
+  );
+
+  Widget _buildLinkifiedText(String text, bool isOwn) {
+    final matches = _urlRegex.allMatches(text).toList();
+    if (matches.isEmpty) {
+      return Text(text,
+          style: TextStyle(color: isOwn ? Colors.white : Colors.black87));
+    }
+
+    final spans = <TextSpan>[];
+    int lastEnd = 0;
+
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      final url = match.group(0)!;
+      spans.add(TextSpan(
+        text: url,
+        style: TextStyle(
+          color: isOwn ? Colors.lightBlueAccent : Colors.blue.shade700,
+          decoration: TextDecoration.underline,
         ),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () => launchUrl(Uri.parse(url),
+              mode: LaunchMode.externalApplication),
+      ));
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+            color: isOwn ? Colors.white : Colors.black87, fontSize: 14),
+        children: spans,
       ),
     );
   }
 
   Widget _buildReadReceipt(String status) {
-    // WhatsApp style: ✓ = sent, ✓✓ = delivered, ✓✓ blue = read
     switch (status) {
       case 'read':
         return const Row(
@@ -257,7 +383,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.done_all, size: 14, color: Colors.white.withValues(alpha: 0.7)),
+            Icon(Icons.done_all,
+                size: 14, color: Colors.white.withValues(alpha: 0.7)),
           ],
         );
       case 'sent':
@@ -265,45 +392,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.done, size: 14, color: Colors.white.withValues(alpha: 0.7)),
+            Icon(Icons.done,
+                size: 14, color: Colors.white.withValues(alpha: 0.7)),
           ],
         );
     }
-  }
-
-  static final _urlRegex = RegExp(r'https?://[^\s<>\"\)]+', caseSensitive: false);
-
-  Widget _buildLinkifiedText(String text, bool isOwn) {
-    final matches = _urlRegex.allMatches(text).toList();
-    if (matches.isEmpty) {
-      return Text(text, style: TextStyle(color: isOwn ? Colors.white : Colors.black87));
-    }
-    final spans = <TextSpan>[];
-    int lastEnd = 0;
-    for (final match in matches) {
-      if (match.start > lastEnd) {
-        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
-      }
-      final url = match.group(0)!;
-      spans.add(TextSpan(
-        text: url,
-        style: TextStyle(
-          color: isOwn ? Colors.lightBlueAccent : Colors.blue.shade700,
-          decoration: TextDecoration.underline,
-        ),
-        recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-      ));
-      lastEnd = match.end;
-    }
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(text: text.substring(lastEnd)));
-    }
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(color: isOwn ? Colors.white : Colors.black87, fontSize: 14),
-        children: spans,
-      ),
-    );
   }
 
   String _formatTime(String? dateStr) {
