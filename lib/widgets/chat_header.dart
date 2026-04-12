@@ -10,6 +10,7 @@ class ConversationHeader extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onMuteToggle;
   final VoidCallback? onScheduledSettings;
+  final VoidCallback? onInfoTap;
 
   const ConversationHeader({
     super.key,
@@ -21,12 +22,14 @@ class ConversationHeader extends StatelessWidget {
     this.isMuted = false,
     required this.onMuteToggle,
     this.onScheduledSettings,
+    this.onInfoTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final memberName = conversation['member_name'] ?? 'Unbekannt';
-    final memberNr = conversation['member_nr'] ?? '';
+    final mitgliedernummer = conversation['mitgliedernummer']?.toString()
+        ?? conversation['member_nr']?.toString()
+        ?? '';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -39,32 +42,24 @@ class ConversationHeader extends StatelessWidget {
           CircleAvatar(
             radius: 18,
             backgroundColor: Colors.blue,
-            child: Text(
-              memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
-              style: const TextStyle(color: Colors.white),
-            ),
+            child: const Icon(Icons.person, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  memberName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  memberNr,
-                  style: TextStyle(
-                    color: Colors.grey.shade400,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
+            child: Text(
+              mitgliedernummer.isNotEmpty ? mitgliedernummer : 'Unbekannt',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
             ),
+          ),
+          // Member info button
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.lightBlueAccent),
+            onPressed: onInfoTap,
+            tooltip: 'Mitglied-Informationen',
           ),
           // Scheduled messages settings
           if (isOpen && onScheduledSettings != null)
