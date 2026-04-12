@@ -58,7 +58,7 @@ jobs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Extract version from pubspec.yaml
         id: version
         run: |
@@ -105,9 +105,9 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -145,7 +145,7 @@ jobs:
           mv build/app/outputs/flutter-apk/app-release.apk \
              build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-universal.apk
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: android-universal-apk
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-universal.apk
@@ -158,9 +158,9 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -202,7 +202,7 @@ jobs:
             mv "$f" "${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-samsung-${ABI}.apk"
           done
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: samsung-apks
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-samsung-*.apk
@@ -215,9 +215,9 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -255,7 +255,7 @@ jobs:
           mv build/app/outputs/bundle/release/app-release.aab \
              build/app/outputs/bundle/release/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-googleplay.aab
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: googleplay-aab
           path: build/app/outputs/bundle/release/${{ env.APP_NAME }}-*-googleplay.aab
@@ -268,9 +268,9 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -309,7 +309,7 @@ jobs:
           mv build/app/outputs/flutter-apk/app-release.apk \
              build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-fdroid.apk
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: fdroid-apk
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-fdroid.apk
@@ -322,9 +322,9 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -363,7 +363,7 @@ jobs:
           mv build/app/outputs/flutter-apk/app-release.apk \
              build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-huawei.apk
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: huawei-apk
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-huawei.apk
@@ -380,7 +380,7 @@ jobs:
     needs: version
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: subosito/flutter-action@v2
         with:
@@ -401,7 +401,7 @@ jobs:
             -Path "build\windows\x64\runner\Release\*" `
             -DestinationPath "build\${{ env.APP_NAME }}-${version}-windows-x64.zip"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-zip
           path: build/${{ env.APP_NAME }}-*-windows-x64.zip
@@ -414,7 +414,7 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Linux build deps
         run: |
@@ -448,7 +448,7 @@ jobs:
           cd build/linux/x64/release/bundle
           tar -czf "../../../../../${{ env.APP_NAME }}-${VERSION}-linux-x64.tar.gz" .
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-targz
           path: ${{ env.APP_NAME }}-*-linux-x64.tar.gz
@@ -463,7 +463,7 @@ jobs:
     env:
       HAS_MACOS_CERT: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -548,7 +548,7 @@ jobs:
             -ov -format UDZO \
             "build/${DMG_NAME}"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-dmg
           path: build/${{ env.APP_NAME }}-*-macos.dmg
@@ -567,7 +567,7 @@ jobs:
     env:
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -632,7 +632,7 @@ jobs:
             rm -rf Payload
           fi
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: ios-ipa
           path: build/${{ env.APP_NAME }}-*-ios*.ipa
@@ -656,7 +656,7 @@ jobs:
       - ios
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -690,11 +690,11 @@ jobs:
       - release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
