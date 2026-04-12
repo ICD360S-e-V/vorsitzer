@@ -2613,10 +2613,6 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         if (_typingUser != null)
           TypingIndicator(userName: _typingUser!),
 
-        // Network status bar
-        if (_selectedConversation != null)
-          _buildNetworkStatusBar(),
-
         if (isOpen)
           ChatInputArea(
             controller: _messageController,
