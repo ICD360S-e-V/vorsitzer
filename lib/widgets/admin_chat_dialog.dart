@@ -2586,12 +2586,10 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   Future<void> _showMemberInfoDialog(Map<String, dynamic> conversation) async {
     final mitgliedernummer = conversation['mitgliedernummer']?.toString() ?? '';
 
-    // Find user_id from loaded users list or conversation data
-    final userId = conversation['user_id'] as int?;
-    if (userId == null) {
+    if (mitgliedernummer.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Benutzer-ID nicht verfügbar')),
+        const SnackBar(content: Text('Mitgliedernummer nicht verfügbar')),
       );
       return;
     }
@@ -2605,7 +2603,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     );
 
     try {
-      final result = await _apiService.getUserDetails(userId);
+      final result = await _apiService.getMemberDetailsByNummer(mitgliedernummer);
       if (!mounted) return;
       Navigator.pop(context); // close loading
 
