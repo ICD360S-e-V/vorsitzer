@@ -1,22 +1,16 @@
 name: Release (auto-bump + build)
 
 # ═══════════════════════════════════════════════════════════════
-# FULLY AUTOMATIC SEMANTIC VERSIONING
+# FULLY AUTOMATIC VERSIONING — NO COMMIT CONVENTIONS NEEDED
 #
-# Triggers on every push to main. Reads commit messages since
-# the last tag and determines the bump type automatically:
+# Triggers on every push to main. Analyzes the actual code changes
+# (git diff) since the last tag to determine the bump type:
 #
-#   fix: / chore: / docs: / refactor: / ...  →  PATCH  (1.0.60 → 1.0.61)
-#   feat: / feat(scope):                     →  MINOR  (1.0.60 → 1.1.0)
-#   feat!: / fix!: / BREAKING CHANGE:        →  MAJOR  (1.0.60 → 2.0.0)
+#   New files in lib/ (screens, widgets, services)  →  MINOR
+#   Only modifications to existing files            →  PATCH
+#   Explicit "BREAKING CHANGE" in commit message    →  MAJOR
 #
-# Commits without a conventional prefix default to PATCH.
-# The highest bump type wins when commits are mixed.
-#
-# You can also trigger manually and override the bump type.
-#
-# NEVER manually edit pubspec.yaml or update_service.dart version.
-# NEVER retag the same version. This workflow handles everything.
+# Just push your code. That's it.
 # ═══════════════════════════════════════════════════════════════
 
 on:
@@ -25,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       bump_type:
-        description: 'Override bump type (leave auto to detect from commits)'
+        description: 'Override bump type (leave auto to detect from changes)'
         required: false
         default: 'auto'
         type: choice
@@ -42,7 +36,6 @@ permissions:
 jobs:
   bump-and-tag:
     name: "🔢 Auto-bump version + tag"
-    # Skip the version-bump commit itself to prevent infinite loops
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     outputs:
@@ -60,10 +53,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Detect bump type from commits
+      - name: Detect bump type from code changes
         id: detect
         run: |
-          # If manually triggered with an explicit override, use it directly
+          # ── Manual override ──────────────────────────────────────
           OVERRIDE="${{ github.event.inputs.bump_type }}"
           if [[ -n "$OVERRIDE" && "$OVERRIDE" != "auto" ]]; then
             echo "bump=$OVERRIDE" >> "$GITHUB_OUTPUT"
@@ -72,58 +65,60 @@ jobs:
             exit 0
           fi
 
-          # Find the last version tag
+          # ── Find last version tag ───────────────────────────────
           LAST_TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "")
 
           if [[ -z "$LAST_TAG" ]]; then
-            COMMITS=$(git log --format="%s%n%b" HEAD)
+            RANGE="$(git hash-object -t tree /dev/null)..HEAD"
             echo "No previous tag found, scanning entire history"
           else
-            COMMITS=$(git log --format="%s%n%b" "${LAST_TAG}..HEAD")
-            echo "Scanning commits since $LAST_TAG"
+            RANGE="${LAST_TAG}..HEAD"
+            echo "Scanning changes since $LAST_TAG"
           fi
 
-          # No commits since last tag? Skip.
-          if [[ -z "$COMMITS" ]]; then
+          # ── No commits since last tag? Skip. ────────────────────
+          COMMIT_COUNT=$(git rev-list --count "$RANGE" 2>/dev/null || echo "0")
+          if [[ "$COMMIT_COUNT" -eq 0 ]]; then
             echo "No new commits since last tag, skipping."
             echo "skipped=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "$COMMIT_COUNT commits to analyze"
 
-          # Determine bump type using Conventional Commits rules:
-          #   BREAKING CHANGE: or type!:  → major
-          #   feat:                       → minor
-          #   everything else             → patch
-          BUMP="patch"
-          while IFS= read -r line; do
-            # BREAKING CHANGE in commit body/footer
-            if echo "$line" | grep -qiE "^BREAKING[- ]CHANGE:"; then
-              BUMP="major"
-              break
-            fi
-            # Breaking change via ! marker: feat!: fix!: refactor(scope)!:
-            if echo "$line" | grep -qE "^[a-zA-Z]+(\([^)]+\))?!:"; then
-              BUMP="major"
-              break
-            fi
-            # New feature
-            if echo "$line" | grep -qE "^feat(\([^)]+\))?:"; then
-              BUMP="minor"
-              # Keep scanning — a later commit might be major
-            fi
-          done <<< "$COMMITS"
-
-          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
-          echo "Detected bump type: $BUMP"
-
-          # Show the commits that were analyzed
-          echo "--- Commits analyzed ---"
-          if [[ -z "$LAST_TAG" ]]; then
-            git log --oneline HEAD | head -20
-          else
-            git log --oneline "${LAST_TAG}..HEAD" | head -20
+          # ── 1. Check for BREAKING CHANGE (explicit marker) ─────
+          #    This is the only thing that requires intent in the
+          #    commit message — because breaking changes are semantic,
+          #    not detectable from file diffs alone.
+          if git log "$RANGE" --format="%s %b" | grep -qiE "(BREAKING[- ]CHANGE|^[a-zA-Z]+(\([^)]+\))?!:)"; then
+            echo "bump=major" >> "$GITHUB_OUTPUT"
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
+            echo "Detected: MAJOR (breaking change in commit message)"
+            exit 0
           fi
+
+          # ── 2. Analyze actual file changes ──────────────────────
+          DIFF_OUTPUT=$(git diff --name-status "$RANGE")
+          echo "--- Files changed ---"
+          echo "$DIFF_OUTPUT" | head -30
+
+          # New files added under lib/ → new feature → MINOR
+          NEW_LIB_FILES=$(echo "$DIFF_OUTPUT" | awk '$1 == "A" && $2 ~ /^lib\// { print $2 }')
+
+          if [[ -n "$NEW_LIB_FILES" ]]; then
+            echo ""
+            echo "New lib/ files detected:"
+            echo "$NEW_LIB_FILES"
+            echo ""
+            echo "bump=minor" >> "$GITHUB_OUTPUT"
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
+            echo "Detected: MINOR (new files added in lib/)"
+            exit 0
+          fi
+
+          # ── 3. Everything else → PATCH ──────────────────────────
+          echo "bump=patch" >> "$GITHUB_OUTPUT"
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+          echo "Detected: PATCH (modifications only, no new lib/ files)"
 
       - name: Calculate new version
         if: steps.detect.outputs.skipped != 'true'
@@ -146,12 +141,10 @@ jobs:
 
           NEW_BUILD=$((BUILD_NUMBER + 1))
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-          NEW_FULL="$NEW_VERSION+$NEW_BUILD"
 
-          echo "Current: $CURRENT → New: $NEW_FULL ($BUMP_TYPE bump)"
+          echo "Current: $CURRENT → New: $NEW_VERSION+$NEW_BUILD ($BUMP_TYPE bump)"
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "new_build=$NEW_BUILD" >> "$GITHUB_OUTPUT"
-          echo "new_full=$NEW_FULL" >> "$GITHUB_OUTPUT"
 
       - name: Bump pubspec.yaml
         if: steps.detect.outputs.skipped != 'true'
