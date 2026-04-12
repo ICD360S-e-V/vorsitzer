@@ -2583,6 +2583,128 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     );
   }
 
+  Future<void> _showMemberInfoDialog(Map<String, dynamic> conversation) async {
+    final mitgliedernummer = conversation['mitgliedernummer']?.toString() ?? '';
+
+    // Find user_id from loaded users list or conversation data
+    final userId = conversation['user_id'] as int?;
+    if (userId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Benutzer-ID nicht verfügbar')),
+      );
+      return;
+    }
+
+    // Show loading dialog
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final result = await _apiService.getUserDetails(userId);
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+
+      if (result['success'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: ${result['message'] ?? 'Unbekannt'}')),
+        );
+        return;
+      }
+
+      final user = result['user'] as Map<String, dynamic>? ?? result;
+
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFF4a90d9)),
+              const SizedBox(width: 8),
+              Text('Mitglied $mitgliedernummer', style: const TextStyle(fontSize: 16)),
+            ],
+          ),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _infoRow('Vorname', user['vorname']),
+                  _infoRow('Nachname', user['nachname']),
+                  _infoRow('E-Mail', user['email']),
+                  _infoRow('Telefon', user['telefon_mobil']),
+                  _infoRow('Geburtsdatum', user['geburtsdatum']),
+                  _infoRow('Geburtsort', user['geburtsort']),
+                  _infoRow('Staatsangehörigkeit', user['staatsangehoerigkeit']),
+                  const Divider(),
+                  _infoRow('Straße', user['strasse']),
+                  _infoRow('Hausnummer', user['hausnummer']),
+                  _infoRow('PLZ', user['plz']),
+                  _infoRow('Ort', user['ort']),
+                  _infoRow('Bundesland', user['bundesland']),
+                  _infoRow('Land', user['land']),
+                  const Divider(),
+                  _infoRow('Mitgliedsart', user['mitgliedsart']),
+                  _infoRow('Mitgliedschaft seit', user['mitgliedschaft_datum']),
+                  _infoRow('Zahlungsmethode', user['zahlungsmethode']),
+                  _infoRow('Status', user['status']),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Schließen'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Laden: $e')),
+      );
+    }
+  }
+
+  Widget _infoRow(String label, dynamic value) {
+    final text = value?.toString() ?? '';
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildChatArea() {
     final isOpen = _selectedConversation!['status'] == 'open';
     final canCall = _voiceCallService.callState == CallState.idle && _isConnected;
@@ -2598,6 +2720,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           onClose: _closeConversation,
           onMuteToggle: _showMuteOptions,
           onScheduledSettings: () => _showConversationScheduledDialog(_selectedConversation!),
+          onInfoTap: () => _showMemberInfoDialog(_selectedConversation!),
         ),
         const SizedBox(height: 8),
 
