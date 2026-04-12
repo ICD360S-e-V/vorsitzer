@@ -1147,40 +1147,6 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!isOwn)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      msg['sender_name'] ?? 'Support',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: isAdmin ? Colors.purple.shade700 : const Color(0xFF4a90d9),
-                      ),
-                    ),
-                    if (isAdmin) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade100,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Support',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.purple.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
             if (messageText.isNotEmpty)
               Text(
                 messageText,
