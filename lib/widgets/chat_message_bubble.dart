@@ -187,23 +187,12 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       ),
                     ),
 
-                  // Sender name + lock button
+                  // Lock button
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (!widget.isOwn)
-                          Text(
-                            widget.message['sender_name'] ?? 'Benutzer',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                              color: isUrgent ? Colors.red.shade900 : Colors.blue.shade700,
-                            ),
-                          ),
-                        if (!widget.isOwn) const SizedBox(width: 6),
-                        // Lock/unlock button
                         _buildLockButton(),
                       ],
                     ),
