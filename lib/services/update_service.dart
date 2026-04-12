@@ -217,30 +217,46 @@ class UpdateService {
   /// macOS: Mount DMG, copy .app to /Applications, unmount DMG, relaunch
   Future<void> _macOSAutoUpdate(String dmgPath) async {
     try {
-      // 1. Mount the DMG silently
+      // 1. Mount the DMG silently with -plist for reliable mount-point parsing
+      //    NOTE: -quiet suppresses ALL stdout (including mount point) so we must NOT use it.
+      //    -nobrowse prevents the volume from appearing in Finder.
+      //    -plist gives us structured XML output to parse the mount point reliably.
       final mountResult = await Process.run('hdiutil', [
-        'attach', dmgPath, '-nobrowse', '-quiet',
+        'attach', dmgPath, '-nobrowse', '-plist',
       ]);
 
       if (mountResult.exitCode != 0) {
         _log.error('Failed to mount DMG: ${mountResult.stderr}', tag: 'UPDATE');
-        // Fallback: just open DMG normally
         await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
         return;
       }
 
-      // 2. Find the mounted volume and .app inside it
-      final mountOutput = mountResult.stdout as String;
-      final mountPoint = mountOutput.split('\n')
-          .where((l) => l.contains('/Volumes/'))
-          .map((l) => l.substring(l.indexOf('/Volumes/')).trim())
-          .firstOrNull;
+      // 2. Extract mount point from plist output using python3 (always available on macOS)
+      //    We write the plist to a temp file and parse with python3 since
+      //    Process.run doesn't support piping stdin easily in Dart.
+      final tempDir = await getTemporaryDirectory();
+      final plistFile = File('${tempDir.path}/hdiutil_output.plist');
+      await plistFile.writeAsString(mountResult.stdout as String);
 
-      if (mountPoint == null) {
-        _log.error('Could not find mount point in: $mountOutput', tag: 'UPDATE');
+      final parseResult = await Process.run('python3', [
+        '-c',
+        'import plistlib\n'
+        'with open("${plistFile.path}","rb") as f:\n'
+        '  pl=plistlib.load(f)\n'
+        'mp=[e["mount-point"] for e in pl.get("system-entities",[]) if "mount-point" in e]\n'
+        'print(mp[0] if mp else "")',
+      ]);
+      await plistFile.delete().catchError((_) => plistFile);
+
+      final mountPoint = (parseResult.stdout as String).trim();
+
+      if (mountPoint.isEmpty) {
+        _log.error('Could not parse mount point from hdiutil plist output', tag: 'UPDATE');
         await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
         return;
       }
+
+      _log.info('DMG mounted at: $mountPoint', tag: 'UPDATE');
 
       // 3. Find the .app bundle in the mounted volume
       final lsResult = await Process.run('find', [mountPoint, '-maxdepth', '1', '-name', '*.app', '-type', 'd']);
@@ -248,7 +264,7 @@ class UpdateService {
 
       if (appPath == null || appPath.isEmpty) {
         _log.error('No .app found in $mountPoint', tag: 'UPDATE');
-        await Process.run('hdiutil', ['detach', mountPoint, '-quiet']);
+        await Process.run('hdiutil', ['detach', mountPoint, '-force']);
         await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
         return;
       }
@@ -260,9 +276,9 @@ class UpdateService {
       _log.info('Updating: $appPath → $targetPath', tag: 'UPDATE');
 
       // 4. Create a shell script that waits for this app to exit, then replaces and relaunches
-      final tempDir = await getTemporaryDirectory();
+      //    Uses ditto (Apple's recommended tool for copying .app bundles)
+      //    Strips quarantine xattr to prevent Gatekeeper dialog & app translocation
       final scriptPath = '${tempDir.path}/vorsitzer_update.sh';
-      // All Dart variables are interpolated into the script as literal values
       final script = '#!/bin/bash\n'
           'APP_PID=$appPid\n'
           'SRC_APP="$appPath"\n'
@@ -272,22 +288,24 @@ class UpdateService {
           'SCRIPT_FILE="$scriptPath"\n'
           '\n'
           '# Wait for the current app to exit (max 30 seconds)\n'
-          'for i in \$(seq 1 60); do\n'
-          '  if ! kill -0 \$APP_PID 2>/dev/null; then break; fi\n'
+          'while kill -0 \$APP_PID 2>/dev/null; do\n'
           '  sleep 0.5\n'
           'done\n'
           '\n'
-          '# Remove old version and copy new one\n'
+          '# Remove old version and copy new one (ditto preserves macOS bundle metadata)\n'
           'rm -rf "\$DST_APP"\n'
-          'cp -R "\$SRC_APP" "\$DST_APP"\n'
+          'ditto "\$SRC_APP" "\$DST_APP"\n'
           '\n'
-          '# Unmount DMG\n'
-          'hdiutil detach "\$MOUNT_POINT" -quiet 2>/dev/null\n'
+          '# Strip quarantine attribute to prevent Gatekeeper dialog and app translocation\n'
+          'xattr -r -d com.apple.quarantine "\$DST_APP" 2>/dev/null\n'
+          '\n'
+          '# Unmount DMG (try graceful first, then force)\n'
+          'hdiutil detach "\$MOUNT_POINT" -quiet 2>/dev/null || hdiutil detach "\$MOUNT_POINT" -force 2>/dev/null\n'
           '\n'
           '# Clean up DMG and this script\n'
           'rm -f "\$DMG_FILE"\n'
           '\n'
-          '# Relaunch the app\n'
+          '# Relaunch the updated app\n'
           'open "\$DST_APP"\n'
           '\n'
           'rm -f "\$SCRIPT_FILE"\n';
