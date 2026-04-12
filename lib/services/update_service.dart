@@ -170,7 +170,7 @@ class UpdateService {
 
   /// Launch the installer (cross-platform)
   /// - Windows: Inno Setup with silent flags
-  /// - macOS: Open DMG file
+  /// - macOS: Mount DMG → copy .app to /Applications → unmount → relaunch
   /// - Linux: Make AppImage executable and run
   /// - Android: Install APK via file manager
   /// - iOS: Open TestFlight URL (direct install not supported)
@@ -186,9 +186,8 @@ class UpdateService {
       exit(0);
 
     } else if (Platform.isMacOS) {
-      // macOS: Open DMG file (user will drag to Applications)
-      await Process.start('open', [installerPath], mode: ProcessStartMode.detached);
-      // Don't exit on macOS - let user manually restart after installation
+      // macOS: Mount DMG, copy .app to /Applications, unmount, relaunch
+      await _macOSAutoUpdate(installerPath);
 
     } else if (Platform.isLinux) {
       // Linux: Make AppImage executable and run
@@ -212,6 +211,99 @@ class UpdateService {
       // iOS: Direct installation not supported - redirect to download page
       _log.warning('iOS direct update not supported - use TestFlight', tag: 'UPDATE');
       // Could open a URL to TestFlight or download page
+    }
+  }
+
+  /// macOS: Mount DMG, copy .app to /Applications, unmount DMG, relaunch
+  Future<void> _macOSAutoUpdate(String dmgPath) async {
+    try {
+      // 1. Mount the DMG silently
+      final mountResult = await Process.run('hdiutil', [
+        'attach', dmgPath, '-nobrowse', '-quiet',
+      ]);
+
+      if (mountResult.exitCode != 0) {
+        _log.error('Failed to mount DMG: ${mountResult.stderr}', tag: 'UPDATE');
+        // Fallback: just open DMG normally
+        await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
+        return;
+      }
+
+      // 2. Find the mounted volume and .app inside it
+      final mountOutput = mountResult.stdout as String;
+      final mountPoint = mountOutput.split('\n')
+          .where((l) => l.contains('/Volumes/'))
+          .map((l) => l.substring(l.indexOf('/Volumes/')).trim())
+          .firstOrNull;
+
+      if (mountPoint == null) {
+        _log.error('Could not find mount point in: $mountOutput', tag: 'UPDATE');
+        await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
+        return;
+      }
+
+      // 3. Find the .app bundle in the mounted volume
+      final lsResult = await Process.run('find', [mountPoint, '-maxdepth', '1', '-name', '*.app', '-type', 'd']);
+      final appPath = (lsResult.stdout as String).trim().split('\n').firstOrNull;
+
+      if (appPath == null || appPath.isEmpty) {
+        _log.error('No .app found in $mountPoint', tag: 'UPDATE');
+        await Process.run('hdiutil', ['detach', mountPoint, '-quiet']);
+        await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
+        return;
+      }
+
+      final appName = appPath.split('/').last; // e.g. "vorsitzer.app"
+      final targetPath = '/Applications/$appName';
+      final appPid = pid; // current process PID from dart:io
+
+      _log.info('Updating: $appPath → $targetPath', tag: 'UPDATE');
+
+      // 4. Create a shell script that waits for this app to exit, then replaces and relaunches
+      final tempDir = await getTemporaryDirectory();
+      final scriptPath = '${tempDir.path}/vorsitzer_update.sh';
+      // All Dart variables are interpolated into the script as literal values
+      final script = '#!/bin/bash\n'
+          'APP_PID=$appPid\n'
+          'SRC_APP="$appPath"\n'
+          'DST_APP="$targetPath"\n'
+          'MOUNT_POINT="$mountPoint"\n'
+          'DMG_FILE="$dmgPath"\n'
+          'SCRIPT_FILE="$scriptPath"\n'
+          '\n'
+          '# Wait for the current app to exit (max 30 seconds)\n'
+          'for i in \$(seq 1 60); do\n'
+          '  if ! kill -0 \$APP_PID 2>/dev/null; then break; fi\n'
+          '  sleep 0.5\n'
+          'done\n'
+          '\n'
+          '# Remove old version and copy new one\n'
+          'rm -rf "\$DST_APP"\n'
+          'cp -R "\$SRC_APP" "\$DST_APP"\n'
+          '\n'
+          '# Unmount DMG\n'
+          'hdiutil detach "\$MOUNT_POINT" -quiet 2>/dev/null\n'
+          '\n'
+          '# Clean up DMG and this script\n'
+          'rm -f "\$DMG_FILE"\n'
+          '\n'
+          '# Relaunch the app\n'
+          'open "\$DST_APP"\n'
+          '\n'
+          'rm -f "\$SCRIPT_FILE"\n';
+
+      await File(scriptPath).writeAsString(script);
+      await Process.run('chmod', ['+x', scriptPath]);
+
+      // 5. Run the updater script detached and exit the current app
+      await Process.start('/bin/bash', [scriptPath], mode: ProcessStartMode.detached);
+      _log.info('macOS updater script launched, exiting app...', tag: 'UPDATE');
+      exit(0);
+
+    } catch (e) {
+      _log.error('macOS auto-update failed: $e', tag: 'UPDATE');
+      // Fallback: just open the DMG for manual installation
+      await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
     }
   }
 
