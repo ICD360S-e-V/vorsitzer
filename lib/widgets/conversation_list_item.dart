@@ -25,15 +25,16 @@ class ConversationListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final unreadCount = conversation['unread_count'] ?? 0;
     final status = conversation['status'] ?? 'open';
-    final memberName = conversation['member_name'] ?? 'Unbekannt';
+    final memberNr = conversation['mitgliedernummer']?.toString() ?? conversation['member_nr']?.toString() ?? '';
+    final displayName = memberNr.isNotEmpty ? memberNr : (conversation['member_name'] ?? 'Unbekannt');
     final lastSeenStr = conversation['last_seen'] as String?;
 
     return Container(
       color: isSelected ? const Color(0xFF1a1a2e).withValues(alpha: 0.1) : null,
       child: ListTile(
         dense: true,
-        leading: _buildAvatar(memberName, status),
-        title: _buildTitle(memberName, unreadCount),
+        leading: _buildAvatar(displayName, status),
+        title: _buildTitle(displayName, unreadCount),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
