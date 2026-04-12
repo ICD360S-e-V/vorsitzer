@@ -4039,6 +4039,21 @@ class ApiService {
     }
   }
 
+  /// Get full member details by Mitgliedernummer (for member info dialog)
+  Future<Map<String, dynamic>> getMemberDetailsByNummer(String mitgliedernummer) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/user_details.php'),
+      headers: _headers,
+      body: jsonEncode({'mitgliedernummer': mitgliedernummer}),
+    ).timeout(const Duration(seconds: 15));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // ========== OCR LOHNSTEUERBESCHEINIGUNG ==========
 
   Future<Map<String, dynamic>> ocrLohnsteuerbescheinigung(int docId) async {
