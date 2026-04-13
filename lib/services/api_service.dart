@@ -84,7 +84,7 @@ class ApiService {
     _tokenRefreshTimer?.cancel();
     // Refresh every 50 minutes (token expires after 60 min)
     _tokenRefreshTimer = Timer.periodic(const Duration(minutes: 50), (_) async {
-      _log.info('Proactive token refresh (50 min timer)', tag: 'AUTH');
+      LoggerService().info('Proactive token refresh (50 min timer)', tag: 'AUTH');
       await _refreshAccessToken();
     });
   }
@@ -131,11 +131,11 @@ class ApiService {
         try {
           await _secureStorage.write(key: 'token', value: newToken);
         } catch (_) {}
-        _log.info('Access token refreshed successfully', tag: 'AUTH');
+        LoggerService().info('Access token refreshed successfully', tag: 'AUTH');
         return true;
       }
     } catch (e) {
-      _log.error('Token refresh failed: $e', tag: 'AUTH');
+      LoggerService().error('Token refresh failed: $e', tag: 'AUTH');
     } finally {
       _isRefreshing = false;
     }
