@@ -78,6 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   String? _errorMessage;
   late String _currentEmail;
   String _memberSearchQuery = '';
+  bool _dashboardRevealed = false;
   final _memberSearchController = TextEditingController();
 
   // Sidebar navigation
@@ -1624,6 +1625,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const Spacer(),
+              // Reveal/hide dashboard data
+              IconButton(
+                icon: Icon(
+                  _dashboardRevealed ? Icons.visibility : Icons.visibility_off,
+                  color: _dashboardRevealed ? Colors.green : Colors.grey,
+                ),
+                tooltip: _dashboardRevealed ? 'Daten ausblenden' : 'Daten anzeigen',
+                onPressed: () => setState(() => _dashboardRevealed = !_dashboardRevealed),
+              ),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Aktualisieren',
@@ -1647,11 +1657,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             spacing: 16,
             runSpacing: 16,
             children: [
-              _dashCard('Gesamt', '$totalUsers', Icons.people, Colors.blue),
-              _dashCard('Aktiv', '$activeUsers', Icons.check_circle, Colors.green),
-              _dashCard('Neu', '$newUsers', Icons.fiber_new, Colors.amber.shade700),
-              _dashCard('Gesperrt', '$suspendedUsers', Icons.pause_circle, Colors.orange),
-              _dashCard('Gekündigt', '$gekuendigtUsers', Icons.exit_to_app, Colors.brown),
+              _dashCard('Gesamt', _dashboardRevealed ? '$totalUsers' : '***', Icons.people, Colors.blue),
+              _dashCard('Aktiv', _dashboardRevealed ? '$activeUsers' : '***', Icons.check_circle, Colors.green),
+              _dashCard('Neu', _dashboardRevealed ? '$newUsers' : '***', Icons.fiber_new, Colors.amber.shade700),
+              _dashCard('Gesperrt', _dashboardRevealed ? '$suspendedUsers' : '***', Icons.pause_circle, Colors.orange),
+              _dashCard('Gekündigt', _dashboardRevealed ? '$gekuendigtUsers' : '***', Icons.exit_to_app, Colors.brown),
             ],
           ),
           const SizedBox(height: 24),
@@ -1666,10 +1676,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             spacing: 16,
             runSpacing: 16,
             children: [
-              _dashCard('Mitglieder', '$mitglieder', Icons.person, Colors.blue),
-              _dashCard('Vorsitzer', '$vorsitzer', Icons.admin_panel_settings, Colors.purple),
-              _dashCard('Schatzmeister', '$schatzmeister', Icons.account_balance, Colors.indigo),
-              _dashCard('Kassierer', '$kassierer', Icons.point_of_sale, Colors.teal),
+              _dashCard('Mitglieder', _dashboardRevealed ? '$mitglieder' : '***', Icons.person, Colors.blue),
+              _dashCard('Vorsitzer', _dashboardRevealed ? '$vorsitzer' : '***', Icons.admin_panel_settings, Colors.purple),
+              _dashCard('Schatzmeister', _dashboardRevealed ? '$schatzmeister' : '***', Icons.account_balance, Colors.indigo),
+              _dashCard('Kassierer', _dashboardRevealed ? '$kassierer' : '***', Icons.point_of_sale, Colors.teal),
             ],
           ),
           const SizedBox(height: 24),
@@ -1685,12 +1695,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               spacing: 16,
               runSpacing: 16,
               children: [
-                _dashCard('Gesamt', '${ts.total}', Icons.confirmation_number, Colors.blue),
-                _dashCard('Offen', '${ts.open}', Icons.inbox, Colors.red),
-                _dashCard('In Bearbeitung', '${ts.inProgress}', Icons.hourglass_top, Colors.orange),
-                _dashCard('Warten (Mitglied)', '${ts.waitingMember}', Icons.person_outline, Colors.amber.shade700),
-                _dashCard('Warten (Amt)', '${ts.waitingAuthority}', Icons.account_balance, Colors.deepPurple),
-                _dashCard('Erledigt', '${ts.done}', Icons.check_circle, Colors.green),
+                _dashCard('Gesamt', _dashboardRevealed ? '${ts.total}' : '***', Icons.confirmation_number, Colors.blue),
+                _dashCard('Offen', _dashboardRevealed ? '${ts.open}' : '***', Icons.inbox, Colors.red),
+                _dashCard('In Bearbeitung', _dashboardRevealed ? '${ts.inProgress}' : '***', Icons.hourglass_top, Colors.orange),
+                _dashCard('Warten (Mitglied)', _dashboardRevealed ? '${ts.waitingMember}' : '***', Icons.person_outline, Colors.amber.shade700),
+                _dashCard('Warten (Amt)', _dashboardRevealed ? '${ts.waitingAuthority}' : '***', Icons.account_balance, Colors.deepPurple),
+                _dashCard('Erledigt', _dashboardRevealed ? '${ts.done}' : '***', Icons.check_circle, Colors.green),
               ],
             )
           else
@@ -1755,11 +1765,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     Icon(Icons.timer, color: progressColor, size: 22),
                     const SizedBox(width: 8),
                     Text(
-                      wt.totalDisplay,
+                      _dashboardRevealed ? wt.totalDisplay : '**:**',
                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: progressColor),
                     ),
                     Text(
-                      ' / ${wt.maxDisplay}',
+                      _dashboardRevealed ? ' / ${wt.maxDisplay}' : ' / **:**',
                       style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
                     ),
                     const Spacer(),
@@ -1785,10 +1795,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: LinearProgressIndicator(
-                    value: progressValue,
+                    value: _dashboardRevealed ? progressValue : 0.0,
                     minHeight: 10,
                     backgroundColor: Colors.grey.shade200,
-                    valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(_dashboardRevealed ? progressColor : Colors.grey.shade300),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1918,11 +1928,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       child: Column(
         children: [
           UserStatsBar(
-            totalUsers: _users.length,
-            activeUsers: _users.where((u) => u.isActive).length,
-            newUsers: _users.where((u) => u.isNeu).length,
-            suspendedUsers: _users.where((u) => u.isSuspended).length,
-            gekuendigtUsers: _users.where((u) => u.isGekuendigt).length,
+            totalUsers: _dashboardRevealed ? _users.length : 0,
+            activeUsers: _dashboardRevealed ? _users.where((u) => u.isActive).length : 0,
+            newUsers: _dashboardRevealed ? _users.where((u) => u.isNeu).length : 0,
+            suspendedUsers: _dashboardRevealed ? _users.where((u) => u.isSuspended).length : 0,
+            gekuendigtUsers: _dashboardRevealed ? _users.where((u) => u.isGekuendigt).length : 0,
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
