@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -62,6 +63,8 @@ class ApiService {
     }
   }
 
+  Timer? _tokenRefreshTimer;
+
   Future<void> saveTokens(String token, String refreshToken) async {
     // Always set in memory first so the current session works
     _token = token;
@@ -72,11 +75,25 @@ class ApiService {
     } catch (e) {
       LoggerService().warning('Could not persist tokens to secure storage (memory only): $e', tag: 'API');
     }
+    // Start proactive token refresh — access token expires in 1 hour,
+    // refresh 5 minutes before expiry to avoid "invalid or expired token" errors
+    _startTokenRefreshTimer();
+  }
+
+  void _startTokenRefreshTimer() {
+    _tokenRefreshTimer?.cancel();
+    // Refresh every 50 minutes (token expires after 60 min)
+    _tokenRefreshTimer = Timer.periodic(const Duration(minutes: 50), (_) async {
+      _log.info('Proactive token refresh (50 min timer)', tag: 'AUTH');
+      await _refreshAccessToken();
+    });
   }
 
   Future<void> clearTokens() async {
     _token = null;
     _refreshToken = null;
+    _tokenRefreshTimer?.cancel();
+    _tokenRefreshTimer = null;
     try {
       await _secureStorage.delete(key: 'access_token');
       await _secureStorage.delete(key: 'refresh_token');
@@ -86,6 +103,44 @@ class ApiService {
   bool get isLoggedIn => _token != null;
   String? get token => _token;
   String? get refreshToken => _refreshToken;
+  bool _isRefreshing = false;
+
+  /// Refresh the access token using the refresh token.
+  /// Returns true if refresh succeeded, false if user must re-login.
+  Future<bool> _refreshAccessToken() async {
+    if (_isRefreshing) return false;
+    if (_refreshToken == null) return false;
+
+    _isRefreshing = true;
+    try {
+      final deviceKey = _deviceKeyService.deviceKey;
+      final response = await _client.post(
+        Uri.parse('$baseUrl/auth/refresh.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'ICD360S-Vorsitzer/1.0',
+          if (deviceKey != null) 'X-Device-Key': deviceKey,
+        },
+        body: jsonEncode({'refresh_token': _refreshToken}),
+      ).timeout(const Duration(seconds: 10));
+
+      final result = jsonDecode(response.body);
+      if (response.statusCode == 200 && result['success'] == true) {
+        final newToken = result['token'] as String;
+        _token = newToken;
+        try {
+          await _secureStorage.write(key: 'token', value: newToken);
+        } catch (_) {}
+        _log.info('Access token refreshed successfully', tag: 'AUTH');
+        return true;
+      }
+    } catch (e) {
+      _log.error('Token refresh failed: $e', tag: 'AUTH');
+    } finally {
+      _isRefreshing = false;
+    }
+    return false;
+  }
 
   /// Headers pentru request-uri - folosește Device Key dinamic
   /// ✅ SECURITY FIX: Removed legacy API key fallback (all devices must be registered)
@@ -100,6 +155,46 @@ class ApiService {
       'X-Device-Key': deviceKey,
       if (_token != null) 'Authorization': 'Bearer $_token',
     };
+  }
+
+  /// POST request with automatic token refresh on 401
+  Future<http.Response> _authPost(String endpoint, {Map<String, dynamic>? body, Duration timeout = const Duration(seconds: 15)}) async {
+    var response = await _client.post(
+      Uri.parse('$baseUrl/$endpoint'),
+      headers: _headers,
+      body: body != null ? jsonEncode(body) : null,
+    ).timeout(timeout);
+
+    if (response.statusCode == 401 && _refreshToken != null) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        response = await _client.post(
+          Uri.parse('$baseUrl/$endpoint'),
+          headers: _headers,
+          body: body != null ? jsonEncode(body) : null,
+        ).timeout(timeout);
+      }
+    }
+    return response;
+  }
+
+  /// GET request with automatic token refresh on 401
+  Future<http.Response> _authGet(String endpoint, {Duration timeout = const Duration(seconds: 15)}) async {
+    var response = await _client.get(
+      Uri.parse('$baseUrl/$endpoint'),
+      headers: _headers,
+    ).timeout(timeout);
+
+    if (response.statusCode == 401 && _refreshToken != null) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        response = await _client.get(
+          Uri.parse('$baseUrl/$endpoint'),
+          headers: _headers,
+        ).timeout(timeout);
+      }
+    }
+    return response;
   }
 
   // Login (Vorsitzer Portal - Admin roles only)
