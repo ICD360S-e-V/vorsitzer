@@ -8415,9 +8415,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   void _showTerminAbsageDialog(String type, String arztTitle) {
     String methode = '';
     final datumC = TextEditingController();          // date of original appointment
-    final absageDatumC = TextEditingController(      // date of cancellation
-      text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
-    );
     final uhrzeitC = TextEditingController();
     final betreffC = TextEditingController();
     final grundC = TextEditingController();
