@@ -2024,39 +2024,159 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           length: 10,
           child: Column(
             children: [
-              // Multi-doctor selector
-              if (count > 1) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.teal.shade50, border: Border(bottom: BorderSide(color: Colors.teal.shade200))),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(children: [
-                      for (int i = 0; i < count; i++) ...[
-                        () {
-                          final iType = i == 0 ? baseType : '${baseType}_${i + 1}';
-                          final iData = _gesundheitData[iType] ?? {};
-                          final iArzt = (iData['selected_arzt'] is Map) ? iData['selected_arzt'] as Map : {};
-                          final iName = iArzt['praxis_name']?.toString() ?? iArzt['arzt_name']?.toString() ?? '$arztTitle ${i + 1}';
-                          final isSel = (_multiArztSelected[baseType] ?? 0) == i;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ChoiceChip(
-                              label: Text(iName, style: TextStyle(fontSize: 11, color: isSel ? Colors.white : Colors.teal.shade700)),
-                              selected: isSel,
-                              selectedColor: Colors.teal.shade600,
-                              backgroundColor: Colors.white,
-                              side: BorderSide(color: isSel ? Colors.teal.shade600 : Colors.teal.shade200),
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              onSelected: (_) => setState(() => _multiArztSelected[baseType] = i),
-                            ),
-                          );
-                        }(),
-                      ],
-                    ]),
-                  ),
+              // Multi-doctor tab bar (always visible, with + button to add more)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade50,
+                  border: Border(bottom: BorderSide(color: Colors.teal.shade200)),
                 ),
-              ],
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
+                    for (int i = 0; i < count; i++) ...[
+                      () {
+                        final iType = i == 0 ? baseType : '${baseType}_${i + 1}';
+                        final iData = _gesundheitData[iType] ?? {};
+                        final iArzt = (iData['selected_arzt'] is Map) ? iData['selected_arzt'] as Map : {};
+                        final iName = iArzt['praxis_name']?.toString() ?? iArzt['arzt_name']?.toString() ?? '$arztTitle ${i + 1}';
+                        final isSel = (_multiArztSelected[baseType] ?? 0) == i;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: InkWell(
+                            onTap: () => setState(() => _multiArztSelected[baseType] = i),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSel ? Colors.teal.shade600 : Colors.white,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                                border: Border.all(color: isSel ? Colors.teal.shade600 : Colors.teal.shade200),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.local_hospital,
+                                    size: 14,
+                                    color: isSel ? Colors.white : Colors.teal.shade700,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    iName,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                      color: isSel ? Colors.white : Colors.teal.shade700,
+                                    ),
+                                  ),
+                                  if (i > 0 && isSel) ...[
+                                    const SizedBox(width: 8),
+                                    InkWell(
+                                      onTap: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: Text('$arztTitle entfernen?'),
+                                            content: Text('Möchten Sie "$iName" wirklich entfernen? Alle Daten (Termine, Rezepte, etc.) werden gelöscht.'),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(ctx, true),
+                                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                                child: const Text('Entfernen'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirm == true) {
+                                          // Delete the sub-type data from server + memory
+                                          widget.apiService.saveGesundheitData(widget.user.id, iType, {});
+                                          _gesundheitData.remove(iType);
+                                          // Shift remaining sub-types down
+                                          for (int j = i + 1; j < count; j++) {
+                                            final oldType = j == 0 ? baseType : '${baseType}_${j + 1}';
+                                            final newType = j == 1 ? baseType : '${baseType}_$j';
+                                            final oldData = _gesundheitData[oldType];
+                                            if (oldData != null && j != i) {
+                                              _gesundheitData[newType] = oldData;
+                                              _gesundheitData.remove(oldType);
+                                              widget.apiService.saveGesundheitData(widget.user.id, newType, oldData);
+                                            }
+                                          }
+                                          final newCount = count - 1;
+                                          final baseData = Map<String, dynamic>.from(_gesundheitData[baseType] ?? {});
+                                          baseData['instance_count'] = newCount;
+                                          _gesundheitData[baseType] = baseData;
+                                          widget.apiService.saveGesundheitData(widget.user.id, baseType, baseData);
+                                          setState(() {
+                                            _multiArztCount[baseType] = newCount;
+                                            _multiArztSelected[baseType] = (i - 1).clamp(0, newCount - 1);
+                                          });
+                                        }
+                                      },
+                                      child: Icon(Icons.close, size: 14, color: Colors.white.withValues(alpha: 0.8)),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }(),
+                    ],
+                    // "+" button to add another doctor
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: InkWell(
+                        onTap: () {
+                          final newCount = count + 1;
+                          final newType = '${baseType}_$newCount';
+                          _showArztSucheDialog(context, fachrichtung, (arzt) {
+                            final baseData = Map<String, dynamic>.from(_gesundheitData[baseType] ?? {});
+                            baseData['instance_count'] = newCount;
+                            _gesundheitData[baseType] = baseData;
+                            widget.apiService.saveGesundheitData(widget.user.id, baseType, baseData);
+                            final newData = <String, dynamic>{
+                              'arzt_id': arzt['id']?.toString(),
+                              'selected_arzt': Map<String, dynamic>.from(arzt as Map),
+                            };
+                            _gesundheitData[newType] = newData;
+                            widget.apiService.saveGesundheitData(widget.user.id, newType, newData);
+                            if (mounted) {
+                              setState(() {
+                                _multiArztCount[baseType] = newCount;
+                                _multiArztSelected[baseType] = newCount - 1;
+                                _gesundheitLoading[newType] = false;
+                              });
+                            }
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.teal.shade300, style: BorderStyle.solid),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add, size: 16, color: Colors.teal.shade700),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Weiterer $arztTitle',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade700),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
               TabBar(
                 labelColor: Colors.teal.shade700,
                 unselectedLabelColor: Colors.grey.shade500,
@@ -2302,39 +2422,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.start,
                               children: [
-                                OutlinedButton.icon(
-                                  onPressed: () {
-                                    final newCount = (count > 1 ? count : 1) + 1;
-                                    final newType = '${baseType}_$newCount';
-                                    // Open arzt search dialog immediately
-                                    _showArztSucheDialog(context, fachrichtung, (arzt) {
-                                      // Save instance_count in base type (fire and forget)
-                                      final baseData = Map<String, dynamic>.from(_gesundheitData[baseType] ?? {});
-                                      baseData['instance_count'] = newCount;
-                                      _gesundheitData[baseType] = baseData;
-                                      widget.apiService.saveGesundheitData(widget.user.id, baseType, baseData);
-                                      // Save new doctor in sub-type (fire and forget)
-                                      final newData = <String, dynamic>{
-                                        'arzt_id': arzt['id']?.toString(),
-                                        'selected_arzt': Map<String, dynamic>.from(arzt as Map),
-                                      };
-                                      _gesundheitData[newType] = newData;
-                                      widget.apiService.saveGesundheitData(widget.user.id, newType, newData);
-                                      // Update UI
-                                      if (mounted) {
-                                        setState(() {
-                                          _multiArztCount[baseType] = newCount;
-                                          _multiArztSelected[baseType] = newCount - 1;
-                                          _gesundheitLoading[newType] = false;
-                                        });
-                                      }
-                                    });
-                                  },
-                                  icon: Icon(Icons.person_add, size: 14, color: Colors.teal.shade600),
-                                  label: Text('Weiterer $arztTitle', style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
-                                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
-                                ),
-                                const SizedBox(width: 8),
                                 TextButton.icon(
                                   onPressed: saveAll,
                                   icon: Icon(Icons.save, size: 14, color: Colors.teal.shade600),
