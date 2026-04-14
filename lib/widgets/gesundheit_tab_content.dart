@@ -2090,20 +2090,22 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                           ),
                                         );
                                         if (confirm == true) {
-                                          // Delete the sub-type data from server + memory
-                                          widget.apiService.saveGesundheitData(widget.user.id, iType, {});
-                                          _gesundheitData.remove(iType);
-                                          // Shift remaining sub-types down
+                                          // Shift remaining sub-types down: move _{i+2} → _{i+1}, etc.
+                                          // Then clear the last slot on the server so no stale data remains.
                                           for (int j = i + 1; j < count; j++) {
-                                            final oldType = j == 0 ? baseType : '${baseType}_${j + 1}';
-                                            final newType = j == 1 ? baseType : '${baseType}_$j';
-                                            final oldData = _gesundheitData[oldType];
-                                            if (oldData != null && j != i) {
-                                              _gesundheitData[newType] = oldData;
-                                              _gesundheitData.remove(oldType);
-                                              widget.apiService.saveGesundheitData(widget.user.id, newType, oldData);
+                                            final fromType = j == 0 ? baseType : '${baseType}_${j + 1}';
+                                            final toType = j == 1 ? baseType : '${baseType}_$j';
+                                            final moved = _gesundheitData[fromType];
+                                            if (moved != null) {
+                                              _gesundheitData[toType] = moved;
+                                              widget.apiService.saveGesundheitData(widget.user.id, toType, moved);
                                             }
                                           }
+                                          // Clear the (now-empty) last slot on the server
+                                          final lastType = count == 1 ? baseType : '${baseType}_$count';
+                                          _gesundheitData.remove(lastType);
+                                          widget.apiService.saveGesundheitData(widget.user.id, lastType, {});
+
                                           final newCount = count - 1;
                                           final baseData = Map<String, dynamic>.from(_gesundheitData[baseType] ?? {});
                                           baseData['instance_count'] = newCount;
@@ -2115,7 +2117,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                           });
                                         }
                                       },
-                                      child: Icon(Icons.close, size: 14, color: Colors.white.withValues(alpha: 0.8)),
+                                      child: Tooltip(
+                                        message: 'Entfernen',
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          child: Icon(Icons.close, size: 16, color: Colors.white.withValues(alpha: 0.9)),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ],
