@@ -26,7 +26,6 @@ import 'behorde_schule.dart';
 import 'behorde_konsulat.dart';
 import 'behorde_polizei.dart';
 import 'behorde_sozialamt.dart';
-import 'behorde_versorgungsamt.dart';
 import 'file_viewer_dialog.dart';
 import '../screens/webview_screen.dart';
 import '../utils/file_picker_helper.dart';
@@ -334,7 +333,6 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'schule', 'icon': Icons.school, 'label': 'Schule'},
     {'type': 'konsulat', 'icon': Icons.account_balance, 'label': 'Konsulat'},
     {'type': 'polizei', 'icon': Icons.local_police, 'label': 'Polizei'},
-    {'type': 'versorgungsamt', 'icon': Icons.accessible, 'label': 'Versorgungsamt'},
   ];
 
   @override
@@ -342,7 +340,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 20,
+      length: 19,
       child: Column(
         children: [
           _buildMemberAddressCard(),
@@ -577,14 +575,6 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   clientMitgliedernummer: widget.user.mitgliedernummer,
                   userId: widget.user.id,
                 ),
-                _buildTabContent('versorgungsamt', () => BehordeVersorgungsamtContent(
-                  apiService: widget.apiService,
-                  getData: (t) => _behoerdeData[t] ?? {},
-                  isLoading: (t) => _behoerdeLoading[t] == true,
-                  isSaving: (t) => _behoerdeSaving[t] == true,
-                  loadData: (t) => _loadBehoerdeData(t),
-                  saveData: (t, d) => _saveBehoerdeData(t, d),
-                )),
               ],
             ),
           ),
