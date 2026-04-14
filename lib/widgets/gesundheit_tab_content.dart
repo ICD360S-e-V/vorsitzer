@@ -7420,6 +7420,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
               ),
               const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _showTerminVerschiebenDialog(type, arztTitle),
+                icon: Icon(Icons.event_repeat, size: 16, color: Colors.blue.shade700),
+                label: Text('Verschieben', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
+                style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () => _showArztTerminDialog(type, arztTitle, null),
                 icon: const Icon(Icons.add, size: 18),
@@ -8555,8 +8562,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         script.writeln();
                         script.writeln('leider muss ich meinen Termin am $terminDatum$terminZeit absagen${grundTxt.isNotEmpty ? ', da $grundTxt' : ''}.');
                         script.writeln();
-                        script.writeln('Ich bitte um Verständnis und würde den Termin gerne verschieben. Könnten Sie mir bitte mitteilen, wann die nächsten freien Kapazitäten verfügbar sind?');
-                        script.writeln();
                         script.writeln('Angaben zum Patienten:');
                         script.writeln('Name: $patientName');
                         if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
@@ -8686,6 +8691,388 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Terminabsage gespeichert + Ticket erstellt'), backgroundColor: Colors.green),
+                        );
+                      }
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Fehler: ${result['message'] ?? 'Unbekannter Fehler'}'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Verschieben-Dialog — reschedule an existing appointment to a new date.
+  /// New appointments are always proposed in the afternoon (after 13:00).
+  void _showTerminVerschiebenDialog(String type, String arztTitle) {
+    String methode = '';
+    final altDatumC = TextEditingController();       // original appointment date
+    final altUhrzeitC = TextEditingController();     // original appointment time
+    final neuDatumC = TextEditingController();       // new proposed date
+    final neuUhrzeitC = TextEditingController(text: '14:00');  // default afternoon
+    final betreffC = TextEditingController();
+    final grundC = TextEditingController();
+    final scriptC = TextEditingController();
+
+    final methoden = {
+      'telefonisch': ('Telefonisch', Icons.phone),
+      'email': ('Per E-Mail', Icons.email),
+      'online': ('Online', Icons.language),
+      'persoenlich': ('Persoenlich', Icons.person),
+      'postalisch': ('Postalisch', Icons.mail),
+    };
+
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (dlgCtx, setDlgState) => AlertDialog(
+          title: Row(children: [
+            Icon(Icons.event_repeat, size: 20, color: Colors.blue.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Termin verschieben \u2013 $arztTitle', style: const TextStyle(fontSize: 15))),
+          ]),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Wie wurde die Verschiebung gestellt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: methoden.entries.map((m) {
+                      final sel = methode == m.key;
+                      return ChoiceChip(
+                        label: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.blue.shade700),
+                          const SizedBox(width: 4),
+                          Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.blue.shade700)),
+                        ]),
+                        selected: sel,
+                        selectedColor: Colors.blue.shade600,
+                        backgroundColor: Colors.blue.shade50,
+                        side: BorderSide(color: sel ? Colors.blue.shade600 : Colors.blue.shade200),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        onSelected: (_) => setDlgState(() => methode = m.key),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  // Alter Termin (Datum)
+                  TextField(
+                    controller: altDatumC,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Alter Termin – Datum *',
+                      prefixIcon: const Icon(Icons.event, size: 18),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.edit_calendar, size: 16),
+                        onPressed: () async {
+                          final picked = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+                          if (picked != null) {
+                            altDatumC.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                          }
+                        },
+                      ),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Alter Termin (Uhrzeit)
+                  TextField(
+                    controller: altUhrzeitC,
+                    decoration: InputDecoration(
+                      labelText: 'Alter Termin – Uhrzeit (z.B. 10:30)',
+                      prefixIcon: const Icon(Icons.access_time, size: 18),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(color: Colors.blue.shade200),
+                  const SizedBox(height: 4),
+                  // Neuer Termin (Datum)
+                  TextField(
+                    controller: neuDatumC,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Neuer Wunschtermin – Datum *',
+                      prefixIcon: Icon(Icons.event_available, size: 18, color: Colors.blue.shade700),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.edit_calendar, size: 16),
+                        onPressed: () async {
+                          final picked = await showDatePicker(context: dlgCtx, initialDate: DateTime.now().add(const Duration(days: 7)), firstDate: DateTime.now(), lastDate: DateTime(2040), locale: const Locale('de'));
+                          if (picked != null) {
+                            neuDatumC.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                          }
+                        },
+                      ),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Neuer Termin (Uhrzeit) - nur Nachmittag (nach 13 Uhr)
+                  TextField(
+                    controller: neuUhrzeitC,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Neuer Wunschtermin – Uhrzeit (nur Nachmittag)',
+                      prefixIcon: Icon(Icons.wb_sunny, size: 18, color: Colors.orange.shade700),
+                      helperText: 'Wunschtermin immer nach 13:00 Uhr',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.schedule, size: 16),
+                        onPressed: () async {
+                          final picked = await showTimePicker(
+                            context: dlgCtx,
+                            initialTime: const TimeOfDay(hour: 14, minute: 0),
+                            builder: (ctx, child) {
+                              return MediaQuery(
+                                data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
+                                child: child!,
+                              );
+                            },
+                          );
+                          if (picked != null) {
+                            // Enforce afternoon: force hour >= 13
+                            final effectiveHour = picked.hour < 13 ? 13 : picked.hour;
+                            neuUhrzeitC.text = '${effectiveHour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+                            if (picked.hour < 13 && mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Wunschtermine nur ab 13:00 Uhr — auf 13:00 gesetzt.'), backgroundColor: Colors.orange, duration: Duration(seconds: 2)),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Betreff
+                  TextField(
+                    controller: betreffC,
+                    decoration: InputDecoration(
+                      labelText: 'Betreff',
+                      prefixIcon: const Icon(Icons.subject, size: 18),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Grund
+                  TextField(
+                    controller: grundC,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Grund der Verschiebung (optional)',
+                      prefixIcon: const Icon(Icons.info_outline, size: 18),
+                      hintText: 'z.B. beruflich verhindert',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  // === SCRIPT ===
+                  Row(children: [
+                    Icon(Icons.description, size: 16, color: Colors.purple.shade700),
+                    const SizedBox(width: 6),
+                    Text('E-Mail Script', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: Icon(Icons.auto_fix_high, size: 14, color: Colors.purple.shade600),
+                      label: Text('Generieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                      onPressed: () {
+                        final arztData = _gesundheitData[type] ?? {};
+                        final selArzt = arztData['selected_arzt'] as Map? ?? {};
+                        final arztEmail = selArzt['email']?.toString() ?? '';
+                        final arztPraxis = selArzt['praxis_name']?.toString() ?? '';
+                        final patientName = widget.user.name;
+                        final geb = widget.user.geburtsdatum ?? '';
+                        final altDatum = altDatumC.text.isNotEmpty ? altDatumC.text : '[Datum eintragen]';
+                        final altZeit = altUhrzeitC.text.isNotEmpty ? ' um ${altUhrzeitC.text} Uhr' : '';
+                        final neuDatum = neuDatumC.text.isNotEmpty ? neuDatumC.text : '[Wunschtermin eintragen]';
+                        final neuZeit = neuUhrzeitC.text.isNotEmpty ? ' um ${neuUhrzeitC.text} Uhr' : ' (Nachmittag)';
+                        final grundTxt = grundC.text.trim();
+                        final betreff = 'Terminverschiebung – $patientName, vom $altDatum';
+                        betreffC.text = betreff;
+
+                        final script = StringBuffer();
+                        if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
+                        script.writeln('Betreff: $betreff');
+                        script.writeln();
+                        script.writeln('Sehr geehrtes Praxisteam,');
+                        script.writeln();
+                        script.writeln('leider kann ich meinen Termin am $altDatum$altZeit nicht wahrnehmen${grundTxt.isNotEmpty ? ', da $grundTxt' : ''}.');
+                        script.writeln();
+                        script.writeln('Ich möchte den Termin gerne auf den $neuDatum$neuZeit verschieben.');
+                        script.writeln();
+                        script.writeln('Bitte teilen Sie mir mit, ob dieser Termin möglich ist, oder schlagen Sie einen alternativen Termin am Nachmittag (ab 13:00 Uhr) vor.');
+                        script.writeln();
+                        script.writeln('Angaben zum Patienten:');
+                        script.writeln('Name: $patientName');
+                        if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
+                        script.writeln();
+                        script.writeln('Vielen Dank für Ihr Verständnis.');
+                        script.writeln();
+                        script.writeln('Mit freundlichen Grüßen');
+                        script.writeln(patientName);
+                        script.writeln();
+                        script.writeln('---');
+                        script.writeln('Dieser Service wird im Rahmen der ICD360S e.V. – gemeinnützige Organisation 2025–${DateTime.now().year} bereitgestellt.');
+                        setDlgState(() => scriptC.text = script.toString());
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Container(
+                    decoration: BoxDecoration(border: Border.all(color: Colors.purple.shade200), borderRadius: BorderRadius.circular(8), color: Colors.purple.shade50),
+                    child: TextField(
+                      controller: scriptC,
+                      maxLines: 12,
+                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                      decoration: InputDecoration(hintText: 'Klicken Sie auf "Generieren"...', hintStyle: TextStyle(fontSize: 11, color: Colors.purple.shade300), border: InputBorder.none, contentPadding: const EdgeInsets.all(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    Builder(builder: (_) {
+                      final ad = _gesundheitData[type] ?? {};
+                      final sa = ad['selected_arzt'] as Map? ?? {};
+                      final em = sa['email']?.toString() ?? '';
+                      if (em.isEmpty) return const SizedBox.shrink();
+                      return TextButton.icon(
+                        icon: Icon(Icons.email, size: 14, color: Colors.blue.shade600),
+                        label: Text('E-Mail kopieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
+                        onPressed: () {
+                          if (context.mounted) ClipboardHelper.copy(context, em, 'E-Mail');
+                        },
+                      );
+                    }),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      icon: Icon(Icons.copy, size: 14, color: Colors.purple.shade600),
+                      label: Text('Script kopieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      onPressed: () {
+                        if (scriptC.text.isNotEmpty) {
+                          if (context.mounted) ClipboardHelper.copy(context, scriptC.text, 'Script');
+                        }
+                      },
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Abbrechen')),
+            FilledButton.icon(
+              icon: const Icon(Icons.event_repeat, size: 16),
+              label: const Text('Verschiebung speichern'),
+              style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600),
+              onPressed: () async {
+                if (altDatumC.text.isEmpty) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte altes Termin-Datum auswählen'), backgroundColor: Colors.red));
+                  return;
+                }
+                if (neuDatumC.text.isEmpty) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte neuen Wunschtermin auswählen'), backgroundColor: Colors.red));
+                  return;
+                }
+                if (methode.isEmpty) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Art der Anfrage auswählen'), backgroundColor: Colors.red));
+                  return;
+                }
+                try {
+                  final arztData = _gesundheitData[type] ?? {};
+                  final selArzt = arztData['selected_arzt'] as Map? ?? {};
+                  final arztOrt = [
+                    if ((selArzt['praxis_name']?.toString() ?? '').isNotEmpty) selArzt['praxis_name'],
+                    if ((selArzt['arzt_name']?.toString() ?? '').isNotEmpty) selArzt['arzt_name'],
+                    if ((selArzt['strasse']?.toString() ?? '').isNotEmpty) selArzt['strasse'],
+                    if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
+                  ].join(', ');
+
+                  // Save as new appointment entry with typ='verschoben'
+                  final result = await widget.apiService.saveArztTermin({
+                    'action': 'add',
+                    'user_id': widget.user.id,
+                    'arzt_type': type,
+                    'datum': neuDatumC.text,
+                    'uhrzeit': neuUhrzeitC.text.trim(),
+                    'typ': 'verschoben',
+                    'anfrage_methode': methode,
+                    'diagnose': betreffC.text.trim(),
+                    'notizen': [
+                      'Alter Termin: ${altDatumC.text}${altUhrzeitC.text.isNotEmpty ? ' um ${altUhrzeitC.text}' : ''}',
+                      if (grundC.text.trim().isNotEmpty) 'Grund: ${grundC.text.trim()}',
+                    ].join('\n'),
+                    'arzt_ort': arztOrt,
+                  });
+                  if (result['success'] == true) {
+                    if (dlgCtx.mounted) Navigator.pop(dlgCtx);
+                    if (mounted) {
+                      _arztTermine.remove(type);
+                      _loadArztTermine(type);
+
+                      // Auto-create ticket for Verschiebung
+                      try {
+                        final praxisName = selArzt['praxis_name']?.toString() ?? selArzt['arzt_name']?.toString() ?? arztTitle;
+                        final patientName = widget.user.name;
+                        final ticketSubject = 'Arzt-Verschiebung: $arztTitle — $patientName';
+                        final ticketMsg = [
+                          'Arzt: $praxisName ($arztTitle)',
+                          'Patient: $patientName (${widget.user.mitgliedernummer})',
+                          'Alter Termin: ${altDatumC.text}${altUhrzeitC.text.isNotEmpty ? ' um ${altUhrzeitC.text}' : ''}',
+                          'Neuer Wunschtermin: ${neuDatumC.text}${neuUhrzeitC.text.isNotEmpty ? ' um ${neuUhrzeitC.text}' : ''} (Nachmittag)',
+                          'Methode: $methode',
+                          if (betreffC.text.isNotEmpty) 'Betreff: ${betreffC.text}',
+                          if (grundC.text.isNotEmpty) 'Grund: ${grundC.text}',
+                          '',
+                          'Automatisch erstellt aus Terminverschiebung.',
+                        ].join('\n');
+
+                        await widget.ticketService.createTicket(
+                          mitgliedernummer: widget.user.mitgliedernummer,
+                          subject: ticketSubject,
+                          message: ticketMsg,
+                          priority: 'medium',
+                          systemTicket: true,
+                          scheduledDate: neuDatumC.text,
+                        );
+                      } catch (e) {
+                        debugPrint('[Gesundheit] Ticket create error: $e');
+                      }
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Terminverschiebung gespeichert + Ticket erstellt'), backgroundColor: Colors.green),
                         );
                       }
                     }
