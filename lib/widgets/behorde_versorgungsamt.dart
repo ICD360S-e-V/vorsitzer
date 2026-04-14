@@ -42,7 +42,51 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   bool _controllersInit = false;
 
+  /// Migrate legacy format — previously data was wrapped under 'versorgungsamt' sub-object
+  /// (from the old Gesundheit tab). Detects and flattens it in-place.
+  void _migrateLegacy(Map<String, dynamic> data) {
+    if (data['versorgungsamt'] is Map) {
+      final legacy = Map<String, dynamic>.from(data['versorgungsamt'] as Map);
+      // Map legacy keys to new flat keys (only if new key not already set)
+      data['sachbearbeiter'] ??= legacy['sachbearbeiter_name'];
+      data['aktenzeichen'] ??= legacy['aktenzeichen'];
+      data['notizen'] ??= legacy['notizen'];
+      data['ausweis_gueltig_bis'] ??= legacy['gueltig_bis'];
+      // GdB
+      final legacyGdb = legacy['gdb'];
+      if (data['gdb_aktuell'] == null && legacyGdb != null && legacyGdb.toString().isNotEmpty) {
+        data['gdb_aktuell'] = int.tryParse(legacyGdb.toString()) ?? 0;
+      }
+      // Selected amt (was 'behoerde' in legacy)
+      if (data['selected_amt'] == null && legacy['behoerde'] is Map) {
+        data['selected_amt'] = Map<String, dynamic>.from(legacy['behoerde'] as Map);
+        data['selected_amt_id'] = (legacy['behoerde'] as Map)['id'];
+      }
+      // Merkzeichen — legacy was ['G','aG',...] list
+      if (legacy['merkzeichen_list'] is List) {
+        final list = (legacy['merkzeichen_list'] as List).map((e) => e.toString().toLowerCase()).toSet();
+        for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
+          final key = 'merkzeichen_$m';
+          if (data[key] == null) data[key] = list.contains(m);
+        }
+      }
+    }
+    // Legacy Korrespondenz was 'verlauf' list
+    if (data['korrespondenz'] == null && data['verlauf'] is List) {
+      data['korrespondenz'] = (data['verlauf'] as List).map((e) {
+        final v = Map<String, dynamic>.from(e as Map);
+        return {
+          'datum': v['datum'] ?? v['created_at'],
+          'richtung': (v['type']?.toString() == 'ausgang') ? 'ausgehend' : 'eingehend',
+          'betreff': v['betreff'] ?? '',
+          'inhalt': v['inhalt'] ?? v['notizen'] ?? '',
+        };
+      }).toList();
+    }
+  }
+
   void _initControllers(Map<String, dynamic> data) {
+    _migrateLegacy(data);
     _sachbearbeiterC = TextEditingController(text: data['sachbearbeiter'] ?? '');
     _aktenzeichenC = TextEditingController(text: data['aktenzeichen'] ?? '');
     _notizenC = TextEditingController(text: data['notizen'] ?? '');
