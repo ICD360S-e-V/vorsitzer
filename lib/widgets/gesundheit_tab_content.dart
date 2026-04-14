@@ -7413,6 +7413,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
               ),
               const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _showTerminAbsageDialog(type, arztTitle),
+                icon: Icon(Icons.event_busy, size: 16, color: Colors.red.shade700),
+                label: Text('Absage', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+              ),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () => _showArztTerminDialog(type, arztTitle, null),
                 icon: const Icon(Icons.add, size: 18),
@@ -8371,6 +8378,314 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Terminanfrage gespeichert + Ticket erstellt'), backgroundColor: Colors.green),
+                        );
+                      }
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Fehler: ${result['message'] ?? 'Unbekannter Fehler'}'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Absage-Dialog — same structure as Anfrage, but for cancelling appointments.
+  /// Generates a polite German cancellation letter based on web templates.
+  void _showTerminAbsageDialog(String type, String arztTitle) {
+    String methode = '';
+    final datumC = TextEditingController();          // date of original appointment
+    final absageDatumC = TextEditingController(      // date of cancellation
+      text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+    );
+    final uhrzeitC = TextEditingController();
+    final betreffC = TextEditingController();
+    final grundC = TextEditingController();
+    final scriptC = TextEditingController();
+
+    final methoden = {
+      'telefonisch': ('Telefonisch', Icons.phone),
+      'email': ('Per E-Mail', Icons.email),
+      'online': ('Online', Icons.language),
+      'persoenlich': ('Persoenlich', Icons.person),
+      'postalisch': ('Postalisch', Icons.mail),
+    };
+
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (dlgCtx, setDlgState) => AlertDialog(
+          title: Row(children: [
+            Icon(Icons.event_busy, size: 20, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Terminabsage \u2013 $arztTitle', style: const TextStyle(fontSize: 15))),
+          ]),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Methode
+                  Text('Wie wurde der Termin abgesagt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: methoden.entries.map((m) {
+                      final sel = methode == m.key;
+                      return ChoiceChip(
+                        label: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.red.shade700),
+                          const SizedBox(width: 4),
+                          Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.red.shade700)),
+                        ]),
+                        selected: sel,
+                        selectedColor: Colors.red.shade600,
+                        backgroundColor: Colors.red.shade50,
+                        side: BorderSide(color: sel ? Colors.red.shade600 : Colors.red.shade200),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        onSelected: (_) => setDlgState(() => methode = m.key),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  // Datum des ursprünglichen Termins
+                  TextField(
+                    controller: datumC,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Ursprünglicher Termin (Datum) *',
+                      prefixIcon: const Icon(Icons.event, size: 18),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.edit_calendar, size: 16),
+                        onPressed: () async {
+                          final picked = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+                          if (picked != null) {
+                            datumC.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                          }
+                        },
+                      ),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Uhrzeit
+                  TextField(
+                    controller: uhrzeitC,
+                    decoration: InputDecoration(
+                      labelText: 'Uhrzeit (z.B. 14:30)',
+                      prefixIcon: const Icon(Icons.access_time, size: 18),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Betreff
+                  TextField(
+                    controller: betreffC,
+                    decoration: InputDecoration(
+                      labelText: 'Betreff',
+                      prefixIcon: const Icon(Icons.subject, size: 18),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  // Grund der Absage
+                  TextField(
+                    controller: grundC,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Grund der Absage (optional)',
+                      prefixIcon: const Icon(Icons.info_outline, size: 18),
+                      hintText: 'z.B. Krankheit, beruflich verhindert',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  // === SCRIPT ===
+                  Row(children: [
+                    Icon(Icons.description, size: 16, color: Colors.purple.shade700),
+                    const SizedBox(width: 6),
+                    Text('E-Mail Script', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: Icon(Icons.auto_fix_high, size: 14, color: Colors.purple.shade600),
+                      label: Text('Generieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                      onPressed: () {
+                        final arztData = _gesundheitData[type] ?? {};
+                        final selArzt = arztData['selected_arzt'] as Map? ?? {};
+                        final arztEmail = selArzt['email']?.toString() ?? '';
+                        final arztPraxis = selArzt['praxis_name']?.toString() ?? '';
+                        final patientName = widget.user.name;
+                        final geb = widget.user.geburtsdatum ?? '';
+                        final terminDatum = datumC.text.isNotEmpty ? datumC.text : '[Datum eintragen]';
+                        final terminZeit = uhrzeitC.text.isNotEmpty ? ' um ${uhrzeitC.text} Uhr' : '';
+                        final grundTxt = grundC.text.trim();
+                        final betreff = 'Terminabsage – $patientName, am $terminDatum';
+                        betreffC.text = betreff;
+
+                        final script = StringBuffer();
+                        if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
+                        script.writeln('Betreff: $betreff');
+                        script.writeln();
+                        script.writeln('Sehr geehrtes Praxisteam,');
+                        script.writeln();
+                        script.writeln('leider muss ich meinen Termin am $terminDatum$terminZeit absagen${grundTxt.isNotEmpty ? ', da $grundTxt' : ''}.');
+                        script.writeln();
+                        script.writeln('Ich bitte um Verständnis und würde den Termin gerne verschieben. Könnten Sie mir bitte mitteilen, wann die nächsten freien Kapazitäten verfügbar sind?');
+                        script.writeln();
+                        script.writeln('Angaben zum Patienten:');
+                        script.writeln('Name: $patientName');
+                        if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
+                        script.writeln();
+                        script.writeln('Vielen Dank für Ihr Verständnis.');
+                        script.writeln();
+                        script.writeln('Mit freundlichen Grüßen');
+                        script.writeln(patientName);
+                        script.writeln();
+                        script.writeln('---');
+                        script.writeln('Dieser Service wird im Rahmen der ICD360S e.V. – gemeinnützige Organisation 2025–${DateTime.now().year} bereitgestellt.');
+                        setDlgState(() => scriptC.text = script.toString());
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Container(
+                    decoration: BoxDecoration(border: Border.all(color: Colors.purple.shade200), borderRadius: BorderRadius.circular(8), color: Colors.purple.shade50),
+                    child: TextField(
+                      controller: scriptC,
+                      maxLines: 12,
+                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                      decoration: InputDecoration(hintText: 'Klicken Sie auf "Generieren"...', hintStyle: TextStyle(fontSize: 11, color: Colors.purple.shade300), border: InputBorder.none, contentPadding: const EdgeInsets.all(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    Builder(builder: (_) {
+                      final ad = _gesundheitData[type] ?? {};
+                      final sa = ad['selected_arzt'] as Map? ?? {};
+                      final em = sa['email']?.toString() ?? '';
+                      if (em.isEmpty) return const SizedBox.shrink();
+                      return TextButton.icon(
+                        icon: Icon(Icons.email, size: 14, color: Colors.blue.shade600),
+                        label: Text('E-Mail kopieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
+                        onPressed: () {
+                          if (context.mounted) ClipboardHelper.copy(context, em, 'E-Mail');
+                        },
+                      );
+                    }),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      icon: Icon(Icons.copy, size: 14, color: Colors.purple.shade600),
+                      label: Text('Script kopieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      onPressed: () {
+                        if (scriptC.text.isNotEmpty) {
+                          if (context.mounted) ClipboardHelper.copy(context, scriptC.text, 'Script');
+                        }
+                      },
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Abbrechen')),
+            FilledButton.icon(
+              icon: const Icon(Icons.event_busy, size: 16),
+              label: const Text('Absage speichern'),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+              onPressed: () async {
+                if (datumC.text.isEmpty) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Datum des ursprünglichen Termins auswählen'), backgroundColor: Colors.red));
+                  return;
+                }
+                if (methode.isEmpty) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Art der Absage auswählen'), backgroundColor: Colors.red));
+                  return;
+                }
+                try {
+                  final arztData = _gesundheitData[type] ?? {};
+                  final selArzt = arztData['selected_arzt'] as Map? ?? {};
+                  final arztOrt = [
+                    if ((selArzt['praxis_name']?.toString() ?? '').isNotEmpty) selArzt['praxis_name'],
+                    if ((selArzt['arzt_name']?.toString() ?? '').isNotEmpty) selArzt['arzt_name'],
+                    if ((selArzt['strasse']?.toString() ?? '').isNotEmpty) selArzt['strasse'],
+                    if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
+                  ].join(', ');
+
+                  final result = await widget.apiService.saveArztTermin({
+                    'action': 'add',
+                    'user_id': widget.user.id,
+                    'arzt_type': type,
+                    'datum': datumC.text,
+                    'uhrzeit': uhrzeitC.text.trim(),
+                    'typ': 'absage',
+                    'anfrage_methode': methode,
+                    'diagnose': betreffC.text.trim(),
+                    'notizen': grundC.text.trim(),
+                    'arzt_ort': arztOrt,
+                  });
+                  if (result['success'] == true) {
+                    if (dlgCtx.mounted) Navigator.pop(dlgCtx);
+                    if (mounted) {
+                      _arztTermine.remove(type);
+                      _loadArztTermine(type);
+
+                      // Auto-create ticket for Absage
+                      try {
+                        final praxisName = selArzt['praxis_name']?.toString() ?? selArzt['arzt_name']?.toString() ?? arztTitle;
+                        final patientName = widget.user.name;
+                        final ticketSubject = 'Arzt-Absage: $arztTitle — $patientName';
+                        final ticketMsg = [
+                          'Arzt: $praxisName ($arztTitle)',
+                          'Patient: $patientName (${widget.user.mitgliedernummer})',
+                          'Termin: ${datumC.text}${uhrzeitC.text.isNotEmpty ? ' um ${uhrzeitC.text}' : ''}',
+                          'Absage per: $methode',
+                          if (betreffC.text.isNotEmpty) 'Betreff: ${betreffC.text}',
+                          if (grundC.text.isNotEmpty) 'Grund: ${grundC.text}',
+                          '',
+                          'Automatisch erstellt aus Terminabsage.',
+                        ].join('\n');
+
+                        await widget.ticketService.createTicket(
+                          mitgliedernummer: widget.user.mitgliedernummer,
+                          subject: ticketSubject,
+                          message: ticketMsg,
+                          priority: 'medium',
+                          systemTicket: true,
+                          scheduledDate: datumC.text,
+                        );
+                      } catch (e) {
+                        debugPrint('[Gesundheit] Ticket create error: $e');
+                      }
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Terminabsage gespeichert + Ticket erstellt'), backgroundColor: Colors.green),
                         );
                       }
                     }
