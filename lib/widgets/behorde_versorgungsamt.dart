@@ -60,19 +60,87 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   bool _controllersInit = false;
 
-  // GdB options with meaning — derived from schwerbehinderung-vorteile.de
+  // GdB options — short dropdown labels
   static const List<(int, String)> _gdbOptions = [
     (0, 'Nicht festgestellt'),
-    (20, '20 – Steuerfreibetrag 384€'),
-    (30, '30 – Gleichstellung möglich, Pauschbetrag 620€'),
-    (40, '40 – Gleichstellung möglich, Pauschbetrag 860€'),
-    (50, '50 – Schwerbehindert, +Urlaub, Kündigungsschutz'),
-    (60, '60 – Pauschbetrag 1.420€, Rabatte Bahn/KFZ'),
-    (70, '70 – Pauschbetrag 1.780€, ermäßigte BahnCard'),
-    (80, '80 – Pauschbetrag 2.120€'),
-    (90, '90 – Pauschbetrag 2.460€'),
-    (100, '100 – Pauschbetrag 2.840€, vorzeitige Rente'),
+    (20, 'GdB 20'),
+    (30, 'GdB 30'),
+    (40, 'GdB 40'),
+    (50, 'GdB 50 – Schwerbehindert'),
+    (60, 'GdB 60'),
+    (70, 'GdB 70'),
+    (80, 'GdB 80'),
+    (90, 'GdB 90'),
+    (100, 'GdB 100'),
   ];
+
+  /// Detailed list of Nachteilsausgleiche per GdB level.
+  /// Source: schwerbehinderung-vorteile.de — cumulative (higher GdB inherits lower benefits)
+  static const Map<int, List<String>> _gdbBenefits = {
+    20: [
+      'Steuerfreibetrag: 384 €/Jahr',
+      'Gleichstellung mit schwerbehinderten Menschen möglich (§ 2 Abs. 3 SGB IX)',
+    ],
+    30: [
+      'Steuerfreibetrag: 620 €/Jahr',
+      'Gleichstellung mit schwerbehinderten Menschen möglich',
+      'Kündigungsschutz nach Gleichstellung',
+      'Unterstützung beim Jobcenter / Integrationsfachdienst',
+      'Hilfe zur Erhaltung des Arbeitsplatzes',
+    ],
+    40: [
+      'Steuerfreibetrag: 860 €/Jahr',
+      'Gleichstellung mit schwerbehinderten Menschen möglich',
+      'Kündigungsschutz nach Gleichstellung',
+      'Integrationsfachdienst-Unterstützung',
+    ],
+    50: [
+      'Steuerfreibetrag: 1.140 €/Jahr',
+      'Offizieller Status "schwerbehindert" + Schwerbehindertenausweis',
+      'Besonderer Kündigungsschutz (§ 168 SGB IX)',
+      '5 Tage Zusatzurlaub pro Jahr',
+      'Freistellung von Mehrarbeit (§ 207 SGB IX)',
+      'Vorzeitige Altersrente (mit Abschlägen)',
+      'Bevorzugte Einstellung bei öffentlichen Arbeitgebern',
+      'Arbeitsplatz-/Wohnraumanpassung durch Integrationsamt',
+      'Kündigungsschutz bei Mietwohnung',
+      'KFZ-Rabatte beim Neuwagenkauf',
+      'Gebührenermäßigung bei Behördengängen',
+      'Krankenkassen-Zuzahlungsgrenze: max. 1% vom Bruttoeinkommen',
+      'KFZ-Pauschale: 0,30 €/km oder tatsächliche Kosten',
+      'Ermäßigte BahnCard möglich',
+      'Kurtaxen-Ermäßigung',
+    ],
+    60: [
+      'Steuerfreibetrag: 1.440 €/Jahr',
+      'Alle Vorteile ab GdB 50',
+      'Zusätzliche Rabatte bei Mobilitätshilfen',
+    ],
+    70: [
+      'Steuerfreibetrag: 1.780 €/Jahr',
+      'Alle Vorteile ab GdB 50',
+      'BahnCard 25/50 zum halben Preis',
+      'KFZ-Pauschale: 3.000 €/Jahr (statt tatsächlicher Kosten)',
+    ],
+    80: [
+      'Steuerfreibetrag: 2.120 €/Jahr',
+      'Alle Vorteile ab GdB 70',
+      'Höhere Freibeträge bei Mietminderung',
+    ],
+    90: [
+      'Steuerfreibetrag: 2.460 €/Jahr',
+      'Alle Vorteile ab GdB 80',
+      'Erweiterter Pauschbetrag im Steuerrecht',
+    ],
+    100: [
+      'Steuerfreibetrag: 2.840 €/Jahr (maximal)',
+      'Alle Vorteile ab GdB 90',
+      'Vorzeitige Verfügung über Bausparkassen-Guthaben',
+      'Vorzeitige Altersrente (für besonders betroffene)',
+      'Pflege-Pauschbetrag (bei Pflegegrad)',
+      'KFZ-Steuerbefreiung (mit Merkzeichen H/Bl/aG) oder Ermäßigung (-50%)',
+    ],
+  };
 
   void _migrateLegacy(Map<String, dynamic> data) {
     if (data['versorgungsamt'] is Map) {
@@ -862,6 +930,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             ),
           ]),
         ),
+        const SizedBox(height: 12),
+        if (_gdbBenefits.containsKey(_gdbAktuell)) _buildGdbBenefitsCard(),
         const SizedBox(height: 16),
         Row(children: [
           Expanded(child: _datePicker(context, _gdbFeststellungC, 'Feststellung am', () => _saveAll(data))),
@@ -1006,6 +1076,38 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           ),
         ],
       )),
+    );
+  }
+
+  Widget _buildGdbBenefitsCard() {
+    final benefits = _gdbBenefits[_gdbAktuell] ?? [];
+    if (benefits.isEmpty) return const SizedBox.shrink();
+    final color = _gdbAktuell >= 50 ? Colors.green : (_gdbAktuell >= 30 ? Colors.blue : Colors.amber);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.shade300),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.verified, size: 18, color: color.shade700),
+          const SizedBox(width: 6),
+          Text('Vorteile bei GdB $_gdbAktuell', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+        ]),
+        const SizedBox(height: 8),
+        ...benefits.map((b) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.check_circle, size: 13, color: color.shade600),
+            const SizedBox(width: 6),
+            Expanded(child: Text(b, style: const TextStyle(fontSize: 11, height: 1.35))),
+          ]),
+        )),
+        const SizedBox(height: 4),
+        Text('Quelle: schwerbehinderung-vorteile.de', style: TextStyle(fontSize: 9, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+      ]),
     );
   }
 
