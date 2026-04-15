@@ -74,73 +74,78 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     (100, 'GdB 100'),
   ];
 
-  /// Detailed list of Nachteilsausgleiche per GdB level.
-  /// Source: schwerbehinderung-vorteile.de — cumulative (higher GdB inherits lower benefits)
+  /// Detailed list of Nachteilsausgleiche per GdB level (Stand 2025/2026).
+  /// Sources: familienratgeber.de, gegen-hartz.de, bundesagentur-fuer-arbeit.de, § 2/151 SGB IX
+  /// Rules are CUMULATIVE — higher GdB inherits benefits from lower levels.
   static const Map<int, List<String>> _gdbBenefits = {
     20: [
-      'Steuerfreibetrag: 384 €/Jahr',
-      'Gleichstellung mit schwerbehinderten Menschen möglich (§ 2 Abs. 3 SGB IX)',
+      'Behindertenpauschbetrag: 384 €/Jahr',
+      'Steuerermäßigung bei außergewöhnlichen Belastungen',
+      // KEINE Gleichstellung, kein Kündigungsschutz (erst ab GdB 30)
     ],
     30: [
-      'Steuerfreibetrag: 620 €/Jahr',
-      'Gleichstellung mit schwerbehinderten Menschen möglich',
-      'Kündigungsschutz nach Gleichstellung',
-      'Unterstützung beim Jobcenter / Integrationsfachdienst',
+      'Behindertenpauschbetrag: 620 €/Jahr',
+      'Gleichstellung mit schwerbehinderten Menschen möglich (§ 2 Abs. 3 SGB IX)',
+      'Nach Gleichstellung: besonderer Kündigungsschutz (§ 168 SGB IX)',
+      'Unterstützung durch Integrationsamt / Integrationsfachdienst',
       'Hilfe zur Erhaltung des Arbeitsplatzes',
+      'Bei Gleichstellung: Beiträge zur Arbeitgeberförderung',
+      '⚠ Kein Zusatzurlaub, kein Schwerbehindertenausweis',
     ],
     40: [
-      'Steuerfreibetrag: 860 €/Jahr',
-      'Gleichstellung mit schwerbehinderten Menschen möglich',
+      'Behindertenpauschbetrag: 860 €/Jahr',
+      'Gleichstellung möglich (wie GdB 30)',
       'Kündigungsschutz nach Gleichstellung',
       'Integrationsfachdienst-Unterstützung',
     ],
     50: [
-      'Steuerfreibetrag: 1.140 €/Jahr',
-      'Offizieller Status "schwerbehindert" + Schwerbehindertenausweis',
-      'Besonderer Kündigungsschutz (§ 168 SGB IX)',
-      '5 Tage Zusatzurlaub pro Jahr',
-      'Freistellung von Mehrarbeit (§ 207 SGB IX)',
-      'Vorzeitige Altersrente (mit Abschlägen)',
-      'Bevorzugte Einstellung bei öffentlichen Arbeitgebern',
-      'Arbeitsplatz-/Wohnraumanpassung durch Integrationsamt',
-      'Kündigungsschutz bei Mietwohnung',
-      'KFZ-Rabatte beim Neuwagenkauf',
-      'Gebührenermäßigung bei Behördengängen',
-      'Krankenkassen-Zuzahlungsgrenze: max. 1% vom Bruttoeinkommen',
-      'KFZ-Pauschale: 0,30 €/km oder tatsächliche Kosten',
-      'Ermäßigte BahnCard möglich',
-      'Kurtaxen-Ermäßigung',
+      'Behindertenpauschbetrag: 1.140 €/Jahr',
+      'Offizieller Schwerbehindertenstatus + Schwerbehindertenausweis',
+      'Besonderer Kündigungsschutz (§ 168 SGB IX) ohne Gleichstellungsantrag',
+      '5 Tage Zusatzurlaub pro Jahr (§ 208 SGB IX)',
+      'Freistellung von Mehrarbeit auf Wunsch (§ 207 SGB IX)',
+      'Bevorzugte Einstellung bei öffentlichen Arbeitgebern (§ 164 SGB IX)',
+      'KFZ-Steuerermäßigung: −50 % (oder Wertmarke ÖPNV mit G/aG/H/Bl)',
+      'Vorzeitige Altersrente mit Abschlägen',
+      'Kündigungsschutz bei Mietwohnungen (Kündigung nur mit triftigem Grund)',
+      'Zugang zu Werkstätten für behinderte Menschen (WfbM)',
+      'Krankenkassen-Zuzahlungsgrenze: max. 1 % vom Bruttoeinkommen (statt 2 %)',
+      'Arbeitsplatzanpassung durch Integrationsamt',
+      'Kurtaxen-Ermäßigung in vielen Kurorten',
     ],
     60: [
-      'Steuerfreibetrag: 1.440 €/Jahr',
+      'Behindertenpauschbetrag: 1.440 €/Jahr',
       'Alle Vorteile ab GdB 50',
-      'Zusätzliche Rabatte bei Mobilitätshilfen',
+      'Ermäßigter Rundfunkbeitrag möglich (in Verbindung mit Bescheid)',
     ],
     70: [
-      'Steuerfreibetrag: 1.780 €/Jahr',
-      'Alle Vorteile ab GdB 50',
+      'Behindertenpauschbetrag: 1.780 €/Jahr',
+      'Alle Vorteile ab GdB 60',
+      'Behinderten-Fahrtkostenpauschale: 900 €/Jahr',
       'BahnCard 25/50 zum halben Preis',
-      'KFZ-Pauschale: 3.000 €/Jahr (statt tatsächlicher Kosten)',
     ],
     80: [
-      'Steuerfreibetrag: 2.120 €/Jahr',
+      'Behindertenpauschbetrag: 2.120 €/Jahr',
       'Alle Vorteile ab GdB 70',
-      'Höhere Freibeträge bei Mietminderung',
+      'Behinderten-Fahrtkostenpauschale: weiterhin 900 €/Jahr',
+      'Zusatzansprüche bei Wohngeld-/Mietminderung',
     ],
     90: [
-      'Steuerfreibetrag: 2.460 €/Jahr',
+      'Behindertenpauschbetrag: 2.460 €/Jahr',
       'Alle Vorteile ab GdB 80',
-      'Erweiterter Pauschbetrag im Steuerrecht',
     ],
     100: [
-      'Steuerfreibetrag: 2.840 €/Jahr (maximal)',
+      'Behindertenpauschbetrag: 2.840 €/Jahr (Maximum)',
       'Alle Vorteile ab GdB 90',
+      'Erhöhte Fahrtkostenpauschale: 4.500 €/Jahr (mit aG, Bl, H oder TBl)',
       'Vorzeitige Verfügung über Bausparkassen-Guthaben',
-      'Vorzeitige Altersrente (für besonders betroffene)',
-      'Pflege-Pauschbetrag (bei Pflegegrad)',
-      'KFZ-Steuerbefreiung (mit Merkzeichen H/Bl/aG) oder Ermäßigung (-50%)',
+      'Pflege-Pauschbetrag zusätzlich möglich (bei Pflegegrad)',
     ],
   };
+
+  /// Erhöhter Pauschbetrag: 7.400 €/Jahr bei Merkzeichen H, Bl, TBl oder Pflegegrad 4/5
+  /// (gilt unabhängig vom GdB, ersetzt den Standard-Pauschbetrag)
+  static const int _erhoehterPauschbetrag = 7400;
 
   void _migrateLegacy(Map<String, dynamic> data) {
     if (data['versorgungsamt'] is Map) {
@@ -1083,6 +1088,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final benefits = _gdbBenefits[_gdbAktuell] ?? [];
     if (benefits.isEmpty) return const SizedBox.shrink();
     final color = _gdbAktuell >= 50 ? Colors.green : (_gdbAktuell >= 30 ? Colors.blue : Colors.amber);
+    // Does the user qualify for erhöhter Pauschbetrag?
+    final hasH = _gdbBenefitsQualifiesErhoeht();
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1094,21 +1101,38 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         Row(children: [
           Icon(Icons.verified, size: 18, color: color.shade700),
           const SizedBox(width: 6),
-          Text('Vorteile bei GdB $_gdbAktuell', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+          Text('Vorteile bei GdB $_gdbAktuell (Stand 2025/2026)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
         ]),
         const SizedBox(height: 8),
         ...benefits.map((b) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.check_circle, size: 13, color: color.shade600),
+            Icon(b.startsWith('⚠') ? Icons.warning_amber : Icons.check_circle, size: 13, color: b.startsWith('⚠') ? Colors.orange.shade700 : color.shade600),
             const SizedBox(width: 6),
-            Expanded(child: Text(b, style: const TextStyle(fontSize: 11, height: 1.35))),
+            Expanded(child: Text(b.replaceFirst('⚠ ', ''), style: const TextStyle(fontSize: 11, height: 1.35))),
           ]),
         )),
+        if (hasH) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade400)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.stars, size: 14, color: Colors.amber.shade800),
+              const SizedBox(width: 6),
+              Expanded(child: Text('Erhöhter Pauschbetrag: $_erhoehterPauschbetrag €/Jahr (wegen Merkzeichen H/Bl/TBl) — ersetzt den Standard-Pauschbetrag', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade900))),
+            ]),
+          ),
+        ],
         const SizedBox(height: 4),
-        Text('Quelle: schwerbehinderung-vorteile.de', style: TextStyle(fontSize: 9, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+        Text('Quellen: familienratgeber.de, SGB IX (Stand 2026)', style: TextStyle(fontSize: 9, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
       ]),
     );
+  }
+
+  bool _gdbBenefitsQualifiesErhoeht() {
+    final data = widget.getData(type);
+    return data['merkzeichen_h'] == true || data['merkzeichen_bl'] == true || data['merkzeichen_tbl'] == true;
   }
 
   // ============ HELPERS ============
