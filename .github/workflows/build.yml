@@ -777,8 +777,28 @@ jobs:
           }
           JSON
 
-          scp $SSH_BASE -P "$PORT" /tmp/version_vorsitzer.json "$REMOTE:$DATA_DIR/version_vorsitzer.json"
-          ssh $SSH_BASE -p "$PORT" "$REMOTE" "chown nginx:nginx $DATA_DIR/version_vorsitzer.json && cat $DATA_DIR/version_vorsitzer.json | python3 -c 'import json,sys; v=json.load(sys.stdin); print(\"version_vorsitzer.json updated to\", v[\"version\"], \"build\", v[\"build_number\"])'"
+          # Upload candidate JSON, then atomically promote ONLY if its build_number
+          # is higher than what's currently on the server. Prevents older parallel
+          # builds from overwriting newer ones when two releases run concurrently.
+          scp $SSH_BASE -P "$PORT" /tmp/version_vorsitzer.json "$REMOTE:$DATA_DIR/version_vorsitzer.json.new"
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "python3 - <<PYEOF
+          import json, os
+          dst = '$DATA_DIR/version_vorsitzer.json'
+          new = '$DATA_DIR/version_vorsitzer.json.new'
+          new_build = json.load(open(new))['build_number']
+          cur_build = 0
+          if os.path.exists(dst):
+              try: cur_build = json.load(open(dst))['build_number']
+              except: pass
+          if new_build >= cur_build:
+              os.rename(new, dst)
+              os.system(f'chown nginx:nginx {dst}')
+              print(f'version_vorsitzer.json promoted: {cur_build} -> {new_build}')
+          else:
+              os.remove(new)
+              print(f'Skipped: server has newer build ({cur_build}), this build is {new_build}')
+          PYEOF
+          "
 
       - name: Generate changelog from git commits
         id: changelog
