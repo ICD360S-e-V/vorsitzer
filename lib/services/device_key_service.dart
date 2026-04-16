@@ -52,6 +52,17 @@ class DeviceKeyService {
   /// Verifică dacă device-ul este înregistrat
   bool get isRegistered => _deviceKey != null;
 
+  /// Called by LoginWithCodeScreen after activation to inject the new device_key
+  /// directly into memory AND persistent storage (with SharedPreferences fallback).
+  /// Avoids a second server round-trip via initialize().
+  Future<void> setActivatedCredentials(String deviceKey, String deviceId) async {
+    _deviceKey = deviceKey;
+    _deviceId = deviceId;
+    await _writeToStorage(_deviceKeyStorageKey, deviceKey);
+    await _writeToStorage(_deviceIdStorageKey, deviceId);
+    _logger.info('Device credentials set from activation code', tag: 'DEVICE');
+  }
+
   /// Read from storage with SharedPreferences fallback for macOS
   Future<String?> _readFromStorage(String key) async {
     if (_useSharedPrefsFallback) {
