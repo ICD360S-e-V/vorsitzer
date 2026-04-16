@@ -123,17 +123,21 @@ class DeviceKeyService {
 
   /// Inițializează service-ul - încarcă sau generează device key
   Future<bool> initialize() async {
+    // If credentials were already injected (e.g. by setActivatedCredentials after
+    // code-based login), skip the destructive validate/register cycle entirely.
+    if (_deviceKey != null && _deviceId != null) {
+      _logger.info('Device already initialized (in-memory) — skip server validation', tag: 'DEVICE');
+      return true;
+    }
+
     try {
-      // Încercă să încarce device key existent
       _deviceKey = await _readFromStorage(_deviceKeyStorageKey);
       _deviceId = await _readFromStorage(_deviceIdStorageKey);
 
       if (_deviceKey != null && _deviceId != null) {
-        // Device key există, verifică dacă e valid
         return await _validateDeviceKey();
       }
 
-      // Nu există device key, înregistrează device-ul
       return await _registerDevice();
     } catch (e) {
       _logger.error('DeviceKeyService.initialize error: $e', tag: 'DEVICE');
