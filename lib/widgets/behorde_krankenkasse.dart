@@ -426,7 +426,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _initControllers(data);
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Column(
         children: [
           TabBar(
@@ -440,6 +440,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
               Tab(icon: Icon(Icons.elderly, size: 16), text: 'Pflegegrad'),
               Tab(icon: Icon(Icons.shield, size: 16), text: 'Versicherung'),
+              Tab(icon: Icon(Icons.card_membership, size: 16), text: 'Befreiungskarte'),
             ],
           ),
           Expanded(
@@ -450,6 +451,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 _buildKorrespondenzTab(data),
                 _buildPflegegradTab(data),
                 _buildVersicherungTab(data),
+                _buildBefreiungskarteTab(data),
               ],
             ),
           ),
@@ -1120,7 +1122,37 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ],
             ),
           ),
-          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // ============ TAB 6: BEFREIUNGSKARTE ============
+  Widget _buildBefreiungskarteTab(Map<String, dynamic> data) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(Icons.card_membership, 'Befreiungsausweis (Zuzahlungsbefreiung)', Colors.green),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade100)),
+            child: Row(children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Befreiung von Zuzahlungen bei Arznei-, Heil- und Hilfsmitteln, '
+                  'Krankenhausaufenthalten und Fahrkosten. Gültig ein Kalenderjahr. '
+                  'Neuantrag jährlich ab November.',
+                  style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
           _buildBefreiungsausweis(),
         ],
       ),
