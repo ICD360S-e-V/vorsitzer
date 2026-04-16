@@ -68,6 +68,16 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   final _pflegeboxNotizenController = TextEditingController();
   bool _controllersInitialized = false;
 
+  // Class-level state (persists across tabs)
+  String _versicherungsart = '';
+  String _versichertenstatus = '';
+  bool _befreiungskarte = false;
+  String _befreiungJahr = '';
+  String _pflegegrad = '';
+  String _pflegeboxVersandart = '';
+  String _pflegeboxStatus = '';
+  List<Map<String, dynamic>> _termine = [];
+
   void _initControllers(Map<String, dynamic> data) {
     if (!_controllersInitialized) {
       _dienststelleController.text = data['dienststelle'] ?? '';
@@ -86,6 +96,14 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _pflegeboxFirmaController.text = data['pflegebox_firma'] ?? '';
       _pflegeboxDatumController.text = data['pflegebox_datum'] ?? '';
       _pflegeboxNotizenController.text = data['pflegebox_notizen'] ?? '';
+      _versicherungsart = data['versicherungsart'] ?? '';
+      _versichertenstatus = data['versichertenstatus'] ?? '';
+      _befreiungskarte = data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1';
+      _befreiungJahr = data['befreiung_jahr'] ?? DateTime.now().year.toString();
+      _pflegegrad = data['pflegegrad'] ?? '';
+      _pflegeboxVersandart = data['pflegebox_versandart'] ?? '';
+      _pflegeboxStatus = data['pflegebox_status'] ?? '';
+      _termine = _getTermineListe(data);
       _controllersInitialized = true;
     }
   }
@@ -400,41 +418,241 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       return const Center(child: CircularProgressIndicator());
     }
     _initControllers(data);
-    final dienststelleController = _dienststelleController;
-    final krankenkasseNameController = _krankenkasseNameController;
-    final versichertennummerController = _versichertennummerController;
-    // eGK Felder
-    final kvnrController = _kvnrController;
-    final kartennummerController = _kartennummerController;
-    final kartenfolgenummerController = _kartenfolgenummerController;
-    final egkGueltigAbController = _egkGueltigAbController;
-    final egkGueltigBisController = _egkGueltigBisController;
-    final ehicKennummerController = _ehicKennummerController;
-    final ehicInstitutionskennzeichenController = _ehicInstitutionskennzeichenController;
-    String versichertenstatus = data['versichertenstatus'] ?? '';
-    final pflegekasseNameController = _pflegekasseNameController;
-    final pflegegradSeitController = _pflegegradSeitController;
-    final befreiungGueltigBisController = _befreiungGueltigBisController;
-    String versicherungsart = data['versicherungsart'] ?? '';
-    String pflegegrad = data['pflegegrad'] ?? '';
-    bool befreiungskarte = data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1';
-    String befreiungJahr = data['befreiung_jahr'] ?? DateTime.now().year.toString();
 
-    // Pflegebox
-    final pflegeboxFirmaController = _pflegeboxFirmaController;
-    final pflegeboxDatumController = _pflegeboxDatumController;
-    final pflegeboxNotizenController = _pflegeboxNotizenController;
-    String pflegeboxVersandart = data['pflegebox_versandart'] ?? '';
-    String pflegeboxStatus = data['pflegebox_status'] ?? '';
-    List<Map<String, dynamic>> termine = _getTermineListe(data);
+    return DefaultTabController(
+      length: 5,
+      child: Column(
+        children: [
+          TabBar(
+            labelColor: Colors.blue.shade700,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Colors.blue.shade700,
+            isScrollable: true,
+            tabs: const [
+              Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankenkasse'),
+              Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Termine'),
+              Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
+              Tab(icon: Icon(Icons.elderly, size: 16), text: 'Pflegegrad'),
+              Tab(icon: Icon(Icons.shield, size: 16), text: 'Versicherung'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildKrankenkasseTab(data),
+                _buildTermineTab(data),
+                _buildKorrespondenzTab(data),
+                _buildPflegegradTab(data),
+                _buildVersicherungTab(data),
+              ],
+            ),
+          ),
+          _buildSaveFooter(),
+        ],
+      ),
+    );
+  }
 
-    final versicherungsarten = {
-      '': 'Nicht ausgewählt',
-      'gesetzlich': 'Gesetzlich versichert (GKV)',
-      'privat': 'Privat versichert (PKV)',
-      'familienversichert': 'Familienversichert',
-    };
+  // ============ TAB 1: KRANKENKASSE ============
+  Widget _buildKrankenkasseTab(Map<String, dynamic> data) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(Icons.local_hospital, 'Krankenkasse', Colors.blue),
+          const SizedBox(height: 8),
+          widget.dienststelleBuilder(type, _dienststelleController),
+          Text('Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Builder(builder: (context) {
+            final currentYear = DateTime.now().year;
+            final kassenListe = _getKrankenkassenListe(currentYear);
+            return Autocomplete<String>(
+              initialValue: _krankenkasseNameController.value,
+              optionsBuilder: (textEditingValue) {
+                if (textEditingValue.text.isEmpty) return kassenListe;
+                final query = textEditingValue.text.toLowerCase();
+                return kassenListe.where((k) => k.toLowerCase().contains(query));
+              },
+              fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+                if (controller.text.isEmpty && _krankenkasseNameController.text.isNotEmpty) {
+                  controller.text = _krankenkasseNameController.text;
+                }
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: InputDecoration(
+                    hintText: 'Krankenkasse suchen (z.B. AOK, TK, Barmer...)',
+                    prefixIcon: const Icon(Icons.local_hospital, size: 20),
+                    suffixIcon: const Icon(Icons.arrow_drop_down, size: 24),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                  onChanged: (v) => _krankenkasseNameController.text = v,
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 250, maxWidth: 500),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final kasse = options.elementAt(index);
+                          final zusatz = _getZusatzbeitrag(kasse, currentYear);
+                          final gesamt = _getGesamtbeitrag(kasse, currentYear);
+                          final rating = _getKrankenkassenRatingValue(kasse);
+                          return ListTile(
+                            dense: true,
+                            title: Text(kasse, style: const TextStyle(fontSize: 13)),
+                            subtitle: _starRating(rating, size: 12),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                                Text('+${zusatz?.toStringAsFixed(2)}% Zusatz', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                              ],
+                            ),
+                            onTap: () {
+                              onSelected(kasse);
+                              _krankenkasseNameController.text = kasse;
+                              setState(() {});
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+              onSelected: (kasse) {
+                _krankenkasseNameController.text = kasse;
+                setState(() {});
+              },
+            );
+          }),
+          Builder(builder: (context) {
+            final currentYear = DateTime.now().year;
+            final kasseName = _krankenkasseNameController.text.trim();
+            final zusatz = _getZusatzbeitrag(kasseName, currentYear);
+            if (zusatz == null) return const SizedBox(height: 16);
+            final gesamt = _getGesamtbeitrag(kasseName, currentYear);
+            final arbeitnehmerAnteil = gesamt / 2;
+            return Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green.shade50, Colors.green.shade100],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Icon(Icons.euro, color: Colors.green.shade700, size: 18),
+                      const SizedBox(width: 6),
+                      Text('Beitragssaetze $currentYear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                      const Spacer(),
+                      _starRating(_getKrankenkassenRatingValue(kasseName), size: 16),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Allgemeiner Beitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('$_gkvAllgemeinerBeitrag%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+                      ])),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Zusatzbeitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('${zusatz.toStringAsFixed(2)}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.orange.shade800)),
+                      ])),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        Text('Gesamtbeitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                      ])),
+                    ]),
+                    const Divider(height: 16),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('Arbeitnehmeranteil (halber Beitrag):', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      Text('${arbeitnehmerAnteil.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Arbeitgeber und Arbeitnehmer teilen sich den Beitrag je zur Haelfte.',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          Text('Versichertennummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _versichertennummerController,
+            decoration: InputDecoration(
+              hintText: 'Versichertennummer (auf der Gesundheitskarte)',
+              prefixIcon: const Icon(Icons.credit_card, size: 20),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            style: const TextStyle(fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
 
+  // ============ TAB 2: TERMINE ============
+  Widget _buildTermineTab(Map<String, dynamic> data) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: StatefulBuilder(builder: (context, setLocalState) {
+        return widget.termineBuilder(
+          behoerdeType: type,
+          behoerdeLabel: 'Krankenkasse',
+          termine: _termine,
+          data: data,
+          onChanged: (updated) {
+            setState(() => _termine = updated);
+            widget.autoSaveField(type, 'termine', updated);
+          },
+          setLocalState: setLocalState,
+        );
+      }),
+    );
+  }
+
+  // ============ TAB 3: KORRESPONDENZ ============
+  Widget _buildKorrespondenzTab(Map<String, dynamic> data) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: StatefulBuilder(builder: (context, setLocalState) {
+        return _buildKorrespondenzSection(type, data, setLocalState);
+      }),
+    );
+  }
+
+  // ============ TAB 4: PFLEGEGRAD ============
+  Widget _buildPflegegradTab(Map<String, dynamic> data) {
     final pflegegrade = {
       '': 'Kein Pflegegrad',
       '1': 'Pflegegrad 1 – Geringe Beeinträchtigung',
@@ -443,771 +661,559 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       '4': 'Pflegegrad 4 – Schwerste Beeinträchtigung',
       '5': 'Pflegegrad 5 – Schwerste Beeinträchtigung mit besonderen Anforderungen',
     };
-
-    return StatefulBuilder(
-      builder: (context, setLocalState) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── KRANKENKASSE ──
-              _sectionHeader(Icons.local_hospital, 'Krankenkasse', Colors.blue),
-              const SizedBox(height: 8),
-              widget.dienststelleBuilder(type, dienststelleController),
-              Text('Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              Builder(builder: (context) {
-                final currentYear = DateTime.now().year;
-                final kassenListe = _getKrankenkassenListe(currentYear);
-                return Autocomplete<String>(
-                  initialValue: krankenkasseNameController.value,
-                  optionsBuilder: (textEditingValue) {
-                    if (textEditingValue.text.isEmpty) return kassenListe;
-                    final query = textEditingValue.text.toLowerCase();
-                    return kassenListe.where((k) => k.toLowerCase().contains(query));
-                  },
-                  fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-                    // Sync with saved controller
-                    if (controller.text.isEmpty && krankenkasseNameController.text.isNotEmpty) {
-                      controller.text = krankenkasseNameController.text;
-                    }
-                    return TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      decoration: InputDecoration(
-                        hintText: 'Krankenkasse suchen (z.B. AOK, TK, Barmer...)',
-                        prefixIcon: const Icon(Icons.local_hospital, size: 20),
-                        suffixIcon: const Icon(Icons.arrow_drop_down, size: 24),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                      onChanged: (v) => krankenkasseNameController.text = v,
-                    );
-                  },
-                  optionsViewBuilder: (context, onSelected, options) {
-                    return Align(
-                      alignment: Alignment.topLeft,
-                      child: Material(
-                        elevation: 4,
-                        borderRadius: BorderRadius.circular(8),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 250, maxWidth: 500),
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            itemCount: options.length,
-                            itemBuilder: (context, index) {
-                              final kasse = options.elementAt(index);
-                              final zusatz = _getZusatzbeitrag(kasse, currentYear);
-                              final gesamt = _getGesamtbeitrag(kasse, currentYear);
-                              final rating = _getKrankenkassenRatingValue(kasse);
-                              return ListTile(
-                                dense: true,
-                                title: Text(kasse, style: const TextStyle(fontSize: 13)),
-                                subtitle: _starRating(rating, size: 12),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
-                                    Text('+${zusatz?.toStringAsFixed(2)}% Zusatz', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                                  ],
-                                ),
-                                onTap: () {
-                                  onSelected(kasse);
-                                  krankenkasseNameController.text = kasse;
-                                  setLocalState(() {});
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  onSelected: (kasse) {
-                    krankenkasseNameController.text = kasse;
-                    setLocalState(() {});
-                  },
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(Icons.elderly, 'Pflegekasse', Colors.purple),
+          const SizedBox(height: 8),
+          Text('Pflegekasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _pflegekasseNameController,
+            decoration: InputDecoration(
+              hintText: 'Meist identisch mit der Krankenkasse',
+              prefixIcon: const Icon(Icons.elderly, size: 20),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.copy, size: 18),
+                tooltip: 'Von Krankenkasse übernehmen',
+                onPressed: () {
+                  setState(() {
+                    _pflegekasseNameController.text = _krankenkasseNameController.text;
+                  });
+                },
+              ),
+            ),
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          Text('Pflegegrad', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: pflegegrade.containsKey(_pflegegrad) ? _pflegegrad : '',
+                isExpanded: true,
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                items: pflegegrade.entries.map((e) {
+                  return DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)));
+                }).toList(),
+                onChanged: (v) => setState(() => _pflegegrad = v ?? ''),
+              ),
+            ),
+          ),
+          if (_pflegegrad.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Pflegegrad seit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _pflegegradSeitController,
+              readOnly: true,
+              decoration: InputDecoration(
+                hintText: 'Datum wählen...',
+                prefixIcon: const Icon(Icons.calendar_today, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              style: const TextStyle(fontSize: 13),
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                  locale: const Locale('de', 'DE'),
                 );
-              }),
-              // Beitragssatz-Anzeige wenn Kasse gewaehlt
-              Builder(builder: (context) {
-                final currentYear = DateTime.now().year;
-                final kasseName = krankenkasseNameController.text.trim();
-                final zusatz = _getZusatzbeitrag(kasseName, currentYear);
-                if (zusatz == null) return const SizedBox(height: 16);
-                final gesamt = _getGesamtbeitrag(kasseName, currentYear);
-                final arbeitnehmerAnteil = gesamt / 2;
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 16),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.green.shade50, Colors.green.shade100],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.green.shade300),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.euro, color: Colors.green.shade700, size: 18),
-                            const SizedBox(width: 6),
-                            Text('Beitragssaetze $currentYear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-                            const Spacer(),
-                            _starRating(_getKrankenkassenRatingValue(kasseName), size: 16),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Allgemeiner Beitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                                  Text('$_gkvAllgemeinerBeitrag%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Zusatzbeitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                                  Text('${zusatz.toStringAsFixed(2)}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.orange.shade800)),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text('Gesamtbeitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                                  Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Arbeitnehmeranteil (halber Beitrag):', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                            Text('${arbeitnehmerAnteil.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Arbeitgeber und Arbeitnehmer teilen sich den Beitrag je zur Haelfte.',
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-
-              // Versicherungsart
-              Text('Versicherungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: versicherungsarten.containsKey(versicherungsart) ? versicherungsart : '',
-                    isExpanded: true,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    items: versicherungsarten.entries.map((e) {
-                      return DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)));
-                    }).toList(),
-                    onChanged: (v) => setLocalState(() => versicherungsart = v ?? ''),
-                  ),
-                ),
+                if (picked != null) {
+                  setState(() {
+                    _pflegegradSeitController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+                  });
+                }
+              },
+            ),
+          ],
+          if (_pflegegrad.isNotEmpty && int.tryParse(_pflegegrad) != null && int.parse(_pflegegrad) >= 1) ...[
+            const SizedBox(height: 24),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade200),
               ),
-              const SizedBox(height: 12),
-
-              // Versichertenstatus
-              Text('Versichertenstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: const {
-                      '', '1000000', '1010000', '1060000',
-                      '3000000', '3010000',
-                      '5000000', '5010000',
-                      '9000000',
-                    }.contains(versichertenstatus) ? versichertenstatus : '',
-                    isExpanded: true,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    items: const [
-                      DropdownMenuItem(value: '', child: Text('Nicht ausgewählt', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '1000000', child: Text('1000000 — Mitglied (GKV pflichtversichert)', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '1010000', child: Text('1010000 — Mitglied (BVG-Kennzeichen)', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '1060000', child: Text('1060000 — Mitglied (BSHG / Sozialhilfe)', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '3000000', child: Text('3000000 — Familienversicherter', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '3010000', child: Text('3010000 — Familienversicherter (BVG)', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '5000000', child: Text('5000000 — Rentner (KVdR)', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '5010000', child: Text('5010000 — Rentner (BVG-Kennzeichen)', style: TextStyle(fontSize: 13))),
-                      DropdownMenuItem(value: '9000000', child: Text('9000000 — Sonstiger Kostenträger', style: TextStyle(fontSize: 13))),
-                    ],
-                    onChanged: (v) => setLocalState(() => versichertenstatus = v ?? ''),
-                  ),
-                ),
-              ),
-              if (versichertenstatus.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.verified_user, size: 14, color: Colors.blue.shade700),
-                      const SizedBox(width: 6),
-                      Text('Versicherungsstatus-Code: ', style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
-                      Text(versichertenstatus, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-
-              // Versichertennummer
-              Text('Versichertennummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: versichertennummerController,
-                decoration: InputDecoration(
-                  hintText: 'Versichertennummer (auf der Gesundheitskarte)',
-                  prefixIcon: const Icon(Icons.credit_card, size: 20),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-
-              // ── ELEKTRONISCHE GESUNDHEITSKARTE (eGK) ──
-              _sectionHeader(Icons.credit_card, 'Elektronische Gesundheitskarte (eGK)', Colors.teal),
-              const SizedBox(height: 8),
-
-              // KVNR (Krankenversichertennummer)
-              Text('Krankenversichertennummer (KVNR)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: kvnrController,
-                decoration: InputDecoration(
-                  hintText: 'z.B. A123456789 (1 Buchstabe + 9 Ziffern)',
-                  prefixIcon: const Icon(Icons.badge, size: 20),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 4),
-              Text('Lebenslang gueltig — bleibt auch bei Kassenwechsel gleich.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
-              const SizedBox(height: 12),
-
-              const SizedBox(height: 12),
-
-              // Kartennummer + Kartenfolgenummer (nebeneinander)
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Kartennummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                        const SizedBox(height: 4),
-                        TextField(
-                          controller: kartennummerController,
-                          decoration: InputDecoration(
-                            hintText: 'Auf der Vorderseite',
-                            prefixIcon: const Icon(Icons.numbers, size: 18),
-                            isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          ),
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ],
+                  Row(children: [
+                    Icon(Icons.medical_services, size: 20, color: Colors.green.shade700),
+                    const SizedBox(width: 8),
+                    Text('Pflegebox', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8)),
+                      child: Text('Ab Pflegegrad 1', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
                     ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text('Anspruch auf kostenlose Pflegehilfsmittel (bis 40€/Monat)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  const Divider(height: 20),
+                  Text('Anbieter / Firma', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: _pflegeboxFirmaController,
+                    decoration: InputDecoration(
+                      hintText: 'z.B. Sanubi, PflegeBox.de, Curabox...',
+                      prefixIcon: const Icon(Icons.business, size: 18),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    style: const TextStyle(fontSize: 13),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Kartenfolge-Nr.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                        const SizedBox(height: 4),
-                        TextField(
-                          controller: kartenfolgenummerController,
-                          decoration: InputDecoration(
-                            hintText: 'z.B. 01',
-                            isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          ),
-                          style: const TextStyle(fontSize: 14),
-                          keyboardType: TextInputType.number,
-                        ),
-                      ],
+                  const SizedBox(height: 12),
+                  Text('Antrag gestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: _pflegeboxDatumController,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      hintText: 'Datum wählen...',
+                      prefixIcon: const Icon(Icons.calendar_today, size: 18),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Gültig ab / Gültig bis
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Gültig ab', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                        const SizedBox(height: 4),
-                        TextField(
-                          controller: egkGueltigAbController,
-                          readOnly: true,
-                          decoration: InputDecoration(
-                            hintText: 'Datum...',
-                            prefixIcon: const Icon(Icons.calendar_today, size: 18),
-                            isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          ),
-                          style: const TextStyle(fontSize: 13),
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2040),
-                              locale: const Locale('de', 'DE'),
-                            );
-                            if (picked != null) {
-                              setLocalState(() {
-                                egkGueltigAbController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Gültig bis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                        const SizedBox(height: 4),
-                        TextField(
-                          controller: egkGueltigBisController,
-                          readOnly: true,
-                          decoration: InputDecoration(
-                            hintText: 'Datum...',
-                            prefixIcon: const Icon(Icons.event_busy, size: 18),
-                            isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          ),
-                          style: const TextStyle(fontSize: 13),
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2040),
-                              locale: const Locale('de', 'DE'),
-                            );
-                            if (picked != null) {
-                              setLocalState(() {
-                                egkGueltigBisController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // ── EHIC (Rückseite) ──
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.indigo.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.language, size: 18, color: Colors.indigo.shade700),
-                        const SizedBox(width: 6),
-                        Text('EHIC — Europäische Krankenversicherungskarte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Rückseite der eGK — gültig in allen EU-/EWR-Ländern + Schweiz', style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
-                    const SizedBox(height: 10),
-                    Text('Persönliche Kennnummer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: ehicKennummerController,
-                      decoration: InputDecoration(
-                        hintText: 'Kennnummer auf der EHIC-Rückseite',
-                        prefixIcon: const Icon(Icons.person_pin, size: 18),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    const SizedBox(height: 10),
-                    Text('Kennnummer der Institution (IK)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: ehicInstitutionskennzeichenController,
-                      decoration: InputDecoration(
-                        hintText: 'Institutionskennzeichen der Krankenkasse',
-                        prefixIcon: const Icon(Icons.business, size: 18),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── BEFREIUNGSAUSWEIS (Zuzahlungsbefreiung) ──
-              Builder(builder: (context) {
-                final now = DateTime.now();
-                final befreiungJahrInt = int.tryParse(befreiungJahr) ?? now.year;
-                // First Monday of November in the befreiung year
-                final nov1 = DateTime(befreiungJahrInt, 11, 1);
-                final firstMondayNov = nov1.weekday == DateTime.monday
-                    ? nov1
-                    : nov1.add(Duration(days: (DateTime.monday - nov1.weekday + 7) % 7));
-                final isExpiringSoon = befreiungskarte && befreiungJahrInt == now.year && now.isAfter(firstMondayNov.subtract(const Duration(days: 1)));
-                final isExpired = befreiungskarte && befreiungJahrInt < now.year;
-
-                final borderColor = isExpired
-                    ? Colors.red.shade400
-                    : isExpiringSoon
-                        ? Colors.orange.shade400
-                        : befreiungskarte
-                            ? Colors.green.shade300
-                            : Colors.grey.shade300;
-                final bgColor = isExpired
-                    ? Colors.red.shade50
-                    : isExpiringSoon
-                        ? Colors.orange.shade50
-                        : befreiungskarte
-                            ? Colors.green.shade50
-                            : Colors.grey.shade50;
-
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: borderColor, width: isExpiringSoon || isExpired ? 2 : 1),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.card_membership, size: 20, color: befreiungskarte ? Colors.green.shade700 : Colors.grey.shade600),
-                          const SizedBox(width: 8),
-                          Text('Befreiungsausweis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: befreiungskarte ? Colors.green.shade700 : Colors.grey.shade700)),
-                          if (befreiungskarte) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isExpired ? Colors.red : isExpiringSoon ? Colors.orange : Colors.green,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                befreiungJahr,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          Switch(
-                            value: befreiungskarte,
-                            activeTrackColor: Colors.green.shade200,
-                            onChanged: (v) => setLocalState(() => befreiungskarte = v),
-                          ),
-                        ],
-                      ),
-                      if (befreiungskarte) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Jahr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey.shade400),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: befreiungJahr,
-                                        isExpanded: true,
-                                        style: const TextStyle(fontSize: 13, color: Colors.black87),
-                                        items: List.generate(3, (i) {
-                                          final y = (now.year - 1 + i).toString();
-                                          return DropdownMenuItem<String>(value: y, child: Text(y));
-                                        }),
-                                        onChanged: (v) => setLocalState(() => befreiungJahr = v ?? now.year.toString()),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Gültig bis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                                  const SizedBox(height: 4),
-                                  TextField(
-                                    controller: befreiungGueltigBisController,
-                                    readOnly: true,
-                                    decoration: InputDecoration(
-                                      hintText: 'Datum wählen...',
-                                      prefixIcon: const Icon(Icons.calendar_today, size: 18),
-                                      isDense: true,
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    ),
-                                    style: const TextStyle(fontSize: 13),
-                                    onTap: () async {
-                                      final picked = await showDatePicker(
-                                        context: context,
-                                        initialDate: DateTime(befreiungJahrInt, 12, 31),
-                                        firstDate: DateTime(now.year - 1),
-                                        lastDate: DateTime(now.year + 2, 12, 31),
-                                        locale: const Locale('de', 'DE'),
-                                      );
-                                      if (picked != null) {
-                                        setLocalState(() {
-                                          befreiungGueltigBisController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
-                                        });
-                                      }
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Befreiung von Zuzahlungen bei Arznei-, Heil- und Hilfsmitteln, Krankenhausaufenthalten und Fahrkosten.',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
-                        ),
-                        // ── WARNING: Expiring soon or expired ──
-                        if (isExpiringSoon || isExpired) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: isExpired ? Colors.red.shade100 : Colors.orange.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: isExpired ? Colors.red.shade300 : Colors.orange.shade300),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(isExpired ? Icons.error : Icons.warning_amber, size: 18, color: isExpired ? Colors.red.shade700 : Colors.orange.shade800),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        isExpired
-                                            ? 'Befreiungsausweis $befreiungJahr ist abgelaufen!'
-                                            : 'Befreiungsausweis $befreiungJahr läuft bald ab! Neuen Antrag für ${now.year + 1} stellen.',
-                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isExpired ? Colors.red.shade800 : Colors.orange.shade900),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final nextYear = befreiungJahrInt < now.year ? now.year : now.year + 1;
-                                      // Calculate first Monday of November for scheduled date
-                                      final novFirst = DateTime(befreiungJahrInt, 11, 1);
-                                      final firstMonday = novFirst.weekday == DateTime.monday
-                                          ? novFirst
-                                          : novFirst.add(Duration(days: (DateTime.monday - novFirst.weekday + 7) % 7));
-                                      final scheduledStr = '${firstMonday.year}-${firstMonday.month.toString().padLeft(2, '0')}-${firstMonday.day.toString().padLeft(2, '0')}';
-
-                                      final result = await widget.ticketService.createTicketForMember(
-                                        adminMitgliedernummer: widget.adminMitgliedernummer,
-                                        memberMitgliedernummer: widget.user.mitgliedernummer,
-                                        subject: 'Befreiungsausweis $nextYear beantragen',
-                                        message: 'Der Befreiungsausweis für $befreiungJahr läuft zum Jahresende ab.\n\n'
-                                            'Bitte neuen Antrag bei der Krankenkasse (${krankenkasseNameController.text}) stellen für das Jahr $nextYear.\n\n'
-                                            'Versichertennummer: ${versichertennummerController.text}\n'
-                                            'Krankenkasse: ${krankenkasseNameController.text}',
-                                        priority: 'high',
-                                        scheduledDate: scheduledStr,
-                                      );
-
-                                      if (context.mounted) {
-                                        if (result.containsKey('ticket')) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Erinnerungsticket für Befreiungsausweis $nextYear erstellt (geplant: ${firstMonday.day.toString().padLeft(2, '0')}.${firstMonday.month.toString().padLeft(2, '0')}.${firstMonday.year})'),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                        } else {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(result['error'] ?? 'Fehler beim Erstellen des Tickets'),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                                    icon: const Icon(Icons.assignment_add, size: 16),
-                                    label: Text(
-                                      isExpired
-                                          ? 'Erinnerungsticket für ${now.year} erstellen'
-                                          : 'Erinnerungsticket für ${now.year + 1} erstellen',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: isExpired ? Colors.red : Colors.orange.shade700,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 8),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(height: 24),
-
-              // ── PFLEGEKASSE ──
-              _sectionHeader(Icons.elderly, 'Pflegekasse', Colors.purple),
-              const SizedBox(height: 8),
-              Text('Pflegekasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: pflegekasseNameController,
-                decoration: InputDecoration(
-                  hintText: 'Meist identisch mit der Krankenkasse',
-                  prefixIcon: const Icon(Icons.elderly, size: 20),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.copy, size: 18),
-                    tooltip: 'Von Krankenkasse übernehmen',
-                    onPressed: () {
-                      setLocalState(() {
-                        pflegekasseNameController.text = krankenkasseNameController.text;
-                      });
+                    style: const TextStyle(fontSize: 13),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        locale: const Locale('de', 'DE'),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _pflegeboxDatumController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+                        });
+                      }
                     },
                   ),
+                  const SizedBox(height: 12),
+                  Text('Antrag gestellt per', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 6, runSpacing: 6, children: [
+                    for (final v in [('online', 'Online', Icons.language), ('telefonisch', 'Telefonisch', Icons.phone), ('persoenlich', 'Persönlich', Icons.person), ('postalisch', 'Postalisch', Icons.local_post_office)])
+                      ChoiceChip(
+                        label: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(v.$3, size: 14, color: _pflegeboxVersandart == v.$1 ? Colors.white : Colors.grey.shade700),
+                          const SizedBox(width: 4),
+                          Text(v.$2, style: TextStyle(fontSize: 11, color: _pflegeboxVersandart == v.$1 ? Colors.white : Colors.black87)),
+                        ]),
+                        selected: _pflegeboxVersandart == v.$1,
+                        selectedColor: Colors.green.shade600,
+                        onSelected: (_) => setState(() => _pflegeboxVersandart = v.$1),
+                      ),
+                  ]),
+                  const SizedBox(height: 12),
+                  Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 6, runSpacing: 6, children: [
+                    for (final s in [('beantragt', 'Beantragt', Colors.orange), ('genehmigt', 'Genehmigt', Colors.green), ('abgelehnt', 'Abgelehnt', Colors.red), ('wird_geliefert', 'Wird geliefert', Colors.blue), ('aktiv', 'Aktiv (monatlich)', Colors.teal)])
+                      ChoiceChip(
+                        label: Text(s.$2, style: TextStyle(fontSize: 11, color: _pflegeboxStatus == s.$1 ? Colors.white : Colors.black87)),
+                        selected: _pflegeboxStatus == s.$1,
+                        selectedColor: s.$3,
+                        onSelected: (_) => setState(() => _pflegeboxStatus = s.$1),
+                      ),
+                  ]),
+                  const SizedBox(height: 12),
+                  Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: _pflegeboxNotizenController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: 'Weitere Informationen...',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ============ TAB 5: VERSICHERUNG ============
+  Widget _buildVersicherungTab(Map<String, dynamic> data) {
+    final versicherungsarten = {
+      '': 'Nicht ausgewählt',
+      'gesetzlich': 'Gesetzlich versichert (GKV)',
+      'privat': 'Privat versichert (PKV)',
+      'familienversichert': 'Familienversichert',
+    };
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(Icons.shield, 'Versicherungsart & Status', Colors.blue),
+          const SizedBox(height: 8),
+          Text('Versicherungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: versicherungsarten.containsKey(_versicherungsart) ? _versicherungsart : '',
+                isExpanded: true,
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                items: versicherungsarten.entries.map((e) {
+                  return DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)));
+                }).toList(),
+                onChanged: (v) => setState(() => _versicherungsart = v ?? ''),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text('Versichertenstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: const {
+                  '', '1000000', '1010000', '1060000',
+                  '3000000', '3010000',
+                  '5000000', '5010000',
+                  '9000000',
+                }.contains(_versichertenstatus) ? _versichertenstatus : '',
+                isExpanded: true,
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('Nicht ausgewählt', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '1000000', child: Text('1000000 — Mitglied (GKV pflichtversichert)', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '1010000', child: Text('1010000 — Mitglied (BVG-Kennzeichen)', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '1060000', child: Text('1060000 — Mitglied (BSHG / Sozialhilfe)', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '3000000', child: Text('3000000 — Familienversicherter', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '3010000', child: Text('3010000 — Familienversicherter (BVG)', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '5000000', child: Text('5000000 — Rentner (KVdR)', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '5010000', child: Text('5010000 — Rentner (BVG-Kennzeichen)', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '9000000', child: Text('9000000 — Sonstiger Kostenträger', style: TextStyle(fontSize: 13))),
+                ],
+                onChanged: (v) => setState(() => _versichertenstatus = v ?? ''),
+              ),
+            ),
+          ),
+          if (_versichertenstatus.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(children: [
+                Icon(Icons.verified_user, size: 14, color: Colors.blue.shade700),
+                const SizedBox(width: 6),
+                Text('Versicherungsstatus-Code: ', style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
+                Text(_versichertenstatus, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+              ]),
+            ),
+          ],
+          const SizedBox(height: 24),
+          _sectionHeader(Icons.credit_card, 'Elektronische Gesundheitskarte (eGK)', Colors.teal),
+          const SizedBox(height: 8),
+          Text('Krankenversichertennummer (KVNR)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _kvnrController,
+            decoration: InputDecoration(
+              hintText: 'z.B. A123456789 (1 Buchstabe + 9 Ziffern)',
+              prefixIcon: const Icon(Icons.badge, size: 20),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text('Lebenslang gueltig — bleibt auch bei Kassenwechsel gleich.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Kartennummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _kartennummerController,
+                decoration: InputDecoration(
+                  hintText: 'Auf der Vorderseite',
+                  prefixIcon: const Icon(Icons.numbers, size: 18),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
                 style: const TextStyle(fontSize: 14),
               ),
-              const SizedBox(height: 16),
-
-              // Pflegegrad
-              Text('Pflegegrad', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            ])),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Kartenfolge-Nr.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
               const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(8),
+              TextField(
+                controller: _kartenfolgenummerController,
+                decoration: InputDecoration(
+                  hintText: 'z.B. 01',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: pflegegrade.containsKey(pflegegrad) ? pflegegrad : '',
-                    isExpanded: true,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    items: pflegegrade.entries.map((e) {
-                      return DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)));
-                    }).toList(),
-                    onChanged: (v) => setLocalState(() => pflegegrad = v ?? ''),
-                  ),
-                ),
+                style: const TextStyle(fontSize: 14),
+                keyboardType: TextInputType.number,
               ),
-              if (pflegegrad.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                // Pflegegrad seit
-                Text('Pflegegrad seit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Gültig ab', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _egkGueltigAbController,
+                readOnly: true,
+                decoration: InputDecoration(
+                  hintText: 'Datum...',
+                  prefixIcon: const Icon(Icons.calendar_today, size: 18),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                style: const TextStyle(fontSize: 13),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2040),
+                    locale: const Locale('de', 'DE'),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _egkGueltigAbController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+                    });
+                  }
+                },
+              ),
+            ])),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Gültig bis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _egkGueltigBisController,
+                readOnly: true,
+                decoration: InputDecoration(
+                  hintText: 'Datum...',
+                  prefixIcon: const Icon(Icons.event_busy, size: 18),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                style: const TextStyle(fontSize: 13),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2040),
+                    locale: const Locale('de', 'DE'),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _egkGueltigBisController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+                    });
+                  }
+                },
+              ),
+            ])),
+          ]),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.indigo.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.indigo.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.language, size: 18, color: Colors.indigo.shade700),
+                  const SizedBox(width: 6),
+                  Text('EHIC — Europäische Krankenversicherungskarte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                ]),
+                const SizedBox(height: 4),
+                Text('Rückseite der eGK — gültig in allen EU-/EWR-Ländern + Schweiz', style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
+                const SizedBox(height: 10),
+                Text('Persönliche Kennnummer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
                 const SizedBox(height: 4),
                 TextField(
-                  controller: pflegegradSeitController,
+                  controller: _ehicKennummerController,
+                  decoration: InputDecoration(
+                    hintText: 'Kennnummer auf der EHIC-Rückseite',
+                    prefixIcon: const Icon(Icons.person_pin, size: 18),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                Text('Kennnummer der Institution (IK)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _ehicInstitutionskennzeichenController,
+                  decoration: InputDecoration(
+                    hintText: 'Institutionskennzeichen der Krankenkasse',
+                    prefixIcon: const Icon(Icons.business, size: 18),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildBefreiungsausweis(),
+        ],
+      ),
+    );
+  }
+
+  // ============ Befreiungsausweis sub-widget ============
+  Widget _buildBefreiungsausweis() {
+    final now = DateTime.now();
+    final befreiungJahrInt = int.tryParse(_befreiungJahr) ?? now.year;
+    final nov1 = DateTime(befreiungJahrInt, 11, 1);
+    final firstMondayNov = nov1.weekday == DateTime.monday
+        ? nov1
+        : nov1.add(Duration(days: (DateTime.monday - nov1.weekday + 7) % 7));
+    final isExpiringSoon = _befreiungskarte && befreiungJahrInt == now.year && now.isAfter(firstMondayNov.subtract(const Duration(days: 1)));
+    final isExpired = _befreiungskarte && befreiungJahrInt < now.year;
+
+    final borderColor = isExpired
+        ? Colors.red.shade400
+        : isExpiringSoon
+            ? Colors.orange.shade400
+            : _befreiungskarte
+                ? Colors.green.shade300
+                : Colors.grey.shade300;
+    final bgColor = isExpired
+        ? Colors.red.shade50
+        : isExpiringSoon
+            ? Colors.orange.shade50
+            : _befreiungskarte
+                ? Colors.green.shade50
+                : Colors.grey.shade50;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: isExpiringSoon || isExpired ? 2 : 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.card_membership, size: 20, color: _befreiungskarte ? Colors.green.shade700 : Colors.grey.shade600),
+            const SizedBox(width: 8),
+            Text('Befreiungsausweis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _befreiungskarte ? Colors.green.shade700 : Colors.grey.shade700)),
+            if (_befreiungskarte) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isExpired ? Colors.red : isExpiringSoon ? Colors.orange : Colors.green,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _befreiungJahr,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ),
+            ],
+            const Spacer(),
+            Switch(
+              value: _befreiungskarte,
+              activeTrackColor: Colors.green.shade200,
+              onChanged: (v) => setState(() => _befreiungskarte = v),
+            ),
+          ]),
+          if (_befreiungskarte) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Jahr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade400),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _befreiungJahr,
+                      isExpanded: true,
+                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      items: List.generate(3, (i) {
+                        final y = (now.year - 1 + i).toString();
+                        return DropdownMenuItem<String>(value: y, child: Text(y));
+                      }),
+                      onChanged: (v) => setState(() => _befreiungJahr = v ?? now.year.toString()),
+                    ),
+                  ),
+                ),
+              ])),
+              const SizedBox(width: 12),
+              Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Gültig bis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _befreiungGueltigBisController,
                   readOnly: true,
                   decoration: InputDecoration(
                     hintText: 'Datum wählen...',
@@ -1220,218 +1226,162 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   onTap: () async {
                     final picked = await showDatePicker(
                       context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
+                      initialDate: DateTime(befreiungJahrInt, 12, 31),
+                      firstDate: DateTime(now.year - 1),
+                      lastDate: DateTime(now.year + 2, 12, 31),
                       locale: const Locale('de', 'DE'),
                     );
                     if (picked != null) {
-                      setLocalState(() {
-                        pflegegradSeitController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+                      setState(() {
+                        _befreiungGueltigBisController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
                       });
                     }
                   },
                 ),
-              ],
+              ])),
+            ]),
+            const SizedBox(height: 8),
+            Text(
+              'Befreiung von Zuzahlungen bei Arznei-, Heil- und Hilfsmitteln, Krankenhausaufenthalten und Fahrkosten.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            ),
+            if (isExpiringSoon || isExpired) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isExpired ? Colors.red.shade100 : Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isExpired ? Colors.red.shade300 : Colors.orange.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Icon(isExpired ? Icons.error : Icons.warning_amber, size: 18, color: isExpired ? Colors.red.shade700 : Colors.orange.shade800),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(
+                        isExpired
+                            ? 'Befreiungsausweis $_befreiungJahr ist abgelaufen!'
+                            : 'Befreiungsausweis $_befreiungJahr läuft bald ab! Neuen Antrag für ${now.year + 1} stellen.',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isExpired ? Colors.red.shade800 : Colors.orange.shade900),
+                      )),
+                    ]),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final nextYear = befreiungJahrInt < now.year ? now.year : now.year + 1;
+                          final novFirst = DateTime(befreiungJahrInt, 11, 1);
+                          final firstMonday = novFirst.weekday == DateTime.monday
+                              ? novFirst
+                              : novFirst.add(Duration(days: (DateTime.monday - novFirst.weekday + 7) % 7));
+                          final scheduledStr = '${firstMonday.year}-${firstMonday.month.toString().padLeft(2, '0')}-${firstMonday.day.toString().padLeft(2, '0')}';
 
-              // ── PFLEGEBOX (nur bei Pflegegrad >= 1) ──
-              if (pflegegrad.isNotEmpty && int.tryParse(pflegegrad) != null && int.parse(pflegegrad) >= 1) ...[
-                const SizedBox(height: 24),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Icon(Icons.medical_services, size: 20, color: Colors.green.shade700),
-                        const SizedBox(width: 8),
-                        Text('Pflegebox', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8)),
-                          child: Text('Ab Pflegegrad 1', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
-                        ),
-                      ]),
-                      const SizedBox(height: 4),
-                      Text('Anspruch auf kostenlose Pflegehilfsmittel (bis 40€/Monat)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                      const Divider(height: 20),
-
-                      // Firma
-                      Text('Anbieter / Firma', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                      const SizedBox(height: 4),
-                      TextField(
-                        controller: pflegeboxFirmaController,
-                        decoration: InputDecoration(
-                          hintText: 'z.B. Sanubi, PflegeBox.de, Curabox...',
-                          prefixIcon: const Icon(Icons.business, size: 18),
-                          isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        ),
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Datum
-                      Text('Antrag gestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                      const SizedBox(height: 4),
-                      TextField(
-                        controller: pflegeboxDatumController,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          hintText: 'Datum wählen...',
-                          prefixIcon: const Icon(Icons.calendar_today, size: 18),
-                          isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        ),
-                        style: const TextStyle(fontSize: 13),
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
-                            locale: const Locale('de', 'DE'),
+                          final result = await widget.ticketService.createTicketForMember(
+                            adminMitgliedernummer: widget.adminMitgliedernummer,
+                            memberMitgliedernummer: widget.user.mitgliedernummer,
+                            subject: 'Befreiungsausweis $nextYear beantragen',
+                            message: 'Der Befreiungsausweis für $_befreiungJahr läuft zum Jahresende ab.\n\n'
+                                'Bitte neuen Antrag bei der Krankenkasse (${_krankenkasseNameController.text}) stellen für das Jahr $nextYear.\n\n'
+                                'Versichertennummer: ${_versichertennummerController.text}\n'
+                                'Krankenkasse: ${_krankenkasseNameController.text}',
+                            priority: 'high',
+                            scheduledDate: scheduledStr,
                           );
-                          if (picked != null) {
-                            setLocalState(() {
-                              pflegeboxDatumController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
-                            });
+
+                          if (context.mounted) {
+                            if (result.containsKey('ticket')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Erinnerungsticket für Befreiungsausweis $nextYear erstellt (geplant: ${firstMonday.day.toString().padLeft(2, '0')}.${firstMonday.month.toString().padLeft(2, '0')}.${firstMonday.year})'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(result['error'] ?? 'Fehler beim Erstellen des Tickets'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                           }
                         },
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Versandart
-                      Text('Antrag gestellt per', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                      const SizedBox(height: 4),
-                      Wrap(spacing: 6, runSpacing: 6, children: [
-                        for (final v in [('online', 'Online', Icons.language), ('telefonisch', 'Telefonisch', Icons.phone), ('persoenlich', 'Persönlich', Icons.person), ('postalisch', 'Postalisch', Icons.local_post_office)])
-                          ChoiceChip(
-                            label: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(v.$3, size: 14, color: pflegeboxVersandart == v.$1 ? Colors.white : Colors.grey.shade700),
-                              const SizedBox(width: 4),
-                              Text(v.$2, style: TextStyle(fontSize: 11, color: pflegeboxVersandart == v.$1 ? Colors.white : Colors.black87)),
-                            ]),
-                            selected: pflegeboxVersandart == v.$1,
-                            selectedColor: Colors.green.shade600,
-                            onSelected: (_) => setLocalState(() => pflegeboxVersandart = v.$1),
-                          ),
-                      ]),
-                      const SizedBox(height: 12),
-
-                      // Status
-                      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                      const SizedBox(height: 4),
-                      Wrap(spacing: 6, runSpacing: 6, children: [
-                        for (final s in [('beantragt', 'Beantragt', Colors.orange), ('genehmigt', 'Genehmigt', Colors.green), ('abgelehnt', 'Abgelehnt', Colors.red), ('wird_geliefert', 'Wird geliefert', Colors.blue), ('aktiv', 'Aktiv (monatlich)', Colors.teal)])
-                          ChoiceChip(
-                            label: Text(s.$2, style: TextStyle(fontSize: 11, color: pflegeboxStatus == s.$1 ? Colors.white : Colors.black87)),
-                            selected: pflegeboxStatus == s.$1,
-                            selectedColor: s.$3,
-                            onSelected: (_) => setLocalState(() => pflegeboxStatus = s.$1),
-                          ),
-                      ]),
-                      const SizedBox(height: 12),
-
-                      // Notizen
-                      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                      const SizedBox(height: 4),
-                      TextField(
-                        controller: pflegeboxNotizenController,
-                        maxLines: 2,
-                        decoration: InputDecoration(
-                          hintText: 'Weitere Informationen...',
-                          isDense: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        icon: const Icon(Icons.assignment_add, size: 16),
+                        label: Text(
+                          isExpired
+                              ? 'Erinnerungsticket für ${now.year} erstellen'
+                              : 'Erinnerungsticket für ${now.year + 1} erstellen',
+                          style: const TextStyle(fontSize: 12),
                         ),
-                        style: const TextStyle(fontSize: 13),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isExpired ? Colors.red : Colors.orange.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 16),
-
-              // === TERMINE ===
-              widget.termineBuilder(
-                behoerdeType: type,
-                behoerdeLabel: 'Krankenkasse',
-                termine: termine,
-                data: data,
-                onChanged: (updated) {
-                  setLocalState(() => termine = updated);
-                  widget.autoSaveField(type, 'termine', updated);
-                },
-                setLocalState: setLocalState,
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── KORRESPONDENZ ──
-              _buildKorrespondenzSection(type, data, setLocalState),
-
-              const SizedBox(height: 24),
-
-              // ── SPEICHERN ──
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: widget.isSaving(type) == true ? null : () {
-                    widget.saveData(type, {
-                      'dienststelle': dienststelleController.text.trim(),
-                      'name': krankenkasseNameController.text.trim(),
-                      'versicherungsart': versicherungsart,
-                      'versichertennummer': versichertennummerController.text.trim(),
-                      // eGK Felder
-                      'kvnr': kvnrController.text.trim(),
-                      'versichertenstatus': versichertenstatus,
-                      'kartennummer': kartennummerController.text.trim(),
-                      'kartenfolgenummer': kartenfolgenummerController.text.trim(),
-                      'egk_gueltig_ab': egkGueltigAbController.text.trim(),
-                      'egk_gueltig_bis': egkGueltigBisController.text.trim(),
-                      'ehic_kennnummer': ehicKennummerController.text.trim(),
-                      'ehic_institutionskennzeichen': ehicInstitutionskennzeichenController.text.trim(),
-                      // Befreiung
-                      'befreiungskarte': befreiungskarte.toString(),
-                      'befreiung_jahr': befreiungJahr,
-                      'befreiung_gueltig_bis': befreiungGueltigBisController.text.trim(),
-                      'pflegekasse_name': pflegekasseNameController.text.trim(),
-                      'pflegegrad': pflegegrad,
-                      'pflegegrad_seit': pflegegradSeitController.text.trim(),
-                      // Pflegebox
-                      'pflegebox_firma': pflegeboxFirmaController.text.trim(),
-                      'pflegebox_datum': pflegeboxDatumController.text.trim(),
-                      'pflegebox_versandart': pflegeboxVersandart,
-                      'pflegebox_status': pflegeboxStatus,
-                      'pflegebox_notizen': pflegeboxNotizenController.text.trim(),
-                      // Termine
-                      'termine': termine,
-                    });
-                  },
-                  icon: widget.isSaving(type) == true
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.save, size: 18),
-                  label: const Text('Speichern'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-        );
-      },
+          ],
+        ],
+      ),
     );
   }
+
+  // ============ Save footer ============
+  Widget _buildSaveFooter() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: ElevatedButton.icon(
+          onPressed: widget.isSaving(type) == true ? null : () {
+            widget.saveData(type, {
+              'dienststelle': _dienststelleController.text.trim(),
+              'name': _krankenkasseNameController.text.trim(),
+              'versicherungsart': _versicherungsart,
+              'versichertennummer': _versichertennummerController.text.trim(),
+              'kvnr': _kvnrController.text.trim(),
+              'versichertenstatus': _versichertenstatus,
+              'kartennummer': _kartennummerController.text.trim(),
+              'kartenfolgenummer': _kartenfolgenummerController.text.trim(),
+              'egk_gueltig_ab': _egkGueltigAbController.text.trim(),
+              'egk_gueltig_bis': _egkGueltigBisController.text.trim(),
+              'ehic_kennnummer': _ehicKennummerController.text.trim(),
+              'ehic_institutionskennzeichen': _ehicInstitutionskennzeichenController.text.trim(),
+              'befreiungskarte': _befreiungskarte.toString(),
+              'befreiung_jahr': _befreiungJahr,
+              'befreiung_gueltig_bis': _befreiungGueltigBisController.text.trim(),
+              'pflegekasse_name': _pflegekasseNameController.text.trim(),
+              'pflegegrad': _pflegegrad,
+              'pflegegrad_seit': _pflegegradSeitController.text.trim(),
+              'pflegebox_firma': _pflegeboxFirmaController.text.trim(),
+              'pflegebox_datum': _pflegeboxDatumController.text.trim(),
+              'pflegebox_versandart': _pflegeboxVersandart,
+              'pflegebox_status': _pflegeboxStatus,
+              'pflegebox_notizen': _pflegeboxNotizenController.text.trim(),
+              'termine': _termine,
+            });
+          },
+          icon: widget.isSaving(type) == true
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.save, size: 18),
+          label: const Text('Speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+        ),
+      ),
+    );
+  }
+
 
   // ── KORRESPONDENZ SECTION ──
   Widget _buildKorrespondenzSection(String behoerdeType, Map<String, dynamic> data, StateSetter setLocalState) {
