@@ -3183,6 +3183,89 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ========== DEVICE ACTIVATION (16-char one-time code) ==========
+
+  /// Public endpoint — no device_key required (bootstrap).
+  /// Consumes a 16-char activation code issued by admin, enrolls this device,
+  /// returns JWT + refresh_token + device_key to persist locally.
+  Future<Map<String, dynamic>> activateDeviceCode({
+    required String mitgliedernummer,
+    required String code,
+    required String deviceId,
+    Map<String, dynamic>? deviceInfo,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/auth/activate_code.php'),
+      headers: const {
+        'Content-Type': 'application/json',
+        'User-Agent': 'ICD360S-Vorsitzer/1.0',
+      },
+      body: jsonEncode({
+        'mitgliedernummer': mitgliedernummer,
+        'code': code,
+        'device_id': deviceId,
+        'device_info': deviceInfo ?? {},
+      }),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Server error (${response.statusCode})'};
+    }
+  }
+
+  /// Admin (vorsitzer role only): generate a one-time 16-char activation code
+  /// for the given member. The raw code is returned ONLY here — it cannot be
+  /// recovered later. TTL is in hours (max 168 = 7 days).
+  Future<Map<String, dynamic>> generateActivationCode({
+    required int targetUserId,
+    int ttlHours = 24,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/generate_activation_code.php'),
+      headers: _headers,
+      body: jsonEncode({'target_user_id': targetUserId, 'ttl_hours': ttlHours}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Admin: list all devices + recent activation codes for a member.
+  Future<Map<String, dynamic>> listUserDevices(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/list_user_devices.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Admin (vorsitzer only): revoke a member's device by its device_key_id.
+  Future<Map<String, dynamic>> revokeUserDevice({
+    required int deviceKeyId,
+    String? reason,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/revoke_device.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'device_key_id': deviceKeyId,
+        if (reason != null) 'reason': reason,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // ========== FINANZAMT KORRESPONDENZ ==========
 
   Future<Map<String, dynamic>> getFinanzamtKorrespondenz(int userId) async {
