@@ -132,11 +132,12 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        TextButton.icon(
-          icon: const Icon(Icons.arrow_back, size: 16),
-          label: const Text('Zurück zum normalen Login', style: TextStyle(fontSize: 12)),
-          onPressed: () => Navigator.pop(context),
+        const SizedBox(height: 12),
+        Text(
+          'Diese App ist ausschließlich für den Vorstand. Noch keinen Code? '
+          'Bitte beim ersten Vorsitzer den Aktivierungscode anfordern.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          textAlign: TextAlign.center,
         ),
       ],
     );
