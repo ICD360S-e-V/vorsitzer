@@ -31,7 +31,44 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
 
   int _step = 0; // 0 = mitgliedernummer, 1 = code
   bool _loading = false;
+  bool _checkingAutoLogin = true;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingActivation();
+  }
+
+  Future<void> _checkExistingActivation() async {
+    try {
+      await _deviceKeyService.initialize();
+      if (_deviceKeyService.isRegistered) {
+        final prefs = await SharedPreferences.getInstance();
+        final autoLogin = prefs.getBool('auto_login') ?? false;
+        final mgnum = prefs.getString('mitgliedernummer') ?? '';
+        if (autoLogin && mgnum.isNotEmpty) {
+          _log.info('Device already activated ($mgnum) — auto-login', tag: 'AUTH');
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DashboardScreen(
+                userName: '',
+                currentMitgliedernummer: mgnum,
+                currentEmail: '',
+                currentRole: 'vorsitzer',
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      _log.warning('Auto-login check failed: $e', tag: 'AUTH');
+    }
+    if (mounted) setState(() => _checkingAutoLogin = false);
+  }
 
   @override
   void dispose() {
@@ -47,6 +84,12 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingAutoLogin) {
+      return Scaffold(
+        backgroundColor: Colors.indigo.shade50,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.indigo.shade50,
       body: SafeArea(
