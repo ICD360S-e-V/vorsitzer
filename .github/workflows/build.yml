@@ -23,6 +23,12 @@ env:
 permissions:
   contents: write
 
+# Serialize runs on the same branch so parallel pushes don't race on the
+# auto-bump git tag/push step. cancel-in-progress: false → queue, don't drop.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 # ============================================================
 # SECRETS REQUIRED:
 # ============================================================
