@@ -143,6 +143,10 @@ jobs:
         run: |
           flutter build apk \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -196,6 +200,10 @@ jobs:
         run: |
           flutter build apk \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --split-per-abi \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -253,6 +261,10 @@ jobs:
         run: |
           flutter build appbundle \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -306,6 +318,10 @@ jobs:
         run: |
           flutter build apk \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --dart-define=STORE=fdroid \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -360,6 +376,10 @@ jobs:
         run: |
           flutter build apk \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --dart-define=STORE=huawei \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -397,7 +417,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows
-        run: flutter build windows --release --build-name=${{ needs.version.outputs.version_name }} --build-number=${{ needs.version.outputs.build_number }}
+        run: flutter build windows --release --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} --dart-define=TURN_USER=${{ secrets.TURN_USER }} --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} --build-name=${{ needs.version.outputs.version_name }} --build-number=${{ needs.version.outputs.build_number }}
 
       - name: Create ZIP archive
         shell: pwsh
@@ -445,6 +465,10 @@ jobs:
           flutter config --enable-linux-desktop
           flutter build linux \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -521,6 +545,10 @@ jobs:
         run: |
           flutter build macos \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -613,6 +641,10 @@ jobs:
         run: |
           flutter build ipa \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }} \
             --export-options-plist=ios/ExportOptions.plist
@@ -622,6 +654,10 @@ jobs:
         run: |
           flutter build ios \
             --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --no-codesign \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
