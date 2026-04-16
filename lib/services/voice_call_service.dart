@@ -7,26 +7,23 @@ final _log = LoggerService();
 
 /// Voice Call Service using WebRTC for real-time audio communication
 class VoiceCallService {
-  // WebRTC configuration - STUN + own TURN server for NAT traversal
-  static const Map<String, dynamic> _iceServers = {
-    'iceServers': [
-      // STUN servers (for discovering public IP)
+  // TURN credentials injected at build time via --dart-define (never committed).
+  // Fallback: empty → only STUN is used.
+  static const _turnHost = String.fromEnvironment('TURN_HOST', defaultValue: '');
+  static const _turnUser = String.fromEnvironment('TURN_USER', defaultValue: '');
+  static const _turnCred = String.fromEnvironment('TURN_CRED', defaultValue: '');
+
+  static Map<String, dynamic> get _iceServers {
+    final servers = <Map<String, dynamic>>[
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
-
-      // TURN server on icd360sev.icd360s.de (for relay when peer-to-peer fails)
-      {
-        'urls': 'turn:icd360sev.icd360s.de:3478',
-        'username': 'icd360s',
-        'credential': 'REDACTED_TURN_CRED'
-      },
-      {
-        'urls': 'turns:icd360sev.icd360s.de:5349',  // TURN over TLS
-        'username': 'icd360s',
-        'credential': 'REDACTED_TURN_CRED'
-      },
-    ]
-  };
+    ];
+    if (_turnHost.isNotEmpty && _turnUser.isNotEmpty && _turnCred.isNotEmpty) {
+      servers.add({'urls': 'turn:$_turnHost:3478', 'username': _turnUser, 'credential': _turnCred});
+      servers.add({'urls': 'turns:$_turnHost:5349', 'username': _turnUser, 'credential': _turnCred});
+    }
+    return {'iceServers': servers};
+  }
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
