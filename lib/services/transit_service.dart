@@ -613,10 +613,11 @@ class TransitService {
   // HAFAS PROVIDER — used by saarVV (Saarland)
   // ══════════════════════════════════════════════════════════════
 
-  /// HAFAS auth config for saarVV
+  /// HAFAS auth config for saarVV — token injected via --dart-define at build time.
+  /// Fork builds without HAFAS_AID will skip saarVV departures.
   static const _hafasEndpoint = 'https://saarfahrplan.de/bin/mgate.exe';
   static const _hafasClientId = 'ZPS-SAAR';
-  static const _hafasAuthToken = 'REDACTED_HAFAS_TOKEN';
+  static const _hafasAuthToken = String.fromEnvironment('HAFAS_AID', defaultValue: '');
 
   Map<String, dynamic> _hafasRequest(List<Map<String, dynamic>> svcReqL) {
     return {
