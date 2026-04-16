@@ -11,7 +11,6 @@ import '../widgets/legal_footer.dart';
 import '../widgets/diagnostic_consent_dialog.dart';
 import '../widgets/login_tab.dart';
 import 'dashboard_screen.dart';
-import 'login_with_code_screen.dart';
 
 final _log = LoggerService();
 
@@ -573,20 +572,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                // First-time device activation via 16-char code (bypass approval flow)
-                TextButton.icon(
-                  icon: const Icon(Icons.vpn_key, size: 16, color: Colors.white70),
-                  label: const Text(
-                    'Gerät mit Aktivierungscode einrichten',
-                    style: TextStyle(fontSize: 12, color: Colors.white70),
-                  ),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginWithCodeScreen()),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
                 // Footer
                 const LegalFooter(darkMode: true),
               ],
