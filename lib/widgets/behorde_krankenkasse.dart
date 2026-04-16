@@ -7,6 +7,7 @@ import 'file_viewer_dialog.dart';
 import '../services/ticket_service.dart';
 import '../models/user.dart';
 import '../utils/file_picker_helper.dart';
+import 'pflegebox_widget.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -76,6 +77,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   String _pflegegrad = '';
   String _pflegeboxVersandart = '';
   String _pflegeboxStatus = '';
+  int? _pflegeboxFirmaId;
+  String _pflegeboxFirmaName = '';
   List<Map<String, dynamic>> _termine = [];
 
   void _initControllers(Map<String, dynamic> data) {
@@ -103,6 +106,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _pflegegrad = data['pflegegrad'] ?? '';
       _pflegeboxVersandart = data['pflegebox_versandart'] ?? '';
       _pflegeboxStatus = data['pflegebox_status'] ?? '';
+      final fid = data['pflegebox_firma_id'];
+      _pflegeboxFirmaId = fid is int ? fid : (fid is String ? int.tryParse(fid) : null);
+      _pflegeboxFirmaName = data['pflegebox_firma'] ?? '';
       _termine = _getTermineListe(data);
       _controllersInitialized = true;
     }
@@ -769,18 +775,18 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   const SizedBox(height: 4),
                   Text('Anspruch auf kostenlose Pflegehilfsmittel (bis 40€/Monat)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                   const Divider(height: 20),
-                  Text('Anbieter / Firma', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: _pflegeboxFirmaController,
-                    decoration: InputDecoration(
-                      hintText: 'z.B. Sanubi, PflegeBox.de, Curabox...',
-                      prefixIcon: const Icon(Icons.business, size: 18),
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                    style: const TextStyle(fontSize: 13),
+                  PflegeboxSection(
+                    apiService: widget.apiService,
+                    userId: widget.user.id,
+                    selectedFirmaId: _pflegeboxFirmaId,
+                    selectedFirmaName: _pflegeboxFirmaName,
+                    onFirmaChanged: (firma) {
+                      setState(() {
+                        _pflegeboxFirmaId = firma == null ? null : firma['id'] as int?;
+                        _pflegeboxFirmaName = firma == null ? '' : (firma['firma_name']?.toString() ?? '');
+                        _pflegeboxFirmaController.text = _pflegeboxFirmaName;
+                      });
+                    },
                   ),
                   const SizedBox(height: 12),
                   Text('Antrag gestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
@@ -1364,7 +1370,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               'pflegekasse_name': _pflegekasseNameController.text.trim(),
               'pflegegrad': _pflegegrad,
               'pflegegrad_seit': _pflegegradSeitController.text.trim(),
-              'pflegebox_firma': _pflegeboxFirmaController.text.trim(),
+              'pflegebox_firma': _pflegeboxFirmaName.isNotEmpty ? _pflegeboxFirmaName : _pflegeboxFirmaController.text.trim(),
+              'pflegebox_firma_id': _pflegeboxFirmaId,
               'pflegebox_datum': _pflegeboxDatumController.text.trim(),
               'pflegebox_versandart': _pflegeboxVersandart,
               'pflegebox_status': _pflegeboxStatus,
