@@ -2959,6 +2959,137 @@ class ApiService {
     ).timeout(const Duration(seconds: 15));
   }
 
+  // ========== PFLEGEBOX FIRMEN (DB) ==========
+
+  Future<Map<String, dynamic>> listPflegeboxFirmen() async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/pflegebox_firmen_manage.php'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> searchPflegeboxFirmen(String search) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegebox_firmen_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'search', 'search': search}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> addPflegeboxFirma(Map<String, dynamic> firma) async {
+    final body = Map<String, dynamic>.from(firma);
+    body['action'] = 'add';
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegebox_firmen_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> updatePflegeboxFirma(Map<String, dynamic> firma) async {
+    final body = Map<String, dynamic>.from(firma);
+    body['action'] = 'update';
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegebox_firmen_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deletePflegeboxFirma(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegebox_firmen_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  // ========== PFLEGEBOX LIEFERSCHEINE (monthly uploads per user) ==========
+
+  Future<Map<String, dynamic>> listPflegeboxLieferscheine(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/pflegebox_lieferschein_list.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadPflegeboxLieferschein({
+    required int userId,
+    required int firmaId,
+    required int monat,
+    required int jahr,
+    required String filePath,
+    required String fileName,
+    String notiz = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/pflegebox_lieferschein_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['firma_id'] = firmaId.toString();
+    request.fields['monat'] = monat.toString();
+    request.fields['jahr'] = jahr.toString();
+    request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Server error (${response.statusCode})'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deletePflegeboxLieferschein(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegebox_lieferschein_delete.php'),
+      headers: _headers,
+      body: jsonEncode({'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<http.Response> downloadPflegeboxLieferschein(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/pflegebox_lieferschein_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ========== FINANZAMT KORRESPONDENZ ==========
 
   Future<Map<String, dynamic>> getFinanzamtKorrespondenz(int userId) async {
