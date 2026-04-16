@@ -33,6 +33,11 @@ permissions:
   contents: write
   actions: write
 
+# Serialize bump runs so parallel pushes don't race on tag creation.
+concurrency:
+  group: release-bump-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   bump-and-tag:
     name: "🔢 Auto-bump version + tag"
@@ -160,19 +165,62 @@ jobs:
           sed -i "s/static const int currentBuildNumber = .*/static const int currentBuildNumber = ${{ steps.bump.outputs.new_build }};/" "$FILE"
           grep 'currentVersion\|currentBuildNumber' "$FILE" | head -2
 
-      - name: Commit + tag + push
+      - name: Commit + tag + push (atomic, retry on collision)
         if: steps.detect.outputs.skipped != 'true'
+        id: push
         run: |
+          set -e
           NEW_VERSION="${{ steps.bump.outputs.new_version }}"
-          git add pubspec.yaml lib/services/update_service.dart
-          git commit -m "chore: bump to $NEW_VERSION+${{ steps.bump.outputs.new_build }} [skip ci]"
-          git tag "v$NEW_VERSION"
-          git push origin main "v$NEW_VERSION"
-          echo "✅ Tagged v$NEW_VERSION and pushed to main"
+          NEW_BUILD="${{ steps.bump.outputs.new_build }}"
+          MAJOR=$(echo "$NEW_VERSION" | cut -d'.' -f1)
+          MINOR=$(echo "$NEW_VERSION" | cut -d'.' -f2)
+          PATCH=$(echo "$NEW_VERSION" | cut -d'.' -f3)
+
+          git fetch origin main --tags --prune
+
+          for attempt in 1 2 3 4 5; do
+            # If the target tag already exists on remote, bump patch and retry
+            while git ls-remote --tags origin | awk '{print $2}' | grep -qx "refs/tags/v$NEW_VERSION"; do
+              PATCH=$((PATCH + 1))
+              NEW_BUILD=$((NEW_BUILD + 1))
+              NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+              echo "⚠ tag v$NEW_VERSION exists remote, retry with $NEW_VERSION+$NEW_BUILD"
+            done
+
+            # Rebase onto latest main so fast-forward succeeds
+            git reset --hard origin/main
+
+            # Re-apply version bumps against latest tree
+            sed -i "s/^version: .*/version: $NEW_VERSION+$NEW_BUILD/" pubspec.yaml
+            sed -i "s/static const String currentVersion = '.*'/static const String currentVersion = '$NEW_VERSION'/" lib/services/update_service.dart
+            sed -i "s/static const int currentBuildNumber = .*/static const int currentBuildNumber = $NEW_BUILD;/" lib/services/update_service.dart
+
+            git add pubspec.yaml lib/services/update_service.dart
+            git commit -m "chore: bump to $NEW_VERSION+$NEW_BUILD [skip ci]"
+            git tag "v$NEW_VERSION"
+
+            # Atomic push: main + tag together (both or neither)
+            if git push --atomic origin main "v$NEW_VERSION"; then
+              echo "✅ Attempt $attempt: tagged v$NEW_VERSION and pushed to main"
+              echo "final_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+              echo "final_build=$NEW_BUILD" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "⚠ Attempt $attempt push failed — cleaning up local state and retrying"
+            git tag -d "v$NEW_VERSION" 2>/dev/null || true
+            PATCH=$((PATCH + 1))
+            NEW_BUILD=$((NEW_BUILD + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+            git fetch origin main --tags --prune
+          done
+
+          echo "::error::Failed to push bump after 5 attempts"
+          exit 1
 
       - name: Trigger build workflow
         if: steps.detect.outputs.skipped != 'true'
         run: |
-          gh workflow run build.yml --ref "v${{ steps.bump.outputs.new_version }}"
+          gh workflow run build.yml --ref "v${{ steps.push.outputs.final_version }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
