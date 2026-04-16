@@ -310,12 +310,11 @@ class DesktopSecurityService {
     return checks;
   }
 
-  /// FileVault disk encryption (uses osascript with admin to bypass sandbox)
+  /// FileVault disk encryption (no admin required)
   Future<SecurityCheck> _macCheckFileVault() async {
     try {
-      final result = await Process.run('osascript', ['-e',
-        'do shell script "fdesetup status" with administrator privileges'
-      ]).timeout(const Duration(seconds: 30));
+      final result = await Process.run('fdesetup', ['status'])
+          .timeout(const Duration(seconds: 10));
       final output = result.stdout.toString().trim();
 
       if (output.contains('On')) {
@@ -343,12 +342,12 @@ class DesktopSecurityService {
     );
   }
 
-  /// macOS Firewall (uses osascript with admin to bypass sandbox)
+  /// macOS Firewall (no admin required)
   Future<SecurityCheck> _macCheckFirewall() async {
     try {
-      final result = await Process.run('osascript', ['-e',
-        'do shell script "/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate" with administrator privileges'
-      ]).timeout(const Duration(seconds: 30));
+      final result = await Process.run(
+        '/usr/libexec/ApplicationFirewall/socketfilterfw', ['--getglobalstate'],
+      ).timeout(const Duration(seconds: 10));
 
       final output = result.stdout.toString().trim();
       if (output.contains('enabled')) {
