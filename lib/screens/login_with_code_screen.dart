@@ -42,27 +42,37 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
 
   Future<void> _checkExistingActivation() async {
     try {
-      await _deviceKeyService.initialize();
-      if (_deviceKeyService.isRegistered) {
-        final prefs = await SharedPreferences.getInstance();
-        final autoLogin = prefs.getBool('auto_login') ?? false;
-        final mgnum = prefs.getString('mitgliedernummer') ?? '';
-        if (autoLogin && mgnum.isNotEmpty) {
-          _log.info('Device already activated ($mgnum) — auto-login', tag: 'AUTH');
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DashboardScreen(
-                userName: '',
-                currentMitgliedernummer: mgnum,
-                currentEmail: '',
-                currentRole: 'vorsitzer',
-              ),
-            ),
-          );
-          return;
+      // Read directly from SharedPreferences — DO NOT call _deviceKeyService.initialize()
+      // which triggers server validation + _collectExtendedDeviceData (osascript admin
+      // prompts on old builds) and destructively clears the key on ANY failure.
+      // The per-request validateApiKey() middleware validates device_key on every API call anyway.
+      final prefs = await SharedPreferences.getInstance();
+      final storedKey = prefs.getString('device_key');
+      final mgnum = prefs.getString('mitgliedernummer') ?? '';
+      final autoLogin = prefs.getBool('auto_login') ?? false;
+
+      if (storedKey != null && storedKey.isNotEmpty && mgnum.isNotEmpty && autoLogin) {
+        _log.info('Device key found in storage ($mgnum) — auto-login', tag: 'AUTH');
+
+        // Inject key into DeviceKeyService in-memory (lazy, no server call)
+        final storedId = prefs.getString('device_id') ?? '';
+        if (storedId.isNotEmpty) {
+          await _deviceKeyService.setActivatedCredentials(storedKey, storedId);
         }
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DashboardScreen(
+              userName: '',
+              currentMitgliedernummer: mgnum,
+              currentEmail: '',
+              currentRole: 'vorsitzer',
+            ),
+          ),
+        );
+        return;
       }
     } catch (e) {
       _log.warning('Auto-login check failed: $e', tag: 'AUTH');
