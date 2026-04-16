@@ -326,19 +326,9 @@ class DeviceKeyService {
     // ==================== DISK HEALTH (SMART + Wear %) ====================
     try {
       if (Platform.isMacOS) {
-        // Use osascript with admin privileges - asks password once
         try {
-          // Install smartctl if missing, get SMART + wear % in one admin call
-          final r = await Process.run('osascript', ['-e',
-            'do shell script "'
-            'which smartctl > /dev/null 2>&1 || brew install smartmontools > /dev/null 2>&1; '
-            'if which smartctl > /dev/null 2>&1; then '
-            '  smartctl -A /dev/disk0 2>/dev/null; '
-            'else '
-            '  diskutil info disk0 2>/dev/null | grep SMART; '
-            'fi'
-            '" with administrator privileges'
-          ]).timeout(const Duration(seconds: 120));
+          final r = await Process.run('diskutil', ['info', 'disk0'])
+              .timeout(const Duration(seconds: 10));
           final output = r.stdout.toString();
 
           // Parse wear %
@@ -423,9 +413,8 @@ class DeviceKeyService {
     // ==================== OS UPDATE CHECK ====================
     try {
       if (Platform.isMacOS) {
-        // Use osascript with admin to read system prefs
-        final r = await Process.run('osascript', ['-e',
-          'do shell script "defaults read /Library/Preferences/com.apple.SoftwareUpdate LastUpdatesAvailable" with administrator privileges'
+        final r = await Process.run('defaults', [
+          'read', '/Library/Preferences/com.apple.SoftwareUpdate', 'LastUpdatesAvailable'
         ]).timeout(const Duration(seconds: 10));
         final count = int.tryParse(r.stdout.toString().trim());
         if (count != null) {
