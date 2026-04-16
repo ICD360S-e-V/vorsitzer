@@ -690,12 +690,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     isLoading: _isLoading,
                     onRevokeSession: (id) => _confirmRevokeSession(id),
                   ),
-                  MemberDevicesSection(
-                    apiService: widget.apiService,
-                    userId: widget.user.id,
-                    mitgliedernummer: widget.user.mitgliedernummer,
-                    userName: widget.user.name,
-                  ),
+                  widget.user.role == 'vorsitzer'
+                      ? MemberDevicesSection(
+                          apiService: widget.apiService,
+                          userId: widget.user.id,
+                          mitgliedernummer: widget.user.mitgliedernummer,
+                          userName: widget.user.name,
+                        )
+                      : _buildNoActivationForMember(),
                   _buildVerwarnungenTab(),
                   _buildDokumenteTab(),
                   _buildMitgliedschaftTab(),
@@ -1097,6 +1099,34 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       ),
     );
     if (result == true) _saveChanges();
+  }
+
+  Widget _buildNoActivationForMember() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.notifications_active, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'Nicht für Mitglieder',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Aktivierungscodes sind nur für Vorsitzer bestimmt. '
+              'Normale Mitglieder loggen sich mit ihrer Mitgliedernummer ein — '
+              'neue Geräte werden per Push-Benachrichtigung vom Vorstand für 30 Tage '
+              'genehmigt.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildVerwarnungenTab() {
