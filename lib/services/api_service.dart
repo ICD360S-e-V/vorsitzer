@@ -3051,6 +3051,8 @@ class ApiService {
     required String filePath,
     required String fileName,
     String notiz = '',
+    String trackingId = '',
+    String trackingAnbieter = 'deutsche_post',
   }) async {
     final uri = Uri.parse('$baseUrl/admin/pflegebox_lieferschein_upload.php');
     final request = http.MultipartRequest('POST', uri);
@@ -3060,6 +3062,8 @@ class ApiService {
     request.fields['monat'] = monat.toString();
     request.fields['jahr'] = jahr.toString();
     request.fields['notiz'] = notiz;
+    request.fields['tracking_id'] = trackingId;
+    request.fields['tracking_anbieter'] = trackingAnbieter;
     request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
@@ -3068,6 +3072,95 @@ class ApiService {
     } on FormatException {
       return {'success': false, 'message': 'Server error (${response.statusCode})'};
     }
+  }
+
+  Future<Map<String, dynamic>> updatePflegeboxLieferschein({
+    required int id,
+    String? trackingId,
+    String? trackingAnbieter,
+    String? notiz,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegebox_lieferschein_update.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'id': id,
+        if (trackingId != null) 'tracking_id': trackingId,
+        if (trackingAnbieter != null) 'tracking_anbieter': trackingAnbieter,
+        if (notiz != null) 'notiz': notiz,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  // ========== PFLEGEBOX KORRESPONDENZ (per firma) ==========
+
+  Future<Map<String, dynamic>> listPflegeboxKorrespondenz({required int userId, int? firmaId}) async {
+    final qs = firmaId != null ? '&firma_id=$firmaId' : '';
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/pflegebox_korr_list.php?user_id=$userId$qs'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadPflegeboxKorrespondenz({
+    required int userId,
+    required int firmaId,
+    required String richtung,
+    required String datum,
+    String betreff = '',
+    String notiz = '',
+    String? filePath,
+    String? fileName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/pflegebox_korr_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['firma_id'] = firmaId.toString();
+    request.fields['richtung'] = richtung;
+    request.fields['datum'] = datum;
+    request.fields['betreff'] = betreff;
+    request.fields['notiz'] = notiz;
+    if (filePath != null && fileName != null) {
+      request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    }
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Server error (${response.statusCode})'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deletePflegeboxKorrespondenz(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegebox_korr_delete.php'),
+      headers: _headers,
+      body: jsonEncode({'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<http.Response> downloadPflegeboxKorrespondenz(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/pflegebox_korr_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
   }
 
   Future<Map<String, dynamic>> deletePflegeboxLieferschein(int id) async {
