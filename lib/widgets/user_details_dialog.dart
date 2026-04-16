@@ -20,6 +20,7 @@ import 'gesundheit_tab_content.dart';
 import 'finanzen_tab_content.dart';
 import 'freizeit_tab_content.dart';
 import 'mitglieder_device.dart';
+import 'member_devices_widget.dart';
 import '../utils/file_picker_helper.dart';
 
 class UserDetailsDialog extends StatefulWidget {
@@ -124,7 +125,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 14, vsync: this);
+    _tabController = TabController(length: 15, vsync: this);
     _nameController.text = widget.user.name;
     _emailController.text = widget.user.email;
     _selectedRole = widget.user.role;
@@ -661,6 +662,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 tabs: const [
                   Tab(icon: Icon(Icons.account_circle), text: 'Konto'),
                   Tab(icon: Icon(Icons.devices), text: 'Geräte'),
+                  Tab(icon: Icon(Icons.vpn_key), text: 'Aktivierung'),
                   Tab(icon: Icon(Icons.warning_amber), text: 'Verwarnungen'),
                   Tab(icon: Icon(Icons.folder_open), text: 'Dokumente'),
                   Tab(icon: Icon(Icons.card_membership), text: 'Mitgliedschaft'),
@@ -687,6 +689,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     devices: _devices,
                     isLoading: _isLoading,
                     onRevokeSession: (id) => _confirmRevokeSession(id),
+                  ),
+                  MemberDevicesSection(
+                    apiService: widget.apiService,
+                    userId: widget.user.id,
+                    mitgliedernummer: widget.user.mitgliedernummer,
+                    userName: widget.user.name,
                   ),
                   _buildVerwarnungenTab(),
                   _buildDokumenteTab(),
