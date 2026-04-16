@@ -336,9 +336,20 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
     });
 
     try {
-      // Ensure we have a device_id (generate if missing)
-      await _deviceKeyService.initialize();
-      final deviceId = _deviceKeyService.deviceId ?? 'unknown-${DateTime.now().millisecondsSinceEpoch}';
+      // Generate device_id WITHOUT registering a device_key yet.
+      // (DeviceKeyService.initialize() would pre-create a key_A via /device/register
+      //  which activate_code then revokes → in-memory stale key → 403 on all requests)
+      String deviceId;
+      try {
+        final storedId = await _secureStorage.read(key: 'device_id');
+        if (storedId != null && storedId.isNotEmpty) {
+          deviceId = storedId;
+        } else {
+          deviceId = '${_platformString().toUpperCase()}_${DateTime.now().millisecondsSinceEpoch}';
+        }
+      } catch (_) {
+        deviceId = '${_platformString().toUpperCase()}_${DateTime.now().millisecondsSinceEpoch}';
+      }
 
       final deviceInfo = <String, dynamic>{
         'name': _deviceName(),
@@ -377,16 +388,27 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
         return;
       }
 
-      // Persist device_key (picks up DeviceKeyService on next restart) + tokens
-      await _secureStorage.write(key: 'device_key', value: deviceKey);
-      await _secureStorage.write(key: 'device_id', value: deviceId);
+      // Persist device_key + tokens. Use safe writes (macOS unsigned → -34018 keychain error).
+      Future<void> safeWrite(String key, String value) async {
+        try {
+          await _secureStorage.write(key: key, value: value);
+        } catch (e) {
+          _log.warning('Secure write failed for $key (skipped): $e', tag: 'AUTH');
+        }
+      }
+
+      await safeWrite('device_key', deviceKey);
+      await safeWrite('device_id', deviceId);
       await _apiService.saveTokens(token, refreshToken);
 
       final mgnum = (user['mitgliedernummer'] ?? '').toString();
-      await _secureStorage.write(key: 'mitgliedernummer', value: mgnum);
+      await safeWrite('mitgliedernummer', mgnum);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_me', true);
       await prefs.setBool('auto_login', true);
+
+      // Re-initialize DeviceKeyService so in-memory state picks up the NEW key
+      await _deviceKeyService.initialize();
 
       _log.info('Device activated successfully for $mgnum', tag: 'AUTH');
 
