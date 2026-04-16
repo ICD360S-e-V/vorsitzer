@@ -51,3 +51,13 @@ vps_icd360sev_icd360s.de.pub
 *.keystore
 *.jks
 key.properties
+
+# Claude Code / AI assistant — never commit
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+
+# Flutter auto-generated (leaks local dev paths)
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
