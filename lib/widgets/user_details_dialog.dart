@@ -1111,15 +1111,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             Icon(Icons.notifications_active, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 16),
             Text(
-              'Nicht für Mitglieder',
+              'Nur für Vorsitzer',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
             ),
             const SizedBox(height: 8),
             Text(
-              'Aktivierungscodes sind nur für Vorsitzer bestimmt. '
-              'Normale Mitglieder loggen sich mit ihrer Mitgliedernummer ein — '
-              'neue Geräte werden per Push-Benachrichtigung vom Vorstand für 30 Tage '
-              'genehmigt.',
+              'Diese Admin-App ist ausschließlich für den Vorstand. '
+              'Aktivierungscodes werden nur für Rolle „Vorsitzer" erstellt. '
+              'Normale Mitglieder nutzen die separate Mitglieder-App.',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
