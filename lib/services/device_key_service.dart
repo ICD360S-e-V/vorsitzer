@@ -607,14 +607,9 @@ class DeviceKeyService {
 
       if (response.statusCode == 200 && data['success'] == true) {
         return true;
-      } else if (response.statusCode == 403) {
-        _logger.warning('Device key revoked, re-registering...', tag: 'DEVICE');
-        await _clearDeviceKey();
-        return await _registerDevice();
       } else {
-        _logger.warning('Device key validation failed (${response.statusCode}): ${data['message'] ?? 'Unknown error'} - re-registering...', tag: 'DEVICE');
-        await _clearDeviceKey();
-        return await _registerDevice();
+        _logger.warning('Device key validation failed (${response.statusCode}): ${data['message'] ?? 'Unknown error'}', tag: 'DEVICE');
+        return false;
       }
     } catch (e) {
       _logger.info('Device key validation error (assuming valid): $e', tag: 'DEVICE');
