@@ -57,23 +57,33 @@ class ApiService {
       _token = await _secureStorage.read(key: 'access_token');
       _refreshToken = await _secureStorage.read(key: 'refresh_token');
     } catch (e) {
-      LoggerService().warning('Could not load tokens from secure storage (memory only): $e', tag: 'API');
-      _token = null;
-      _refreshToken = null;
+      LoggerService().warning('Keychain read failed, trying SharedPreferences fallback: $e', tag: 'API');
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        _token = prefs.getString('access_token');
+        _refreshToken = prefs.getString('refresh_token');
+      } catch (_) {
+        _token = null;
+        _refreshToken = null;
+      }
     }
   }
 
   Timer? _tokenRefreshTimer;
 
   Future<void> saveTokens(String token, String refreshToken) async {
-    // Always set in memory first so the current session works
     _token = token;
     _refreshToken = refreshToken;
     try {
       await _secureStorage.write(key: 'access_token', value: token);
       await _secureStorage.write(key: 'refresh_token', value: refreshToken);
     } catch (e) {
-      LoggerService().warning('Could not persist tokens to secure storage (memory only): $e', tag: 'API');
+      LoggerService().warning('Keychain write failed, using SharedPreferences fallback: $e', tag: 'API');
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('access_token', token);
+        await prefs.setString('refresh_token', refreshToken);
+      } catch (_) {}
     }
     // Start proactive token refresh — access token expires in 1 hour,
     // refresh 5 minutes before expiry to avoid "invalid or expired token" errors
