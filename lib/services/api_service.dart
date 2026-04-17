@@ -39,13 +39,18 @@ class ApiService {
 
   /// Inițializează API service - TREBUIE apelat la pornirea aplicației
   Future<bool> initialize() async {
-    // Inițializează device key
     final deviceKeyInitialized = await _deviceKeyService.initialize();
     if (!deviceKeyInitialized) {
       return false;
     }
-    // Încarcă token-urile
     await loadTokens();
+    // If we have a refresh token but the access token might be stale
+    // (loaded from SP after app restart), proactively refresh now so
+    // all services (ntfy, heartbeat, etc.) get a fresh JWT immediately.
+    if (_refreshToken != null) {
+      await _refreshAccessToken();
+      _startTokenRefreshTimer();
+    }
     return true;
   }
 
