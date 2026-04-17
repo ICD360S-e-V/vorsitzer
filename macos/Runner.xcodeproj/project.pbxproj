@@ -274,6 +274,9 @@
 							com.apple.Sandbox = {
 								enabled = 1;
 							};
+							com.apple.KeychainSharing = {
+								enabled = 1;
+							};
 						};
 					};
 					33CC111A2044C6BA0003C045 = {
