@@ -349,7 +349,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     if (!_controllersInit) _initControllers(data);
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Column(
         children: [
           TabBar(
@@ -363,6 +363,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
               Tab(icon: Icon(Icons.badge, size: 16), text: 'SB-Ausweis'),
               Tab(icon: Icon(Icons.accessible, size: 16), text: 'GdB'),
+              Tab(icon: Icon(Icons.description, size: 16), text: 'Antrag'),
             ],
           ),
           Expanded(
@@ -373,6 +374,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 _buildKorrespondenzTab(data),
                 _buildAusweisTab(data),
                 _buildGdbTab(data),
+                _buildAntragTab(data),
               ],
             ),
           ),
@@ -607,14 +609,22 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                       title: Text('${t['datum'] ?? ''}${t['uhrzeit'] != null && t['uhrzeit'].toString().isNotEmpty ? ' um ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       subtitle: Text('${typ.toUpperCase()}${(t['notizen']?.toString() ?? '').isNotEmpty ? '\n${t['notizen']}' : ''}', style: const TextStyle(fontSize: 11)),
                       isThreeLine: (t['notizen']?.toString() ?? '').isNotEmpty,
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
-                        onPressed: () {
-                          setState(() => termine.removeAt(i));
-                          data['termine'] = termine;
-                          widget.saveData(type, data);
-                        },
-                      ),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                          icon: Icon(Icons.open_in_new, size: 18, color: Colors.indigo.shade400),
+                          tooltip: 'Details',
+                          onPressed: () => _showTerminDetailDialog(data, termine, i),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
+                          onPressed: () {
+                            setState(() => termine.removeAt(i));
+                            data['termine'] = termine;
+                            widget.saveData(type, data);
+                          },
+                        ),
+                      ]),
+                      onTap: () => _showTerminDetailDialog(data, termine, i),
                     ),
                   );
                 },
@@ -687,6 +697,251 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Speichern'),
+          ),
+        ],
+      )),
+    );
+  }
+
+  void _showTerminDetailDialog(Map<String, dynamic> data, List<Map<String, dynamic>> termine, int index) {
+    final t = Map<String, dynamic>.from(termine[index]);
+    final datumC = TextEditingController(text: t['datum']?.toString() ?? '');
+    final uhrzeitC = TextEditingController(text: t['uhrzeit']?.toString() ?? '');
+    final notizenC = TextEditingController(text: t['notizen']?.toString() ?? '');
+    final ergebnisC = TextEditingController(text: t['ergebnis']?.toString() ?? '');
+    String typ = t['typ']?.toString() ?? 'normal';
+    final typen = [('normal', 'Normal', Colors.teal), ('anfrage', 'Anfrage', Colors.orange), ('absage', 'Absage', Colors.red), ('verschoben', 'Verschoben', Colors.blue)];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.event, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          const Text('Termin-Details'),
+        ]),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(
+              spacing: 6,
+              children: typen.map((tp) {
+                final sel = typ == tp.$1;
+                return ChoiceChip(
+                  label: Text(tp.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : tp.$3.shade700)),
+                  selected: sel,
+                  selectedColor: tp.$3.shade600,
+                  onSelected: (_) => setD(() => typ = tp.$1),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                final picked = await showDatePicker(context: ctx2, initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de', 'DE'));
+                if (picked != null) setD(() => datumC.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
+              })),
+              const SizedBox(width: 12),
+              Expanded(child: TextField(controller: uhrzeitC, readOnly: true, decoration: InputDecoration(labelText: 'Uhrzeit', prefixIcon: const Icon(Icons.access_time, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                final picked = await showTimePicker(context: ctx2, initialTime: TimeOfDay.now());
+                if (picked != null) setD(() => uhrzeitC.text = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}');
+              })),
+            ]),
+            const SizedBox(height: 12),
+            TextField(controller: notizenC, maxLines: 3, decoration: InputDecoration(labelText: 'Notizen', prefixIcon: const Icon(Icons.note, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 12),
+            TextField(controller: ergebnisC, maxLines: 3, decoration: InputDecoration(labelText: 'Was ist passiert? (Ergebnis)', prefixIcon: const Icon(Icons.assignment_turned_in, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), hintText: 'z.B. Bescheid erhalten, Nachuntersuchung verlangt, Antrag abgelehnt...')),
+          ])),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.delete, color: Colors.red.shade400, size: 20),
+            onPressed: () {
+              setState(() => termine.removeAt(index));
+              data['termine'] = termine;
+              widget.saveData(type, data);
+              Navigator.pop(ctx);
+            },
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                termine[index] = {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'typ': typ, 'notizen': notizenC.text, 'ergebnis': ergebnisC.text};
+                data['termine'] = termine;
+              });
+              widget.saveData(type, data);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      )),
+    );
+  }
+
+  // ============ TAB 6: ANTRAG ============
+
+  Widget _buildAntragTab(Map<String, dynamic> data) {
+    final antraege = List<Map<String, dynamic>>.from(data['antraege'] ?? []);
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(children: [
+          Icon(Icons.description, size: 20, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          Text('Anträge', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: () => _showAntragDialog(data, antraege),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Neuer Antrag'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: antraege.isEmpty
+            ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.description, size: 48, color: Colors.grey.shade300),
+                const SizedBox(height: 8),
+                Text('Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+              ]))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: antraege.length,
+                itemBuilder: (_, i) {
+                  final a = antraege[i];
+                  final methode = a['methode']?.toString() ?? '';
+                  final methodeIcon = switch (methode) {
+                    'online' => Icons.language,
+                    'postalisch' => Icons.local_post_office,
+                    'persoenlich' => Icons.person,
+                    'email' => Icons.email,
+                    _ => Icons.send,
+                  };
+                  final methodeLabel = switch (methode) {
+                    'online' => 'Online',
+                    'postalisch' => 'Postalisch',
+                    'persoenlich' => 'Persönlich',
+                    'email' => 'Per E-Mail',
+                    _ => methode,
+                  };
+                  final status = a['status']?.toString() ?? '';
+                  final statusColor = switch (status) {
+                    'eingereicht' => Colors.orange,
+                    'in_bearbeitung' => Colors.blue,
+                    'genehmigt' => Colors.green,
+                    'abgelehnt' => Colors.red,
+                    'widerspruch' => Colors.purple,
+                    _ => Colors.grey,
+                  };
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(backgroundColor: statusColor.shade100, child: Icon(methodeIcon, color: statusColor.shade700, size: 20)),
+                      title: Text('${a['datum'] ?? ''} — $methodeLabel', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        if (status.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
+                            child: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+                          ),
+                        if ((a['notizen']?.toString() ?? '').isNotEmpty)
+                          Padding(padding: const EdgeInsets.only(top: 4), child: Text(a['notizen'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                      ]),
+                      isThreeLine: true,
+                      onTap: () => _showAntragDialog(data, antraege, editIndex: i),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
+                        onPressed: () {
+                          setState(() => antraege.removeAt(i));
+                          data['antraege'] = antraege;
+                          widget.saveData(type, data);
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+
+  void _showAntragDialog(Map<String, dynamic> data, List<Map<String, dynamic>> antraege, {int? editIndex}) {
+    final existing = editIndex != null ? antraege[editIndex] : null;
+    final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
+    final aktenzeichenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
+    final notizenC = TextEditingController(text: existing?['notizen']?.toString() ?? '');
+    String methode = existing?['methode']?.toString() ?? '';
+    String status = existing?['status']?.toString() ?? 'eingereicht';
+
+    final methoden = [('online', 'Online', Icons.language), ('postalisch', 'Postalisch', Icons.local_post_office), ('persoenlich', 'Persönlich', Icons.person), ('email', 'Per E-Mail', Icons.email)];
+    final statusList = [('eingereicht', 'Eingereicht', Colors.orange), ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('genehmigt', 'Genehmigt', Colors.green), ('abgelehnt', 'Abgelehnt', Colors.red), ('widerspruch', 'Widerspruch', Colors.purple)];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text(editIndex != null ? 'Antrag bearbeiten' : 'Neuer Antrag'),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            _datePicker(ctx2, datumC, 'Datum der Antragstellung *', () => setD(() {})),
+            const SizedBox(height: 12),
+            Text('Antrag gestellt per:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 6, children: methoden.map((m) {
+              final sel = methode == m.$1;
+              return ChoiceChip(
+                label: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(m.$3, size: 14, color: sel ? Colors.white : Colors.grey.shade700),
+                  const SizedBox(width: 4),
+                  Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87)),
+                ]),
+                selected: sel,
+                selectedColor: Colors.indigo.shade600,
+                onSelected: (_) => setD(() => methode = m.$1),
+              );
+            }).toList()),
+            const SizedBox(height: 12),
+            Text('Status:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 6, children: statusList.map((s) {
+              final sel = status == s.$1;
+              return ChoiceChip(
+                label: Text(s.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87)),
+                selected: sel,
+                selectedColor: s.$3,
+                onSelected: (_) => setD(() => status = s.$1),
+              );
+            }).toList()),
+            const SizedBox(height: 12),
+            TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen (optional)', prefixIcon: const Icon(Icons.tag, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 12),
+            TextField(controller: notizenC, maxLines: 3, decoration: InputDecoration(labelText: 'Notizen', prefixIcon: const Icon(Icons.note, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          ])),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () {
+              if (datumC.text.isEmpty || methode.isEmpty) return;
+              final entry = {'datum': datumC.text, 'methode': methode, 'status': status, 'aktenzeichen': aktenzeichenC.text, 'notizen': notizenC.text};
+              setState(() {
+                if (editIndex != null) {
+                  antraege[editIndex] = entry;
+                } else {
+                  antraege.insert(0, entry);
+                }
+                data['antraege'] = antraege;
+              });
+              widget.saveData(type, data);
+              Navigator.pop(ctx);
+            },
+            child: Text(editIndex != null ? 'Speichern' : 'Hinzufügen'),
           ),
         ],
       )),
