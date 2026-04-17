@@ -58,15 +58,21 @@ class ApiService {
       _token = await _secureStorage.read(key: 'access_token');
       _refreshToken = await _secureStorage.read(key: 'refresh_token');
     } catch (e) {
-      LoggerService().warning('Keychain read failed, trying SharedPreferences fallback: $e', tag: 'API');
+      LoggerService().warning('Keychain read failed: $e', tag: 'API');
+    }
+    // Always check SharedPreferences if tokens are still null.
+    // On macOS unsigned, keychain write fails → tokens go to SP only.
+    // But keychain read returns null (key not found) instead of throwing,
+    // so the catch above doesn't trigger → must check SP regardless.
+    if (_token == null || _refreshToken == null) {
       try {
         final prefs = await SharedPreferences.getInstance();
-        _token = prefs.getString('access_token');
-        _refreshToken = prefs.getString('refresh_token');
-      } catch (_) {
-        _token = null;
-        _refreshToken = null;
-      }
+        _token ??= prefs.getString('access_token');
+        _refreshToken ??= prefs.getString('refresh_token');
+        if (_token != null) {
+          LoggerService().info('Tokens loaded from SharedPreferences fallback', tag: 'API');
+        }
+      } catch (_) {}
     }
   }
 
