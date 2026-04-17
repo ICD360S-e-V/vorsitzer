@@ -54,11 +54,15 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
       if (storedKey != null && storedKey.isNotEmpty && mgnum.isNotEmpty && autoLogin) {
         _log.info('Device key found in storage ($mgnum) — auto-login', tag: 'AUTH');
 
-        // Inject key into DeviceKeyService in-memory (lazy, no server call)
+        // 1. Inject device_key into singleton (in-memory + SP)
         final storedId = prefs.getString('device_id') ?? '';
         if (storedId.isNotEmpty) {
           await _deviceKeyService.setActivatedCredentials(storedKey, storedId);
         }
+
+        // 2. Fully initialize ApiService (loads JWT tokens, confirms device key)
+        //    so Dashboard services find everything ready on first frame.
+        await _apiService.initialize();
 
         if (!mounted) return;
         Navigator.pushReplacement(
