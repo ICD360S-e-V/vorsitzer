@@ -25,9 +25,84 @@ class _VertraegeContentState extends State<VertraegeContent> {
 
   static const _streamingAnbieter = [
     'Netflix', 'Disney+', 'Amazon Prime Video', 'Apple TV+', 'Spotify', 'DAZN',
-    'Sky', 'WOW', 'Paramount+', 'RTL+', 'Joyn Plus+', 'Crunchyroll',
+    'WOW', 'Paramount+', 'RTL+', 'Joyn Plus+', 'Crunchyroll',
     'YouTube Premium', 'Tidal', 'Deezer', 'Apple Music', 'Audible',
   ];
+
+  /// Tarife + Preise Deutschland 2026 (Stand April 2026)
+  static const Map<String, List<(String, double)>> _streamingTarife = {
+    'Netflix': [
+      ('Standard mit Werbung', 4.99),
+      ('Standard', 13.99),
+      ('Premium (4K)', 19.99),
+    ],
+    'Disney+': [
+      ('Standard mit Werbung', 5.99),
+      ('Standard', 9.99),
+      ('Premium (4K)', 13.99),
+    ],
+    'Amazon Prime Video': [
+      ('Prime (mit Werbung)', 8.99),
+      ('Prime werbefrei', 11.98),
+    ],
+    'Apple TV+': [
+      ('Monatsabo', 9.99),
+    ],
+    'Spotify': [
+      ('Individual', 12.99),
+      ('Duo', 17.99),
+      ('Family', 19.99),
+      ('Student', 5.99),
+    ],
+    'DAZN': [
+      ('Unlimited (Jahresabo)', 24.99),
+      ('Unlimited (Monatsabo)', 44.99),
+      ('Super Sports', 19.99),
+      ('World', 9.99),
+    ],
+    'WOW': [
+      ('Serien', 7.99),
+      ('Filme & Serien', 9.98),
+      ('Live-Sport', 24.99),
+    ],
+    'Paramount+': [
+      ('Essential', 4.99),
+      ('Standard', 7.99),
+    ],
+    'RTL+': [
+      ('Max', 7.99),
+      ('Premium', 11.99),
+    ],
+    'Crunchyroll': [
+      ('Fan', 6.99),
+      ('Mega Fan', 9.99),
+    ],
+    'YouTube Premium': [
+      ('Individual', 13.99),
+      ('Family', 23.99),
+      ('Student', 7.99),
+    ],
+    'Apple Music': [
+      ('Individual', 10.99),
+      ('Family', 16.99),
+      ('Student', 5.99),
+    ],
+    'Deezer': [
+      ('Premium', 11.99),
+      ('Family', 19.99),
+    ],
+    'Tidal': [
+      ('Individual', 11.99),
+      ('Family', 17.99),
+      ('HiFi Plus', 17.99),
+    ],
+    'Audible': [
+      ('Abo (1 Hörbuch/Monat)', 9.95),
+    ],
+    'Joyn Plus+': [
+      ('Monatsabo', 6.99),
+    ],
+  };
 
   static const _handyAnbieter = [
     'Telekom', 'Vodafone', 'O2 / Telefónica', '1&1', 'congstar', 'ALDI TALK',
@@ -191,11 +266,14 @@ class _VertraegeContentState extends State<VertraegeContent> {
     bool aktiv = existing == null || existing['is_active'] == 1 || existing['is_active'] == true || existing['is_active'] == '1';
     String selKat = kat;
 
-    final vorschlaege = selKat == 'handy' ? _handyAnbieter : (selKat == 'multimedia' ? _streamingAnbieter : <String>[]);
-
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+        final vorschlaege = selKat == 'handy' ? _handyAnbieter : (selKat == 'multimedia' ? _streamingAnbieter : <String>[]);
+        final tarife = _streamingTarife[anbieterC.text.trim()];
+        final hasTarife = tarife != null && tarife.isNotEmpty;
+        final kostenReadonly = hasTarife && tarifC.text.isNotEmpty;
+
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           title: Text(existing != null ? 'Vertrag bearbeiten' : 'Neuer Vertrag'),
@@ -209,7 +287,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
                   label: Text(k.$2, style: TextStyle(fontSize: 10, color: sel ? Colors.white : Colors.black87)),
                   selected: sel,
                   selectedColor: k.$4,
-                  onSelected: (_) => setD(() => selKat = k.$1),
+                  onSelected: (_) => setD(() { selKat = k.$1; anbieterC.clear(); tarifC.clear(); kostenC.clear(); }),
                 );
               }).toList()),
               const SizedBox(height: 12),
@@ -219,17 +297,56 @@ class _VertraegeContentState extends State<VertraegeContent> {
                   optionsBuilder: (v) => v.text.isEmpty ? vorschlaege : vorschlaege.where((a) => a.toLowerCase().contains(v.text.toLowerCase())),
                   fieldViewBuilder: (_, c, fn, __) {
                     if (c.text.isEmpty && anbieterC.text.isNotEmpty) c.text = anbieterC.text;
-                    return TextField(controller: c, focusNode: fn, decoration: InputDecoration(labelText: 'Anbieter *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: (v) => anbieterC.text = v);
+                    return TextField(controller: c, focusNode: fn, decoration: InputDecoration(labelText: 'Anbieter *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: (v) { anbieterC.text = v; setD(() { tarifC.clear(); kostenC.clear(); }); });
                   },
-                  onSelected: (v) => anbieterC.text = v,
+                  onSelected: (v) => setD(() { anbieterC.text = v; tarifC.clear(); kostenC.clear(); }),
                 )
               else
                 TextField(controller: anbieterC, decoration: InputDecoration(labelText: 'Anbieter *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
               const SizedBox(height: 8),
-              TextField(controller: tarifC, decoration: InputDecoration(labelText: 'Tarif / Paket', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+              // Tarif: dropdown if known provider, free-text otherwise
+              if (hasTarife)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: tarife.any((t) => t.$1 == tarifC.text) ? tarifC.text : null,
+                      hint: const Text('Tarif wählen', style: TextStyle(fontSize: 13)),
+                      isExpanded: true,
+                      items: tarife.map((t) => DropdownMenuItem(value: t.$1, child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(t.$1, style: const TextStyle(fontSize: 13)),
+                          Text('${t.$2.toStringAsFixed(2)} €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                        ],
+                      ))).toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        final preis = tarife.firstWhere((t) => t.$1 == v).$2;
+                        setD(() { tarifC.text = v; kostenC.text = preis.toStringAsFixed(2); });
+                      },
+                    ),
+                  ),
+                )
+              else
+                TextField(controller: tarifC, decoration: InputDecoration(labelText: 'Tarif / Paket', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
               const SizedBox(height: 8),
               Row(children: [
-                Expanded(child: TextField(controller: kostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Kosten €/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+                Expanded(child: TextField(
+                  controller: kostenC,
+                  readOnly: kostenReadonly,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(fontSize: 14, color: kostenReadonly ? Colors.green.shade800 : null, fontWeight: kostenReadonly ? FontWeight.bold : null),
+                  decoration: InputDecoration(
+                    labelText: 'Kosten €/Monat',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    filled: kostenReadonly,
+                    fillColor: kostenReadonly ? Colors.green.shade50 : null,
+                    suffixIcon: kostenReadonly ? Icon(Icons.lock, size: 16, color: Colors.green.shade700) : null,
+                  ),
+                )),
                 const SizedBox(width: 8),
                 Expanded(child: TextField(controller: beginnC, readOnly: true, decoration: InputDecoration(labelText: 'Vertragsbeginn', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
                   final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2010), lastDate: DateTime(2040), locale: const Locale('de'));
