@@ -707,77 +707,280 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final t = Map<String, dynamic>.from(termine[index]);
     final datumC = TextEditingController(text: t['datum']?.toString() ?? '');
     final uhrzeitC = TextEditingController(text: t['uhrzeit']?.toString() ?? '');
-    final notizenC = TextEditingController(text: t['notizen']?.toString() ?? '');
     final ergebnisC = TextEditingController(text: t['ergebnis']?.toString() ?? '');
     String typ = t['typ']?.toString() ?? 'normal';
+    bool editing = false;
     final typen = [('normal', 'Normal', Colors.teal), ('anfrage', 'Anfrage', Colors.orange), ('absage', 'Absage', Colors.red), ('verschoben', 'Verschoben', Colors.blue)];
+    List<Map<String, dynamic>> eintraege = List<Map<String, dynamic>>.from(t['eintraege'] ?? []);
+    if (eintraege.isEmpty && (t['notizen']?.toString() ?? '').isNotEmpty) {
+      eintraege.add({'datum': t['datum'] ?? '', 'typ': 'notiz', 'text': t['notizen']});
+    }
+
+    void save(StateSetter setD) {
+      setState(() {
+        termine[index] = {
+          ...t,
+          'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'typ': typ,
+          'ergebnis': ergebnisC.text, 'eintraege': eintraege,
+          'notizen': eintraege.isNotEmpty ? eintraege.last['text'] ?? '' : '',
+        };
+        data['termine'] = termine;
+      });
+      widget.saveData(type, data);
+    }
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+        final typColor = typ == 'anfrage' ? Colors.orange : (typ == 'absage' ? Colors.red : (typ == 'verschoben' ? Colors.blue : Colors.teal));
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: 580, height: 620,
+            child: Column(children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: typColor.shade700,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                ),
+                child: Row(children: [
+                  Icon(Icons.event, color: Colors.white, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${datumC.text}${uhrzeitC.text.isNotEmpty ? ' um ${uhrzeitC.text}' : ''}', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(typ.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  ])),
+                  IconButton(icon: Icon(editing ? Icons.check : Icons.edit, color: Colors.white, size: 20), tooltip: editing ? 'Fertig' : 'Bearbeiten', onPressed: () {
+                    if (editing) save(setD);
+                    setD(() => editing = !editing);
+                  }),
+                  IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { save(setD); Navigator.pop(ctx); }),
+                ]),
+              ),
+              // Details (readonly or edit)
+              if (editing)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Wrap(spacing: 6, children: typen.map((tp) {
+                      final sel = typ == tp.$1;
+                      return ChoiceChip(label: Text(tp.$2, style: TextStyle(fontSize: 10, color: sel ? Colors.white : tp.$3.shade700)), selected: sel, selectedColor: tp.$3.shade600, onSelected: (_) => setD(() => typ = tp.$1));
+                    }).toList()),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(child: TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                        final p = await showDatePicker(context: ctx2, initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+                        if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+                      })),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: uhrzeitC, readOnly: true, decoration: InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                        final p = await showTimePicker(context: ctx2, initialTime: TimeOfDay.now());
+                        if (p != null) setD(() => uhrzeitC.text = '${p.hour.toString().padLeft(2, '0')}:${p.minute.toString().padLeft(2, '0')}');
+                      })),
+                    ]),
+                    const SizedBox(height: 8),
+                    TextField(controller: ergebnisC, maxLines: 2, decoration: InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                  ]),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(children: [
+                    if ((ergebnisC.text).isNotEmpty)
+                      Expanded(child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Icon(Icons.assignment_turned_in, size: 14, color: Colors.amber.shade800),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(ergebnisC.text, style: const TextStyle(fontSize: 12))),
+                        ]),
+                      ))
+                    else
+                      Expanded(child: Text('Kein Ergebnis eingetragen. Auf ✏️ tippen um zu bearbeiten.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic))),
+                  ]),
+                ),
+              const Divider(height: 1),
+              // Einträge header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Row(children: [
+                  Icon(Icons.list_alt, size: 18, color: Colors.indigo.shade700),
+                  const SizedBox(width: 6),
+                  Text('Einträge & Notizen (${eintraege.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                  const Spacer(),
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.add_circle, color: Colors.indigo.shade700, size: 22),
+                    tooltip: 'Neuer Eintrag',
+                    onSelected: (eTyp) => _addEintrag(ctx2, setD, eintraege, eTyp, () => save(setD)),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'notiz', child: Row(children: [Icon(Icons.note, size: 16, color: Colors.teal), SizedBox(width: 8), Text('Notiz')])),
+                      const PopupMenuItem(value: 'email_eingang', child: Row(children: [Icon(Icons.call_received, size: 16, color: Colors.green), SizedBox(width: 8), Text('E-Mail Eingang')])),
+                      const PopupMenuItem(value: 'email_ausgang', child: Row(children: [Icon(Icons.call_made, size: 16, color: Colors.blue), SizedBox(width: 8), Text('E-Mail Ausgang')])),
+                      const PopupMenuItem(value: 'telefonat', child: Row(children: [Icon(Icons.phone, size: 16, color: Colors.orange), SizedBox(width: 8), Text('Telefonat')])),
+                      const PopupMenuItem(value: 'dokument', child: Row(children: [Icon(Icons.description, size: 16, color: Colors.purple), SizedBox(width: 8), Text('Dokument / Brief')])),
+                    ],
+                  ),
+                ]),
+              ),
+              // Einträge list
+              Expanded(
+                child: eintraege.isEmpty
+                    ? Center(child: Text('Noch keine Einträge. Tippen Sie auf + um einen hinzuzufügen.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: eintraege.length,
+                        itemBuilder: (_, i) {
+                          final e = eintraege[i];
+                          final eTyp = e['typ']?.toString() ?? 'notiz';
+                          final eIcon = switch (eTyp) { 'email_eingang' => Icons.call_received, 'email_ausgang' => Icons.call_made, 'telefonat' => Icons.phone, 'dokument' => Icons.description, _ => Icons.note };
+                          final eColor = switch (eTyp) { 'email_eingang' => Colors.green, 'email_ausgang' => Colors.blue, 'telefonat' => Colors.orange, 'dokument' => Colors.purple, _ => Colors.teal };
+                          final eLabel = switch (eTyp) { 'email_eingang' => 'E-Mail Eingang', 'email_ausgang' => 'E-Mail Ausgang', 'telefonat' => 'Telefonat', 'dokument' => 'Dokument', _ => 'Notiz' };
+                          return InkWell(
+                            onTap: () => _viewEintrag(ctx2, e, eLabel, eColor),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: eColor.shade200)),
+                              child: Row(children: [
+                                Icon(eIcon, size: 18, color: eColor.shade700),
+                                const SizedBox(width: 8),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(color: eColor.shade100, borderRadius: BorderRadius.circular(6)),
+                                      child: Text(eLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: eColor.shade800)),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                  ]),
+                                  if ((e['betreff']?.toString() ?? '').isNotEmpty)
+                                    Text(e['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: eColor.shade800)),
+                                  Text(e['text']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                ])),
+                                IconButton(
+                                  icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                                  onPressed: () { setD(() => eintraege.removeAt(i)); save(setD); },
+                                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                ),
+                              ]),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              // Footer
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))),
+                child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  TextButton.icon(
+                    icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
+                    label: Text('Termin löschen', style: TextStyle(fontSize: 12, color: Colors.red.shade400)),
+                    onPressed: () {
+                      setState(() => termine.removeAt(index));
+                      data['termine'] = termine;
+                      widget.saveData(type, data);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      }),
+    );
+  }
+
+  void _addEintrag(BuildContext parentCtx, StateSetter setD, List<Map<String, dynamic>> eintraege, String eTyp, VoidCallback onSave) {
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    final betreffC = TextEditingController();
+    final textC = TextEditingController();
+    final isEmail = eTyp.startsWith('email');
+    final eLabel = switch (eTyp) { 'email_eingang' => 'E-Mail Eingang', 'email_ausgang' => 'E-Mail Ausgang', 'telefonat' => 'Telefonat', 'dokument' => 'Dokument / Brief', _ => 'Notiz' };
+
+    showDialog(
+      context: parentCtx,
+      builder: (ctx) => AlertDialog(
+        title: Text(eLabel),
+        content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: datumC, decoration: InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          if (isEmail || eTyp == 'dokument') ...[
+            const SizedBox(height: 8),
+            TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          ],
+          const SizedBox(height: 8),
+          TextField(controller: textC, maxLines: 6, decoration: InputDecoration(labelText: isEmail ? 'E-Mail Inhalt' : 'Text / Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () {
+            setD(() => eintraege.insert(0, {
+              'datum': datumC.text.trim(),
+              'typ': eTyp,
+              'betreff': betreffC.text.trim(),
+              'text': textC.text.trim(),
+            }));
+            onSave();
+            Navigator.pop(ctx);
+          }, child: const Text('Hinzufügen')),
+        ],
+      ),
+    );
+  }
+
+  void _viewEintrag(BuildContext parentCtx, Map<String, dynamic> e, String label, Color color) {
+    showDialog(
+      context: parentCtx,
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Row(children: [
-          Icon(Icons.event, color: Colors.indigo.shade700),
+          Icon(Icons.article, color: color.shade700),
           const SizedBox(width: 8),
-          const Text('Termin-Details'),
+          Expanded(child: Text(label, style: TextStyle(color: color.shade800))),
         ]),
         content: SizedBox(
-          width: 480,
-          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Wrap(
-              spacing: 6,
-              children: typen.map((tp) {
-                final sel = typ == tp.$1;
-                return ChoiceChip(
-                  label: Text(tp.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : tp.$3.shade700)),
-                  selected: sel,
-                  selectedColor: tp.$3.shade600,
-                  onSelected: (_) => setD(() => typ = tp.$1),
-                );
-              }).toList(),
+          width: 500,
+          child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              ]),
             ),
+            if ((e['betreff']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+              const SizedBox(height: 4),
+              Text(e['betreff'].toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ],
             const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
-                final picked = await showDatePicker(context: ctx2, initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de', 'DE'));
-                if (picked != null) setD(() => datumC.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
-              })),
-              const SizedBox(width: 12),
-              Expanded(child: TextField(controller: uhrzeitC, readOnly: true, decoration: InputDecoration(labelText: 'Uhrzeit', prefixIcon: const Icon(Icons.access_time, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
-                final picked = await showTimePicker(context: ctx2, initialTime: TimeOfDay.now());
-                if (picked != null) setD(() => uhrzeitC.text = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}');
-              })),
-            ]),
-            const SizedBox(height: 12),
-            TextField(controller: notizenC, maxLines: 3, decoration: InputDecoration(labelText: 'Notizen', prefixIcon: const Icon(Icons.note, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-            const SizedBox(height: 12),
-            TextField(controller: ergebnisC, maxLines: 3, decoration: InputDecoration(labelText: 'Was ist passiert? (Ergebnis)', prefixIcon: const Icon(Icons.assignment_turned_in, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), hintText: 'z.B. Bescheid erhalten, Nachuntersuchung verlangt, Antrag abgelehnt...')),
+            Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              constraints: const BoxConstraints(minHeight: 150),
+              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+              child: SelectableText(
+                (e['text']?.toString() ?? '').isEmpty ? '(kein Inhalt)' : e['text'].toString(),
+                style: TextStyle(fontSize: 13, height: 1.6, color: (e['text']?.toString() ?? '').isEmpty ? Colors.grey.shade400 : Colors.black87),
+              ),
+            ),
           ])),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.delete, color: Colors.red.shade400, size: 20),
-            onPressed: () {
-              setState(() => termine.removeAt(index));
-              data['termine'] = termine;
-              widget.saveData(type, data);
-              Navigator.pop(ctx);
-            },
-          ),
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-          FilledButton(
-            onPressed: () {
-              setState(() {
-                termine[index] = {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'typ': typ, 'notizen': notizenC.text, 'ergebnis': ergebnisC.text};
-                data['termine'] = termine;
-              });
-              widget.saveData(type, data);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Speichern'),
-          ),
-        ],
-      )),
+        actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+      ),
     );
   }
 
