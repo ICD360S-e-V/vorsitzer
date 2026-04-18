@@ -3288,6 +3288,36 @@ class ApiService {
     }
   }
 
+  // ========== VERTRÄGE (Multimedia, Handyvertrag, etc.) ==========
+
+  Future<Map<String, dynamic>> listVertraege(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/vertraege_manage.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveVertrag(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data);
+    body['user_id'] = userId;
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vertraege_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteVertrag(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vertraege_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== FINANZAMT KORRESPONDENZ ==========
 
   Future<Map<String, dynamic>> getFinanzamtKorrespondenz(int userId) async {
