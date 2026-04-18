@@ -21,6 +21,7 @@ import 'finanzen_tab_content.dart';
 import 'freizeit_tab_content.dart';
 import 'mitglieder_device.dart';
 import 'member_devices_widget.dart';
+import 'vertraege_content.dart';
 import '../utils/file_picker_helper.dart';
 
 class UserDetailsDialog extends StatefulWidget {
@@ -125,7 +126,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 15, vsync: this);
+    _tabController = TabController(length: 16, vsync: this);
     _nameController.text = widget.user.name;
     _emailController.text = widget.user.email;
     _selectedRole = widget.user.role;
@@ -675,6 +676,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Tab(icon: Icon(Icons.local_hospital), text: 'Ärzte'),
                   Tab(icon: Icon(Icons.account_balance_wallet), text: 'Finanzen'),
                   Tab(icon: Icon(Icons.sports_esports), text: 'Freizeit'),
+                  Tab(icon: Icon(Icons.receipt_long), text: 'Verträge'),
                 ],
               ),
             ),
@@ -710,6 +712,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   _buildGesundheitTab(),
                   _buildFinanzenTab(),
                   _buildFreizeitTab(),
+                  VertraegeContent(
+                    apiService: widget.apiService,
+                    userId: widget.user.id,
+                  ),
                 ],
               ),
             ),
