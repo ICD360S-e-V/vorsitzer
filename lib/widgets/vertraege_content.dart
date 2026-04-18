@@ -233,7 +233,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
             Text('Gekündigt: ${v['gekuendigt_am']}', style: TextStyle(fontSize: 10, color: Colors.red.shade400)),
         ]),
         isThreeLine: true,
-        onTap: () => _showVertragDialog(existing: v),
+        onTap: () => _showVertragDetailModal(v),
         trailing: IconButton(
           icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
           onPressed: () async {
@@ -430,6 +430,303 @@ class _VertraegeContentState extends State<VertraegeContent> {
           ],
         );
       }),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // DETAIL MODAL (Details readonly + Korrespondenz)
+  // ═══════════════════════════════════════════════════════
+  void _showVertragDetailModal(Map<String, dynamic> v) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: 580, height: 560,
+          child: _VertragDetailView(
+            apiService: widget.apiService,
+            vertrag: v,
+            onEdit: () {
+              Navigator.pop(ctx);
+              _showVertragDialog(existing: v);
+            },
+            onChanged: () => _load(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Inner detail view with 2 tabs
+// ═══════════════════════════════════════════════════════
+class _VertragDetailView extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> vertrag;
+  final VoidCallback onEdit;
+  final VoidCallback onChanged;
+  const _VertragDetailView({required this.apiService, required this.vertrag, required this.onEdit, required this.onChanged});
+
+  @override
+  State<_VertragDetailView> createState() => _VertragDetailViewState();
+}
+
+class _VertragDetailViewState extends State<_VertragDetailView> {
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.vertrag;
+    final kosten = double.tryParse(v['monatliche_kosten']?.toString() ?? '') ?? 0;
+    final aktiv = v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1';
+    return DefaultTabController(
+      length: 2,
+      child: Column(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: aktiv ? Colors.indigo.shade700 : Colors.grey.shade600,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+          ),
+          child: Row(children: [
+            Icon(Icons.receipt, color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(v['anbieter']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              if ((v['tarif']?.toString() ?? '').isNotEmpty)
+                Text(v['tarif'].toString(), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            ])),
+            if (kosten > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(8)),
+                child: Text('${kosten.toStringAsFixed(2)} €/Mt.', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+              ),
+            const SizedBox(width: 8),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+          ]),
+        ),
+        TabBar(
+          labelColor: Colors.indigo.shade700,
+          indicatorColor: Colors.indigo.shade700,
+          tabs: const [
+            Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+            Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+          ],
+        ),
+        Expanded(child: TabBarView(children: [
+          _buildDetailsTab(v, aktiv),
+          _KorrTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _buildDetailsTab(Map<String, dynamic> v, bool aktiv) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text('Vertragsdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          const Spacer(),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.edit, size: 16),
+            label: const Text('Bearbeiten', style: TextStyle(fontSize: 12)),
+            onPressed: widget.onEdit,
+          ),
+        ]),
+        const Divider(height: 20),
+        _row(Icons.business, 'Anbieter', v['anbieter']),
+        _row(Icons.label, 'Tarif', v['tarif']),
+        _row(Icons.euro, 'Kosten/Monat', v['monatliche_kosten'] != null ? '${double.tryParse(v['monatliche_kosten'].toString())?.toStringAsFixed(2)} €' : null),
+        _row(Icons.calendar_today, 'Vertragsbeginn', v['vertragsbeginn']),
+        _row(Icons.timer, 'Mindestlaufzeit', v['mindestlaufzeit']),
+        _row(Icons.exit_to_app, 'Kündigungsfrist', v['kuendigungsfrist']),
+        _row(Icons.event_busy, 'Gekündigt am', v['gekuendigt_am']),
+        _row(Icons.event, 'Vertragsende', v['vertragsende']),
+        if ((v['telefonnummer']?.toString() ?? '').isNotEmpty)
+          _row(Icons.phone, 'Telefonnummer', v['telefonnummer']),
+        if ((v['datenvolumen']?.toString() ?? '').isNotEmpty)
+          _row(Icons.data_usage, 'Datenvolumen', v['datenvolumen']),
+        if ((v['login_email']?.toString() ?? '').isNotEmpty)
+          _row(Icons.email, 'Login-E-Mail', v['login_email']),
+        if (v['shared_account'] == 1 || v['shared_account'] == true)
+          _row(Icons.people, 'Geteiltes Konto', 'Ja'),
+        if ((v['notizen']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.yellow.shade200)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.note, size: 14, color: Colors.orange.shade700),
+              const SizedBox(width: 6),
+              Expanded(child: Text(v['notizen'].toString(), style: const TextStyle(fontSize: 12))),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: aktiv ? Colors.green.shade50 : Colors.red.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: aktiv ? Colors.green.shade200 : Colors.red.shade200),
+          ),
+          child: Row(children: [
+            Icon(aktiv ? Icons.check_circle : Icons.cancel, size: 16, color: aktiv ? Colors.green.shade700 : Colors.red.shade700),
+            const SizedBox(width: 6),
+            Text(aktiv ? 'Vertrag aktiv' : 'Vertrag beendet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: aktiv ? Colors.green.shade800 : Colors.red.shade800)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _row(IconData icon, String label, dynamic value) {
+    final s = value?.toString() ?? '';
+    if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// KORRESPONDENZ TAB
+// ═══════════════════════════════════════════════════════
+class _KorrTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  const _KorrTab({required this.apiService, required this.vertragId});
+
+  @override
+  State<_KorrTab> createState() => _KorrTabState();
+}
+
+class _KorrTabState extends State<_KorrTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.listVertraegeKorrespondenz(widget.vertragId);
+    if (!mounted) return;
+    setState(() {
+      _items = (r['success'] == true && r['data'] is List) ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(children: [
+          Expanded(child: Text('${_items.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          FilledButton.icon(
+            icon: const Icon(Icons.call_received, size: 14),
+            label: const Text('Eingang', style: TextStyle(fontSize: 11)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+            onPressed: () => _showKorrDialog('eingang'),
+          ),
+          const SizedBox(width: 6),
+          FilledButton.icon(
+            icon: const Icon(Icons.call_made, size: 14),
+            label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+            onPressed: () => _showKorrDialog('ausgang'),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: _items.isEmpty
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+                const SizedBox(height: 6),
+                Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              ]))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _items.length,
+                itemBuilder: (_, i) {
+                  final k = _items[i];
+                  final isEin = k['richtung'] == 'eingang';
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white, borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200),
+                    ),
+                    child: Row(children: [
+                      Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
+                        Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                          Text(k['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ])),
+                      IconButton(
+                        icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                        onPressed: () async {
+                          await widget.apiService.deleteVertraegeKorrespondenz(k['id'] as int);
+                          _load();
+                        },
+                        padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      ),
+                    ]),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+
+  void _showKorrDialog(String richtung) {
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(richtung == 'eingang' ? 'E-Mail Eingang' : 'E-Mail Ausgang'),
+        content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 8),
+          TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 8),
+          TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz / Inhalt', isDense: true, border: OutlineInputBorder())),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () async {
+            await widget.apiService.saveVertraegeKorrespondenz({
+              'vertrag_id': widget.vertragId,
+              'richtung': richtung,
+              'datum': datumC.text.trim(),
+              'betreff': betreffC.text.trim(),
+              'notiz': notizC.text.trim(),
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
+            _load();
+          }, child: const Text('Speichern')),
+        ],
+      ),
     );
   }
 }
