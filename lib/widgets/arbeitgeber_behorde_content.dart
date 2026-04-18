@@ -2975,11 +2975,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   ]),
                 )
               else
-                ...vollzeitList.map((ag) { final i = arbeitgeber.indexOf(ag); return ag; }).toList().asMap().entries.map((entry) {
+                ...vollzeitList.asMap().entries.map((entry) {
                   final ag = entry.value;
                   final i = arbeitgeber.indexOf(ag);
-                  final i = entry.key;
-                  final ag = entry.value;
                   final isAktuell = ag['aktuell'] == true || ag['aktuell'] == 'true';
                   return InkWell(
                     onTap: () => _showBerufserfahrungModal(context, ag, i, arbeitgeberListe: arbeitgeber, selectedArbeitgeberId: selectedArbeitgeberId),
@@ -3144,7 +3142,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   ]),
                 )
               else
-                ...minijobList.map((ag) { final i = arbeitgeber.indexOf(ag); return ag; }).toList().asMap().entries.map((entry) {
+                ...minijobList.asMap().entries.map((entry) {
                   final ag = entry.value;
                   final i = arbeitgeber.indexOf(ag);
                   final isAktuell = ag['aktuell'] == true || ag['aktuell'] == 'true';
