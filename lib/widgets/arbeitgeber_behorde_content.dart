@@ -2263,7 +2263,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           _saveArbeitgeber(arbeitgeber, selectedArbeitgeberId);
         }
 
-        void showArbeitgeberDialog({Map<String, dynamic>? existing, int? index}) {
+        void showArbeitgeberDialog({Map<String, dynamic>? existing, int? index, String defaultArt = 'vollzeit'}) {
           final firmaController = TextEditingController(text: existing?['firma'] ?? '');
           final positionController = TextEditingController(text: existing?['position'] ?? '');
           final ortController = TextEditingController(text: existing?['ort'] ?? '');
@@ -2271,6 +2271,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           final aufgabe1Controller = TextEditingController(text: existing?['aufgabe1'] ?? '');
           final aufgabe2Controller = TextEditingController(text: existing?['aufgabe2'] ?? '');
           final aufgabe3Controller = TextEditingController(text: existing?['aufgabe3'] ?? '');
+          String art = existing?['art']?.toString() ?? defaultArt;
           String vonMonat = existing?['von_monat']?.toString() ?? '';
           String vonJahr = existing?['von_jahr']?.toString() ?? '';
           String bisMonat = existing?['bis_monat']?.toString() ?? '';
@@ -2303,6 +2304,20 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Beschäftigungsart
+                        Text('Beschäftigungsart:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
+                        const SizedBox(height: 6),
+                        Wrap(spacing: 8, children: [
+                          for (final a in [('vollzeit', 'Vollzeit', Icons.work), ('minijob', 'Minijob', Icons.work_outline), ('teilzeit', 'Teilzeit', Icons.timelapse), ('werkstudent', 'Werkstudent', Icons.school), ('ausbildung', 'Ausbildung', Icons.menu_book), ('praktikum', 'Praktikum', Icons.explore)])
+                            ChoiceChip(
+                              avatar: Icon(a.$3, size: 14, color: art == a.$1 ? Colors.white : Colors.grey.shade700),
+                              label: Text(a.$2, style: TextStyle(fontSize: 11, color: art == a.$1 ? Colors.white : Colors.black87)),
+                              selected: art == a.$1,
+                              selectedColor: art == 'minijob' ? Colors.orange.shade600 : Colors.indigo.shade600,
+                              onSelected: (_) => setDialogState(() => art = a.$1),
+                            ),
+                        ]),
+                        const SizedBox(height: 16),
                         // Firma aus Datenbank ausw\u00E4hlen
                         if (widget.dbArbeitgeberListe.isNotEmpty) ...[
                           Text('Aus Firmendatenbank w\u00E4hlen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
@@ -2611,6 +2626,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       final entry = {
                         if (existing?['id'] != null) 'id': existing!['id'],
                         'firma': firmaController.text.trim(),
+                        'art': art,
                         'position': positionController.text.trim(),
                         'funktion': positionController.text.trim(),
                         'ort': ortController.text.trim(),
@@ -2910,12 +2926,17 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               // ══════════════════════════════════════
               // ── BERUFSERFAHRUNG ──
               // ══════════════════════════════════════
-              // Berufserfahrung header
+
+              // Split by art: Vollzeit (+ teilzeit/werkstudent/ausbildung/praktikum) vs Minijob
+              final vollzeitList = arbeitgeber.where((a) => (a['art']?.toString() ?? 'vollzeit') != 'minijob').toList();
+              final minijobList = arbeitgeber.where((a) => a['art']?.toString() == 'minijob').toList();
+
+              // ── VOLLZEIT SECTION ──
               Row(
                 children: [
-                  Icon(Icons.factory, color: Colors.indigo.shade700, size: 22),
+                  Icon(Icons.work, color: Colors.indigo.shade700, size: 22),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Berufserfahrung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+                  Expanded(child: Text('Arbeitgeber — Vollzeit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
                   ElevatedButton.icon(
                     onPressed: () => LebenslaufGenerator.showLebenslaufDialog(context, widget.apiService, widget.user.id),
                     icon: const Icon(Icons.description, size: 16),
@@ -2928,7 +2949,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
-                    onPressed: () => showArbeitgeberDialog(),
+                    onPressed: () => showArbeitgeberDialog(defaultArt: 'vollzeit'),
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Hinzufügen', style: TextStyle(fontSize: 12)),
                     style: ElevatedButton.styleFrom(
@@ -2941,21 +2962,21 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               ),
               const SizedBox(height: 12),
 
-              if (arbeitgeber.isEmpty)
+              if (vollzeitList.isEmpty)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
-                  child: Column(
-                    children: [
-                      Icon(Icons.work_off, size: 48, color: Colors.grey.shade400),
-                      const SizedBox(height: 8),
-                      Text('Keine Arbeitgeber eingetragen', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
-                    ],
-                  ),
+                  child: Column(children: [
+                    Icon(Icons.work_off, size: 40, color: Colors.grey.shade400),
+                    const SizedBox(height: 6),
+                    Text('Kein Vollzeit-Arbeitgeber eingetragen', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                  ]),
                 )
               else
-                ...arbeitgeber.asMap().entries.map((entry) {
+                ...vollzeitList.map((ag) { final i = arbeitgeber.indexOf(ag); return ag; }).toList().asMap().entries.map((entry) {
+                  final ag = entry.value;
+                  final i = arbeitgeber.indexOf(ag);
                   final i = entry.key;
                   final ag = entry.value;
                   final isAktuell = ag['aktuell'] == true || ag['aktuell'] == 'true';
@@ -3082,6 +3103,126 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               ],
                             ],
                           ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+
+              const SizedBox(height: 24),
+
+              // ── MINIJOB SECTION ──
+              Row(
+                children: [
+                  Icon(Icons.work_outline, color: Colors.orange.shade700, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Arbeitgeber — Minijob', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade700))),
+                  ElevatedButton.icon(
+                    onPressed: () => showArbeitgeberDialog(defaultArt: 'minijob'),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Minijob hinzufügen', style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              if (minijobList.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+                  child: Column(children: [
+                    Icon(Icons.work_outline, size: 40, color: Colors.orange.shade300),
+                    const SizedBox(height: 6),
+                    Text('Kein Minijob eingetragen', style: TextStyle(fontSize: 13, color: Colors.orange.shade400)),
+                  ]),
+                )
+              else
+                ...minijobList.map((ag) { final i = arbeitgeber.indexOf(ag); return ag; }).toList().asMap().entries.map((entry) {
+                  final ag = entry.value;
+                  final i = arbeitgeber.indexOf(ag);
+                  final isAktuell = ag['aktuell'] == true || ag['aktuell'] == 'true';
+                  return InkWell(
+                    onTap: () => _showBerufserfahrungModal(context, ag, i, arbeitgeberListe: arbeitgeber, selectedArbeitgeberId: selectedArbeitgeberId),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isAktuell ? Colors.orange.shade50 : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: isAktuell ? Colors.orange.shade300 : Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Column(children: [
+                            Container(
+                              width: 12, height: 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isAktuell ? Colors.orange : Colors.orange.shade300,
+                                border: Border.all(color: isAktuell ? Colors.orange.shade700 : Colors.orange, width: 2),
+                              ),
+                            ),
+                          ]),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
+                                    child: Text('MINIJOB', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  if (isAktuell)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(6)),
+                                      child: Text('AKTUELL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                                    ),
+                                ]),
+                                const SizedBox(height: 4),
+                                Text(ag['firma']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+                                if ((ag['position']?.toString() ?? '').isNotEmpty)
+                                  Text(ag['position'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                                Row(children: [
+                                  Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${ag['von_monat'] ?? ''}/${ag['von_jahr'] ?? ''} – ${isAktuell ? 'heute' : '${ag['bis_monat'] ?? ''}/${ag['bis_jahr'] ?? ''}'}',
+                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  ),
+                                ]),
+                              ],
+                            ),
+                          ),
+                          Column(children: [
+                            IconButton(
+                              icon: Icon(Icons.edit, size: 16, color: Colors.orange.shade400),
+                              onPressed: () => showArbeitgeberDialog(existing: ag, index: i, defaultArt: 'minijob'),
+                              padding: EdgeInsets.zero, constraints: const BoxConstraints(), tooltip: 'Bearbeiten',
+                            ),
+                            const SizedBox(height: 4),
+                            IconButton(
+                              icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                              onPressed: () async {
+                                final agId = int.tryParse(ag['id']?.toString() ?? '');
+                                if (agId != null) await _deleteArbeitgeberFromDB(agId);
+                                setLocalState(() => arbeitgeber.removeAt(i));
+                                saveArbeitgeber();
+                              },
+                              padding: EdgeInsets.zero, constraints: const BoxConstraints(), tooltip: 'Löschen',
+                            ),
+                          ]),
                         ],
                       ),
                     ),
