@@ -3344,6 +3344,35 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== VERSORGUNGSAMT TERMIN EINTRÄGE ==========
+
+  Future<Map<String, dynamic>> listVersorgungsamtEintraege(int userId, {String? terminDatum}) async {
+    final qs = terminDatum != null ? '&termin_datum=$terminDatum' : '';
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/versorgungsamt_eintraege_manage.php?user_id=$userId$qs'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveVersorgungsamtEintrag(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/versorgungsamt_eintraege_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteVersorgungsamtEintrag(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/versorgungsamt_eintraege_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== FINANZAMT KORRESPONDENZ ==========
 
   Future<Map<String, dynamic>> getFinanzamtKorrespondenz(int userId) async {
