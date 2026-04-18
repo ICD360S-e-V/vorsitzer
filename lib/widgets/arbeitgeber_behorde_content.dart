@@ -2927,9 +2927,10 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               // ── BERUFSERFAHRUNG ──
               // ══════════════════════════════════════
 
-              // Split by art: Vollzeit (+ teilzeit/werkstudent/ausbildung/praktikum) vs Minijob
-              final vollzeitList = arbeitgeber.where((a) => (a['art']?.toString() ?? 'vollzeit') != 'minijob').toList();
-              final minijobList = arbeitgeber.where((a) => a['art']?.toString() == 'minijob').toList();
+              Builder(builder: (_) {
+                final vollzeitList = arbeitgeber.where((a) => (a['art']?.toString() ?? 'vollzeit') != 'minijob').toList();
+                final minijobList = arbeitgeber.where((a) => a['art']?.toString() == 'minijob').toList();
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
               // ── VOLLZEIT SECTION ──
               Row(
@@ -3230,6 +3231,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 }),
 
               const SizedBox(height: 24),
+
+                ]); // end Column inside Builder
+              }), // end Builder
 
               // ══════════════════════════════════════
               // ── QUALIFIKATIONEN (Führerschein, Sprachen, Schulabschluss) ──
