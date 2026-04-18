@@ -765,7 +765,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                     Text(typ.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 11)),
                   ])),
                   IconButton(icon: Icon(editing ? Icons.check : Icons.edit, color: Colors.white, size: 20), tooltip: editing ? 'Fertig' : 'Bearbeiten', onPressed: () {
-                    if (editing) save(setD);
+                    if (editing) saveTermin(setD);
                     setD(() => editing = !editing);
                   }),
                   IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { saveTermin(setD); Navigator.pop(ctx); }),
@@ -953,7 +953,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     );
   }
 
-  void _viewEintrag(BuildContext parentCtx, Map<String, dynamic> e, String label, Color color) {
+  void _viewEintrag(BuildContext parentCtx, Map<String, dynamic> e, String label, MaterialColor color) {
     showDialog(
       context: parentCtx,
       builder: (ctx) => AlertDialog(
