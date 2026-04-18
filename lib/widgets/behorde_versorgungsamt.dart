@@ -711,18 +711,28 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     String typ = t['typ']?.toString() ?? 'normal';
     bool editing = false;
     final typen = [('normal', 'Normal', Colors.teal), ('anfrage', 'Anfrage', Colors.orange), ('absage', 'Absage', Colors.red), ('verschoben', 'Verschoben', Colors.blue)];
-    List<Map<String, dynamic>> eintraege = List<Map<String, dynamic>>.from(t['eintraege'] ?? []);
-    if (eintraege.isEmpty && (t['notizen']?.toString() ?? '').isNotEmpty) {
-      eintraege.add({'datum': t['datum'] ?? '', 'typ': 'notiz', 'text': t['notizen']});
+    List<Map<String, dynamic>> eintraege = [];
+    bool eintraegeLoaded = false;
+
+    Future<void> loadEintraege(StateSetter setD) async {
+      final r = await widget.apiService.listVersorgungsamtEintraege(widget.userId, terminDatum: datumC.text);
+      if (r['success'] == true && r['data'] is List) {
+        setD(() {
+          eintraege = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          eintraegeLoaded = true;
+        });
+      } else {
+        setD(() => eintraegeLoaded = true);
+      }
     }
 
-    void save(StateSetter setD) {
+    void saveTermin(StateSetter setD) {
       setState(() {
         termine[index] = {
           ...t,
           'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'typ': typ,
-          'ergebnis': ergebnisC.text, 'eintraege': eintraege,
-          'notizen': eintraege.isNotEmpty ? eintraege.last['text'] ?? '' : '',
+          'ergebnis': ergebnisC.text,
+          'notizen': eintraege.isNotEmpty ? eintraege.first['inhalt'] ?? eintraege.first['text'] ?? '' : '',
         };
         data['termine'] = termine;
       });
@@ -732,6 +742,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+        if (!eintraegeLoaded) loadEintraege(setD);
         final typColor = typ == 'anfrage' ? Colors.orange : (typ == 'absage' ? Colors.red : (typ == 'verschoben' ? Colors.blue : Colors.teal));
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -757,7 +768,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                     if (editing) save(setD);
                     setD(() => editing = !editing);
                   }),
-                  IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { save(setD); Navigator.pop(ctx); }),
+                  IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { saveTermin(setD); Navigator.pop(ctx); }),
                 ]),
               ),
               // Details (readonly or edit)
@@ -815,7 +826,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   PopupMenuButton<String>(
                     icon: Icon(Icons.add_circle, color: Colors.indigo.shade700, size: 22),
                     tooltip: 'Neuer Eintrag',
-                    onSelected: (eTyp) => _addEintrag(ctx2, setD, eintraege, eTyp, () => save(setD)),
+                    onSelected: (eTyp) => _addEintrag(ctx2, setD, eintraege, eTyp, datumC.text, uhrzeitC.text, () { saveTermin(setD); loadEintraege(setD); }),
                     itemBuilder: (_) => [
                       const PopupMenuItem(value: 'notiz', child: Row(children: [Icon(Icons.note, size: 16, color: Colors.teal), SizedBox(width: 8), Text('Notiz')])),
                       const PopupMenuItem(value: 'email_eingang', child: Row(children: [Icon(Icons.call_received, size: 16, color: Colors.green), SizedBox(width: 8), Text('E-Mail Eingang')])),
@@ -861,11 +872,15 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                                   ]),
                                   if ((e['betreff']?.toString() ?? '').isNotEmpty)
                                     Text(e['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: eColor.shade800)),
-                                  Text(e['text']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  Text(e['inhalt']?.toString() ?? e['text']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis),
                                 ])),
                                 IconButton(
                                   icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
-                                  onPressed: () { setD(() => eintraege.removeAt(i)); save(setD); },
+                                  onPressed: () async {
+                                    final eid = int.tryParse(e['id']?.toString() ?? '');
+                                    if (eid != null) await widget.apiService.deleteVersorgungsamtEintrag(eid);
+                                    loadEintraege(setD);
+                                  },
                                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                                 ),
                               ]),
@@ -898,7 +913,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     );
   }
 
-  void _addEintrag(BuildContext parentCtx, StateSetter setD, List<Map<String, dynamic>> eintraege, String eTyp, VoidCallback onSave) {
+  void _addEintrag(BuildContext parentCtx, StateSetter setD, List<Map<String, dynamic>> eintraege, String eTyp, String terminDatum, String terminUhrzeit, VoidCallback onSave) {
     final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     final betreffC = TextEditingController();
     final textC = TextEditingController();
@@ -920,15 +935,18 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () {
-            setD(() => eintraege.insert(0, {
+          FilledButton(onPressed: () async {
+            await widget.apiService.saveVersorgungsamtEintrag({
+              'user_id': widget.userId,
+              'termin_datum': terminDatum,
+              'termin_uhrzeit': terminUhrzeit,
+              'eintrag_typ': eTyp,
               'datum': datumC.text.trim(),
-              'typ': eTyp,
               'betreff': betreffC.text.trim(),
-              'text': textC.text.trim(),
-            }));
+              'inhalt': textC.text.trim(),
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
             onSave();
-            Navigator.pop(ctx);
           }, child: const Text('Hinzufügen')),
         ],
       ),
@@ -973,8 +991,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               constraints: const BoxConstraints(minHeight: 150),
               decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
               child: SelectableText(
-                (e['text']?.toString() ?? '').isEmpty ? '(kein Inhalt)' : e['text'].toString(),
-                style: TextStyle(fontSize: 13, height: 1.6, color: (e['text']?.toString() ?? '').isEmpty ? Colors.grey.shade400 : Colors.black87),
+                (e['inhalt']?.toString() ?? e['text']?.toString() ?? '').isEmpty ? '(kein Inhalt)' : (e['inhalt'] ?? e['text']).toString(),
+                style: TextStyle(fontSize: 13, height: 1.6, color: (e['inhalt']?.toString() ?? e['text']?.toString() ?? '').isEmpty ? Colors.grey.shade400 : Colors.black87),
               ),
             ),
           ])),
