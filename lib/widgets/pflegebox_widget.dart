@@ -818,8 +818,9 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
   }
 }
 
+
 // ============================================================
-// LIEFERUNGEN TAB (monthly grid with tracking-id)
+// LIEFERUNGEN TAB (simple list with upload)
 // ============================================================
 class _LieferungenTab extends StatefulWidget {
   final ApiService apiService;
@@ -834,7 +835,6 @@ class _LieferungenTab extends StatefulWidget {
 class _LieferungenTabState extends State<_LieferungenTab> {
   List<Map<String, dynamic>> _lieferscheine = [];
   bool _loaded = false;
-  int _selectedYear = DateTime.now().year;
 
   @override
   void initState() {
@@ -853,399 +853,264 @@ class _LieferungenTabState extends State<_LieferungenTab> {
             .toList();
         _loaded = true;
       });
+    } else {
+      setState(() => _loaded = true);
     }
-  }
-
-  Map<String, dynamic>? _lieferscheinFor(int monat, int jahr) {
-    for (final l in _lieferscheine) {
-      if ((l['monat'] as int?) == monat && (l['jahr'] as int?) == jahr) return l;
-    }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
-    final monthNames = const ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-    final currentYear = DateTime.now().year;
-    final years = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
-    final countForYear = _lieferscheine.where((l) => l['jahr'] == _selectedYear).length;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(Icons.local_shipping, size: 18, color: Colors.teal.shade700),
-            const SizedBox(width: 6),
-            Text('Monatliche Lieferungen $_selectedYear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.teal.shade800)),
-            const Spacer(),
-            Text('$countForYear/12', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-          ]),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 34,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (final y in years)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      label: Text(y.toString(), style: TextStyle(fontSize: 12, color: _selectedYear == y ? Colors.white : Colors.black87)),
-                      selected: _selectedYear == y,
-                      selectedColor: Colors.teal.shade600,
-                      onSelected: (_) => setState(() => _selectedYear = y),
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(children: [
+          Icon(Icons.receipt_long, size: 20, color: Colors.teal.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Lieferscheine (${_lieferscheine.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+          FilledButton.icon(
+            icon: const Icon(Icons.upload_file, size: 16),
+            label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade700, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+            onPressed: () => _uploadDialog(),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: _lieferscheine.isEmpty
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
+                const SizedBox(height: 8),
+                Text('Keine Lieferscheine vorhanden', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+              ]))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _lieferscheine.length,
+                itemBuilder: (_, i) {
+                  final l = _lieferscheine[i];
+                  final datum = l['hochgeladen_am']?.toString().substring(0, 10) ?? '';
+                  final trackingId = l['tracking_id']?.toString() ?? '';
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.teal.shade100,
+                        child: Icon(Icons.receipt, size: 20, color: Colors.teal.shade700),
+                      ),
+                      title: Text(l['datei_name']?.toString() ?? 'Lieferschein', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Datum: $datum', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        if (trackingId.isNotEmpty) ...[
+                          Row(children: [
+                            Icon(Icons.local_shipping, size: 12, color: Colors.orange.shade700),
+                            const SizedBox(width: 4),
+                            Text('Tracking: $trackingId', style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontFamily: 'monospace')),
+                          ]),
+                        ],
+                        if ((l['notiz']?.toString() ?? '').isNotEmpty)
+                          Text(l['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                      ]),
+                      isThreeLine: true,
+                      onTap: () => _showDetail(l),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                        onPressed: () async {
+                          await widget.apiService.deletePflegeboxLieferschein(l['id'] as int);
+                          _load();
+                        },
+                      ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 1.8,
-            children: [
-              for (int m = 1; m <= 12; m++) _buildMonthCell(m, _selectedYear, monthNames[m - 1]),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade100)),
-            child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Klick auf leeren Monat = Lieferschein hochladen + Tracking-ID. Klick auf belegten Monat = Details.',
-                  style: TextStyle(fontSize: 10, color: Colors.blue.shade800),
-                ),
+                  );
+                },
               ),
-            ]),
-          ),
-        ],
       ),
-    );
+    ]);
   }
 
-  Widget _buildMonthCell(int monat, int jahr, String label) {
-    final existing = _lieferscheinFor(monat, jahr);
-    final hasFile = existing != null;
-    final hasTracking = hasFile && (existing['tracking_id']?.toString() ?? '').isNotEmpty;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () {
-        if (hasFile) {
-          _showLieferscheinDetail(existing);
-        } else {
-          _uploadDialog(monat, jahr);
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: hasFile ? Colors.green.shade50 : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: hasFile ? Colors.green.shade400 : Colors.grey.shade300, width: hasFile ? 1.5 : 1),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              hasFile ? Icons.check_circle : Icons.upload_file,
-              size: 20,
-              color: hasFile ? Colors.green.shade700 : Colors.grey.shade500,
-            ),
-            const SizedBox(height: 3),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: hasFile ? Colors.green.shade900 : Colors.grey.shade700)),
-            if (hasTracking) ...[
-              const SizedBox(height: 2),
-              Icon(Icons.local_shipping, size: 11, color: Colors.orange.shade700),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _monthLabel(int m) => const ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'][m];
-
-  Future<void> _uploadDialog(int monat, int jahr) async {
-    final trackingC = TextEditingController();
-    String anbieter = 'deutsche_post';
-    final notizC = TextEditingController();
+  Future<void> _uploadDialog() async {
+    final lieferscheinNrC = TextEditingController();
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     String? filePath;
     String? fileName;
 
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx2, setD) => AlertDialog(
-          title: Text('Lieferschein ${_monthLabel(monat)} $jahr'),
-          content: SizedBox(
-            width: 440,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Row(children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: filePath != null ? Colors.green.shade50 : Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: filePath != null ? Colors.green.shade300 : Colors.grey.shade300)),
-                    child: Row(children: [
-                      Icon(filePath != null ? Icons.check_circle : Icons.upload_file, size: 18, color: filePath != null ? Colors.green.shade700 : Colors.grey.shade600),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(fileName ?? 'Dokument auswählen...', style: TextStyle(fontSize: 12, color: filePath != null ? Colors.green.shade900 : Colors.grey.shade700))),
-                      TextButton(
-                        onPressed: () async {
-                          final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
-                          if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
-                            setD(() {
-                              filePath = r.files.first.path;
-                              fileName = r.files.first.name;
-                            });
-                          }
-                        },
-                        child: const Text('Wählen', style: TextStyle(fontSize: 11)),
-                      ),
-                    ]),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 12),
-              TextField(
-                controller: trackingC,
-                decoration: InputDecoration(
-                  labelText: 'Tracking-ID (Deutsche Post / DHL)',
-                  hintText: 'z.B. RX123456789DE',
-                  prefixIcon: const Icon(Icons.local_shipping, size: 18),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                style: const TextStyle(fontSize: 13),
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Lieferschein hochladen'),
+        content: SizedBox(
+          width: 440,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: lieferscheinNrC,
+              decoration: InputDecoration(
+                labelText: 'Lieferscheinnummer *',
+                hintText: 'z.B. LS-2026-04-001',
+                prefixIcon: const Icon(Icons.tag, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: anbieter,
-                decoration: InputDecoration(
-                  labelText: 'Versanddienstleister',
-                  prefixIcon: const Icon(Icons.business, size: 18),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'deutsche_post', child: Text('Deutsche Post')),
-                  DropdownMenuItem(value: 'dhl', child: Text('DHL')),
-                  DropdownMenuItem(value: 'hermes', child: Text('Hermes')),
-                  DropdownMenuItem(value: 'dpd', child: Text('DPD')),
-                  DropdownMenuItem(value: 'gls', child: Text('GLS')),
-                  DropdownMenuItem(value: 'ups', child: Text('UPS')),
-                  DropdownMenuItem(value: 'sonstige', child: Text('Sonstige')),
-                ],
-                onChanged: (v) => setD(() => anbieter = v ?? 'deutsche_post'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: notizC,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  labelText: 'Notiz',
-                  prefixIcon: const Icon(Icons.note, size: 18),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                style: const TextStyle(fontSize: 13),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-            FilledButton(
-              onPressed: filePath == null
-                  ? null
-                  : () async {
-                      final res = await widget.apiService.uploadPflegeboxLieferschein(
-                        userId: widget.userId,
-                        firmaId: widget.firmaId,
-                        monat: monat,
-                        jahr: jahr,
-                        filePath: filePath!,
-                        fileName: fileName!,
-                        notiz: notizC.text.trim(),
-                        trackingId: trackingC.text.trim(),
-                        trackingAnbieter: anbieter,
-                      );
-                      if (!ctx.mounted) return;
-                      if (res['success'] == true) {
-                        Navigator.pop(ctx);
-                        await _load();
-                      } else {
-                        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
-                      }
-                    },
-              child: const Text('Hochladen'),
+              style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showLieferscheinDetail(Map<String, dynamic> l) async {
-    final trackingC = TextEditingController(text: l['tracking_id']?.toString() ?? '');
-    String anbieter = l['tracking_anbieter']?.toString() ?? 'deutsche_post';
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx2, setD) => AlertDialog(
-          title: Text('${_monthLabel(l['monat'] as int)} ${l['jahr']}'),
-          content: SizedBox(
-            width: 440,
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: datumC,
+              readOnly: true,
+              decoration: InputDecoration(
+                labelText: 'Datum des Lieferscheins *',
+                prefixIcon: const Icon(Icons.calendar_today, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onTap: () async {
+                final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+                if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+              },
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () async {
+                final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+                if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
+                  setD(() { filePath = r.files.first.path; fileName = r.files.first.name; });
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: filePath != null ? Colors.green.shade50 : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: filePath != null ? Colors.green.shade300 : Colors.grey.shade300),
+                ),
                 child: Row(children: [
-                  Icon(Icons.description, size: 16, color: Colors.green.shade700),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(l['datei_name']?.toString() ?? '', style: const TextStyle(fontSize: 12))),
-                  Text('${((l['file_size'] as int?) ?? 0) ~/ 1024} KB', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Icon(filePath != null ? Icons.check_circle : Icons.upload_file, size: 24, color: filePath != null ? Colors.green.shade700 : Colors.grey.shade500),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(
+                    fileName ?? 'Datei auswählen (PDF, JPG, PNG)',
+                    style: TextStyle(fontSize: 13, color: filePath != null ? Colors.green.shade900 : Colors.grey.shade600),
+                  )),
                 ]),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: trackingC,
-                decoration: InputDecoration(
-                  labelText: 'Tracking-ID',
-                  prefixIcon: const Icon(Icons.local_shipping, size: 18),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                style: const TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: anbieter,
-                decoration: InputDecoration(
-                  labelText: 'Versanddienstleister',
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'deutsche_post', child: Text('Deutsche Post')),
-                  DropdownMenuItem(value: 'dhl', child: Text('DHL')),
-                  DropdownMenuItem(value: 'hermes', child: Text('Hermes')),
-                  DropdownMenuItem(value: 'dpd', child: Text('DPD')),
-                  DropdownMenuItem(value: 'gls', child: Text('GLS')),
-                  DropdownMenuItem(value: 'ups', child: Text('UPS')),
-                  DropdownMenuItem(value: 'sonstige', child: Text('Sonstige')),
-                ],
-                onChanged: (v) => setD(() => anbieter = v ?? 'deutsche_post'),
-              ),
-              if (trackingC.text.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
-                  child: Row(children: [
-                    Icon(Icons.info_outline, size: 12, color: Colors.orange.shade700),
-                    const SizedBox(width: 4),
-                    Expanded(child: Text('Tracking-Link: ${_trackingUrl(anbieter, trackingC.text.trim())}', style: TextStyle(fontSize: 10, color: Colors.orange.shade900))),
-                  ]),
-                ),
-              ],
-            ]),
-          ),
-          actions: [
-            IconButton(
-              icon: Icon(Icons.delete, color: Colors.red.shade400, size: 20),
-              onPressed: () async {
-                final r = await widget.apiService.deletePflegeboxLieferschein(l['id'] as int);
-                if (!ctx.mounted) return;
-                if (r['success'] == true) {
-                  Navigator.pop(ctx);
-                  await _load();
-                }
-              },
             ),
-            TextButton.icon(
-              icon: const Icon(Icons.download, size: 16),
-              label: const Text('Download'),
-              onPressed: () async {
-                try {
-                  final resp = await widget.apiService.downloadPflegeboxLieferschein(l['id'] as int);
-                  if (resp.statusCode == 200) {
-                    final savePath = await FilePickerHelper.saveFile(dialogTitle: 'Speichern', fileName: l['datei_name']?.toString() ?? 'lieferschein.pdf');
-                    if (savePath != null) {
-                      await File(savePath).writeAsBytes(resp.bodyBytes);
-                      if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
-                    }
-                  }
-                } catch (e) {
-                  if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
-                }
-              },
-            ),
-            TextButton.icon(
-              icon: const Icon(Icons.visibility, size: 16),
-              label: const Text('Ansicht'),
-              onPressed: () async {
-                try {
-                  final resp = await widget.apiService.downloadPflegeboxLieferschein(l['id'] as int);
-                  if (resp.statusCode == 200 && ctx.mounted) {
-                    final dir = await getTemporaryDirectory();
-                    final file = File('${dir.path}/${l['datei_name'] ?? 'lieferschein.pdf'}');
-                    await file.writeAsBytes(resp.bodyBytes);
-                    if (ctx.mounted) await FileViewerDialog.show(ctx, file.path, l['datei_name']?.toString() ?? '');
-                  }
-                } catch (e) {
-                  if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
-                }
-              },
-            ),
-            FilledButton(
-              onPressed: () async {
-                final res = await widget.apiService.updatePflegeboxLieferschein(
-                  id: l['id'] as int,
-                  trackingId: trackingC.text.trim(),
-                  trackingAnbieter: anbieter,
-                );
-                if (!ctx.mounted) return;
-                if (res['success'] == true) {
-                  Navigator.pop(ctx);
-                  await _load();
-                }
-              },
-              child: const Text('Speichern'),
-            ),
-          ],
+          ]),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: (filePath == null || lieferscheinNrC.text.trim().isEmpty)
+                ? null
+                : () async {
+                    final datum = datumC.text.trim();
+                    final monat = int.tryParse(datum.split('-').length > 1 ? datum.split('-')[1] : '1') ?? 1;
+                    final jahr = int.tryParse(datum.split('-').first) ?? DateTime.now().year;
+                    final res = await widget.apiService.uploadPflegeboxLieferschein(
+                      userId: widget.userId,
+                      firmaId: widget.firmaId,
+                      monat: monat,
+                      jahr: jahr,
+                      filePath: filePath!,
+                      fileName: fileName!,
+                      notiz: lieferscheinNrC.text.trim(),
+                      trackingId: lieferscheinNrC.text.trim(),
+                    );
+                    if (!ctx.mounted) return;
+                    if (res['success'] == true) {
+                      Navigator.pop(ctx);
+                      _load();
+                    } else {
+                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
+                    }
+                  },
+            child: const Text('Hochladen'),
+          ),
+        ],
+      )),
+    );
+  }
+
+  void _showDetail(Map<String, dynamic> l) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.receipt, color: Colors.teal.shade700),
+          const SizedBox(width: 8),
+          const Text('Lieferschein'),
+        ]),
+        content: SizedBox(
+          width: 440,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _detailRow(Icons.tag, 'Lieferscheinnummer', l['tracking_id'] ?? l['notiz']),
+            _detailRow(Icons.description, 'Datei', l['datei_name']),
+            _detailRow(Icons.calendar_today, 'Datum', l['hochgeladen_am']?.toString().substring(0, 10)),
+            _detailRow(Icons.data_usage, 'Größe', '${((l['file_size'] as int?) ?? 0) ~/ 1024} KB'),
+          ]),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
+            label: Text('Löschen', style: TextStyle(color: Colors.red.shade400)),
+            onPressed: () async {
+              await widget.apiService.deletePflegeboxLieferschein(l['id'] as int);
+              if (ctx.mounted) Navigator.pop(ctx);
+              _load();
+            },
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Download'),
+            onPressed: () async {
+              try {
+                final resp = await widget.apiService.downloadPflegeboxLieferschein(l['id'] as int);
+                if (resp.statusCode == 200) {
+                  final savePath = await FilePickerHelper.saveFile(dialogTitle: 'Speichern', fileName: l['datei_name']?.toString() ?? 'lieferschein.pdf');
+                  if (savePath != null) {
+                    await File(savePath).writeAsBytes(resp.bodyBytes);
+                    if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+                  }
+                }
+              } catch (e) {
+                if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+              }
+            },
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.visibility, size: 16),
+            label: const Text('Ansicht'),
+            onPressed: () async {
+              try {
+                final resp = await widget.apiService.downloadPflegeboxLieferschein(l['id'] as int);
+                if (resp.statusCode == 200 && ctx.mounted) {
+                  final dir = await getTemporaryDirectory();
+                  final file = File('${dir.path}/${l['datei_name'] ?? 'lieferschein.pdf'}');
+                  await file.writeAsBytes(resp.bodyBytes);
+                  if (ctx.mounted) await FileViewerDialog.show(ctx, file.path, l['datei_name']?.toString() ?? '');
+                }
+              } catch (e) {
+                if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+              }
+            },
+          ),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
       ),
     );
   }
 
-  String _trackingUrl(String anbieter, String id) {
-    if (id.isEmpty) return '';
-    switch (anbieter) {
-      case 'dhl':
-        return 'https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=$id';
-      case 'hermes':
-        return 'https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation/?barcode=$id';
-      case 'dpd':
-        return 'https://tracking.dpd.de/status/de_DE/parcel/$id';
-      case 'gls':
-        return 'https://www.gls-pakete.de/sendungsverfolgung?trackingNumber=$id';
-      case 'ups':
-        return 'https://www.ups.com/track?tracknum=$id';
-      case 'deutsche_post':
-      default:
-        return 'https://www.deutschepost.de/sendung/simpleQueryResult.html?form.sendungsnummer=$id';
-    }
+  Widget _detailRow(IconData icon, String label, dynamic value) {
+    final s = value?.toString() ?? '';
+    if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+      ]),
+    );
   }
 }
