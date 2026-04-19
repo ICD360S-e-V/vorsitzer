@@ -692,7 +692,10 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                 itemBuilder: (_, i) {
                   final k = _items[i];
                   final isEingang = k['richtung'] == 'eingang';
-                  return Container(
+                  return InkWell(
+                    onTap: () => _showKorrDetail(k),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -709,6 +712,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                         if ((k['notiz']?.toString() ?? '').isNotEmpty)
                           Text(k['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
                       ])),
+                      Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
                       if ((k['datei_name']?.toString() ?? '').isNotEmpty)
                         IconButton(
                           icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
@@ -724,7 +728,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                       ),
                     ]),
-                  );
+                  ));
                 },
               ),
       ),
@@ -748,6 +752,69 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
     }
+  }
+
+  void _showKorrDetail(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingang';
+    final color = isEin ? Colors.green : Colors.blue;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+        ]),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+              child: Row(children: [
+                Icon(isEin ? Icons.inbox : Icons.send, size: 14, color: color.shade700),
+                const SizedBox(width: 6),
+                Text(isEin ? 'Eingang (empfangen)' : 'Ausgang (gesendet)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color.shade800)),
+                const Spacer(),
+                Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Text('Inhalt / Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              constraints: const BoxConstraints(minHeight: 120),
+              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+              child: SelectableText(
+                (k['notiz']?.toString() ?? '').isEmpty ? '(kein Inhalt)' : k['notiz'].toString(),
+                style: TextStyle(fontSize: 13, height: 1.5, color: (k['notiz']?.toString() ?? '').isEmpty ? Colors.grey.shade400 : Colors.black87),
+              ),
+            ),
+          ])),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
+            label: Text('Löschen', style: TextStyle(color: Colors.red.shade400)),
+            onPressed: () async {
+              await _delete(k['id'] as int);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+          ),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
+      ),
+    );
   }
 
   void _showUpload(String richtung) {
