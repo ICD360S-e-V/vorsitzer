@@ -932,6 +932,7 @@ class _LieferungenTabState extends State<_LieferungenTab> {
     final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     String? filePath;
     String? fileName;
+    bool uploading = false;
 
     await showDialog(
       context: context,
@@ -998,10 +999,14 @@ class _LieferungenTabState extends State<_LieferungenTab> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-          FilledButton(
-            onPressed: (filePath == null || lieferscheinNrC.text.trim().isEmpty)
+          FilledButton.icon(
+            icon: uploading
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.upload_file, size: 16),
+            onPressed: (filePath == null || lieferscheinNrC.text.trim().isEmpty || uploading)
                 ? null
                 : () async {
+                    setD(() => uploading = true);
                     final datum = datumC.text.trim();
                     final monat = int.tryParse(datum.split('-').length > 1 ? datum.split('-')[1] : '1') ?? 1;
                     final jahr = int.tryParse(datum.split('-').first) ?? DateTime.now().year;
@@ -1018,12 +1023,14 @@ class _LieferungenTabState extends State<_LieferungenTab> {
                     if (!ctx.mounted) return;
                     if (res['success'] == true) {
                       Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lieferschein hochgeladen'), backgroundColor: Colors.green));
                       _load();
                     } else {
+                      setD(() => uploading = false);
                       ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
                     }
                   },
-            child: const Text('Hochladen'),
+            label: Text(uploading ? 'Wird hochgeladen...' : 'Hochladen'),
           ),
         ],
       )),
