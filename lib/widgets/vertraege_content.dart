@@ -828,6 +828,16 @@ class _DokTabState extends State<_DokTab> {
   List<Map<String, dynamic>> _items = [];
   bool _loaded = false;
 
+  static const _kuendigungSchritte = [
+    ('eingereicht', 'Kündigung eingereicht', Icons.send, Colors.red, 'Kündigung an den Anbieter abgeschickt.'),
+    ('warte_14', '14 Tage warten', Icons.hourglass_top, Colors.orange, 'Anbieter muss bei Online-Kündigung sofort bestätigen, sonst max. 14 Tage warten.'),
+    ('bestaetigung', 'Bestätigung erhalten', Icons.check_circle, Colors.green, 'Kündigungsbestätigung mit Vertragsende-Datum erhalten.'),
+    ('mahnung', 'Mahnung / Erinnerung', Icons.warning, Colors.deepOrange, 'Keine Bestätigung? Per Einschreiben mit Rückschein erneut kündigen + Frist setzen (7 Tage).'),
+    ('beschwerde', 'Beschwerde', Icons.gavel, Colors.purple, 'Keine Reaktion? Beschwerde bei Bundesnetzagentur oder Verbraucherzentrale einreichen.'),
+    ('vertragsende', 'Vertrag beendet', Icons.event_available, Colors.teal, 'Vertrag ist offiziell beendet. SIM-Karte zurückgeben falls verlangt.'),
+    ('rufnummer', 'Rufnummernmitnahme', Icons.phone_forwarded, Colors.blue, 'Rufnummer zum neuen Anbieter portiert (kostenlos per TKG, bis 1 Monat nach Vertragsende möglich).'),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -846,6 +856,7 @@ class _DokTabState extends State<_DokTab> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
+    if (widget.kategorie == 'kuendigung') return _buildKuendigungTimeline();
     return Column(children: [
       Padding(
         padding: const EdgeInsets.all(12),
@@ -923,6 +934,175 @@ class _DokTabState extends State<_DokTab> {
               ),
       ),
     ]);
+  }
+
+  Widget _buildKuendigungTimeline() {
+    Map<String, Map<String, dynamic>> erledigte = {};
+    for (final item in _items) {
+      final schritt = item['rechnungsnummer']?.toString() ?? '';
+      if (schritt.isNotEmpty) erledigte[schritt] = item;
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.timeline, size: 20, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          Text('Kündigungs-Chronologie', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        ]),
+        const SizedBox(height: 16),
+        for (int i = 0; i < _kuendigungSchritte.length; i++) ...[
+          Builder(builder: (_) {
+            final s = _kuendigungSchritte[i];
+            final key = s.$1;
+            final done = erledigte.containsKey(key);
+            final entry = erledigte[key];
+            final isLast = i == _kuendigungSchritte.length - 1;
+            final color = done ? s.$4 : Colors.grey;
+            return IntrinsicHeight(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SizedBox(width: 32, child: Column(children: [
+                  Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: done ? color.shade100 : Colors.grey.shade200,
+                      border: Border.all(color: done ? color.shade700 : Colors.grey.shade400, width: 2),
+                    ),
+                    child: Icon(done ? Icons.check : s.$3, size: 14, color: done ? color.shade700 : Colors.grey.shade500),
+                  ),
+                  if (!isLast) Expanded(child: Container(width: 2, color: done ? color.shade300 : Colors.grey.shade300)),
+                ])),
+                const SizedBox(width: 12),
+                Expanded(child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: done ? color.shade50 : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: done ? color.shade300 : Colors.grey.shade300),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(s.$3, size: 16, color: done ? color.shade700 : Colors.grey.shade500),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(s.$2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: done ? color.shade900 : Colors.grey.shade600))),
+                      if (done && entry != null)
+                        Text(entry['kuendigung_datum']?.toString() ?? entry['erstellt_am']?.toString().substring(0, 10) ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600))
+                      else if (!done)
+                        InkWell(
+                          onTap: () => _addKuendigungSchritt(key, s.$2),
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: s.$4.shade100, borderRadius: BorderRadius.circular(6)),
+                            child: Text('Erledigt', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: s.$4.shade800)),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(s.$5, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                    if (done && entry != null) ...[
+                      if ((entry['notiz']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity, padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
+                          child: Text(entry['notiz'].toString(), style: const TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                      if ((entry['datei_name']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        InkWell(
+                          onTap: () => _viewDoc(entry),
+                          child: Row(children: [
+                            Icon(Icons.attach_file, size: 12, color: Colors.indigo.shade600),
+                            const SizedBox(width: 4),
+                            Text(entry['datei_name'].toString(), style: TextStyle(fontSize: 10, color: Colors.indigo.shade700, decoration: TextDecoration.underline)),
+                          ]),
+                        ),
+                      ],
+                    ],
+                  ]),
+                )),
+              ]),
+            );
+          }),
+        ],
+      ]),
+    );
+  }
+
+  Future<void> _addKuendigungSchritt(String schrittKey, String schrittLabel) async {
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    final notizC = TextEditingController();
+    String? filePath;
+    String? fileName;
+    bool uploading = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+        title: Text(schrittLabel),
+        content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+            final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+          }),
+          const SizedBox(height: 8),
+          TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz / Details', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () async {
+              final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+              if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
+                setD(() { filePath = r.files.first.path; fileName = r.files.first.name; });
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: double.infinity, padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: filePath != null ? Colors.green.shade50 : Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: filePath != null ? Colors.green.shade300 : Colors.grey.shade300)),
+              child: Row(children: [
+                Icon(filePath != null ? Icons.check_circle : Icons.attach_file, size: 18, color: filePath != null ? Colors.green.shade700 : Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Expanded(child: Text(fileName ?? 'Dokument anhängen (optional)', style: TextStyle(fontSize: 12, color: filePath != null ? Colors.green.shade900 : Colors.grey.shade600))),
+              ]),
+            ),
+          ),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton.icon(
+            icon: uploading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check, size: 16),
+            label: Text(uploading ? 'Speichern...' : 'Erledigt markieren'),
+            onPressed: uploading ? null : () async {
+              setD(() => uploading = true);
+              if (filePath != null) {
+                await widget.apiService.uploadVertragDokument(
+                  vertragId: widget.vertragId, kategorie: 'kuendigung',
+                  filePath: filePath!, fileName: fileName!,
+                  rechnungsnummer: schrittKey,
+                  kuendigungDatum: datumC.text.trim(),
+                  notiz: notizC.text.trim(),
+                );
+              } else {
+                await widget.apiService.uploadVertragDokument(
+                  vertragId: widget.vertragId, kategorie: 'kuendigung',
+                  filePath: '', fileName: '',
+                  rechnungsnummer: schrittKey,
+                  kuendigungDatum: datumC.text.trim(),
+                  notiz: notizC.text.trim(),
+                );
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+              _load();
+            },
+          ),
+        ],
+      )),
+    );
   }
 
   IconData _iconForKat() => switch (widget.kategorie) { 'rechnung' => Icons.receipt, 'kuendigung' => Icons.cancel, _ => Icons.description };
