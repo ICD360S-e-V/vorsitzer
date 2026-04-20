@@ -887,6 +887,12 @@ class _DokTabState extends State<_DokTab> {
                         if (widget.kategorie == 'kuendigung') ...[
                           if ((d['kuendigung_datum']?.toString() ?? '').isNotEmpty)
                             Text('Gekündigt am: ${d['kuendigung_datum']}', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                          if ((d['kuendigung_grund']?.toString() ?? '').isNotEmpty)
+                            Row(children: [
+                              Icon(_wegIcon(d['kuendigung_grund'].toString()), size: 12, color: Colors.grey.shade600),
+                              const SizedBox(width: 4),
+                              Text('per ${_wegLabel(d['kuendigung_grund'].toString())}', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                            ]),
                           Row(children: [
                             Icon(d['kuendigung_bestaetigt'] == 1 ? Icons.check_circle : Icons.hourglass_top, size: 12, color: d['kuendigung_bestaetigt'] == 1 ? Colors.green : Colors.orange),
                             const SizedBox(width: 4),
@@ -920,6 +926,9 @@ class _DokTabState extends State<_DokTab> {
   }
 
   IconData _iconForKat() => switch (widget.kategorie) { 'rechnung' => Icons.receipt, 'kuendigung' => Icons.cancel, _ => Icons.description };
+
+  static IconData _wegIcon(String weg) => switch (weg) { 'online' => Icons.language, 'email' => Icons.email, 'postalisch' => Icons.local_post_office, 'persoenlich' => Icons.person, 'fax' => Icons.fax, _ => Icons.send };
+  static String _wegLabel(String weg) => switch (weg) { 'online' => 'Online / Kündigungsbutton', 'email' => 'E-Mail', 'postalisch' => 'Post (Brief)', 'persoenlich' => 'Persönlich (Shop)', 'fax' => 'Fax', _ => weg };
 
   Future<void> _viewDoc(Map<String, dynamic> d) async {
     try {
@@ -975,6 +984,19 @@ class _DokTabState extends State<_DokTab> {
                 final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
                 if (p != null) setD(() => kundDatumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
               }),
+              const SizedBox(height: 8),
+              Text('Kündigung erfolgt per:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final m in [('online', 'Online / Kündigungsbutton', Icons.language), ('email', 'Per E-Mail', Icons.email), ('postalisch', 'Postalisch (Brief)', Icons.local_post_office), ('persoenlich', 'Persönlich (im Shop)', Icons.person), ('fax', 'Per Fax', Icons.fax)])
+                  ChoiceChip(
+                    avatar: Icon(m.$3, size: 14, color: grundC.text == m.$1 ? Colors.white : Colors.grey.shade700),
+                    label: Text(m.$2, style: TextStyle(fontSize: 10, color: grundC.text == m.$1 ? Colors.white : Colors.black87)),
+                    selected: grundC.text == m.$1,
+                    selectedColor: Colors.red.shade600,
+                    onSelected: (_) => setD(() => grundC.text = m.$1),
+                  ),
+              ]),
               const SizedBox(height: 8),
               Row(children: [
                 Checkbox(value: bestaetigt, onChanged: (v) => setD(() => bestaetigt = v ?? false)),
