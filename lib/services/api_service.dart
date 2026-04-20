@@ -3344,6 +3344,70 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== VERTRÄGE DOKUMENTE (Dokumente, Rechnung, Kündigung) ==========
+
+  Future<Map<String, dynamic>> listVertragDokumente(int vertragId, {String? kategorie}) async {
+    final qs = kategorie != null ? '&kategorie=$kategorie' : '';
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/vertraege_dok_manage.php?vertrag_id=$vertragId$qs'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadVertragDokument({
+    required int vertragId,
+    required String kategorie,
+    required String filePath,
+    required String fileName,
+    String titel = '',
+    String rechnungsnummer = '',
+    String abrechnungszeitraum = '',
+    double? betrag,
+    String? kuendigungDatum,
+    bool kuendigungBestaetigt = false,
+    String? kuendigungBestaetigungsDatum,
+    bool rufnummernmitnahme = false,
+    String kuendigungGrund = '',
+    String notiz = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/vertraege_dok_manage.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['vertrag_id'] = vertragId.toString();
+    request.fields['kategorie'] = kategorie;
+    request.fields['titel'] = titel;
+    request.fields['rechnungsnummer'] = rechnungsnummer;
+    request.fields['abrechnungszeitraum'] = abrechnungszeitraum;
+    if (betrag != null) request.fields['betrag'] = betrag.toString();
+    if (kuendigungDatum != null) request.fields['kuendigung_datum'] = kuendigungDatum;
+    request.fields['kuendigung_bestaetigt'] = kuendigungBestaetigt ? '1' : '0';
+    if (kuendigungBestaetigungsDatum != null) request.fields['kuendigung_bestaetigungs_datum'] = kuendigungBestaetigungsDatum;
+    request.fields['rufnummernmitnahme'] = rufnummernmitnahme ? '1' : '0';
+    request.fields['kuendigung_grund'] = kuendigungGrund;
+    request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteVertragDokument(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vertraege_dok_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadVertragDokument(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/vertraege_dok_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ========== VERSORGUNGSAMT TERMIN EINTRÄGE ==========
 
   Future<Map<String, dynamic>> listVersorgungsamtEintraege(int userId, {String? terminDatum}) async {
