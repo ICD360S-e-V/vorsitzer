@@ -1,5 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
+import 'file_viewer_dialog.dart';
 
 class VertraegeContent extends StatefulWidget {
   final ApiService apiService;
@@ -480,7 +485,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
     final kosten = double.tryParse(v['monatliche_kosten']?.toString() ?? '') ?? 0;
     final aktiv = v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1';
     return DefaultTabController(
-      length: 2,
+      length: 5,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -512,11 +517,17 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
             Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+            Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
+            Tab(icon: Icon(Icons.receipt, size: 18), text: 'Rechnung'),
+            Tab(icon: Icon(Icons.cancel, size: 18), text: 'Kündigung'),
           ],
         ),
         Expanded(child: TabBarView(children: [
           _buildDetailsTab(v, aktiv),
           _KorrTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
+          _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'dokument', label: 'Dokumente'),
+          _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'rechnung', label: 'Rechnungen'),
+          _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'kuendigung', label: 'Kündigung'),
         ])),
       ]),
     );
@@ -795,6 +806,251 @@ class _KorrTabState extends State<_KorrTab> {
           }, child: const Text('Speichern')),
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// DOKUMENTE / RECHNUNG / KÜNDIGUNG TAB (unified)
+// ═══════════════════════════════════════════════════════
+class _DokTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  final String kategorie;
+  final String label;
+  const _DokTab({required this.apiService, required this.vertragId, required this.kategorie, required this.label});
+
+  @override
+  State<_DokTab> createState() => _DokTabState();
+}
+
+class _DokTabState extends State<_DokTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.listVertragDokumente(widget.vertragId, kategorie: widget.kategorie);
+    if (!mounted) return;
+    setState(() {
+      _items = (r['success'] == true && r['data'] is List) ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(children: [
+          Expanded(child: Text('${_items.length} ${widget.label}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          FilledButton.icon(
+            icon: const Icon(Icons.upload_file, size: 14),
+            label: Text('${widget.label} hochladen', style: const TextStyle(fontSize: 11)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+            onPressed: () => _uploadDialog(),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: _items.isEmpty
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.folder_open, size: 48, color: Colors.grey.shade300),
+                const SizedBox(height: 6),
+                Text('Keine ${widget.label}', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              ]))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _items.length,
+                itemBuilder: (_, i) {
+                  final d = _items[i];
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(_iconForKat(), color: Colors.indigo.shade600),
+                      title: Text(d['titel']?.toString().isNotEmpty == true ? d['titel'].toString() : d['datei_name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        if (widget.kategorie == 'rechnung') ...[
+                          if ((d['rechnungsnummer']?.toString() ?? '').isNotEmpty)
+                            Text('Nr: ${d['rechnungsnummer']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontFamily: 'monospace')),
+                          if ((d['abrechnungszeitraum']?.toString() ?? '').isNotEmpty)
+                            Text('Zeitraum: ${d['abrechnungszeitraum']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          if (d['betrag'] != null)
+                            Text('${double.tryParse(d['betrag'].toString())?.toStringAsFixed(2)} €', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                        ],
+                        if (widget.kategorie == 'kuendigung') ...[
+                          if ((d['kuendigung_datum']?.toString() ?? '').isNotEmpty)
+                            Text('Gekündigt am: ${d['kuendigung_datum']}', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                          Row(children: [
+                            Icon(d['kuendigung_bestaetigt'] == 1 ? Icons.check_circle : Icons.hourglass_top, size: 12, color: d['kuendigung_bestaetigt'] == 1 ? Colors.green : Colors.orange),
+                            const SizedBox(width: 4),
+                            Text(d['kuendigung_bestaetigt'] == 1 ? 'Bestätigt${d['kuendigung_bestaetigungs_datum'] != null ? ' am ${d['kuendigung_bestaetigungs_datum']}' : ''}' : 'Ausstehend', style: TextStyle(fontSize: 10, color: d['kuendigung_bestaetigt'] == 1 ? Colors.green.shade700 : Colors.orange.shade700)),
+                          ]),
+                          if (d['rufnummernmitnahme'] == 1)
+                            Row(children: [
+                              Icon(Icons.phone_forwarded, size: 12, color: Colors.blue.shade600),
+                              const SizedBox(width: 4),
+                              Text('Rufnummernmitnahme beantragt', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                            ]),
+                        ],
+                        if ((d['notiz']?.toString() ?? '').isNotEmpty)
+                          Text(d['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ]),
+                      isThreeLine: true,
+                      onTap: () => _viewDoc(d),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                        onPressed: () async {
+                          await widget.apiService.deleteVertragDokument(d['id'] as int);
+                          _load();
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+
+  IconData _iconForKat() => switch (widget.kategorie) { 'rechnung' => Icons.receipt, 'kuendigung' => Icons.cancel, _ => Icons.description };
+
+  Future<void> _viewDoc(Map<String, dynamic> d) async {
+    try {
+      final resp = await widget.apiService.downloadVertragDokument(d['id'] as int);
+      if (resp.statusCode == 200 && mounted) {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/${d['datei_name'] ?? 'dokument.pdf'}');
+        await file.writeAsBytes(resp.bodyBytes);
+        if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _uploadDialog() async {
+    final titelC = TextEditingController();
+    final notizC = TextEditingController();
+    String? filePath;
+    String? fileName;
+    bool uploading = false;
+    // Rechnung fields
+    final rechnungNrC = TextEditingController();
+    final zeitraumC = TextEditingController();
+    final betragC = TextEditingController();
+    // Kündigung fields
+    final kundDatumC = TextEditingController();
+    final bestDatumC = TextEditingController();
+    bool bestaetigt = false;
+    bool rufnummer = false;
+    final grundC = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text('${widget.label} hochladen'),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel / Bezeichnung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 8),
+            if (widget.kategorie == 'rechnung') ...[
+              TextField(controller: rechnungNrC, decoration: InputDecoration(labelText: 'Rechnungsnummer', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+              const SizedBox(height: 8),
+              TextField(controller: zeitraumC, decoration: InputDecoration(labelText: 'Abrechnungszeitraum (z.B. 01.03.–31.03.2026)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+              const SizedBox(height: 8),
+              TextField(controller: betragC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Betrag €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+              const SizedBox(height: 8),
+            ],
+            if (widget.kategorie == 'kuendigung') ...[
+              TextField(controller: kundDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Kündigungsdatum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+                if (p != null) setD(() => kundDatumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+              }),
+              const SizedBox(height: 8),
+              Row(children: [
+                Checkbox(value: bestaetigt, onChanged: (v) => setD(() => bestaetigt = v ?? false)),
+                const Text('Kündigung bestätigt', style: TextStyle(fontSize: 12)),
+              ]),
+              if (bestaetigt) ...[
+                TextField(controller: bestDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Bestätigungsdatum', prefixIcon: const Icon(Icons.check_circle, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                  final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+                  if (p != null) setD(() => bestDatumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+                }),
+                const SizedBox(height: 8),
+              ],
+              Row(children: [
+                Checkbox(value: rufnummer, onChanged: (v) => setD(() => rufnummer = v ?? false)),
+                const Text('Rufnummernmitnahme beantragt', style: TextStyle(fontSize: 12)),
+              ]),
+              TextField(controller: grundC, maxLines: 2, decoration: InputDecoration(labelText: 'Kündigungsgrund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+              const SizedBox(height: 8),
+            ],
+            TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () async {
+                final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+                if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
+                  setD(() { filePath = r.files.first.path; fileName = r.files.first.name; });
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: double.infinity, padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: filePath != null ? Colors.green.shade50 : Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: filePath != null ? Colors.green.shade300 : Colors.grey.shade300)),
+                child: Row(children: [
+                  Icon(filePath != null ? Icons.check_circle : Icons.upload_file, size: 22, color: filePath != null ? Colors.green.shade700 : Colors.grey.shade500),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(fileName ?? 'Datei auswählen *', style: TextStyle(fontSize: 13, color: filePath != null ? Colors.green.shade900 : Colors.grey.shade600))),
+                ]),
+              ),
+            ),
+          ])),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton.icon(
+            icon: uploading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
+            label: Text(uploading ? 'Wird hochgeladen...' : 'Hochladen'),
+            onPressed: (filePath == null || uploading) ? null : () async {
+              setD(() => uploading = true);
+              final res = await widget.apiService.uploadVertragDokument(
+                vertragId: widget.vertragId,
+                kategorie: widget.kategorie,
+                filePath: filePath!,
+                fileName: fileName!,
+                titel: titelC.text.trim(),
+                rechnungsnummer: rechnungNrC.text.trim(),
+                abrechnungszeitraum: zeitraumC.text.trim(),
+                betrag: double.tryParse(betragC.text.trim()),
+                kuendigungDatum: kundDatumC.text.isNotEmpty ? kundDatumC.text.trim() : null,
+                kuendigungBestaetigt: bestaetigt,
+                kuendigungBestaetigungsDatum: bestDatumC.text.isNotEmpty ? bestDatumC.text.trim() : null,
+                rufnummernmitnahme: rufnummer,
+                kuendigungGrund: grundC.text.trim(),
+                notiz: notizC.text.trim(),
+              );
+              if (!ctx.mounted) return;
+              if (res['success'] == true) {
+                Navigator.pop(ctx);
+                _load();
+              } else {
+                setD(() => uploading = false);
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
+              }
+            },
+          ),
+        ],
+      )),
     );
   }
 }
