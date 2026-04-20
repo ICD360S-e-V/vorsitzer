@@ -835,7 +835,7 @@ class _DokTabState extends State<_DokTab> {
     ('mahnung', 'Mahnung / Erinnerung', Icons.warning, Colors.deepOrange, 'Keine Bestätigung? Per Einschreiben mit Rückschein erneut kündigen + Frist setzen (7 Tage).'),
     ('beschwerde', 'Beschwerde', Icons.gavel, Colors.purple, 'Keine Reaktion? Beschwerde bei Bundesnetzagentur oder Verbraucherzentrale einreichen.'),
     ('vertragsende', 'Vertrag beendet', Icons.event_available, Colors.teal, 'Vertrag ist offiziell beendet. SIM-Karte zurückgeben falls verlangt.'),
-    ('rufnummer', 'Rufnummernmitnahme', Icons.phone_forwarded, Colors.blue, 'Rufnummer zum neuen Anbieter portiert (kostenlos per TKG, bis 1 Monat nach Vertragsende möglich).'),
+    ('rufnummer', 'Rufnummernmitnahme (optional)', Icons.phone_forwarded, Colors.blue, 'Optional: Rufnummer zum neuen Anbieter mitnehmen (kostenlos per TKG, bis 1 Monat nach Vertragsende). Nur wenn gewünscht.'),
   ];
 
   @override
