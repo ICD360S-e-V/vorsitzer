@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'file_viewer_dialog.dart';
 import '../services/termin_service.dart';
 
 /// Versorgungsamt content with tabs similar to Arzt structure.
@@ -1212,22 +1214,197 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                     child: ListTile(
                       leading: Icon(icon, color: color),
                       title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: Text('${k['datum'] ?? ''} • ${richt.toUpperCase()}${methodLabel.isNotEmpty ? ' • $methodLabel' : ''}${docs > 0 ? ' • 📎 $docs' : ''}${(k['inhalt']?.toString() ?? '').isNotEmpty ? '\n${k['inhalt']}' : ''}', style: const TextStyle(fontSize: 11)),
-                      isThreeLine: (k['inhalt']?.toString() ?? '').isNotEmpty,
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
-                        onPressed: () {
-                          setState(() => korr.removeAt(i));
-                          data['korrespondenz'] = korr;
-                          widget.saveData(type, data);
-                        },
-                      ),
+                      subtitle: Text('${k['datum'] ?? ''} • ${richt.toUpperCase()}${methodLabel.isNotEmpty ? ' • $methodLabel' : ''}${docs > 0 ? ' • 📎 $docs' : ''}', style: const TextStyle(fontSize: 11)),
+                      trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                      onTap: () => _showKorrDetailDialog(k, i, korr, data),
                     ),
                   );
                 },
               ),
       ),
     ]);
+  }
+
+  void _showKorrDetailDialog(Map<String, dynamic> k, int index, List<Map<String, dynamic>> korr, Map<String, dynamic> data) {
+    final isEin = (k['richtung']?.toString() ?? 'eingehend') == 'eingehend';
+    final color = isEin ? Colors.green : Colors.blue;
+    final methodLabel = {'post': 'Post', 'email': 'E-Mail', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax'}[k['methode']?.toString() ?? ''] ?? k['methode']?.toString() ?? '';
+    final docs = k['dokumente'] is List ? List<Map<String, dynamic>>.from((k['dokumente'] as List).whereType<Map>()) : <Map<String, dynamic>>[];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: 540, height: 500,
+          child: DefaultTabController(
+            length: 2,
+            child: Column(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(color: color.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+                child: Row(children: [
+                  Icon(isEin ? Icons.inbox : Icons.outbox, color: Colors.white, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(k['betreff']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                    Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'} • $methodLabel', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  ])),
+                  IconButton(icon: const Icon(Icons.delete, color: Colors.white70, size: 20), onPressed: () {
+                    setState(() => korr.removeAt(index));
+                    data['korrespondenz'] = korr;
+                    widget.saveData(type, data);
+                    Navigator.pop(ctx);
+                  }),
+                  IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(ctx)),
+                ]),
+              ),
+              TabBar(
+                labelColor: color.shade700,
+                indicatorColor: color.shade700,
+                tabs: const [
+                  Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+                  Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
+                ],
+              ),
+              Expanded(child: TabBarView(children: [
+                // Details tab
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      width: double.infinity, padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8)),
+                      child: Row(children: [
+                        Icon(isEin ? Icons.inbox : Icons.outbox, size: 14, color: color.shade700),
+                        const SizedBox(width: 6),
+                        Text(isEin ? 'Eingang (vom Amt)' : 'Ausgang (ans Amt)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color.shade800)),
+                        const Spacer(),
+                        Text(methodLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      ]),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                    const SizedBox(height: 4),
+                    Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    Text('Inhalt / Zusammenfassung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: double.infinity, padding: const EdgeInsets.all(12),
+                      constraints: const BoxConstraints(minHeight: 120),
+                      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+                      child: SelectableText(
+                        (k['inhalt']?.toString() ?? '').isEmpty ? '(kein Inhalt)' : k['inhalt'].toString(),
+                        style: TextStyle(fontSize: 13, height: 1.5, color: (k['inhalt']?.toString() ?? '').isEmpty ? Colors.grey.shade400 : Colors.black87),
+                      ),
+                    ),
+                  ]),
+                ),
+                // Dokumente tab
+                StatefulBuilder(builder: (ctx2, setDocState) {
+                  return Column(children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(children: [
+                        Expanded(child: Text('${docs.length} Dokumente', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                        FilledButton.icon(
+                          icon: const Icon(Icons.upload_file, size: 14),
+                          label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
+                          style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+                          onPressed: () async {
+                            final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+                            if (result == null) return;
+                            for (final f in result.files) {
+                              if (f.path == null) continue;
+                              try {
+                                final res = await widget.apiService.uploadVersorgungsamtKorrDoc(
+                                  userId: widget.userId,
+                                  korrIndex: index,
+                                  korrDatum: k['datum']?.toString() ?? '',
+                                  filePath: f.path!,
+                                  fileName: f.name,
+                                );
+                                if (res['success'] == true) {
+                                  docs.add({'name': f.name, 'id': res['id']});
+                                }
+                              } catch (_) {}
+                            }
+                            k['dokumente'] = docs;
+                            data['korrespondenz'] = korr;
+                            widget.saveData(type, data);
+                            setDocState(() {});
+                            setState(() {});
+                          },
+                        ),
+                      ]),
+                    ),
+                    Expanded(
+                      child: docs.isEmpty
+                          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.folder_open, size: 48, color: Colors.grey.shade300),
+                              const SizedBox(height: 6),
+                              Text('Keine Dokumente', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                            ]))
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              itemCount: docs.length,
+                              itemBuilder: (_, di) {
+                                final doc = docs[di];
+                                final docId = int.tryParse(doc['id']?.toString() ?? '');
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+                                  child: Row(children: [
+                                    Icon(Icons.description, size: 18, color: Colors.indigo.shade600),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(doc['name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.indigo.shade700))),
+                                    if (docId != null) ...[
+                                      IconButton(
+                                        icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+                                        onPressed: () async {
+                                          try {
+                                            final resp = await widget.apiService.downloadVersorgungsamtKorrDoc(docId);
+                                            if (resp.statusCode == 200 && ctx2.mounted) {
+                                              final dir = await getTemporaryDirectory();
+                                              final file = File('${dir.path}/${doc['name']}');
+                                              await file.writeAsBytes(resp.bodyBytes);
+                                              if (ctx2.mounted) await FileViewerDialog.show(ctx2, file.path, doc['name']?.toString() ?? '');
+                                            }
+                                          } catch (e) {
+                                            if (ctx2.mounted) ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+                                          }
+                                        },
+                                        padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                                        onPressed: () async {
+                                          await widget.apiService.deleteVersorgungsamtKorrDoc(docId);
+                                          setDocState(() => docs.removeAt(di));
+                                          k['dokumente'] = docs;
+                                          data['korrespondenz'] = korr;
+                                          widget.saveData(type, data);
+                                          setState(() {});
+                                        },
+                                        padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                      ),
+                                    ],
+                                  ]),
+                                );
+                              },
+                            ),
+                    ),
+                  ]);
+                }),
+              ])),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showKorrDialog(Map<String, dynamic> data) {
