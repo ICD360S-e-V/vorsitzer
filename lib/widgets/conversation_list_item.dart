@@ -9,6 +9,7 @@ class ConversationListItem extends StatelessWidget {
   final bool isMuted;
   final Map<String, dynamic>? networkData;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   const ConversationListItem({
     super.key,
@@ -17,6 +18,7 @@ class ConversationListItem extends StatelessWidget {
     required this.hasActiveCall,
     required this.isOnline,
     required this.onTap,
+    this.onDelete,
     this.isMuted = false,
     this.networkData,
   });
@@ -54,6 +56,15 @@ class ConversationListItem extends StatelessWidget {
           ],
         ),
         onTap: onTap,
+        trailing: onDelete != null
+            ? IconButton(
+                icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                tooltip: 'Konversation löschen',
+                onPressed: onDelete,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              )
+            : null,
       ),
     );
   }
