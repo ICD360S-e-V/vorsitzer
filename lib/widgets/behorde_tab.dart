@@ -589,7 +589,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   loadData: (t) => _loadBehoerdeData(t),
                   saveData: (t, d) => _saveBehoerdeData(t, d),
                 )),
-                BehordeLandratsamtContent(
+                _buildTabContent('landratsamt', () => BehordeLandratsamtContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
                   getData: (t) => _behoerdeData[t] ?? {},
@@ -597,7 +597,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   isSaving: (t) => _behoerdeSaving[t] == true,
                   loadData: (t) => _loadBehoerdeData(t),
                   saveData: (t, d) => _saveBehoerdeData(t, d),
-                ),
+                )),
               ],
             ),
           ),
