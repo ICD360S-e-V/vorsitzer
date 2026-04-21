@@ -149,6 +149,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           final data = result['data'];
           if (data != null && data['enabled'] != null) {
             _enabledTabs = Set<String>.from(List<String>.from(data['enabled']));
+            // Auto-enable new tab types that were added after the config was saved
+            for (final t in _allTypes) {
+              if (!_enabledTabs.contains(t)) _enabledTabs.add(t);
+            }
           } else {
             // Default: all enabled
             _enabledTabs = Set<String>.from(_allTypes);
