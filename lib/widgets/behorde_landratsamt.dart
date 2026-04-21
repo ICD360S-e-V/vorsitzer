@@ -35,7 +35,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
     if (widget.isLoading(type)) return const Center(child: CircularProgressIndicator());
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Column(children: [
         TabBar(
           labelColor: Colors.brown.shade700,
@@ -43,6 +43,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
           indicatorColor: Colors.brown.shade700,
           isScrollable: true,
           tabs: const [
+            Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Amt'),
             Tab(icon: Icon(Icons.directions_car, size: 16), text: 'KFZ'),
             Tab(icon: Icon(Icons.badge, size: 16), text: 'Führerschein'),
             Tab(icon: Icon(Icons.home_work, size: 16), text: 'Bau & Wohnen'),
@@ -52,6 +53,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
         ),
         Expanded(
           child: TabBarView(children: [
+            _buildAmtTab(data),
             _buildKfzTab(data),
             _buildFuehrerscheinTab(data),
             _buildBauTab(data),
@@ -60,6 +62,28 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
           ]),
         ),
         _buildSaveFooter(data),
+      ]),
+    );
+  }
+
+  // ============ AMT (zuständiges Landratsamt) ============
+  Widget _buildAmtTab(Map<String, dynamic> data) {
+    final amt = Map<String, dynamic>.from(data['amt'] ?? {});
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _header(Icons.account_balance, 'Zuständiges Landratsamt', Colors.brown),
+        const SizedBox(height: 16),
+        _field('Name', amt, 'name', Icons.account_balance, hint: 'z.B. Landratsamt Neu-Ulm'),
+        _field('Straße + Hausnr.', amt, 'strasse', Icons.location_on, hint: 'z.B. Kantstraße 8'),
+        _field('PLZ + Ort', amt, 'plz_ort', Icons.location_city, hint: 'z.B. 89231 Neu-Ulm'),
+        _field('Telefon (Zentrale)', amt, 'telefon', Icons.phone, hint: 'z.B. 0731 7040-0'),
+        _field('E-Mail', amt, 'email', Icons.email, hint: 'z.B. info@lra.neu-ulm.de'),
+        _field('Website', amt, 'website', Icons.language, hint: 'z.B. www.landkreis-nu.de'),
+        _field('Öffnungszeiten', amt, 'oeffnungszeiten', Icons.access_time, hint: 'Mo-Fr 08:00-12:00, Do 14:00-17:30', maxLines: 2),
+        _field('Sachbearbeiter/in', amt, 'sachbearbeiter', Icons.person, hint: 'Name des Ansprechpartners'),
+        _field('Aktenzeichen', amt, 'aktenzeichen', Icons.tag, hint: 'Falls vorhanden'),
+        _field('Notizen', amt, 'notizen', Icons.note, hint: '', maxLines: 3),
       ]),
     );
   }
