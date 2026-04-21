@@ -3408,6 +3408,52 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ========== VERSORGUNGSAMT KORRESPONDENZ DOCS ==========
+
+  Future<Map<String, dynamic>> listVersorgungsamtKorrDocs(int userId, {String? korrDatum}) async {
+    final qs = korrDatum != null ? '&korr_datum=$korrDatum' : '';
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/versorgungsamt_korr_doc.php?user_id=$userId$qs'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadVersorgungsamtKorrDoc({
+    required int userId,
+    required int korrIndex,
+    required String korrDatum,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/versorgungsamt_korr_doc.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['korr_index'] = korrIndex.toString();
+    request.fields['korr_datum'] = korrDatum;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteVersorgungsamtKorrDoc(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/versorgungsamt_korr_doc.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadVersorgungsamtKorrDoc(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/versorgungsamt_korr_doc.php?download_id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ========== VERSORGUNGSAMT TERMIN EINTRÄGE ==========
 
   Future<Map<String, dynamic>> listVersorgungsamtEintraege(int userId, {String? terminDatum}) async {
