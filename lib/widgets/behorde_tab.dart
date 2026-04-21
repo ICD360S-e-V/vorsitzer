@@ -324,6 +324,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'arbeitgeber', 'icon': Icons.factory, 'label': 'Arbeitgeber'},
     {'type': 'bundesagentur', 'icon': Icons.work, 'label': 'Arbeitsagentur'},
     {'type': 'jobcenter', 'icon': Icons.business_center, 'label': 'Jobcenter'},
+    {'type': 'landratsamt', 'icon': Icons.account_balance_wallet, 'label': 'Landratsamt'},
     {'type': 'sozialamt', 'icon': Icons.volunteer_activism, 'label': 'Sozialamt'},
     {'type': 'finanzamt', 'icon': Icons.account_balance_wallet, 'label': 'Finanzamt'},
     {'type': 'gericht', 'icon': Icons.gavel, 'label': 'Gericht'},
@@ -341,7 +342,6 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'konsulat', 'icon': Icons.account_balance, 'label': 'Konsulat'},
     {'type': 'polizei', 'icon': Icons.local_police, 'label': 'Polizei'},
     {'type': 'versorgungsamt', 'icon': Icons.accessible, 'label': 'Versorgungsamt'},
-    {'type': 'landratsamt', 'icon': Icons.account_balance_wallet, 'label': 'Landratsamt'},
   ];
 
   @override
@@ -443,6 +443,15 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   getMeldungen: (d) => _getMeldungen(d),
                   getAntraege: (d) => _getAntraege(d),
                 ),
+                _buildTabContent('landratsamt', () => BehordeLandratsamtContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                  getData: (t) => _behoerdeData[t] ?? {},
+                  isLoading: (t) => _behoerdeLoading[t] == true,
+                  isSaving: (t) => _behoerdeSaving[t] == true,
+                  loadData: (t) => _loadBehoerdeData(t),
+                  saveData: (t, d) => _saveBehoerdeData(t, d),
+                )),
                 BehordeSozialamtContent(
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
@@ -587,15 +596,6 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 _buildTabContent('versorgungsamt', () => BehordeVersorgungsamtContent(
                   apiService: widget.apiService,
                   terminService: widget.terminService,
-                  userId: widget.user.id,
-                  getData: (t) => _behoerdeData[t] ?? {},
-                  isLoading: (t) => _behoerdeLoading[t] == true,
-                  isSaving: (t) => _behoerdeSaving[t] == true,
-                  loadData: (t) => _loadBehoerdeData(t),
-                  saveData: (t, d) => _saveBehoerdeData(t, d),
-                )),
-                _buildTabContent('landratsamt', () => BehordeLandratsamtContent(
-                  apiService: widget.apiService,
                   userId: widget.user.id,
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
