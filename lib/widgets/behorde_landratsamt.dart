@@ -122,7 +122,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   // ============ KFZ ZULASSUNGSSTELLE ============
-  Widget _buildKfzTab(Map<String, dynamic> data) {
+  Widget _buildKfzTab() {
     final kfz = _bereich('kfz');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -149,7 +149,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   // ============ FÜHRERSCHEINSTELLE ============
-  Widget _buildFuehrerscheinTab(Map<String, dynamic> data) {
+  Widget _buildFuehrerscheinTab() {
     final fs = _bereich('fuehrerschein');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -175,7 +175,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   // ============ BAU & WOHNEN ============
-  Widget _buildBauTab(Map<String, dynamic> data) {
+  Widget _buildBauTab() {
     final bau = _bereich('bau');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -194,7 +194,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   // ============ UMWELT & NATUR ============
-  Widget _buildUmweltTab(Map<String, dynamic> data) {
+  Widget _buildUmweltTab() {
     final umw = _bereich('umwelt');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -214,7 +214,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   // ============ SONSTIGES ============
-  Widget _buildSonstigesTab(Map<String, dynamic> data) {
+  Widget _buildSonstigesTab() {
     final son = _bereich('sonstiges');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -284,7 +284,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
     );
   }
 
-  Widget _buildSaveFooter(Map<String, dynamic> data) {
+  Widget _buildSaveFooter() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade300))),
