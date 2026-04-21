@@ -27,6 +27,7 @@ import 'behorde_konsulat.dart';
 import 'behorde_polizei.dart';
 import 'behorde_sozialamt.dart';
 import 'behorde_versorgungsamt.dart';
+import 'behorde_landratsamt.dart';
 import 'file_viewer_dialog.dart';
 import '../screens/webview_screen.dart';
 import '../utils/file_picker_helper.dart';
@@ -79,6 +80,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'gericht',
     'krankenkasse', 'rentenversicherung', 'auslaenderbehoerde', 'familienkasse',
     'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei',
+    'versorgungsamt', 'landratsamt',
   ];
 
   // Fields per type for completion calculation
@@ -147,6 +149,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           final data = result['data'];
           if (data != null && data['enabled'] != null) {
             _enabledTabs = Set<String>.from(List<String>.from(data['enabled']));
+            for (final t in _allTypes) {
+              if (!_enabledTabs.contains(t)) _enabledTabs.add(t);
+            }
           } else {
             // Default: all enabled
             _enabledTabs = Set<String>.from(_allTypes);
@@ -318,6 +323,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'arbeitgeber', 'icon': Icons.factory, 'label': 'Arbeitgeber'},
     {'type': 'bundesagentur', 'icon': Icons.work, 'label': 'Arbeitsagentur'},
     {'type': 'jobcenter', 'icon': Icons.business_center, 'label': 'Jobcenter'},
+    {'type': 'landratsamt', 'icon': Icons.account_balance_wallet, 'label': 'Landratsamt'},
     {'type': 'sozialamt', 'icon': Icons.volunteer_activism, 'label': 'Sozialamt'},
     {'type': 'finanzamt', 'icon': Icons.account_balance_wallet, 'label': 'Finanzamt'},
     {'type': 'gericht', 'icon': Icons.gavel, 'label': 'Gericht'},
@@ -342,7 +348,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 20,
+      length: 21,
       child: Column(
         children: [
           _buildMemberAddressCard(),
@@ -436,6 +442,15 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   getMeldungen: (d) => _getMeldungen(d),
                   getAntraege: (d) => _getAntraege(d),
                 ),
+                _buildTabContent('landratsamt', () => BehordeLandratsamtContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                  getData: (t) => _behoerdeData[t] ?? {},
+                  isLoading: (t) => _behoerdeLoading[t] == true,
+                  isSaving: (t) => _behoerdeSaving[t] == true,
+                  loadData: (t) => _loadBehoerdeData(t),
+                  saveData: (t, d) => _saveBehoerdeData(t, d),
+                )),
                 BehordeSozialamtContent(
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
