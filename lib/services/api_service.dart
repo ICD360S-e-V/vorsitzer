@@ -3503,6 +3503,17 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== CHAT CONVERSATION DELETE ==========
+
+  Future<Map<String, dynamic>> deleteConversation(int conversationId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/chat/conversation_delete.php'),
+      headers: _headers,
+      body: jsonEncode({'conversation_id': conversationId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== FINANZAMT KORRESPONDENZ ==========
 
   Future<Map<String, dynamic>> getFinanzamtKorrespondenz(int userId) async {
