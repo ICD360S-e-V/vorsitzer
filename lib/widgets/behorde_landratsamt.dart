@@ -291,8 +291,8 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
       child: Align(
         alignment: Alignment.centerRight,
         child: ElevatedButton.icon(
-          onPressed: widget.isSaving(type) ? null : () => widget.saveData(type, data),
-          icon: widget.isSaving(type)
+          onPressed: _saving ? null : () => _saveToDB(),
+          icon: _saving
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.save, size: 18),
           label: const Text('Speichern'),
