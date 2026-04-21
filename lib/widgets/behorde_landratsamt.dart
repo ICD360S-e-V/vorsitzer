@@ -27,12 +27,47 @@ class BehordeLandratsamtContent extends StatefulWidget {
 
 class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   static const type = 'landratsamt';
+  Map<String, Map<String, dynamic>> _dbData = {};
+  bool _loaded = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFromDB();
+  }
+
+  Future<void> _loadFromDB() async {
+    final r = await widget.apiService.getLandratsamtData(widget.userId);
+    if (!mounted) return;
+    if (r['success'] == true && r['data'] is Map) {
+      setState(() {
+        final raw = r['data'] as Map;
+        _dbData = {};
+        for (final entry in raw.entries) {
+          _dbData[entry.key.toString()] = Map<String, dynamic>.from(entry.value as Map);
+        }
+        _loaded = true;
+      });
+    } else {
+      setState(() => _loaded = true);
+    }
+  }
+
+  Future<void> _saveToDB() async {
+    setState(() => _saving = true);
+    await widget.apiService.saveLandratsamtData(widget.userId, _dbData);
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Map<String, dynamic> _bereich(String key) {
+    _dbData[key] ??= {};
+    return _dbData[key]!;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.getData(type);
-    if (data.isEmpty && !widget.isLoading(type)) widget.loadData(type);
-    if (widget.isLoading(type)) return const Center(child: CircularProgressIndicator());
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
 
     return DefaultTabController(
       length: 6,
@@ -53,22 +88,22 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
         ),
         Expanded(
           child: TabBarView(children: [
-            _buildAmtTab(data),
-            _buildKfzTab(data),
-            _buildFuehrerscheinTab(data),
-            _buildBauTab(data),
-            _buildUmweltTab(data),
-            _buildSonstigesTab(data),
+            _buildAmtTab(),
+            _buildKfzTab(),
+            _buildFuehrerscheinTab(),
+            _buildBauTab(),
+            _buildUmweltTab(),
+            _buildSonstigesTab(),
           ]),
         ),
-        _buildSaveFooter(data),
+        _buildSaveFooter(),
       ]),
     );
   }
 
   // ============ AMT (zuständiges Landratsamt) ============
-  Widget _buildAmtTab(Map<String, dynamic> data) {
-    final amt = Map<String, dynamic>.from(data['amt'] ?? {});
+  Widget _buildAmtTab() {
+    final amt = _bereich('amt');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -88,7 +123,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 
   // ============ KFZ ZULASSUNGSSTELLE ============
   Widget _buildKfzTab(Map<String, dynamic> data) {
-    final kfz = Map<String, dynamic>.from(data['kfz'] ?? {});
+    final kfz = _bereich('kfz');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -115,7 +150,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 
   // ============ FÜHRERSCHEINSTELLE ============
   Widget _buildFuehrerscheinTab(Map<String, dynamic> data) {
-    final fs = Map<String, dynamic>.from(data['fuehrerschein'] ?? {});
+    final fs = _bereich('fuehrerschein');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -141,7 +176,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 
   // ============ BAU & WOHNEN ============
   Widget _buildBauTab(Map<String, dynamic> data) {
-    final bau = Map<String, dynamic>.from(data['bau'] ?? {});
+    final bau = _bereich('bau');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -160,7 +195,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 
   // ============ UMWELT & NATUR ============
   Widget _buildUmweltTab(Map<String, dynamic> data) {
-    final umw = Map<String, dynamic>.from(data['umwelt'] ?? {});
+    final umw = _bereich('umwelt');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -180,7 +215,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 
   // ============ SONSTIGES ============
   Widget _buildSonstigesTab(Map<String, dynamic> data) {
-    final son = Map<String, dynamic>.from(data['sonstiges'] ?? {});
+    final son = _bereich('sonstiges');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
