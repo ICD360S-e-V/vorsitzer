@@ -3408,6 +3408,26 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ========== LANDRATSAMT DATA (dedicated DB table) ==========
+
+  Future<Map<String, dynamic>> getLandratsamtData(int userId, {String? bereich}) async {
+    final qs = bereich != null ? '&bereich=$bereich' : '';
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/landratsamt_manage.php?user_id=$userId$qs'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveLandratsamtData(int userId, Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/landratsamt_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'data': data}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== VERSORGUNGSAMT KORRESPONDENZ DOCS ==========
 
   Future<Map<String, dynamic>> listVersorgungsamtKorrDocs(int userId, {String? korrDatum}) async {
