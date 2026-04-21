@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
 import '../services/termin_service.dart';
 
 /// Versorgungsamt content with tabs similar to Arzt structure.
@@ -1235,7 +1236,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final inhaltC = TextEditingController();
     String richt = 'eingehend';
     String methode = '';
-    final dokumente = <Map<String, String>>[];
+    final dokumente = <Map<String, dynamic>>[];
 
     final methodOptions = {
       'post': ('Per Post', Icons.local_post_office),
@@ -1288,16 +1289,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 icon: const Icon(Icons.upload_file, size: 14),
                 label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
                 onPressed: () async {
-                  final result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+                  final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
                   if (result == null) return;
                   for (final f in result.files) {
                     if (f.path == null) continue;
-                    try {
-                      final bytes = await File(f.path!).readAsBytes();
-                      final b64 = base64Encode(bytes);
-                      dokumente.add({'name': f.name, 'size': f.size.toString(), 'data': b64});
-                      setD(() {});
-                    } catch (_) {}
+                    dokumente.add({'name': f.name, 'path': f.path!, 'size': f.size.toString()});
+                    setD(() {});
                   }
                 },
               ),
@@ -1321,21 +1318,39 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               if (datumC.text.isEmpty || betreffC.text.isEmpty || methode.isEmpty) return;
               final korr = List<Map<String, dynamic>>.from(data['korrespondenz'] ?? []);
+              final korrIndex = korr.length;
+              // Upload files to server (encrypted)
+              final uploadedDocs = <Map<String, dynamic>>[];
+              for (final doc in dokumente) {
+                if (doc['path'] == null) continue;
+                try {
+                  final res = await widget.apiService.uploadVersorgungsamtKorrDoc(
+                    userId: widget.userId,
+                    korrIndex: korrIndex,
+                    korrDatum: datumC.text,
+                    filePath: doc['path'],
+                    fileName: doc['name'],
+                  );
+                  if (res['success'] == true) {
+                    uploadedDocs.add({'name': doc['name'], 'id': res['id']});
+                  }
+                } catch (_) {}
+              }
               korr.add({
                 'datum': datumC.text,
                 'richtung': richt,
                 'methode': methode,
                 'betreff': betreffC.text,
                 'inhalt': inhaltC.text,
-                'dokumente': dokumente,
+                'dokumente': uploadedDocs,
               });
               korr.sort((a, b) => (b['datum'] ?? '').toString().compareTo((a['datum'] ?? '').toString()));
               setState(() => data['korrespondenz'] = korr);
               widget.saveData(type, data);
-              Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Speichern'),
           ),
