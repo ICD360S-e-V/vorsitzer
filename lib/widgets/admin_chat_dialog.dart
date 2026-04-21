@@ -448,6 +448,41 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     );
   }
 
+  Future<void> _confirmDeleteConversation(Map<String, dynamic> conv) async {
+    final memberNr = conv['mitgliedernummer']?.toString() ?? conv['member_nr']?.toString() ?? '';
+    final convId = _parseConvId(conv['id']);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konversation löschen?'),
+        content: Text('Die gesamte Konversation mit $memberNr wird unwiderruflich gelöscht — für Vorsitzer UND Mitglied.\n\nDas Mitglied sieht danach eine leere Chat-Ansicht.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Endgültig löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final res = await _apiService.deleteConversation(convId);
+    if (!mounted) return;
+    if (res['success'] == true) {
+      setState(() {
+        _conversations.removeWhere((c) => _parseConvId(c['id']) == convId);
+        if (_selectedConversation != null && _parseConvId(_selectedConversation!['id']) == convId) {
+          _selectedConversation = null;
+          _messages.clear();
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konversation gelöscht'), backgroundColor: Colors.green));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
   Future<void> _selectConversation(Map<String, dynamic> conversation) async {
     if (!mounted) return;
 
@@ -1864,6 +1899,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           isMuted: conv['is_muted'] == true,
           networkData: _memberNetworkCache[memberNumber],
           onTap: () => _selectConversation(conv),
+          onDelete: () => _confirmDeleteConversation(conv),
         );
       },
     );
