@@ -222,9 +222,314 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     if (widget.isLoading(type)) {
       return const Center(child: CircularProgressIndicator());
     }
+    return DefaultTabController(
+      length: 3,
+      child: StatefulBuilder(
+        builder: (context, setLocalState) {
+          return Column(
+            children: [
+              TabBar(
+                labelColor: Colors.indigo.shade700,
+                unselectedLabelColor: Colors.grey.shade600,
+                indicatorColor: Colors.indigo.shade700,
+                tabs: const [
+                  Tab(icon: Icon(Icons.work, size: 16), text: 'Arbeitsgericht'),
+                  Tab(icon: Icon(Icons.balance, size: 16), text: 'Sozialgericht'),
+                  Tab(icon: Icon(Icons.family_restroom, size: 16), text: 'Betreuungsgericht'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildGerichtTab(data, 'arbeitsgericht', _arbeitsgerichte, Colors.orange, setLocalState),
+                    _buildGerichtTab(data, 'sozialgericht', _sozialgerichte, Colors.teal, setLocalState),
+                    _buildGerichtTab(data, 'betreuungsgericht', _betreuungsgerichte, Colors.deepPurple, setLocalState),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildGerichtTab(Map<String, dynamic> data, String gerichtTyp, List<Map<String, String>> gerichtListe, MaterialColor themeColor, void Function(void Function()) setLocalState) {
+    final subKey = '${gerichtTyp}_data';
+    final subData = data[subKey] is Map ? Map<String, dynamic>.from(data[subKey] as Map) : <String, dynamic>{};
+    String selectedGericht = subData['gericht_name']?.toString() ?? '';
+    final selected = gerichtListe.where((g) => g['name'] == selectedGericht).firstOrNull;
+    final termine = List<Map<String, dynamic>>.from(subData['termine'] ?? []);
+    final korrespondenz = List<Map<String, dynamic>>.from(subData['korrespondenz'] ?? []);
+
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          TabBar(
+            labelColor: themeColor.shade700,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: themeColor.shade700,
+            tabs: const [
+              Tab(icon: Icon(Icons.account_balance, size: 14), text: 'Zuständiges Gericht'),
+              Tab(icon: Icon(Icons.calendar_month, size: 14), text: 'Termine'),
+              Tab(icon: Icon(Icons.mail, size: 14), text: 'Korrespondenz'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                // === ZUSTÄNDIGES GERICHT ===
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Zuständiges Gericht wählen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: themeColor.shade800)),
+                    const SizedBox(height: 8),
+                    ...gerichtListe.map((g) {
+                      final isSel = selectedGericht == g['name'];
+                      return InkWell(
+                        onTap: () {
+                          setLocalState(() {
+                            subData['gericht_name'] = g['name'];
+                            data[subKey] = subData;
+                          });
+                          widget.saveData(type, data);
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isSel ? themeColor.shade50 : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: isSel ? themeColor.shade400 : Colors.grey.shade300, width: isSel ? 2 : 1),
+                          ),
+                          child: Row(children: [
+                            Icon(isSel ? Icons.check_circle : Icons.account_balance, size: 20, color: isSel ? themeColor.shade700 : Colors.grey.shade500),
+                            const SizedBox(width: 10),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(g['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isSel ? themeColor.shade900 : Colors.black87)),
+                              Text(g['adresse']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                              if (g['zustaendigkeit'] != null)
+                                Text(g['zustaendigkeit']!, style: TextStyle(fontSize: 10, color: themeColor.shade400, fontStyle: FontStyle.italic)),
+                            ])),
+                          ]),
+                        ),
+                      );
+                    }),
+                    if (selected != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: themeColor.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: themeColor.shade200)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: themeColor.shade800)),
+                          const SizedBox(height: 6),
+                          _gerichtInfoRow(Icons.phone, 'Telefon', selected['telefon'] ?? ''),
+                          _gerichtInfoRow(Icons.print, 'Fax', selected['fax'] ?? ''),
+                          _gerichtInfoRow(Icons.email, 'E-Mail', selected['email'] ?? ''),
+                          _gerichtInfoRow(Icons.access_time, 'Öffnungszeiten', selected['oeffnungszeiten'] ?? ''),
+                        ]),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: TextEditingController(text: subData['aktenzeichen']?.toString() ?? ''),
+                      onChanged: (v) { subData['aktenzeichen'] = v; data[subKey] = subData; },
+                      decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.tag, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: TextEditingController(text: subData['sachbearbeiter']?.toString() ?? ''),
+                      onChanged: (v) { subData['sachbearbeiter'] = v; data[subKey] = subData; },
+                      decoration: InputDecoration(labelText: 'Sachbearbeiter/in', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: TextEditingController(text: subData['notizen']?.toString() ?? ''),
+                      onChanged: (v) { subData['notizen'] = v; data[subKey] = subData; },
+                      maxLines: 3,
+                      decoration: InputDecoration(labelText: 'Notizen', prefixIcon: const Icon(Icons.note, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: () => widget.saveData(type, data),
+                        icon: const Icon(Icons.save, size: 16),
+                        label: const Text('Speichern'),
+                        style: ElevatedButton.styleFrom(backgroundColor: themeColor, foregroundColor: Colors.white),
+                      ),
+                    ),
+                  ]),
+                ),
+                // === TERMINE ===
+                Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(children: [
+                      Icon(Icons.calendar_month, size: 20, color: themeColor.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('Termine', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: themeColor.shade700))),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          final datumC = TextEditingController();
+                          final uhrzeitC = TextEditingController();
+                          final notizenC = TextEditingController();
+                          showDialog(context: context, builder: (ctx) => AlertDialog(
+                            title: const Text('Neuer Termin'),
+                            content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                                final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+                                if (p != null) datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+                              }),
+                              const SizedBox(height: 8),
+                              TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                              const SizedBox(height: 8),
+                              TextField(controller: notizenC, maxLines: 3, decoration: InputDecoration(labelText: 'Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                            ])),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+                              FilledButton(onPressed: () {
+                                if (datumC.text.isEmpty) return;
+                                setLocalState(() {
+                                  termine.add({'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'notizen': notizenC.text});
+                                  subData['termine'] = termine;
+                                  data[subKey] = subData;
+                                });
+                                widget.saveData(type, data);
+                                Navigator.pop(ctx);
+                              }, child: const Text('Speichern')),
+                            ],
+                          ));
+                        },
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Neuer Termin'),
+                        style: ElevatedButton.styleFrom(backgroundColor: themeColor, foregroundColor: Colors.white),
+                      ),
+                    ]),
+                  ),
+                  Expanded(
+                    child: termine.isEmpty
+                        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.event_available, size: 48, color: Colors.grey.shade300),
+                            const SizedBox(height: 8),
+                            Text('Keine Termine', style: TextStyle(color: Colors.grey.shade500)),
+                          ]))
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: termine.length,
+                            itemBuilder: (_, i) {
+                              final t = termine[i];
+                              return Card(child: ListTile(
+                                leading: Icon(Icons.event, color: themeColor.shade700),
+                                title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? ' um ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                subtitle: (t['notizen']?.toString() ?? '').isNotEmpty ? Text(t['notizen'].toString(), style: const TextStyle(fontSize: 11)) : null,
+                                trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () {
+                                  setLocalState(() { termine.removeAt(i); subData['termine'] = termine; data[subKey] = subData; });
+                                  widget.saveData(type, data);
+                                }),
+                              ));
+                            },
+                          ),
+                  ),
+                ]),
+                // === KORRESPONDENZ ===
+                Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(children: [
+                      Expanded(child: Text('${korrespondenz.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.call_received, size: 14),
+                        label: const Text('Eingang', style: TextStyle(fontSize: 11)),
+                        style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+                        onPressed: () => _showGerichtKorrDialog(data, subKey, subData, korrespondenz, 'eingang', setLocalState),
+                      ),
+                      const SizedBox(width: 6),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.call_made, size: 14),
+                        label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
+                        style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+                        onPressed: () => _showGerichtKorrDialog(data, subKey, subData, korrespondenz, 'ausgang', setLocalState),
+                      ),
+                    ]),
+                  ),
+                  Expanded(
+                    child: korrespondenz.isEmpty
+                        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+                            const SizedBox(height: 6),
+                            Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                          ]))
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            itemCount: korrespondenz.length,
+                            itemBuilder: (_, i) {
+                              final k = korrespondenz[i];
+                              final isEin = k['richtung'] == 'eingang';
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
+                                child: Row(children: [
+                                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
+                                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                  ])),
+                                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () {
+                                    setLocalState(() { korrespondenz.removeAt(i); subData['korrespondenz'] = korrespondenz; data[subKey] = subData; });
+                                    widget.saveData(type, data);
+                                  }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+                                ]),
+                              );
+                            },
+                          ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGerichtKorrDialog(Map<String, dynamic> data, String subKey, Map<String, dynamic> subData, List<Map<String, dynamic>> korrespondenz, String richtung, void Function(void Function()) setLocalState) {
+    final betreffC = TextEditingController();
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text(richtung == 'eingang' ? 'Eingang erfassen' : 'Ausgang erfassen'),
+      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () {
+          setLocalState(() {
+            korrespondenz.insert(0, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+            subData['korrespondenz'] = korrespondenz;
+            data[subKey] = subData;
+          });
+          widget.saveData(type, data);
+          Navigator.pop(ctx);
+        }, child: const Text('Speichern')),
+      ],
+    ));
+  }
+
+  // LEGACY: old build content that used ChoiceChip (kept for reference)
+  Widget _buildLegacyContent() {
+    final data = widget.getData(type);
     String gerichtTyp = data['gericht_typ'] ?? 'betreuungsgericht';
     String selectedGericht = data['gericht_name'] ?? '';
-
     return StatefulBuilder(
       builder: (context, setLocalState) {
         final gerichtListe = gerichtTyp == 'betreuungsgericht' ? _betreuungsgerichte : gerichtTyp == 'sozialgericht' ? _sozialgerichte : _arbeitsgerichte;
@@ -236,24 +541,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Gericht-Typ Auswahl
-              Text('Gerichtsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ChoiceChip(
-                    avatar: Icon(Icons.family_restroom, size: 16, color: gerichtTyp == 'betreuungsgericht' ? Colors.white : Colors.deepPurple.shade700),
-                    label: Text('Betreuungsgericht', style: TextStyle(fontSize: 12, color: gerichtTyp == 'betreuungsgericht' ? Colors.white : Colors.black87)),
-                    selected: gerichtTyp == 'betreuungsgericht',
-                    selectedColor: Colors.deepPurple.shade600,
-                    onSelected: (_) => setLocalState(() {
-                      gerichtTyp = 'betreuungsgericht'; selectedGericht = '';
-                      
-                      data['gericht_typ'] = gerichtTyp;
-                      data['gericht_name'] = '';
-                    }),
+              // OLD ChoiceChip removed — now using TabBar
                   ),
                   ChoiceChip(
                     avatar: Icon(Icons.work, size: 16, color: gerichtTyp == 'arbeitsgericht' ? Colors.white : Colors.orange.shade800),
