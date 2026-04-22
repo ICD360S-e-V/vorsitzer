@@ -102,21 +102,123 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   // ============ AMT (zuständiges Landratsamt) ============
+  static const _landratsamtListe = [
+    {'name': 'Landratsamt Neu-Ulm', 'kurzname': 'LRA Neu-Ulm', 'adresse': 'Kantstraße 8', 'plz_ort': '89231 Neu-Ulm', 'telefon': '0731 7040-0', 'fax': '0731 7040-1199', 'email': 'poststelle@lra.neu-ulm.de', 'website': 'https://www.landkreis-nu.de', 'oeffnungszeiten': 'Mo–Mi 07:30–12:30, Do 07:30–17:30, Fr 07:30–12:30', 'zustaendigkeiten': 'KFZ-Zulassung, Führerscheinstelle, Bauordnung, Umwelt & Natur, Ausländerbehörde, Jugend & Familie, Soziale Leistungen, Jagd & Fischerei, Waffenrecht'},
+    {'name': 'LRA Neu-Ulm — Außenstelle Illertissen', 'kurzname': 'LRA Illertissen', 'adresse': 'Ulmer Straße 20', 'plz_ort': '89257 Illertissen', 'telefon': '07303 9006-0', 'email': '', 'website': 'https://www.landkreis-nu.de', 'oeffnungszeiten': 'Mo–Mi 07:30–12:30, Do 07:30–17:30, Fr 07:30–12:30', 'zustaendigkeiten': 'KFZ-Zulassung (Außenstelle), Soziale Leistungen'},
+    {'name': 'Landratsamt Alb-Donau-Kreis (Ulm)', 'kurzname': 'LRA Ulm', 'adresse': 'Schillerstraße 30', 'plz_ort': '89077 Ulm', 'telefon': '0731 185-0', 'email': 'info@alb-donau-kreis.de', 'website': 'https://www.alb-donau-kreis.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00, Do 14:00–17:30', 'zustaendigkeiten': 'KFZ-Zulassung, Führerschein, Baurecht, Umwelt'},
+  ];
+
   Widget _buildAmtTab() {
     final amt = _bereich('amt');
+    final selected = amt['name']?.toString() ?? '';
+    final sel = _landratsamtListe.where((s) => s['name'] == selected).firstOrNull;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _header(Icons.account_balance, 'Zuständiges Landratsamt', Colors.brown),
-        const SizedBox(height: 16),
-        _field('Name', amt, 'name', Icons.account_balance, hint: 'z.B. Landratsamt Neu-Ulm'),
-        _field('Straße + Hausnr.', amt, 'strasse', Icons.location_on, hint: 'z.B. Kantstraße 8'),
-        _field('PLZ + Ort', amt, 'plz_ort', Icons.location_city, hint: 'z.B. 89231 Neu-Ulm'),
-        _field('Telefon (Zentrale)', amt, 'telefon', Icons.phone, hint: 'z.B. 0731 7040-0'),
-        _field('E-Mail', amt, 'email', Icons.email, hint: 'z.B. info@lra.neu-ulm.de'),
-        _field('Website', amt, 'website', Icons.language, hint: 'z.B. www.landkreis-nu.de'),
-        _field('Öffnungszeiten', amt, 'oeffnungszeiten', Icons.access_time, hint: 'Mo-Fr 08:00-12:00, Do 14:00-17:30', maxLines: 2),
-        _field('Notizen', amt, 'notizen', Icons.note, hint: '', maxLines: 3),
+        Row(children: [
+          Icon(Icons.account_balance, size: 20, color: Colors.brown.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Zuständiges Landratsamt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.search, size: 16),
+            label: Text(selected.isEmpty ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
+            onPressed: () => _showAmtSelectDialog(amt),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        if (selected.isEmpty)
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            child: Column(children: [
+              Icon(Icons.search, size: 40, color: Colors.grey.shade400),
+              const SizedBox(height: 8),
+              Text('Kein Landratsamt ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              const SizedBox(height: 4),
+              Text('Tippen Sie auf "Auswählen" um das zuständige Amt zu suchen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.brown.shade300)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(selected, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
+              if (sel != null) ...[
+                const SizedBox(height: 6),
+                _infoRow(Icons.location_on, '${sel['adresse']}, ${sel['plz_ort']}'),
+                _infoRow(Icons.phone, sel['telefon'] ?? ''),
+                _infoRow(Icons.email, sel['email'] ?? ''),
+                _infoRow(Icons.language, sel['website'] ?? ''),
+                _infoRow(Icons.access_time, sel['oeffnungszeiten'] ?? ''),
+                const SizedBox(height: 6),
+                Text('Zuständig für:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.brown.shade700)),
+                const SizedBox(height: 2),
+                Text(sel['zustaendigkeiten'] ?? '', style: TextStyle(fontSize: 11, color: Colors.brown.shade600)),
+              ],
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  void _showAmtSelectDialog(Map<String, dynamic> amt) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.search, color: Colors.brown.shade700),
+          const SizedBox(width: 8),
+          const Text('Landratsamt auswählen'),
+        ]),
+        content: SizedBox(
+          width: 500, height: 400,
+          child: ListView(children: _landratsamtListe.map((s) {
+            return InkWell(
+              onTap: () {
+                setState(() {
+                  amt['name'] = s['name'];
+                  amt['adresse'] = s['adresse'];
+                  amt['plz_ort'] = s['plz_ort'];
+                  amt['telefon'] = s['telefon'];
+                  amt['email'] = s['email'];
+                  amt['website'] = s['website'];
+                  amt['oeffnungszeiten'] = s['oeffnungszeiten'];
+                });
+                _saveToDB();
+                Navigator.pop(ctx);
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+                child: Row(children: [
+                  Icon(Icons.account_balance, size: 20, color: Colors.brown.shade600),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(s['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
+                    Text('${s['adresse']}, ${s['plz_ort']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text(s['zustaendigkeiten']!, style: TextStyle(fontSize: 10, color: Colors.brown.shade400, fontStyle: FontStyle.italic)),
+                  ])),
+                ]),
+              ),
+            );
+          }).toList()),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String text) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
       ]),
     );
   }
