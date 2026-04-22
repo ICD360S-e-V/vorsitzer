@@ -3461,6 +3461,58 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== SOZIALAMT ANTRAG DETAIL (Verlauf + Korrespondenz) ==========
+
+  Future<Map<String, dynamic>> listAntragVerlauf(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_antrag_detail.php?antrag_id=$antragId&type=verlauf'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> addAntragVerlauf(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'verlauf';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAntragVerlauf(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'verlauf', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> listAntragKorrespondenz(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_antrag_detail.php?antrag_id=$antragId&type=korrespondenz'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> addAntragKorrespondenz(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'korrespondenz';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAntragKorrespondenz(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korrespondenz', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  // ========== SOZIALAMT BEWILLIGUNG DOCS ==========
+
+  Future<Map<String, dynamic>> listBewilligungDocs(int bewilligungId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_bewilligung_doc.php?bewilligung_id=$bewilligungId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadBewilligungDoc({required int bewilligungId, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/sozialamt_bewilligung_doc.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['bewilligung_id'] = bewilligungId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteBewilligungDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_bewilligung_doc.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadBewilligungDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/sozialamt_bewilligung_doc.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   // ========== LANDRATSAMT DATA (dedicated DB table) ==========
 
   Future<Map<String, dynamic>> getLandratsamtData(int userId, {String? bereich}) async {
