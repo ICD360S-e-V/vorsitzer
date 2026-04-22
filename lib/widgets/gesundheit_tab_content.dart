@@ -9102,6 +9102,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     String typ = existing?['typ'] ?? 'normal';
     bool saving = false;
 
+    // Get online termin URL from selected arzt
+    final activeData = _healthData[type] ?? {};
+    final selArzt = activeData['selected_arzt'] as Map<String, dynamic>? ?? {};
+    final onlineTerminUrl = selArzt['online_termin_url']?.toString() ?? '';
+
     showDialog(
       context: context,
       builder: (ctx) {
@@ -9122,6 +9127,35 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Online Termin link
+                      if (onlineTerminUrl.isNotEmpty && !isEdit)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(context, MaterialPageRoute(
+                                builder: (_) => WebViewScreen(title: 'Online Termin — $arztTitle', url: onlineTerminUrl),
+                              ));
+                            },
+                            child: Row(children: [
+                              Icon(Icons.language, size: 20, color: Colors.blue.shade700),
+                              const SizedBox(width: 8),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text('Online Termin buchen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                                Text('Direkt beim Arzt online einen Termin vereinbaren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
+                              ])),
+                              Icon(Icons.open_in_new, size: 16, color: Colors.blue.shade700),
+                            ]),
+                          ),
+                        ),
                       // Typ selection
                       Text('Art des Termins', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
                       const SizedBox(height: 8),
