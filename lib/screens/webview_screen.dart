@@ -214,8 +214,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final gebTag = d['geb_tag'] ?? '';
     final gebMonat = d['geb_monat'] ?? '';
     final gebJahr = d['geb_jahr'] ?? '';
-    // Go2Doc uses MM/TT/JJJJ format for Geburtsdatum
-    final gebDatum = (gebTag.isNotEmpty && gebMonat.isNotEmpty && gebJahr.isNotEmpty)
+    // Go2Doc: try multiple date formats depending on input type
+    final gebDatumISO = (gebTag.isNotEmpty && gebMonat.isNotEmpty && gebJahr.isNotEmpty)
+        ? '$gebJahr-${gebMonat.padLeft(2, '0')}-${gebTag.padLeft(2, '0')}'
+        : '';
+    final gebDatumDE = (gebTag.isNotEmpty && gebMonat.isNotEmpty && gebJahr.isNotEmpty)
+        ? '${gebTag.padLeft(2, '0')}.${gebMonat.padLeft(2, '0')}.$gebJahr'
+        : '';
+    final gebDatumSlash = (gebTag.isNotEmpty && gebMonat.isNotEmpty && gebJahr.isNotEmpty)
         ? '${gebMonat.padLeft(2, '0')}/${gebTag.padLeft(2, '0')}/$gebJahr'
         : '';
     final email = (d['email'] ?? 'icd@icd360s.de').replaceAll("'", "\\'");
@@ -258,7 +264,15 @@ class _WebViewScreenState extends State<WebViewScreen> {
     } else if (ph.indexOf('nachname') >= 0 || nm.indexOf('nachname') >= 0 || nm.indexOf('lastname') >= 0 || nm.indexOf('surname') >= 0 || lbl.indexOf('nachname') >= 0 || id.indexOf('nachname') >= 0 || id.indexOf('lastname') >= 0) {
       if (setVal(el, '$nachname')) filled++;
     } else if (lbl.indexOf('geburtsdatum') >= 0 || lbl.indexOf('birthdate') >= 0 || ph.indexOf('geburtsdatum') >= 0 || ph.indexOf('tt.mm') >= 0 || nm.indexOf('birthdate') >= 0 || nm.indexOf('geburt') >= 0 || id.indexOf('birthdate') >= 0 || id.indexOf('geburt') >= 0) {
-      if ('$gebDatum' && setVal(el, '$gebDatum')) filled++;
+      if ('$gebDatumISO') {
+        if (el.type === 'date') { if (setVal(el, '$gebDatumISO')) filled++; }
+        else { if (setVal(el, '$gebDatumDE') || setVal(el, '$gebDatumSlash') || setVal(el, '$gebDatumISO')) filled++; }
+        // Also try setting Angular ngModel directly
+        try {
+          var ngEl = window.ng && window.ng.getComponent ? window.ng.getComponent(el) : null;
+          if (!ngEl) { var scope = angular && angular.element && angular.element(el).scope(); if (scope) { scope.Birthdate = '$gebDatumDE'; scope.\$apply(); filled++; } }
+        } catch(e2) {}
+      }
     } else if (ph.indexOf('e-mail') >= 0 || ph.indexOf('email') >= 0 || nm.indexOf('email') >= 0 || el.type === 'email' || lbl.indexOf('email') >= 0 || lbl.indexOf('e-mail') >= 0) {
       if (setVal(el, '$email')) filled++;
     } else if (el.tagName === 'SELECT' && (nm.indexOf('versicher') >= 0 || id.indexOf('versicher') >= 0 || lbl.indexOf('versicher') >= 0 || lbl.indexOf('kranken') >= 0 || lbl.indexOf('kassenart') >= 0)) {
@@ -267,14 +281,17 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   // Fallback: find Geburtsdatum by scanning labels directly (Go2Doc Angular)
-  if ('$gebDatum') {
+  if ('$gebDatumDE') {
     var labels = document.querySelectorAll('label');
     for (var lb of labels) {
       if (lb.textContent.trim().toLowerCase().indexOf('geburtsdatum') >= 0) {
         var container = lb.closest('.form-group') || lb.closest('div') || lb.parentElement;
         if (container) {
           var inp = container.querySelector('input');
-          if (inp && !inp.value) { if (setVal(inp, '$gebDatum')) filled++; }
+          if (inp && !inp.value) {
+            var dateVal = inp.type === 'date' ? '$gebDatumISO' : '$gebDatumDE';
+            if (setVal(inp, dateVal)) filled++;
+          }
         }
       }
     }
