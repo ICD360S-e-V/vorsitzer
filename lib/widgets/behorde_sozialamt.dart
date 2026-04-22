@@ -337,7 +337,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Bewilligungen', style: TextStyle(color: Colors.grey.shade500))]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: list.length, itemBuilder: (_, i) {
               final b = list[i];
-              final ok = b['bewilligt'] == true || b['bewilligt'] == 'true';
+              final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
               final ausz = b['auszahlung']?.toString() ?? '';
               final az = b['aktenzeichen']?.toString() ?? '';
               final zeitraum = (b['zeitraum_von']?.toString() ?? '').isNotEmpty ? '${b['zeitraum_von']} – ${b['zeitraum_bis'] ?? ''}' : '';
@@ -350,7 +350,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                   if ((b['erhalten_am']?.toString() ?? '').isNotEmpty) Text('Erhalten per Post: ${b['erhalten_am']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   if (zeitraum.isNotEmpty) Text('Zeitraum: $zeitraum', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   if (ausz.isNotEmpty) Text('Auszahlung: $ausz €/Monat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-                  if (b['widerspruch'] == true || b['widerspruch'] == 'true') Text('Widerspruch eingelegt${(b['widerspruch_datum']?.toString() ?? '').isNotEmpty ? ' am ${b['widerspruch_datum']}' : ''}', style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
+                  if (b['widerspruch'] == true || b['widerspruch'] == 'true' || b['widerspruch'] == 1 || b['widerspruch'] == '1') Text('Widerspruch eingelegt${(b['widerspruch_datum']?.toString() ?? '').isNotEmpty ? ' am ${b['widerspruch_datum']}' : ''}', style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
                 ]),
                 isThreeLine: true,
                 onTap: () => _showBewilligungDetailDialog(b),
@@ -447,8 +447,8 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     final einkommenC = TextEditingController(text: existing?['einkommen']?.toString() ?? '');
     final auszahlungC = TextEditingController(text: existing?['auszahlung']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
-    bool bewilligt = existing?['bewilligt'] == true || existing?['bewilligt'] == 'true' || (existing == null);
-    bool widerspruch = existing?['widerspruch'] == true || existing?['widerspruch'] == 'true';
+    bool bewilligt = existing?['bewilligt'] == true || existing?['bewilligt'] == 'true' || existing?['bewilligt'] == 1 || existing?['bewilligt'] == '1' || (existing == null);
+    bool widerspruch = existing?['widerspruch'] == true || existing?['widerspruch'] == 'true' || existing?['widerspruch'] == 1 || existing?['widerspruch'] == '1';
     final widerspruchDatumC = TextEditingController(text: existing?['widerspruch_datum']?.toString() ?? '');
     final leistungen = ['Grundsicherung im Alter', 'Grundsicherung bei Erwerbsminderung', 'Hilfe zum Lebensunterhalt', 'Eingliederungshilfe', 'Hilfe zur Pflege', 'Bildung und Teilhabe', 'Blindengeld', 'Sonstige'];
 
@@ -989,7 +989,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
   @override
   Widget build(BuildContext context) {
     final b = widget.bewilligung;
-    final ok = b['bewilligt'] == true || b['bewilligt'] == 'true';
+    final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
     return DefaultTabController(length: 3, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1018,7 +1018,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
   }
 
   Widget _buildDetails(Map<String, dynamic> b) {
-    final ok = b['bewilligt'] == true || b['bewilligt'] == 'true';
+    final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _dRow(Icons.description, 'Leistungsart', b['leistung']),
       _dRow(Icons.numbers, 'Aktenzeichen', b['aktenzeichen']),
@@ -1054,7 +1054,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
           ]),
         ),
       ],
-      if (b['widerspruch'] == true || b['widerspruch'] == 'true') ...[
+      if (b['widerspruch'] == true || b['widerspruch'] == 'true' || b['widerspruch'] == 1 || b['widerspruch'] == '1') ...[
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(8),
