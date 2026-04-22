@@ -83,7 +83,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     if (!_loaded) return const Center(child: CircularProgressIndicator());
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Column(children: [
         TabBar(
           labelColor: Colors.indigo.shade700,
@@ -92,12 +92,14 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           isScrollable: true,
           tabs: const [
             Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Zuständige Behörde'),
+            Tab(icon: Icon(Icons.euro, size: 16), text: 'Beitrag'),
             Tab(icon: Icon(Icons.description, size: 16), text: 'Anträge'),
             Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
           ],
         ),
         Expanded(child: TabBarView(children: [
           _buildBehoerdeTab(),
+          _buildBeitragTab(),
           _buildAntraegeTab(),
           _buildKorrespondenzTab(),
         ])),
@@ -105,16 +107,12 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     );
   }
 
-  // ============ TAB 1: ZUSTÄNDIGE BEHÖRDE ============
+  // ============ TAB 1: ZUSTÄNDIGE BEHÖRDE (nur Info) ============
 
   Widget _buildBehoerdeTab() {
-    final d = _b('behoerde');
-    final hasData = (d['beitragsnummer']?.toString() ?? '').isNotEmpty;
-    final readOnly = hasData && !_behoerdeEditing;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Institution info card
         Container(
           width: double.infinity, padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
@@ -123,18 +121,79 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
               Icon(Icons.radio, size: 22, color: Colors.indigo.shade700), const SizedBox(width: 10),
               Expanded(child: Text('ARD ZDF Deutschlandradio', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
             ]),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             _infoRow(Icons.business, 'Beitragsservice von ARD, ZDF und Deutschlandradio'),
             _infoRow(Icons.location_on, '50656 Köln'),
             _infoRow(Icons.phone, '01806 999 555 10 (20 Ct/Anruf)'),
+            _infoRow(Icons.fax, 'Fax: 01806 999 555 01'),
             _infoRow(Icons.language, 'www.rundfunkbeitrag.de'),
-            _infoRow(Icons.euro, 'Beitrag: 18,36 €/Monat (220,32 €/Jahr)'),
+            _infoRow(Icons.email, 'info@rundfunkbeitrag.de'),
           ]),
         ),
         const SizedBox(height: 16),
-        // Beitragsdaten
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Rundfunkbeitrag', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            const SizedBox(height: 8),
+            _infoRow(Icons.euro, '18,36 €/Monat (seit 2021)'),
+            _infoRow(Icons.calendar_month, '55,08 € vierteljährlich'),
+            _infoRow(Icons.date_range, '110,16 € halbjährlich'),
+            _infoRow(Icons.event, '220,32 € jährlich'),
+            const SizedBox(height: 8),
+            Text('Ermäßigung bei RF-Merkzeichen: 6,12 €/Monat', style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.amber.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.info, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8),
+              Text('Hinweise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+            ]),
+            const SizedBox(height: 6),
+            Text('• Pro Wohnung wird nur ein Beitrag fällig', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+            Text('• Befreiung muss aktiv beantragt werden', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+            Text('• Befreiung kann bis zu 3 Jahre rückwirkend beantragt werden', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+            Text('• Antrag per Post an: Beitragsservice, 50656 Köln', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  // ============ TAB 2: BEITRAG ============
+
+  Widget _buildBeitragTab() {
+    final d = _b('beitrag');
+    final hasData = (d['beitragsnummer']?.toString() ?? '').isNotEmpty;
+    final readOnly = hasData && !_behoerdeEditing;
+    final zahlungsart = d['zahlungsart']?.toString() ?? '';
+    final isSepa = zahlungsart == 'SEPA-Lastschrift';
+    final interval = d['zahlungsintervall']?.toString() ?? '';
+
+    // SEPA-Daten aus Finanzen/Deutschlandticket übernehmen
+    final dtData = widget.getData('deutschlandticket');
+    final sepaIban = dtData['sepa_iban']?.toString() ?? '';
+    final sepaKontoinhaber = dtData['sepa_kontoinhaber']?.toString() ?? '';
+
+    // Betrag berechnen
+    String betrag = '';
+    switch (interval) {
+      case 'monatlich': betrag = '18,36 €';
+      case 'vierteljährlich': betrag = '55,08 €';
+      case 'halbjährlich': betrag = '110,16 €';
+      case 'jährlich': betrag = '220,32 €';
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.assignment, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
+          Icon(Icons.euro, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
           Expanded(child: Text('Beitragsdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
           if (hasData)
             IconButton(
@@ -149,19 +208,64 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
         const SizedBox(height: 12),
         if (readOnly) ...[
           _readOnlyRow(Icons.numbers, 'Beitragsnummer', d['beitragsnummer']),
-          _readOnlyRow(Icons.person, 'Kontoinhaber', d['kontoinhaber']),
-          _readOnlyRow(Icons.calendar_today, 'Angemeldet seit', d['angemeldet_seit']),
-          _readOnlyRow(Icons.payments, 'Zahlungsart', d['zahlungsart']),
-          _readOnlyRow(Icons.account_balance, 'IBAN', d['iban']),
           _readOnlyRow(Icons.check_circle, 'Status', d['status']),
+          _readOnlyRow(Icons.payments, 'Zahlungsart', d['zahlungsart']),
+          _readOnlyRow(Icons.calendar_month, 'Intervall', d['zahlungsintervall']),
+          if (betrag.isNotEmpty) _readOnlyRow(Icons.euro, 'Betrag', betrag),
+          if (isSepa) ...[
+            _readOnlyRow(Icons.account_balance, 'IBAN', d['iban']),
+            _readOnlyRow(Icons.person, 'Kontoinhaber', d['kontoinhaber']),
+          ],
+          _readOnlyRow(Icons.calendar_today, 'Angemeldet seit', d['angemeldet_seit']),
           _readOnlyRow(Icons.note, 'Notizen', d['notizen']),
         ] else ...[
           _field(d, 'beitragsnummer', 'Beitragsnummer (9-stellig)', Icons.numbers, hint: 'z.B. 123 456 789'),
-          _field(d, 'kontoinhaber', 'Kontoinhaber', Icons.person),
-          _field(d, 'angemeldet_seit', 'Angemeldet seit', Icons.calendar_today, hint: 'YYYY-MM-DD'),
-          _dropdownField(d, 'zahlungsart', 'Zahlungsart', Icons.payments, ['Lastschrift', 'Überweisung', 'Dauerauftrag']),
-          _field(d, 'iban', 'IBAN (für Lastschrift)', Icons.account_balance),
           _dropdownField(d, 'status', 'Status', Icons.check_circle, ['Aktiv', 'Befreit', 'Ermäßigt', 'Abgemeldet', 'Rückstand']),
+          const SizedBox(height: 4),
+          Text('Zahlungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Wrap(spacing: 8, children: ['SEPA-Lastschrift', 'Überweisung'].map((z) => ChoiceChip(
+            label: Text(z, style: TextStyle(fontSize: 12, color: zahlungsart == z ? Colors.white : Colors.black87)),
+            selected: zahlungsart == z, selectedColor: Colors.indigo,
+            onSelected: (_) => setState(() => d['zahlungsart'] = z),
+          )).toList()),
+          const SizedBox(height: 12),
+          Text('Zahlungsintervall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Wrap(spacing: 8, children: [
+            ('monatlich', '18,36 €'), ('vierteljährlich', '55,08 €'), ('halbjährlich', '110,16 €'), ('jährlich', '220,32 €'),
+          ].map((z) => ChoiceChip(
+            label: Text('${z.$1}\n${z.$2}', style: TextStyle(fontSize: 11, color: interval == z.$1 ? Colors.white : Colors.black87), textAlign: TextAlign.center),
+            selected: interval == z.$1, selectedColor: Colors.green,
+            onSelected: (_) => setState(() => d['zahlungsintervall'] = z.$1),
+          )).toList()),
+          const SizedBox(height: 12),
+          if (isSepa) ...[
+            Text('SEPA-Lastschrift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            if (sepaIban.isNotEmpty && (d['iban']?.toString() ?? '').isEmpty)
+              Container(
+                width: double.infinity, margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+                child: Row(children: [
+                  Icon(Icons.sync, size: 16, color: Colors.blue.shade700), const SizedBox(width: 8),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('SEPA-Daten aus Finanzen übernehmen?', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                    Text('IBAN: $sepaIban${sepaKontoinhaber.isNotEmpty ? ' • $sepaKontoinhaber' : ''}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                  ])),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      d['iban'] = sepaIban;
+                      if (sepaKontoinhaber.isNotEmpty) d['kontoinhaber'] = sepaKontoinhaber;
+                    }),
+                    child: const Text('Übernehmen', style: TextStyle(fontSize: 11)),
+                  ),
+                ]),
+              ),
+            _field(d, 'iban', 'IBAN', Icons.account_balance),
+            _field(d, 'kontoinhaber', 'Kontoinhaber', Icons.person),
+          ],
+          _field(d, 'angemeldet_seit', 'Angemeldet seit', Icons.calendar_today, hint: 'YYYY-MM-DD'),
           _field(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
           _saveBtn(),
         ],
@@ -218,7 +322,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                   ),
                   title: Text(grund?.label ?? a['befreiungsgrund']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${a['antrag_datum'] ?? ''} • ${_statusLabel(status)}', style: TextStyle(fontSize: 11, color: isBefreit ? Colors.green.shade700 : isAbgelehnt ? Colors.red.shade700 : Colors.orange.shade700)),
+                    Text('${a['antrag_datum'] ?? ''} • ${_statusLabel(status)}${(a['methode']?.toString() ?? '').isNotEmpty ? ' • ${a['methode']}' : ''}', style: TextStyle(fontSize: 11, color: isBefreit ? Colors.green.shade700 : isAbgelehnt ? Colors.red.shade700 : Colors.orange.shade700)),
                     if ((a['zeitraum_von']?.toString() ?? '').isNotEmpty)
                       Text('Zeitraum: ${a['zeitraum_von']} – ${a['zeitraum_bis'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                     if ((a['aktenzeichen']?.toString() ?? '').isNotEmpty)
@@ -254,6 +358,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     final isEdit = existing != null;
     String befreiungsgrund = existing?['befreiungsgrund']?.toString() ?? '';
     String status = existing?['status']?.toString() ?? 'eingereicht';
+    String methode = existing?['methode']?.toString() ?? '';
     final datumC = TextEditingController(text: existing?['antrag_datum']?.toString() ?? '');
     final aktenzeichenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
     final zeitraumVonC = TextEditingController(text: existing?['zeitraum_von']?.toString() ?? '');
@@ -284,6 +389,14 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
         TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Antragsdatum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, datumC); setD(() {}); }),
         const SizedBox(height: 8),
         TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.numbers, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 6, children: [('online', 'Online'), ('email', 'E-Mail'), ('persoenlich', 'Persönlich'), ('postalisch', 'Postalisch')].map((m) => ChoiceChip(
+          label: Text(m.$2, style: TextStyle(fontSize: 11, color: methode == m.$1 ? Colors.white : Colors.black87)),
+          selected: methode == m.$1, selectedColor: Colors.teal,
+          onSelected: (_) => setD(() => methode = m.$1),
+        )).toList()),
         const SizedBox(height: 8),
         Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
         const SizedBox(height: 4),
@@ -323,7 +436,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           if (widget.apiService != null && widget.userId != null) {
             final res = await widget.apiService!.saveRundfunkbeitragAntrag(widget.userId!, {
               if (isEdit) 'id': existing['id'],
-              'befreiungsgrund': befreiungsgrund, 'antrag_datum': datumC.text, 'aktenzeichen': aktenzeichenC.text.trim(),
+              'befreiungsgrund': befreiungsgrund, 'antrag_datum': datumC.text, 'aktenzeichen': aktenzeichenC.text.trim(), 'methode': methode,
               'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
               'status': status, 'notiz': notizC.text.trim(),
             });
