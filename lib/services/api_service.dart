@@ -3408,23 +3408,57 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
-  // ========== SOZIALAMT DATA (dedicated DB table) ==========
+  // ========== SOZIALAMT (dedicated DB tables) ==========
 
   Future<Map<String, dynamic>> getSozialamtData(int userId) async {
-    final response = await _client.get(
-      Uri.parse('$baseUrl/admin/sozialamt_manage.php?user_id=$userId'),
-      headers: _headers,
-    ).timeout(const Duration(seconds: 15));
+    final response = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveSozialamtData(int userId, Map<String, dynamic> data) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'data': data})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
-  Future<Map<String, dynamic>> saveSozialamtData(int userId, Map<String, dynamic> data) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/admin/sozialamt_manage.php'),
-      headers: _headers,
-      body: jsonEncode({'user_id': userId, 'data': data}),
-    ).timeout(const Duration(seconds: 15));
-    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  Future<Map<String, dynamic>> listSozialamtAntraege(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_antraege.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveSozialamtAntrag(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antraege.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteSozialamtAntrag(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_antraege.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> listSozialamtBewilligungen(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_bewilligungen.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveSozialamtBewilligung(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_bewilligungen.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteSozialamtBewilligung(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_bewilligungen.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> listSozialamtKorrespondenz(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_korrespondenz.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveSozialamtKorrespondenz(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_korrespondenz.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteSozialamtKorrespondenz(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_korrespondenz.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
   // ========== LANDRATSAMT DATA (dedicated DB table) ==========
