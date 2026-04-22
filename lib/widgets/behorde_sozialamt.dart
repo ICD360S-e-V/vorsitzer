@@ -599,7 +599,66 @@ class _AntragDetailView extends StatefulWidget {
 class _AntragDetailViewState extends State<_AntragDetailView> {
   List<Map<String, dynamic>> _verlauf = [];
   List<Map<String, dynamic>> _korr = [];
+  List<Map<String, dynamic>> _docs = [];
   bool _loaded = false;
+
+  static const Map<String, List<(String, String, IconData)>> _requiredDocs = {
+    'Grundsicherung im Alter': [
+      ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('rentenbescheid', 'Rentenbescheid', Icons.description),
+      ('kontoauszuege', 'Kontoauszüge (3 Monate, alle Konten)', Icons.account_balance),
+      ('mietvertrag', 'Mietvertrag', Icons.home),
+      ('nebenkostenabrechnung', 'Nebenkostenabrechnung', Icons.receipt),
+      ('heizkostenabrechnung', 'Heizkostenabrechnung', Icons.thermostat),
+      ('krankenversicherung', 'Krankenversicherungsnachweis', Icons.local_hospital),
+      ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
+      ('vermoegensnachweis', 'Vermögensnachweise (Sparbücher etc.)', Icons.savings),
+      ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+    ],
+    'Grundsicherung bei Erwerbsminderung': [
+      ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('em_bescheid', 'EM-Rentenbescheid / Gutachten Erwerbsminderung', Icons.medical_information),
+      ('rentenbescheid', 'Rentenbescheid', Icons.description),
+      ('kontoauszuege', 'Kontoauszüge (3 Monate, alle Konten)', Icons.account_balance),
+      ('mietvertrag', 'Mietvertrag', Icons.home),
+      ('nebenkostenabrechnung', 'Nebenkostenabrechnung', Icons.receipt),
+      ('heizkostenabrechnung', 'Heizkostenabrechnung', Icons.thermostat),
+      ('krankenversicherung', 'Krankenversicherungsnachweis', Icons.local_hospital),
+      ('schwerbehindertenausweis', 'Schwerbehindertenausweis (falls vorhanden)', Icons.accessible),
+      ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
+      ('vermoegensnachweis', 'Vermögensnachweise', Icons.savings),
+      ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+    ],
+    'Hilfe zur Pflege': [
+      ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('pflegegrad_bescheid', 'Pflegegrad-Bescheid / MDK-Gutachten', Icons.medical_information),
+      ('krankenversicherung', 'Kranken- und Pflegeversicherungsnachweis', Icons.local_hospital),
+      ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
+      ('mietvertrag', 'Mietvertrag', Icons.home),
+      ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
+      ('vermoegensnachweis', 'Vermögensnachweise', Icons.savings),
+      ('pflegekosten', 'Nachweise über Pflegekosten', Icons.receipt_long),
+      ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+    ],
+    'Eingliederungshilfe': [
+      ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+      ('aerztliches_gutachten', 'Ärztliches Gutachten / Diagnose', Icons.medical_information),
+      ('schwerbehindertenausweis', 'Schwerbehindertenausweis', Icons.accessible),
+      ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
+      ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
+      ('vermoegensnachweis', 'Vermögensnachweise', Icons.savings),
+      ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+    ],
+  };
+
+  static const _defaultDocs = [
+    ('personalausweis', 'Personalausweis / Reisepass', Icons.badge),
+    ('kontoauszuege', 'Kontoauszüge (3 Monate)', Icons.account_balance),
+    ('mietvertrag', 'Mietvertrag', Icons.home),
+    ('einkommensnachweis', 'Einkommensnachweise', Icons.euro),
+    ('antrag_formular', 'Ausgefüllter Antrag (unterschrieben)', Icons.edit_document),
+    ('sonstiges', 'Sonstiges Dokument', Icons.attach_file),
+  ];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -607,10 +666,12 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   Future<void> _load() async {
     final vR = await widget.apiService.listAntragVerlauf(widget.antragId);
     final kR = await widget.apiService.listAntragKorrespondenz(widget.antragId);
+    final dR = await widget.apiService.listAntragDocs(widget.antragId);
     if (!mounted) return;
     setState(() {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       _loaded = true;
     });
   }
@@ -618,7 +679,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   @override
   Widget build(BuildContext context) {
     final a = widget.antrag;
-    return DefaultTabController(length: 3, child: Column(children: [
+    return DefaultTabController(length: 4, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -631,13 +692,15 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, tabs: const [
+      TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+        Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(a),
+        _buildDokumente(a),
         _buildVerlauf(),
         _buildKorr(),
       ])),
@@ -656,6 +719,82 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
           child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
       ],
     ]));
+  }
+
+  Widget _buildDokumente(Map<String, dynamic> a) {
+    final leistung = a['leistung']?.toString() ?? '';
+    final checklist = _requiredDocs[leistung] ?? _defaultDocs;
+    final uploadedTypes = _docs.map((d) => d['doc_typ']?.toString() ?? '').toSet();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Benötigte Unterlagen für: $leistung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 4),
+        Text('Grün = hochgeladen. Tippen Sie auf fehlende Dokumente um sie hochzuladen.', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        const SizedBox(height: 12),
+        ...checklist.map((c) {
+          final docTyp = c.$1;
+          final label = c.$2;
+          final icon = c.$3;
+          final uploaded = uploadedTypes.contains(docTyp);
+          final uploadedDocs = _docs.where((d) => d['doc_typ'] == docTyp).toList();
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            decoration: BoxDecoration(
+              color: uploaded ? Colors.green.shade50 : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: uploaded ? Colors.green.shade300 : Colors.grey.shade300),
+            ),
+            child: Column(children: [
+              ListTile(
+                dense: true,
+                leading: Icon(uploaded ? Icons.check_circle : icon, size: 20, color: uploaded ? Colors.green.shade700 : Colors.grey.shade500),
+                title: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: uploaded ? Colors.green.shade900 : Colors.black87)),
+                trailing: IconButton(
+                  icon: Icon(Icons.upload_file, size: 18, color: Colors.indigo.shade600),
+                  tooltip: 'Hochladen',
+                  onPressed: () => _uploadDoc(docTyp, label),
+                ),
+              ),
+              if (uploadedDocs.isNotEmpty)
+                ...uploadedDocs.map((d) => Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Row(children: [
+                    Icon(Icons.attach_file, size: 12, color: Colors.green.shade600),
+                    const SizedBox(width: 4),
+                    Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.green.shade800))),
+                    InkWell(onTap: () async {
+                      try {
+                        final resp = await widget.apiService.downloadAntragDoc(d['id'] as int);
+                        if (resp.statusCode == 200 && mounted) {
+                          final dir = await getTemporaryDirectory();
+                          final file = File('${dir.path}/${d['datei_name']}');
+                          await file.writeAsBytes(resp.bodyBytes);
+                          if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
+                        }
+                      } catch (_) {}
+                    }, child: Icon(Icons.visibility, size: 14, color: Colors.indigo.shade600)),
+                    const SizedBox(width: 8),
+                    InkWell(onTap: () async {
+                      await widget.apiService.deleteAntragDoc(d['id'] as int);
+                      _load();
+                    }, child: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400)),
+                  ]),
+                )),
+            ]),
+          );
+        }),
+      ]),
+    );
+  }
+
+  Future<void> _uploadDoc(String docTyp, String label) async {
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+    if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+    final file = result.files.first;
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wird hochgeladen...'), duration: Duration(seconds: 1)));
+    await widget.apiService.uploadAntragDoc(antragId: widget.antragId, docTyp: docTyp, filePath: file.path!, fileName: file.name, notiz: label);
+    _load();
   }
 
   Widget _buildVerlauf() {
