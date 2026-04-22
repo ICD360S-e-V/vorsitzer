@@ -43,6 +43,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   List<Map<String, dynamic>> _korrespondenz = [];
   bool _loaded = false;
   bool _saving = false;
+  Set<String> _checkedDocsGlobal = {};
 
   @override
   void initState() {
@@ -86,9 +87,9 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     // Load checked docs from DB (stored in sozialamt_data bereich='checked_docs')
     final cd = _dbData['checked_docs'];
     if (cd != null && cd['list'] is List) {
-      _checkedDocs = Set<String>.from((cd['list'] as List).map((e) => e.toString()));
+      _checkedDocsGlobal = Set<String>.from((cd['list'] as List).map((e) => e.toString()));
     } else if (cd != null && cd['list'] is String) {
-      try { _checkedDocs = Set<String>.from(jsonDecode(cd['list'] as String)); } catch (_) {}
+      try { _checkedDocsGlobal = Set<String>.from(jsonDecode(cd['list'] as String)); } catch (_) {}
     }
     setState(() => _loaded = true);
   }
@@ -562,7 +563,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, antragId: antragId, antrag: antrag)),
+        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, antragId: antragId, antrag: antrag, checkedDocs: _checkedDocsGlobal, onCheckedChanged: (docs) { _checkedDocsGlobal = docs; _dbData['checked_docs'] = {'list': docs.toList()}; _save(); })),
       ),
     );
   }
@@ -598,7 +599,9 @@ class _AntragDetailView extends StatefulWidget {
   final ApiService apiService;
   final int antragId;
   final Map<String, dynamic> antrag;
-  const _AntragDetailView({required this.apiService, required this.antragId, required this.antrag});
+  final Set<String> checkedDocs;
+  final ValueChanged<Set<String>> onCheckedChanged;
+  const _AntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.checkedDocs, required this.onCheckedChanged});
   @override
   State<_AntragDetailView> createState() => _AntragDetailViewState();
 }
@@ -668,7 +671,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   ];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() { super.initState(); _checkedDocs = Set<String>.from(widget.checkedDocs); _load(); }
 
   Future<void> _load() async {
     final vR = await widget.apiService.listAntragVerlauf(widget.antragId);
@@ -728,8 +731,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ]));
   }
 
-  // Track which docs are manually marked as done — persisted in DB
-  Set<String> _checkedDocs = {};
+  late Set<String> _checkedDocs;
 
   Widget _buildDokumente(Map<String, dynamic> a) {
     final leistung = a['leistung']?.toString() ?? '';
@@ -786,9 +788,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                       if (v == true) _checkedDocs.add(docTyp);
                       else _checkedDocs.remove(docTyp);
                     });
-                    // Persist to DB
-                    _dbData['checked_docs'] = {'list': _checkedDocs.toList()};
-                    _save();
+                    widget.onCheckedChanged(_checkedDocs);
                   },
                 ),
                 Icon(icon, size: 18, color: isChecked ? Colors.green.shade700 : Colors.grey.shade500),
