@@ -83,6 +83,13 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       final kR = await widget.apiService!.listSozialamtKorrespondenz(widget.userId!);
       if (kR['success'] == true && kR['data'] is List) _korrespondenz = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
+    // Load checked docs from DB (stored in sozialamt_data bereich='checked_docs')
+    final cd = _dbData['checked_docs'];
+    if (cd != null && cd['list'] is List) {
+      _checkedDocs = Set<String>.from((cd['list'] as List).map((e) => e.toString()));
+    } else if (cd != null && cd['list'] is String) {
+      try { _checkedDocs = Set<String>.from(jsonDecode(cd['list'] as String)); } catch (_) {}
+    }
     setState(() => _loaded = true);
   }
 
@@ -721,8 +728,8 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ]));
   }
 
-  // Track which docs are manually marked as done (even without upload)
-  final Set<String> _checkedDocs = {};
+  // Track which docs are manually marked as done — persisted in DB
+  Set<String> _checkedDocs = {};
 
   Widget _buildDokumente(Map<String, dynamic> a) {
     final leistung = a['leistung']?.toString() ?? '';
@@ -779,6 +786,9 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                       if (v == true) _checkedDocs.add(docTyp);
                       else _checkedDocs.remove(docTyp);
                     });
+                    // Persist to DB
+                    _dbData['checked_docs'] = {'list': _checkedDocs.toList()};
+                    _save();
                   },
                 ),
                 Icon(icon, size: 18, color: isChecked ? Colors.green.shade700 : Colors.grey.shade500),
