@@ -355,6 +355,18 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                 isThreeLine: true,
                 onTap: () => _showBewilligungDetailDialog(b),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () async {
+                    final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+                      title: const Text('Bewilligung löschen?'),
+                      content: Text('${b['leistung'] ?? ''} vom ${b['bescheid_datum'] ?? ''} wirklich löschen?'),
+                      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Löschen'))],
+                    ));
+                    if (confirm == true) {
+                      final bid = int.tryParse(b['id']?.toString() ?? '');
+                      if (bid != null && widget.apiService != null) await widget.apiService!.deleteSozialamtBewilligung(bid);
+                      _loadFromDB();
+                    }
+                  }),
                   Icon(Icons.chevron_right, color: Colors.grey.shade400),
                 ]),
               ));
