@@ -3589,6 +3589,54 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== RUNDFUNKBEITRAG ANTRAG DETAIL ==========
+
+  Future<Map<String, dynamic>> listRfbAntragVerlauf(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php?antrag_id=$antragId&type=verlauf'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> addRfbAntragVerlauf(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'verlauf';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteRfbAntragVerlauf(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'verlauf', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listRfbAntragDocs(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php?antrag_id=$antragId&type=docs'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadRfbAntragDoc({required int antragId, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/rfb_antrag_detail.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteRfbAntragDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadRfbAntragDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  Future<Map<String, dynamic>> listRfbAntragKorr(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php?antrag_id=$antragId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveRfbAntragKorr(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'korr';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteRfbAntragKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== LANDRATSAMT DATA (dedicated DB table) ==========
 
   Future<Map<String, dynamic>> getLandratsamtData(int userId, {String? bereich}) async {
