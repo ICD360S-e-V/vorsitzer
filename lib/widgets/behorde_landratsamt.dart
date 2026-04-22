@@ -251,27 +251,158 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   // ============ FÜHRERSCHEINSTELLE ============
+  bool _fsEditing = false;
+
   Widget _buildFuehrerscheinTab() {
     final fs = _bereich('fuehrerschein');
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _header(Icons.badge, 'Führerscheinstelle', Colors.green),
-        const SizedBox(height: 4),
-        Text('Landratsamt Neu-Ulm · Kantstraße 8 · 89231 Neu-Ulm', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        const SizedBox(height: 16),
-        _field('Sachbearbeiter/in', fs, 'sachbearbeiter', Icons.person, hint: 'Name'),
-        _field('Aktenzeichen', fs, 'aktenzeichen', Icons.tag),
-        const Divider(height: 20),
-        _field('Führerscheinnummer', fs, 'fs_nummer', Icons.credit_card, hint: 'Auf dem Führerschein'),
-        _field('Ausstellungsdatum', fs, 'ausstellungsdatum', Icons.calendar_today, hint: 'TT.MM.JJJJ'),
-        _field('Gültig bis', fs, 'gueltig_bis', Icons.event, hint: 'TT.MM.JJJJ (oder unbefristet)'),
-        _field('Ausstellende Behörde', fs, 'aussteller', Icons.account_balance, hint: 'z.B. Landratsamt Neu-Ulm'),
-        _field('Klassen', fs, 'klassen', Icons.category, hint: 'z.B. B, AM, L'),
-        _dropDown('Internationaler FS', fs, 'international', Icons.language, {'': 'Nicht vorhanden', 'beantragt': 'Beantragt', 'vorhanden': 'Vorhanden'}),
-        _dropDown('Umtausch-Status', fs, 'umtausch', Icons.swap_horiz, {'': 'Nicht erforderlich', 'faellig': 'Fällig (bis 2033)', 'beantragt': 'Umtausch beantragt', 'erledigt': 'Neuer FS erhalten'}),
-        _field('Auflagen / Schlüsselzahlen', fs, 'auflagen', Icons.info, hint: 'z.B. 01.01 — Brille'),
-        _field('Notizen', fs, 'notizen', Icons.note, hint: '', maxLines: 3),
+    final termine = List<Map<String, dynamic>>.from(fs['termine'] is List ? fs['termine'] : []);
+    final hasData = (fs['fs_nummer']?.toString() ?? '').isNotEmpty;
+    final readOnly = hasData && !_fsEditing;
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(children: [
+        TabBar(
+          labelColor: Colors.green.shade700,
+          indicatorColor: Colors.green.shade700,
+          tabs: const [
+            Tab(icon: Icon(Icons.badge, size: 14), text: 'Führerschein'),
+            Tab(icon: Icon(Icons.calendar_month, size: 14), text: 'Termine'),
+          ],
+        ),
+        Expanded(child: TabBarView(children: [
+          // === FÜHRERSCHEIN DATA (readonly + pencil edit) ===
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                _header(Icons.badge, 'Führerscheindaten', Colors.green),
+                const Spacer(),
+                if (hasData)
+                  IconButton(
+                    icon: Icon(_fsEditing ? Icons.check : Icons.edit, size: 20, color: Colors.green.shade700),
+                    tooltip: _fsEditing ? 'Fertig' : 'Bearbeiten',
+                    onPressed: () { if (_fsEditing) _saveToDB(); setState(() => _fsEditing = !_fsEditing); },
+                  ),
+              ]),
+              const SizedBox(height: 12),
+              if (readOnly) ...[
+                _readOnlyRow(Icons.credit_card, 'FS-Nummer', fs['fs_nummer']),
+                _readOnlyRow(Icons.calendar_today, 'Ausstellungsdatum', fs['ausstellungsdatum']),
+                _readOnlyRow(Icons.event, 'Gültig bis', fs['gueltig_bis']),
+                _readOnlyRow(Icons.account_balance, 'Ausstellende Behörde', fs['aussteller']),
+                _readOnlyRow(Icons.category, 'Klassen', fs['klassen']),
+                _readOnlyRow(Icons.language, 'Internationaler FS', fs['international']),
+                _readOnlyRow(Icons.swap_horiz, 'Umtausch-Status', fs['umtausch']),
+                _readOnlyRow(Icons.info, 'Auflagen', fs['auflagen']),
+                _readOnlyRow(Icons.person, 'Sachbearbeiter', fs['sachbearbeiter']),
+                _readOnlyRow(Icons.tag, 'Aktenzeichen', fs['aktenzeichen']),
+                _readOnlyRow(Icons.note, 'Notizen', fs['notizen']),
+              ] else ...[
+                _field('Sachbearbeiter/in', fs, 'sachbearbeiter', Icons.person, hint: 'Name'),
+                _field('Aktenzeichen', fs, 'aktenzeichen', Icons.tag),
+                const Divider(height: 20),
+                _field('Führerscheinnummer', fs, 'fs_nummer', Icons.credit_card, hint: 'Auf dem Führerschein'),
+                _field('Ausstellungsdatum', fs, 'ausstellungsdatum', Icons.calendar_today, hint: 'TT.MM.JJJJ'),
+                _field('Gültig bis', fs, 'gueltig_bis', Icons.event, hint: 'TT.MM.JJJJ (oder unbefristet)'),
+                _field('Ausstellende Behörde', fs, 'aussteller', Icons.account_balance, hint: 'z.B. Landratsamt Neu-Ulm'),
+                _field('Klassen', fs, 'klassen', Icons.category, hint: 'z.B. B, AM, L'),
+                _dropDown('Internationaler FS', fs, 'international', Icons.language, {'': 'Nicht vorhanden', 'beantragt': 'Beantragt', 'vorhanden': 'Vorhanden'}),
+                _dropDown('Umtausch-Status', fs, 'umtausch', Icons.swap_horiz, {'': 'Nicht erforderlich', 'faellig': 'Fällig (bis 2033)', 'beantragt': 'Umtausch beantragt', 'erledigt': 'Neuer FS erhalten'}),
+                _field('Auflagen / Schlüsselzahlen', fs, 'auflagen', Icons.info, hint: 'z.B. 01.01 — Brille'),
+                _field('Notizen', fs, 'notizen', Icons.note, hint: '', maxLines: 3),
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+                  onPressed: () { _saveToDB(); setState(() => _fsEditing = false); },
+                  icon: const Icon(Icons.save, size: 16),
+                  label: const Text('Speichern'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                )),
+              ],
+            ]),
+          ),
+          // === TERMINE ===
+          Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(children: [
+                Icon(Icons.calendar_month, size: 20, color: Colors.green.shade700),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Termine Führerscheinstelle', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final datumC = TextEditingController();
+                    final uhrzeitC = TextEditingController();
+                    final notizenC = TextEditingController();
+                    showDialog(context: context, builder: (ctx) => AlertDialog(
+                      title: const Text('Neuer Termin'),
+                      content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async {
+                          final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+                          if (p != null) datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+                        }),
+                        const SizedBox(height: 8),
+                        TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                        const SizedBox(height: 8),
+                        TextField(controller: notizenC, maxLines: 3, decoration: InputDecoration(labelText: 'Anlass / Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                      ])),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+                        FilledButton(onPressed: () {
+                          if (datumC.text.isEmpty) return;
+                          setState(() { termine.add({'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'notizen': notizenC.text}); fs['termine'] = termine; });
+                          _saveToDB();
+                          Navigator.pop(ctx);
+                        }, child: const Text('Speichern')),
+                      ],
+                    ));
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Neuer Termin'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                ),
+              ]),
+            ),
+            Expanded(
+              child: termine.isEmpty
+                  ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.event_available, size: 48, color: Colors.grey.shade300),
+                      const SizedBox(height: 8),
+                      Text('Keine Termine', style: TextStyle(color: Colors.grey.shade500)),
+                    ]))
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: termine.length,
+                      itemBuilder: (_, i) {
+                        final t = termine[i];
+                        return Card(child: ListTile(
+                          leading: Icon(Icons.event, color: Colors.green.shade700),
+                          title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? ' um ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          subtitle: (t['notizen']?.toString() ?? '').isNotEmpty ? Text(t['notizen'].toString(), style: const TextStyle(fontSize: 11)) : null,
+                          trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () {
+                            setState(() { termine.removeAt(i); fs['termine'] = termine; });
+                            _saveToDB();
+                          }),
+                        ));
+                      },
+                    ),
+            ),
+          ]),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _readOnlyRow(IconData icon, String label, dynamic value) {
+    final s = value?.toString() ?? '';
+    if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }
