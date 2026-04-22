@@ -1430,7 +1430,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
     final bedarf = regelbedarf + mehrbedarf + kdu;
     final sollAuszahlung = bedarf - einkommen;
 
-    final checks = <({String title, String detail, IconData icon, Color color, bool problem})>[];
+    final checks = <({String title, String detail, IconData icon, MaterialColor color, bool problem})>[];
 
     if (!ok) {
       // Abgelehnt — immer prüfen
@@ -1530,7 +1530,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
     final problems = checks.where((c) => c.problem).length;
     final hasData = checks.any((c) => c.color != Colors.grey);
 
-    final empfehlung = !hasData
+    final ({String text, MaterialColor color, IconData icon}) empfehlung = !hasData
         ? (text: 'Daten unvollständig — bitte Berechnungsbogen eintragen', color: Colors.grey, icon: Icons.help_outline)
         : problems == 0
             ? (text: 'Bescheid korrekt — Widerspruch nicht empfohlen', color: Colors.green, icon: Icons.verified)
