@@ -3551,6 +3551,44 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== RUNDFUNKBEITRAG (ARD ZDF) ==========
+
+  Future<Map<String, dynamic>> getRundfunkbeitragData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/rundfunkbeitrag_data.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveRundfunkbeitragData(int userId, Map<String, dynamic> data) async {
+    final body = {'user_id': userId, 'data': data};
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rundfunkbeitrag_data.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listRundfunkbeitragAntraege(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/rundfunkbeitrag_antraege.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveRundfunkbeitragAntrag(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rundfunkbeitrag_antraege.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteRundfunkbeitragAntrag(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rundfunkbeitrag_antraege.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listRundfunkbeitragKorrespondenz(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/rundfunkbeitrag_korrespondenz.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveRundfunkbeitragKorrespondenz(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rundfunkbeitrag_korrespondenz.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteRundfunkbeitragKorrespondenz(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rundfunkbeitrag_korrespondenz.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== LANDRATSAMT DATA (dedicated DB table) ==========
 
   Future<Map<String, dynamic>> getLandratsamtData(int userId, {String? bereich}) async {

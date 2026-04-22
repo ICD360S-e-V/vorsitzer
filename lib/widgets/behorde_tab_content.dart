@@ -28,6 +28,7 @@ import 'behorde_polizei.dart';
 import 'behorde_sozialamt.dart';
 import 'behorde_versorgungsamt.dart';
 import 'behorde_landratsamt.dart';
+import 'behorde_rundfunkbeitrag.dart';
 import 'file_viewer_dialog.dart';
 import '../screens/webview_screen.dart';
 import '../utils/file_picker_helper.dart';
@@ -80,7 +81,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'gericht',
     'krankenkasse', 'rentenversicherung', 'auslaenderbehoerde', 'familienkasse',
     'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei',
-    'versorgungsamt', 'landratsamt',
+    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag',
   ];
 
   // Fields per type for completion calculation
@@ -341,6 +342,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'konsulat', 'icon': Icons.account_balance, 'label': 'Konsulat'},
     {'type': 'polizei', 'icon': Icons.local_police, 'label': 'Polizei'},
     {'type': 'versorgungsamt', 'icon': Icons.accessible, 'label': 'Versorgungsamt'},
+    {'type': 'rundfunkbeitrag', 'icon': Icons.radio, 'label': 'ARD ZDF'},
   ];
 
   @override
@@ -348,7 +350,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 21,
+      length: 22,
       child: Column(
         children: [
           _buildMemberAddressCard(),
@@ -597,6 +599,15 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 _buildTabContent('versorgungsamt', () => BehordeVersorgungsamtContent(
                   apiService: widget.apiService,
                   terminService: widget.terminService,
+                  userId: widget.user.id,
+                  getData: (t) => _behoerdeData[t] ?? {},
+                  isLoading: (t) => _behoerdeLoading[t] == true,
+                  isSaving: (t) => _behoerdeSaving[t] == true,
+                  loadData: (t) => _loadBehoerdeData(t),
+                  saveData: (t, d) => _saveBehoerdeData(t, d),
+                )),
+                _buildTabContent('rundfunkbeitrag', () => BehordeRundfunkbeitragContent(
+                  apiService: widget.apiService,
                   userId: widget.user.id,
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
