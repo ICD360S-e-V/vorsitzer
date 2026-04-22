@@ -539,7 +539,11 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     required BuildContext dialogCtx,
     bool readOnly = false,
   }) {
-    final antragTypen = _getAntragTypen(gerichtTyp);
+    final antragTypen = gerichtTyp == 'betreuungsgericht'
+        ? ['Betreuung einrichten', 'Betreuerwechsel', 'Betreuung aufheben', 'Unterbringung', 'Vermögenssorge', 'Sonstiges']
+        : gerichtTyp == 'sozialgericht'
+            ? ['Klage gegen Bescheid', 'Einstweiliger Rechtsschutz', 'Widerspruch', 'Berufung', 'Prozesskostenhilfe', 'Sonstiges']
+            : ['Kündigungsschutzklage', 'Lohnklage', 'Zeugnis einklagen', 'Einstweilige Verfügung', 'Prozesskostenhilfe', 'Sonstiges'];
     final statusMap = {'offen': 'Offen', 'in_bearbeitung': 'In Bearbeitung', 'warten_gericht': 'Warten auf Antwort vom Gericht', 'warten_kunde': 'Warten auf Antwort vom Kunden', 'bewilligt': 'Bewilligt', 'abgelehnt': 'Abgelehnt', 'erledigt': 'Erledigt'};
     final statusColorMap = {'offen': Colors.orange, 'in_bearbeitung': Colors.blue, 'warten_gericht': Colors.indigo, 'warten_kunde': Colors.teal, 'bewilligt': Colors.green, 'abgelehnt': Colors.red, 'erledigt': Colors.grey};
 
