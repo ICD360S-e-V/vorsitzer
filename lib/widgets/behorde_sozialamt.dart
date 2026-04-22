@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import 'package:open_filex/open_filex.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 
@@ -1134,7 +1135,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
                     Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
                     if ((d['created_at']?.toString() ?? '').isNotEmpty) Text(d['created_at'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   ])),
-                  InkWell(onTap: () async {
+                  IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Anzeigen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     try {
                       final resp = await widget.apiService.downloadBewilligungDoc(d['id'] as int);
                       if (resp.statusCode == 200 && mounted) {
@@ -1144,12 +1145,24 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
                         if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
                       }
                     } catch (_) {}
-                  }, child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600))),
-                  const SizedBox(width: 4),
-                  InkWell(onTap: () async {
+                  }),
+                  IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
+                    try {
+                      final resp = await widget.apiService.downloadBewilligungDoc(d['id'] as int);
+                      if (resp.statusCode == 200 && mounted) {
+                        final dir = await getTemporaryDirectory();
+                        final file = File('${dir.path}/${d['datei_name']}');
+                        await file.writeAsBytes(resp.bodyBytes);
+                        await OpenFilex.open(file.path);
+                      }
+                    } catch (_) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download fehlgeschlagen'), backgroundColor: Colors.red));
+                    }
+                  }),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     await widget.apiService.deleteBewilligungDoc(d['id'] as int);
                     _load();
-                  }, child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400))),
+                  }),
                 ]),
               );
             })),
@@ -1157,12 +1170,16 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
   }
 
   Future<void> _uploadDoc() async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
-    if (result == null || result.files.isEmpty || result.files.first.path == null) return;
-    final file = result.files.first;
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wird hochgeladen...'), duration: Duration(seconds: 1)));
-    await widget.apiService.uploadBewilligungDoc(bewilligungId: widget.bewilligungId, filePath: file.path!, fileName: file.name);
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    final files = result.files.where((f) => f.path != null).toList();
+    if (files.isEmpty) return;
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) werden hochgeladen...'), duration: const Duration(seconds: 2)));
+    for (final file in files) {
+      await widget.apiService.uploadBewilligungDoc(bewilligungId: widget.bewilligungId, filePath: file.path!, fileName: file.name);
+    }
     _load();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) hochgeladen'), backgroundColor: Colors.green));
   }
 
   Widget _buildKorrespondenz() {
