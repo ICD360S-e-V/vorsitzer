@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
@@ -52,7 +53,17 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       final raw = r['data'] as Map;
       _dbData = {};
       for (final entry in raw.entries) {
-        _dbData[entry.key.toString()] = Map<String, dynamic>.from(entry.value as Map);
+        final map = Map<String, dynamic>.from(entry.value as Map);
+        // Parse JSON strings back to lists/maps (stored as JSON in DB)
+        for (final k in map.keys.toList()) {
+          final v = map[k];
+          if (v is String && v.startsWith('[')) {
+            try { map[k] = jsonDecode(v); } catch (_) {}
+          } else if (v is String && v.startsWith('{')) {
+            try { map[k] = jsonDecode(v); } catch (_) {}
+          }
+        }
+        _dbData[entry.key.toString()] = map;
       }
     }
     setState(() => _loaded = true);
