@@ -68,9 +68,13 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
 
   Future<void> _save() async {
     if (widget.apiService == null || widget.userId == null) return;
+    _b('beitrag')['beitragsnummer'] = _getBeitragsnummer();
     setState(() => _saving = true);
     await widget.apiService!.saveRundfunkbeitragData(widget.userId!, _dbData);
-    if (mounted) setState(() => _saving = false);
+    if (mounted) {
+      setState(() => _saving = false);
+      await _loadFromDB();
+    }
   }
 
   Map<String, dynamic> _b(String key) {
