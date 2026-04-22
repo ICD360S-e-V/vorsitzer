@@ -237,6 +237,18 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     );
   }
 
+  Widget _infoRow(IconData icon, String text) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+      ]),
+    );
+  }
+
   Widget _readOnlyRow(IconData icon, String label, dynamic value) {
     final s = value?.toString() ?? '';
     if (s.isEmpty) return const SizedBox.shrink();
