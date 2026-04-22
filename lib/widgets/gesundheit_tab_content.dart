@@ -9103,7 +9103,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     bool saving = false;
 
     // Get online termin URL from selected arzt
-    final activeData = _healthData[type] ?? {};
+    final activeData = _gesundheitData[type] ?? {};
     final selArzt = activeData['selected_arzt'] as Map<String, dynamic>? ?? {};
     final onlineTerminUrl = selArzt['online_termin_url']?.toString() ?? '';
 
