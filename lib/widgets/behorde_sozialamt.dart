@@ -721,44 +721,78 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     ]));
   }
 
+  // Track which docs are manually marked as done (even without upload)
+  final Set<String> _checkedDocs = {};
+
   Widget _buildDokumente(Map<String, dynamic> a) {
     final leistung = a['leistung']?.toString() ?? '';
     final checklist = _requiredDocs[leistung] ?? _defaultDocs;
     final uploadedTypes = _docs.map((d) => d['doc_typ']?.toString() ?? '').toSet();
+    final doneCount = checklist.where((c) => uploadedTypes.contains(c.$1) || _checkedDocs.contains(c.$1)).length;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Benötigte Unterlagen für: $leistung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        Row(children: [
+          Icon(Icons.checklist, size: 20, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Unterlagen-Checkliste', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: doneCount == checklist.length ? Colors.green.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Text('$doneCount / ${checklist.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: doneCount == checklist.length ? Colors.green.shade800 : Colors.orange.shade800)),
+          ),
+        ]),
         const SizedBox(height: 4),
-        Text('Grün = hochgeladen. Tippen Sie auf fehlende Dokumente um sie hochzuladen.', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        Text('Checkbox = als erledigt markieren (auch ohne Upload). Upload = Dokument hochladen.', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        if (doneCount == checklist.length)
+          Container(
+            width: double.infinity, margin: const EdgeInsets.only(top: 8), padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade300)),
+            child: Row(children: [
+              Icon(Icons.check_circle, size: 18, color: Colors.green.shade700),
+              const SizedBox(width: 8),
+              Text('Alle Unterlagen vollständig!', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            ]),
+          ),
         const SizedBox(height: 12),
         ...checklist.map((c) {
           final docTyp = c.$1;
           final label = c.$2;
           final icon = c.$3;
-          final uploaded = uploadedTypes.contains(docTyp);
+          final hasUpload = uploadedTypes.contains(docTyp);
+          final isChecked = hasUpload || _checkedDocs.contains(docTyp);
           final uploadedDocs = _docs.where((d) => d['doc_typ'] == docTyp).toList();
           return Container(
             margin: const EdgeInsets.only(bottom: 6),
             decoration: BoxDecoration(
-              color: uploaded ? Colors.green.shade50 : Colors.grey.shade50,
+              color: isChecked ? Colors.green.shade50 : Colors.grey.shade50,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: uploaded ? Colors.green.shade300 : Colors.grey.shade300),
+              border: Border.all(color: isChecked ? Colors.green.shade300 : Colors.grey.shade300),
             ),
             child: Column(children: [
-              ListTile(
-                dense: true,
-                leading: Icon(uploaded ? Icons.check_circle : icon, size: 20, color: uploaded ? Colors.green.shade700 : Colors.grey.shade500),
-                title: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: uploaded ? Colors.green.shade900 : Colors.black87)),
-                trailing: IconButton(
+              Row(children: [
+                Checkbox(
+                  value: isChecked,
+                  activeColor: Colors.green.shade700,
+                  onChanged: (v) {
+                    setState(() {
+                      if (v == true) _checkedDocs.add(docTyp);
+                      else _checkedDocs.remove(docTyp);
+                    });
+                  },
+                ),
+                Icon(icon, size: 18, color: isChecked ? Colors.green.shade700 : Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isChecked ? Colors.green.shade900 : Colors.black87, decoration: isChecked ? TextDecoration.lineThrough : null))),
+                IconButton(
                   icon: Icon(Icons.upload_file, size: 18, color: Colors.indigo.shade600),
-                  tooltip: 'Hochladen',
+                  tooltip: 'Dokument hochladen',
                   onPressed: () => _uploadDoc(docTyp, label),
                 ),
-              ),
+              ]),
               if (uploadedDocs.isNotEmpty)
                 ...uploadedDocs.map((d) => Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(48, 0, 16, 8),
                   child: Row(children: [
                     Icon(Icons.attach_file, size: 12, color: Colors.green.shade600),
                     const SizedBox(width: 4),
