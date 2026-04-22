@@ -104,54 +104,149 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   Widget _buildBehoerdeTab() {
     final d = _b('behoerde');
     final selected = d['name']?.toString() ?? '';
+    final sel = _sozialamtListe.where((s) => s['name'] == selected).firstOrNull;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Zuständiges Sozialamt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        Row(children: [
+          Icon(Icons.account_balance, size: 20, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Zuständiges Sozialamt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.search, size: 16),
+            label: Text(selected.isEmpty ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
+            onPressed: () => _showBehoerdeSelectDialog(d),
+          ),
+        ]),
         const SizedBox(height: 12),
-        ..._sozialamtListe.map((s) {
-          final isSel = selected == s['name'];
-          return InkWell(
-            onTap: () { setState(() { d['name'] = s['name']; d['adresse'] = s['adresse']; d['plz_ort'] = s['plz_ort']; d['telefon'] = s['telefon']; d['oeffnungszeiten'] = s['oeffnungszeiten']; }); _save(); },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: isSel ? Colors.indigo.shade50 : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: isSel ? Colors.indigo.shade400 : Colors.grey.shade300, width: isSel ? 2 : 1)),
-              child: Row(children: [
-                Icon(isSel ? Icons.check_circle : Icons.account_balance, size: 20, color: isSel ? Colors.indigo.shade700 : Colors.grey.shade500),
-                const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(s['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isSel ? Colors.indigo.shade900 : Colors.black87)),
-                  Text('${s['adresse']}, ${s['plz_ort']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                  Text(s['zustaendigkeit']!, style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
-                ])),
-              ]),
-            ),
-          );
-        }),
-        const SizedBox(height: 12),
-        _field(d, 'kundennummer', 'Kundennummer / Aktenzeichen', Icons.tag),
-        _field(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
-        _saveBtn(),
+        if (selected.isEmpty)
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            child: Column(children: [
+              Icon(Icons.search, size: 40, color: Colors.grey.shade400),
+              const SizedBox(height: 8),
+              Text('Kein Sozialamt ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              const SizedBox(height: 4),
+              Text('Tippen Sie auf "Auswählen" um das zuständige Amt zu suchen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.shade300)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(selected, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+              if (sel != null) ...[
+                const SizedBox(height: 6),
+                _infoRow(Icons.location_on, '${sel['adresse']}, ${sel['plz_ort']}'),
+                _infoRow(Icons.phone, sel['telefon'] ?? ''),
+                _infoRow(Icons.access_time, sel['oeffnungszeiten'] ?? ''),
+                _infoRow(Icons.info, sel['zustaendigkeit'] ?? ''),
+              ],
+            ]),
+          ),
       ]),
     );
   }
 
+  void _showBehoerdeSelectDialog(Map<String, dynamic> d) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.search, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          const Text('Sozialamt auswählen'),
+        ]),
+        content: SizedBox(
+          width: 500, height: 400,
+          child: ListView(children: _sozialamtListe.map((s) {
+            return InkWell(
+              onTap: () {
+                setState(() { d['name'] = s['name']; d['adresse'] = s['adresse']; d['plz_ort'] = s['plz_ort']; d['telefon'] = s['telefon']; d['oeffnungszeiten'] = s['oeffnungszeiten']; });
+                _save();
+                Navigator.pop(ctx);
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+                child: Row(children: [
+                  Icon(Icons.account_balance, size: 20, color: Colors.indigo.shade600),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(s['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+                    Text('${s['adresse']}, ${s['plz_ort']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text(s['zustaendigkeit']!, style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
+                  ])),
+                ]),
+              ),
+            );
+          }).toList()),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      ),
+    );
+  }
+
+  bool _mitarbeiterEditing = false;
+
   Widget _buildMitarbeiterTab() {
     final d = _b('mitarbeiter');
+    final hasData = (d['name']?.toString() ?? '').isNotEmpty;
+    final readOnly = hasData && !_mitarbeiterEditing;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        Row(children: [
+          Icon(Icons.person, size: 20, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+          if (hasData)
+            IconButton(
+              icon: Icon(_mitarbeiterEditing ? Icons.check : Icons.edit, size: 20, color: Colors.indigo.shade700),
+              tooltip: _mitarbeiterEditing ? 'Fertig' : 'Bearbeiten',
+              onPressed: () {
+                if (_mitarbeiterEditing) _save();
+                setState(() => _mitarbeiterEditing = !_mitarbeiterEditing);
+              },
+            ),
+        ]),
         const SizedBox(height: 12),
-        _field(d, 'anrede', 'Anrede', Icons.person, hint: 'Frau / Herr'),
-        _field(d, 'name', 'Name', Icons.badge),
-        _field(d, 'telefon', 'Telefon (direkt)', Icons.phone),
-        _field(d, 'email', 'E-Mail', Icons.email),
-        _field(d, 'zimmer', 'Zimmer / Raum', Icons.room),
-        _field(d, 'sprechzeiten', 'Sprechzeiten', Icons.access_time),
-        _field(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
-        _saveBtn(),
+        if (readOnly) ...[
+          _readOnlyRow(Icons.person, 'Anrede', d['anrede']),
+          _readOnlyRow(Icons.badge, 'Name', d['name']),
+          _readOnlyRow(Icons.phone, 'Telefon', d['telefon']),
+          _readOnlyRow(Icons.email, 'E-Mail', d['email']),
+          _readOnlyRow(Icons.room, 'Zimmer', d['zimmer']),
+          _readOnlyRow(Icons.access_time, 'Sprechzeiten', d['sprechzeiten']),
+          _readOnlyRow(Icons.note, 'Notizen', d['notizen']),
+        ] else ...[
+          _field(d, 'anrede', 'Anrede', Icons.person, hint: 'Frau / Herr'),
+          _field(d, 'name', 'Name', Icons.badge),
+          _field(d, 'telefon', 'Telefon (direkt)', Icons.phone),
+          _field(d, 'email', 'E-Mail', Icons.email),
+          _field(d, 'zimmer', 'Zimmer / Raum', Icons.room),
+          _field(d, 'sprechzeiten', 'Sprechzeiten', Icons.access_time),
+          _field(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
+          _saveBtn(),
+        ],
+      ]),
+    );
+  }
+
+  Widget _readOnlyRow(IconData icon, String label, dynamic value) {
+    final s = value?.toString() ?? '';
+    if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }
