@@ -1002,7 +1002,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
   Widget build(BuildContext context) {
     final b = widget.bewilligung;
     final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
-    return DefaultTabController(length: 3, child: Column(children: [
+    return DefaultTabController(length: 4, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: ok ? Colors.green.shade700 : Colors.red.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -1016,15 +1016,17 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.green.shade700, indicatorColor: Colors.green.shade700, tabs: const [
+      TabBar(labelColor: Colors.green.shade700, indicatorColor: Colors.green.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(b),
         _buildUnterlagen(),
         _buildKorrespondenz(),
+        _buildWiderspruch(b),
       ])),
     ]));
   }
@@ -1223,5 +1225,220 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
         }, child: const Text('Speichern')),
       ],
     ));
+  }
+
+  // ============ WIDERSPRUCH TAB ============
+
+  DateTime? _parseDate(dynamic v) {
+    final s = v?.toString() ?? '';
+    if (s.isEmpty || s == 'null') return null;
+    return DateTime.tryParse(s);
+  }
+
+  // § 37 Abs. 2 SGB X: Bekanntgabe = 3 Tage nach Aufgabe zur Post
+  // § 84 SGG: Widerspruchsfrist = 1 Monat nach Bekanntgabe
+  // Ohne Rechtsbehelfsbelehrung: 1 Jahr (§ 66 SGG)
+  DateTime _addMonth(DateTime d, int months) {
+    var y = d.year; var m = d.month + months;
+    while (m > 12) { y++; m -= 12; }
+    var day = d.day;
+    final maxDay = DateTime(y, m + 1, 0).day;
+    if (day > maxDay) day = maxDay;
+    var result = DateTime(y, m, day);
+    // Falls Fristende auf Wochenende/Feiertag → nächster Werktag
+    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) {
+      result = result.add(const Duration(days: 1));
+    }
+    return result;
+  }
+
+  Widget _buildWiderspruch(Map<String, dynamic> b) {
+    final bescheidDatum = _parseDate(b['bescheid_datum']);
+    final erhaltenAm = _parseDate(b['erhalten_am']);
+    final hasWiderspruch = b['widerspruch'] == true || b['widerspruch'] == 'true' || b['widerspruch'] == 1 || b['widerspruch'] == '1';
+    final widerspruchDatum = _parseDate(b['widerspruch_datum']);
+
+    if (bescheidDatum == null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.warning, size: 48, color: Colors.orange.shade300),
+          const SizedBox(height: 8),
+          Text('Kein Bescheid-Datum vorhanden', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Text('Bitte zuerst das Bescheid-Datum eintragen um die Fristen zu berechnen.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center),
+        ]),
+      ));
+    }
+
+    // Bekanntgabe: erhalten_am oder bescheid_datum + 3 Tage (Bekanntgabefiktion)
+    final bekanntgabe = erhaltenAm ?? bescheidDatum.add(const Duration(days: 3));
+    final fristEnde = _addMonth(bekanntgabe, 1);
+    final fristOhneRHB = _addMonth(bekanntgabe, 12); // ohne Rechtsbehelfsbelehrung
+    final heute = DateTime.now();
+    final heute0 = DateTime(heute.year, heute.month, heute.day);
+    final restTage = fristEnde.difference(heute0).inDays;
+    final fristAbgelaufen = heute0.isAfter(fristEnde);
+    final fristJahrAbgelaufen = heute0.isAfter(fristOhneRHB);
+    final letzteWoche = !fristAbgelaufen && restTage <= 7;
+
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+    final statusColor = hasWiderspruch
+        ? Colors.blue
+        : fristAbgelaufen
+            ? Colors.red
+            : letzteWoche
+                ? Colors.orange
+                : Colors.green;
+
+    final statusText = hasWiderspruch
+        ? 'Widerspruch eingelegt${widerspruchDatum != null ? ' am ${fmt(widerspruchDatum)}' : ''}'
+        : fristAbgelaufen
+            ? 'Frist abgelaufen seit ${-restTage} Tagen'
+            : '$restTage Tage verbleibend';
+
+    final statusIcon = hasWiderspruch
+        ? Icons.check_circle
+        : fristAbgelaufen
+            ? Icons.cancel
+            : letzteWoche
+                ? Icons.warning
+                : Icons.timer;
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Status-Banner
+      Container(
+        width: double.infinity, padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: statusColor.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: statusColor.shade300, width: 2),
+        ),
+        child: Row(children: [
+          Icon(statusIcon, size: 28, color: statusColor.shade700),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(statusText, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+            if (!hasWiderspruch && !fristAbgelaufen)
+              Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: statusColor.shade700)),
+          ])),
+        ]),
+      ),
+      const SizedBox(height: 16),
+
+      // Timeline
+      Text('Fristenberechnung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      const SizedBox(height: 12),
+      _timelineItem(Icons.description, 'Bescheid erstellt', fmt(bescheidDatum), Colors.indigo, true),
+      if (erhaltenAm != null)
+        _timelineItem(Icons.local_post_office, 'Per Post erhalten', fmt(erhaltenAm), Colors.teal, true)
+      else
+        _timelineItem(Icons.local_post_office, 'Bekanntgabe (Fiktion: +3 Tage)', fmt(bekanntgabe), Colors.teal.shade300, true, subtitle: '§ 37 Abs. 2 SGB X: Gilt als am 3. Tag nach Aufgabe zur Post zugestellt'),
+      _timelineItem(
+        fristAbgelaufen ? Icons.cancel : Icons.gavel,
+        'Widerspruchsfrist endet',
+        fmt(fristEnde),
+        fristAbgelaufen ? Colors.red : letzteWoche ? Colors.orange : Colors.green,
+        true,
+        subtitle: '§ 84 SGG: 1 Monat nach Bekanntgabe',
+      ),
+      if (!fristAbgelaufen && !hasWiderspruch)
+        _timelineItem(Icons.timer, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '$restTage Tage verbleibend'),
+      if (hasWiderspruch && widerspruchDatum != null)
+        _timelineItem(Icons.check_circle, 'Widerspruch eingelegt', fmt(widerspruchDatum), Colors.blue, false),
+
+      const SizedBox(height: 16),
+
+      // Rechtsgrundlage
+      Container(
+        width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Rechtsgrundlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          _lawRow('§ 84 SGG', 'Widerspruchsfrist: 1 Monat nach Bekanntgabe'),
+          _lawRow('§ 37 Abs. 2 SGB X', 'Bekanntgabefiktion: 3 Tage nach Aufgabe zur Post'),
+          _lawRow('§ 66 SGG', 'Ohne Rechtsbehelfsbelehrung: Frist verlängert auf 1 Jahr'),
+          _lawRow('§ 84 Abs. 2 SGG', 'Fristende auf Wochenende/Feiertag: nächster Werktag'),
+        ]),
+      ),
+
+      if (!fristJahrAbgelaufen && fristAbgelaufen) ...[
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.shade300)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.lightbulb, size: 20, color: Colors.amber.shade700), const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Hinweis: Fehlende Rechtsbehelfsbelehrung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+              const SizedBox(height: 4),
+              Text('Falls der Bescheid keine korrekte Rechtsbehelfsbelehrung enthält, gilt eine Frist von 1 Jahr statt 1 Monat (§ 66 SGG). Prüfen Sie den Bescheid!', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+              const SizedBox(height: 4),
+              Text('Erweiterte Frist bis: ${fmt(fristOhneRHB)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+            ])),
+          ]),
+        ),
+      ],
+
+      const SizedBox(height: 16),
+
+      // Aktion
+      if (!hasWiderspruch && !fristAbgelaufen)
+        SizedBox(width: double.infinity, child: ElevatedButton.icon(
+          icon: const Icon(Icons.gavel),
+          label: const Text('Widerspruch einlegen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+          onPressed: () {
+            widget.onEdit();
+          },
+        ))
+      else if (!hasWiderspruch && fristAbgelaufen && !fristJahrAbgelaufen)
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          icon: const Icon(Icons.gavel, color: Colors.orange),
+          label: const Text('Trotzdem Widerspruch einlegen (§ 66 SGG prüfen)'),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 14)),
+          onPressed: () {
+            widget.onEdit();
+          },
+        )),
+    ]));
+  }
+
+  Widget _timelineItem(IconData icon, String title, String date, Color color, bool hasLine, {String? subtitle}) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Column(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle, border: Border.all(color: color, width: 2)),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        if (hasLine) Container(width: 2, height: 28, color: Colors.grey.shade300),
+      ]),
+      const SizedBox(width: 12),
+      Expanded(child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color))),
+            Text(date, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          ]),
+          if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+        ]),
+      )),
+    ]);
+  }
+
+  Widget _lawRow(String paragraph, String text) {
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+        child: Text(paragraph, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      ),
+      const SizedBox(width: 8),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+    ]));
   }
 }
