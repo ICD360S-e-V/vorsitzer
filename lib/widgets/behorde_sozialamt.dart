@@ -516,9 +516,13 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          if (leistung.isEmpty || bescheidDatumC.text.isEmpty) return;
+          if (leistung.isEmpty || bescheidDatumC.text.isEmpty) {
+            ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(content: Text('Bitte Leistungsart und Bescheid-Datum ausfüllen'), backgroundColor: Colors.red));
+            return;
+          }
+          debugPrint('[Sozialamt] Saving Bewilligung: leistung=$leistung, userId=${widget.userId}, api=${widget.apiService != null}');
           if (widget.apiService != null && widget.userId != null) {
-            await widget.apiService!.saveSozialamtBewilligung(widget.userId!, {
+            final res = await widget.apiService!.saveSozialamtBewilligung(widget.userId!, {
               'leistung': leistung, 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text, 'erhalten_am': erhaltenAmC.text,
               'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
               'regelbedarf': double.tryParse(regelbedarfC.text), 'mehrbedarf': double.tryParse(mehrbedarfC.text),
@@ -526,6 +530,15 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
               'einkommen': double.tryParse(einkommenC.text), 'auszahlung': double.tryParse(auszahlungC.text),
               'widerspruch': widerspruch, 'widerspruch_datum': widerspruchDatumC.text, 'notiz': notizC.text,
             });
+            debugPrint('[Sozialamt] Bewilligung save result: $res');
+            if (res['success'] != true) {
+              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Speichern fehlgeschlagen'}'), backgroundColor: Colors.red));
+              return;
+            }
+          } else {
+            debugPrint('[Sozialamt] ERROR: apiService=${widget.apiService != null}, userId=${widget.userId}');
+            if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Fehler: API nicht verfügbar'), backgroundColor: Colors.red));
+            return;
           }
           if (ctx.mounted) Navigator.pop(ctx);
           _loadFromDB();
