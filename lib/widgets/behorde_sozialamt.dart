@@ -301,10 +301,18 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: list.length, itemBuilder: (_, i) {
               final b = list[i];
               final ok = b['bewilligt'] == true || b['bewilligt'] == 'true';
+              final ausz = b['auszahlung']?.toString() ?? '';
+              final zeitraum = (b['zeitraum_von']?.toString() ?? '').isNotEmpty ? '${b['zeitraum_von']} – ${b['zeitraum_bis'] ?? ''}' : '';
               return Card(child: ListTile(
-                leading: Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.green : Colors.red),
+                leading: Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.green : Colors.red, size: 28),
                 title: Text(b['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text('${ok ? 'Bewilligt' : 'Abgelehnt'} • ${b['datum'] ?? ''}${b['betrag'] != null ? ' • ${b['betrag']} €' : ''}', style: const TextStyle(fontSize: 11)),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${ok ? 'Bewilligt' : 'Abgelehnt'} • ${b['bescheid_datum'] ?? b['datum'] ?? ''}', style: TextStyle(fontSize: 11, color: ok ? Colors.green.shade700 : Colors.red.shade700)),
+                  if (zeitraum.isNotEmpty) Text('Zeitraum: $zeitraum', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  if (ausz.isNotEmpty) Text('Auszahlung: $ausz €/Monat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                  if (b['widerspruch'] == true) Text('⚠ Widerspruch eingelegt${b['widerspruch_datum'] != null ? ' am ${b['widerspruch_datum']}' : ''}', style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
+                ]),
+                isThreeLine: true,
                 trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () { setState(() => list.removeAt(i)); d['liste'] = list; _save(); }),
               ));
             })),
@@ -368,23 +376,100 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   }
 
   void _showBewilligungDialog(Map<String, dynamic> d, List<Map<String, dynamic>> list) {
-    final datumC = TextEditingController(); final betragC = TextEditingController(); final notizC = TextEditingController(); String leistung = ''; bool bewilligt = true;
+    String leistung = '';
+    final bescheidDatumC = TextEditingController();
+    final zeitraumVonC = TextEditingController();
+    final zeitraumBisC = TextEditingController();
+    final regelbedarfC = TextEditingController();
+    final mehrbedarfC = TextEditingController();
+    final kaltmieteC = TextEditingController();
+    final nebenkostenC = TextEditingController();
+    final heizkostenC = TextEditingController();
+    final einkommenC = TextEditingController();
+    final auszahlungC = TextEditingController();
+    final notizC = TextEditingController();
+    bool bewilligt = true;
+    bool widerspruch = false;
+    final widerspruchDatumC = TextEditingController();
+    final leistungen = ['Grundsicherung im Alter', 'Grundsicherung bei Erwerbsminderung', 'Hilfe zum Lebensunterhalt', 'Eingliederungshilfe', 'Hilfe zur Pflege', 'Bildung und Teilhabe', 'Blindengeld', 'Sonstige'];
+
+    Future<void> pickDate(BuildContext ctx, TextEditingController c) async {
+      final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+      if (p != null) c.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+    }
+
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
-      title: const Text('Neue Bewilligung'),
-      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: TextEditingController(), onChanged: (v) => leistung = v, decoration: InputDecoration(labelText: 'Leistung *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: const Text('Bewilligungsbescheid erfassen'),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        DropdownButtonFormField<String>(value: leistungen.contains(leistung) ? leistung : null, decoration: InputDecoration(labelText: 'Leistungsart *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), items: leistungen.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (v) => setD(() => leistung = v ?? '')),
         const SizedBox(height: 8),
-        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Bescheid-Datum', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}'); }),
+        Row(children: [
+          ChoiceChip(avatar: Icon(Icons.check_circle, size: 14, color: bewilligt ? Colors.white : Colors.green), label: Text('Bewilligt', style: TextStyle(fontSize: 11, color: bewilligt ? Colors.white : Colors.black87)), selected: bewilligt, selectedColor: Colors.green, onSelected: (_) => setD(() => bewilligt = true)),
+          const SizedBox(width: 8),
+          ChoiceChip(avatar: Icon(Icons.cancel, size: 14, color: !bewilligt ? Colors.white : Colors.red), label: Text('Abgelehnt', style: TextStyle(fontSize: 11, color: !bewilligt ? Colors.white : Colors.black87)), selected: !bewilligt, selectedColor: Colors.red, onSelected: (_) => setD(() => bewilligt = false)),
+        ]),
         const SizedBox(height: 8),
-        TextField(controller: betragC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Betrag €/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        TextField(controller: bescheidDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Bescheid-Datum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, bescheidDatumC); setD(() {}); }),
         const SizedBox(height: 8),
-        Row(children: [ChoiceChip(label: const Text('Bewilligt'), selected: bewilligt, selectedColor: Colors.green, onSelected: (_) => setD(() => bewilligt = true)), const SizedBox(width: 8), ChoiceChip(label: const Text('Abgelehnt'), selected: !bewilligt, selectedColor: Colors.red, onSelected: (_) => setD(() => bewilligt = false))]),
+        Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Row(children: [
+          Expanded(child: TextField(controller: zeitraumVonC, readOnly: true, decoration: InputDecoration(labelText: 'Von', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, zeitraumVonC); setD(() {}); })),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: zeitraumBisC, readOnly: true, decoration: InputDecoration(labelText: 'Bis', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, zeitraumBisC); setD(() {}); })),
+        ]),
+        if (bewilligt) ...[
+          const SizedBox(height: 12),
+          Text('Berechnungsbogen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Row(children: [
+            Expanded(child: TextField(controller: regelbedarfC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Regelbedarf €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: mehrbedarfC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Mehrbedarf €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          ]),
+          const SizedBox(height: 8),
+          Text('Kosten der Unterkunft (KdU)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Row(children: [
+            Expanded(child: TextField(controller: kaltmieteC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Kaltmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 6),
+            Expanded(child: TextField(controller: nebenkostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Nebenkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 6),
+            Expanded(child: TextField(controller: heizkostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Heizkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: einkommenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Anrechenb. Einkommen €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: auszahlungC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Auszahlung €/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+          ]),
+        ],
         const SizedBox(height: 8),
-        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      ])),
+        Row(children: [
+          Checkbox(value: widerspruch, onChanged: (v) => setD(() => widerspruch = v ?? false)),
+          const Text('Widerspruch eingelegt', style: TextStyle(fontSize: 12)),
+        ]),
+        if (widerspruch)
+          TextField(controller: widerspruchDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Widerspruch am', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, widerspruchDatumC); setD(() {}); }),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () { if (leistung.isEmpty) return; setState(() { list.insert(0, {'leistung': leistung, 'datum': datumC.text, 'betrag': betragC.text, 'bewilligt': bewilligt, 'notiz': notizC.text}); d['liste'] = list; }); _save(); Navigator.pop(ctx); }, child: const Text('Hinzufügen')),
+        FilledButton(onPressed: () {
+          if (leistung.isEmpty || bescheidDatumC.text.isEmpty) return;
+          setState(() { list.insert(0, {
+            'leistung': leistung, 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text,
+            'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
+            'regelbedarf': regelbedarfC.text, 'mehrbedarf': mehrbedarfC.text,
+            'kaltmiete': kaltmieteC.text, 'nebenkosten': nebenkostenC.text, 'heizkosten': heizkostenC.text,
+            'einkommen': einkommenC.text, 'auszahlung': auszahlungC.text,
+            'widerspruch': widerspruch, 'widerspruch_datum': widerspruchDatumC.text,
+            'notiz': notizC.text,
+          }); d['liste'] = list; });
+          _save(); Navigator.pop(ctx);
+        }, child: const Text('Hinzufügen')),
       ],
     )));
   }
