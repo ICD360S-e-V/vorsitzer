@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -39,6 +40,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
   bool _loaded = false;
   bool _saving = false;
   bool _behoerdeEditing = false;
+  Timer? _autoSaveTimer;
 
   @override
   void initState() {
@@ -66,15 +68,25 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     });
   }
 
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    for (final c in _bnrControllers) { c.dispose(); }
+    for (final f in _bnrFocusNodes) { f.dispose(); }
+    super.dispose();
+  }
+
   Future<void> _save() async {
     if (widget.apiService == null || widget.userId == null) return;
     _b('beitrag')['beitragsnummer'] = _getBeitragsnummer();
     setState(() => _saving = true);
     await widget.apiService!.saveRundfunkbeitragData(widget.userId!, _dbData);
-    if (mounted) {
-      setState(() => _saving = false);
-      await _loadFromDB();
-    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  void _autoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 800), () => _save());
   }
 
   Map<String, dynamic> _b(String key) {
@@ -271,12 +283,13 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                 onChanged: (v) {
                   if (v.length == 3 && i < 2) _bnrFocusNodes[i + 1].requestFocus();
                   d['beitragsnummer'] = _getBeitragsnummer();
+                  _autoSave();
                 },
               )),
             ],
           ]),
           const SizedBox(height: 12),
-          _dropdownField(d, 'status', 'Status', Icons.check_circle, ['Aktiv', 'Befreit', 'Ermäßigt', 'Abgemeldet', 'Rückstand']),
+          _dropdownFieldAuto(d, 'status', 'Status', Icons.check_circle, ['Aktiv', 'Befreit', 'Ermäßigt', 'Abgemeldet', 'Rückstand']),
           if (!isBefreit) ...[
             const SizedBox(height: 4),
             Text('Zahlungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
@@ -284,7 +297,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
             Wrap(spacing: 8, children: ['SEPA-Lastschrift', 'Überweisung'].map((z) => ChoiceChip(
               label: Text(z, style: TextStyle(fontSize: 12, color: zahlungsart == z ? Colors.white : Colors.black87)),
               selected: zahlungsart == z, selectedColor: Colors.indigo,
-              onSelected: (_) => setState(() => d['zahlungsart'] = z),
+              onSelected: (_) { setState(() => d['zahlungsart'] = z); _autoSave(); },
             )).toList()),
             const SizedBox(height: 12),
             Text('Zahlungsintervall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
@@ -294,7 +307,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
             ].map((z) => ChoiceChip(
               label: Text('${z.$1}\n${z.$2}', style: TextStyle(fontSize: 11, color: interval == z.$1 ? Colors.white : Colors.black87), textAlign: TextAlign.center),
               selected: interval == z.$1, selectedColor: Colors.green,
-              onSelected: (_) => setState(() => d['zahlungsintervall'] = z.$1),
+              onSelected: (_) { setState(() => d['zahlungsintervall'] = z.$1); _autoSave(); },
             )).toList()),
             const SizedBox(height: 12),
             if (isSepa) ...[
@@ -311,21 +324,20 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                       Text('IBAN: $sepaIban${sepaKontoinhaber.isNotEmpty ? ' • $sepaKontoinhaber' : ''}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
                     ])),
                     TextButton(
-                      onPressed: () => setState(() {
+                      onPressed: () { setState(() {
                         d['iban'] = sepaIban;
                         if (sepaKontoinhaber.isNotEmpty) d['kontoinhaber'] = sepaKontoinhaber;
-                      }),
+                      }); _autoSave(); },
                       child: const Text('Übernehmen', style: TextStyle(fontSize: 11)),
                     ),
                   ]),
                 ),
-              _field(d, 'iban', 'IBAN', Icons.account_balance),
-              _field(d, 'kontoinhaber', 'Kontoinhaber', Icons.person),
+              _fieldAuto(d, 'iban', 'IBAN', Icons.account_balance),
+              _fieldAuto(d, 'kontoinhaber', 'Kontoinhaber', Icons.person),
             ],
           ],
-          _field(d, 'angemeldet_seit', 'Angemeldet seit', Icons.calendar_today, hint: 'YYYY-MM-DD'),
-          _field(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
-          _saveBtn(),
+          _fieldAuto(d, 'angemeldet_seit', 'Angemeldet seit', Icons.calendar_today, hint: 'YYYY-MM-DD'),
+          _fieldAuto(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
         ],
       ]),
     );
@@ -605,6 +617,24 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       controller: TextEditingController(text: map[key]?.toString() ?? ''), maxLines: maxLines, onChanged: (v) => map[key] = v,
       decoration: InputDecoration(labelText: label, hintText: hint, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
       style: const TextStyle(fontSize: 13),
+    ));
+  }
+
+  Widget _fieldAuto(Map<String, dynamic> map, String key, String label, IconData icon, {String hint = '', int maxLines = 1}) {
+    return Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(
+      controller: TextEditingController(text: map[key]?.toString() ?? ''), maxLines: maxLines, onChanged: (v) { map[key] = v; _autoSave(); },
+      decoration: InputDecoration(labelText: label, hintText: hint, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+      style: const TextStyle(fontSize: 13),
+    ));
+  }
+
+  Widget _dropdownFieldAuto(Map<String, dynamic> map, String key, String label, IconData icon, List<String> options) {
+    final current = map[key]?.toString() ?? '';
+    return Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(
+      value: options.contains(current) ? current : null,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+      items: options.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 13)))).toList(),
+      onChanged: (v) { setState(() => map[key] = v ?? ''); _autoSave(); },
     ));
   }
 
