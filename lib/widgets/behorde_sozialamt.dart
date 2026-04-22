@@ -1,6 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
+import 'file_viewer_dialog.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -302,11 +307,11 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                 leading: Icon(Icons.description, color: Colors.indigo.shade600),
                 title: Text(a['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Text('${a['datum'] ?? ''} • ${a['methode'] ?? ''} • ${a['status'] ?? ''}', style: const TextStyle(fontSize: 11)),
-                trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () async {
+                onTap: () {
                   final aid = int.tryParse(a['id']?.toString() ?? '');
-                  if (aid != null && widget.apiService != null) await widget.apiService!.deleteSozialamtAntrag(aid);
-                  _loadFromDB();
-                }),
+                  if (aid != null) _showAntragDetailDialog(aid, a);
+                },
+                trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
               ));
             })),
     ]);
@@ -543,6 +548,18 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     ));
   }
 
+  // ============ ANTRAG DETAIL MODAL ============
+  void _showAntragDetailDialog(int antragId, Map<String, dynamic> antrag) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, antragId: antragId, antrag: antrag)),
+      ),
+    );
+  }
+
   static const _sozialamtListe = [
     {'name': 'Landratsamt Neu-Ulm — Soziale Leistungen', 'adresse': 'Albrecht-Berblinger-Str. 6', 'plz_ort': '89231 Neu-Ulm', 'telefon': '0731 7040-52020', 'oeffnungszeiten': 'Mo–Mi 07:30–12:30, Do 07:30–17:30, Fr 07:30–12:30', 'zustaendigkeit': 'Sozialhilfe, Grundsicherung, Blindengeld'},
     {'name': 'LRA Neu-Ulm — Außenstelle Illertissen', 'adresse': 'Ulmer Straße 20', 'plz_ort': '89257 Illertissen', 'telefon': '07303 9006-0', 'oeffnungszeiten': 'Mo–Mi 07:30–12:30, Do 07:30–17:30, Fr 07:30–12:30', 'zustaendigkeit': 'Südlicher Landkreis'},
@@ -564,5 +581,156 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       label: const Text('Speichern'),
       style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
     ));
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ANTRAG DETAIL (Details / Verlauf / Korrespondenz)
+// ═══════════════════════════════════════════════════════
+class _AntragDetailView extends StatefulWidget {
+  final ApiService apiService;
+  final int antragId;
+  final Map<String, dynamic> antrag;
+  const _AntragDetailView({required this.apiService, required this.antragId, required this.antrag});
+  @override
+  State<_AntragDetailView> createState() => _AntragDetailViewState();
+}
+
+class _AntragDetailViewState extends State<_AntragDetailView> {
+  List<Map<String, dynamic>> _verlauf = [];
+  List<Map<String, dynamic>> _korr = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final vR = await widget.apiService.listAntragVerlauf(widget.antragId);
+    final kR = await widget.apiService.listAntragKorrespondenz(widget.antragId);
+    if (!mounted) return;
+    setState(() {
+      if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.antrag;
+    return DefaultTabController(length: 3, child: Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        child: Row(children: [
+          const Icon(Icons.description, color: Colors.white, size: 22), const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(a['leistung']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text('${a['datum'] ?? ''} • ${a['status'] ?? ''}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, tabs: const [
+        Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+        Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
+        Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+      ]),
+      Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
+        _buildDetails(a),
+        _buildVerlauf(),
+        _buildKorr(),
+      ])),
+    ]));
+  }
+
+  Widget _buildDetails(Map<String, dynamic> a) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _row(Icons.description, 'Leistung', a['leistung']),
+      _row(Icons.calendar_today, 'Datum', a['datum']),
+      _row(Icons.send, 'Methode', a['methode']),
+      _row(Icons.flag, 'Status', a['status']),
+      if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+      ],
+    ]));
+  }
+
+  Widget _buildVerlauf() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: Text('${_verlauf.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () { final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}'); final notizC = TextEditingController(); String status = '';
+            showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(title: const Text('Verlauf-Eintrag'),
+              content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+                Wrap(spacing: 6, children: ['Eingereicht', 'In Bearbeitung', 'Nachforderung', 'Anhörung', 'Bewilligt', 'Abgelehnt', 'Widerspruch'].map((s) => ChoiceChip(label: Text(s, style: TextStyle(fontSize: 10, color: status == s ? Colors.white : Colors.black87)), selected: status == s, selectedColor: Colors.indigo, onSelected: (_) => setD(() => status = s))).toList()), const SizedBox(height: 8),
+                TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+              ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+                FilledButton(onPressed: () async { await widget.apiService.addAntragVerlauf(widget.antragId, {'datum': datumC.text, 'status': status, 'notiz': notizC.text}); if (ctx.mounted) Navigator.pop(ctx); _load(); }, child: const Text('Hinzufügen'))],
+            ))); }),
+      ])),
+      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) { final v = _verlauf[i];
+          return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+            child: Row(children: [
+              Icon(Icons.circle, size: 10, color: Colors.indigo.shade400), const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)), if ((v['status']?.toString() ?? '').isNotEmpty) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)), child: Text(v['status'].toString(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)))]]),
+                if ((v['notiz']?.toString() ?? '').isNotEmpty) Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12)),
+              ])),
+              IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteAntragVerlauf(v['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+            ]));
+        })),
+    ]);
+  }
+
+  Widget _buildKorr() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('eingang')), const SizedBox(width: 6),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('ausgang')),
+      ])),
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) { final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
+          return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
+            child: Row(children: [
+              Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
+                Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ])),
+              IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteAntragKorrespondenz(k['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+            ]));
+        })),
+    ]);
+  }
+
+  void _addKorr(String richtung) {
+    final betreffC = TextEditingController(); final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}'); final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
+      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async { await widget.apiService.addAntragKorrespondenz(widget.antragId, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()}); if (ctx.mounted) Navigator.pop(ctx); _load(); }, child: const Text('Speichern'))],
+    ));
+  }
+
+  Widget _row(IconData icon, String label, dynamic value) {
+    final s = value?.toString() ?? ''; if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+    ]));
   }
 }
