@@ -167,13 +167,33 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
 
   // ============ TAB 2: BEITRAG ============
 
+  // Beitragsnummer 3x3 controllers
+  final List<TextEditingController> _bnrControllers = List.generate(3, (_) => TextEditingController());
+  final List<FocusNode> _bnrFocusNodes = List.generate(3, (_) => FocusNode());
+
+  String _getBeitragsnummer() => _bnrControllers.map((c) => c.text.trim()).join('');
+
+  void _initBnrFromData(String? bnr) {
+    final s = bnr?.replaceAll(' ', '') ?? '';
+    for (int i = 0; i < 3; i++) {
+      final start = i * 3;
+      _bnrControllers[i].text = start < s.length ? s.substring(start, (start + 3).clamp(0, s.length)) : '';
+    }
+  }
+
   Widget _buildBeitragTab() {
     final d = _b('beitrag');
-    final hasData = (d['beitragsnummer']?.toString() ?? '').isNotEmpty;
+    final bnr = d['beitragsnummer']?.toString() ?? '';
+    final hasData = bnr.isNotEmpty;
     final readOnly = hasData && !_behoerdeEditing;
+    final status = d['status']?.toString() ?? '';
+    final isBefreit = status == 'Befreit';
     final zahlungsart = d['zahlungsart']?.toString() ?? '';
     final isSepa = zahlungsart == 'SEPA-Lastschrift';
     final interval = d['zahlungsintervall']?.toString() ?? '';
+
+    // Init BNR boxes
+    if (bnr.isNotEmpty && _bnrControllers[0].text.isEmpty) _initBnrFromData(bnr);
 
     // SEPA-Daten aus Finanzen/Deutschlandticket übernehmen
     final dtData = widget.getData('deutschlandticket');
@@ -189,6 +209,14 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       case 'jährlich': betrag = '220,32 €';
     }
 
+    // Format BNR for display: 123 456 789
+    String fmtBnr(String s) {
+      final clean = s.replaceAll(' ', '');
+      if (clean.length <= 3) return clean;
+      if (clean.length <= 6) return '${clean.substring(0, 3)} ${clean.substring(3)}';
+      return '${clean.substring(0, 3)} ${clean.substring(3, 6)} ${clean.substring(6)}';
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -200,70 +228,96 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
               icon: Icon(_behoerdeEditing ? Icons.check : Icons.edit, size: 20, color: Colors.indigo.shade700),
               tooltip: _behoerdeEditing ? 'Fertig' : 'Bearbeiten',
               onPressed: () {
-                if (_behoerdeEditing) _save();
+                if (_behoerdeEditing) {
+                  d['beitragsnummer'] = _getBeitragsnummer();
+                  _save();
+                }
                 setState(() => _behoerdeEditing = !_behoerdeEditing);
               },
             ),
         ]),
         const SizedBox(height: 12),
         if (readOnly) ...[
-          _readOnlyRow(Icons.numbers, 'Beitragsnummer', d['beitragsnummer']),
+          _readOnlyRow(Icons.numbers, 'Beitragsnummer', fmtBnr(bnr)),
           _readOnlyRow(Icons.check_circle, 'Status', d['status']),
-          _readOnlyRow(Icons.payments, 'Zahlungsart', d['zahlungsart']),
-          _readOnlyRow(Icons.calendar_month, 'Intervall', d['zahlungsintervall']),
-          if (betrag.isNotEmpty) _readOnlyRow(Icons.euro, 'Betrag', betrag),
-          if (isSepa) ...[
-            _readOnlyRow(Icons.account_balance, 'IBAN', d['iban']),
-            _readOnlyRow(Icons.person, 'Kontoinhaber', d['kontoinhaber']),
+          if (!isBefreit) ...[
+            _readOnlyRow(Icons.payments, 'Zahlungsart', d['zahlungsart']),
+            _readOnlyRow(Icons.calendar_month, 'Intervall', d['zahlungsintervall']),
+            if (betrag.isNotEmpty) _readOnlyRow(Icons.euro, 'Betrag', betrag),
+            if (isSepa) ...[
+              _readOnlyRow(Icons.account_balance, 'IBAN', d['iban']),
+              _readOnlyRow(Icons.person, 'Kontoinhaber', d['kontoinhaber']),
+            ],
           ],
           _readOnlyRow(Icons.calendar_today, 'Angemeldet seit', d['angemeldet_seit']),
           _readOnlyRow(Icons.note, 'Notizen', d['notizen']),
         ] else ...[
-          _field(d, 'beitragsnummer', 'Beitragsnummer (9-stellig)', Icons.numbers, hint: 'z.B. 123 456 789'),
+          // Beitragsnummer 3x3 boxes
+          Text('Beitragsnummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Row(children: [
+            for (int i = 0; i < 3; i++) ...[
+              if (i > 0) Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text(' – ', style: TextStyle(fontSize: 16, color: Colors.grey.shade400))),
+              SizedBox(width: 80, child: TextField(
+                controller: _bnrControllers[i], focusNode: _bnrFocusNodes[i],
+                textAlign: TextAlign.center, maxLength: 3,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 4),
+                decoration: InputDecoration(counterText: '', hintText: '000', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(vertical: 12)),
+                onChanged: (v) {
+                  if (v.length == 3 && i < 2) _bnrFocusNodes[i + 1].requestFocus();
+                  d['beitragsnummer'] = _getBeitragsnummer();
+                },
+              )),
+            ],
+          ]),
+          const SizedBox(height: 12),
           _dropdownField(d, 'status', 'Status', Icons.check_circle, ['Aktiv', 'Befreit', 'Ermäßigt', 'Abgemeldet', 'Rückstand']),
-          const SizedBox(height: 4),
-          Text('Zahlungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          Wrap(spacing: 8, children: ['SEPA-Lastschrift', 'Überweisung'].map((z) => ChoiceChip(
-            label: Text(z, style: TextStyle(fontSize: 12, color: zahlungsart == z ? Colors.white : Colors.black87)),
-            selected: zahlungsart == z, selectedColor: Colors.indigo,
-            onSelected: (_) => setState(() => d['zahlungsart'] = z),
-          )).toList()),
-          const SizedBox(height: 12),
-          Text('Zahlungsintervall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          Wrap(spacing: 8, children: [
-            ('monatlich', '18,36 €'), ('vierteljährlich', '55,08 €'), ('halbjährlich', '110,16 €'), ('jährlich', '220,32 €'),
-          ].map((z) => ChoiceChip(
-            label: Text('${z.$1}\n${z.$2}', style: TextStyle(fontSize: 11, color: interval == z.$1 ? Colors.white : Colors.black87), textAlign: TextAlign.center),
-            selected: interval == z.$1, selectedColor: Colors.green,
-            onSelected: (_) => setState(() => d['zahlungsintervall'] = z.$1),
-          )).toList()),
-          const SizedBox(height: 12),
-          if (isSepa) ...[
-            Text('SEPA-Lastschrift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          if (!isBefreit) ...[
             const SizedBox(height: 4),
-            if (sepaIban.isNotEmpty && (d['iban']?.toString() ?? '').isEmpty)
-              Container(
-                width: double.infinity, margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
-                child: Row(children: [
-                  Icon(Icons.sync, size: 16, color: Colors.blue.shade700), const SizedBox(width: 8),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('SEPA-Daten aus Finanzen übernehmen?', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                    Text('IBAN: $sepaIban${sepaKontoinhaber.isNotEmpty ? ' • $sepaKontoinhaber' : ''}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
-                  ])),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      d['iban'] = sepaIban;
-                      if (sepaKontoinhaber.isNotEmpty) d['kontoinhaber'] = sepaKontoinhaber;
-                    }),
-                    child: const Text('Übernehmen', style: TextStyle(fontSize: 11)),
-                  ),
-                ]),
-              ),
-            _field(d, 'iban', 'IBAN', Icons.account_balance),
-            _field(d, 'kontoinhaber', 'Kontoinhaber', Icons.person),
+            Text('Zahlungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 8, children: ['SEPA-Lastschrift', 'Überweisung'].map((z) => ChoiceChip(
+              label: Text(z, style: TextStyle(fontSize: 12, color: zahlungsart == z ? Colors.white : Colors.black87)),
+              selected: zahlungsart == z, selectedColor: Colors.indigo,
+              onSelected: (_) => setState(() => d['zahlungsart'] = z),
+            )).toList()),
+            const SizedBox(height: 12),
+            Text('Zahlungsintervall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 8, children: [
+              ('monatlich', '18,36 €'), ('vierteljährlich', '55,08 €'), ('halbjährlich', '110,16 €'), ('jährlich', '220,32 €'),
+            ].map((z) => ChoiceChip(
+              label: Text('${z.$1}\n${z.$2}', style: TextStyle(fontSize: 11, color: interval == z.$1 ? Colors.white : Colors.black87), textAlign: TextAlign.center),
+              selected: interval == z.$1, selectedColor: Colors.green,
+              onSelected: (_) => setState(() => d['zahlungsintervall'] = z.$1),
+            )).toList()),
+            const SizedBox(height: 12),
+            if (isSepa) ...[
+              Text('SEPA-Lastschrift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              if (sepaIban.isNotEmpty && (d['iban']?.toString() ?? '').isEmpty)
+                Container(
+                  width: double.infinity, margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+                  child: Row(children: [
+                    Icon(Icons.sync, size: 16, color: Colors.blue.shade700), const SizedBox(width: 8),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('SEPA-Daten aus Finanzen übernehmen?', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                      Text('IBAN: $sepaIban${sepaKontoinhaber.isNotEmpty ? ' • $sepaKontoinhaber' : ''}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                    ])),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        d['iban'] = sepaIban;
+                        if (sepaKontoinhaber.isNotEmpty) d['kontoinhaber'] = sepaKontoinhaber;
+                      }),
+                      child: const Text('Übernehmen', style: TextStyle(fontSize: 11)),
+                    ),
+                  ]),
+                ),
+              _field(d, 'iban', 'IBAN', Icons.account_balance),
+              _field(d, 'kontoinhaber', 'Kontoinhaber', Icons.person),
+            ],
           ],
           _field(d, 'angemeldet_seit', 'Angemeldet seit', Icons.calendar_today, hint: 'YYYY-MM-DD'),
           _field(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
