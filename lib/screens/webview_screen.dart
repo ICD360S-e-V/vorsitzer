@@ -214,9 +214,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final gebTag = d['geb_tag'] ?? '';
     final gebMonat = d['geb_monat'] ?? '';
     final gebJahr = d['geb_jahr'] ?? '';
-    // Go2Doc uses single input DD.MM.YYYY for Geburtsdatum
+    // Go2Doc uses MM/TT/JJJJ format for Geburtsdatum
     final gebDatum = (gebTag.isNotEmpty && gebMonat.isNotEmpty && gebJahr.isNotEmpty)
-        ? '${gebTag.padLeft(2, '0')}.${gebMonat.padLeft(2, '0')}.$gebJahr'
+        ? '${gebMonat.padLeft(2, '0')}/${gebTag.padLeft(2, '0')}/$gebJahr'
         : '';
     final email = (d['email'] ?? 'icd@icd360s.de').replaceAll("'", "\\'");
     final versicherung = d['versicherung'] ?? 'gesetzlich';
