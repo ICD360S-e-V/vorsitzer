@@ -1327,6 +1327,11 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
       ),
       const SizedBox(height: 16),
 
+      // Bescheid-Prüfung
+      ..._buildBescheidPruefung(b, fristAbgelaufen),
+
+      const SizedBox(height: 16),
+
       // Timeline
       Text('Fristenberechnung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
       const SizedBox(height: 12),
@@ -1404,6 +1409,166 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
           },
         )),
     ]));
+  }
+
+  // Regelbedarf 2025/2026 nach Regelbedarfsstufen (§ 20 SGB II / § 28 SGB XII)
+  static const _regelbedarfMin = 563.0; // Stufe 1 Alleinstehend 2025
+
+  List<Widget> _buildBescheidPruefung(Map<String, dynamic> b, bool fristAbgelaufen) {
+    final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
+
+    final regelbedarf = double.tryParse(b['regelbedarf']?.toString() ?? '') ?? 0;
+    final mehrbedarf = double.tryParse(b['mehrbedarf']?.toString() ?? '') ?? 0;
+    final kaltmiete = double.tryParse(b['kaltmiete']?.toString() ?? '') ?? 0;
+    final nebenkosten = double.tryParse(b['nebenkosten']?.toString() ?? '') ?? 0;
+    final heizkosten = double.tryParse(b['heizkosten']?.toString() ?? '') ?? 0;
+    final einkommen = double.tryParse(b['einkommen']?.toString() ?? '') ?? 0;
+    final auszahlung = double.tryParse(b['auszahlung']?.toString() ?? '') ?? 0;
+    final zeitraumVon = _parseDate(b['zeitraum_von']);
+    final zeitraumBis = _parseDate(b['zeitraum_bis']);
+    final kdu = kaltmiete + nebenkosten + heizkosten;
+    final bedarf = regelbedarf + mehrbedarf + kdu;
+    final sollAuszahlung = bedarf - einkommen;
+
+    final checks = <({String title, String detail, IconData icon, Color color, bool problem})>[];
+
+    if (!ok) {
+      // Abgelehnt — immer prüfen
+      checks.add((
+        title: 'Antrag wurde abgelehnt',
+        detail: 'Prüfen Sie den Ablehnungsgrund. Bei unzureichender Begründung ist ein Widerspruch oft erfolgreich.',
+        icon: Icons.cancel, color: Colors.red, problem: true,
+      ));
+    } else {
+      // Regelbedarf prüfen
+      if (regelbedarf > 0 && regelbedarf < _regelbedarfMin) {
+        checks.add((
+          title: 'Regelbedarf zu niedrig',
+          detail: 'Bewilligt: ${regelbedarf.toStringAsFixed(0)} € — Minimum 2025 (Stufe 1): ${_regelbedarfMin.toStringAsFixed(0)} € (§ 20 SGB II). Differenz: ${(_regelbedarfMin - regelbedarf).toStringAsFixed(2)} €/Monat.',
+          icon: Icons.warning, color: Colors.red, problem: true,
+        ));
+      } else if (regelbedarf >= _regelbedarfMin) {
+        checks.add((
+          title: 'Regelbedarf korrekt',
+          detail: '${regelbedarf.toStringAsFixed(0)} € (min. ${_regelbedarfMin.toStringAsFixed(0)} € Stufe 1)',
+          icon: Icons.check_circle, color: Colors.green, problem: false,
+        ));
+      } else if (regelbedarf == 0 && ok) {
+        checks.add((
+          title: 'Regelbedarf nicht eingetragen',
+          detail: 'Bitte Regelbedarf aus dem Berechnungsbogen übertragen um die Prüfung durchzuführen.',
+          icon: Icons.help_outline, color: Colors.grey, problem: false,
+        ));
+      }
+
+      // KdU prüfen
+      if (kdu > 0) {
+        if (kaltmiete == 0) {
+          checks.add((
+            title: 'Kaltmiete fehlt im Bescheid',
+            detail: 'KdU bewilligt, aber Kaltmiete ist 0 €. Mietvertrag prüfen und ggf. Widerspruch einlegen.',
+            icon: Icons.warning, color: Colors.orange, problem: true,
+          ));
+        } else if (heizkosten == 0) {
+          checks.add((
+            title: 'Heizkosten fehlen',
+            detail: 'Kaltmiete ${kaltmiete.toStringAsFixed(0)} € bewilligt, aber keine Heizkosten. Ggf. separat beantragt?',
+            icon: Icons.warning, color: Colors.orange, problem: true,
+          ));
+        } else {
+          checks.add((
+            title: 'KdU vollständig',
+            detail: 'Kaltmiete ${kaltmiete.toStringAsFixed(0)} € + NK ${nebenkosten.toStringAsFixed(0)} € + Heizung ${heizkosten.toStringAsFixed(0)} € = ${kdu.toStringAsFixed(0)} €',
+            icon: Icons.check_circle, color: Colors.green, problem: false,
+          ));
+        }
+      } else if (ok && regelbedarf > 0) {
+        checks.add((
+          title: 'Keine KdU bewilligt',
+          detail: 'Kosten der Unterkunft (Miete, Nebenkosten, Heizung) wurden nicht bewilligt. Falls Mietwohnung vorhanden, unbedingt prüfen!',
+          icon: Icons.warning, color: Colors.red, problem: true,
+        ));
+      }
+
+      // Auszahlung prüfen
+      if (bedarf > 0 && auszahlung > 0) {
+        final diff = (sollAuszahlung - auszahlung).abs();
+        if (diff > 1.0 && auszahlung < sollAuszahlung) {
+          checks.add((
+            title: 'Auszahlung weicht ab',
+            detail: 'Bedarf ${bedarf.toStringAsFixed(2)} € − Einkommen ${einkommen.toStringAsFixed(2)} € = ${sollAuszahlung.toStringAsFixed(2)} €, aber nur ${auszahlung.toStringAsFixed(2)} € bewilligt. Differenz: ${(sollAuszahlung - auszahlung).toStringAsFixed(2)} €/Monat.',
+            icon: Icons.warning, color: Colors.red, problem: true,
+          ));
+        } else {
+          checks.add((
+            title: 'Auszahlung stimmt überein',
+            detail: '${auszahlung.toStringAsFixed(2)} €/Monat (Bedarf ${bedarf.toStringAsFixed(0)} € − Einkommen ${einkommen.toStringAsFixed(0)} €)',
+            icon: Icons.check_circle, color: Colors.green, problem: false,
+          ));
+        }
+      }
+
+      // Bewilligungszeitraum prüfen
+      if (zeitraumVon != null && zeitraumBis != null) {
+        final monate = (zeitraumBis.year - zeitraumVon.year) * 12 + zeitraumBis.month - zeitraumVon.month;
+        if (monate < 12) {
+          checks.add((
+            title: 'Bewilligungszeitraum nur $monate Monate',
+            detail: 'Standard ist 12 Monate (§ 44 SGB XII). Ein kürzerer Zeitraum muss begründet sein.',
+            icon: Icons.warning, color: Colors.orange, problem: true,
+          ));
+        } else {
+          checks.add((
+            title: 'Bewilligungszeitraum $monate Monate',
+            detail: 'Standardzeitraum (12 Monate) eingehalten.',
+            icon: Icons.check_circle, color: Colors.green, problem: false,
+          ));
+        }
+      }
+    }
+
+    final problems = checks.where((c) => c.problem).length;
+    final hasData = checks.any((c) => c.color != Colors.grey);
+
+    final empfehlung = !hasData
+        ? (text: 'Daten unvollständig — bitte Berechnungsbogen eintragen', color: Colors.grey, icon: Icons.help_outline)
+        : problems == 0
+            ? (text: 'Bescheid korrekt — Widerspruch nicht empfohlen', color: Colors.green, icon: Icons.verified)
+            : problems == 1
+                ? (text: '1 Auffälligkeit — Widerspruch prüfen', color: Colors.orange, icon: Icons.warning)
+                : (text: '$problems Auffälligkeiten — Widerspruch empfohlen', color: Colors.red, icon: Icons.gavel);
+
+    return [
+      Text('Bescheid-Prüfung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      const SizedBox(height: 8),
+      // Empfehlung Banner
+      Container(
+        width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: empfehlung.color.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: empfehlung.color.shade300, width: 1.5),
+        ),
+        child: Row(children: [
+          Icon(empfehlung.icon, size: 24, color: empfehlung.color.shade700),
+          const SizedBox(width: 10),
+          Expanded(child: Text(empfehlung.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: empfehlung.color.shade800))),
+        ]),
+      ),
+      const SizedBox(height: 8),
+      ...checks.map((c) => Container(
+        margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.color.shade200)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(c.icon, size: 18, color: c.color.shade600), const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(c.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.color.shade800)),
+            const SizedBox(height: 2),
+            Text(c.detail, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          ])),
+        ]),
+      )),
+    ];
   }
 
   Widget _timelineItem(IconData icon, String title, String date, Color color, bool hasLine, {String? subtitle}) {
