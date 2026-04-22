@@ -502,17 +502,8 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () {
+        FilledButton(onPressed: () async {
           if (leistung.isEmpty || bescheidDatumC.text.isEmpty) return;
-          setState(() { list.insert(0, {
-            'leistung': leistung, 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text, 'erhalten_am': erhaltenAmC.text,
-            'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
-            'regelbedarf': regelbedarfC.text, 'mehrbedarf': mehrbedarfC.text,
-            'kaltmiete': kaltmieteC.text, 'nebenkosten': nebenkostenC.text, 'heizkosten': heizkostenC.text,
-            'einkommen': einkommenC.text, 'auszahlung': auszahlungC.text,
-            'widerspruch': widerspruch, 'widerspruch_datum': widerspruchDatumC.text,
-            'notiz': notizC.text,
-          });
           if (widget.apiService != null && widget.userId != null) {
             await widget.apiService!.saveSozialamtBewilligung(widget.userId!, {
               'leistung': leistung, 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text, 'erhalten_am': erhaltenAmC.text,
