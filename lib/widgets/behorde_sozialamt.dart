@@ -307,7 +307,8 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                 leading: Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.green : Colors.red, size: 28),
                 title: Text(b['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${ok ? 'Bewilligt' : 'Abgelehnt'} • ${b['bescheid_datum'] ?? b['datum'] ?? ''}', style: TextStyle(fontSize: 11, color: ok ? Colors.green.shade700 : Colors.red.shade700)),
+                  Text('${ok ? 'Bewilligt' : 'Abgelehnt'} • Bescheid: ${b['bescheid_datum'] ?? b['datum'] ?? ''}', style: TextStyle(fontSize: 11, color: ok ? Colors.green.shade700 : Colors.red.shade700)),
+                  if ((b['erhalten_am']?.toString() ?? '').isNotEmpty) Text('📬 Erhalten per Post: ${b['erhalten_am']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   if (zeitraum.isNotEmpty) Text('Zeitraum: $zeitraum', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   if (ausz.isNotEmpty) Text('Auszahlung: $ausz €/Monat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
                   if (b['widerspruch'] == true) Text('⚠ Widerspruch eingelegt${b['widerspruch_datum'] != null ? ' am ${b['widerspruch_datum']}' : ''}', style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
@@ -378,6 +379,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   void _showBewilligungDialog(Map<String, dynamic> d, List<Map<String, dynamic>> list) {
     String leistung = '';
     final bescheidDatumC = TextEditingController();
+    final erhaltenAmC = TextEditingController();
     final zeitraumVonC = TextEditingController();
     final zeitraumBisC = TextEditingController();
     final regelbedarfC = TextEditingController();
@@ -411,6 +413,8 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
         ]),
         const SizedBox(height: 8),
         TextField(controller: bescheidDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Bescheid-Datum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, bescheidDatumC); setD(() {}); }),
+        const SizedBox(height: 8),
+        TextField(controller: erhaltenAmC, readOnly: true, decoration: InputDecoration(labelText: 'Erhalten per Post am', prefixIcon: const Icon(Icons.local_post_office, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), helperText: 'Wichtig für Widerspruchsfrist (1 Monat ab Zugang)'), onTap: () async { await pickDate(ctx2, erhaltenAmC); setD(() {}); }),
         const SizedBox(height: 8),
         Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
         const SizedBox(height: 4),
@@ -460,7 +464,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
         FilledButton(onPressed: () {
           if (leistung.isEmpty || bescheidDatumC.text.isEmpty) return;
           setState(() { list.insert(0, {
-            'leistung': leistung, 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text,
+            'leistung': leistung, 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text, 'erhalten_am': erhaltenAmC.text,
             'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
             'regelbedarf': regelbedarfC.text, 'mehrbedarf': mehrbedarfC.text,
             'kaltmiete': kaltmieteC.text, 'nebenkosten': nebenkostenC.text, 'heizkosten': heizkostenC.text,
