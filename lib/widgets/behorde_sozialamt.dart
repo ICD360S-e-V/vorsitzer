@@ -33,6 +33,9 @@ class BehordeSozialamtContent extends StatefulWidget {
 class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   static const type = 'sozialamt';
   Map<String, Map<String, dynamic>> _dbData = {};
+  List<Map<String, dynamic>> _antraege = [];
+  List<Map<String, dynamic>> _bewilligungen = [];
+  List<Map<String, dynamic>> _korrespondenz = [];
   bool _loaded = false;
   bool _saving = false;
 
@@ -65,6 +68,15 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
         }
         _dbData[entry.key.toString()] = map;
       }
+    }
+    // Load from dedicated tables
+    if (widget.apiService != null && widget.userId != null) {
+      final aR = await widget.apiService!.listSozialamtAntraege(widget.userId!);
+      if (aR['success'] == true && aR['data'] is List) _antraege = (aR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final bR = await widget.apiService!.listSozialamtBewilligungen(widget.userId!);
+      if (bR['success'] == true && bR['data'] is List) _bewilligungen = (bR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final kR = await widget.apiService!.listSozialamtKorrespondenz(widget.userId!);
+      if (kR['success'] == true && kR['data'] is List) _korrespondenz = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     setState(() => _loaded = true);
   }
@@ -275,13 +287,12 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   }
 
   Widget _buildAntraegeTab() {
-    final d = _b('antraege');
-    final list = List<Map<String, dynamic>>.from(d['liste'] is List ? d['liste'] : []);
+    final list = _antraege;
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.description, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
         Expanded(child: Text('Anträge (${list.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
-        ElevatedButton.icon(onPressed: () => _showAntragDialog(d, list), icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Antrag', style: TextStyle(fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white)),
+        ElevatedButton.icon(onPressed: () => _showAntragDialog(), icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Antrag', style: TextStyle(fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white)),
       ])),
       Expanded(child: list.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.description, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Anträge', style: TextStyle(color: Colors.grey.shade500))]))
@@ -291,21 +302,23 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                 leading: Icon(Icons.description, color: Colors.indigo.shade600),
                 title: Text(a['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Text('${a['datum'] ?? ''} • ${a['methode'] ?? ''} • ${a['status'] ?? ''}', style: const TextStyle(fontSize: 11)),
-                onTap: () => _showAntragDialog(d, list, editIndex: i),
-                trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () { setState(() => list.removeAt(i)); d['liste'] = list; _save(); }),
+                trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () async {
+                  final aid = int.tryParse(a['id']?.toString() ?? '');
+                  if (aid != null && widget.apiService != null) await widget.apiService!.deleteSozialamtAntrag(aid);
+                  _loadFromDB();
+                }),
               ));
             })),
     ]);
   }
 
   Widget _buildBewilligungTab() {
-    final d = _b('bewilligung');
-    final list = List<Map<String, dynamic>>.from(d['liste'] is List ? d['liste'] : []);
+    final list = _bewilligungen;
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.check_circle, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
         Expanded(child: Text('Bewilligungen (${list.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
-        ElevatedButton.icon(onPressed: () => _showBewilligungDialog(d, list), icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
+        ElevatedButton.icon(onPressed: () => _showBewilligungDialog(), icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),
       Expanded(child: list.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Bewilligungen', style: TextStyle(color: Colors.grey.shade500))]))
@@ -325,21 +338,24 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                   if (b['widerspruch'] == true) Text('⚠ Widerspruch eingelegt${b['widerspruch_datum'] != null ? ' am ${b['widerspruch_datum']}' : ''}', style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
                 ]),
                 isThreeLine: true,
-                trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () { setState(() => list.removeAt(i)); d['liste'] = list; _save(); }),
+                trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () async {
+                  final bid = int.tryParse(b['id']?.toString() ?? '');
+                  if (bid != null && widget.apiService != null) await widget.apiService!.deleteSozialamtBewilligung(bid);
+                  _loadFromDB();
+                }),
               ));
             })),
     ]);
   }
 
   Widget _buildKorrespondenzTab() {
-    final d = _b('korrespondenz');
-    final list = List<Map<String, dynamic>>.from(d['liste'] is List ? d['liste'] : []);
+    final list = _korrespondenz;
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
         Expanded(child: Text('${list.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero), onPressed: () => _showKorrDialog(d, list, 'eingang')),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero), onPressed: () => _showKorrDialog('eingang')),
         const SizedBox(width: 6),
-        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero), onPressed: () => _showKorrDialog(d, list, 'ausgang')),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero), onPressed: () => _showKorrDialog('ausgang')),
       ])),
       Expanded(child: list.isEmpty
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 6), Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
@@ -352,15 +368,19 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                     Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
                     Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   ])),
-                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () { setState(() => list.removeAt(i)); d['liste'] = list; _save(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
+                    final kid = int.tryParse(k['id']?.toString() ?? '');
+                    if (kid != null && widget.apiService != null) await widget.apiService!.deleteSozialamtKorrespondenz(kid);
+                    _loadFromDB();
+                  }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
                 ]),
               );
             })),
     ]);
   }
 
-  void _showAntragDialog(Map<String, dynamic> d, List<Map<String, dynamic>> list, {int? editIndex}) {
-    final ex = editIndex != null ? list[editIndex] : null;
+  void _showAntragDialog({int? editIndex}) {
+    final ex = editIndex != null ? _antraege[editIndex] : null;
     final datumC = TextEditingController(text: ex?['datum']?.toString() ?? '');
     final notizC = TextEditingController(text: ex?['notiz']?.toString() ?? '');
     String leistung = ex?['leistung']?.toString() ?? '';
@@ -382,12 +402,22 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () { if (leistung.isEmpty || datumC.text.isEmpty) return; final entry = {'leistung': leistung, 'datum': datumC.text, 'methode': methode, 'status': status, 'notiz': notizC.text}; setState(() { if (editIndex != null) list[editIndex] = entry; else list.insert(0, entry); d['liste'] = list; }); _save(); Navigator.pop(ctx); }, child: Text(editIndex != null ? 'Speichern' : 'Hinzufügen')),
+        FilledButton(onPressed: () async {
+          if (leistung.isEmpty || datumC.text.isEmpty) return;
+          if (widget.apiService != null && widget.userId != null) {
+            await widget.apiService!.saveSozialamtAntrag(widget.userId!, {
+              if (ex != null) 'id': ex['id'],
+              'leistung': leistung, 'datum': datumC.text, 'methode': methode, 'status': status, 'notiz': notizC.text,
+            });
+          }
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadFromDB();
+        }, child: Text(editIndex != null ? 'Speichern' : 'Hinzufügen')),
       ],
     )));
   }
 
-  void _showBewilligungDialog(Map<String, dynamic> d, List<Map<String, dynamic>> list) {
+  void _showBewilligungDialog() {
     String leistung = '';
     final bescheidDatumC = TextEditingController();
     final erhaltenAmC = TextEditingController();
@@ -482,14 +512,25 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
             'einkommen': einkommenC.text, 'auszahlung': auszahlungC.text,
             'widerspruch': widerspruch, 'widerspruch_datum': widerspruchDatumC.text,
             'notiz': notizC.text,
-          }); d['liste'] = list; });
-          _save(); Navigator.pop(ctx);
+          });
+          if (widget.apiService != null && widget.userId != null) {
+            await widget.apiService!.saveSozialamtBewilligung(widget.userId!, {
+              'leistung': leistung, 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text, 'erhalten_am': erhaltenAmC.text,
+              'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
+              'regelbedarf': double.tryParse(regelbedarfC.text), 'mehrbedarf': double.tryParse(mehrbedarfC.text),
+              'kaltmiete': double.tryParse(kaltmieteC.text), 'nebenkosten': double.tryParse(nebenkostenC.text), 'heizkosten': double.tryParse(heizkostenC.text),
+              'einkommen': double.tryParse(einkommenC.text), 'auszahlung': double.tryParse(auszahlungC.text),
+              'widerspruch': widerspruch, 'widerspruch_datum': widerspruchDatumC.text, 'notiz': notizC.text,
+            });
+          }
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadFromDB();
         }, child: const Text('Hinzufügen')),
       ],
     )));
   }
 
-  void _showKorrDialog(Map<String, dynamic> d, List<Map<String, dynamic>> list, String richtung) {
+  void _showKorrDialog(String richtung) {
     final betreffC = TextEditingController(); final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}'); final notizC = TextEditingController();
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
@@ -500,7 +541,13 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () { setState(() { list.insert(0, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()}); d['liste'] = list; }); _save(); Navigator.pop(ctx); }, child: const Text('Speichern')),
+        FilledButton(onPressed: () async {
+          if (widget.apiService != null && widget.userId != null) {
+            await widget.apiService!.saveSozialamtKorrespondenz(widget.userId!, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+          }
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadFromDB();
+        }, child: const Text('Speichern')),
       ],
     ));
   }
