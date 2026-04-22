@@ -20,6 +20,7 @@ class WebViewScreen extends StatefulWidget {
   final String url;
   final String? autoFillUsername;
   final String? autoFillPassword;
+  final Map<String, String>? go2docAutoFill;
 
   const WebViewScreen({
     super.key,
@@ -27,6 +28,7 @@ class WebViewScreen extends StatefulWidget {
     required this.url,
     this.autoFillUsername,
     this.autoFillPassword,
+    this.go2docAutoFill,
   });
 
   @override
@@ -201,10 +203,111 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _autoFillDone = false;
   int _autoFillAttempts = 0;
 
+  bool _go2docInjected = false;
+
+  /// Inject Go2Doc patient form auto-fill (stage 3: Vorname, Nachname, Geburtsdatum, Email, Versicherung, Einwilligung)
+  Future<void> _tryGo2DocAutoFill() async {
+    if (_go2docInjected || widget.go2docAutoFill == null || widget.go2docAutoFill!.isEmpty) return;
+    final d = widget.go2docAutoFill!;
+    final vorname = (d['vorname'] ?? '').replaceAll("'", "\\'");
+    final nachname = (d['nachname'] ?? '').replaceAll("'", "\\'");
+    final gebTag = d['geb_tag'] ?? '';
+    final gebMonat = d['geb_monat'] ?? '';
+    final gebJahr = d['geb_jahr'] ?? '';
+    final email = (d['email'] ?? 'icd@icd360s.de').replaceAll("'", "\\'");
+    final versicherung = d['versicherung'] ?? 'gesetzlich';
+
+    final js = '''
+(function() {
+  function setVal(el, val) {
+    if (!el) return false;
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    if (setter) setter.call(el, val);
+    else el.value = val;
+    el.dispatchEvent(new Event('input', {bubbles: true}));
+    el.dispatchEvent(new Event('change', {bubbles: true}));
+    return true;
+  }
+  function setSelect(el, val) {
+    if (!el) return false;
+    for (var i = 0; i < el.options.length; i++) {
+      if (el.options[i].value == val || el.options[i].text.toLowerCase().indexOf(val.toLowerCase()) >= 0) {
+        el.selectedIndex = i;
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        return true;
+      }
+    }
+    return false;
+  }
+
+  var inputs = document.querySelectorAll('input, select, textarea');
+  var filled = 0;
+  for (var el of inputs) {
+    var ph = (el.placeholder || '').toLowerCase();
+    var nm = (el.name || '').toLowerCase();
+    var id = (el.id || '').toLowerCase();
+    var lbl = '';
+    if (el.id) { var l = document.querySelector('label[for="' + el.id + '"]'); if (l) lbl = l.textContent.toLowerCase(); }
+
+    if (ph.indexOf('vorname') >= 0 || nm.indexOf('vorname') >= 0 || nm.indexOf('firstname') >= 0 || lbl.indexOf('vorname') >= 0 || id.indexOf('vorname') >= 0 || id.indexOf('firstname') >= 0) {
+      if (setVal(el, '$vorname')) filled++;
+    } else if (ph.indexOf('nachname') >= 0 || nm.indexOf('nachname') >= 0 || nm.indexOf('lastname') >= 0 || nm.indexOf('name') >= 0 || lbl.indexOf('nachname') >= 0 || id.indexOf('nachname') >= 0 || id.indexOf('lastname') >= 0) {
+      if (setVal(el, '$nachname')) filled++;
+    } else if (ph.indexOf('e-mail') >= 0 || ph.indexOf('email') >= 0 || nm.indexOf('email') >= 0 || el.type === 'email' || lbl.indexOf('email') >= 0 || lbl.indexOf('e-mail') >= 0) {
+      if (setVal(el, '$email')) filled++;
+    } else if (el.tagName === 'SELECT' && (nm.indexOf('tag') >= 0 || id.indexOf('tag') >= 0 || lbl.indexOf('tag') >= 0)) {
+      if (setSelect(el, '$gebTag')) filled++;
+    } else if (el.tagName === 'SELECT' && (nm.indexOf('monat') >= 0 || id.indexOf('monat') >= 0 || lbl.indexOf('monat') >= 0)) {
+      if (setSelect(el, '$gebMonat')) filled++;
+    } else if (el.tagName === 'SELECT' && (nm.indexOf('jahr') >= 0 || id.indexOf('jahr') >= 0 || lbl.indexOf('jahr') >= 0)) {
+      if (setSelect(el, '$gebJahr')) filled++;
+    } else if (el.tagName === 'SELECT' && (nm.indexOf('versicher') >= 0 || id.indexOf('versicher') >= 0 || lbl.indexOf('versicher') >= 0 || lbl.indexOf('kranken') >= 0)) {
+      if (setSelect(el, '$versicherung')) filled++;
+    }
+  }
+
+  // Auto-check consent checkbox
+  var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  for (var cb of checkboxes) {
+    var parent = cb.closest('label') || cb.parentElement;
+    var txt = parent ? parent.textContent.toLowerCase() : '';
+    if (txt.indexOf('willige ein') >= 0 || txt.indexOf('einwillig') >= 0 || txt.indexOf('datenschutz') >= 0 || txt.indexOf('go2doc') >= 0) {
+      if (!cb.checked) { cb.click(); filled++; }
+    }
+  }
+
+  return filled;
+})();
+''';
+
+    // Retry up to 10 times (Angular SPA loads fields dynamically)
+    for (int attempt = 0; attempt < 10; attempt++) {
+      await Future.delayed(Duration(milliseconds: attempt < 3 ? 1000 : 2000));
+      try {
+        dynamic result;
+        if (_mobileController != null) {
+          result = await _mobileController!.runJavaScriptReturningResult(js);
+        } else if (_windowsController != null) {
+          result = await _windowsController!.executeScript(js);
+        }
+        final filled = int.tryParse(result?.toString() ?? '0') ?? 0;
+        if (filled > 0) {
+          debugPrint('[WebView] Go2Doc auto-fill: $filled fields filled (attempt ${attempt + 1})');
+          _go2docInjected = true;
+          return;
+        }
+      } catch (e) {
+        debugPrint('[WebView] Go2Doc auto-fill attempt ${attempt + 1} error: $e');
+      }
+    }
+  }
+
   /// Auto-fill login credentials via JavaScript injection
   /// Retries up to 5 times with delay for SPA sites that load fields dynamically
   Future<void> _tryAutoFill() async {
     if (_autoFillDone) return;
+    // Also try Go2Doc patient auto-fill
+    _tryGo2DocAutoFill();
     final user = widget.autoFillUsername;
     final pass = widget.autoFillPassword;
     if (user == null || user.isEmpty) return;
