@@ -9142,7 +9142,31 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             onTap: () {
                               Navigator.pop(ctx);
                               Navigator.push(context, MaterialPageRoute(
-                                builder: (_) => WebViewScreen(title: 'Online Termin — $arztTitle', url: onlineTerminUrl),
+                                builder: (_) {
+                                  // Parse Geburtsdatum for Go2Doc auto-fill
+                                  final geb = widget.user.geburtsdatum;
+                                  String gebTag = '', gebMonat = '', gebJahr = '';
+                                  if (geb != null) {
+                                    final parts = geb.toString().split(RegExp(r'[-./]'));
+                                    if (parts.length == 3) {
+                                      if (parts[0].length == 4) { gebJahr = parts[0]; gebMonat = parts[1]; gebTag = parts[2]; }
+                                      else { gebTag = parts[0]; gebMonat = parts[1]; gebJahr = parts[2]; }
+                                    }
+                                  }
+                                  return WebViewScreen(
+                                    title: 'Online Termin — $arztTitle',
+                                    url: onlineTerminUrl,
+                                    go2docAutoFill: {
+                                      'vorname': widget.user.vorname ?? '',
+                                      'nachname': widget.user.nachname ?? '',
+                                      'geb_tag': gebTag,
+                                      'geb_monat': gebMonat,
+                                      'geb_jahr': gebJahr,
+                                      'email': 'icd@icd360s.de',
+                                      'versicherung': 'gesetzlich',
+                                    },
+                                  );
+                                },
                               ));
                             },
                             child: Row(children: [
