@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'file_viewer_dialog.dart';
+import 'korrespondenz_attachments_widget.dart';
 import '../services/termin_service.dart';
 
 /// Versorgungsamt content with tabs similar to Arzt structure.
@@ -2065,6 +2066,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
                   Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
+                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: k['id'] as int)),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragKorr(k['id'] as int); _load(); },
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
