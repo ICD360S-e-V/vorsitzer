@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:io';
 import 'dart:typed_data';
@@ -9104,7 +9105,14 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
     // Get online termin URL from selected arzt
     final activeData = _gesundheitData[type] ?? {};
-    final selArzt = activeData['selected_arzt'] as Map<String, dynamic>? ?? {};
+    Map<String, dynamic> selArzt = {};
+    final rawArzt = activeData['selected_arzt'];
+    if (rawArzt is Map) {
+      selArzt = Map<String, dynamic>.from(rawArzt);
+    } else if (rawArzt is String && rawArzt.isNotEmpty) {
+      try { selArzt = Map<String, dynamic>.from(jsonDecode(rawArzt)); } catch (_) {}
+    }
+    final hasArzt = selArzt.isNotEmpty || (activeData['arzt_name']?.toString() ?? '').isNotEmpty || (activeData['behandelnder_arzt']?.toString() ?? '').isNotEmpty;
     final onlineTerminUrl = selArzt['online_termin_url']?.toString() ?? '';
 
     showDialog(
@@ -9128,7 +9136,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Online Termin link — always show when doctor is selected
-                      if (selArzt.isNotEmpty && !isEdit)
+                      if (hasArzt && !isEdit)
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.only(bottom: 12),
