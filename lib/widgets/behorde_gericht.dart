@@ -7,6 +7,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class BehordeGerichtContent extends StatefulWidget {
   final User user;
@@ -425,6 +426,8 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
                     Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
                     Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                     if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
+                      child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gericht_$typ', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
                     final kid = int.tryParse(k['id']?.toString() ?? '');
@@ -783,6 +786,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                   Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
                   Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
+                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gericht_vorfall', korrespondenzId: k['id'] as int)),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteGerichtVorfallKorr(k['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
               ]));

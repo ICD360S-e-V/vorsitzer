@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import 'package:open_filex/open_filex.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -394,6 +395,8 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
                     Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if (k['id'] != null && widget.apiService != null) Padding(padding: const EdgeInsets.only(top: 4),
+                      child: KorrAttachmentsWidget(apiService: widget.apiService!, modul: 'sozialamt', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
                     final kid = int.tryParse(k['id']?.toString() ?? '');
@@ -1210,6 +1213,8 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
                     Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
                     Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                     if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
+                      child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'bewilligung', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
                     final kid = int.tryParse(k['id']?.toString() ?? '');
