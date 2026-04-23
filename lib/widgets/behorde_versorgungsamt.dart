@@ -432,6 +432,13 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     if (!_dbLoaded) return const Center(child: CircularProgressIndicator());
     final data = <String, dynamic>{}; // legacy compat — flat map from DB data
     _dbData.forEach((bereich, fields) => fields.forEach((k, v) => data[k] = v));
+    // Reconstruct selected_amt Map for UI
+    final amt = _dbData['amt'] ?? {};
+    if (amt.isNotEmpty && (amt['name']?.toString() ?? '').isNotEmpty) {
+      data['selected_amt'] = Map<String, dynamic>.from(amt);
+    }
+    final sonstige = _dbData['sonstige'] ?? {};
+    if (sonstige['selected_amt_id'] != null) data['selected_amt_id'] = sonstige['selected_amt_id'];
 
     return DefaultTabController(
       length: 6,
