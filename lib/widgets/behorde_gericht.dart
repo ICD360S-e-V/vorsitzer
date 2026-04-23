@@ -704,7 +704,10 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           await widget.apiService.addGerichtVorfallVerlauf(widget.vorfallId, {'datum': datumC.text, 'status': status, 'notiz': notizC.text});
-          if (status.isNotEmpty) await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {'id': widget.vorfallId, 'status': status});
+          if (status.isNotEmpty) {
+            final updated = Map<String, dynamic>.from(widget.vorfall); updated['status'] = status;
+            await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, updated);
+          }
           if (ctx.mounted) Navigator.pop(ctx); _load(); widget.onChanged();
         }, child: const Text('Hinzufügen'))],
     )));
@@ -868,13 +871,17 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final restTage = fristEnde.difference(heute0).inDays;
     final abgelaufen = heute0.isAfter(fristEnde);
     final letzteWoche = !abgelaufen && restTage <= 7;
-    final hatWiderspruch = status == 'bewilligt' || status == 'abgelehnt' || status == 'erledigt';
+
+    // Check if Widerspruch was filed (from Verlauf entries)
+    final widerspruchEntry = _verlauf.where((e) => (e['notiz']?.toString() ?? '').contains('Widerspruch eingelegt')).firstOrNull;
+    final hatWiderspruch = widerspruchEntry != null || status == 'in_bearbeitung' || status == 'bewilligt' || status == 'abgelehnt' || status == 'erledigt';
+    final widerspruchDatum = widerspruchEntry != null ? _parseDate(widerspruchEntry['datum']) : null;
 
     String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
-    final statusColor = hatWiderspruch ? Colors.blue : abgelaufen ? Colors.red : letzteWoche ? Colors.orange : Colors.green;
-    final statusText = hatWiderspruch ? 'Verfahren: ${_sLabel(status)}' : abgelaufen ? 'Frist abgelaufen seit ${-restTage} Tagen' : '$restTage Tage verbleibend';
-    final statusIcon = hatWiderspruch ? Icons.check_circle : abgelaufen ? Icons.cancel : letzteWoche ? Icons.warning : Icons.timer;
+    final statusColor = hatWiderspruch
+        ? (status == 'bewilligt' ? Colors.green : status == 'abgelehnt' ? Colors.red : status == 'erledigt' ? Colors.grey : Colors.blue)
+        : abgelaufen ? Colors.red : letzteWoche ? Colors.orange : Colors.green;
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Status Banner
@@ -882,43 +889,62 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         width: double.infinity, padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: statusColor.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: statusColor.shade300, width: 2)),
         child: Row(children: [
-          Icon(statusIcon, size: 28, color: statusColor.shade700), const SizedBox(width: 12),
+          Icon(hatWiderspruch ? Icons.gavel : abgelaufen ? Icons.cancel : Icons.timer, size: 28, color: statusColor.shade700),
+          const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(statusText, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: statusColor.shade800)),
-            if (!hatWiderspruch && !abgelaufen) Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: statusColor.shade700)),
+            Text(hatWiderspruch
+                ? 'Widerspruch eingelegt${widerspruchDatum != null ? ' am ${fmt(widerspruchDatum)}' : ''}'
+                : abgelaufen ? 'Frist abgelaufen seit ${-restTage} Tagen' : '$restTage Tage verbleibend',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+            if (hatWiderspruch) Text('Status: ${_sLabel(status)}', style: TextStyle(fontSize: 12, color: statusColor.shade700))
+            else if (!abgelaufen) Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: statusColor.shade700)),
           ])),
         ]),
       ),
       const SizedBox(height: 16),
 
-      // Frist Info
-      Container(
-        width: double.infinity, padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Frist für "${titel}"', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-          const SizedBox(height: 6),
-          Row(children: [
-            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)),
-              child: Text('${frist.tage} Tage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
-            const SizedBox(width: 8),
-            Expanded(child: Text(frist.beschreibung, style: TextStyle(fontSize: 11, color: Colors.indigo.shade700))),
-          ]),
-          if (frist.paragraph.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(frist.paragraph, style: TextStyle(fontSize: 10, color: Colors.indigo.shade500, fontStyle: FontStyle.italic)),
-          ],
-        ]),
-      ),
-      const SizedBox(height: 16),
-
-      // Timeline
-      Text('Fristenberechnung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      // Chronologische Timeline
+      Text('Chronologie', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
       const SizedBox(height: 12),
       _tlItem(Icons.description, 'Bescheid / Zustellung', fmt(bescheidDatum), Colors.indigo, true),
-      _tlItem(abgelaufen ? Icons.cancel : Icons.gavel, 'Fristende Widerspruch / Rechtsmittel', fmt(fristEnde), abgelaufen ? Colors.red : letzteWoche ? Colors.orange : Colors.green, true, subtitle: frist.beschreibung),
-      if (!abgelaufen && !hatWiderspruch) _tlItem(Icons.timer, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '$restTage Tage verbleibend'),
-
+      if (hatWiderspruch && widerspruchDatum != null)
+        _tlItem(Icons.gavel, 'Widerspruch eingelegt', fmt(widerspruchDatum), Colors.blue, true,
+          subtitle: widerspruchEntry?['notiz']?.toString()),
+      _tlItem(abgelaufen && !hatWiderspruch ? Icons.cancel : Icons.timer, 'Fristende (${frist.tage} Tage)', fmt(fristEnde), abgelaufen && !hatWiderspruch ? Colors.red : Colors.grey, hatWiderspruch || (!abgelaufen),
+        subtitle: '${frist.beschreibung} — ${frist.paragraph}'),
+      // Show all Verlauf entries chronologically
+      ..._verlauf.map((e) {
+        final notiz = e['notiz']?.toString() ?? '';
+        if (notiz.contains('Widerspruch eingelegt')) return const SizedBox.shrink(); // already shown above
+        final eDatum = _parseDate(e['datum']);
+        return _tlItem(Icons.circle, '${_sLabel(e['status']?.toString() ?? '')}${notiz.isNotEmpty ? ': $notiz' : ''}',
+          eDatum != null ? fmt(eDatum) : '', widget.color, true);
+      }),
+      if (!abgelaufen && !hatWiderspruch) _tlItem(Icons.today, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '$restTage Tage verbleibend'),
+      if (hatWiderspruch) ...[
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Icon(Icons.timer, size: 20, color: Colors.blue.shade700), const SizedBox(width: 8),
+              Text('Erwartete Wartezeit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800))]),
+            const SizedBox(height: 6),
+            Text(_getWartezeit(widget.gerichtTyp, titel), style: TextStyle(fontSize: 12, color: Colors.blue.shade900)),
+          ]),
+        ),
+        if (widget.gerichtTyp == 'sozialgericht') ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.lightbulb, size: 16, color: Colors.amber.shade700), const SizedBox(width: 8),
+              Expanded(child: Text('Nach 3 Monaten ohne Antwort: Untätigkeitsklage nach § 88 SGG möglich.', style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+            ]),
+          ),
+        ],
+      ],
       const SizedBox(height: 16),
 
       // Rechtsgrundlage
@@ -926,24 +952,21 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         width: double.infinity, padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Rechtsgrundlage & Fristen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Rechtsgrundlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
           const SizedBox(height: 6),
           if (widget.gerichtTyp == 'arbeitsgericht') ...[
             _lawRow('§ 46a ArbGG', 'Mahnbescheid: 1 Woche Widerspruchsfrist'),
             _lawRow('§ 4 KSchG', 'Kündigungsschutzklage: 3 Wochen ab Zugang'),
             _lawRow('§ 59 ArbGG', 'Allgemeine Rechtsmittelfrist: 2 Wochen'),
-            _lawRow('§ 9 ArbGG', 'Fristende auf Wochenende/Feiertag: nächster Werktag'),
           ],
           if (widget.gerichtTyp == 'sozialgericht') ...[
             _lawRow('§ 84 SGG', 'Widerspruchsfrist: 1 Monat nach Bekanntgabe'),
-            _lawRow('§ 87 SGG', 'Klagefrist: 1 Monat nach Zustellung Widerspruchsbescheid'),
-            _lawRow('§ 86b SGG', 'Einstweiliger Rechtsschutz: 2 Wochen'),
-            _lawRow('§ 66 SGG', 'Ohne Rechtsbehelfsbelehrung: 1 Jahr'),
+            _lawRow('§ 87 SGG', 'Klagefrist: 1 Monat nach Widerspruchsbescheid'),
+            _lawRow('§ 88 SGG', 'Untätigkeitsklage nach 3 Monaten'),
           ],
           if (widget.gerichtTyp == 'betreuungsgericht') ...[
-            _lawRow('§ 63 FamFG', 'Beschwerde: 1 Monat ab schriftlicher Bekanntgabe'),
-            _lawRow('§ 63 FamFG', 'Einstweilige Anordnung/Unterbringung: 2 Wochen'),
-            _lawRow('§ 64 FamFG', 'Beschwerde beim erlassenden Gericht einlegen'),
+            _lawRow('§ 63 FamFG', 'Beschwerde: 1 Monat ab Bekanntgabe'),
+            _lawRow('§ 63 FamFG', 'Einstweilig/Unterbringung: 2 Wochen'),
           ],
         ]),
       ),
@@ -1092,7 +1115,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                 'notiz': 'Widerspruch eingelegt per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich beim Gericht', 'elektronisch': 'elektronisch (beA/EGVP)'}[versandart] ?? versandart}',
               });
               // Update vorfall status
-              await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {'id': widget.vorfallId, 'status': 'in_bearbeitung'});
+              final updated = Map<String, dynamic>.from(widget.vorfall); updated['status'] = 'in_bearbeitung';
+              await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, updated);
               if (ctx.mounted) Navigator.pop(ctx);
               _load(); widget.onChanged();
             },
