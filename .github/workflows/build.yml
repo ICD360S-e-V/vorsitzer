@@ -781,6 +781,17 @@ jobs:
           # Fix ownership for nginx + list deployed files
           ssh $SSH_BASE -p "$PORT" "$REMOTE" "chown -R nginx:nginx '$BASE' && find '$BASE' -name 'vorsitzer-${VERSION}*' -type f | sort"
 
+          # Cleanup: keep only the 2 most recent versions per platform (current + fallback).
+          # Each vorsitzer release creates new versioned files and never deletes the old ones,
+          # which filled the 38GB disk to 100% within weeks (99 android APKs = 12GB alone).
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "
+            for dir in '$BASE'/android '$BASE'/windows '$BASE'/macos '$BASE'/linux '$BASE'/ios; do
+              [ -d \"\$dir\" ] || continue
+              ls -1t \"\$dir\" | tail -n +15 | while read f; do rm -f \"\$dir/\$f\"; done
+            done
+            echo 'Retention cleanup done — kept latest 14 files per platform'
+          "
+
       - name: Update version_vorsitzer.json on server
         run: |
           VERSION="${{ needs.version.outputs.version_name }}"
