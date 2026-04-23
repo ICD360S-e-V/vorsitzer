@@ -264,10 +264,58 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     _controllersInit = true;
   }
 
+  Map<String, Map<String, dynamic>> _dbData = {};
+  List<Map<String, dynamic>> _dbTermine = [];
+  List<Map<String, dynamic>> _dbKorr = [];
+  bool _dbLoaded = false;
+
   @override
   void initState() {
     super.initState();
-    if (!widget.isLoading(type) && widget.getData(type).isEmpty) widget.loadData(type);
+    _loadFromDBDedicated();
+  }
+
+  Future<void> _loadFromDBDedicated() async {
+    final dR = await widget.apiService.getVersorgungsamtData(widget.userId);
+    final tR = await widget.apiService.listVersorgungsamtTermine(widget.userId);
+    final kR = await widget.apiService.listVersorgungsamtKorr(widget.userId);
+    if (!mounted) return;
+    if (dR['success'] == true && dR['data'] is Map) {
+      _dbData = {};
+      (dR['data'] as Map).forEach((k, v) { if (v is Map) _dbData[k.toString()] = Map<String, dynamic>.from(v); });
+    }
+    if (tR['success'] == true && tR['data'] is List) _dbTermine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    if (kR['success'] == true && kR['data'] is List) _dbKorr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    // Init controllers from DB data
+    final flat = <String, dynamic>{};
+    _dbData.forEach((bereich, fields) => fields.forEach((k, v) => flat[k] = v));
+    if (!_controllersInit) _initControllers(flat);
+    setState(() => _dbLoaded = true);
+  }
+
+  Map<String, dynamic> _db(String bereich) {
+    _dbData[bereich] ??= {};
+    return _dbData[bereich]!;
+  }
+
+  Future<void> _saveDbData() async {
+    final sb = _db('sachbearbeiter');
+    sb['anrede'] = _sbAnrede;
+    sb['name'] = _sbNameC.text.trim();
+    sb['telefon'] = _sbTelC.text.trim();
+    sb['fax'] = _sbFaxC.text.trim();
+    sb['aktenzeichen'] = _joinAkt();
+    sb['notizen'] = _notizenC.text.trim();
+    final aus = _db('ausweis');
+    aus['nr'] = _ausweisNrC.text.trim();
+    aus['ausgestellt_am'] = _ausweisAusgestelltC.text.trim();
+    aus['gueltig_bis'] = _ausweisUnbefristet ? '' : _ausweisGueltigBisC.text.trim();
+    aus['unbefristet'] = _ausweisUnbefristet.toString();
+    final gdb = _db('gdb');
+    gdb['aktuell'] = _gdbAktuell.toString();
+    gdb['feststellung_datum'] = _gdbFeststellungC.text.trim();
+    gdb['bescheid_datum'] = _gdbBescheidC.text.trim();
+    await widget.apiService.saveVersorgungsamtData(widget.userId, _dbData);
   }
 
   @override
@@ -289,20 +337,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   void _saveAll(Map<String, dynamic> data) {
-    data['sachbearbeiter_anrede'] = _sbAnrede;
-    data['sachbearbeiter'] = _sbNameC.text.trim();
-    data['sachbearbeiter_telefon'] = _sbTelC.text.trim();
-    data['sachbearbeiter_fax'] = _sbFaxC.text.trim();
-    data['aktenzeichen'] = _joinAkt();
-    data['notizen'] = _notizenC.text.trim();
-    data['ausweis_nr'] = _ausweisNrC.text.trim();
-    data['ausweis_ausgestellt_am'] = _ausweisAusgestelltC.text.trim();
-    data['ausweis_gueltig_bis'] = _ausweisUnbefristet ? '' : _ausweisGueltigBisC.text.trim();
-    data['ausweis_unbefristet'] = _ausweisUnbefristet;
-    data['gdb_aktuell'] = _gdbAktuell;
-    data['gdb_feststellung_datum'] = _gdbFeststellungC.text.trim();
-    data['gdb_bescheid_datum'] = _gdbBescheidC.text.trim();
-    widget.saveData(type, data);
+    _saveDbData();
   }
 
   Future<void> _pickVersorgungsamt(Map<String, dynamic> data) async {
@@ -349,9 +384,9 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   @override
   Widget build(BuildContext context) {
-    final data = Map<String, dynamic>.from(widget.getData(type));
-    if (widget.isLoading(type)) return const Center(child: CircularProgressIndicator());
-    if (!_controllersInit) _initControllers(data);
+    if (!_dbLoaded) return const Center(child: CircularProgressIndicator());
+    final data = <String, dynamic>{}; // legacy compat — flat map from DB data
+    _dbData.forEach((bereich, fields) => fields.forEach((k, v) => data[k] = v));
 
     return DefaultTabController(
       length: 6,
@@ -577,7 +612,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   // ============ TAB 2: TERMINE ============
 
   Widget _buildTermineTab(Map<String, dynamic> data) {
-    final termine = List<Map<String, dynamic>>.from(data['termine'] ?? []);
+    final termine = _dbTermine;
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
