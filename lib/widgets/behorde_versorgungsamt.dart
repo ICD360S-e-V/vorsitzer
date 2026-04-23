@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1007,18 +1008,30 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   // ============ TAB 6: ANTRAG ============
 
+  List<Map<String, dynamic>> _dbAntraege = [];
+  bool _antraegeLoaded = false;
+
+  Future<void> _loadAntraege() async {
+    final r = await widget.apiService.listVersorgungsamtAntraege(widget.userId);
+    if (!mounted) return;
+    setState(() {
+      if (r['success'] == true && r['data'] is List) _dbAntraege = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _antraegeLoaded = true;
+    });
+  }
+
   Widget _buildAntragTab(Map<String, dynamic> data) {
-    final antraege = List<Map<String, dynamic>>.from(data['antraege'] ?? []);
+    if (!_antraegeLoaded) { _loadAntraege(); return const Center(child: CircularProgressIndicator()); }
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(children: [
           Icon(Icons.description, size: 20, color: Colors.indigo.shade700),
           const SizedBox(width: 8),
-          Text('Anträge', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          Text('Anträge (${_dbAntraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
           const Spacer(),
           ElevatedButton.icon(
-            onPressed: () => _showAntragDialog(data, antraege),
+            onPressed: () => _showNewAntragDialog(),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Neuer Antrag'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
@@ -1026,7 +1039,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         ]),
       ),
       Expanded(
-        child: antraege.isEmpty
+        child: _dbAntraege.isEmpty
             ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.description, size: 48, color: Colors.grey.shade300),
                 const SizedBox(height: 8),
@@ -1034,58 +1047,35 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: antraege.length,
+                itemCount: _dbAntraege.length,
                 itemBuilder: (_, i) {
-                  final a = antraege[i];
+                  final a = _dbAntraege[i];
                   final methode = a['methode']?.toString() ?? '';
-                  final methodeIcon = switch (methode) {
-                    'online' => Icons.language,
-                    'postalisch' => Icons.local_post_office,
-                    'persoenlich' => Icons.person,
-                    'email' => Icons.email,
-                    _ => Icons.send,
-                  };
-                  final methodeLabel = switch (methode) {
-                    'online' => 'Online',
-                    'postalisch' => 'Postalisch',
-                    'persoenlich' => 'Persönlich',
-                    'email' => 'Per E-Mail',
-                    _ => methode,
-                  };
+                  final methodeLabel = switch (methode) { 'online' => 'Online', 'postalisch' => 'Postalisch', 'persoenlich' => 'Persönlich', 'email' => 'Per E-Mail', _ => methode };
                   final status = a['status']?.toString() ?? '';
-                  final statusColor = switch (status) {
-                    'eingereicht' => Colors.orange,
-                    'in_bearbeitung' => Colors.blue,
-                    'genehmigt' => Colors.green,
-                    'abgelehnt' => Colors.red,
-                    'widerspruch' => Colors.purple,
-                    _ => Colors.grey,
-                  };
+                  final statusColor = switch (status) { 'eingereicht' => Colors.orange, 'in_bearbeitung' => Colors.blue, 'genehmigt' => Colors.green, 'abgelehnt' => Colors.red, 'widerspruch' => Colors.purple, _ => Colors.grey };
                   return Card(
                     child: ListTile(
-                      leading: CircleAvatar(backgroundColor: statusColor.shade100, child: Icon(methodeIcon, color: statusColor.shade700, size: 20)),
+                      leading: Icon(status == 'genehmigt' ? Icons.check_circle : status == 'abgelehnt' ? Icons.cancel : Icons.hourglass_top, color: statusColor, size: 28),
                       title: Text('${a['datum'] ?? ''} — $methodeLabel', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        if (status.isNotEmpty)
-                          Container(
-                            margin: const EdgeInsets.only(top: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
-                            child: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
-                          ),
-                        if ((a['notizen']?.toString() ?? '').isNotEmpty)
-                          Padding(padding: const EdgeInsets.only(top: 4), child: Text(a['notizen'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-                      ]),
-                      isThreeLine: true,
-                      onTap: () => _showAntragDialog(data, antraege, editIndex: i),
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
-                        onPressed: () {
-                          setState(() => antraege.removeAt(i));
-                          data['antraege'] = antraege;
-                          widget.saveData(type, data);
-                        },
+                      subtitle: Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
+                        child: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
                       ),
+                      onTap: () {
+                        final aid = int.tryParse(a['id']?.toString() ?? '');
+                        if (aid != null) _showAntragDetailDialog(aid, a);
+                      },
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async {
+                          final aid = int.tryParse(a['id']?.toString() ?? '');
+                          if (aid != null) await widget.apiService.deleteVersorgungsamtAntrag(aid);
+                          _loadAntraege();
+                        }),
+                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                      ]),
                     ),
                   );
                 },
@@ -1094,81 +1084,49 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     ]);
   }
 
-  void _showAntragDialog(Map<String, dynamic> data, List<Map<String, dynamic>> antraege, {int? editIndex}) {
-    final existing = editIndex != null ? antraege[editIndex] : null;
-    final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
-    final aktenzeichenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
-    final notizenC = TextEditingController(text: existing?['notizen']?.toString() ?? '');
-    String methode = existing?['methode']?.toString() ?? '';
-    String status = existing?['status']?.toString() ?? 'eingereicht';
+  void _showNewAntragDialog() {
+    final datumC = TextEditingController();
+    String methode = '';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: const Text('Neuer Antrag'),
+      content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _datePicker(ctx2, datumC, 'Datum der Antragstellung *', () => setD(() {})),
+        const SizedBox(height: 12),
+        Text('Methode *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, children: [('online', 'Online', Icons.language), ('postalisch', 'Postalisch', Icons.local_post_office), ('persoenlich', 'Persönlich', Icons.person), ('email', 'Per E-Mail', Icons.email)].map((m) {
+          final sel = methode == m.$1;
+          return ChoiceChip(
+            label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 14, color: sel ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87))]),
+            selected: sel, selectedColor: Colors.indigo.shade600,
+            onSelected: (_) => setD(() => methode = m.$1),
+          );
+        }).toList()),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          if (datumC.text.isEmpty || methode.isEmpty) return;
+          await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'datum': datumC.text, 'methode': methode, 'status': 'eingereicht'});
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadAntraege();
+        }, child: const Text('Antrag stellen')),
+      ],
+    )));
+  }
 
-    final methoden = [('online', 'Online', Icons.language), ('postalisch', 'Postalisch', Icons.local_post_office), ('persoenlich', 'Persönlich', Icons.person), ('email', 'Per E-Mail', Icons.email)];
-    final statusList = [('eingereicht', 'Eingereicht', Colors.orange), ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('genehmigt', 'Genehmigt', Colors.green), ('abgelehnt', 'Abgelehnt', Colors.red), ('widerspruch', 'Widerspruch', Colors.purple)];
-
+  void _showAntragDetailDialog(int antragId, Map<String, dynamic> antrag) {
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: Text(editIndex != null ? 'Antrag bearbeiten' : 'Neuer Antrag'),
-        content: SizedBox(
-          width: 460,
-          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            _datePicker(ctx2, datumC, 'Datum der Antragstellung *', () => setD(() {})),
-            const SizedBox(height: 12),
-            Text('Antrag gestellt per:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-            const SizedBox(height: 6),
-            Wrap(spacing: 6, runSpacing: 6, children: methoden.map((m) {
-              final sel = methode == m.$1;
-              return ChoiceChip(
-                label: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(m.$3, size: 14, color: sel ? Colors.white : Colors.grey.shade700),
-                  const SizedBox(width: 4),
-                  Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87)),
-                ]),
-                selected: sel,
-                selectedColor: Colors.indigo.shade600,
-                onSelected: (_) => setD(() => methode = m.$1),
-              );
-            }).toList()),
-            const SizedBox(height: 12),
-            Text('Status:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-            const SizedBox(height: 6),
-            Wrap(spacing: 6, runSpacing: 6, children: statusList.map((s) {
-              final sel = status == s.$1;
-              return ChoiceChip(
-                label: Text(s.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87)),
-                selected: sel,
-                selectedColor: s.$3,
-                onSelected: (_) => setD(() => status = s.$1),
-              );
-            }).toList()),
-            const SizedBox(height: 12),
-            TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen (optional)', prefixIcon: const Icon(Icons.tag, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-            const SizedBox(height: 12),
-            TextField(controller: notizenC, maxLines: 3, decoration: InputDecoration(labelText: 'Notizen', prefixIcon: const Icon(Icons.note, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-          ])),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-          FilledButton(
-            onPressed: () {
-              if (datumC.text.isEmpty || methode.isEmpty) return;
-              final entry = {'datum': datumC.text, 'methode': methode, 'status': status, 'aktenzeichen': aktenzeichenC.text, 'notizen': notizenC.text};
-              setState(() {
-                if (editIndex != null) {
-                  antraege[editIndex] = entry;
-                } else {
-                  antraege.insert(0, entry);
-                }
-                data['antraege'] = antraege;
-              });
-              widget.saveData(type, data);
-              Navigator.pop(ctx);
-            },
-            child: Text(editIndex != null ? 'Speichern' : 'Hinzufügen'),
-          ),
-        ],
-      )),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(width: 600, height: 560, child: _VaAntragDetailView(
+          apiService: widget.apiService, antragId: antragId, antrag: antrag, userId: widget.userId,
+          onChanged: () => _loadAntraege(),
+        )),
+      ),
     );
   }
 
@@ -1906,5 +1864,304 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
       ),
       style: const TextStyle(fontSize: 13),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VERSORGUNGSAMT ANTRAG DETAIL
+// ═══════════════════════════════════════════════════════
+class _VaAntragDetailView extends StatefulWidget {
+  final ApiService apiService;
+  final int antragId;
+  final Map<String, dynamic> antrag;
+  final int userId;
+  final VoidCallback onChanged;
+  const _VaAntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.userId, required this.onChanged});
+  @override
+  State<_VaAntragDetailView> createState() => _VaAntragDetailViewState();
+}
+
+class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
+  List<Map<String, dynamic>> _verlauf = [];
+  List<Map<String, dynamic>> _docs = [];
+  List<Map<String, dynamic>> _korr = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final vR = await widget.apiService.listVaAntragVerlauf(widget.antragId);
+    final dR = await widget.apiService.listVaAntragDocs(widget.antragId);
+    final kR = await widget.apiService.listVaAntragKorr(widget.antragId);
+    if (!mounted) return;
+    setState(() {
+      if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.antrag;
+    final status = a['status']?.toString() ?? 'eingereicht';
+    final methode = {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? ''] ?? '';
+    final isOk = status == 'genehmigt';
+    return DefaultTabController(length: 5, child: Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: isOk ? Colors.green.shade700 : Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        child: Row(children: [
+          const Icon(Icons.description, color: Colors.white, size: 22), const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Antrag vom ${a['datum'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text('$methode • ${status.replaceAll('_', ' ').toUpperCase()}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
+        Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+        Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
+        Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
+        Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
+      ]),
+      Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
+        _buildDetails(a), _buildDokumente(), _buildVerlauf(), _buildKorrespondenz(), _buildWiderspruch(a),
+      ])),
+    ]));
+  }
+
+  Widget _buildDetails(Map<String, dynamic> a) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _dRow(Icons.calendar_today, 'Antragsdatum', a['datum']),
+      _dRow(Icons.send, 'Methode', {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? '']),
+      _dRow(Icons.flag, 'Status', a['status']?.toString().replaceAll('_', ' ').toUpperCase()),
+      if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+      ],
+    ]));
+  }
+
+  Widget _dRow(IconData icon, String label, dynamic value) {
+    final s = value?.toString() ?? ''; if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+    ]));
+  }
+
+  Widget _buildDokumente() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+        Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
+        Expanded(child: Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+        ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
+      ])),
+      Expanded(child: _docs.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500))]))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) {
+            final d = _docs[i];
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+              child: Row(children: [
+                Icon(Icons.attach_file, size: 18, color: Colors.green.shade700), const SizedBox(width: 8),
+                Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+                IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), onPressed: () async {
+                  try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }} catch (_) {}
+                }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+                IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), onPressed: () async {
+                  try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); await OpenFilex.open(file.path); }} catch (_) {}
+                }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragDoc(d['id'] as int); _load(); },
+                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+              ]));
+          })),
+    ]);
+  }
+
+  Future<void> _uploadDoc() async {
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    for (final file in result.files.where((f) => f.path != null)) {
+      await widget.apiService.uploadVaAntragDoc(antragId: widget.antragId, filePath: file.path!, fileName: file.name);
+    }
+    _load();
+  }
+
+  Widget _buildVerlauf() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: Text('${_verlauf.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: _addVerlauf),
+      ])),
+      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
+            final e = _verlauf[i];
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+              child: Row(children: [
+                Icon(Icons.circle, size: 10, color: Colors.indigo.shade400), const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  if ((e['status']?.toString() ?? '').isNotEmpty) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)),
+                    child: Text(e['status'].toString().replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+                  if ((e['notiz']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(e['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+                ])),
+                IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragVerlauf(e['id'] as int); _load(); widget.onChanged(); },
+                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+              ]));
+          })),
+    ]);
+  }
+
+  void _addVerlauf() {
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    final notizC = TextEditingController(); String status = '';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(title: const Text('Verlauf-Eintrag'),
+      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        Wrap(spacing: 6, children: ['eingereicht', 'in_bearbeitung', 'genehmigt', 'abgelehnt', 'widerspruch'].map((s) => ChoiceChip(
+          label: Text(s.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, color: status == s ? Colors.white : Colors.black87)),
+          selected: status == s, selectedColor: Colors.indigo, onSelected: (_) => setD(() => status = s))).toList()), const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          await widget.apiService.addVaAntragVerlauf(widget.antragId, {'datum': datumC.text, 'status': status, 'notiz': notizC.text});
+          if (status.isNotEmpty) await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'id': widget.antragId, 'status': status, 'datum': widget.antrag['datum'], 'methode': widget.antrag['methode']});
+          if (ctx.mounted) Navigator.pop(ctx); _load(); widget.onChanged();
+        }, child: const Text('Hinzufügen'))],
+    )));
+  }
+
+  Widget _buildKorrespondenz() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('eingang')),
+        const SizedBox(width: 6),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('ausgang')),
+      ])),
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
+            final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
+              child: Row(children: [
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
+                  Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ])),
+                IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragKorr(k['id'] as int); _load(); },
+                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+              ]));
+          })),
+    ]);
+  }
+
+  void _addKorr(String richtung) {
+    final betreffC = TextEditingController();
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
+      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          await widget.apiService.saveVaAntragKorr(widget.antragId, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+          if (ctx.mounted) Navigator.pop(ctx); _load();
+        }, child: const Text('Speichern'))],
+    ));
+  }
+
+  // Widerspruch: 1 Monat Frist nach Bescheid (§ 84 SGG)
+  Widget _buildWiderspruch(Map<String, dynamic> a) {
+    final datum = DateTime.tryParse(a['datum']?.toString() ?? '');
+    if (datum == null) return Center(child: Text('Kein Antragsdatum', style: TextStyle(color: Colors.grey.shade500)));
+    final fristEnde = DateTime(datum.year, datum.month + 1, datum.day);
+    final heute = DateTime.now();
+    final rest = fristEnde.difference(DateTime(heute.year, heute.month, heute.day)).inDays;
+    final abgelaufen = heute.isAfter(fristEnde);
+    final status = a['status']?.toString() ?? '';
+    final hatW = status == 'widerspruch' || status == 'genehmigt' || status == 'abgelehnt';
+    final wEntry = _verlauf.where((e) => (e['notiz']?.toString() ?? '').toLowerCase().contains('widerspruch')).firstOrNull;
+    final wDatum = wEntry != null ? DateTime.tryParse(wEntry['datum']?.toString() ?? '') : null;
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+    final color = hatW ? Colors.blue : abgelaufen ? Colors.red : rest <= 7 ? Colors.orange : Colors.green;
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(width: double.infinity, padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade300, width: 2)),
+        child: Row(children: [
+          Icon(hatW ? Icons.gavel : abgelaufen ? Icons.cancel : Icons.timer, size: 28, color: color.shade700), const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(hatW ? 'Widerspruch eingelegt${wDatum != null ? ' am ${fmt(wDatum)}' : ''}' : abgelaufen ? 'Frist abgelaufen' : '$rest Tage verbleibend',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
+            if (!hatW && !abgelaufen) Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: color.shade700)),
+          ])),
+        ]),
+      ),
+      const SizedBox(height: 16),
+      Text('Chronologie', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      const SizedBox(height: 8),
+      _tlItem(Icons.description, 'Antrag gestellt', fmt(datum), Colors.indigo, true),
+      if (hatW && wDatum != null) _tlItem(Icons.gavel, 'Widerspruch', fmt(wDatum), Colors.blue, true, subtitle: wEntry?['notiz']?.toString()),
+      _tlItem(Icons.timer, 'Fristende (1 Monat)', fmt(fristEnde), abgelaufen ? Colors.red : Colors.grey, _verlauf.isNotEmpty, subtitle: '§ 84 SGG'),
+      ..._verlauf.where((e) => !(e['notiz']?.toString() ?? '').toLowerCase().contains('widerspruch')).map((e) {
+        final ed = DateTime.tryParse(e['datum']?.toString() ?? '');
+        return _tlItem(Icons.circle, '${e['status'] ?? ''}: ${e['notiz'] ?? ''}', ed != null ? fmt(ed) : '', Colors.indigo, false);
+      }),
+      const SizedBox(height: 12),
+      Container(width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Rechtsgrundlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          _lawRow('§ 84 SGG', 'Widerspruchsfrist: 1 Monat nach Bekanntgabe'),
+          _lawRow('§ 88 SGG', 'Untätigkeitsklage nach 3 Monaten ohne Antwort'),
+          _lawRow('§ 66 SGG', 'Ohne Rechtsbehelfsbelehrung: 1 Jahr'),
+        ]),
+      ),
+    ]));
+  }
+
+  Widget _tlItem(IconData icon, String title, String date, Color color, bool hasLine, {String? subtitle}) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Column(children: [
+        Container(width: 32, height: 32, decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle, border: Border.all(color: color, width: 2)),
+          child: Icon(icon, size: 16, color: color)),
+        if (hasLine) Container(width: 2, height: 28, color: Colors.grey.shade300),
+      ]),
+      const SizedBox(width: 12),
+      Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Expanded(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color))), Text(date, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))]),
+        if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+      ]))),
+    ]);
+  }
+
+  Widget _lawRow(String p, String t) {
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+        child: Text(p, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+      const SizedBox(width: 8),
+      Expanded(child: Text(t, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+    ]));
   }
 }

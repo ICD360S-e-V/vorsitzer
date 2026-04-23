@@ -3589,6 +3589,67 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== VERSORGUNGSAMT ANTRÄGE (dedicated DB) ==========
+
+  Future<Map<String, dynamic>> listVersorgungsamtAntraege(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_antraege_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveVersorgungsamtAntrag(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antraege_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteVersorgungsamtAntrag(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antraege_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listVaAntragVerlauf(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php?antrag_id=$antragId&type=verlauf'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> addVaAntragVerlauf(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'verlauf';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteVaAntragVerlauf(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'verlauf', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listVaAntragDocs(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php?antrag_id=$antragId&type=docs'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadVaAntragDoc({required int antragId, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteVaAntragDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadVaAntragDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  Future<Map<String, dynamic>> listVaAntragKorr(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php?antrag_id=$antragId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveVaAntragKorr(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'korr';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteVaAntragKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== GERICHT (dedicated DB tables) ==========
 
   Future<Map<String, dynamic>> getGerichtData(int userId, String gerichtTyp) async {
