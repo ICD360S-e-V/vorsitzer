@@ -428,6 +428,57 @@ class _WebViewScreenState extends State<WebViewScreen> {
     } catch (_) {}
   }
 
+  Future<void> _pickAndInjectFile() async {
+    try {
+      final result = await FilePickerHelper.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'txt'],
+        allowMultiple: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${result.files.length} Datei(en) werden angehängt...'), duration: const Duration(seconds: 2)));
+
+      for (final file in result.files) {
+        if (file.path == null) continue;
+        final bytes = await File(file.path!).readAsBytes();
+        final b64 = base64Encode(bytes);
+        final ext = file.extension?.toLowerCase() ?? '';
+        final mime = {'pdf': 'application/pdf', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'tif': 'image/tiff', 'txt': 'text/plain'}[ext] ?? 'application/octet-stream';
+        final fileName = file.name.replaceAll("'", "\\'").replaceAll('\\', '\\\\');
+
+        await _mobileController?.runJavaScript('''
+(function() {
+  var b64 = '$b64';
+  var byteChars = atob(b64);
+  var byteArray = new Uint8Array(byteChars.length);
+  for (var i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+  var blob = new Blob([byteArray], {type: '$mime'});
+  var f = new File([blob], '$fileName', {type: '$mime'});
+  var dt = new DataTransfer();
+  dt.items.add(f);
+  // Find file input and set files
+  var inp = document.querySelector('input[type="file"]');
+  if (inp) {
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change', {bubbles: true}));
+    inp.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+  // Also try drag-drop zone
+  var dropZone = document.querySelector('.zdforms-fileDragZone, [class*="drop"], [class*="upload"]');
+  if (dropZone) {
+    var dropEvent = new DragEvent('drop', {bubbles: true, dataTransfer: dt});
+    dropZone.dispatchEvent(dropEvent);
+  }
+})();
+''');
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Datei(en) angehängt'), backgroundColor: Colors.green));
+    } catch (e) {
+      debugPrint('[WebView] Pick and inject error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
   Future<List<String>> _androidFilePicker(android_webview.FileSelectorParams params) async {
     try {
       final result = await FilePicker.platform.pickFiles(allowMultiple: params.mode == android_webview.FileSelectorMode.openMultiple);
@@ -778,6 +829,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
           ),
         ],
       ),
+      floatingActionButton: (widget.customJs != null && _mobileController != null) ? FloatingActionButton.extended(
+        onPressed: _pickAndInjectFile,
+        icon: const Icon(Icons.attach_file),
+        label: const Text('Datei anhängen'),
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
+      ) : null,
       body: Column(
         children: [
           // Loading indicator
