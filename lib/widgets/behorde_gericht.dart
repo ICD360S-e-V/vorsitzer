@@ -553,7 +553,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   Widget build(BuildContext context) {
     final v = widget.vorfall;
     final status = v['status']?.toString() ?? 'offen';
-    return DefaultTabController(length: 5, child: Column(children: [
+    return DefaultTabController(length: 6, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: widget.color.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -573,6 +573,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
@@ -580,6 +581,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         _buildVerlauf(),
         _buildTermine(),
         _buildKorrespondenz(),
+        _buildWiderspruch(v),
       ])),
     ]));
   }
@@ -800,6 +802,186 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           if (ctx.mounted) Navigator.pop(ctx); _load();
         }, child: const Text('Speichern'))],
     ));
+  }
+
+  // ── WIDERSPRUCH ──
+
+  DateTime? _parseDate(dynamic v) {
+    final s = v?.toString() ?? '';
+    if (s.isEmpty || s == 'null') return null;
+    return DateTime.tryParse(s);
+  }
+
+  DateTime _addDays(DateTime d, int days) {
+    var result = d.add(Duration(days: days));
+    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) result = result.add(const Duration(days: 1));
+    return result;
+  }
+
+  DateTime _addMonth(DateTime d, int months) {
+    var y = d.year; var m = d.month + months;
+    while (m > 12) { y++; m -= 12; }
+    var day = d.day;
+    final maxDay = DateTime(y, m + 1, 0).day;
+    if (day > maxDay) day = maxDay;
+    var result = DateTime(y, m, day);
+    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) result = result.add(const Duration(days: 1));
+    return result;
+  }
+
+  // Fristen nach Gerichtstyp und Vorfallart
+  ({int tage, String beschreibung, String paragraph}) _getFrist(String gerichtTyp, String titel) {
+    final t = titel.toLowerCase();
+    if (gerichtTyp == 'arbeitsgericht') {
+      if (t.contains('mahnbescheid')) return (tage: 7, beschreibung: '1 Woche ab Zustellung des Mahnbescheids', paragraph: '§ 46a ArbGG i.V.m. § 692 ZPO');
+      if (t.contains('kündigung')) return (tage: 21, beschreibung: '3 Wochen ab Zugang der Kündigung', paragraph: '§ 4 KSchG');
+      return (tage: 14, beschreibung: '2 Wochen ab Zustellung', paragraph: '§ 59 ArbGG');
+    }
+    if (gerichtTyp == 'sozialgericht') {
+      if (t.contains('einstweilig')) return (tage: 14, beschreibung: '2 Wochen (Eilverfahren)', paragraph: '§ 86b SGG');
+      return (tage: 30, beschreibung: '1 Monat ab Bekanntgabe des Bescheids', paragraph: '§ 84 SGG');
+    }
+    if (gerichtTyp == 'betreuungsgericht') {
+      if (t.contains('einstweilig') || t.contains('unterbringung')) return (tage: 14, beschreibung: '2 Wochen ab Bekanntgabe', paragraph: '§ 63 FamFG');
+      return (tage: 30, beschreibung: '1 Monat ab schriftlicher Bekanntgabe', paragraph: '§ 63 Abs. 1 FamFG');
+    }
+    return (tage: 30, beschreibung: '1 Monat (Standard)', paragraph: '');
+  }
+
+  Widget _buildWiderspruch(Map<String, dynamic> v) {
+    final bescheidDatum = _parseDate(v['datum']);
+    final titel = v['titel']?.toString() ?? '';
+    final status = v['status']?.toString() ?? '';
+
+    if (bescheidDatum == null) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.warning, size: 48, color: Colors.orange.shade300), const SizedBox(height: 8),
+        Text('Kein Datum vorhanden', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+        Text('Bitte Datum im Vorfall eintragen.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+      ])));
+    }
+
+    final frist = _getFrist(widget.gerichtTyp, titel);
+    final fristEnde = frist.tage <= 21 ? _addDays(bescheidDatum, frist.tage) : _addMonth(bescheidDatum, 1);
+    final heute = DateTime.now();
+    final heute0 = DateTime(heute.year, heute.month, heute.day);
+    final restTage = fristEnde.difference(heute0).inDays;
+    final abgelaufen = heute0.isAfter(fristEnde);
+    final letzteWoche = !abgelaufen && restTage <= 7;
+    final hatWiderspruch = status == 'bewilligt' || status == 'abgelehnt' || status == 'erledigt';
+
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+    final statusColor = hatWiderspruch ? Colors.blue : abgelaufen ? Colors.red : letzteWoche ? Colors.orange : Colors.green;
+    final statusText = hatWiderspruch ? 'Verfahren: ${_sLabel(status)}' : abgelaufen ? 'Frist abgelaufen seit ${-restTage} Tagen' : '$restTage Tage verbleibend';
+    final statusIcon = hatWiderspruch ? Icons.check_circle : abgelaufen ? Icons.cancel : letzteWoche ? Icons.warning : Icons.timer;
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Status Banner
+      Container(
+        width: double.infinity, padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: statusColor.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: statusColor.shade300, width: 2)),
+        child: Row(children: [
+          Icon(statusIcon, size: 28, color: statusColor.shade700), const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(statusText, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+            if (!hatWiderspruch && !abgelaufen) Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: statusColor.shade700)),
+          ])),
+        ]),
+      ),
+      const SizedBox(height: 16),
+
+      // Frist Info
+      Container(
+        width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Frist für "${titel}"', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          const SizedBox(height: 6),
+          Row(children: [
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)),
+              child: Text('${frist.tage} Tage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+            const SizedBox(width: 8),
+            Expanded(child: Text(frist.beschreibung, style: TextStyle(fontSize: 11, color: Colors.indigo.shade700))),
+          ]),
+          if (frist.paragraph.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(frist.paragraph, style: TextStyle(fontSize: 10, color: Colors.indigo.shade500, fontStyle: FontStyle.italic)),
+          ],
+        ]),
+      ),
+      const SizedBox(height: 16),
+
+      // Timeline
+      Text('Fristenberechnung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      const SizedBox(height: 12),
+      _tlItem(Icons.description, 'Bescheid / Zustellung', fmt(bescheidDatum), Colors.indigo, true),
+      _tlItem(abgelaufen ? Icons.cancel : Icons.gavel, 'Fristende Widerspruch / Rechtsmittel', fmt(fristEnde), abgelaufen ? Colors.red : letzteWoche ? Colors.orange : Colors.green, true, subtitle: frist.beschreibung),
+      if (!abgelaufen && !hatWiderspruch) _tlItem(Icons.timer, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '$restTage Tage verbleibend'),
+
+      const SizedBox(height: 16),
+
+      // Rechtsgrundlage
+      Container(
+        width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Rechtsgrundlage & Fristen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          if (widget.gerichtTyp == 'arbeitsgericht') ...[
+            _lawRow('§ 46a ArbGG', 'Mahnbescheid: 1 Woche Widerspruchsfrist'),
+            _lawRow('§ 4 KSchG', 'Kündigungsschutzklage: 3 Wochen ab Zugang'),
+            _lawRow('§ 59 ArbGG', 'Allgemeine Rechtsmittelfrist: 2 Wochen'),
+            _lawRow('§ 9 ArbGG', 'Fristende auf Wochenende/Feiertag: nächster Werktag'),
+          ],
+          if (widget.gerichtTyp == 'sozialgericht') ...[
+            _lawRow('§ 84 SGG', 'Widerspruchsfrist: 1 Monat nach Bekanntgabe'),
+            _lawRow('§ 87 SGG', 'Klagefrist: 1 Monat nach Zustellung Widerspruchsbescheid'),
+            _lawRow('§ 86b SGG', 'Einstweiliger Rechtsschutz: 2 Wochen'),
+            _lawRow('§ 66 SGG', 'Ohne Rechtsbehelfsbelehrung: 1 Jahr'),
+          ],
+          if (widget.gerichtTyp == 'betreuungsgericht') ...[
+            _lawRow('§ 63 FamFG', 'Beschwerde: 1 Monat ab schriftlicher Bekanntgabe'),
+            _lawRow('§ 63 FamFG', 'Einstweilige Anordnung/Unterbringung: 2 Wochen'),
+            _lawRow('§ 64 FamFG', 'Beschwerde beim erlassenden Gericht einlegen'),
+          ],
+        ]),
+      ),
+
+      if (!hatWiderspruch && !abgelaufen) ...[
+        const SizedBox(height: 16),
+        SizedBox(width: double.infinity, child: ElevatedButton.icon(
+          icon: const Icon(Icons.gavel),
+          label: const Text('Widerspruch / Rechtsmittel einlegen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+          onPressed: widget.onEdit,
+        )),
+      ],
+    ]));
+  }
+
+  Widget _tlItem(IconData icon, String title, String date, Color color, bool hasLine, {String? subtitle}) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Column(children: [
+        Container(width: 32, height: 32, decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle, border: Border.all(color: color, width: 2)),
+          child: Icon(icon, size: 16, color: color)),
+        if (hasLine) Container(width: 2, height: 28, color: Colors.grey.shade300),
+      ]),
+      const SizedBox(width: 12),
+      Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Expanded(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color))), Text(date, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))]),
+        if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+      ]))),
+    ]);
+  }
+
+  Widget _lawRow(String paragraph, String text) {
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+        child: Text(paragraph, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+      const SizedBox(width: 8),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+    ]));
   }
 
   String _sLabel(String s) {
