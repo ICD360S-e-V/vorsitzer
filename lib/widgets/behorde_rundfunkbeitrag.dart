@@ -501,10 +501,13 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       var ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
       var combined = nm + ' ' + id + ' ' + ph + ' ' + lbl + ' ' + ariaLabel;
 
-      if (el.tagName === 'TEXTAREA') {
-        // Skip textarea (Ihre Nachricht)
+      if (el.tagName === 'TEXTAREA' && (combined.indexOf('nachricht') >= 0 || combined.indexOf('message') >= 0 || combined.indexOf('mitteilung') >= 0 || nm === 'message' || nm === 'nachricht' || (el.rows && el.rows > 2))) {
+        var msg = 'Sehr geehrte Damen und Herren,\\n\\nhiermit beantrage ich die Befreiung von der Rundfunkbeitragspflicht gemäß § 4 Abs. 1 RBStV.\\n\\nMeine Beitragsnummer: $beitragsnr\\n\\nDen entsprechenden Leistungsbescheid füge ich diesem Schreiben bei.\\n\\nMit freundlichen Grüßen\\n$vorname $nachname';
+        setTextarea(el, msg);
+        filled++;
         continue;
       }
+      if (el.tagName === 'TEXTAREA') continue;
 
       if (combined.indexOf('vorname') >= 0 && combined.indexOf('nachname') < 0) {
         if (setVal(el, '$vorname')) filled++;
