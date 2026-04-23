@@ -368,6 +368,28 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.description, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
         Expanded(child: Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+        if (_antraege.isNotEmpty)
+          ElevatedButton.icon(
+            onPressed: () {
+              if (_antraege.length == 1) {
+                _openAntragOnline(_antraege.first);
+              } else {
+                showDialog(context: context, builder: (ctx) => SimpleDialog(
+                  title: const Text('Welchen Antrag online einreichen?'),
+                  children: _antraege.map((a) {
+                    final grund = _befreiungsgruende.where((g) => g.key == a['befreiungsgrund']?.toString()).firstOrNull;
+                    return SimpleDialogOption(
+                      onPressed: () { Navigator.pop(ctx); _openAntragOnline(a); },
+                      child: Text(grund?.label ?? a['befreiungsgrund']?.toString() ?? '', style: const TextStyle(fontSize: 13)),
+                    );
+                  }).toList(),
+                ));
+              }
+            },
+            icon: const Icon(Icons.language, size: 16), label: const Text('Antrag Online', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+          ),
+        const SizedBox(width: 6),
         ElevatedButton.icon(
           onPressed: () => _showAntragDialog(),
           icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Antrag', style: TextStyle(fontSize: 12)),
@@ -396,10 +418,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                 title: Text(grund?.label ?? a['befreiungsgrund']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Text('${a['antrag_datum'] ?? ''} • ${_statusLabel(status)}${methodeLabel.isNotEmpty ? ' • $methodeLabel' : ''}', style: TextStyle(fontSize: 11, color: isBefreit ? Colors.green.shade700 : isAbgelehnt ? Colors.red.shade700 : Colors.orange.shade700)),
                 onTap: () => _showAntragDetailDialog(a),
-                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(icon: Icon(Icons.language, size: 18, color: Colors.teal.shade600), tooltip: 'Online einreichen', onPressed: () => _openAntragOnline(a)),
-                  Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                ]),
+                trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
               ));
             })),
     ]);
