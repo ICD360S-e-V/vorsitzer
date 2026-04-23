@@ -291,8 +291,34 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
       debugPrint('[Versorgungsamt] Load error: $e');
     }
     if (!mounted) return;
+    // Map DB bereich.field → flat keys expected by _initControllers
     final flat = <String, dynamic>{};
-    _dbData.forEach((bereich, fields) => fields.forEach((k, v) => flat[k] = v));
+    final sb = _dbData['sachbearbeiter'] ?? {};
+    flat['sachbearbeiter_anrede'] = sb['anrede'];
+    flat['sachbearbeiter'] = sb['name'];
+    flat['sachbearbeiter_telefon'] = sb['telefon'];
+    flat['sachbearbeiter_fax'] = sb['fax'];
+    flat['aktenzeichen'] = sb['aktenzeichen'];
+    flat['notizen'] = sb['notizen'];
+    final aus = _dbData['ausweis'] ?? {};
+    flat['ausweis_nr'] = aus['nr'];
+    flat['ausweis_ausgestellt_am'] = aus['ausgestellt_am'];
+    flat['ausweis_gueltig_bis'] = aus['gueltig_bis'];
+    flat['ausweis_unbefristet'] = aus['unbefristet'] == 'true' || aus['unbefristet'] == true;
+    final gdb = _dbData['gdb'] ?? {};
+    flat['gdb_aktuell'] = int.tryParse(gdb['aktuell']?.toString() ?? '') ?? 0;
+    flat['gdb_feststellung_datum'] = gdb['feststellung_datum'];
+    flat['gdb_bescheid_datum'] = gdb['bescheid_datum'];
+    // Amt data
+    final amt = _dbData['amt'] ?? {};
+    flat['selected_amt'] = amt;
+    final sonstige = _dbData['sonstige'] ?? {};
+    if (sonstige['selected_amt'] != null) flat['selected_amt'] = sonstige['selected_amt'];
+    if (sonstige['selected_amt_id'] != null) flat['selected_amt_id'] = sonstige['selected_amt_id'];
+    // Merkzeichen
+    for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
+      flat['merkzeichen_$m'] = gdb['merkzeichen_$m'] == 'true' || gdb['merkzeichen_$m'] == true;
+    }
     if (!_controllersInit) _initControllers(flat);
     setState(() => _dbLoaded = true);
   }
@@ -319,6 +345,11 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     gdb['aktuell'] = _gdbAktuell.toString();
     gdb['feststellung_datum'] = _gdbFeststellungC.text.trim();
     gdb['bescheid_datum'] = _gdbBescheidC.text.trim();
+    // Save merkzeichen to gdb bereich
+    final data = widget.getData(type);
+    for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
+      gdb['merkzeichen_$m'] = (data['merkzeichen_$m'] == true).toString();
+    }
     await widget.apiService.saveVersorgungsamtData(widget.userId, _dbData);
   }
 
