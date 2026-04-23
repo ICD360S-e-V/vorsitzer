@@ -1960,8 +1960,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         ? Map<String, dynamic>.from(data['selected_arzt'] ?? {})
         : {};
     String? arztId = data['arzt_id']?.toString();
-    // Auto-refresh arzt data from DB if telefon is missing (update only selected_arzt in memory, save on next user save)
-    if (arztId != null && selectedArzt.isNotEmpty && (selectedArzt['telefon']?.toString() ?? '').isEmpty) {
+    // Auto-refresh arzt data from DB if telefon or online_termin_url is missing
+    if (arztId != null && selectedArzt.isNotEmpty && ((selectedArzt['telefon']?.toString() ?? '').isEmpty || (selectedArzt['online_termin_url']?.toString() ?? '').isEmpty)) {
       final refreshKey = '${type}_arzt_refreshed';
       if (data[refreshKey] != true) {
         data[refreshKey] = true;
@@ -1975,6 +1975,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   data['selected_arzt'] = selectedArzt;
                   _gesundheitData[type] = data;
                 });
+                widget.apiService.saveGesundheitData(widget.user.id, type, data);
               }
               break;
             }
