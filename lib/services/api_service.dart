@@ -3611,6 +3611,43 @@ class ApiService {
     return await _client.get(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
   }
 
+  // ========== VERSORGUNGSAMT DATA (dedicated DB) ==========
+
+  Future<Map<String, dynamic>> getVersorgungsamtData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_data_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveVersorgungsamtData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listVersorgungsamtTermine(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_termine_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveVersorgungsamtTermin(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_termine_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteVersorgungsamtTermin(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_termine_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listVersorgungsamtKorr(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/versorgungsamt_korrespondenz_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveVersorgungsamtKorr(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_korrespondenz_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteVersorgungsamtKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_korrespondenz_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== VERSORGUNGSAMT ANTRÄGE (dedicated DB) ==========
 
   Future<Map<String, dynamic>> listVersorgungsamtAntraege(int userId) async {
