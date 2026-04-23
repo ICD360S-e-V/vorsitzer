@@ -3589,6 +3589,28 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== KORRESPONDENZ ATTACHMENTS (generic, all modules) ==========
+
+  Future<Map<String, dynamic>> listKorrAttachments(String modul, int korrespondenzId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php?modul=$modul&korrespondenz_id=$korrespondenzId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadKorrAttachment({required String modul, required int korrespondenzId, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/korrespondenz_attachments.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['modul'] = modul; request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteKorrAttachment(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadKorrAttachment(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   // ========== VERSORGUNGSAMT ANTRÄGE (dedicated DB) ==========
 
   Future<Map<String, dynamic>> listVersorgungsamtAntraege(int userId) async {
