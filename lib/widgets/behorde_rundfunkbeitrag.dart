@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import '../models/user.dart';
+import '../screens/webview_screen.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
@@ -12,6 +14,7 @@ import 'file_viewer_dialog.dart';
 class BehordeRundfunkbeitragContent extends StatefulWidget {
   final ApiService? apiService;
   final int? userId;
+  final User? user;
   final Map<String, dynamic> Function(String type) getData;
   final bool Function(String type) isLoading;
   final bool Function(String type) isSaving;
@@ -22,6 +25,7 @@ class BehordeRundfunkbeitragContent extends StatefulWidget {
     super.key,
     this.apiService,
     this.userId,
+    this.user,
     required this.getData,
     required this.isLoading,
     required this.isSaving,
@@ -363,7 +367,13 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.description, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Anträge Befreiung/Ermäßigung (${_antraege.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+        Expanded(child: Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+        ElevatedButton.icon(
+          onPressed: _openAntragOnline,
+          icon: const Icon(Icons.language, size: 16), label: const Text('Antrag Online', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+        ),
+        const SizedBox(width: 6),
         ElevatedButton.icon(
           onPressed: () => _showAntragDialog(),
           icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Antrag', style: TextStyle(fontSize: 12)),
@@ -407,6 +417,129 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       case 'widerspruch': return 'Widerspruch';
       default: return s;
     }
+  }
+
+  void _openAntragOnline() {
+    final u = widget.user;
+    final beitragsnr = _b('beitrag')['beitragsnummer']?.toString() ?? '';
+    final anrede = (u?.geschlecht ?? '').toLowerCase();
+    // Map geschlecht to form value
+    String anredeVal = 'keine Angabe';
+    if (anrede == 'männlich' || anrede == 'm' || anrede == 'herr') anredeVal = 'Herr';
+    if (anrede == 'weiblich' || anrede == 'w' || anrede == 'frau') anredeVal = 'Frau';
+
+    final vorname = (u?.vorname ?? '').replaceAll("'", "\\'");
+    final nachname = (u?.nachname ?? '').replaceAll("'", "\\'");
+    final plz = (u?.plz ?? '').replaceAll("'", "\\'");
+    final ort = (u?.ort ?? '').replaceAll("'", "\\'");
+    final strasse = (u?.strasse ?? '').replaceAll("'", "\\'");
+    final hausnr = (u?.hausnummer ?? '').replaceAll("'", "\\'");
+    final email = u?.email.replaceAll("'", "\\'") ?? '';
+    final telefon = (u?.telefonMobil ?? u?.telefonFix ?? '').replaceAll("'", "\\'");
+    // Split telefon into Vorwahl + Nummer
+    String vorwahl = '';
+    String telNummer = telefon;
+    if (telefon.startsWith('0') && telefon.length > 4) {
+      vorwahl = telefon.substring(0, 4);
+      telNummer = telefon.substring(4).trim();
+    }
+
+    final js = '''
+(function() {
+  var attempts = 0;
+  function tryFill() {
+    attempts++;
+    if (attempts > 15) return;
+
+    function setVal(el, val) {
+      if (!el || !val) return false;
+      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      if (setter && setter.set) setter.set.call(el, val);
+      else el.value = val;
+      el.dispatchEvent(new Event('input', {bubbles: true}));
+      el.dispatchEvent(new Event('change', {bubbles: true}));
+      el.dispatchEvent(new Event('blur', {bubbles: true}));
+      return true;
+    }
+    function setTextarea(el, val) {
+      if (!el || !val) return false;
+      var setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
+      if (setter && setter.set) setter.set.call(el, val);
+      else el.value = val;
+      el.dispatchEvent(new Event('input', {bubbles: true}));
+      el.dispatchEvent(new Event('change', {bubbles: true}));
+      return true;
+    }
+    function clickRadio(name, val) {
+      var radios = document.querySelectorAll('input[type="radio"]');
+      for (var r of radios) {
+        var lbl = r.parentElement ? r.parentElement.textContent.trim() : '';
+        if (lbl.indexOf(val) >= 0 || (r.value && r.value.indexOf(val) >= 0)) {
+          r.checked = true;
+          r.dispatchEvent(new Event('change', {bubbles: true}));
+          r.dispatchEvent(new Event('click', {bubbles: true}));
+          return true;
+        }
+      }
+      return false;
+    }
+
+    var inputs = document.querySelectorAll('input, select, textarea');
+    if (inputs.length < 3) { setTimeout(tryFill, 1000); return; }
+
+    var filled = 0;
+    // Anrede radio
+    clickRadio('anrede', '$anredeVal');
+
+    for (var el of inputs) {
+      var nm = (el.name || '').toLowerCase();
+      var id = (el.id || '').toLowerCase();
+      var ph = (el.placeholder || '').toLowerCase();
+      var lbl = '';
+      if (el.id) { var l = document.querySelector('label[for="' + el.id + '"]'); if (l) lbl = l.textContent.toLowerCase().trim(); }
+      // Also check aria-label and nearby labels
+      var ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+      var combined = nm + ' ' + id + ' ' + ph + ' ' + lbl + ' ' + ariaLabel;
+
+      if (el.tagName === 'TEXTAREA') {
+        // Skip textarea (Ihre Nachricht)
+        continue;
+      }
+
+      if (combined.indexOf('vorname') >= 0 && combined.indexOf('nachname') < 0) {
+        if (setVal(el, '$vorname')) filled++;
+      } else if (combined.indexOf('nachname') >= 0 || combined.indexOf('familienname') >= 0) {
+        if (setVal(el, '$nachname')) filled++;
+      } else if (combined.indexOf('plz') >= 0 || combined.indexOf('postleitzahl') >= 0) {
+        if (setVal(el, '$plz')) filled++;
+      } else if (combined.indexOf('ort') >= 0 && combined.indexOf('geburt') < 0 && combined.indexOf('sort') < 0) {
+        if (setVal(el, '$ort')) filled++;
+      } else if (combined.indexOf('straße') >= 0 || combined.indexOf('strasse') >= 0 || combined.indexOf('str.') >= 0) {
+        if (setVal(el, '$strasse')) filled++;
+      } else if (combined.indexOf('hausnummer') >= 0 || combined.indexOf('hausnr') >= 0 || combined.indexOf('hnr') >= 0) {
+        if (setVal(el, '$hausnr')) filled++;
+      } else if (combined.indexOf('beitragsnummer') >= 0) {
+        if (setVal(el, '$beitragsnr')) filled++;
+      } else if (combined.indexOf('e-mail') >= 0 || combined.indexOf('email') >= 0 || el.type === 'email') {
+        if (setVal(el, '$email')) filled++;
+      } else if (combined.indexOf('vorwahl') >= 0) {
+        if (setVal(el, '$vorwahl')) filled++;
+      } else if (combined.indexOf('telefon') >= 0 && combined.indexOf('vorwahl') < 0) {
+        if (setVal(el, '$telNummer')) filled++;
+      }
+    }
+
+    if (filled < 3) setTimeout(tryFill, 1500);
+  }
+  setTimeout(tryFill, 2000);
+})();
+''';
+
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => WebViewScreen(
+      url: 'https://www.rundfunkbeitrag.de/buergerinnen-und-buerger/formulare/kontakt#step_personendaten',
+      title: 'Rundfunkbeitrag — Antrag Online',
+      customJs: js,
+    )));
   }
 
   void _showAntragDialog() {
