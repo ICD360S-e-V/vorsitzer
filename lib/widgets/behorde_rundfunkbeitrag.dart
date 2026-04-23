@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -575,11 +577,23 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
 })();
 ''';
 
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => WebViewScreen(
-      url: 'https://www.rundfunkbeitrag.de/buergerinnen-und-buerger/formulare/kontakt#step_personendaten',
-      title: 'Rundfunkbeitrag — Antrag Online',
-      customJs: js,
-    )));
+    if (Platform.isMacOS) {
+      final nachricht = 'Sehr geehrte Damen und Herren,\n\nhiermit beantrage ich die $befreiungOderErmaessigung von der Rundfunkbeitragspflicht gemäß § 4 Abs. 1 RBStV $grundText.\n\nMeine Beitragsnummer: $beitragsnr\n\nDen entsprechenden Bewilligungsbescheid bzw. Nachweis füge ich diesem Schreiben als Anlage bei.\n\nIch bitte um schriftliche Bestätigung der $befreiungOderErmaessigung.\n\nMit freundlichen Grüßen\n$vorname $nachname';
+      Clipboard.setData(ClipboardData(text: nachricht));
+      launchUrl(Uri.parse('https://www.rundfunkbeitrag.de/buergerinnen-und-buerger/formulare/kontakt#step_personendaten'), mode: LaunchMode.externalApplication);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Nachricht in die Zwischenablage kopiert — im Browser einfügen (Cmd+V)'),
+          backgroundColor: Colors.teal, duration: const Duration(seconds: 5),
+        ));
+      }
+    } else {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => WebViewScreen(
+        url: 'https://www.rundfunkbeitrag.de/buergerinnen-und-buerger/formulare/kontakt#step_personendaten',
+        title: 'Rundfunkbeitrag — Antrag Online',
+        customJs: js,
+      )));
+    }
   }
 
   void _showAntragDialog() {
