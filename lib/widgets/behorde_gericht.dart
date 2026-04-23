@@ -152,50 +152,80 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     final selected = gerichte.where((g) => g['name'] == selectedName).firstOrNull;
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Zuständiges Gericht wählen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
-      const SizedBox(height: 8),
-      ...gerichte.map((g) {
-        final isSel = selectedName == g['name'];
-        return InkWell(
+      Row(children: [
+        Icon(Icons.account_balance, size: 20, color: color.shade700), const SizedBox(width: 8),
+        Expanded(child: Text('Zuständiges Gericht', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade700))),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.search, size: 16),
+          label: Text(selectedName.isEmpty ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
+          onPressed: () => _showGerichtSelectDialog(typ, d, gerichte, color),
+        ),
+      ]),
+      const SizedBox(height: 12),
+      if (selectedName.isEmpty)
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+          child: Column(children: [
+            Icon(Icons.search, size: 40, color: Colors.grey.shade400), const SizedBox(height: 8),
+            Text('Kein Gericht ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            Text('Tippen Sie auf "Auswählen" um das zuständige Gericht zu suchen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+          ]),
+        )
+      else ...[
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade300)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(selectedName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade900)),
+            if (selected != null) ...[
+              const SizedBox(height: 6),
+              _infoRow(Icons.location_on, 'Adresse', selected['adresse'] ?? ''),
+              _infoRow(Icons.phone, 'Telefon', selected['telefon'] ?? ''),
+              if ((selected['fax'] ?? '').isNotEmpty) _infoRow(Icons.print, 'Fax', selected['fax']!),
+              _infoRow(Icons.email, 'E-Mail', selected['email'] ?? ''),
+              _infoRow(Icons.access_time, 'Öffnungszeiten', selected['oeffnungszeiten'] ?? ''),
+              _infoRow(Icons.info, 'Zuständigkeit', selected['zustaendigkeit'] ?? ''),
+            ],
+          ]),
+        ),
+      ],
+    ]));
+  }
+
+  void _showGerichtSelectDialog(String typ, Map<String, dynamic> d, List<Map<String, String>> gerichte, MaterialColor color) {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Row(children: [
+        Icon(Icons.search, color: color.shade700), const SizedBox(width: 8),
+        const Text('Gericht auswählen'),
+      ]),
+      content: SizedBox(
+        width: 500, height: 400,
+        child: ListView(children: gerichte.map((g) => InkWell(
           onTap: () {
             setState(() { d['name'] = g['name']; d['adresse'] = g['adresse']; d['telefon'] = g['telefon']; d['oeffnungszeiten'] = g['oeffnungszeiten']; });
             _saveData(typ);
+            Navigator.pop(ctx);
           },
           borderRadius: BorderRadius.circular(10),
           child: Container(
             margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: isSel ? color.shade50 : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: isSel ? color.shade400 : Colors.grey.shade300, width: isSel ? 2 : 1)),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
             child: Row(children: [
-              Icon(isSel ? Icons.check_circle : Icons.account_balance, size: 20, color: isSel ? color.shade700 : Colors.grey.shade500),
-              const SizedBox(width: 10),
+              Icon(Icons.account_balance, size: 20, color: color.shade600), const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(g['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isSel ? color.shade900 : Colors.black87)),
-                Text(g['adresse']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                if (g['zustaendigkeit'] != null) Text(g['zustaendigkeit']!, style: TextStyle(fontSize: 10, color: color.shade400, fontStyle: FontStyle.italic)),
+                Text(g['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900)),
+                Text('${g['adresse']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(g['zustaendigkeit'] ?? '', style: TextStyle(fontSize: 10, color: color.shade400, fontStyle: FontStyle.italic)),
               ])),
             ]),
           ),
-        );
-      }),
-      if (selected != null) ...[
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
-            const SizedBox(height: 6),
-            _infoRow(Icons.phone, 'Telefon', selected['telefon'] ?? ''),
-            if ((selected['fax'] ?? '').isNotEmpty) _infoRow(Icons.print, 'Fax', selected['fax']!),
-            _infoRow(Icons.email, 'E-Mail', selected['email'] ?? ''),
-            _infoRow(Icons.access_time, 'Öffnungszeiten', selected['oeffnungszeiten'] ?? ''),
-          ]),
-        ),
-      ],
-      const SizedBox(height: 12),
-      _fieldWithSave(typ, 'gericht', 'aktenzeichen', 'Aktenzeichen', Icons.tag),
-      _fieldWithSave(typ, 'gericht', 'sachbearbeiter', 'Sachbearbeiter/in', Icons.person),
-    ]));
+        )).toList()),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+    ));
   }
 
   // ============ TAB 2: VORFALL ============
