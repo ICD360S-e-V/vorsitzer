@@ -735,19 +735,28 @@ jobs:
         with:
           path: artifacts
 
-      - name: Organize artifacts by platform
+      - name: Organize artifacts with fixed filenames
         run: |
           mkdir -p deploy/{android,windows,linux,macos,ios}
-          # Android (APK + AAB)
-          find artifacts -type f \( -name "*.apk" -o -name "*.aab" \) -exec cp {} deploy/android/ \;
+          # Android — fixed names so server files get overwritten each release
+          cp artifacts/android-universal-apk/*.apk deploy/android/vorsitzer.apk
+          cp artifacts/fdroid-apk/*.apk            deploy/android/vorsitzer-fdroid.apk
+          cp artifacts/huawei-apk/*.apk            deploy/android/vorsitzer-huawei.apk
+          cp artifacts/googleplay-aab/*.aab        deploy/android/vorsitzer.aab
+          for d in samsung-apks; do
+            for f in artifacts/$d/*.apk; do
+              arch=$(echo "$f" | grep -oP '(arm64-v8a|armeabi-v7a|x86_64)' || echo "unknown")
+              cp "$f" "deploy/android/vorsitzer-samsung-${arch}.apk"
+            done
+          done
           # Windows
-          find artifacts -type f -name "*windows*.zip" -exec cp {} deploy/windows/ \;
+          find artifacts -type f -name "*.zip" -path "*windows*" -exec cp {} deploy/windows/vorsitzer-windows.zip \;
           # Linux
-          find artifacts -type f -name "*linux*.tar.gz" -exec cp {} deploy/linux/ \;
+          find artifacts -type f -name "*.tar.gz" -exec cp {} deploy/linux/vorsitzer-linux.tar.gz \;
           # macOS
-          find artifacts -type f -name "*.dmg" -exec cp {} deploy/macos/ \;
+          find artifacts -type f -name "*.dmg" -exec cp {} deploy/macos/vorsitzer.dmg \;
           # iOS
-          find artifacts -type f -name "*.ipa" -exec cp {} deploy/ios/ \;
+          find artifacts -type f -name "*.ipa" -exec cp {} deploy/ios/vorsitzer.ipa \;
           echo "=== Deploy tree ==="
           find deploy -type f -exec ls -lh {} \;
 
@@ -760,37 +769,33 @@ jobs:
 
       - name: Upload to server
         run: |
-          VERSION="${{ needs.version.outputs.version_name }}"
           BASE="${{ secrets.DEPLOY_PATH }}"
           PORT="${{ secrets.DEPLOY_PORT }}"
           REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
-          # ssh uses -p for port; scp uses -P (uppercase)
           SSH_BASE="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
 
-          # Ensure platform dirs exist
           ssh $SSH_BASE -p "$PORT" "$REMOTE" "mkdir -p '$BASE'/{android,windows,linux,macos,ios}"
 
-          # Upload by platform — files land directly under e.g. /downloads/vorsitzer/windows/
+          # Backup current → _stable, then overwrite with new release.
+          # Fixed filenames mean only 1 current + 1 stable per file — no accumulation.
           for plat in android windows linux macos ios; do
             if [ -n "$(ls -A deploy/$plat/ 2>/dev/null)" ]; then
-              echo "==> Uploading $plat ..."
-              scp $SSH_BASE -P "$PORT" deploy/$plat/* "$REMOTE:$BASE/$plat/"
+              echo "==> Backing up + uploading $plat ..."
+              for f in deploy/$plat/*; do
+                fname=$(basename "$f")
+                ext="${fname##*.}"
+                base="${fname%.*}"
+                ssh $SSH_BASE -p "$PORT" "$REMOTE" \
+                  "[ -f '$BASE/$plat/$fname' ] && cp '$BASE/$plat/$fname' '$BASE/$plat/${base}_stable.${ext}' || true"
+                scp $SSH_BASE -P "$PORT" "$f" "$REMOTE:$BASE/$plat/$fname"
+              done
             fi
           done
 
-          # Fix ownership for nginx + list deployed files
-          ssh $SSH_BASE -p "$PORT" "$REMOTE" "chown -R nginx:nginx '$BASE' && find '$BASE' -name 'vorsitzer-${VERSION}*' -type f | sort"
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "chown -R nginx:nginx '$BASE' && find '$BASE' -type f | sort"
 
-          # Cleanup: keep only the 2 most recent versions per platform (current + fallback).
-          # Each vorsitzer release creates new versioned files and never deletes the old ones,
-          # which filled the 38GB disk to 100% within weeks (99 android APKs = 12GB alone).
-          ssh $SSH_BASE -p "$PORT" "$REMOTE" "
-            for dir in '$BASE'/android '$BASE'/windows '$BASE'/macos '$BASE'/linux '$BASE'/ios; do
-              [ -d \"\$dir\" ] || continue
-              ls -1t \"\$dir\" | tail -n +15 | while read f; do rm -f \"\$dir/\$f\"; done
-            done
-            echo 'Retention cleanup done — kept latest 14 files per platform'
-          "
+          # Remove old versioned files (vorsitzer-X.Y.Z-*) left from before the overwrite migration
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "find '$BASE' -name 'vorsitzer-[0-9]*' -type f -delete 2>/dev/null; echo 'Legacy versioned files cleaned'"
 
       - name: Update version_vorsitzer.json on server
         run: |
@@ -810,18 +815,18 @@ jobs:
           {
               "version": "$VERSION",
               "build_number": $BUILD,
-              "download_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/vorsitzer-$VERSION-windows-x64.zip",
-              "fallback_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/vorsitzer-$PREV_VERSION-windows-x64.zip",
+              "download_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/vorsitzer-windows.zip",
+              "fallback_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/vorsitzer-windows_stable.zip",
               "fallback_version": "$PREV_VERSION",
               "changelog": "Version $VERSION\n\nSee full changelog at https://github.com/${{ github.repository }}/releases/tag/v$VERSION",
               "min_version": null,
               "force_update": false,
               "release_date": "$(date -u +%Y-%m-%d)",
               "file_size": "32 MB",
-              "download_url_android": "https://icd360sev.icd360s.de/downloads/vorsitzer/android/vorsitzer-$VERSION-universal.apk",
-              "download_url_macos": "https://icd360sev.icd360s.de/downloads/vorsitzer/macos/vorsitzer-$VERSION-macos.dmg",
-              "download_url_linux": "https://icd360sev.icd360s.de/downloads/vorsitzer/linux/vorsitzer-$VERSION-linux-x64.tar.gz",
-              "download_url_ios": "https://icd360sev.icd360s.de/downloads/vorsitzer/ios/vorsitzer-$VERSION-ios-unsigned.ipa"
+              "download_url_android": "https://icd360sev.icd360s.de/downloads/vorsitzer/android/vorsitzer.apk",
+              "download_url_macos": "https://icd360sev.icd360s.de/downloads/vorsitzer/macos/vorsitzer.dmg",
+              "download_url_linux": "https://icd360sev.icd360s.de/downloads/vorsitzer/linux/vorsitzer-linux.tar.gz",
+              "download_url_ios": "https://icd360sev.icd360s.de/downloads/vorsitzer/ios/vorsitzer.ipa"
           }
           JSON
 
