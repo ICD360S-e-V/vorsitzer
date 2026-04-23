@@ -373,8 +373,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
     try {
       await _mobileController!.runJavaScript('''
 (function() {
+  // Override native file input click
+  var origClick = HTMLInputElement.prototype.click;
+  HTMLInputElement.prototype.click = function() {
+    if (this.type === 'file') {
+      window._flutterFileInput = this;
+      var accept = this.accept || '.pdf,.jpg,.jpeg,.png,.tif,.txt';
+      FlutterFilePicker.postMessage(JSON.stringify({action: 'pick', accept: accept, multiple: this.multiple || false}));
+      return;
+    }
+    return origClick.apply(this, arguments);
+  };
+
   document.addEventListener('click', function(e) {
     var el = e.target;
+    // Direct file input click
     if (el.tagName === 'INPUT' && el.type === 'file') {
       e.preventDefault();
       e.stopPropagation();
@@ -383,10 +396,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
       FlutterFilePicker.postMessage(JSON.stringify({action: 'pick', accept: accept, multiple: el.multiple || false}));
       return false;
     }
-    // Also handle label/button clicks that trigger file inputs
-    var parent = el.closest('label, button, [role="button"]');
+    // Custom upload buttons/zones — search for hidden file input nearby or in document
+    var parent = el.closest('.zdforms-file, .zdforms-fileDragZone, label, button, [role="button"], .upload, .file-upload, [class*="upload"], [class*="file"]');
     if (parent) {
       var inp = parent.querySelector('input[type="file"]') || document.querySelector('input[type="file"]');
+      if (inp) {
+        e.preventDefault();
+        e.stopPropagation();
+        window._flutterFileInput = inp;
+        var accept = inp.accept || '.pdf,.jpg,.jpeg,.png,.tif,.txt';
+        FlutterFilePicker.postMessage(JSON.stringify({action: 'pick', accept: accept, multiple: inp.multiple || false}));
+        return false;
+      }
+    }
+    // Last resort: any click near text containing "Datei" or "upload"
+    var txt = (el.textContent || '').toLowerCase();
+    if (txt.indexOf('datei') >= 0 || txt.indexOf('upload') >= 0 || txt.indexOf('auswählen') >= 0) {
+      var inp = document.querySelector('input[type="file"]');
       if (inp) {
         e.preventDefault();
         e.stopPropagation();
