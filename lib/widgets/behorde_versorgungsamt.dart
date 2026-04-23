@@ -658,8 +658,9 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                         IconButton(
                           icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
                           onPressed: () {
-                            setState(() => termine.removeAt(i));
-                            data['termine'] = termine;
+                            final tid = int.tryParse(termine[i]['id']?.toString() ?? '');
+                            if (tid != null) widget.apiService.deleteVersorgungsamtTermin(tid);
+                            _loadFromDBDedicated();
                             widget.saveData(type, data);
                           },
                         ),
@@ -711,12 +712,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           FilledButton(
             onPressed: () async {
               if (datumC.text.isEmpty) return;
-              final termine = List<Map<String, dynamic>>.from(data['termine'] ?? []);
-              final newT = {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'typ': typ, 'notizen': notizenC.text};
-              termine.add(newT);
-              termine.sort((a, b) => (b['datum'] ?? '').toString().compareTo((a['datum'] ?? '').toString()));
-              setState(() => data['termine'] = termine);
-              widget.saveData(type, data);
+              await widget.apiService.saveVersorgungsamtTermin(widget.userId, {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'notiz': notizenC.text});
+              _loadFromDBDedicated();
               // Also create entry in global Terminverwaltung
               try {
                 final selAmt = data['selected_amt'] is Map ? Map<String, dynamic>.from(data['selected_amt'] as Map) : <String, dynamic>{};
@@ -776,7 +773,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         };
         data['termine'] = termine;
       });
-      widget.saveData(type, data);
+      _saveDbData();
     }
 
     showDialog(
@@ -938,10 +935,10 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                     icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
                     label: Text('Termin löschen', style: TextStyle(fontSize: 12, color: Colors.red.shade400)),
                     onPressed: () {
-                      setState(() => termine.removeAt(index));
-                      data['termine'] = termine;
-                      widget.saveData(type, data);
+                      final tid = int.tryParse(termine[index]['id']?.toString() ?? '');
+                      if (tid != null) widget.apiService.deleteVersorgungsamtTermin(tid);
                       Navigator.pop(ctx);
+                      _loadFromDBDedicated();
                     },
                   ),
                 ]),
@@ -1169,7 +1166,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   // ============ TAB 3: KORRESPONDENZ ============
 
   Widget _buildKorrespondenzTab(Map<String, dynamic> data) {
-    final korr = List<Map<String, dynamic>>.from(data['korrespondenz'] ?? []);
+    final korr = _dbKorr;
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
