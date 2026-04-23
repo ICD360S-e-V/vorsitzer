@@ -369,12 +369,6 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
         Icon(Icons.description, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
         Expanded(child: Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
         ElevatedButton.icon(
-          onPressed: _openAntragOnline,
-          icon: const Icon(Icons.language, size: 16), label: const Text('Antrag Online', style: TextStyle(fontSize: 12)),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
-        ),
-        const SizedBox(width: 6),
-        ElevatedButton.icon(
           onPressed: () => _showAntragDialog(),
           icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Antrag', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
@@ -402,7 +396,10 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                 title: Text(grund?.label ?? a['befreiungsgrund']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Text('${a['antrag_datum'] ?? ''} • ${_statusLabel(status)}${methodeLabel.isNotEmpty ? ' • $methodeLabel' : ''}', style: TextStyle(fontSize: 11, color: isBefreit ? Colors.green.shade700 : isAbgelehnt ? Colors.red.shade700 : Colors.orange.shade700)),
                 onTap: () => _showAntragDetailDialog(a),
-                trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(icon: Icon(Icons.language, size: 18, color: Colors.teal.shade600), tooltip: 'Online einreichen', onPressed: () => _openAntragOnline(a)),
+                  Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                ]),
               ));
             })),
     ]);
@@ -419,9 +416,30 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     }
   }
 
-  void _openAntragOnline() {
+  String _befreiungText(String grundKey) {
+    switch (grundKey) {
+      case 'buergergeld': return 'als Empfänger/in von Bürgergeld nach dem SGB II';
+      case 'grundsicherung_alter': return 'als Empfänger/in von Grundsicherung im Alter und bei Erwerbsminderung nach dem SGB XII';
+      case 'hilfe_lebensunterhalt': return 'als Empfänger/in von Hilfe zum Lebensunterhalt nach dem SGB XII';
+      case 'asylbewerber': return 'als Empfänger/in von Leistungen nach dem Asylbewerberleistungsgesetz';
+      case 'bafoeg': return 'als BAföG-Empfänger/in (nicht bei den Eltern wohnend)';
+      case 'bab': return 'als Empfänger/in von Berufsausbildungsbeihilfe (BAB)';
+      case 'ausbildungsgeld': return 'als Empfänger/in von Ausbildungsgeld nach dem SGB III';
+      case 'pflegegeld': return 'als Empfänger/in von Hilfe zur Pflege nach dem SGB XII';
+      case 'haertefall': return 'aufgrund eines besonderen Härtefalls gemäß § 4 Abs. 6 RBStV (Einkommen übersteigt den sozialhilferechtlichen Bedarf um weniger als 18,36 €)';
+      case 'ermaessigung_rf': return 'auf Ermäßigung des Rundfunkbeitrags aufgrund des Merkzeichens RF in meinem Schwerbehindertenausweis';
+      case 'ermaessigung_blind': return 'auf Ermäßigung des Rundfunkbeitrags aufgrund von Blindheit/Gehörlosigkeit';
+      default: return 'als Empfänger/in von Sozialleistungen';
+    }
+  }
+
+  void _openAntragOnline(Map<String, dynamic> antrag) {
     final u = widget.user;
     final beitragsnr = _b('beitrag')['beitragsnummer']?.toString() ?? '';
+    final grundKey = antrag['befreiungsgrund']?.toString() ?? '';
+    final grundText = _befreiungText(grundKey);
+    final isErmaessigung = grundKey.startsWith('ermaessigung');
+    final befreiungOderErmaessigung = isErmaessigung ? 'Ermäßigung' : 'Befreiung';
     final anrede = (u?.geschlecht ?? '').toLowerCase();
     // Map geschlecht to form value
     String anredeVal = 'keine Angabe';
@@ -502,7 +520,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       var combined = nm + ' ' + id + ' ' + ph + ' ' + lbl + ' ' + ariaLabel;
 
       if (el.tagName === 'TEXTAREA' && (combined.indexOf('nachricht') >= 0 || combined.indexOf('message') >= 0 || combined.indexOf('mitteilung') >= 0 || nm === 'message' || nm === 'nachricht' || (el.rows && el.rows > 2))) {
-        var msg = 'Sehr geehrte Damen und Herren,\\n\\nhiermit beantrage ich die Befreiung von der Rundfunkbeitragspflicht gemäß § 4 Abs. 1 RBStV.\\n\\nMeine Beitragsnummer: $beitragsnr\\n\\nDen entsprechenden Leistungsbescheid füge ich diesem Schreiben bei.\\n\\nMit freundlichen Grüßen\\n$vorname $nachname';
+        var msg = 'Sehr geehrte Damen und Herren,\\n\\nhiermit beantrage ich die $befreiungOderErmaessigung von der Rundfunkbeitragspflicht gemäß § 4 Abs. 1 RBStV $grundText.\\n\\nMeine Beitragsnummer: $beitragsnr\\n\\nDen entsprechenden Bewilligungsbescheid bzw. Nachweis füge ich diesem Schreiben als Anlage bei.\\n\\nIch bitte um schriftliche Bestätigung der $befreiungOderErmaessigung.\\n\\nMit freundlichen Grüßen\\n$vorname $nachname';
         setTextarea(el, msg);
         filled++;
         continue;
