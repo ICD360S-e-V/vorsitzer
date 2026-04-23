@@ -21,6 +21,7 @@ class WebViewScreen extends StatefulWidget {
   final String? autoFillUsername;
   final String? autoFillPassword;
   final Map<String, String>? go2docAutoFill;
+  final String? customJs;
 
   const WebViewScreen({
     super.key,
@@ -29,6 +30,7 @@ class WebViewScreen extends StatefulWidget {
     this.autoFillUsername,
     this.autoFillPassword,
     this.go2docAutoFill,
+    this.customJs,
   });
 
   @override
@@ -335,10 +337,24 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   /// Auto-fill login credentials via JavaScript injection
   /// Retries up to 5 times with delay for SPA sites that load fields dynamically
+  bool _customJsInjected = false;
+
+  Future<void> _tryCustomJs() async {
+    if (_customJsInjected || widget.customJs == null || widget.customJs!.isEmpty) return;
+    _customJsInjected = true;
+    try {
+      if (_mobileController != null) {
+        await _mobileController!.runJavaScript(widget.customJs!);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _tryAutoFill() async {
     if (_autoFillDone) return;
     // Also try Go2Doc patient auto-fill
     _tryGo2DocAutoFill();
+    // Custom JS injection
+    _tryCustomJs();
     final user = widget.autoFillUsername;
     final pass = widget.autoFillPassword;
     if (user == null || user.isEmpty) return;
