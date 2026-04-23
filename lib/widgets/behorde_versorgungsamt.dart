@@ -292,23 +292,26 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     }
     if (!mounted) return;
     // Map DB bereich.field → flat keys expected by _initControllers
+    // DB stores as bereich=sachbearbeiter, feld_name=sachbearbeiter (from migration)
+    // OR bereich=sachbearbeiter, feld_name=name (from new save)
+    // Support both formats
     final flat = <String, dynamic>{};
     final sb = _dbData['sachbearbeiter'] ?? {};
-    flat['sachbearbeiter_anrede'] = sb['anrede'];
-    flat['sachbearbeiter'] = sb['name'];
-    flat['sachbearbeiter_telefon'] = sb['telefon'];
-    flat['sachbearbeiter_fax'] = sb['fax'];
+    flat['sachbearbeiter_anrede'] = sb['sachbearbeiter_anrede'] ?? sb['anrede'];
+    flat['sachbearbeiter'] = sb['sachbearbeiter'] ?? sb['name'];
+    flat['sachbearbeiter_telefon'] = sb['sachbearbeiter_telefon'] ?? sb['telefon'];
+    flat['sachbearbeiter_fax'] = sb['sachbearbeiter_fax'] ?? sb['fax'];
     flat['aktenzeichen'] = sb['aktenzeichen'];
     flat['notizen'] = sb['notizen'];
     final aus = _dbData['ausweis'] ?? {};
-    flat['ausweis_nr'] = aus['nr'];
-    flat['ausweis_ausgestellt_am'] = aus['ausgestellt_am'];
-    flat['ausweis_gueltig_bis'] = aus['gueltig_bis'];
-    flat['ausweis_unbefristet'] = aus['unbefristet'] == 'true' || aus['unbefristet'] == true;
+    flat['ausweis_nr'] = aus['ausweis_nr'] ?? aus['nr'];
+    flat['ausweis_ausgestellt_am'] = aus['ausweis_ausgestellt_am'] ?? aus['ausgestellt_am'];
+    flat['ausweis_gueltig_bis'] = aus['ausweis_gueltig_bis'] ?? aus['gueltig_bis'];
+    flat['ausweis_unbefristet'] = aus['ausweis_unbefristet'] == 'true' || aus['ausweis_unbefristet'] == true || aus['unbefristet'] == 'true' || aus['unbefristet'] == true;
     final gdb = _dbData['gdb'] ?? {};
-    flat['gdb_aktuell'] = int.tryParse(gdb['aktuell']?.toString() ?? '') ?? 0;
-    flat['gdb_feststellung_datum'] = gdb['feststellung_datum'];
-    flat['gdb_bescheid_datum'] = gdb['bescheid_datum'];
+    flat['gdb_aktuell'] = int.tryParse((gdb['gdb_aktuell'] ?? gdb['aktuell'])?.toString() ?? '') ?? 0;
+    flat['gdb_feststellung_datum'] = gdb['gdb_feststellung_datum'] ?? gdb['feststellung_datum'];
+    flat['gdb_bescheid_datum'] = gdb['gdb_bescheid_datum'] ?? gdb['bescheid_datum'];
     // Amt data
     final amt = _dbData['amt'] ?? {};
     flat['selected_amt'] = amt;
@@ -330,26 +333,21 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   Future<void> _saveDbData() async {
     final sb = _db('sachbearbeiter');
-    sb['anrede'] = _sbAnrede;
-    sb['name'] = _sbNameC.text.trim();
-    sb['telefon'] = _sbTelC.text.trim();
-    sb['fax'] = _sbFaxC.text.trim();
+    sb['sachbearbeiter_anrede'] = _sbAnrede;
+    sb['sachbearbeiter'] = _sbNameC.text.trim();
+    sb['sachbearbeiter_telefon'] = _sbTelC.text.trim();
+    sb['sachbearbeiter_fax'] = _sbFaxC.text.trim();
     sb['aktenzeichen'] = _joinAkt();
     sb['notizen'] = _notizenC.text.trim();
     final aus = _db('ausweis');
-    aus['nr'] = _ausweisNrC.text.trim();
-    aus['ausgestellt_am'] = _ausweisAusgestelltC.text.trim();
-    aus['gueltig_bis'] = _ausweisUnbefristet ? '' : _ausweisGueltigBisC.text.trim();
-    aus['unbefristet'] = _ausweisUnbefristet.toString();
+    aus['ausweis_nr'] = _ausweisNrC.text.trim();
+    aus['ausweis_ausgestellt_am'] = _ausweisAusgestelltC.text.trim();
+    aus['ausweis_gueltig_bis'] = _ausweisUnbefristet ? '' : _ausweisGueltigBisC.text.trim();
+    aus['ausweis_unbefristet'] = _ausweisUnbefristet.toString();
     final gdb = _db('gdb');
-    gdb['aktuell'] = _gdbAktuell.toString();
-    gdb['feststellung_datum'] = _gdbFeststellungC.text.trim();
-    gdb['bescheid_datum'] = _gdbBescheidC.text.trim();
-    // Save merkzeichen to gdb bereich
-    final data = widget.getData(type);
-    for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
-      gdb['merkzeichen_$m'] = (data['merkzeichen_$m'] == true).toString();
-    }
+    gdb['gdb_aktuell'] = _gdbAktuell.toString();
+    gdb['gdb_feststellung_datum'] = _gdbFeststellungC.text.trim();
+    gdb['gdb_bescheid_datum'] = _gdbBescheidC.text.trim();
     await widget.apiService.saveVersorgungsamtData(widget.userId, _dbData);
   }
 
