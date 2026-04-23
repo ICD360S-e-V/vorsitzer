@@ -6,9 +6,12 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/platform_service.dart';
+import '../utils/file_picker_helper.dart';
 
 // Platform-specific imports
 import 'package:webview_flutter/webview_flutter.dart' as mobile_webview;
+import 'package:webview_flutter_android/webview_flutter_android.dart' as android_webview;
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart' as wk_webview;
 
 // Windows-specific WebView (conditional)
 import 'package:webview_windows/webview_windows.dart' as windows_webview;
@@ -157,7 +160,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
           },
         ),
       );
-      // File upload support via JS channel (macOS WKWebView doesn't support native file picker)
+      // File upload support
+      if (Platform.isAndroid) {
+        final androidController = controller.platform as android_webview.AndroidWebViewController;
+        await androidController.setOnShowFileSelector(_androidFilePicker);
+      }
+
+      // JS channel fallback for file upload (macOS WKWebView)
       await controller.addJavaScriptChannel('FlutterFilePicker', onMessageReceived: (message) async {
         await _handleFilePickerRequest(message.message);
       });
@@ -391,6 +400,18 @@ class _WebViewScreenState extends State<WebViewScreen> {
 })();
 ''');
     } catch (_) {}
+  }
+
+  Future<List<String>> _androidFilePicker(android_webview.FileSelectorParams params) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(allowMultiple: params.mode == android_webview.FileSelectorMode.openMultiple);
+      if (result != null && result.files.isNotEmpty) {
+        return result.files.where((f) => f.path != null).map((f) => File(f.path!).uri.toString()).toList();
+      }
+    } catch (e) {
+      debugPrint('[WebView] Android file picker error: $e');
+    }
+    return [];
   }
 
   Future<void> _handleFilePickerRequest(String message) async {

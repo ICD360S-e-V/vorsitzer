@@ -142,6 +142,8 @@ dependencies:
 
   # WebView for mobile (Android/iOS)
   webview_flutter: ^4.10.0
+  webview_flutter_android: ^4.3.0
+  webview_flutter_wkwebview: ^3.18.0
 
   # Window manager - control window size, position, maximize (desktop only)
   window_manager: ^0.5.1
