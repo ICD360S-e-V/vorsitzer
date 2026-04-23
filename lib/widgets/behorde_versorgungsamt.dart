@@ -276,17 +276,21 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   Future<void> _loadFromDBDedicated() async {
-    final dR = await widget.apiService.getVersorgungsamtData(widget.userId);
-    final tR = await widget.apiService.listVersorgungsamtTermine(widget.userId);
-    final kR = await widget.apiService.listVersorgungsamtKorr(widget.userId);
-    if (!mounted) return;
-    if (dR['success'] == true && dR['data'] is Map) {
-      _dbData = {};
-      (dR['data'] as Map).forEach((k, v) { if (v is Map) _dbData[k.toString()] = Map<String, dynamic>.from(v); });
+    try {
+      final dR = await widget.apiService.getVersorgungsamtData(widget.userId);
+      final tR = await widget.apiService.listVersorgungsamtTermine(widget.userId);
+      final kR = await widget.apiService.listVersorgungsamtKorr(widget.userId);
+      if (!mounted) return;
+      if (dR['success'] == true && dR['data'] is Map) {
+        _dbData = {};
+        (dR['data'] as Map).forEach((k, v) { if (v is Map) _dbData[k.toString()] = Map<String, dynamic>.from(v); });
+      }
+      if (tR['success'] == true && tR['data'] is List) _dbTermine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (kR['success'] == true && kR['data'] is List) _dbKorr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (e) {
+      debugPrint('[Versorgungsamt] Load error: $e');
     }
-    if (tR['success'] == true && tR['data'] is List) _dbTermine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    if (kR['success'] == true && kR['data'] is List) _dbKorr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    // Init controllers from DB data
+    if (!mounted) return;
     final flat = <String, dynamic>{};
     _dbData.forEach((bereich, fields) => fields.forEach((k, v) => flat[k] = v));
     if (!_controllersInit) _initControllers(flat);
