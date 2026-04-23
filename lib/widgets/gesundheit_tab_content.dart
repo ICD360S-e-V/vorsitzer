@@ -9095,7 +9095,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
-  void _showArztTerminDialog(String type, String arztTitle, Map<String, dynamic>? existing) {
+  Future<void> _showArztTerminDialog(String type, String arztTitle, Map<String, dynamic>? existing) async {
     final isEdit = existing != null;
     final datumController = TextEditingController(text: existing?['datum'] ?? '');
     final uhrzeitController = TextEditingController(text: existing?['uhrzeit'] ?? '');
@@ -9114,8 +9114,28 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       try { selArzt = Map<String, dynamic>.from(jsonDecode(rawArzt)); } catch (_) {}
     }
     final hasArzt = selArzt.isNotEmpty || (activeData['arzt_name']?.toString() ?? '').isNotEmpty || (activeData['behandelnder_arzt']?.toString() ?? '').isNotEmpty;
-    final onlineTerminUrl = selArzt['online_termin_url']?.toString() ?? '';
+    String onlineTerminUrl = selArzt['online_termin_url']?.toString() ?? '';
 
+    // If URL missing but arzt_id exists, refresh from central DB
+    final arztId = activeData['arzt_id']?.toString();
+    if (onlineTerminUrl.isEmpty && arztId != null && arztId.isNotEmpty) {
+      try {
+        final result = await widget.apiService.searchAerzte(search: selArzt['arzt_name']?.toString() ?? selArzt['praxis_name']?.toString() ?? '');
+        final aerzte = result['aerzte'] as List? ?? [];
+        for (final a in aerzte) {
+          if (a['id'].toString() == arztId && (a['online_termin_url']?.toString() ?? '').isNotEmpty) {
+            selArzt = Map<String, dynamic>.from(a as Map);
+            activeData['selected_arzt'] = selArzt;
+            _gesundheitData[type] = activeData;
+            widget.apiService.saveGesundheitData(widget.user.id, type, activeData);
+            onlineTerminUrl = selArzt['online_termin_url']?.toString() ?? '';
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (ctx) {
