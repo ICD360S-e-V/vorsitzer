@@ -9127,8 +9127,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Online Termin link
-                      if (onlineTerminUrl.isNotEmpty && !isEdit)
+                      // Online Termin link — always show when doctor is selected
+                      if (selArzt.isNotEmpty && !isEdit)
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.only(bottom: 12),
@@ -9138,47 +9138,73 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.blue.shade200),
                           ),
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              Navigator.push(context, MaterialPageRoute(
-                                builder: (_) {
-                                  // Parse Geburtsdatum for Go2Doc auto-fill
-                                  final geb = widget.user.geburtsdatum;
-                                  String gebTag = '', gebMonat = '', gebJahr = '';
-                                  if (geb != null) {
-                                    final parts = geb.toString().split(RegExp(r'[-./]'));
-                                    if (parts.length == 3) {
-                                      if (parts[0].length == 4) { gebJahr = parts[0]; gebMonat = parts[1]; gebTag = parts[2]; }
-                                      else { gebTag = parts[0]; gebMonat = parts[1]; gebJahr = parts[2]; }
-                                    }
-                                  }
-                                  return WebViewScreen(
-                                    title: 'Online Termin — $arztTitle',
-                                    url: onlineTerminUrl,
-                                    go2docAutoFill: {
-                                      'vorname': widget.user.vorname ?? '',
-                                      'nachname': widget.user.nachname ?? '',
-                                      'geb_tag': gebTag,
-                                      'geb_monat': gebMonat,
-                                      'geb_jahr': gebJahr,
-                                      'email': 'icd@icd360s.de',
-                                      'versicherung': 'gesetzlich',
+                          child: onlineTerminUrl.isNotEmpty
+                            ? InkWell(
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  Navigator.push(context, MaterialPageRoute(
+                                    builder: (_) {
+                                      final geb = widget.user.geburtsdatum;
+                                      String gebTag = '', gebMonat = '', gebJahr = '';
+                                      if (geb != null) {
+                                        final parts = geb.toString().split(RegExp(r'[-./]'));
+                                        if (parts.length == 3) {
+                                          if (parts[0].length == 4) { gebJahr = parts[0]; gebMonat = parts[1]; gebTag = parts[2]; }
+                                          else { gebTag = parts[0]; gebMonat = parts[1]; gebJahr = parts[2]; }
+                                        }
+                                      }
+                                      return WebViewScreen(
+                                        title: 'Online Termin — $arztTitle',
+                                        url: onlineTerminUrl,
+                                        go2docAutoFill: {
+                                          'vorname': widget.user.vorname ?? '',
+                                          'nachname': widget.user.nachname ?? '',
+                                          'geb_tag': gebTag,
+                                          'geb_monat': gebMonat,
+                                          'geb_jahr': gebJahr,
+                                          'email': 'icd@icd360s.de',
+                                          'versicherung': 'gesetzlich',
+                                        },
+                                      );
                                     },
-                                  );
+                                  ));
                                 },
-                              ));
-                            },
-                            child: Row(children: [
-                              Icon(Icons.language, size: 20, color: Colors.blue.shade700),
-                              const SizedBox(width: 8),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text('Online Termin buchen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                                Text('Direkt beim Arzt online einen Termin vereinbaren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
-                              ])),
-                              Icon(Icons.open_in_new, size: 16, color: Colors.blue.shade700),
-                            ]),
-                          ),
+                                child: Row(children: [
+                                  Icon(Icons.language, size: 20, color: Colors.blue.shade700),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text('Online Termin buchen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                                    Text('Direkt beim Arzt online einen Termin vereinbaren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
+                                  ])),
+                                  Icon(Icons.open_in_new, size: 16, color: Colors.blue.shade700),
+                                ]),
+                              )
+                            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  Icon(Icons.language, size: 20, color: Colors.grey.shade500),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text('Online Termin — Link fehlt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+                                ]),
+                                const SizedBox(height: 6),
+                                Text('Bitte die URL für Online-Terminbuchung eintragen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                const SizedBox(height: 6),
+                                Row(children: [
+                                  Expanded(child: TextField(
+                                    decoration: InputDecoration(hintText: 'https://...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+                                    style: const TextStyle(fontSize: 12),
+                                    onSubmitted: (url) {
+                                      if (url.trim().isNotEmpty) {
+                                        selArzt['online_termin_url'] = url.trim();
+                                        activeData['selected_arzt'] = selArzt;
+                                        _saveGesundheitData(type, activeData);
+                                        setDialogState(() {});
+                                      }
+                                    },
+                                  )),
+                                  const SizedBox(width: 6),
+                                  IconButton(icon: Icon(Icons.save, size: 18, color: Colors.teal.shade600), tooltip: 'Speichern', onPressed: () {}),
+                                ]),
+                              ]),
                         ),
                       // Typ selection
                       Text('Art des Termins', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
