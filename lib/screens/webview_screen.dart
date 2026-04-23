@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -155,6 +157,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
           },
         ),
       );
+      // File upload support via JS channel (macOS WKWebView doesn't support native file picker)
+      await controller.addJavaScriptChannel('FlutterFilePicker', onMessageReceived: (message) async {
+        await _handleFilePickerRequest(message.message);
+      });
+
       await controller.loadRequest(Uri.parse(widget.url));
       _mobileController = controller;
 
@@ -349,12 +356,95 @@ class _WebViewScreenState extends State<WebViewScreen> {
     } catch (_) {}
   }
 
+  bool _fileInterceptorInjected = false;
+
+  Future<void> _injectFilePickerInterceptor() async {
+    if (_fileInterceptorInjected || _mobileController == null) return;
+    _fileInterceptorInjected = true;
+    try {
+      await _mobileController!.runJavaScript('''
+(function() {
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    if (el.tagName === 'INPUT' && el.type === 'file') {
+      e.preventDefault();
+      e.stopPropagation();
+      window._flutterFileInput = el;
+      var accept = el.accept || '.pdf,.jpg,.jpeg,.png,.tif,.txt';
+      FlutterFilePicker.postMessage(JSON.stringify({action: 'pick', accept: accept, multiple: el.multiple || false}));
+      return false;
+    }
+    // Also handle label/button clicks that trigger file inputs
+    var parent = el.closest('label, button, [role="button"]');
+    if (parent) {
+      var inp = parent.querySelector('input[type="file"]') || document.querySelector('input[type="file"]');
+      if (inp) {
+        e.preventDefault();
+        e.stopPropagation();
+        window._flutterFileInput = inp;
+        var accept = inp.accept || '.pdf,.jpg,.jpeg,.png,.tif,.txt';
+        FlutterFilePicker.postMessage(JSON.stringify({action: 'pick', accept: accept, multiple: inp.multiple || false}));
+        return false;
+      }
+    }
+  }, true);
+})();
+''');
+    } catch (_) {}
+  }
+
+  Future<void> _handleFilePickerRequest(String message) async {
+    try {
+      final data = jsonDecode(message);
+      if (data['action'] != 'pick') return;
+
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'txt'],
+        allowMultiple: data['multiple'] == true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      for (final file in result.files) {
+        if (file.path == null) continue;
+        final bytes = await File(file.path!).readAsBytes();
+        final b64 = base64Encode(bytes);
+        final ext = file.extension?.toLowerCase() ?? '';
+        final mime = {'pdf': 'application/pdf', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'tif': 'image/tiff', 'txt': 'text/plain'}[ext] ?? 'application/octet-stream';
+        final fileName = file.name.replaceAll("'", "\\'");
+
+        await _mobileController?.runJavaScript('''
+(function() {
+  var b64 = '$b64';
+  var byteChars = atob(b64);
+  var byteArray = new Uint8Array(byteChars.length);
+  for (var i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+  var blob = new Blob([byteArray], {type: '$mime'});
+  var f = new File([blob], '$fileName', {type: '$mime'});
+  var dt = new DataTransfer();
+  dt.items.add(f);
+  var inp = window._flutterFileInput;
+  if (inp) {
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change', {bubbles: true}));
+    inp.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+})();
+''');
+      }
+    } catch (e) {
+      debugPrint('[WebView] File picker error: $e');
+    }
+  }
+
   Future<void> _tryAutoFill() async {
     if (_autoFillDone) return;
     // Also try Go2Doc patient auto-fill
     _tryGo2DocAutoFill();
     // Custom JS injection
     _tryCustomJs();
+    // File picker interceptor for macOS
+    _injectFilePickerInterceptor();
     final user = widget.autoFillUsername;
     final pass = widget.autoFillPassword;
     if (user == null || user.isEmpty) return;
