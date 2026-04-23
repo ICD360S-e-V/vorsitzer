@@ -2149,7 +2149,15 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                 Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
-                  Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Row(children: [
+                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Icon({'email': Icons.email, 'post': Icons.local_post_office, 'fax': Icons.fax, 'persoenlich': Icons.person}[k['methode']] ?? Icons.send, size: 12, color: Colors.grey.shade500),
+                      const SizedBox(width: 2),
+                      Text({'email': 'E-Mail', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'Persönlich'}[k['methode']?.toString()] ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                    ],
+                  ]),
                   if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
                     child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: k['id'] as int)),
                 ])),
@@ -2164,23 +2172,39 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final betreffC = TextEditingController();
     final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     final notizC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
+    String methode = '';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
       content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 6, children: [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.local_post_office), ('fax', 'Fax', Icons.fax), ('persoenlich', 'Persönlich', Icons.person)].map((m) => ChoiceChip(
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 14, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 11, color: methode == m.$1 ? Colors.white : Colors.black87))]),
+          selected: methode == m.$1, selectedColor: Colors.indigo, onSelected: (_) => setD(() => methode = m.$1),
+        )).toList()),
+        const SizedBox(height: 8),
         TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
         TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
       ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          await widget.apiService.saveVaAntragKorr(widget.antragId, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+          await widget.apiService.saveVaAntragKorr(widget.antragId, {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
           if (ctx.mounted) Navigator.pop(ctx); _load();
         }, child: const Text('Speichern'))],
-    ));
+    )));
   }
 
-  // Widerspruch: 1 Monat Frist nach Bescheid (§ 84 SGG)
+  // Widerspruch: 1 Monat Frist nach Bescheid-Zustellung (§ 84 SGG)
   Widget _buildWiderspruch(Map<String, dynamic> a) {
-    final datum = DateTime.tryParse(a['datum']?.toString() ?? '');
-    if (datum == null) return Center(child: Text('Kein Antragsdatum', style: TextStyle(color: Colors.grey.shade500)));
+    // Frist starts from Bescheid received date, not Antrag date
+    // Look for "Bescheid" entry in Verlauf, fallback to Antrag datum + 3 months (typical processing time)
+    final bescheidEntry = _verlauf.where((e) => (e['status']?.toString() ?? '').contains('genehmigt') || (e['status']?.toString() ?? '').contains('abgelehnt') || (e['notiz']?.toString() ?? '').toLowerCase().contains('bescheid')).firstOrNull;
+    final datum = bescheidEntry != null ? DateTime.tryParse(bescheidEntry['datum']?.toString() ?? '') : null;
+    if (datum == null) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.info, size: 48, color: Colors.orange.shade300), const SizedBox(height: 8),
+      Text('Kein Bescheid-Datum vorhanden', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+      const SizedBox(height: 4),
+      Text('Bitte im Verlauf eintragen, wann der Bescheid per Post erhalten wurde.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center),
+    ])));
     final fristEnde = DateTime(datum.year, datum.month + 1, datum.day);
     final heute = DateTime.now();
     final rest = fristEnde.difference(DateTime(heute.year, heute.month, heute.day)).inDays;
