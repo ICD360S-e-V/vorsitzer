@@ -3589,6 +3589,56 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== GERICHT (dedicated DB tables) ==========
+
+  Future<Map<String, dynamic>> getGerichtData(int userId, String gerichtTyp) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/gericht_data_manage.php?user_id=$userId&gericht_typ=$gerichtTyp'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveGerichtData(int userId, String gerichtTyp, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gericht_typ': gerichtTyp, 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listGerichtVorfaelle(int userId, String gerichtTyp) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/gericht_vorfaelle.php?user_id=$userId&gericht_typ=$gerichtTyp'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveGerichtVorfall(int userId, String gerichtTyp, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId; body['gericht_typ'] = gerichtTyp;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_vorfaelle.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteGerichtVorfall(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_vorfaelle.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listGerichtTermineDB(int userId, String gerichtTyp) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/gericht_termine.php?user_id=$userId&gericht_typ=$gerichtTyp'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveGerichtTermin(int userId, String gerichtTyp, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId; body['gericht_typ'] = gerichtTyp;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_termine.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteGerichtTermin(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_termine.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listGerichtKorrespondenzDB(int userId, String gerichtTyp) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/gericht_korrespondenz_manage.php?user_id=$userId&gericht_typ=$gerichtTyp'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveGerichtKorrespondenz(int userId, String gerichtTyp, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId; body['gericht_typ'] = gerichtTyp;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_korrespondenz_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteGerichtKorrespondenz(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_korrespondenz_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== RUNDFUNKBEITRAG ANTRAG DETAIL ==========
 
   Future<Map<String, dynamic>> listRfbAntragVerlauf(int antragId) async {
