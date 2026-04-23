@@ -312,11 +312,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     flat['gdb_aktuell'] = int.tryParse((gdb['gdb_aktuell'] ?? gdb['aktuell'])?.toString() ?? '') ?? 0;
     flat['gdb_feststellung_datum'] = gdb['gdb_feststellung_datum'] ?? gdb['feststellung_datum'];
     flat['gdb_bescheid_datum'] = gdb['gdb_bescheid_datum'] ?? gdb['bescheid_datum'];
-    // Amt data
+    // Amt data — reconstruct selected_amt Map from DB fields
     final amt = _dbData['amt'] ?? {};
-    flat['selected_amt'] = amt;
+    if (amt.isNotEmpty && (amt['name']?.toString() ?? '').isNotEmpty) {
+      flat['selected_amt'] = Map<String, dynamic>.from(amt);
+    }
     final sonstige = _dbData['sonstige'] ?? {};
-    if (sonstige['selected_amt'] != null) flat['selected_amt'] = sonstige['selected_amt'];
     if (sonstige['selected_amt_id'] != null) flat['selected_amt_id'] = sonstige['selected_amt_id'];
     // Merkzeichen
     for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
@@ -401,8 +402,19 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                           setState(() {
                             data['selected_amt_id'] = a['id'];
                             data['selected_amt'] = a;
+                            final sonstige = _db('sonstige');
+                            sonstige['selected_amt_id'] = a['id']?.toString() ?? '';
+                            sonstige['selected_amt'] = a.toString();
+                            final amt = _db('amt');
+                            amt['name'] = a['name']?.toString() ?? '';
+                            amt['kurzname'] = a['kurzname']?.toString() ?? '';
+                            amt['strasse'] = a['strasse']?.toString() ?? '';
+                            amt['plz_ort'] = a['plz_ort']?.toString() ?? '';
+                            amt['telefon'] = a['telefon']?.toString() ?? '';
+                            amt['email'] = a['email']?.toString() ?? '';
+                            amt['oeffnungszeiten'] = a['oeffnungszeiten']?.toString() ?? '';
                           });
-                          _saveAll(data);
+                          _saveDbData();
                           Navigator.pop(ctx);
                         },
                       ),
