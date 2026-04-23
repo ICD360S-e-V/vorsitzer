@@ -954,10 +954,152 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           icon: const Icon(Icons.gavel),
           label: const Text('Widerspruch / Rechtsmittel einlegen'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
-          onPressed: widget.onEdit,
+          onPressed: () => _showWiderspruchWizard(v, frist),
         )),
       ],
     ]));
+  }
+
+  String _getWartezeit(String gerichtTyp, String titel) {
+    final t = titel.toLowerCase();
+    if (gerichtTyp == 'arbeitsgericht') {
+      if (t.contains('mahnbescheid')) return 'Nach Widerspruch: Verfahren wird an Arbeitsgericht abgegeben. Güteverhandlung i.d.R. innerhalb 2–6 Wochen.';
+      if (t.contains('kündigung')) return 'Güteverhandlung i.d.R. innerhalb 2–4 Wochen nach Klageeinreichung. Kammertermin nach 2–4 Monaten.';
+      return 'Güteverhandlung i.d.R. innerhalb 2–6 Wochen. Kammertermin nach 2–4 Monaten.';
+    }
+    if (gerichtTyp == 'sozialgericht') {
+      if (t.contains('einstweilig')) return 'Eilverfahren: Entscheidung i.d.R. innerhalb 1–4 Wochen.';
+      return 'Widerspruchsbescheid: i.d.R. innerhalb 3 Monaten. Nach 3 Monaten ohne Antwort → Untätigkeitsklage möglich (§ 88 SGG). Klageverfahren: durchschnittlich 15 Monate.';
+    }
+    if (gerichtTyp == 'betreuungsgericht') {
+      if (t.contains('unterbringung') || t.contains('einstweilig')) return 'Eilentscheidung: i.d.R. innerhalb weniger Tage bis 2 Wochen.';
+      return 'Beschwerdeverfahren: i.d.R. 1–3 Monate beim Landgericht.';
+    }
+    return 'Bearbeitungszeit variiert je nach Gericht und Verfahrensart.';
+  }
+
+  void _showWiderspruchWizard(Map<String, dynamic> v, ({int tage, String beschreibung, String paragraph}) frist) {
+    int step = 0;
+    String versandart = '';
+    final widerspruchDatumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    final titel = v['titel']?.toString() ?? '';
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.gavel, color: widget.color.shade700, size: 22), const SizedBox(width: 8),
+          Text(step == 0 ? 'Widerspruch eingelegt?' : step == 1 ? 'Versandart' : 'Wartezeit', style: TextStyle(fontSize: 16, color: widget.color.shade700)),
+        ]),
+        content: SizedBox(width: 460, child: step == 0
+          // Step 1: Wurde Widerspruch eingelegt?
+          ? Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('Wurde der Widerspruch / das Rechtsmittel bereits eingelegt?', style: TextStyle(fontSize: 14, color: Colors.grey.shade800)),
+              const SizedBox(height: 8),
+              Text('Frist: ${frist.tage} Tage — ${frist.beschreibung}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              const SizedBox(height: 12),
+              TextField(controller: widerspruchDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum des Widerspruchs', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                onTap: () async { final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (p != null) widerspruchDatumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}'; }),
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: FilledButton.icon(
+                icon: const Icon(Icons.check, size: 16), label: const Text('Ja, Widerspruch eingelegt'),
+                style: FilledButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 12)),
+                onPressed: () => setD(() => step = 1),
+              )),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Nein, noch nicht'),
+              )),
+            ])
+          : step == 1
+          // Step 2: Wie wurde er versendet?
+          ? Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Wie wurde der Widerspruch eingereicht?', style: TextStyle(fontSize: 14, color: Colors.grey.shade800)),
+              const SizedBox(height: 12),
+              ...[
+                ('post', 'Per Post (Einschreiben empfohlen)', Icons.local_post_office, 'Zustellnachweis durch Einschreiben'),
+                ('fax', 'Per Fax', Icons.fax, 'Sendebericht als Nachweis aufbewahren'),
+                ('persoenlich', 'Persönlich bei Gericht abgegeben', Icons.person, 'Eingangsstempel auf Kopie verlangen'),
+                ('elektronisch', 'Elektronisch (beA / EGVP)', Icons.computer, 'Über besonderes elektronisches Anwaltspostfach'),
+              ].map((m) => InkWell(
+                onTap: () => setD(() { versandart = m.$1; step = 2; }),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: double.infinity, margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: versandart == m.$1 ? widget.color.shade50 : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: versandart == m.$1 ? widget.color.shade400 : Colors.grey.shade300)),
+                  child: Row(children: [
+                    Icon(m.$3, size: 20, color: widget.color.shade600), const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(m.$2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+                      Text(m.$4, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                    ])),
+                  ]),
+                ),
+              )),
+            ])
+          // Step 3: Wartezeit
+          : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: double.infinity, padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300)),
+                child: Row(children: [
+                  Icon(Icons.check_circle, size: 24, color: Colors.green.shade700), const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Widerspruch eingelegt am ${widerspruchDatumC.text}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                    Text('Versand: ${{'post': 'Per Post', 'fax': 'Per Fax', 'persoenlich': 'Persönlich', 'elektronisch': 'Elektronisch'}[versandart] ?? versandart}', style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+                  ])),
+                ]),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity, padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.timer, size: 20, color: Colors.blue.shade700), const SizedBox(width: 8),
+                    Text('Erwartete Wartezeit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                  ]),
+                  const SizedBox(height: 6),
+                  Text(_getWartezeit(widget.gerichtTyp, titel), style: TextStyle(fontSize: 12, color: Colors.blue.shade900)),
+                ]),
+              ),
+              if (widget.gerichtTyp == 'sozialgericht') ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity, padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.lightbulb, size: 16, color: Colors.amber.shade700), const SizedBox(width: 8),
+                    Expanded(child: Text('Tipp: Nach 3 Monaten ohne Antwort können Sie eine Untätigkeitsklage nach § 88 SGG erheben.', style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+                  ]),
+                ),
+              ],
+            ]),
+        ),
+        actions: [
+          if (step > 0) TextButton(onPressed: () => setD(() => step--), child: const Text('Zurück')),
+          if (step < 2) TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          if (step == 2) FilledButton.icon(
+            icon: const Icon(Icons.save, size: 16),
+            label: const Text('Speichern & Schließen'),
+            style: FilledButton.styleFrom(backgroundColor: widget.color),
+            onPressed: () async {
+              // Save verlauf entry
+              await widget.apiService.addGerichtVorfallVerlauf(widget.vorfallId, {
+                'datum': widerspruchDatumC.text,
+                'status': 'in_bearbeitung',
+                'notiz': 'Widerspruch eingelegt per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich beim Gericht', 'elektronisch': 'elektronisch (beA/EGVP)'}[versandart] ?? versandart}',
+              });
+              // Update vorfall status
+              await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {'id': widget.vorfallId, 'status': 'in_bearbeitung'});
+              if (ctx.mounted) Navigator.pop(ctx);
+              _load(); widget.onChanged();
+            },
+          ),
+        ],
+      );
+    }));
   }
 
   Widget _tlItem(IconData icon, String title, String date, Color color, bool hasLine, {String? subtitle}) {
