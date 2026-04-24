@@ -666,11 +666,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             int? fristTage;
             if (frist.isNotEmpty) { try { final p = frist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); fristTage = d.difference(DateTime.now()).inDays; } catch (_) {} }
             return Container(margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
-              child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showVorschlagDialog(ctx, v, (updated) async {
-                await widget.apiService.saveArbeitsagenturVorschlag(widget.userId, updated);
-                await _loadFromDB();
-                if (mounted) setState(() {});
-              }),
+              child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showVorschlagDetailModal(ctx, v),
                 child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Expanded(child: Text(v['stelle']?.toString() ?? 'Ohne Bezeichnung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
@@ -693,6 +689,167 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           }),
       ]));
     });
+  }
+
+  void _showVorschlagDetailModal(BuildContext ctx, Map<String, dynamic> v) {
+    final color = Colors.indigo;
+    showDialog(context: ctx, builder: (dlgCtx) => DefaultTabController(length: 2, child: StatefulBuilder(builder: (dlgCtx, setDlg) {
+      final status = v['status']?.toString() ?? '';
+      final statusColor = status == 'beworben' ? Colors.blue : status == 'eingeladen' ? Colors.orange : status == 'abgelehnt' ? Colors.red : status == 'eingestellt' ? Colors.green : Colors.grey;
+      return AlertDialog(
+        titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+        contentPadding: EdgeInsets.zero,
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.work_outline, size: 18, color: color.shade700), const SizedBox(width: 8),
+            Expanded(child: Text(v['stelle']?.toString() ?? 'Vermittlungsvorschlag', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+            if (status.isNotEmpty) Container(margin: const EdgeInsets.only(right: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
+              child: Text(status[0].toUpperCase() + status.substring(1), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: statusColor.shade800))),
+            IconButton(icon: Icon(Icons.edit, size: 16, color: color.shade400), tooltip: 'Bearbeiten', onPressed: () {
+              Navigator.pop(dlgCtx);
+              _showVorschlagDialog(ctx, v, (updated) async {
+                await widget.apiService.saveArbeitsagenturVorschlag(widget.userId, updated);
+                await _loadFromDB();
+                if (mounted) setState(() {});
+              });
+            }),
+            IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx)),
+          ]),
+          const SizedBox(height: 4),
+          TabBar(labelColor: color.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: color.shade700, tabs: const [
+            Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+            Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
+          ]),
+        ]),
+        content: SizedBox(width: 550, height: 450, child: TabBarView(children: [
+          // ═══ TAB 1: Details ═══
+          SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _vdSection(Icons.business, 'Arbeitgeber', color, [
+              _vdRow('Firma', v['arbeitgeber'], Icons.business),
+              _vdRow('Ort', v['ort'], Icons.location_on),
+            ]),
+            if ((v['ansprechpartner_name']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _vdSection(Icons.person, 'Ansprechpartner', Colors.teal, [
+                _vdRow('Name', '${v['ansprechpartner_anrede'] ?? ''} ${v['ansprechpartner_name'] ?? ''}'.trim(), Icons.person),
+                if ((v['ansprechpartner_tel']?.toString() ?? '').isNotEmpty) _vdRow('Telefon', v['ansprechpartner_tel'], Icons.phone),
+                if ((v['ansprechpartner_email']?.toString() ?? '').isNotEmpty) _vdRow('E-Mail', v['ansprechpartner_email'], Icons.email),
+              ]),
+            ],
+            const SizedBox(height: 10),
+            _vdSection(Icons.work, 'Stelle', Colors.blue, [
+              _vdRow('Position', v['stelle'], Icons.work),
+              _vdRow('Status', status.isNotEmpty ? status[0].toUpperCase() + status.substring(1) : '—', Icons.flag),
+            ]),
+            if ((v['frist']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Builder(builder: (_) {
+                final frist = v['frist'].toString();
+                int? left; try { final p = frist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); left = d.difference(DateTime.now()).inDays; } catch (_) {}
+                return Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (left != null && left < 0) ? Colors.red.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: (left != null && left < 0) ? Colors.red.shade200 : Colors.orange.shade200)),
+                  child: Row(children: [
+                    Icon(Icons.timer, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
+                    Text('Frist: $frist', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                    if (left != null) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: left < 0 ? Colors.red.shade100 : left <= 1 ? Colors.orange.shade100 : Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text(left < 0 ? 'Abgelaufen!' : left == 0 ? 'Heute!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: left < 0 ? Colors.red.shade800 : left <= 1 ? Colors.orange.shade800 : Colors.green.shade800)))],
+                  ]));
+              }),
+            ],
+            if ((v['bewerbung_datum']?.toString() ?? '').isNotEmpty || (v['bewerbung_art']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _vdSection(Icons.send, 'Bewerbung', Colors.green, [
+                if ((v['bewerbung_datum']?.toString() ?? '').isNotEmpty) _vdRow('Datum', v['bewerbung_datum'], Icons.calendar_today),
+                if ((v['bewerbung_art']?.toString() ?? '').isNotEmpty) _vdRow('Art', v['bewerbung_art'], Icons.send),
+                if ((v['ergebnis']?.toString() ?? '').isNotEmpty) _vdRow('Ergebnis', v['ergebnis'], Icons.flag),
+              ]),
+            ],
+            if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12)),
+                ])),
+            ],
+          ])),
+          // ═══ TAB 2: Verlauf ═══
+          SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 12),
+            ..._buildVerlaufTimeline(v),
+          ])),
+        ])),
+      );
+    })));
+  }
+
+  List<Widget> _buildVerlaufTimeline(Map<String, dynamic> v) {
+    final events = <(String date, IconData icon, String title, String subtitle, MaterialColor color)>[];
+    final datum = v['datum']?.toString() ?? '';
+    final erhalten = v['datum_erhalten']?.toString() ?? '';
+    final frist = v['frist']?.toString() ?? '';
+    final bewDatum = v['bewerbung_datum']?.toString() ?? '';
+    final bewArt = v['bewerbung_art']?.toString() ?? '';
+    final status = v['status']?.toString() ?? '';
+    final ergebnis = v['ergebnis']?.toString() ?? '';
+    const artLabels = {'online': 'Online', 'email': 'E-Mail', 'post': 'Post', 'persoenlich': 'Persönlich', 'fax': 'Fax'};
+
+    if (datum.isNotEmpty) events.add((datum, Icons.edit_calendar, 'Vermittlungsvorschlag erstellt', 'Datum auf dem Schreiben', Colors.grey));
+    if (erhalten.isNotEmpty) events.add((erhalten, Icons.markunread_mailbox, 'Per Post erhalten', 'Eingang beim Mitglied', Colors.blue));
+    if (frist.isNotEmpty) {
+      int? left; try { final p = frist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); left = d.difference(DateTime.now()).inDays; } catch (_) {}
+      events.add((frist, Icons.timer, 'Bewerbungsfrist (3 Tage)', left != null && left < 0 ? 'Abgelaufen' : left != null ? 'Noch $left Tage' : '', Colors.orange));
+    }
+    if (bewDatum.isNotEmpty) events.add((bewDatum, Icons.send, 'Bewerbung eingereicht', bewArt.isNotEmpty ? 'Versand: ${artLabels[bewArt] ?? bewArt}' : '', Colors.green));
+    if (status == 'eingeladen') events.add(('', Icons.event, 'Vorstellungsgespräch', 'Einladung erhalten', Colors.purple));
+    if (status == 'eingestellt') events.add(('', Icons.check_circle, 'Eingestellt', ergebnis.isNotEmpty ? ergebnis : 'Stelle angenommen', Colors.green));
+    if (status == 'abgelehnt') events.add(('', Icons.cancel, 'Abgelehnt', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
+    if (status == 'absage_ag') events.add(('', Icons.block, 'Absage vom Arbeitgeber', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
+    if (status == 'nicht_beworben') events.add(('', Icons.do_not_disturb, 'Nicht beworben', ergebnis.isNotEmpty ? ergebnis : '', Colors.grey));
+
+    if (events.isEmpty) return [Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)), child: Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center))];
+
+    return events.asMap().entries.map((entry) {
+      final i = entry.key;
+      final e = entry.value;
+      final isLast = i == events.length - 1;
+      return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 30, child: Column(children: [
+          Container(width: 24, height: 24, decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
+            child: Icon(e.$2, size: 12, color: e.$5.shade700)),
+          if (!isLast) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+        ])),
+        const SizedBox(width: 10),
+        Expanded(child: Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
+              if (e.$1.isNotEmpty) Text(e.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: e.$5.shade600)),
+            ]),
+            if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ]))),
+      ]));
+    }).toList();
+  }
+
+  Widget _vdSection(IconData icon, String title, MaterialColor c, List<Widget> children) {
+    return Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(icon, size: 14, color: c.shade700), const SizedBox(width: 6), Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: c.shade700))]),
+        const SizedBox(height: 6),
+        ...children,
+      ]));
+  }
+
+  Widget _vdRow(String label, dynamic value, IconData icon) {
+    final val = value?.toString() ?? '';
+    if (val.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 3), child: Row(children: [
+      Icon(icon, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+    ]));
   }
 
   void _showVorschlagDialog(BuildContext ctx, Map<String, dynamic>? existing, Future<void> Function(Map<String, dynamic>) onSave) {
