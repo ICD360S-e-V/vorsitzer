@@ -10919,7 +10919,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             Future<void> doSearch() async {
               setDialogState(() => isLoading = true);
               try {
-                final isKrankenhaus = fachrichtung == 'Krankenhaus' || fachrichtung == 'Klinik';
+                final isKrankenhaus = fachrichtung.contains('Krankenhaus') || fachrichtung.contains('Klinik') || fachrichtung.contains('Stationare');
                 final res = isKrankenhaus
                     ? await widget.apiService.searchKliniken(search: searchController.text.trim())
                     : await widget.apiService.searchAerzte(search: searchController.text.trim());
