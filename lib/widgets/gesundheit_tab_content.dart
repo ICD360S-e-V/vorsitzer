@@ -4789,6 +4789,39 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         final overdue = naechst != null && heute.isAfter(naechst);
         final rest = naechst != null ? naechst.difference(heute).inDays : null;
         final berechtigt = alter != null && alter >= s.abAlter;
+        final ticketKey = 'vorsorge_${s.key}_ticket_sent';
+        final ageTicketKey = 'vorsorge_${s.key}_age_ticket_sent';
+
+        // Auto-ticket: Frist reminder (1 month before due)
+        if (berechtigt && naechst != null && vorsorge[ticketKey] != true) {
+          final reminderDate = DateTime(naechst.year, naechst.month - 1, naechst.day);
+          if (heute.isAfter(reminderDate)) {
+            vorsorge[ticketKey] = true;
+            data['vorsorge_${s.key}'] = vorsorge;
+            final faelligStr = fmt(naechst);
+            widget.ticketService.createTicketForMember(
+              adminMitgliedernummer: widget.adminMitgliedernummer,
+              memberMitgliedernummer: widget.user.mitgliedernummer,
+              subject: '${s.label} fällig – Vorsorgeuntersuchung',
+              message: 'Sehr geehrtes Mitglied,\n\nIhre nächste Vorsorgeuntersuchung "${s.label}" ${overdue ? 'war' : 'ist'} am $faelligStr fällig.\n\n$beschreibung\n\nBitte vereinbaren Sie zeitnah einen Termin.\n\nMit freundlichen Grüßen',
+              priority: overdue ? 'high' : 'medium',
+            ).then((_) => saveAll());
+          }
+        }
+
+        // Auto-ticket: Age eligibility (member just became eligible)
+        if (berechtigt && vorsorge[ageTicketKey] != true && letztes.isEmpty) {
+          vorsorge[ageTicketKey] = true;
+          data['vorsorge_${s.key}'] = vorsorge;
+          widget.ticketService.createTicketForMember(
+            adminMitgliedernummer: widget.adminMitgliedernummer,
+            memberMitgliedernummer: widget.user.mitgliedernummer,
+            subject: 'Neue Vorsorge: ${s.label} (ab ${s.abAlter} Jahren)',
+            message: 'Sehr geehrtes Mitglied,\n\nSie haben das ${s.abAlter}. Lebensjahr erreicht und haben nun Anspruch auf folgende Vorsorgeuntersuchung:\n\n${s.label}\n$beschreibung\n\nDie Kosten werden von Ihrer Krankenkasse übernommen.\n\nMit freundlichen Grüßen',
+            priority: 'low',
+          ).then((_) => saveAll());
+        }
+
         return InkWell(
           onTap: berechtigt ? () => _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0) : null,
           borderRadius: BorderRadius.circular(10),
