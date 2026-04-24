@@ -569,6 +569,10 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                 arbeitgeberC.text = selected['firma_name']?.toString() ?? '';
                 final selOrt = selected['niederlassung_ort']?.toString() ?? selected['hauptzentrale_ort']?.toString() ?? '';
                 if (selOrt.isNotEmpty && ortC.text.isEmpty) ortC.text = selOrt;
+                final selTel = selected['niederlassung_telefon']?.toString() ?? selected['hauptzentrale_telefon']?.toString() ?? '';
+                final selEmail = selected['niederlassung_email']?.toString() ?? selected['hauptzentrale_email']?.toString() ?? '';
+                if (selTel.isNotEmpty && apTelC.text.isEmpty) apTelC.text = selTel;
+                if (selEmail.isNotEmpty && apEmailC.text.isEmpty) apEmailC.text = selEmail;
               });
             }
           }),
@@ -620,6 +624,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                       onPressed: () async { await widget.apiService.deleteArbeitsagenturVorschlag(widget.userId, v['id'] is int ? v['id'] : int.parse(v['id'].toString())); await _loadFromDB(); if (mounted) setState(() {}); }),
                   ]),
                   if ((v['arbeitgeber']?.toString() ?? '').isNotEmpty) Text(v['arbeitgeber'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  if ((v['ansprechpartner_name']?.toString() ?? '').isNotEmpty) Text('${v['ansprechpartner_anrede'] ?? ''} ${v['ansprechpartner_name']}'.trim(), style: TextStyle(fontSize: 11, color: Colors.indigo.shade400)),
                   Row(children: [
                     if ((v['datum']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.edit_calendar, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), const SizedBox(width: 8)],
                     if ((v['datum_erhalten']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.markunread_mailbox, size: 11, color: Colors.blue.shade400), const SizedBox(width: 4), Text(v['datum_erhalten'].toString(), style: TextStyle(fontSize: 11, color: Colors.blue.shade600)), const SizedBox(width: 8)],
@@ -641,6 +646,10 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     final arbeitgeberC = TextEditingController(text: existing?['arbeitgeber']?.toString() ?? '');
     final stelleC = TextEditingController(text: existing?['stelle']?.toString() ?? '');
     final ortC = TextEditingController(text: existing?['ort']?.toString() ?? '');
+    String apAnrede = existing?['ansprechpartner_anrede']?.toString() ?? '';
+    final apNameC = TextEditingController(text: existing?['ansprechpartner_name']?.toString() ?? '');
+    final apTelC = TextEditingController(text: existing?['ansprechpartner_tel']?.toString() ?? '');
+    final apEmailC = TextEditingController(text: existing?['ansprechpartner_email']?.toString() ?? '');
     final bewDatumC = TextEditingController(text: existing?['bewerbung_datum']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
     String status = existing?['status']?.toString() ?? 'offen';
@@ -686,6 +695,25 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         const SizedBox(height: 12),
         const SizedBox(height: 12),
         _buildArbeitgeberSearch(arbeitgeberC, ortC, setDlg),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Ansprechpartner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 8),
+            Row(children: [
+              ChoiceChip(label: const Text('Frau', style: TextStyle(fontSize: 11)), selected: apAnrede == 'Frau', selectedColor: Colors.pink.shade100, onSelected: (_) => setDlg(() => apAnrede = 'Frau')),
+              const SizedBox(width: 6),
+              ChoiceChip(label: const Text('Herr', style: TextStyle(fontSize: 11)), selected: apAnrede == 'Herr', selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => apAnrede = 'Herr')),
+              const SizedBox(width: 12),
+              Expanded(child: TextField(controller: apNameC, decoration: InputDecoration(hintText: 'Name', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13))),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: TextField(controller: apTelC, decoration: InputDecoration(hintText: 'Telefon', prefixIcon: const Icon(Icons.phone, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13))),
+              const SizedBox(width: 8),
+              Expanded(child: TextField(controller: apEmailC, decoration: InputDecoration(hintText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13))),
+            ]),
+          ])),
         const SizedBox(height: 12),
         _textField('Stelle / Position', stelleC, hint: 'z.B. Lagerhelfer', icon: Icons.work),
         const SizedBox(height: 12),
@@ -750,7 +778,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           Navigator.pop(dlgCtx);
           final data = <String, dynamic>{
             if (isEdit) 'id': existing['id'],
-            'datum': datumC.text.trim(), 'datum_erhalten': erhaltenC.text.trim(), 'arbeitgeber': arbeitgeberC.text.trim(), 'stelle': stelleC.text.trim(), 'ort': ortC.text.trim(),
+            'datum': datumC.text.trim(), 'datum_erhalten': erhaltenC.text.trim(), 'arbeitgeber': arbeitgeberC.text.trim(),
+            'ansprechpartner_anrede': apAnrede, 'ansprechpartner_name': apNameC.text.trim(), 'ansprechpartner_tel': apTelC.text.trim(), 'ansprechpartner_email': apEmailC.text.trim(),
+            'stelle': stelleC.text.trim(), 'ort': ortC.text.trim(),
             'frist': fristC.text.trim(), 'status': status, 'bewerbung_datum': bewDatumC.text.trim(), 'bewerbung_art': bewArt, 'ergebnis': ergebnis, 'notiz': notizC.text.trim(),
           };
           await onSave(data);
