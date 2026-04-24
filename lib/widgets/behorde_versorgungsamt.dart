@@ -2098,12 +2098,81 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
       }),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5),
+      const Divider(height: 20),
+      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+      const SizedBox(height: 8),
+      _buildSachbearbeiterSection(a),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
       ],
     ]));
+  }
+
+  bool _sbWiderspruchEditing = false;
+
+  Widget _buildSachbearbeiterSection(Map<String, dynamic> a) {
+    final anrede = a['wb_sb_anrede']?.toString() ?? '';
+    final name = a['wb_sb_name']?.toString() ?? '';
+    final telefon = a['wb_sb_telefon']?.toString() ?? '';
+    final email = a['wb_sb_email']?.toString() ?? '';
+    final hasData = name.isNotEmpty;
+    final readOnly = hasData && !_sbWiderspruchEditing;
+
+    if (readOnly) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.person, size: 18, color: Colors.deepPurple.shade700), const SizedBox(width: 8),
+            Expanded(child: Text('${anrede.isNotEmpty ? '$anrede ' : ''}$name', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900))),
+            IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.deepPurple.shade400), tooltip: 'Bearbeiten',
+              onPressed: () => setState(() => _sbWiderspruchEditing = true)),
+          ]),
+          if (telefon.isNotEmpty) _dRow(Icons.phone, 'Telefon', telefon),
+          if (email.isNotEmpty) _dRow(Icons.email, 'E-Mail', email),
+        ]),
+      );
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 8, children: ['Frau', 'Herr'].map((an) => ChoiceChip(
+        label: Text(an, style: TextStyle(fontSize: 12, color: anrede == an ? Colors.white : Colors.black87)),
+        selected: anrede == an, selectedColor: Colors.deepPurple,
+        onSelected: (_) { a['wb_sb_anrede'] = an; _saveAntragField(a, 'wb_sb_anrede', an); },
+      )).toList()),
+      const SizedBox(height: 8),
+      TextField(
+        controller: TextEditingController(text: name),
+        decoration: InputDecoration(labelText: 'Name', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onChanged: (v) => a['wb_sb_name'] = v,
+      ),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: TextField(
+          controller: TextEditingController(text: telefon),
+          decoration: InputDecoration(labelText: 'Telefon', prefixIcon: const Icon(Icons.phone, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onChanged: (v) => a['wb_sb_telefon'] = v,
+        )),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(
+          controller: TextEditingController(text: email),
+          decoration: InputDecoration(labelText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onChanged: (v) => a['wb_sb_email'] = v,
+        )),
+      ]),
+      const SizedBox(height: 8),
+      Align(alignment: Alignment.centerRight, child: FilledButton.icon(
+        icon: const Icon(Icons.save, size: 16), label: const Text('Speichern', style: TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple),
+        onPressed: () async {
+          await _saveAntragField(a, 'wb_sb_name', a['wb_sb_name'] ?? '');
+          setState(() => _sbWiderspruchEditing = false);
+        },
+      )),
+    ]);
   }
 
   Future<void> _saveAntragField(Map<String, dynamic> a, String field, String value) async {
@@ -2114,6 +2183,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       'akteneinsicht_datum': a['akteneinsicht_datum'] ?? '', 'akteneinsicht_methode': a['akteneinsicht_methode'] ?? '',
       'akteneinsicht_erhalten': a['akteneinsicht_erhalten'] ?? '', 'akteneinsicht_erhalten_methode': a['akteneinsicht_erhalten_methode'] ?? '',
       'eingangsbestaetigung_datum': a['eingangsbestaetigung_datum'] ?? '', 'eingangsbestaetigung_erhalten': a['eingangsbestaetigung_erhalten'] ?? '',
+      'wb_sb_anrede': a['wb_sb_anrede'] ?? '', 'wb_sb_name': a['wb_sb_name'] ?? '', 'wb_sb_telefon': a['wb_sb_telefon'] ?? '', 'wb_sb_email': a['wb_sb_email'] ?? '',
     });
     setState(() {});
   }
@@ -2206,16 +2276,19 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   }
 
   Widget _buildVerlauf() {
+    // Sort chronologically old → new
+    final sorted = List<Map<String, dynamic>>.from(_verlauf);
+    sorted.sort((a, b) => (a['datum']?.toString() ?? '').compareTo(b['datum']?.toString() ?? ''));
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_verlauf.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${sorted.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: _addVerlauf),
       ])),
-      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
-            final e = _verlauf[i];
+      Expanded(child: sorted.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: sorted.length, itemBuilder: (_, i) {
+            final e = sorted[i];
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
               child: Row(children: [
@@ -2238,7 +2311,10 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final notizC = TextEditingController(); String status = '';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(title: const Text('Verlauf-Eintrag'),
       content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, border: const OutlineInputBorder(), suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () async {
+          final p = await showDatePicker(context: ctx, initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+          if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+        }))), const SizedBox(height: 8),
         Wrap(spacing: 6, children: ['eingereicht', 'in_bearbeitung', 'genehmigt', 'abgelehnt', 'widerspruch'].map((s) => ChoiceChip(
           label: Text(s.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, color: status == s ? Colors.white : Colors.black87)),
           selected: status == s, selectedColor: Colors.indigo, onSelected: (_) => setD(() => status = s))).toList()), const SizedBox(height: 8),
@@ -2299,7 +2375,10 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     String methode = '';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
       content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, border: const OutlineInputBorder(), suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () async {
+          final p = await showDatePicker(context: ctx2, initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+          if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+        }))), const SizedBox(height: 8),
         Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
         const SizedBox(height: 4),
         Wrap(spacing: 6, children: [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.local_post_office), ('fax', 'Fax', Icons.fax), ('persoenlich', 'Persönlich', Icons.person)].map((m) => ChoiceChip(
