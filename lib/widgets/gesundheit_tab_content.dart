@@ -2021,7 +2021,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: 10,
+          length: 11,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -2196,6 +2196,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   Tab(icon: Icon(Icons.medication, size: 16), text: 'Medikamente'),
                   Tab(icon: Icon(Icons.note, size: 16), text: 'Notizen'),
                   Tab(icon: Icon(Icons.bloodtype, size: 16), text: 'Blutanalyse'),
+                  Tab(icon: Icon(Icons.health_and_safety, size: 16), text: 'Vorsorge'),
                   Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankmeldungen'),
                   Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Überweisung'),
                   Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
@@ -2465,7 +2466,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     // ===== TAB 5: BLUTANALYSE =====
                     _buildBlutanalyseTab(type, arztTitle, data, saveAll, setLocalState),
 
-                    // ===== TAB 6: KRANKMELDUNGEN =====
+                    // ===== TAB 6: VORSORGE (HPV/Pap) =====
+                    _buildVorsorgeTab(type, arztTitle, data, saveAll, setLocalState),
+
+                    // ===== TAB 7: KRANKMELDUNGEN =====
                     _buildKrankmeldungenTab(type, arztTitle, data, saveAll, setLocalState),
 
                     // ===== TAB 7: ÜBERWEISUNG =====
@@ -4743,6 +4747,169 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   }
 
   // ========== KRANKMELDUNGEN TAB ==========
+
+  // ═══════════════════════════════════════════════════════════════
+  // VORSORGE TAB — Zervixkarzinom-Screening (HPV/Pap)
+  // ═══════════════════════════════════════════════════════════════
+  Widget _buildVorsorgeTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
+    final geb = widget.user.geburtsdatum;
+    int? alter;
+    if (geb != null) {
+      final gebDatum = DateTime.tryParse(geb.toString());
+      if (gebDatum != null) alter = DateTime.now().difference(gebDatum).inDays ~/ 365;
+    }
+    final geschlecht = widget.user.geschlecht?.toString().toLowerCase() ?? '';
+    final isFrau = geschlecht == 'weiblich' || geschlecht == 'w' || geschlecht == 'frau';
+
+    // Screening data
+    final vorsorge = data['vorsorge_hpv'] is Map ? Map<String, dynamic>.from(data['vorsorge_hpv'] as Map) : <String, dynamic>{};
+    final letztesDatum = vorsorge['letztes_datum']?.toString() ?? '';
+    final letztesErgebnis = vorsorge['letztes_ergebnis']?.toString() ?? '';
+    final naechstesDatum = vorsorge['naechstes_datum']?.toString() ?? '';
+
+    // Calculate interval based on age
+    final int intervallMonate = (alter != null && alter >= 35) ? 36 : 12;
+    final String intervallText = intervallMonate == 36 ? 'alle 3 Jahre (Ko-Testung: Pap + HPV)' : 'jährlich (Pap-Abstrich)';
+    final String screeningTyp = (alter != null && alter >= 35) ? 'Ko-Testung (Pap-Abstrich + HPV-Test)' : 'Pap-Abstrich (zytologische Untersuchung)';
+
+    // Calculate next due date
+    DateTime? naechstFaellig;
+    if (letztesDatum.isNotEmpty) {
+      final letzte = DateTime.tryParse(letztesDatum);
+      if (letzte != null) {
+        naechstFaellig = DateTime(letzte.year, letzte.month + intervallMonate, letzte.day);
+      }
+    }
+    final heute = DateTime.now();
+    final isOverdue = naechstFaellig != null && heute.isAfter(naechstFaellig);
+    final restTage = naechstFaellig != null ? naechstFaellig.difference(heute).inDays : null;
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.health_and_safety, size: 22, color: Colors.pink.shade700), const SizedBox(width: 8),
+          Expanded(child: Text('Zervixkarzinom-Screening', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700))),
+        ]),
+        const SizedBox(height: 4),
+        Text('Gebärmutterhalskrebs-Früherkennung (HPV/Pap)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        const SizedBox(height: 12),
+
+        if (!isFrau)
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10)),
+            child: Column(children: [
+              Icon(Icons.info, size: 32, color: Colors.grey.shade400), const SizedBox(height: 8),
+              Text('Nur für weibliche Mitglieder relevant', style: TextStyle(color: Colors.grey.shade600)),
+            ]),
+          )
+        else ...[
+          // Status Banner
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: letztesDatum.isEmpty ? Colors.grey.shade50 : isOverdue ? Colors.red.shade50 : (restTage != null && restTage <= 90) ? Colors.orange.shade50 : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: letztesDatum.isEmpty ? Colors.grey.shade300 : isOverdue ? Colors.red.shade300 : (restTage != null && restTage <= 90) ? Colors.orange.shade300 : Colors.green.shade300, width: 2),
+            ),
+            child: Row(children: [
+              Icon(letztesDatum.isEmpty ? Icons.help_outline : isOverdue ? Icons.warning : Icons.check_circle, size: 28,
+                color: letztesDatum.isEmpty ? Colors.grey.shade500 : isOverdue ? Colors.red.shade700 : Colors.green.shade700),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(letztesDatum.isEmpty ? 'Kein Screening eingetragen' : isOverdue ? 'Screening überfällig!' : 'Screening aktuell',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: letztesDatum.isEmpty ? Colors.grey.shade700 : isOverdue ? Colors.red.shade800 : Colors.green.shade800)),
+                if (naechstFaellig != null) Text('Nächstes Screening: ${fmt(naechstFaellig)}${restTage != null ? ' ($restTage Tage)' : ''}',
+                  style: TextStyle(fontSize: 12, color: isOverdue ? Colors.red.shade700 : Colors.green.shade700)),
+              ])),
+            ]),
+          ),
+          const SizedBox(height: 16),
+
+          // Info
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Screening-Empfehlung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade800)),
+              const SizedBox(height: 6),
+              if (alter != null) ...[
+                Row(children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.pink.shade100, borderRadius: BorderRadius.circular(6)),
+                    child: Text('Alter: $alter Jahre', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.pink.shade800))),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(intervallText, style: TextStyle(fontSize: 11, color: Colors.pink.shade700))),
+                ]),
+                const SizedBox(height: 4),
+                Text('Typ: $screeningTyp', style: TextStyle(fontSize: 11, color: Colors.pink.shade600)),
+              ] else
+                Text('Geburtsdatum nicht hinterlegt — Intervall kann nicht berechnet werden', style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+            ]),
+          ),
+          const SizedBox(height: 16),
+
+          // Letztes Screening
+          Text('Letztes Screening', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () async {
+              final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(letztesDatum) ?? DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
+              if (p != null) { setLocalState(() { vorsorge['letztes_datum'] = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}'; data['vorsorge_hpv'] = vorsorge; }); saveAll(); }
+            },
+            child: Container(
+              width: double.infinity, padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                Icon(Icons.calendar_today, size: 18, color: Colors.pink.shade600), const SizedBox(width: 8),
+                Text(letztesDatum.isEmpty ? 'Datum eintragen...' : letztesDatum, style: TextStyle(fontSize: 14, color: letztesDatum.isEmpty ? Colors.grey.shade400 : Colors.black87, fontStyle: letztesDatum.isEmpty ? FontStyle.italic : FontStyle.normal)),
+                const Spacer(),
+                Icon(Icons.edit_calendar, size: 16, color: Colors.pink.shade400),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: letztesErgebnis.isEmpty ? null : letztesErgebnis,
+            decoration: InputDecoration(labelText: 'Ergebnis', prefixIcon: Icon(Icons.science, size: 18, color: Colors.pink.shade400), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: const [
+              DropdownMenuItem(value: 'unauffaellig', child: Text('Unauffällig (Pap I/II)', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'kontrollbeduerftig', child: Text('Kontrollbedürftig (Pap III/IIID)', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'auffaellig', child: Text('Auffällig (Pap IV/V)', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'hpv_positiv', child: Text('HPV-positiv', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'hpv_negativ', child: Text('HPV-negativ', style: TextStyle(fontSize: 13))),
+            ],
+            onChanged: (v) { setLocalState(() { vorsorge['letztes_ergebnis'] = v; data['vorsorge_hpv'] = vorsorge; }); saveAll(); },
+          ),
+          const SizedBox(height: 16),
+
+          // Rechtsgrundlage
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Rechtsgrundlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              const SizedBox(height: 6),
+              _vorsorgeInfoRow('20–34 Jahre', 'Jährlich Pap-Abstrich (zytologische Untersuchung)'),
+              _vorsorgeInfoRow('Ab 35 Jahre', 'Alle 3 Jahre Ko-Testung (Pap + HPV-Test)'),
+              _vorsorgeInfoRow('Einladung', 'Krankenkasse lädt alle 5 Jahre ein (20, 25, 30, 35...)'),
+              _vorsorgeInfoRow('Grundlage', 'G-BA Richtlinie Organisiertes Krebsfrüherkennungsprogramm'),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _vorsorgeInfoRow(String label, String text) {
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(4)),
+        child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.pink.shade700))),
+      const SizedBox(width: 8),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+    ]));
+  }
 
   Widget _buildKrankmeldungenTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
     final List<dynamic> krankmeldungen = data['krankmeldungen'] is List ? data['krankmeldungen'] as List : [];
