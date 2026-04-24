@@ -584,6 +584,59 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     ]);
   }
 
+  Widget _buildStelleSearch(TextEditingController stelleC, StateSetter setDlg) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Stelle / Position', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      TextField(controller: stelleC, decoration: InputDecoration(
+        hintText: 'Position eingeben oder suchen...', prefixIcon: const Icon(Icons.work, size: 20), isDense: true,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        suffixIcon: IconButton(icon: Icon(Icons.search, size: 20, color: Colors.indigo.shade600), tooltip: 'In Datenbank suchen',
+          onPressed: () async {
+            final res = await widget.apiService.getBerufsbezeichnungen();
+            if (res['success'] != true) return;
+            final all = (res['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            final query = stelleC.text.trim().toLowerCase();
+            if (!mounted) return;
+            final selected = await showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
+              String search = query;
+              String filterKat = '';
+              final kategorien = all.map((e) => e['kategorie']?.toString() ?? '').toSet().toList()..sort();
+              List<Map<String, dynamic>> results = query.isEmpty ? all : all.where((b) => (b['bezeichnung']?.toString() ?? '').toLowerCase().contains(query)).toList();
+              return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+                title: Row(children: [Icon(Icons.work, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Stelle auswählen', style: TextStyle(fontSize: 14))]),
+                content: SizedBox(width: 450, height: 450, child: Column(children: [
+                  TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                    onChanged: (v) => setS(() { search = v.toLowerCase(); results = all.where((b) { final match = (b['bezeichnung']?.toString() ?? '').toLowerCase().contains(search); return match && (filterKat.isEmpty || b['kategorie'] == filterKat); }).toList(); })),
+                  const SizedBox(height: 8),
+                  SizedBox(height: 32, child: ListView(scrollDirection: Axis.horizontal, children: [
+                    Padding(padding: const EdgeInsets.only(right: 4), child: ChoiceChip(label: const Text('Alle', style: TextStyle(fontSize: 10)), selected: filterKat.isEmpty, selectedColor: Colors.indigo.shade200, visualDensity: VisualDensity.compact,
+                      onSelected: (_) => setS(() { filterKat = ''; results = search.isEmpty ? all : all.where((b) => (b['bezeichnung']?.toString() ?? '').toLowerCase().contains(search)).toList(); }))),
+                    ...kategorien.map((k) => Padding(padding: const EdgeInsets.only(right: 4), child: ChoiceChip(label: Text(k, style: const TextStyle(fontSize: 10)), selected: filterKat == k, selectedColor: Colors.indigo.shade200, visualDensity: VisualDensity.compact,
+                      onSelected: (_) => setS(() { filterKat = k; results = all.where((b) { final match = search.isEmpty || (b['bezeichnung']?.toString() ?? '').toLowerCase().contains(search); return match && b['kategorie'] == k; }).toList(); })))),
+                  ])),
+                  const SizedBox(height: 8),
+                  Expanded(child: results.isEmpty
+                    ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                    : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                        final b = results[i];
+                        return ListTile(dense: true, leading: Icon(Icons.work_outline, size: 16, color: Colors.indigo.shade400),
+                          title: Text(b['bezeichnung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          subtitle: Text(b['kategorie']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          onTap: () => Navigator.pop(sCtx, b));
+                      })),
+                ])),
+                actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+              ));
+            });
+            if (selected != null) {
+              setDlg(() => stelleC.text = selected['bezeichnung']?.toString() ?? '');
+            }
+          }),
+      ), style: const TextStyle(fontSize: 14)),
+    ]);
+  }
+
   // ──── TAB: Vermittlungsvorschläge ────
   Widget _buildVorschlaegeTab() {
     return StatefulBuilder(builder: (ctx, setLocal) {
@@ -719,7 +772,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             ]),
           ])),
         const SizedBox(height: 12),
-        _textField('Stelle / Position', stelleC, hint: 'z.B. Lagerhelfer', icon: Icons.work),
+        _buildStelleSearch(stelleC, setDlg),
         const SizedBox(height: 12),
         _textField('Ort', ortC, hint: 'z.B. Ulm', icon: Icons.location_on),
         const SizedBox(height: 12),
