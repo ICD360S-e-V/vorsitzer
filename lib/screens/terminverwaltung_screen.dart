@@ -99,7 +99,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
 
     _terminService.setToken(_apiService.token);
 
-    final weekEnd = _currentWeekStart.add(const Duration(days: 6));
+    final weekEnd = _currentWeekStart.add(const Duration(days: 7));
 
     final results = await Future.wait([
       _terminService.getAllTermine(from: _currentWeekStart, to: weekEnd),
@@ -250,7 +250,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   Widget build(BuildContext context) {
     final dayOfYear = int.parse(DateFormat('D').format(_currentWeekStart));
     final weekNumber = ((dayOfYear - _currentWeekStart.weekday + 10) / 7).floor();
-    final weekEnd = _currentWeekStart.add(const Duration(days: 6));
+    final weekEnd = _currentWeekStart.add(const Duration(days: 7));
     final weekRange = '${DateFormat('dd.').format(_currentWeekStart)} - ${DateFormat('dd. MMMM yyyy', 'de_DE').format(weekEnd)}';
 
     // Build holidays map from API data
