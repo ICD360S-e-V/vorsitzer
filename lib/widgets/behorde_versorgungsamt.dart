@@ -2044,6 +2044,10 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         await _saveAntragField(a, 'bescheid_erhalten', date);
       }),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1),
+      const SizedBox(height: 8),
+      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
+      const SizedBox(height: 6),
+      _buildSbSection(a, 'bescheid_sb'),
       if (bescheidErhalten.isNotEmpty) ...[
         const SizedBox(height: 4),
         Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
@@ -2112,26 +2116,29 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     ]));
   }
 
-  bool _sbWiderspruchEditing = false;
+  final Map<String, bool> _sbEditing = {};
 
-  Widget _buildSachbearbeiterSection(Map<String, dynamic> a) {
-    final anrede = a['wb_sb_anrede']?.toString() ?? '';
-    final name = a['wb_sb_name']?.toString() ?? '';
-    final telefon = a['wb_sb_telefon']?.toString() ?? '';
-    final email = a['wb_sb_email']?.toString() ?? '';
+  Widget _buildSachbearbeiterSection(Map<String, dynamic> a) => _buildSbSection(a, 'wb_sb');
+
+  Widget _buildSbSection(Map<String, dynamic> a, String prefix) {
+    final anrede = a['${prefix}_anrede']?.toString() ?? '';
+    final name = a['${prefix}_name']?.toString() ?? '';
+    final telefon = a['${prefix}_telefon']?.toString() ?? '';
+    final email = a['${prefix}_email']?.toString() ?? '';
     final hasData = name.isNotEmpty;
-    final readOnly = hasData && !_sbWiderspruchEditing;
+    final editing = _sbEditing[prefix] == true;
+    final readOnly = hasData && !editing;
 
     if (readOnly) {
       return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade200)),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.person, size: 18, color: Colors.deepPurple.shade700), const SizedBox(width: 8),
-            Expanded(child: Text('${anrede.isNotEmpty ? '$anrede ' : ''}$name', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900))),
-            IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.deepPurple.shade400), tooltip: 'Bearbeiten',
-              onPressed: () => setState(() => _sbWiderspruchEditing = true)),
+            Icon(Icons.person, size: 16, color: Colors.grey.shade700), const SizedBox(width: 6),
+            Expanded(child: Text('${anrede.isNotEmpty ? '$anrede ' : ''}$name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade900))),
+            IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.grey.shade500), tooltip: 'Bearbeiten', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () => setState(() => _sbEditing[prefix] = true)),
           ]),
           if (telefon.isNotEmpty) _dRow(Icons.phone, 'Telefon', telefon),
           if (email.isNotEmpty) _dRow(Icons.email, 'E-Mail', email),
@@ -2141,37 +2148,28 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Wrap(spacing: 8, children: ['Frau', 'Herr'].map((an) => ChoiceChip(
-        label: Text(an, style: TextStyle(fontSize: 12, color: anrede == an ? Colors.white : Colors.black87)),
-        selected: anrede == an, selectedColor: Colors.deepPurple,
-        onSelected: (_) { a['wb_sb_anrede'] = an; _saveAntragField(a, 'wb_sb_anrede', an); },
+        label: Text(an, style: TextStyle(fontSize: 11, color: anrede == an ? Colors.white : Colors.black87)),
+        selected: anrede == an, selectedColor: Colors.indigo, visualDensity: VisualDensity.compact,
+        onSelected: (_) { a['${prefix}_anrede'] = an; _saveAntragField(a, '${prefix}_anrede', an); },
       )).toList()),
-      const SizedBox(height: 8),
-      TextField(
-        controller: TextEditingController(text: name),
-        decoration: InputDecoration(labelText: 'Name', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-        onChanged: (v) => a['wb_sb_name'] = v,
-      ),
-      const SizedBox(height: 8),
+      const SizedBox(height: 6),
+      TextField(controller: TextEditingController(text: name), onChanged: (v) => a['${prefix}_name'] = v,
+        decoration: InputDecoration(labelText: 'Name', prefixIcon: const Icon(Icons.person, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 13)),
+      const SizedBox(height: 6),
       Row(children: [
-        Expanded(child: TextField(
-          controller: TextEditingController(text: telefon),
-          decoration: InputDecoration(labelText: 'Telefon', prefixIcon: const Icon(Icons.phone, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          onChanged: (v) => a['wb_sb_telefon'] = v,
-        )),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(
-          controller: TextEditingController(text: email),
-          decoration: InputDecoration(labelText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          onChanged: (v) => a['wb_sb_email'] = v,
-        )),
+        Expanded(child: TextField(controller: TextEditingController(text: telefon), onChanged: (v) => a['${prefix}_telefon'] = v,
+          decoration: InputDecoration(labelText: 'Telefon', prefixIcon: const Icon(Icons.phone, size: 14), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12))),
+        const SizedBox(width: 6),
+        Expanded(child: TextField(controller: TextEditingController(text: email), onChanged: (v) => a['${prefix}_email'] = v,
+          decoration: InputDecoration(labelText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 14), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12))),
       ]),
-      const SizedBox(height: 8),
+      const SizedBox(height: 6),
       Align(alignment: Alignment.centerRight, child: FilledButton.icon(
-        icon: const Icon(Icons.save, size: 16), label: const Text('Speichern', style: TextStyle(fontSize: 12)),
-        style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple),
+        icon: const Icon(Icons.save, size: 14), label: const Text('Speichern', style: TextStyle(fontSize: 11)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
         onPressed: () async {
-          await _saveAntragField(a, 'wb_sb_name', a['wb_sb_name'] ?? '');
-          setState(() => _sbWiderspruchEditing = false);
+          await _saveAntragField(a, '${prefix}_name', a['${prefix}_name'] ?? '');
+          setState(() => _sbEditing[prefix] = false);
         },
       )),
     ]);
@@ -2186,6 +2184,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       'akteneinsicht_erhalten': a['akteneinsicht_erhalten'] ?? '', 'akteneinsicht_erhalten_methode': a['akteneinsicht_erhalten_methode'] ?? '',
       'eingangsbestaetigung_datum': a['eingangsbestaetigung_datum'] ?? '', 'eingangsbestaetigung_erhalten': a['eingangsbestaetigung_erhalten'] ?? '',
       'wb_sb_anrede': a['wb_sb_anrede'] ?? '', 'wb_sb_name': a['wb_sb_name'] ?? '', 'wb_sb_telefon': a['wb_sb_telefon'] ?? '', 'wb_sb_email': a['wb_sb_email'] ?? '',
+      'bescheid_sb_anrede': a['bescheid_sb_anrede'] ?? '', 'bescheid_sb_name': a['bescheid_sb_name'] ?? '', 'bescheid_sb_telefon': a['bescheid_sb_telefon'] ?? '', 'bescheid_sb_email': a['bescheid_sb_email'] ?? '',
     });
     setState(() {});
   }
