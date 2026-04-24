@@ -2021,16 +2021,55 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   }
 
   Widget _buildDetails(Map<String, dynamic> a) {
+    final bescheidDatum = a['bescheid_datum']?.toString() ?? '';
+    final bescheidErhalten = a['bescheid_erhalten']?.toString() ?? '';
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _dRow(Icons.calendar_today, 'Antragsdatum', a['datum']),
       _dRow(Icons.send, 'Methode', {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? '']),
       _dRow(Icons.flag, 'Status', a['status']?.toString().replaceAll('_', ' ').toUpperCase()),
+      const Divider(height: 20),
+      Text('Bescheid', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.description, 'Bescheid-Datum', bescheidDatum, (date) async {
+        a['bescheid_datum'] = date;
+        await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'id': widget.antragId, 'bescheid_datum': date, 'datum': a['datum'], 'methode': a['methode'], 'status': a['status']});
+        setState(() {});
+      }),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.local_post_office, 'Erhalten per Post am', bescheidErhalten, (date) async {
+        a['bescheid_erhalten'] = date;
+        await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'id': widget.antragId, 'bescheid_erhalten': date, 'datum': a['datum'], 'methode': a['methode'], 'status': a['status']});
+        setState(() {});
+      }),
+      if (bescheidErhalten.isNotEmpty) ...[
+        const SizedBox(height: 4),
+        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Row(children: [
+            Icon(Icons.timer, size: 16, color: Colors.amber.shade700), const SizedBox(width: 6),
+            Expanded(child: Text('Widerspruchsfrist: 1 Monat ab ${bescheidErhalten} (§ 84 SGG)', style: TextStyle(fontSize: 11, color: Colors.amber.shade800))),
+          ])),
+      ],
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
       ],
     ]));
+  }
+
+  Widget _datePickerRow(IconData icon, String label, String value, Function(String) onPicked) {
+    return InkWell(
+      onTap: () async {
+        final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(value) ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+        if (p != null) onPicked('${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+      },
+      child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+        Icon(icon, size: 16, color: value.isEmpty ? Colors.grey.shade400 : Colors.indigo.shade600), const SizedBox(width: 8),
+        SizedBox(width: 150, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value.isEmpty ? 'Datum eintragen...' : value, style: TextStyle(fontSize: 13, color: value.isEmpty ? Colors.grey.shade400 : Colors.black87, fontStyle: value.isEmpty ? FontStyle.italic : FontStyle.normal))),
+        Icon(Icons.edit_calendar, size: 16, color: Colors.indigo.shade400),
+      ])),
+    );
   }
 
   Widget _dRow(IconData icon, String label, dynamic value) {
@@ -2201,8 +2240,10 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     Map<String, dynamic>? findEntry(String keyword) => _verlauf.where((e) => (e['notiz']?.toString() ?? '').toLowerCase().contains(keyword)).firstOrNull;
     DateTime? parseEntry(Map<String, dynamic>? e) => e != null ? DateTime.tryParse(e['datum']?.toString() ?? '') : null;
 
-    final bescheidEntry = findEntry('bescheid');
-    final bescheidDatum = parseEntry(bescheidEntry);
+    // First check bescheid_erhalten field on antrag, then fallback to Verlauf
+    final bescheidErhaltenDirekt = DateTime.tryParse(a['bescheid_erhalten']?.toString() ?? '');
+    final bescheidEntry = bescheidErhaltenDirekt == null ? findEntry('bescheid') : null;
+    final bescheidDatum = bescheidErhaltenDirekt ?? parseEntry(bescheidEntry);
     final widerspruchVorbereitet = findEntry('vorbereitet');
     final widerspruchVorbereitetDatum = parseEntry(widerspruchVorbereitet);
     final widerspruchGesendet = findEntry('widerspruch eingelegt') ?? findEntry('widerspruch gesendet') ?? findEntry('widerspruch per');
