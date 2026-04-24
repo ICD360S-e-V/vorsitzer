@@ -569,6 +569,10 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                 arbeitgeberC.text = selected['firma_name']?.toString() ?? '';
                 final selOrt = selected['niederlassung_ort']?.toString() ?? selected['hauptzentrale_ort']?.toString() ?? '';
                 if (selOrt.isNotEmpty && ortC.text.isEmpty) ortC.text = selOrt;
+                final selAnrede = selected['ansprechpartner_anrede']?.toString() ?? '';
+                final selName = selected['ansprechpartner_name']?.toString() ?? '';
+                if (selAnrede.isNotEmpty && apAnrede.isEmpty) apAnrede = selAnrede;
+                if (selName.isNotEmpty && apNameC.text.isEmpty) apNameC.text = selName;
                 final selTel = selected['niederlassung_telefon']?.toString() ?? selected['hauptzentrale_telefon']?.toString() ?? '';
                 final selEmail = selected['niederlassung_email']?.toString() ?? selected['hauptzentrale_email']?.toString() ?? '';
                 if (selTel.isNotEmpty && apTelC.text.isEmpty) apTelC.text = selTel;
