@@ -2086,7 +2086,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       }),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4),
       const Divider(height: 20),
-      Text('Eingangsbestätigung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      Text('Eingangsbestätigung Widerspruch vom Amt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
       const SizedBox(height: 8),
       _datePickerRow(Icons.mark_email_read, 'Eingangsbestätigung vom', a['eingangsbestaetigung_datum']?.toString() ?? '', (date) async {
         a['eingangsbestaetigung_datum'] = date;
@@ -2098,9 +2098,9 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
       }),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5),
-      const Divider(height: 20),
-      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
-      const SizedBox(height: 8),
+      const SizedBox(height: 12),
+      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
+      const SizedBox(height: 6),
       _buildSachbearbeiterSection(a),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
