@@ -10931,6 +10931,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                       ...k,
                       'arzt_name': k['name'] ?? '',
                       'praxis_name': k['krankenhaus'] ?? k['name'] ?? '',
+                      'online_termin_url': k['online_termin_url'] ?? '',
                     }).toList();
                   }
                   setDialogState(() { results = list; isLoading = false; });
