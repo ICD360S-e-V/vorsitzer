@@ -4613,6 +4613,15 @@ class ApiService {
 
   // ========== ÄRZTE DATENBANK ==========
 
+  Future<Map<String, dynamic>> searchKliniken({String search = '', String fachrichtung = ''}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/kliniken_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'search', 'search': search, 'fachrichtung': fachrichtung}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> searchAerzte({String search = '', String fachrichtung = ''}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/aerzte_manage.php'),

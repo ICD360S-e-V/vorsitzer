@@ -10919,14 +10919,21 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             Future<void> doSearch() async {
               setDialogState(() => isLoading = true);
               try {
-                final res = await widget.apiService.searchAerzte(
-                  search: searchController.text.trim(),
-                );
-                if (res['success'] == true && res['data'] != null) {
-                  setDialogState(() {
-                    results = List<Map<String, dynamic>>.from(res['data']);
-                    isLoading = false;
-                  });
+                final isKrankenhaus = fachrichtung == 'Krankenhaus' || fachrichtung == 'Klinik';
+                final res = isKrankenhaus
+                    ? await widget.apiService.searchKliniken(search: searchController.text.trim())
+                    : await widget.apiService.searchAerzte(search: searchController.text.trim());
+                final dataKey = isKrankenhaus ? 'kliniken' : 'data';
+                if (res['success'] == true && res[dataKey] != null) {
+                  var list = List<Map<String, dynamic>>.from(res[dataKey]);
+                  if (isKrankenhaus) {
+                    list = list.map((k) => {
+                      ...k,
+                      'arzt_name': k['name'] ?? '',
+                      'praxis_name': k['krankenhaus'] ?? k['name'] ?? '',
+                    }).toList();
+                  }
+                  setDialogState(() { results = list; isLoading = false; });
                 } else {
                   setDialogState(() { results = []; isLoading = false; });
                 }
