@@ -2283,7 +2283,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                     ],
                   ]),
                   if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
-                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: k['id'] as int)),
+                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragKorr(k['id'] as int); _load(); },
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
