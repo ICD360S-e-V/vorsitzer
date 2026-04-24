@@ -5016,9 +5016,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
                 Icon(Icons.description, size: 20, color: color.shade700), const SizedBox(width: 8),
                 Expanded(child: Text('Berichte (${history.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade700))),
-                ElevatedButton.icon(onPressed: () {
+                ElevatedButton.icon(onPressed: () async {
+                  final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
+                  if (p == null) return;
+                  final datum = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
                   setD(() {
-                    history.insert(0, {'datum': '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}', 'ergebnis': '', 'notiz': ''});
+                    history.insert(0, {'datum': datum, 'ergebnis': '', 'notiz': ''});
                     vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge;
                   }); saveAll();
                 }, icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)),
@@ -5028,17 +5031,28 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 ? Center(child: Text('Keine Berichte', style: TextStyle(color: Colors.grey.shade500)))
                 : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: history.length, itemBuilder: (_, i) {
                     final h = history[i];
+                    final hDatum = h['datum']?.toString() ?? '';
+                    final attachId = hDatum.replaceAll('-', '').hashCode.abs() % 999999;
                     return Card(child: Column(children: [
                       ListTile(
                         leading: Icon(Icons.description, color: color.shade600),
-                        title: Text(h['datum']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        title: InkWell(
+                          onTap: () async {
+                            final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(hDatum) ?? DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
+                            if (p != null) { setD(() { h['datum'] = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}'; vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll(); }
+                          },
+                          child: Row(children: [
+                            Text(hDatum.isEmpty ? 'Datum wählen' : hDatum, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: hDatum.isEmpty ? Colors.grey.shade400 : Colors.black87)),
+                            const SizedBox(width: 4), Icon(Icons.edit_calendar, size: 14, color: Colors.grey.shade400),
+                          ]),
+                        ),
                         subtitle: Text(h['ergebnis']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                         trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () {
                           setD(() { history.removeAt(i); vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll();
                         }),
                       ),
                       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'vorsorge_${key}_$i', korrespondenzId: i)),
+                        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId)),
                     ]));
                   })),
             ]),
