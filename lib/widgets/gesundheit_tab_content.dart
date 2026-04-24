@@ -4805,6 +4805,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               subject: '${s.label} fällig – Vorsorgeuntersuchung',
               message: 'Sehr geehrtes Mitglied,\n\nIhre nächste Vorsorgeuntersuchung "${s.label}" ${overdue ? 'war' : 'ist'} am $faelligStr fällig.\n\n$beschreibung\n\nBitte vereinbaren Sie zeitnah einen Termin.\n\nMit freundlichen Grüßen',
               priority: overdue ? 'high' : 'medium',
+              scheduledDate: '${naechst.year}-${naechst.month.toString().padLeft(2, '0')}-${naechst.day.toString().padLeft(2, '0')}',
             ).then((_) => saveAll());
           }
         }
@@ -4819,6 +4820,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             subject: 'Neue Vorsorge: ${s.label} (ab ${s.abAlter} Jahren)',
             message: 'Sehr geehrtes Mitglied,\n\nSie haben das ${s.abAlter}. Lebensjahr erreicht und haben nun Anspruch auf folgende Vorsorgeuntersuchung:\n\n${s.label}\n$beschreibung\n\nDie Kosten werden von Ihrer Krankenkasse übernommen.\n\nMit freundlichen Grüßen',
             priority: 'low',
+            scheduledDate: '${heute.year}-${heute.month.toString().padLeft(2, '0')}-${heute.day.toString().padLeft(2, '0')}',
           ).then((_) => saveAll());
         }
 
