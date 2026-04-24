@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
+import 'korrespondenz_attachments_widget.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -4972,14 +4973,18 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 ? Center(child: Text('Keine Berichte', style: TextStyle(color: Colors.grey.shade500)))
                 : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: history.length, itemBuilder: (_, i) {
                     final h = history[i];
-                    return Card(child: ListTile(
-                      leading: Icon(Icons.description, color: color.shade600),
-                      title: Text(h['datum']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: Text(h['ergebnis']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                      trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () {
-                        setD(() { history.removeAt(i); vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll();
-                      }),
-                    ));
+                    return Card(child: Column(children: [
+                      ListTile(
+                        leading: Icon(Icons.description, color: color.shade600),
+                        title: Text(h['datum']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        subtitle: Text(h['ergebnis']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () {
+                          setD(() { history.removeAt(i); vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll();
+                        }),
+                      ),
+                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'vorsorge_${key}_$i', korrespondenzId: i)),
+                    ]));
                   })),
             ]),
           ])),
