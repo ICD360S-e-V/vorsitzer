@@ -54,8 +54,94 @@ class BehordeArbeitsagenturContent extends StatefulWidget {
   State<BehordeArbeitsagenturContent> createState() => _State();
 }
 
-class _State extends State<BehordeArbeitsagenturContent> {
+class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStateMixin {
   static const type = 'bundesagentur';
+  late final TabController _tabCtrl;
+  bool _dbLoaded = false;
+  bool _dbLoading = false;
+  bool _dbSaving = false;
+  Map<String, dynamic> _dbData = {};
+  List<Map<String, dynamic>> _dbMeldungen = [];
+  List<Map<String, dynamic>> _dbAntraege = [];
+  List<Map<String, dynamic>> _dbTermine = [];
+  List<Map<String, dynamic>> _dbBegutachtungen = [];
+
+  static const _tabs = [
+    (Icons.account_balance, 'BAA'),
+    (Icons.person_pin, 'Vermittler'),
+    (Icons.person_off, 'Meldung'),
+    (Icons.assignment, 'Anträge'),
+    (Icons.description, 'Bescheid'),
+    (Icons.block, 'Sperrzeit'),
+    (Icons.handshake, 'EGV'),
+    (Icons.school, 'BGS'),
+    (Icons.cloud, 'Online'),
+    (Icons.medical_services, 'Med.Gutachten'),
+    (Icons.event, 'Termine'),
+    (Icons.email, 'Korrespondenz'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: _tabs.length, vsync: this);
+    _loadFromDB();
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  String _v(String field) => _dbData[field]?.toString() ?? '';
+  bool _bv(String field) => _dbData[field] == true || _dbData[field] == 'true' || _dbData[field] == '1' || _dbData[field] == 1;
+
+  Future<void> _loadFromDB() async {
+    if (_dbLoading) return;
+    setState(() => _dbLoading = true);
+    try {
+      final res = await widget.apiService.getArbeitsagenturData(widget.userId);
+      if (res['success'] == true && mounted) {
+        final rawData = res['data'];
+        if (rawData is Map) {
+          _dbData = {};
+          for (final e in rawData.entries) {
+            final key = e.key.toString();
+            final parts = key.split('.');
+            if (parts.length == 2) {
+              _dbData[parts[1]] = e.value;
+            } else {
+              _dbData[key] = e.value;
+            }
+          }
+        }
+        _dbMeldungen = (res['meldungen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _dbAntraege = (res['antraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _dbTermine = (res['termine'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _dbBegutachtungen = (res['begutachtungen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (e) {
+      debugPrint('[AA] DB load error: $e');
+    }
+    if (mounted) setState(() { _dbLoading = false; _dbLoaded = true; });
+  }
+
+  Future<void> _saveScalarToDB(Map<String, dynamic> fields) async {
+    final mapped = <String, dynamic>{};
+    for (final e in fields.entries) {
+      String bereich = 'stammdaten';
+      if (['arbeitssuchend_datum','arbeitslos_datum','letzter_arbeitstag','kuendigungsart'].contains(e.key)) bereich = 'arbeitsmeldung';
+      else if (['bescheid_von','bescheid_bis','leistungssatz_betrag','leistungssatz_typ','bemessungsentgelt','anspruchsdauer','restanspruch'].contains(e.key)) bereich = 'bescheid';
+      else if (e.key.startsWith('sperrzeit') || e.key == 'has_sperrzeit') bereich = 'sperrzeit';
+      else if (e.key.startsWith('egv') || e.key == 'has_egv') bereich = 'egv';
+      else if (e.key.startsWith('bgs') || e.key == 'has_bgs') bereich = 'bildungsgutschein';
+      else if (['has_online_account','online_email','has_passkey','passkey_access'].contains(e.key)) bereich = 'online';
+      final val = e.value is bool ? (e.value ? 'true' : 'false') : e.value?.toString() ?? '';
+      mapped['$bereich.${e.key}'] = val;
+    }
+    await widget.apiService.saveArbeitsagenturData(widget.userId, mapped);
+  }
 
   Widget _sectionHeader(IconData icon, String title, Color color) {
     return Padding(padding: const EdgeInsets.only(top: 8, bottom: 4), child: Row(children: [
@@ -86,665 +172,416 @@ class _State extends State<BehordeArbeitsagenturContent> {
   }
 
 
+  Future<void> _saveTab(Map<String, dynamic> fields) async {
+    setState(() => _dbSaving = true);
+    try {
+      await _saveScalarToDB(fields);
+      for (final e in fields.entries) { _dbData[e.key] = e.value is bool ? e.value.toString() : e.value; }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+    if (mounted) setState(() => _dbSaving = false);
+  }
+
+  Widget _saveBtn(VoidCallback onSave) => Padding(padding: const EdgeInsets.only(top: 16), child: Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+    onPressed: _dbSaving ? null : onSave,
+    icon: _dbSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
+    label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white))));
+
   @override
   Widget build(BuildContext context) {
-    if (!false && widget.isLoading(type) != true) {
-      widget.loadData(type);
+    if (!_dbLoaded && !_dbLoading) _loadFromDB();
+    if (widget.getData('rentenversicherung').isEmpty && !widget.isLoading('rentenversicherung')) widget.loadData('rentenversicherung');
+    if (_dbLoading || !_dbLoaded) return const Center(child: CircularProgressIndicator());
+
+    return Column(children: [
+      TabBar(controller: _tabCtrl, isScrollable: true, labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), unselectedLabelStyle: const TextStyle(fontSize: 11),
+        labelColor: const Color(0xFF003F7D), unselectedLabelColor: Colors.grey.shade500, indicatorColor: const Color(0xFF003F7D), tabAlignment: TabAlignment.start,
+        tabs: _tabs.map((t) => Tab(icon: Icon(t.$1, size: 16), text: t.$2)).toList()),
+      Expanded(child: TabBarView(controller: _tabCtrl, children: [
+        _buildBAATab(),
+        _buildVermittlerTab(),
+        _buildMeldungTab(),
+        _buildAntraegeTab(),
+        _buildBescheidTab(),
+        _buildSperrzeitTab(),
+        _buildEgvTab(),
+        _buildBgsTab(),
+        _buildOnlineTab(),
+        _buildBegutachtungTab(),
+        _buildTermineTab(),
+        SingleChildScrollView(padding: const EdgeInsets.all(16), child: _AAKorrespondenzSection(apiService: widget.apiService, userId: widget.userId)),
+      ])),
+    ]);
+  }
+
+  // ──── TAB: Zuständige BAA ────
+  Widget _buildBAATab() {
+    final dienststelleC = TextEditingController(text: _v('dienststelle'));
+    final kundennummerC = TextEditingController(text: _v('kundennummer'));
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      widget.dienststelleBuilder(type, dienststelleC),
+      const SizedBox(height: 16),
+      _sectionHeader(Icons.badge, 'Stammdaten', Colors.indigo),
+      const SizedBox(height: 8),
+      _textField('Kundennummer', kundennummerC, hint: 'z.B. 123A456789 (10-stellig)', icon: Icons.badge),
+      _saveBtn(() => _saveTab({'dienststelle': dienststelleC.text.trim(), 'kundennummer': kundennummerC.text.trim()})),
+    ]));
+  }
+
+  // ──── TAB: Mein Arbeitsvermittler ────
+  Widget _buildVermittlerTab() {
+    final nameC = TextEditingController(text: _v('arbeitsvermittler'));
+    final telC = TextEditingController(text: _v('arbeitsvermittler_tel'));
+    final emailC = TextEditingController(text: _v('arbeitsvermittler_email'));
+    String anrede = _v('arbeitsvermittler_anrede');
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.person_pin, 'Mein Arbeitsvermittler', const Color(0xFF003F7D)),
+      const SizedBox(height: 12),
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Anrede', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Row(children: [
+            ChoiceChip(label: const Text('Frau', style: TextStyle(fontSize: 12)), selected: anrede == 'Frau', selectedColor: Colors.pink.shade100, onSelected: (_) => setLocal(() => anrede = 'Frau')),
+            const SizedBox(width: 8),
+            ChoiceChip(label: const Text('Herr', style: TextStyle(fontSize: 12)), selected: anrede == 'Herr', selectedColor: Colors.blue.shade100, onSelected: (_) => setLocal(() => anrede = 'Herr')),
+          ]),
+          const SizedBox(height: 12),
+          _textField('Name', nameC, hint: 'Vor- und Nachname', icon: Icons.person),
+          const SizedBox(height: 12),
+          _textField('Telefon', telC, hint: 'Durchwahl', icon: Icons.phone),
+          const SizedBox(height: 12),
+          _textField('E-Mail', emailC, hint: 'E-Mail-Adresse', icon: Icons.email),
+        ])),
+      _saveBtn(() => _saveTab({'arbeitsvermittler_anrede': anrede, 'arbeitsvermittler': nameC.text.trim(), 'arbeitsvermittler_tel': telC.text.trim(), 'arbeitsvermittler_email': emailC.text.trim()})),
+    ])));
+  }
+
+  // ──── TAB: Arbeitssuchendmeldung ────
+  Widget _buildMeldungTab() {
+    final suchendC = TextEditingController(text: _v('arbeitssuchend_datum'));
+    final losC = TextEditingController(text: _v('arbeitslos_datum'));
+    final letzterC = TextEditingController(text: _v('letzter_arbeitstag'));
+    String kuendigungsart = _v('kuendigungsart');
+    List<Map<String, dynamic>> meldungen = List<Map<String, dynamic>>.from(_dbMeldungen.map((e) => Map<String, dynamic>.from(e)));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.brown.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: _dateField('Arbeitssuchend gemeldet am', suchendC, ctx)),
+            const SizedBox(width: 12),
+            Expanded(child: _dateField('Arbeitslos gemeldet am', losC, ctx)),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _dateField('Letzter Arbeitstag', letzterC, ctx)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Kündigungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              DropdownButtonFormField<String>(initialValue: kuendigungsart.isEmpty ? null : kuendigungsart, isExpanded: true,
+                decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+                items: const [
+                  DropdownMenuItem(value: 'arbeitgeber', child: Text('Arbeitgeberkündigung', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: 'eigen', child: Text('Eigenkündigung', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: 'aufhebung', child: Text('Aufhebungsvertrag', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: 'befristung', child: Text('Befristung ausgelaufen', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: 'insolvenz', child: Text('Insolvenz', style: TextStyle(fontSize: 13))),
+                ], onChanged: (v) => setLocal(() => kuendigungsart = v ?? '')),
+            ])),
+          ]),
+        ])),
+      _saveBtn(() => _saveTab({'arbeitssuchend_datum': suchendC.text.trim(), 'arbeitslos_datum': losC.text.trim(), 'letzter_arbeitstag': letzterC.text.trim(), 'kuendigungsart': kuendigungsart})),
+      const SizedBox(height: 16),
+      widget.meldungenBuilder(meldungen: meldungen, onChanged: (u) { setLocal(() => meldungen = u); _syncMeldungenToDB(u); }, context: ctx),
+    ])));
+  }
+
+  // ──── TAB: Anträge ────
+  Widget _buildAntraegeTab() {
+    List<Map<String, dynamic>> antraege = List<Map<String, dynamic>>.from(_dbAntraege.map((e) => Map<String, dynamic>.from(e)));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: widget.antraegeBuilder(
+      behoerdeType: type, antraege: antraege,
+      artItems: const [
+        DropdownMenuItem(value: 'erstantrag', child: Text('Erstantrag ALG I', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'weiterbewilligung', child: Text('Weiterbewilligungsantrag', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'wiederholung', child: Text('Wiederholungsantrag', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'insolvenzantrag', child: Text('Insolvenzantrag', style: TextStyle(fontSize: 13))),
+      ],
+      statusItems: const [
+        DropdownMenuItem(value: 'neu', child: Text('Neu', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'geplant', child: Text('Geplant', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'eingereicht', child: Text('Eingereicht', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'in_bearbeitung', child: Text('In Bearbeitung', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'unterlagen_fehlen', child: Text('Unterlagen nachgefordert', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'bewilligt', child: Text('Bewilligt', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'abgelehnt', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'zurueckgezogen', child: Text('Zurückgezogen', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'verweigerung', child: Text('Verweigerung durch Mitglied', style: TextStyle(fontSize: 13))),
+      ],
+      onChanged: (u) { setLocal(() => antraege = u); _syncAntraegeToDB(u); }, context: ctx)));
+  }
+
+  // ──── TAB: Bewilligungsbescheid ────
+  Widget _buildBescheidTab() {
+    final vonC = TextEditingController(text: _v('bescheid_von'));
+    final bisC = TextEditingController(text: _v('bescheid_bis'));
+    final leistungC = TextEditingController(text: _v('leistungssatz_betrag'));
+    final bemessungC = TextEditingController(text: _v('bemessungsentgelt'));
+    final anspruchC = TextEditingController(text: _v('anspruchsdauer'));
+    final restC = TextEditingController(text: _v('restanspruch'));
+    String leistungTyp = _v('leistungssatz_typ');
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.description, 'Bewilligungsbescheid (ALG I)', Colors.green.shade700),
+      const SizedBox(height: 8),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Expanded(child: _dateField('Bewilligungszeitraum von', vonC, ctx)), const SizedBox(width: 12), Expanded(child: _dateField('Bewilligungszeitraum bis', bisC, ctx))]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _textField('Täglicher Leistungssatz (EUR)', leistungC, hint: 'z.B. 38.50', icon: Icons.euro)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Leistungssatz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              DropdownButtonFormField<String>(initialValue: leistungTyp.isEmpty ? null : leistungTyp, isExpanded: true,
+                decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+                items: const [
+                  DropdownMenuItem(value: '60', child: Text('60% (allgemein)', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: '67', child: Text('67% (mit Kind)', style: TextStyle(fontSize: 13))),
+                ], onChanged: (v) => setLocal(() => leistungTyp = v ?? '')),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          _textField('Bemessungsentgelt (EUR/Tag)', bemessungC, hint: 'Tägliches Bemessungsentgelt', icon: Icons.account_balance_wallet),
+          const SizedBox(height: 12),
+          Row(children: [Expanded(child: _textField('Anspruchsdauer (Tage)', anspruchC, hint: 'z.B. 360', icon: Icons.timer)), const SizedBox(width: 12), Expanded(child: _textField('Restanspruch (Tage)', restC, hint: 'Verbleibende Tage', icon: Icons.hourglass_bottom))]),
+        ])),
+      _saveBtn(() => _saveTab({'bescheid_von': vonC.text.trim(), 'bescheid_bis': bisC.text.trim(), 'leistungssatz_betrag': leistungC.text.trim(), 'leistungssatz_typ': leistungTyp, 'bemessungsentgelt': bemessungC.text.trim(), 'anspruchsdauer': anspruchC.text.trim(), 'restanspruch': restC.text.trim()})),
+    ])));
+  }
+
+  // ──── TAB: Sperrzeit ────
+  Widget _buildSperrzeitTab() {
+    bool has = _bv('has_sperrzeit');
+    String typ = _v('sperrzeit_typ');
+    final vonC = TextEditingController(text: _v('sperrzeit_von'));
+    final bisC = TextEditingController(text: _v('sperrzeit_bis'));
+    String widerspruch = _v('sperrzeit_widerspruch');
+    final notizC = TextEditingController(text: _v('sperrzeit_notiz'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.block, size: 18, color: Colors.red.shade700), const SizedBox(width: 8), Text('Sperrzeit vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.red)]),
+          if (has) ...[
+            const SizedBox(height: 12),
+            Text('Sperrzeit-Grund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            DropdownButtonFormField<String>(initialValue: typ.isEmpty ? null : typ, isExpanded: true,
+              decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+              hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+              items: const [
+                DropdownMenuItem(value: 'eigenkuendigung', child: Text('Eigenkündigung (12 Wochen)', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'aufhebungsvertrag', child: Text('Aufhebungsvertrag (12 Wochen)', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'arbeitsablehnung', child: Text('Arbeitsablehnung (3-12 Wochen)', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'meldeversaeumnis', child: Text('Meldeversäumnis (1 Woche)', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'massnahmeabbruch', child: Text('Maßnahmeabbruch (3-12 Wochen)', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'verspaetete_meldung', child: Text('Verspätete Meldung (1 Woche)', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'eigenbemuehungen', child: Text('Unzureichende Eigenbemühungen (2 Wochen)', style: TextStyle(fontSize: 13))),
+              ], onChanged: (v) => setLocal(() => typ = v ?? '')),
+            const SizedBox(height: 12),
+            Row(children: [Expanded(child: _dateField('Sperrzeit von', vonC, ctx)), const SizedBox(width: 12), Expanded(child: _dateField('Sperrzeit bis', bisC, ctx))]),
+            const SizedBox(height: 12),
+            Text('Widerspruch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            DropdownButtonFormField<String>(initialValue: widerspruch.isEmpty ? null : widerspruch, isExpanded: true,
+              decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+              hint: const Text('Kein Widerspruch', style: TextStyle(fontSize: 13)),
+              items: const [
+                DropdownMenuItem(value: 'kein', child: Text('Kein Widerspruch', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'eingelegt', child: Text('Widerspruch eingelegt', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'stattgegeben', child: Text('Stattgegeben', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'abgelehnt', child: Text('Zurückgewiesen', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'klage', child: Text('Klage beim Sozialgericht', style: TextStyle(fontSize: 13))),
+              ], onChanged: (v) => setLocal(() => widerspruch = v ?? '')),
+            const SizedBox(height: 8),
+            _textField('Notizen zur Sperrzeit', notizC, hint: 'Details, Begründung, Fristen...', icon: Icons.notes, maxLines: 2),
+          ],
+        ])),
+      _saveBtn(() => _saveTab({'has_sperrzeit': has, 'sperrzeit_typ': typ, 'sperrzeit_von': vonC.text.trim(), 'sperrzeit_bis': bisC.text.trim(), 'sperrzeit_widerspruch': widerspruch, 'sperrzeit_notiz': notizC.text.trim()})),
+    ])));
+  }
+
+  // ──── TAB: EGV ────
+  Widget _buildEgvTab() {
+    bool has = _bv('has_egv');
+    final vonC = TextEditingController(text: _v('egv_von'));
+    final bisC = TextEditingController(text: _v('egv_bis'));
+    final pflichtenC = TextEditingController(text: _v('egv_pflichten'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.handshake, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8), Text('EGV vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.purple)]),
+          if (has) ...[
+            const SizedBox(height: 12),
+            Row(children: [Expanded(child: _dateField('Gültig von', vonC, ctx)), const SizedBox(width: 12), Expanded(child: _dateField('Gültig bis', bisC, ctx))]),
+            const SizedBox(height: 8),
+            _textField('Pflichten / Eigenbemühungen', pflichtenC, hint: 'z.B. 10 Bewerbungen/Monat...', icon: Icons.checklist, maxLines: 3),
+          ],
+        ])),
+      _saveBtn(() => _saveTab({'has_egv': has, 'egv_von': vonC.text.trim(), 'egv_bis': bisC.text.trim(), 'egv_pflichten': pflichtenC.text.trim()})),
+    ])));
+  }
+
+  // ──── TAB: Bildungsgutschein ────
+  Widget _buildBgsTab() {
+    bool has = _bv('has_bgs');
+    String typ = _v('bgs_typ'), status = _v('bgs_status');
+    final nameC = TextEditingController(text: _v('bgs_name'));
+    final traegerC = TextEditingController(text: _v('bgs_traeger'));
+    final vonC = TextEditingController(text: _v('bgs_von'));
+    final bisC = TextEditingController(text: _v('bgs_bis'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.cyan.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.cyan.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.school, size: 18, color: Colors.cyan.shade700), const SizedBox(width: 8), Text('Bildungsgutschein / AVGS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyan.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.cyan.shade700)]),
+          if (has) ...[
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
+                DropdownButtonFormField<String>(initialValue: typ.isEmpty ? null : typ, isExpanded: true, decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                  hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+                  items: const [DropdownMenuItem(value: 'bildungsgutschein', child: Text('BGS', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'avgs_mat', child: Text('AVGS MAT', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'avgs_mpav', child: Text('AVGS MPAV', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'avgs_mag', child: Text('AVGS MAG', style: TextStyle(fontSize: 13)))],
+                  onChanged: (v) => setLocal(() => typ = v ?? '')),
+              ])),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
+                DropdownButtonFormField<String>(initialValue: status.isEmpty ? null : status, isExpanded: true, decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                  hint: const Text('Status...', style: TextStyle(fontSize: 13)),
+                  items: const [DropdownMenuItem(value: 'beantragt', child: Text('Beantragt', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'bewilligt', child: Text('Bewilligt', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'abgelehnt', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'laufend', child: Text('Laufend', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'abgeschlossen', child: Text('Abgeschlossen', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'abgebrochen', child: Text('Abgebrochen', style: TextStyle(fontSize: 13)))],
+                  onChanged: (v) => setLocal(() => status = v ?? '')),
+              ])),
+            ]),
+            const SizedBox(height: 12),
+            _textField('Maßnahme / Qualifikation', nameC, hint: 'Name der Weiterbildung', icon: Icons.label),
+            const SizedBox(height: 8),
+            _textField('Bildungsträger', traegerC, hint: 'z.B. WBS, GFN, Comcave...', icon: Icons.business),
+            const SizedBox(height: 8),
+            Row(children: [Expanded(child: _dateField('Beginn', vonC, ctx)), const SizedBox(width: 12), Expanded(child: _dateField('Ende', bisC, ctx))]),
+          ],
+        ])),
+      _saveBtn(() => _saveTab({'has_bgs': has, 'bgs_typ': typ, 'bgs_status': status, 'bgs_name': nameC.text.trim(), 'bgs_traeger': traegerC.text.trim(), 'bgs_von': vonC.text.trim(), 'bgs_bis': bisC.text.trim()})),
+    ])));
+  }
+
+  // ──── TAB: Online-Konto ────
+  Widget _buildOnlineTab() {
+    bool has = _bv('has_online_account'), hasPasskey = _bv('has_passkey');
+    final emailC = TextEditingController(text: _v('online_email'));
+    final passkeyC = TextEditingController(text: _v('passkey_access'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.cloud, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8), Text('Online-Konto (arbeitsagentur.de)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.blue)]),
+          if (has) ...[
+            const SizedBox(height: 12),
+            _textField('E-Mail', emailC, hint: 'E-Mail des Online-Kontos', icon: Icons.email),
+            const SizedBox(height: 12),
+            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [Icon(Icons.key, size: 18, color: Colors.orange.shade700), const SizedBox(width: 8), Text('Passkey aktiviert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade700)), const Spacer(), Switch(value: hasPasskey, onChanged: (v) => setLocal(() => hasPasskey = v), activeThumbColor: Colors.orange)]),
+                if (hasPasskey) ...[const SizedBox(height: 12), _textField('Wer hat Zugang?', passkeyC, hint: 'Name / Rolle', icon: Icons.person_pin)],
+              ])),
+          ],
+        ])),
+      _saveBtn(() => _saveTab({'has_online_account': has, 'online_email': emailC.text.trim(), 'has_passkey': hasPasskey, 'passkey_access': passkeyC.text.trim()})),
+    ])));
+  }
+
+  // ──── TAB: Med. Begutachtung ────
+  Widget _buildBegutachtungTab() {
+    List<Map<String, dynamic>> beg = List<Map<String, dynamic>>.from(_dbBegutachtungen.map((e) => Map<String, dynamic>.from(e)));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: widget.begutachtungBuilder(
+      behoerdeType: type, behoerdeLabel: 'Arbeitsagentur', begutachtungen: beg, data: _dbData,
+      onChanged: (u) { setLocal(() => beg = u); _syncBegutachtungenToDB(u); }, setLocalState: setLocal)));
+  }
+
+  // ──── TAB: Termine ────
+  Widget _buildTermineTab() {
+    List<Map<String, dynamic>> termine = List<Map<String, dynamic>>.from(_dbTermine.map((e) => Map<String, dynamic>.from(e)));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: widget.termineBuilder(
+      behoerdeType: type, behoerdeLabel: 'Arbeitsagentur', termine: termine, data: _dbData,
+      onChanged: (u) { setLocal(() => termine = u); _syncTermineToDB(u); }, setLocalState: setLocal)));
+  }
+
+  Future<void> _syncMeldungenToDB(List<Map<String, dynamic>> updated) async {
+    final existingIds = _dbMeldungen.map((m) => m['id'] as int?).where((id) => id != null).toSet();
+    final updatedIds = <int>{};
+    for (final mel in updated) {
+      final id = mel['id'] is int ? mel['id'] as int : 0;
+      if (id > 0) updatedIds.add(id);
+      await widget.apiService.saveArbeitsagenturMeldung(widget.userId, mel);
     }
-    // Pre-load Rentenversicherung for SV-Nummer auto-fill
-    if (widget.getData('rentenversicherung').isEmpty && !widget.isLoading('rentenversicherung')) {
-      widget.loadData('rentenversicherung');
+    for (final oldId in existingIds) {
+      if (!updatedIds.contains(oldId)) {
+        await widget.apiService.deleteArbeitsagenturMeldung(widget.userId, oldId!);
+      }
     }
-    if (widget.isLoading(type) == true) {
-      return const Center(child: CircularProgressIndicator());
+    await _loadFromDB();
+  }
+
+  Future<void> _syncAntraegeToDB(List<Map<String, dynamic>> updated) async {
+    final existingIds = _dbAntraege.map((a) => a['id'] as int?).where((id) => id != null).toSet();
+    final updatedIds = <int>{};
+    for (final antrag in updated) {
+      final id = antrag['id'] is int ? antrag['id'] as int : 0;
+      if (id > 0) updatedIds.add(id);
+      await widget.apiService.saveArbeitsagenturAntrag(widget.userId, antrag);
     }
+    for (final oldId in existingIds) {
+      if (!updatedIds.contains(oldId)) {
+        await widget.apiService.deleteArbeitsagenturAntrag(widget.userId, oldId!);
+      }
+    }
+    await _loadFromDB();
+  }
 
-    final data = widget.getData(type);
-    final dienststelleController = TextEditingController(text: data['dienststelle'] ?? '');
-    final kundennummerController = TextEditingController(text: data['kundennummer'] ?? '');
-    final arbeitsvermittlerController = TextEditingController(text: data['arbeitsvermittler'] ?? '');
-    final arbeitsvermittlerTelController = TextEditingController(text: data['arbeitsvermittler_tel'] ?? '');
-    final arbeitsvermittlerEmailController = TextEditingController(text: data['arbeitsvermittler_email'] ?? '');
-    final emailController = TextEditingController(text: data['online_email'] ?? '');
-    final passkeyAccessController = TextEditingController(text: data['passkey_access'] ?? '');
-    // Arbeitslosmeldung
-    final arbeitssuchendDatumController = TextEditingController(text: data['arbeitssuchend_datum'] ?? '');
-    final arbeitslosDatumController = TextEditingController(text: data['arbeitslos_datum'] ?? '');
-    final letzterArbeitstagController = TextEditingController(text: data['letzter_arbeitstag'] ?? '');
-    // Arbeitsuchendmeldungen (list with verlauf)
-    List<Map<String, dynamic>> meldungen = widget.getMeldungen(data);
-    // Bewilligungsbescheid ALG I
-    final bescheidVonController = TextEditingController(text: data['bescheid_von'] ?? '');
-    final bescheidBisController = TextEditingController(text: data['bescheid_bis'] ?? '');
-    final leistungssatzController = TextEditingController(text: data['leistungssatz_betrag'] ?? '');
-    final bemessungsentgeltController = TextEditingController(text: data['bemessungsentgelt'] ?? '');
-    final anspruchsdauerController = TextEditingController(text: data['anspruchsdauer'] ?? '');
-    final restanspruchController = TextEditingController(text: data['restanspruch'] ?? '');
-    // Sperrzeit
-    final sperrzeitVonController = TextEditingController(text: data['sperrzeit_von'] ?? '');
-    final sperrzeitBisController = TextEditingController(text: data['sperrzeit_bis'] ?? '');
-    final sperrzeitNotizController = TextEditingController(text: data['sperrzeit_notiz'] ?? '');
-    // EGV
-    final egvVonController = TextEditingController(text: data['egv_von'] ?? '');
-    final egvBisController = TextEditingController(text: data['egv_bis'] ?? '');
-    final egvPflichtenController = TextEditingController(text: data['egv_pflichten'] ?? '');
-    // Bildungsgutschein
-    final bgsNameController = TextEditingController(text: data['bgs_name'] ?? '');
-    final bgsTraegerController = TextEditingController(text: data['bgs_traeger'] ?? '');
-    final bgsVonController = TextEditingController(text: data['bgs_von'] ?? '');
-    final bgsBisController = TextEditingController(text: data['bgs_bis'] ?? '');
-    // Antraege (list with verlauf)
-    List<Map<String, dynamic>> antraege = widget.getAntraege(data);
-    List<Map<String, dynamic>> termine = widget.getTermineListe(data);
-    List<Map<String, dynamic>> begutachtungen = widget.getBegutachtungen(data);
-    bool hasOnlineAccount = data['has_online_account'] == true;
-    bool hasPasskey = data['has_passkey'] == true;
-    String kuendigungsart = data['kuendigungsart'] ?? '';
-    String leistungssatzTyp = data['leistungssatz_typ'] ?? '';
-    bool hasSperrzeit = data['has_sperrzeit'] == true;
-    String sperrzeitTyp = data['sperrzeit_typ'] ?? '';
-    String sperrzeitWiderspruch = data['sperrzeit_widerspruch'] ?? '';
-    bool hasEgv = data['has_egv'] == true;
-    bool hasBgs = data['has_bgs'] == true;
-    String bgsTyp = data['bgs_typ'] ?? '';
-    String bgsStatus = data['bgs_status'] ?? '';
+  Future<void> _syncTermineToDB(List<Map<String, dynamic>> updated) async {
+    final existingIds = _dbTermine.map((t) => t['id'] as int?).where((id) => id != null).toSet();
+    final updatedIds = <int>{};
+    for (final termin in updated) {
+      final id = termin['id'] is int ? termin['id'] as int : 0;
+      if (id > 0) updatedIds.add(id);
+      await widget.apiService.saveArbeitsagenturTermin(widget.userId, termin);
+    }
+    for (final oldId in existingIds) {
+      if (!updatedIds.contains(oldId)) {
+        await widget.apiService.deleteArbeitsagenturTermin(widget.userId, oldId!);
+      }
+    }
+    await _loadFromDB();
+  }
 
-    return StatefulBuilder(
-      builder: (context, setLocalState) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              widget.dienststelleBuilder(type, dienststelleController),
-
-              // === STAMMDATEN ===
-              _sectionHeader(Icons.badge, 'Stammdaten', Colors.indigo),
-              const SizedBox(height: 8),
-              _textField('Kundennummer', kundennummerController, hint: 'z.B. 123A456789 (10-stellig)', icon: Icons.badge),
-              const SizedBox(height: 12),
-
-              // Sachbearbeiter / Arbeitsvermittler
-              widget.arbeitsvermittlerBuilder(
-                type: type,
-                data: data,
-                arbeitsvermittlerController: arbeitsvermittlerController,
-                arbeitsvermittlerTelController: arbeitsvermittlerTelController,
-                arbeitsvermittlerEmailController: arbeitsvermittlerEmailController,
-                setLocalState: setLocalState,
-              ),
-              const SizedBox(height: 16),
-
-              // === ARBEITSSUCHENDMELDUNG ===
-              _sectionHeader(Icons.person_off, 'Arbeitssuchendmeldung', Colors.brown),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.brown.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.brown.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: _dateField('Arbeitssuchend gemeldet am', arbeitssuchendDatumController, context)),
-                        const SizedBox(width: 12),
-                        Expanded(child: _dateField('Arbeitslos gemeldet am', arbeitslosDatumController, context)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: _dateField('Letzter Arbeitstag', letzterArbeitstagController, context)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Kundigungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                              const SizedBox(height: 4),
-                              DropdownButtonFormField<String>(
-                                initialValue: kuendigungsart.isEmpty ? null : kuendigungsart,
-                                isExpanded: true,
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                ),
-                                hint: const Text('Auswahlen...', style: TextStyle(fontSize: 13)),
-                                items: const [
-                                  DropdownMenuItem(value: 'arbeitgeber', child: Text('Arbeitgeberkundigung', style: TextStyle(fontSize: 13))),
-                                  DropdownMenuItem(value: 'eigen', child: Text('Eigenkundigung', style: TextStyle(fontSize: 13))),
-                                  DropdownMenuItem(value: 'aufhebung', child: Text('Aufhebungsvertrag', style: TextStyle(fontSize: 13))),
-                                  DropdownMenuItem(value: 'befristung', child: Text('Befristung ausgelaufen', style: TextStyle(fontSize: 13))),
-                                  DropdownMenuItem(value: 'insolvenz', child: Text('Insolvenz', style: TextStyle(fontSize: 13))),
-                                ],
-                                onChanged: (v) => setLocalState(() => kuendigungsart = v ?? ''),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // === ARBEITSUCHENDMELDUNGEN ===
-              widget.meldungenBuilder(
-                meldungen: meldungen,
-                onChanged: (updated) {
-                  setLocalState(() => meldungen = updated);
-                  widget.autoSaveField(type, 'meldungen', updated);
-                },
-                context: context,
-              ),
-              const SizedBox(height: 16),
-
-              // === BEWILLIGUNGSBESCHEID ALG I ===
-              _sectionHeader(Icons.description, 'Bewilligungsbescheid (ALG I)', Colors.green.shade700),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: _dateField('Bewilligungszeitraum von', bescheidVonController, context)),
-                        const SizedBox(width: 12),
-                        Expanded(child: _dateField('Bewilligungszeitraum bis', bescheidBisController, context)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: _textField('Taglicher Leistungssatz (EUR)', leistungssatzController, hint: 'z.B. 38.50', icon: Icons.euro)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Leistungssatz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                              const SizedBox(height: 4),
-                              DropdownButtonFormField<String>(
-                                initialValue: leistungssatzTyp.isEmpty ? null : leistungssatzTyp,
-                                isExpanded: true,
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                ),
-                                hint: const Text('Auswahlen...', style: TextStyle(fontSize: 13)),
-                                items: const [
-                                  DropdownMenuItem(value: '60', child: Text('60% (allgemein)', style: TextStyle(fontSize: 13))),
-                                  DropdownMenuItem(value: '67', child: Text('67% (mit Kind)', style: TextStyle(fontSize: 13))),
-                                ],
-                                onChanged: (v) => setLocalState(() => leistungssatzTyp = v ?? ''),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _textField('Bemessungsentgelt (EUR/Tag)', bemessungsentgeltController, hint: 'Tagliches Bemessungsentgelt', icon: Icons.account_balance_wallet),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: _textField('Anspruchsdauer (Tage)', anspruchsdauerController, hint: 'z.B. 360', icon: Icons.timer)),
-                        const SizedBox(width: 12),
-                        Expanded(child: _textField('Restanspruch (Tage)', restanspruchController, hint: 'Verbleibende Tage', icon: Icons.hourglass_bottom)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // === ANTRAEGE ===
-              widget.antraegeBuilder(
-                behoerdeType: type,
-                antraege: antraege,
-                artItems: const [
-                  DropdownMenuItem(value: 'erstantrag', child: Text('Erstantrag ALG I', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'weiterbewilligung', child: Text('Weiterbewilligungsantrag', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'wiederholung', child: Text('Wiederholungsantrag', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'insolvenzantrag', child: Text('Insolvenzantrag', style: TextStyle(fontSize: 13))),
-                ],
-                statusItems: const [
-                  DropdownMenuItem(value: 'neu', child: Text('Neu', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'geplant', child: Text('Geplant', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'eingereicht', child: Text('Eingereicht', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'in_bearbeitung', child: Text('In Bearbeitung', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'unterlagen_fehlen', child: Text('Unterlagen nachgefordert', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'bewilligt', child: Text('Bewilligt', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'abgelehnt', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'zurueckgezogen', child: Text('Zurückgezogen', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'verweigerung', child: Text('Verweigerung durch Mitglied', style: TextStyle(fontSize: 13))),
-                ],
-                onChanged: (updated) {
-                  setLocalState(() => antraege = updated);
-                  widget.autoSaveField(type, 'antraege', updated);
-                },
-                context: context,
-              ),
-              const SizedBox(height: 16),
-
-              // === SPERRZEIT ===
-              _sectionHeader(Icons.block, 'Sperrzeit / Sperrzeitbescheid', Colors.red.shade700),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.block, size: 18, color: Colors.red.shade700),
-                        const SizedBox(width: 8),
-                        Text('Sperrzeit vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade700)),
-                        const Spacer(),
-                        Switch(
-                          value: hasSperrzeit,
-                          onChanged: (v) => setLocalState(() => hasSperrzeit = v),
-                          activeThumbColor: Colors.red,
-                        ),
-                      ],
-                    ),
-                    if (hasSperrzeit) ...[
-                      const SizedBox(height: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Sperrzeit-Grund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                          const SizedBox(height: 4),
-                          DropdownButtonFormField<String>(
-                            initialValue: sperrzeitTyp.isEmpty ? null : sperrzeitTyp,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            ),
-                            hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
-                            items: const [
-                              DropdownMenuItem(value: 'eigenkuendigung', child: Text('Eigenkündigung (12 Wochen)', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'aufhebungsvertrag', child: Text('Aufhebungsvertrag (12 Wochen)', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'arbeitsablehnung', child: Text('Arbeitsablehnung (3-12 Wochen)', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'meldeversaeumnis', child: Text('Meldeversäumnis (1 Woche)', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'massnahmeabbruch', child: Text('Maßnahmeabbruch (3-12 Wochen)', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'verspaetete_meldung', child: Text('Verspätete Meldung (1 Woche)', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'eigenbemuehungen', child: Text('Unzureichende Eigenbemühungen (2 Wochen)', style: TextStyle(fontSize: 13))),
-                            ],
-                            onChanged: (v) => setLocalState(() => sperrzeitTyp = v ?? ''),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(child: _dateField('Sperrzeit von', sperrzeitVonController, context)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _dateField('Sperrzeit bis', sperrzeitBisController, context)),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Widerspruch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                          const SizedBox(height: 4),
-                          DropdownButtonFormField<String>(
-                            initialValue: sperrzeitWiderspruch.isEmpty ? null : sperrzeitWiderspruch,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            ),
-                            hint: const Text('Kein Widerspruch', style: TextStyle(fontSize: 13)),
-                            items: const [
-                              DropdownMenuItem(value: 'kein', child: Text('Kein Widerspruch', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'eingelegt', child: Text('⚖️ Widerspruch eingelegt', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'stattgegeben', child: Text('✅ Stattgegeben', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'abgelehnt', child: Text('❌ Zurückgewiesen', style: TextStyle(fontSize: 13))),
-                              DropdownMenuItem(value: 'klage', child: Text('🏛️ Klage beim Sozialgericht', style: TextStyle(fontSize: 13))),
-                            ],
-                            onChanged: (v) => setLocalState(() => sperrzeitWiderspruch = v ?? ''),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _textField('Notizen zur Sperrzeit', sperrzeitNotizController, hint: 'Details, Begründung, Fristen...', icon: Icons.notes, maxLines: 2),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // === EGV ===
-              _sectionHeader(Icons.handshake, 'Eingliederungsvereinbarung (EGV)', Colors.purple.shade700),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.purple.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.purple.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.handshake, size: 18, color: Colors.purple.shade700),
-                        const SizedBox(width: 8),
-                        Text('EGV vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple.shade700)),
-                        const Spacer(),
-                        Switch(
-                          value: hasEgv,
-                          onChanged: (v) => setLocalState(() => hasEgv = v),
-                          activeThumbColor: Colors.purple,
-                        ),
-                      ],
-                    ),
-                    if (hasEgv) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(child: _dateField('Gültig von', egvVonController, context)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _dateField('Gültig bis', egvBisController, context)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _textField('Pflichten / Eigenbemühungen', egvPflichtenController, hint: 'z.B. 10 Bewerbungen/Monat...', icon: Icons.checklist, maxLines: 3),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // === BILDUNGSGUTSCHEIN / AVGS ===
-              _sectionHeader(Icons.school, 'Bildungsgutschein / AVGS', Colors.cyan.shade700),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.cyan.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.cyan.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.school, size: 18, color: Colors.cyan.shade700),
-                        const SizedBox(width: 8),
-                        Text('Bildungsgutschein / AVGS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyan.shade700)),
-                        const Spacer(),
-                        Switch(
-                          value: hasBgs,
-                          onChanged: (v) => setLocalState(() => hasBgs = v),
-                          activeThumbColor: Colors.cyan.shade700,
-                        ),
-                      ],
-                    ),
-                    if (hasBgs) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                                const SizedBox(height: 4),
-                                DropdownButtonFormField<String>(
-                                  initialValue: bgsTyp.isEmpty ? null : bgsTyp,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  ),
-                                  hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
-                                  items: const [
-                                    DropdownMenuItem(value: 'bildungsgutschein', child: Text('Bildungsgutschein (BGS)', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'avgs_mat', child: Text('AVGS MAT (Coaching)', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'avgs_mpav', child: Text('AVGS MPAV (Vermittlung)', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'avgs_mag', child: Text('AVGS MAG (Praktikum)', style: TextStyle(fontSize: 13))),
-                                  ],
-                                  onChanged: (v) => setLocalState(() => bgsTyp = v ?? ''),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                                const SizedBox(height: 4),
-                                DropdownButtonFormField<String>(
-                                  initialValue: bgsStatus.isEmpty ? null : bgsStatus,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  ),
-                                  hint: const Text('Status...', style: TextStyle(fontSize: 13)),
-                                  items: const [
-                                    DropdownMenuItem(value: 'beantragt', child: Text('📤 Beantragt', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'bewilligt', child: Text('✅ Bewilligt', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'abgelehnt', child: Text('❌ Abgelehnt', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'laufend', child: Text('▶️ Maßnahme laufend', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'abgeschlossen', child: Text('🎓 Abgeschlossen', style: TextStyle(fontSize: 13))),
-                                    DropdownMenuItem(value: 'abgebrochen', child: Text('⚠️ Abgebrochen', style: TextStyle(fontSize: 13))),
-                                  ],
-                                  onChanged: (v) => setLocalState(() => bgsStatus = v ?? ''),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _textField('Maßnahme / Qualifikation', bgsNameController, hint: 'Name der Weiterbildung', icon: Icons.label),
-                      const SizedBox(height: 8),
-                      _textField('Bildungsträger', bgsTraegerController, hint: 'z.B. WBS, GFN, Comcave...', icon: Icons.business),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(child: _dateField('Beginn', bgsVonController, context)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _dateField('Ende', bgsBisController, context)),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // === ONLINE-KONTO ===
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.cloud, size: 18, color: Colors.blue.shade700),
-                        const SizedBox(width: 8),
-                        Text('Online-Konto (arbeitsagentur.de)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)),
-                        const Spacer(),
-                        Switch(
-                          value: hasOnlineAccount,
-                          onChanged: (v) => setLocalState(() => hasOnlineAccount = v),
-                          activeThumbColor: Colors.blue,
-                        ),
-                      ],
-                    ),
-                    if (hasOnlineAccount) ...[
-                      const SizedBox(height: 12),
-                      _textField('E-Mail', emailController, hint: 'E-Mail des Online-Kontos', icon: Icons.email),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.key, size: 18, color: Colors.orange.shade700),
-                                const SizedBox(width: 8),
-                                Text('Passkey aktiviert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade700)),
-                                const Spacer(),
-                                Switch(
-                                  value: hasPasskey,
-                                  onChanged: (v) => setLocalState(() => hasPasskey = v),
-                                  activeThumbColor: Colors.orange,
-                                ),
-                              ],
-                            ),
-                            if (hasPasskey) ...[
-                              const SizedBox(height: 12),
-                              _textField('Wer hat Zugang zum Passkey?', passkeyAccessController, hint: 'Name / Rolle der Person mit Zugang', icon: Icons.person_pin),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              // === MEDIZINISCHE BEGUTACHTUNG ===
-              widget.begutachtungBuilder(
-                behoerdeType: type,
-                behoerdeLabel: 'Arbeitsagentur',
-                begutachtungen: begutachtungen,
-                data: data,
-                onChanged: (updated) {
-                  setLocalState(() => begutachtungen = updated);
-                  widget.autoSaveField(type, 'begutachtungen', updated);
-                },
-                setLocalState: setLocalState,
-              ),
-
-              // === TERMINE ===
-              widget.termineBuilder(
-                behoerdeType: type,
-                behoerdeLabel: 'Arbeitsagentur',
-                termine: termine,
-                data: data,
-                onChanged: (updated) {
-                  setLocalState(() => termine = updated);
-                  widget.autoSaveField(type, 'termine', updated);
-                },
-                setLocalState: setLocalState,
-              ),
-              const SizedBox(height: 16),
-
-              // === KORRESPONDENZ ===
-              _AAKorrespondenzSection(apiService: widget.apiService, userId: widget.userId),
-
-              const SizedBox(height: 24),
-
-              // Save button
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: widget.isSaving(type) == true ? null : () {
-                    final saveData = {
-                      'dienststelle': dienststelleController.text.trim(),
-                      'kundennummer': kundennummerController.text.trim(),
-                      'arbeitsvermittler_id': data['arbeitsvermittler_id'],
-                      'arbeitsvermittler': arbeitsvermittlerController.text.trim(),
-                      'arbeitsvermittler_tel': arbeitsvermittlerTelController.text.trim(),
-                      'arbeitsvermittler_email': arbeitsvermittlerEmailController.text.trim(),
-                      'arbeitssuchend_datum': arbeitssuchendDatumController.text.trim(),
-                      'arbeitslos_datum': arbeitslosDatumController.text.trim(),
-                      'letzter_arbeitstag': letzterArbeitstagController.text.trim(),
-                      'meldungen': meldungen,
-                      'termine': termine,
-                      'begutachtungen': begutachtungen,
-                      'kuendigungsart': kuendigungsart,
-                      'bescheid_von': bescheidVonController.text.trim(),
-                      'bescheid_bis': bescheidBisController.text.trim(),
-                      'leistungssatz_betrag': leistungssatzController.text.trim(),
-                      'leistungssatz_typ': leistungssatzTyp,
-                      'bemessungsentgelt': bemessungsentgeltController.text.trim(),
-                      'anspruchsdauer': anspruchsdauerController.text.trim(),
-                      'restanspruch': restanspruchController.text.trim(),
-                      'antraege': antraege,
-                      'has_sperrzeit': hasSperrzeit,
-                      'sperrzeit_typ': sperrzeitTyp,
-                      'sperrzeit_von': sperrzeitVonController.text.trim(),
-                      'sperrzeit_bis': sperrzeitBisController.text.trim(),
-                      'sperrzeit_widerspruch': sperrzeitWiderspruch,
-                      'sperrzeit_notiz': sperrzeitNotizController.text.trim(),
-                      'has_egv': hasEgv,
-                      'egv_von': egvVonController.text.trim(),
-                      'egv_bis': egvBisController.text.trim(),
-                      'egv_pflichten': egvPflichtenController.text.trim(),
-                      'has_bgs': hasBgs,
-                      'bgs_typ': bgsTyp,
-                      'bgs_status': bgsStatus,
-                      'bgs_name': bgsNameController.text.trim(),
-                      'bgs_traeger': bgsTraegerController.text.trim(),
-                      'bgs_von': bgsVonController.text.trim(),
-                      'bgs_bis': bgsBisController.text.trim(),
-                      'has_online_account': hasOnlineAccount,
-                      'online_email': emailController.text.trim(),
-                      'has_passkey': hasPasskey,
-                      'passkey_access': passkeyAccessController.text.trim(),
-                    };
-                    widget.saveData(type, saveData);
-                  },
-                  icon: widget.isSaving(type) == true
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.save, size: 18),
-                  label: const Text('Speichern'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  Future<void> _syncBegutachtungenToDB(List<Map<String, dynamic>> updated) async {
+    final existingIds = _dbBegutachtungen.map((b) => b['id'] as int?).where((id) => id != null).toSet();
+    final updatedIds = <int>{};
+    for (final beg in updated) {
+      final id = beg['id'] is int ? beg['id'] as int : 0;
+      if (id > 0) updatedIds.add(id);
+      await widget.apiService.saveArbeitsagenturBegutachtung(widget.userId, beg);
+    }
+    for (final oldId in existingIds) {
+      if (!updatedIds.contains(oldId)) {
+        await widget.apiService.deleteArbeitsagenturBegutachtung(widget.userId, oldId!);
+      }
+    }
+    await _loadFromDB();
   }
 }
 
