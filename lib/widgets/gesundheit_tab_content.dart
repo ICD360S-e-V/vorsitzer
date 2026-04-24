@@ -6682,6 +6682,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                                     DropdownMenuItem(value: 'ct', child: Text('CT-Befund', style: TextStyle(fontSize: 13))),
                                                     DropdownMenuItem(value: 'op_bericht', child: Text('OP-Bericht', style: TextStyle(fontSize: 13))),
                                                     DropdownMenuItem(value: 'therapiebericht', child: Text('Therapiebericht', style: TextStyle(fontSize: 13))),
+                                                    DropdownMenuItem(value: 'zervixkarzinom', child: Text('Zervixkarzinom-Screening (HPV/Pap)', style: TextStyle(fontSize: 13))),
                                                     DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges', style: TextStyle(fontSize: 13))),
                                                   ],
                                                   onChanged: (v) => setAddState(() => berichtTyp = v ?? 'befund'),
@@ -13398,7 +13399,9 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       const kategorien = [
         'Befundbericht', 'Arztbrief', 'OP-Bericht', 'Entlassungsbericht',
         'Laborbericht', 'Radiologie / Bildgebung', 'Pathologie',
-        'Gutachten', 'Rehabilitationsbericht', 'Sonstiges',
+        'Gutachten', 'Rehabilitationsbericht',
+        'Zervixkarzinom-Screening (HPV/Pap)',
+        'Sonstiges',
       ];
 
       showDialog(
