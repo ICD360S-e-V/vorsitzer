@@ -4881,34 +4881,72 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             // TAB 1: DETAILS
             SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (isHpv) ...[
-                Text('Muster 39a — Krebsfrüherkennung Zervix-Karzinom', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+                  child: Row(children: [Icon(Icons.description, size: 18, color: color.shade700), const SizedBox(width: 8),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Muster 39a (1.2021)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+                      Text('Krebsfrüherkennung Zervix-Karzinom', style: TextStyle(fontSize: 11, color: color.shade600)),
+                    ])),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(6)),
+                      child: Text(alter < 35 ? 'Alter: <35' : 'Alter: ≥35', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+                  ])),
                 const SizedBox(height: 12),
-                // Auftragsart
-                Text('Auftragsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+
+                // ① Alterskategorie — auto
+                Text('① Alterskategorie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                const SizedBox(height: 4),
+                Text(alter < 35 ? 'Frauen unter 35 Jahren → Zytologische Untersuchung (Pap-Abstrich)' : 'Frauen ab 35 Jahren → Ko-Testung (Zytologie + HPV-Test)',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                const Divider(height: 16),
+
+                // ② Auftrag
+                Text('② Auftrag', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
                 const SizedBox(height: 4),
                 Wrap(spacing: 6, children: [
-                  ('primaerscreening', alter < 35 ? 'Primärscreening (Pap)' : 'Primärscreening (Ko-Testung Pap+HPV)'),
-                  ('abklaerung', 'Abklärungsdiagnostik'),
+                  ('primaer_zyt', 'Primärscreening: Zytologie'),
+                  if (alter >= 35) ('primaer_ko', 'Primärscreening: Ko-Testung (Zyt.+HPV)'),
+                  ('abklaerung_zyt', 'Abklärung: Zytologie'),
+                  ('abklaerung_hpv', 'Abklärung: HPV-Test'),
+                  ('abklaerung_ko', 'Abklärung: Ko-Testung'),
                 ].map((a) => ChoiceChip(
-                  label: Text(a.$2, style: TextStyle(fontSize: 11, color: vorsorge['auftragsart'] == a.$1 ? Colors.white : Colors.black87)),
-                  selected: vorsorge['auftragsart'] == a.$1, selectedColor: color,
-                  onSelected: (_) { setD(() => vorsorge['auftragsart'] = a.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                  label: Text(a.$2, style: TextStyle(fontSize: 10, color: vorsorge['auftrag'] == a.$1 ? Colors.white : Colors.black87)),
+                  selected: vorsorge['auftrag'] == a.$1, selectedColor: color, visualDensity: VisualDensity.compact,
+                  onSelected: (_) { setD(() => vorsorge['auftrag'] = a.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
                 )).toList()),
-                const Divider(height: 20),
-                // Anamnese
-                Text('Anamnese', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const Divider(height: 16),
+
+                // ③ Anamnese — Vorbefunde
+                Text('③ Anamnese (Vorbefunde)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                const SizedBox(height: 4),
+                Text('Zytologischer Vorbefund (München III)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                const SizedBox(height: 4),
+                Wrap(spacing: 4, runSpacing: 4, children: ['0', 'I', 'II-a', 'II-p', 'II-g', 'II-e', 'III-p', 'III-g', 'III-e', 'III-x', 'IIID1', 'IIID2', 'IVa-p', 'IVa-g', 'IVb-p', 'IVb-g', 'V-p', 'V-g', 'V-e', 'V-x'].map((p) => ChoiceChip(
+                  label: Text(p, style: TextStyle(fontSize: 9, color: vorsorge['vorbefund_zyt'] == p ? Colors.white : Colors.black87)),
+                  selected: vorsorge['vorbefund_zyt'] == p, selectedColor: color, visualDensity: VisualDensity.compact,
+                  onSelected: (_) { setD(() => vorsorge['vorbefund_zyt'] = p); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
+                const SizedBox(height: 6),
+                Text('HPV-Vorbefund', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Wrap(spacing: 6, children: [('positiv', 'HPV positiv'), ('negativ', 'HPV negativ'), ('unbekannt', 'Unbekannt')].map((h) => ChoiceChip(
+                  label: Text(h.$2, style: TextStyle(fontSize: 10, color: vorsorge['vorbefund_hpv'] == h.$1 ? Colors.white : Colors.black87)),
+                  selected: vorsorge['vorbefund_hpv'] == h.$1, selectedColor: h.$1 == 'positiv' ? Colors.red : h.$1 == 'negativ' ? Colors.green : Colors.grey, visualDensity: VisualDensity.compact,
+                  onSelected: (_) { setD(() => vorsorge['vorbefund_hpv'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
+                const Divider(height: 16),
+
+                // ④ Anamnese "jetzt"
+                Text('④ Anamnese (aktuell)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
                 const SizedBox(height: 4),
                 Wrap(spacing: 6, runSpacing: 6, children: [
-                  ('hormonale_kontrazeption', 'Hormonale Kontrazeption'),
-                  ('iup', 'IUP (Spirale)'),
-                  ('postmenopausal', 'Postmenopausal'),
-                  ('nach_hysterektomie', 'Z.n. Hysterektomie'),
+                  ('hormonale_kontrazeption', 'Hormonale Kontrazeption'), ('iup', 'IUP (Spirale)'), ('postmenopausal', 'Postmenopausal'),
+                  ('nach_hysterektomie', 'Z.n. Hysterektomie'), ('nach_konisation', 'Z.n. Konisation'), ('strahlentherapie', 'Strahlentherapie'),
+                  ('chemotherapie', 'Chemotherapie'), ('schwangerschaft', 'Schwangerschaft'),
                 ].map((a) => FilterChip(
                   label: Text(a.$2, style: TextStyle(fontSize: 10, color: vorsorge[a.$1] == true ? Colors.white : Colors.black87)),
-                  selected: vorsorge[a.$1] == true, selectedColor: color.shade300,
+                  selected: vorsorge[a.$1] == true, selectedColor: color.shade300, visualDensity: VisualDensity.compact,
                   onSelected: (v) { setD(() => vorsorge[a.$1] = v); data['vorsorge_$key'] = vorsorge; saveAll(); },
                 )).toList()),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Row(children: [
                   Expanded(child: TextField(controller: TextEditingController(text: vorsorge['gravida']?.toString() ?? ''),
                     decoration: InputDecoration(labelText: 'Gravida', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
@@ -4918,29 +4956,64 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     decoration: InputDecoration(labelText: 'Para', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                     onChanged: (v) { vorsorge['para'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); })),
                 ]),
-                const Divider(height: 20),
-                // Ergebnis
-                Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const Divider(height: 16),
+
+                // ⑤ Klinischer Befund
+                Text('⑤ Klinischer Befund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
                 const SizedBox(height: 4),
-                Text('Pap-Befund', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                Wrap(spacing: 4, children: ['I', 'II', 'III', 'IIID', 'IV', 'V'].map((p) => ChoiceChip(
-                  label: Text('Pap $p', style: TextStyle(fontSize: 10, color: vorsorge['pap_befund'] == p ? Colors.white : Colors.black87)),
-                  selected: vorsorge['pap_befund'] == p, selectedColor: color,
-                  onSelected: (_) { setD(() => vorsorge['pap_befund'] = p); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                Wrap(spacing: 6, children: [('unauffaellig', 'Unauffällig'), ('auffaellig', 'Auffällig')].map((b) => ChoiceChip(
+                  label: Text(b.$2, style: TextStyle(fontSize: 10, color: vorsorge['klin_befund'] == b.$1 ? Colors.white : Colors.black87)),
+                  selected: vorsorge['klin_befund'] == b.$1, selectedColor: b.$1 == 'auffaellig' ? Colors.red : Colors.green, visualDensity: VisualDensity.compact,
+                  onSelected: (_) { setD(() => vorsorge['klin_befund'] = b.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
                 )).toList()),
                 const SizedBox(height: 6),
-                if (alter >= 35) ...[
-                  Text('HPV-Test', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                TextField(controller: TextEditingController(text: vorsorge['klin_befund_text']?.toString() ?? ''), maxLines: 2,
+                  decoration: InputDecoration(labelText: '⑥ Freitext (Auffälligkeiten, Diagnose)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                  onChanged: (v) { vorsorge['klin_befund_text'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
+                const Divider(height: 16),
+
+                // ⑦ Zytologischer Befund (Zytologe)
+                Text('⑦ Zytologischer Befund (Befundmitteilung)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                const SizedBox(height: 4),
+                Text('Befund (München III)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Wrap(spacing: 4, runSpacing: 4, children: ['0', 'I', 'II-a', 'II-p', 'II-g', 'II-e', 'III-p', 'III-g', 'III-e', 'III-x', 'IIID1', 'IIID2', 'IVa-p', 'IVa-g', 'IVb-p', 'IVb-g', 'V-p', 'V-g', 'V-e', 'V-x'].map((p) => ChoiceChip(
+                  label: Text(p, style: TextStyle(fontSize: 9, color: vorsorge['befund_zyt'] == p ? Colors.white : Colors.black87)),
+                  selected: vorsorge['befund_zyt'] == p, selectedColor: color, visualDensity: VisualDensity.compact,
+                  onSelected: (_) { setD(() => vorsorge['befund_zyt'] = p); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
+                if (alter >= 35 || vorsorge['auftrag']?.toString().contains('hpv') == true) ...[
+                  const SizedBox(height: 6),
+                  Text('HPV-Test Ergebnis', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                   Wrap(spacing: 6, children: [('positiv', 'HPV positiv'), ('negativ', 'HPV negativ')].map((h) => ChoiceChip(
-                    label: Text(h.$2, style: TextStyle(fontSize: 10, color: vorsorge['hpv_ergebnis'] == h.$1 ? Colors.white : Colors.black87)),
-                    selected: vorsorge['hpv_ergebnis'] == h.$1, selectedColor: h.$1 == 'positiv' ? Colors.red : Colors.green,
-                    onSelected: (_) { setD(() => vorsorge['hpv_ergebnis'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                    label: Text(h.$2, style: TextStyle(fontSize: 10, color: vorsorge['befund_hpv'] == h.$1 ? Colors.white : Colors.black87)),
+                    selected: vorsorge['befund_hpv'] == h.$1, selectedColor: h.$1 == 'positiv' ? Colors.red : Colors.green, visualDensity: VisualDensity.compact,
+                    onSelected: (_) { setD(() => vorsorge['befund_hpv'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                  )).toList()),
+                  const SizedBox(height: 4),
+                  Text('HPV 16/18 Differenzierung', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Wrap(spacing: 6, children: [('ja', 'Typ 16/18 positiv'), ('nein', 'Typ 16/18 negativ'), ('nicht_diff', 'Nicht differenzierbar')].map((h) => ChoiceChip(
+                    label: Text(h.$2, style: TextStyle(fontSize: 9, color: vorsorge['hpv_16_18'] == h.$1 ? Colors.white : Colors.black87)),
+                    selected: vorsorge['hpv_16_18'] == h.$1, selectedColor: h.$1 == 'ja' ? Colors.red : Colors.grey, visualDensity: VisualDensity.compact,
+                    onSelected: (_) { setD(() => vorsorge['hpv_16_18'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
                   )).toList()),
                 ],
-                const SizedBox(height: 8),
-                TextField(controller: TextEditingController(text: vorsorge['klinischer_befund']?.toString() ?? ''), maxLines: 3,
-                  decoration: InputDecoration(labelText: 'Klinischer Befund (Freitext)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  onChanged: (v) { vorsorge['klinischer_befund'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
+                const SizedBox(height: 6),
+                TextField(controller: TextEditingController(text: vorsorge['befund_bemerkungen']?.toString() ?? ''), maxLines: 2,
+                  decoration: InputDecoration(labelText: 'Bemerkungen (Flora, endozervikale Zellen)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                  onChanged: (v) { vorsorge['befund_bemerkungen'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
+                const Divider(height: 16),
+
+                // ⑧ Zusammenfassende Empfehlung
+                Text('⑧ Zusammenfassende Empfehlung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                const SizedBox(height: 4),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  ('keine', 'Keine weiteren Maßnahmen'), ('kontrolle_3m', 'Kontrolle in 3 Monaten'), ('kontrolle_6m', 'Kontrolle in 6 Monaten'),
+                  ('kontrolle_12m', 'Kontrolle in 12 Monaten'), ('kolposkopie', 'Kolposkopie'), ('biopsie', 'Biopsie'),
+                ].map((e) => ChoiceChip(
+                  label: Text(e.$2, style: TextStyle(fontSize: 10, color: vorsorge['empfehlung'] == e.$1 ? Colors.white : Colors.black87)),
+                  selected: vorsorge['empfehlung'] == e.$1, selectedColor: color, visualDensity: VisualDensity.compact,
+                  onSelected: (_) { setD(() => vorsorge['empfehlung'] = e.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
               ] else ...[
                 // Generic Vorsorge details
                 Text('Letztes $label', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
