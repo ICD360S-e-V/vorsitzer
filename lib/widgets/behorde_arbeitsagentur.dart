@@ -524,6 +524,58 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
       onChanged: (u) { setLocal(() => termine = u); _syncTermineToDB(u); }, setLocalState: setLocal)));
   }
 
+  Widget _buildArbeitgeberSearch(TextEditingController arbeitgeberC, TextEditingController ortC, StateSetter setDlg) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Arbeitgeber', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      TextField(controller: arbeitgeberC, decoration: InputDecoration(
+        hintText: 'Firmenname eingeben oder suchen...', prefixIcon: const Icon(Icons.business, size: 20), isDense: true,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        suffixIcon: IconButton(icon: Icon(Icons.search, size: 20, color: Colors.indigo.shade600), tooltip: 'In Datenbank suchen',
+          onPressed: () async {
+            final res = await widget.apiService.getArbeitgeberStammdaten();
+            if (res['success'] != true) return;
+            final all = (res['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            final query = arbeitgeberC.text.trim().toLowerCase();
+            final filtered = query.isEmpty ? all : all.where((a) => (a['firma_name']?.toString() ?? '').toLowerCase().contains(query)).toList();
+            if (!mounted) return;
+            final selected = await showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
+              String search = query;
+              List<Map<String, dynamic>> results = filtered;
+              return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+                title: Row(children: [Icon(Icons.business, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Arbeitgeber auswählen', style: TextStyle(fontSize: 14))]),
+                content: SizedBox(width: 450, height: 400, child: Column(children: [
+                  TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                    onChanged: (v) => setS(() { search = v.toLowerCase(); results = all.where((a) => (a['firma_name']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
+                  const SizedBox(height: 8),
+                  Expanded(child: results.isEmpty
+                    ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                    : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                        final a = results[i];
+                        final name = a['firma_name']?.toString() ?? '';
+                        final ort = a['niederlassung_ort']?.toString() ?? a['hauptzentrale_ort']?.toString() ?? '';
+                        final branche = a['branche']?.toString() ?? '';
+                        return ListTile(dense: true, leading: Icon(Icons.business, size: 18, color: Colors.indigo.shade400),
+                          title: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          subtitle: Text([if (ort.isNotEmpty) ort, if (branche.isNotEmpty) branche].join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          onTap: () => Navigator.pop(sCtx, a));
+                      })),
+                ])),
+                actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+              ));
+            });
+            if (selected != null) {
+              setDlg(() {
+                arbeitgeberC.text = selected['firma_name']?.toString() ?? '';
+                final selOrt = selected['niederlassung_ort']?.toString() ?? selected['hauptzentrale_ort']?.toString() ?? '';
+                if (selOrt.isNotEmpty && ortC.text.isEmpty) ortC.text = selOrt;
+              });
+            }
+          }),
+      ), style: const TextStyle(fontSize: 14)),
+    ]);
+  }
+
   // ──── TAB: Vermittlungsvorschläge ────
   Widget _buildVorschlaegeTab() {
     return StatefulBuilder(builder: (ctx, setLocal) {
@@ -633,7 +685,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           ])),
         const SizedBox(height: 12),
         const SizedBox(height: 12),
-        _textField('Arbeitgeber', arbeitgeberC, hint: 'Firmenname', icon: Icons.business),
+        _buildArbeitgeberSearch(arbeitgeberC, ortC, setDlg),
         const SizedBox(height: 12),
         _textField('Stelle / Position', stelleC, hint: 'z.B. Lagerhelfer', icon: Icons.work),
         const SizedBox(height: 12),
