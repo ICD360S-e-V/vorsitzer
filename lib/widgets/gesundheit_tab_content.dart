@@ -4891,10 +4891,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Rechtsgrundlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
               const SizedBox(height: 6),
-              _vorsorgeInfoRow('20–34 Jahre', 'Jährlich Pap-Abstrich (zytologische Untersuchung)'),
-              _vorsorgeInfoRow('Ab 35 Jahre', 'Alle 3 Jahre Ko-Testung (Pap + HPV-Test)'),
-              _vorsorgeInfoRow('Einladung', 'Krankenkasse lädt alle 5 Jahre ein (20, 25, 30, 35...)'),
-              _vorsorgeInfoRow('Grundlage', 'G-BA Richtlinie Organisiertes Krebsfrüherkennungsprogramm'),
+              _vorsorgeHpvInfoRow('20–34 Jahre', 'Jährlich Pap-Abstrich (zytologische Untersuchung)'),
+              _vorsorgeHpvInfoRow('Ab 35 Jahre', 'Alle 3 Jahre Ko-Testung (Pap + HPV-Test)'),
+              _vorsorgeHpvInfoRow('Einladung', 'Krankenkasse lädt alle 5 Jahre ein (20, 25, 30, 35...)'),
+              _vorsorgeHpvInfoRow('Grundlage', 'G-BA Richtlinie Organisiertes Krebsfrüherkennungsprogramm'),
             ]),
           ),
         ],
@@ -4902,7 +4902,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
-  Widget _vorsorgeInfoRow(String label, String text) {
+  Widget _vorsorgeHpvInfoRow(String label, String text) {
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(4)),
         child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.pink.shade700))),
