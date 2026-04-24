@@ -2126,6 +2126,17 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     ]));
   }
 
+  DateTime _addMonths(DateTime d, int months) {
+    var y = d.year; var m = d.month + months;
+    while (m > 12) { y++; m -= 12; }
+    var day = d.day;
+    final maxDay = DateTime(y, m + 1, 0).day;
+    if (day > maxDay) day = maxDay;
+    var result = DateTime(y, m, day);
+    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) result = result.add(const Duration(days: 1));
+    return result;
+  }
+
   Widget _datePickerRow(IconData icon, String label, String value, Function(String) onPicked) {
     return InkWell(
       onTap: () async {
@@ -2328,17 +2339,17 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
     // Frist: 1 Monat ab Bescheid-Zustellung
     final fristStart = bescheidDatum;
-    final fristEnde = fristStart != null ? DateTime(fristStart.year, fristStart.month + 1, fristStart.day) : null;
+    final fristEnde = fristStart != null ? _addMonths(fristStart, 1) : null;
     final heute = DateTime.now();
     final heute0 = DateTime(heute.year, heute.month, heute.day);
     final restTage = fristEnde != null ? fristEnde.difference(heute0).inDays : null;
     final abgelaufen = fristEnde != null && heute0.isAfter(fristEnde);
-    final hatW = widerspruchGesendet != null;
+    final hatW = widerspruchGesendetDatum != null;
 
-    // Begründungsfrist: +1 Monat nach Widerspruch
-    final begruendungFrist = widerspruchGesendetDatum != null ? DateTime(widerspruchGesendetDatum.year, widerspruchGesendetDatum.month + 1, widerspruchGesendetDatum.day) : null;
+    // Begründungsfrist: +1 Monat nach Widerspruch (Frist für endgültige Begründung)
+    final begruendungFrist = widerspruchGesendetDatum != null ? _addMonths(widerspruchGesendetDatum, 1) : null;
     // Bearbeitungsfrist Amt: 3 Monate nach Widerspruch
-    final bearbeitungFrist = widerspruchGesendetDatum != null ? DateTime(widerspruchGesendetDatum.year, widerspruchGesendetDatum.month + 3, widerspruchGesendetDatum.day) : null;
+    final bearbeitungFrist = widerspruchGesendetDatum != null ? _addMonths(widerspruchGesendetDatum, 3) : null;
 
     final statusColor = hatW ? Colors.blue : bescheidDatum == null ? Colors.grey : abgelaufen == true ? Colors.red : (restTage != null && restTage <= 7) ? Colors.orange : Colors.green;
 
