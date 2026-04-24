@@ -2046,14 +2046,72 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
           child: Row(children: [
             Icon(Icons.timer, size: 16, color: Colors.amber.shade700), const SizedBox(width: 6),
-            Expanded(child: Text('Widerspruchsfrist: 1 Monat ab ${bescheidErhalten} (§ 84 SGG)', style: TextStyle(fontSize: 11, color: Colors.amber.shade800))),
+            Expanded(child: Text('Widerspruchsfrist: 1 Monat ab $bescheidErhalten (§ 84 SGG)', style: TextStyle(fontSize: 11, color: Colors.amber.shade800))),
           ])),
       ],
+      const Divider(height: 20),
+      Text('Widerspruch', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.gavel, 'Widerspruch eingelegt am', a['widerspruch_datum']?.toString() ?? '', (date) async {
+        a['widerspruch_datum'] = date;
+        await _saveAntragField(a, 'widerspruch_datum', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Widerspruch per', a['widerspruch_methode']?.toString() ?? '', (m) async {
+        a['widerspruch_methode'] = m;
+        await _saveAntragField(a, 'widerspruch_methode', m);
+      }),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.folder_open, 'Akteneinsicht beantragt am', a['akteneinsicht_datum']?.toString() ?? '', (date) async {
+        a['akteneinsicht_datum'] = date;
+        await _saveAntragField(a, 'akteneinsicht_datum', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Akteneinsicht per', a['akteneinsicht_methode']?.toString() ?? '', (m) async {
+        a['akteneinsicht_methode'] = m;
+        await _saveAntragField(a, 'akteneinsicht_methode', m);
+      }),
+      const Divider(height: 20),
+      Text('Eingangsbestätigung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.mark_email_read, 'Eingangsbestätigung vom', a['eingangsbestaetigung_datum']?.toString() ?? '', (date) async {
+        a['eingangsbestaetigung_datum'] = date;
+        await _saveAntragField(a, 'eingangsbestaetigung_datum', date);
+      }),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.local_post_office, 'Erhalten per Post am', a['eingangsbestaetigung_erhalten']?.toString() ?? '', (date) async {
+        a['eingangsbestaetigung_erhalten'] = date;
+        await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
+      }),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
       ],
+    ]));
+  }
+
+  Future<void> _saveAntragField(Map<String, dynamic> a, String field, String value) async {
+    await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {
+      'id': widget.antragId, 'datum': a['datum'], 'methode': a['methode'], 'status': a['status'],
+      'bescheid_datum': a['bescheid_datum'] ?? '', 'bescheid_erhalten': a['bescheid_erhalten'] ?? '',
+      'widerspruch_datum': a['widerspruch_datum'] ?? '', 'widerspruch_methode': a['widerspruch_methode'] ?? '',
+      'akteneinsicht_datum': a['akteneinsicht_datum'] ?? '', 'akteneinsicht_methode': a['akteneinsicht_methode'] ?? '',
+      'eingangsbestaetigung_datum': a['eingangsbestaetigung_datum'] ?? '', 'eingangsbestaetigung_erhalten': a['eingangsbestaetigung_erhalten'] ?? '',
+    });
+    setState(() {});
+  }
+
+  Widget _methodeRow(String label, String value, Function(String) onChanged) {
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+      Icon(Icons.send, size: 16, color: value.isEmpty ? Colors.grey.shade400 : Colors.indigo.shade600), const SizedBox(width: 8),
+      SizedBox(width: 150, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+      Expanded(child: Wrap(spacing: 6, children: [('post', 'Post'), ('fax', 'Fax'), ('persoenlich', 'Persönlich'), ('email', 'E-Mail')].map((m) => ChoiceChip(
+        label: Text(m.$2, style: TextStyle(fontSize: 10, color: value == m.$1 ? Colors.white : Colors.black87)),
+        selected: value == m.$1, selectedColor: Colors.indigo,
+        onSelected: (_) => onChanged(m.$1),
+        visualDensity: VisualDensity.compact,
+      )).toList())),
     ]));
   }
 
@@ -2246,8 +2304,11 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final bescheidDatum = bescheidErhaltenDirekt ?? parseEntry(bescheidEntry);
     final widerspruchVorbereitet = findEntry('vorbereitet');
     final widerspruchVorbereitetDatum = parseEntry(widerspruchVorbereitet);
-    final widerspruchGesendet = findEntry('widerspruch eingelegt') ?? findEntry('widerspruch gesendet') ?? findEntry('widerspruch per');
-    final widerspruchGesendetDatum = parseEntry(widerspruchGesendet);
+    // Widerspruch: direct from antrag fields first, then Verlauf
+    final widerspruchDirekt = DateTime.tryParse(a['widerspruch_datum']?.toString() ?? '');
+    final widerspruchGesendet = widerspruchDirekt == null ? (findEntry('widerspruch eingelegt') ?? findEntry('widerspruch gesendet') ?? findEntry('widerspruch per')) : null;
+    final widerspruchGesendetDatum = widerspruchDirekt ?? parseEntry(widerspruchGesendet);
+    final widerspruchMethode = a['widerspruch_methode']?.toString() ?? widerspruchGesendet?['notiz']?.toString() ?? '';
     final begruendungEntry = findEntry('begründung');
     final begruendungDatum = parseEntry(begruendungEntry);
     final widerspruchsbescheidEntry = findEntry('widerspruchsbescheid');
@@ -2313,7 +2374,19 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
       // 5. Widerspruch gesendet
       if (widerspruchGesendetDatum != null)
-        _tlItem(Icons.gavel, 'Widerspruch eingelegt', fmt(widerspruchGesendetDatum), Colors.blue, true, subtitle: widerspruchGesendet?['notiz']?.toString()),
+        _tlItem(Icons.gavel, 'Widerspruch eingelegt${widerspruchMethode.isNotEmpty ? ' per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[widerspruchMethode] ?? widerspruchMethode}' : ''}', fmt(widerspruchGesendetDatum), Colors.blue, true),
+
+      // 5b. Akteneinsicht
+      if ((a['akteneinsicht_datum']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['akteneinsicht_datum'].toString()) != null)
+        _tlItem(Icons.folder_open, 'Akteneinsicht beantragt${(a['akteneinsicht_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_methode']] ?? a['akteneinsicht_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_datum'].toString())), Colors.purple, true),
+
+      // 5c. Eingangsbestätigung
+      if ((a['eingangsbestaetigung_datum']?.toString() ?? '').isNotEmpty) ...[
+        if (DateTime.tryParse(a['eingangsbestaetigung_datum'].toString()) != null)
+          _tlItem(Icons.mark_email_read, 'Eingangsbestätigung vom Amt', fmt(DateTime.parse(a['eingangsbestaetigung_datum'].toString())), Colors.teal, true),
+        if ((a['eingangsbestaetigung_erhalten']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['eingangsbestaetigung_erhalten'].toString()) != null)
+          _tlItem(Icons.local_post_office, 'Eingangsbestätigung erhalten', fmt(DateTime.parse(a['eingangsbestaetigung_erhalten'].toString())), Colors.teal, true),
+      ],
 
       // 6. Begründung nachgereicht
       if (begruendungDatum != null)
