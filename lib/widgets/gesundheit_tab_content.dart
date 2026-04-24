@@ -4116,7 +4116,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   // File picker helper using file_picker package
   Future<String?> _pickGesundheitFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePickerHelper.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
         allowMultiple: false,
