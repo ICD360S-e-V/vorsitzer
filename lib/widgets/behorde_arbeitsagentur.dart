@@ -524,7 +524,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
       onChanged: (u) { setLocal(() => termine = u); _syncTermineToDB(u); }, setLocalState: setLocal)));
   }
 
-  Widget _buildArbeitgeberSearch(TextEditingController arbeitgeberC, TextEditingController ortC, StateSetter setDlg) {
+  Widget _buildArbeitgeberSearch(TextEditingController arbeitgeberC, TextEditingController ortC, StateSetter setDlg, {String Function()? getApAnrede, void Function(String)? setApAnrede, TextEditingController? apNameC, TextEditingController? apTelC, TextEditingController? apEmailC}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Arbeitgeber', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
       const SizedBox(height: 4),
@@ -571,12 +571,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                 if (selOrt.isNotEmpty && ortC.text.isEmpty) ortC.text = selOrt;
                 final selAnrede = selected['ansprechpartner_anrede']?.toString() ?? '';
                 final selName = selected['ansprechpartner_name']?.toString() ?? '';
-                if (selAnrede.isNotEmpty && apAnrede.isEmpty) apAnrede = selAnrede;
-                if (selName.isNotEmpty && apNameC.text.isEmpty) apNameC.text = selName;
+                if (selAnrede.isNotEmpty && (getApAnrede?.call() ?? '').isEmpty) setApAnrede?.call(selAnrede);
+                if (selName.isNotEmpty && (apNameC?.text ?? '').isEmpty) apNameC?.text = selName;
                 final selTel = selected['niederlassung_telefon']?.toString() ?? selected['hauptzentrale_telefon']?.toString() ?? '';
                 final selEmail = selected['niederlassung_email']?.toString() ?? selected['hauptzentrale_email']?.toString() ?? '';
-                if (selTel.isNotEmpty && apTelC.text.isEmpty) apTelC.text = selTel;
-                if (selEmail.isNotEmpty && apEmailC.text.isEmpty) apEmailC.text = selEmail;
+                if (selTel.isNotEmpty && (apTelC?.text ?? '').isEmpty) apTelC?.text = selTel;
+                if (selEmail.isNotEmpty && (apEmailC?.text ?? '').isEmpty) apEmailC?.text = selEmail;
               });
             }
           }),
@@ -751,7 +751,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           ])),
         const SizedBox(height: 12),
         const SizedBox(height: 12),
-        _buildArbeitgeberSearch(arbeitgeberC, ortC, setDlg),
+        _buildArbeitgeberSearch(arbeitgeberC, ortC, setDlg, getApAnrede: () => apAnrede, setApAnrede: (v) => apAnrede = v, apNameC: apNameC, apTelC: apTelC, apEmailC: apEmailC),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
