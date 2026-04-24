@@ -2117,7 +2117,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
       Icon(Icons.send, size: 16, color: value.isEmpty ? Colors.grey.shade400 : Colors.indigo.shade600), const SizedBox(width: 8),
       SizedBox(width: 150, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
-      Expanded(child: Wrap(spacing: 6, children: [('post', 'Post'), ('fax', 'Fax'), ('persoenlich', 'Persönlich'), ('email', 'E-Mail')].map((m) => ChoiceChip(
+      Expanded(child: Wrap(spacing: 6, children: [('online', 'Online'), ('post', 'Post'), ('fax', 'Fax'), ('persoenlich', 'Persönlich'), ('email', 'E-Mail')].map((m) => ChoiceChip(
         label: Text(m.$2, style: TextStyle(fontSize: 10, color: value == m.$1 ? Colors.white : Colors.black87)),
         selected: value == m.$1, selectedColor: Colors.indigo,
         onSelected: (_) => onChanged(m.$1),
@@ -2385,15 +2385,15 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
       // 5. Widerspruch gesendet
       if (widerspruchGesendetDatum != null)
-        _tlItem(Icons.gavel, 'Widerspruch eingelegt${widerspruchMethode.isNotEmpty ? ' per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[widerspruchMethode] ?? widerspruchMethode}' : ''}', fmt(widerspruchGesendetDatum), Colors.blue, true),
+        _tlItem(Icons.gavel, 'Widerspruch eingelegt${widerspruchMethode.isNotEmpty ? ' per ${{'online': 'Online', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[widerspruchMethode] ?? widerspruchMethode}' : ''}', fmt(widerspruchGesendetDatum), Colors.blue, true),
 
       // 5b. Akteneinsicht
       if ((a['akteneinsicht_datum']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['akteneinsicht_datum'].toString()) != null)
-        _tlItem(Icons.folder_open, 'Akteneinsicht beantragt${(a['akteneinsicht_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_methode']] ?? a['akteneinsicht_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_datum'].toString())), Colors.purple, true),
+        _tlItem(Icons.folder_open, 'Akteneinsicht beantragt${(a['akteneinsicht_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'online': 'Online', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_methode']] ?? a['akteneinsicht_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_datum'].toString())), Colors.purple, true),
 
       // 5c. Akteneinsicht erhalten
       if ((a['akteneinsicht_erhalten']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['akteneinsicht_erhalten'].toString()) != null)
-        _tlItem(Icons.inbox, 'Akten erhalten${(a['akteneinsicht_erhalten_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_erhalten_methode']] ?? a['akteneinsicht_erhalten_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_erhalten'].toString())), Colors.purple, true),
+        _tlItem(Icons.inbox, 'Akten erhalten${(a['akteneinsicht_erhalten_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'online': 'Online', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_erhalten_methode']] ?? a['akteneinsicht_erhalten_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_erhalten'].toString())), Colors.purple, true),
 
       // 5d. Eingangsbestätigung
       if ((a['eingangsbestaetigung_datum']?.toString() ?? '').isNotEmpty) ...[
