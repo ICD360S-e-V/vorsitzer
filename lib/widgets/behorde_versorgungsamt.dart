@@ -2023,24 +2023,25 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   Widget _buildDetails(Map<String, dynamic> a) {
     final bescheidDatum = a['bescheid_datum']?.toString() ?? '';
     final bescheidErhalten = a['bescheid_erhalten']?.toString() ?? '';
+    final aid = widget.antragId;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _dRow(Icons.calendar_today, 'Antragsdatum', a['datum']),
       _dRow(Icons.send, 'Methode', {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? '']),
       _dRow(Icons.flag, 'Status', a['status']?.toString().replaceAll('_', ' ').toUpperCase()),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_antrag_$aid', korrespondenzId: 0),
       const Divider(height: 20),
       Text('Bescheid', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
       const SizedBox(height: 8),
       _datePickerRow(Icons.description, 'Bescheid-Datum', bescheidDatum, (date) async {
         a['bescheid_datum'] = date;
-        await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'id': widget.antragId, 'bescheid_datum': date, 'datum': a['datum'], 'methode': a['methode'], 'status': a['status']});
-        setState(() {});
+        await _saveAntragField(a, 'bescheid_datum', date);
       }),
       const SizedBox(height: 6),
       _datePickerRow(Icons.local_post_office, 'Erhalten per Post am', bescheidErhalten, (date) async {
         a['bescheid_erhalten'] = date;
-        await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'id': widget.antragId, 'bescheid_erhalten': date, 'datum': a['datum'], 'methode': a['methode'], 'status': a['status']});
-        setState(() {});
+        await _saveAntragField(a, 'bescheid_erhalten', date);
       }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1),
       if (bescheidErhalten.isNotEmpty) ...[
         const SizedBox(height: 4),
         Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
@@ -2061,6 +2062,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['widerspruch_methode'] = m;
         await _saveAntragField(a, 'widerspruch_methode', m);
       }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_$aid', korrespondenzId: 2),
       const SizedBox(height: 6),
       _datePickerRow(Icons.folder_open, 'Akteneinsicht beantragt am', a['akteneinsicht_datum']?.toString() ?? '', (date) async {
         a['akteneinsicht_datum'] = date;
@@ -2071,6 +2073,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['akteneinsicht_methode'] = m;
         await _saveAntragField(a, 'akteneinsicht_methode', m);
       }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akteneinsicht_$aid', korrespondenzId: 3),
       const SizedBox(height: 6),
       _datePickerRow(Icons.inbox, 'Akteneinsicht erhalten am', a['akteneinsicht_erhalten']?.toString() ?? '', (date) async {
         a['akteneinsicht_erhalten'] = date;
@@ -2081,6 +2084,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['akteneinsicht_erhalten_methode'] = m;
         await _saveAntragField(a, 'akteneinsicht_erhalten_methode', m);
       }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4),
       const Divider(height: 20),
       Text('Eingangsbestätigung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
       const SizedBox(height: 8),
@@ -2093,6 +2097,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['eingangsbestaetigung_erhalten'] = date;
         await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
       }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
