@@ -65,6 +65,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   List<Map<String, dynamic>> _dbAntraege = [];
   List<Map<String, dynamic>> _dbTermine = [];
   List<Map<String, dynamic>> _dbBegutachtungen = [];
+  List<Map<String, dynamic>> _dbVorschlaege = [];
 
   static const _tabs = [
     (Icons.account_balance, 'BAA'),
@@ -75,6 +76,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     (Icons.block, 'Sperrzeit'),
     (Icons.handshake, 'EGV'),
     (Icons.school, 'BGS'),
+    (Icons.work_outline, 'Vorschläge'),
     (Icons.cloud, 'Online'),
     (Icons.medical_services, 'Med.Gutachten'),
     (Icons.event, 'Termine'),
@@ -120,6 +122,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         _dbAntraege = (res['antraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _dbTermine = (res['termine'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _dbBegutachtungen = (res['begutachtungen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _dbVorschlaege = (res['vorschlaege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     } catch (e) {
       debugPrint('[AA] DB load error: $e');
@@ -208,6 +211,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         _buildSperrzeitTab(),
         _buildEgvTab(),
         _buildBgsTab(),
+        _buildVorschlaegeTab(),
         _buildOnlineTab(),
         _buildBegutachtungTab(),
         _buildTermineTab(),
@@ -518,6 +522,158 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: widget.termineBuilder(
       behoerdeType: type, behoerdeLabel: 'Arbeitsagentur', termine: termine, data: _dbData,
       onChanged: (u) { setLocal(() => termine = u); _syncTermineToDB(u); }, setLocalState: setLocal)));
+  }
+
+  // ──── TAB: Vermittlungsvorschläge ────
+  Widget _buildVorschlaegeTab() {
+    return StatefulBuilder(builder: (ctx, setLocal) {
+      List<Map<String, dynamic>> vorschlaege = List<Map<String, dynamic>>.from(_dbVorschlaege.map((e) => Map<String, dynamic>.from(e)));
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.work_outline, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
+          Text('Vermittlungsvorschläge', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          const Spacer(),
+          FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorschlag', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+            onPressed: () => _showVorschlagDialog(ctx, null, (v) async {
+              await widget.apiService.saveArbeitsagenturVorschlag(widget.userId, v);
+              await _loadFromDB();
+              if (mounted) setState(() {});
+            })),
+        ]),
+        const SizedBox(height: 12),
+        if (vorschlaege.isEmpty)
+          Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Column(children: [Icon(Icons.work_off, size: 36, color: Colors.grey.shade400), const SizedBox(height: 8), Text('Keine Vermittlungsvorschläge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
+        else
+          ...vorschlaege.map((v) {
+            final status = v['status']?.toString() ?? '';
+            final statusColor = status == 'beworben' ? Colors.blue : status == 'eingeladen' ? Colors.orange : status == 'abgelehnt' ? Colors.red : status == 'eingestellt' ? Colors.green : Colors.grey;
+            final frist = v['frist']?.toString() ?? '';
+            int? fristTage;
+            if (frist.isNotEmpty) { try { final p = frist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); fristTage = d.difference(DateTime.now()).inDays; } catch (_) {} }
+            return Container(margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+              child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showVorschlagDialog(ctx, v, (updated) async {
+                await widget.apiService.saveArbeitsagenturVorschlag(widget.userId, updated);
+                await _loadFromDB();
+                if (mounted) setState(() {});
+              }),
+                child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text(v['stelle']?.toString() ?? 'Ohne Bezeichnung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+                    if (status.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
+                      child: Text(status[0].toUpperCase() + status.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800))),
+                    const SizedBox(width: 4),
+                    IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                      onPressed: () async { await widget.apiService.deleteArbeitsagenturVorschlag(widget.userId, v['id'] is int ? v['id'] : int.parse(v['id'].toString())); await _loadFromDB(); if (mounted) setState(() {}); }),
+                  ]),
+                  if ((v['arbeitgeber']?.toString() ?? '').isNotEmpty) Text(v['arbeitgeber'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  Row(children: [
+                    if ((v['datum']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.calendar_today, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), const SizedBox(width: 12)],
+                    if ((v['ort']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.location_on, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['ort'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))],
+                    if (fristTage != null) ...[const Spacer(), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: fristTage < 0 ? Colors.red.shade100 : fristTage <= 3 ? Colors.orange.shade100 : Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text(fristTage < 0 ? 'Frist abgelaufen' : '$fristTage Tage', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: fristTage < 0 ? Colors.red.shade800 : fristTage <= 3 ? Colors.orange.shade800 : Colors.green.shade800)))],
+                  ]),
+                ]))));
+          }),
+      ]));
+    });
+  }
+
+  void _showVorschlagDialog(BuildContext ctx, Map<String, dynamic>? existing, Future<void> Function(Map<String, dynamic>) onSave) {
+    final isEdit = existing != null;
+    final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
+    final arbeitgeberC = TextEditingController(text: existing?['arbeitgeber']?.toString() ?? '');
+    final stelleC = TextEditingController(text: existing?['stelle']?.toString() ?? '');
+    final ortC = TextEditingController(text: existing?['ort']?.toString() ?? '');
+    final fristC = TextEditingController(text: existing?['frist']?.toString() ?? '');
+    final bewDatumC = TextEditingController(text: existing?['bewerbung_datum']?.toString() ?? '');
+    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+    String status = existing?['status']?.toString() ?? 'offen';
+    String bewArt = existing?['bewerbung_art']?.toString() ?? '';
+    String ergebnis = existing?['ergebnis']?.toString() ?? '';
+
+    showDialog(context: ctx, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.work_outline, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), Text(isEdit ? 'Vorschlag bearbeiten' : 'Neuer Vermittlungsvorschlag', style: const TextStyle(fontSize: 14))]),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: _dateField('Erhalten am', datumC, dlgCtx)),
+          const SizedBox(width: 12),
+          Expanded(child: _dateField('Bewerbungsfrist', fristC, dlgCtx)),
+        ]),
+        const SizedBox(height: 12),
+        _textField('Arbeitgeber', arbeitgeberC, hint: 'Firmenname', icon: Icons.business),
+        const SizedBox(height: 12),
+        _textField('Stelle / Position', stelleC, hint: 'z.B. Lagerhelfer', icon: Icons.work),
+        const SizedBox(height: 12),
+        _textField('Ort', ortC, hint: 'z.B. Ulm', icon: Icons.location_on),
+        const SizedBox(height: 12),
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(initialValue: status, isExpanded: true,
+          decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+          items: const [
+            DropdownMenuItem(value: 'offen', child: Text('Offen', style: TextStyle(fontSize: 13))),
+            DropdownMenuItem(value: 'beworben', child: Text('Beworben', style: TextStyle(fontSize: 13))),
+            DropdownMenuItem(value: 'eingeladen', child: Text('Eingeladen (Vorstellungsgespräch)', style: TextStyle(fontSize: 13))),
+            DropdownMenuItem(value: 'abgelehnt', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))),
+            DropdownMenuItem(value: 'absage_ag', child: Text('Absage vom Arbeitgeber', style: TextStyle(fontSize: 13))),
+            DropdownMenuItem(value: 'eingestellt', child: Text('Eingestellt', style: TextStyle(fontSize: 13))),
+            DropdownMenuItem(value: 'nicht_beworben', child: Text('Nicht beworben', style: TextStyle(fontSize: 13))),
+          ], onChanged: (v) => setDlg(() => status = v ?? 'offen')),
+        if (status == 'beworben' || status == 'eingeladen' || status == 'eingestellt') ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _dateField('Bewerbung am', bewDatumC, dlgCtx)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Bewerbungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
+              DropdownButtonFormField<String>(initialValue: bewArt.isEmpty ? null : bewArt, isExpanded: true,
+                decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+                items: const [
+                  DropdownMenuItem(value: 'online', child: Text('Online', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: 'email', child: Text('E-Mail', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: 'post', child: Text('Post', style: TextStyle(fontSize: 13))),
+                  DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich', style: TextStyle(fontSize: 13))),
+                ], onChanged: (v) => setDlg(() => bewArt = v ?? '')),
+            ])),
+          ]),
+        ],
+        if (status == 'abgelehnt' || status == 'absage_ag' || status == 'eingestellt') ...[
+          const SizedBox(height: 12),
+          Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          DropdownButtonFormField<String>(initialValue: ergebnis.isEmpty ? null : ergebnis, isExpanded: true,
+            decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+            hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+            items: const [
+              DropdownMenuItem(value: 'nicht_passend', child: Text('Stelle nicht passend', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'gesundheitlich', child: Text('Gesundheitliche Gründe', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'entfernung', child: Text('Zu weit entfernt', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'qualifikation', child: Text('Qualifikation fehlt', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'absage_ag', child: Text('Absage vom Arbeitgeber', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'eingestellt', child: Text('Eingestellt', style: TextStyle(fontSize: 13))),
+              DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges', style: TextStyle(fontSize: 13))),
+            ], onChanged: (v) => setDlg(() => ergebnis = v ?? '')),
+        ],
+        const SizedBox(height: 12),
+        _textField('Notiz', notizC, hint: 'Bemerkungen...', icon: Icons.notes, maxLines: 2),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          Navigator.pop(dlgCtx);
+          final data = <String, dynamic>{
+            if (isEdit) 'id': existing['id'],
+            'datum': datumC.text.trim(), 'arbeitgeber': arbeitgeberC.text.trim(), 'stelle': stelleC.text.trim(), 'ort': ortC.text.trim(),
+            'frist': fristC.text.trim(), 'status': status, 'bewerbung_datum': bewDatumC.text.trim(), 'bewerbung_art': bewArt, 'ergebnis': ergebnis, 'notiz': notizC.text.trim(),
+          };
+          await onSave(data);
+        }, child: const Text('Speichern')),
+      ],
+    )));
   }
 
   Future<void> _syncMeldungenToDB(List<Map<String, dynamic>> updated) async {
