@@ -4886,134 +4886,116 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('Muster 39a (1.2021)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
                       Text('Krebsfrüherkennung Zervix-Karzinom', style: TextStyle(fontSize: 11, color: color.shade600)),
-                    ])),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(6)),
-                      child: Text(alter < 35 ? 'Alter: <35' : 'Alter: ≥35', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
-                  ])),
+                    ]))])),
                 const SizedBox(height: 12),
 
-                // ① Alterskategorie — auto
-                Text('① Alterskategorie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Text(alter < 35 ? 'Frauen unter 35 Jahren → Zytologische Untersuchung (Pap-Abstrich)' : 'Frauen ab 35 Jahren → Ko-Testung (Zytologie + HPV-Test)',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                // Alterskategorie
+                _m39Section('Alterskategorie'),
+                _m39Radio(vorsorge, 'alterskategorie', ['20-29', '30-34', 'ab 35'], data, key, saveAll, setD),
                 const Divider(height: 16),
 
-                // ② Auftrag
-                Text('② Auftrag', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                // Auftrag
+                _m39Section('Auftrag'),
+                _m39Radio(vorsorge, 'auftrag_typ', ['Primärscreening', 'Abklärungsdiagnostik'], data, key, saveAll, setD),
                 const SizedBox(height: 4),
-                Wrap(spacing: 6, children: [
-                  ('primaer_zyt', 'Primärscreening: Zytologie'),
-                  if (alter >= 35) ('primaer_ko', 'Primärscreening: Ko-Testung (Zyt.+HPV)'),
-                  ('abklaerung_zyt', 'Abklärung: Zytologie'),
-                  ('abklaerung_hpv', 'Abklärung: HPV-Test'),
-                  ('abklaerung_ko', 'Abklärung: Ko-Testung'),
-                ].map((a) => ChoiceChip(
-                  label: Text(a.$2, style: TextStyle(fontSize: 10, color: vorsorge['auftrag'] == a.$1 ? Colors.white : Colors.black87)),
-                  selected: vorsorge['auftrag'] == a.$1, selectedColor: color, visualDensity: VisualDensity.compact,
-                  onSelected: (_) { setD(() => vorsorge['auftrag'] = a.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                )).toList()),
+                _m39Radio(vorsorge, 'auftrag_art', ['Zytologie', 'HPV-Test', 'Ko-Testung (Zyt.+HPV)'], data, key, saveAll, setD),
                 const Divider(height: 16),
 
-                // ③ Anamnese — Vorbefunde
-                Text('③ Anamnese (Vorbefunde)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Text('Zytologischer Vorbefund (München III)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                const SizedBox(height: 4),
-                Wrap(spacing: 4, runSpacing: 4, children: ['0', 'I', 'II-a', 'II-p', 'II-g', 'II-e', 'III-p', 'III-g', 'III-e', 'III-x', 'IIID1', 'IIID2', 'IVa-p', 'IVa-g', 'IVb-p', 'IVb-g', 'V-p', 'V-g', 'V-e', 'V-x'].map((p) => ChoiceChip(
-                  label: Text(p, style: TextStyle(fontSize: 9, color: vorsorge['vorbefund_zyt'] == p ? Colors.white : Colors.black87)),
-                  selected: vorsorge['vorbefund_zyt'] == p, selectedColor: color, visualDensity: VisualDensity.compact,
-                  onSelected: (_) { setD(() => vorsorge['vorbefund_zyt'] = p); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                )).toList()),
-                const SizedBox(height: 6),
-                Text('HPV-Vorbefund', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                Wrap(spacing: 6, children: [('positiv', 'HPV positiv'), ('negativ', 'HPV negativ'), ('unbekannt', 'Unbekannt')].map((h) => ChoiceChip(
-                  label: Text(h.$2, style: TextStyle(fontSize: 10, color: vorsorge['vorbefund_hpv'] == h.$1 ? Colors.white : Colors.black87)),
-                  selected: vorsorge['vorbefund_hpv'] == h.$1, selectedColor: h.$1 == 'positiv' ? Colors.red : h.$1 == 'negativ' ? Colors.green : Colors.grey, visualDensity: VisualDensity.compact,
-                  onSelected: (_) { setD(() => vorsorge['vorbefund_hpv'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                )).toList()),
-                const Divider(height: 16),
-
-                // ④ Anamnese "jetzt"
-                Text('④ Anamnese (aktuell)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Wrap(spacing: 6, runSpacing: 6, children: [
-                  ('hormonale_kontrazeption', 'Hormonale Kontrazeption'), ('iup', 'IUP (Spirale)'), ('postmenopausal', 'Postmenopausal'),
-                  ('nach_hysterektomie', 'Z.n. Hysterektomie'), ('nach_konisation', 'Z.n. Konisation'), ('strahlentherapie', 'Strahlentherapie'),
-                  ('chemotherapie', 'Chemotherapie'), ('schwangerschaft', 'Schwangerschaft'),
-                ].map((a) => FilterChip(
-                  label: Text(a.$2, style: TextStyle(fontSize: 10, color: vorsorge[a.$1] == true ? Colors.white : Colors.black87)),
-                  selected: vorsorge[a.$1] == true, selectedColor: color.shade300, visualDensity: VisualDensity.compact,
-                  onSelected: (v) { setD(() => vorsorge[a.$1] = v); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                )).toList()),
-                const SizedBox(height: 6),
-                Row(children: [
-                  Expanded(child: TextField(controller: TextEditingController(text: vorsorge['gravida']?.toString() ?? ''),
-                    decoration: InputDecoration(labelText: 'Gravida', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                    onChanged: (v) { vorsorge['gravida'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); })),
-                  const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: TextEditingController(text: vorsorge['para']?.toString() ?? ''),
-                    decoration: InputDecoration(labelText: 'Para', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                    onChanged: (v) { vorsorge['para'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); })),
-                ]),
-                const Divider(height: 16),
-
-                // ⑤ Klinischer Befund
-                Text('⑤ Klinischer Befund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Wrap(spacing: 6, children: [('unauffaellig', 'Unauffällig'), ('auffaellig', 'Auffällig')].map((b) => ChoiceChip(
-                  label: Text(b.$2, style: TextStyle(fontSize: 10, color: vorsorge['klin_befund'] == b.$1 ? Colors.white : Colors.black87)),
-                  selected: vorsorge['klin_befund'] == b.$1, selectedColor: b.$1 == 'auffaellig' ? Colors.red : Colors.green, visualDensity: VisualDensity.compact,
-                  onSelected: (_) { setD(() => vorsorge['klin_befund'] = b.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                )).toList()),
-                const SizedBox(height: 6),
-                TextField(controller: TextEditingController(text: vorsorge['klin_befund_text']?.toString() ?? ''), maxLines: 2,
-                  decoration: InputDecoration(labelText: '⑥ Freitext (Auffälligkeiten, Diagnose)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  onChanged: (v) { vorsorge['klin_befund_text'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
-                const Divider(height: 16),
-
-                // ⑦ Zytologischer Befund (Zytologe)
-                Text('⑦ Zytologischer Befund (Befundmitteilung)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Text('Befund (München III)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                Wrap(spacing: 4, runSpacing: 4, children: ['0', 'I', 'II-a', 'II-p', 'II-g', 'II-e', 'III-p', 'III-g', 'III-e', 'III-x', 'IIID1', 'IIID2', 'IVa-p', 'IVa-g', 'IVb-p', 'IVb-g', 'V-p', 'V-g', 'V-e', 'V-x'].map((p) => ChoiceChip(
-                  label: Text(p, style: TextStyle(fontSize: 9, color: vorsorge['befund_zyt'] == p ? Colors.white : Colors.black87)),
-                  selected: vorsorge['befund_zyt'] == p, selectedColor: color, visualDensity: VisualDensity.compact,
-                  onSelected: (_) { setD(() => vorsorge['befund_zyt'] = p); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                )).toList()),
-                if (alter >= 35 || vorsorge['auftrag']?.toString().contains('hpv') == true) ...[
-                  const SizedBox(height: 6),
-                  Text('HPV-Test Ergebnis', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                  Wrap(spacing: 6, children: [('positiv', 'HPV positiv'), ('negativ', 'HPV negativ')].map((h) => ChoiceChip(
-                    label: Text(h.$2, style: TextStyle(fontSize: 10, color: vorsorge['befund_hpv'] == h.$1 ? Colors.white : Colors.black87)),
-                    selected: vorsorge['befund_hpv'] == h.$1, selectedColor: h.$1 == 'positiv' ? Colors.red : Colors.green, visualDensity: VisualDensity.compact,
-                    onSelected: (_) { setD(() => vorsorge['befund_hpv'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                  )).toList()),
+                // Anamnese
+                _m39Section('Anamnese'),
+                _m39JaNein(vorsorge, 'krebs_untersuchung', 'Wurde bereits eine Krebsuntersuchung durchgeführt?', data, key, saveAll, setD),
+                if (vorsorge['krebs_untersuchung'] == 'ja') ...[
                   const SizedBox(height: 4),
-                  Text('HPV 16/18 Differenzierung', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                  Wrap(spacing: 6, children: [('ja', 'Typ 16/18 positiv'), ('nein', 'Typ 16/18 negativ'), ('nicht_diff', 'Nicht differenzierbar')].map((h) => ChoiceChip(
-                    label: Text(h.$2, style: TextStyle(fontSize: 9, color: vorsorge['hpv_16_18'] == h.$1 ? Colors.white : Colors.black87)),
-                    selected: vorsorge['hpv_16_18'] == h.$1, selectedColor: h.$1 == 'ja' ? Colors.red : Colors.grey, visualDensity: VisualDensity.compact,
-                    onSelected: (_) { setD(() => vorsorge['hpv_16_18'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
-                  )).toList()),
+                  Row(children: [
+                    Expanded(child: _m39TextField(vorsorge, 'krebs_zuletzt_jahr', 'Zuletzt Jahr', data, key, saveAll)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _m39TextField(vorsorge, 'krebs_gruppe', 'Gruppe', data, key, saveAll)),
+                  ]),
+                ],
+                const SizedBox(height: 8),
+                Text('HPV-Impfung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                _m39Radio(vorsorge, 'hpv_impfung', ['Vollständig', 'Unvollständig', 'Keine', 'Unklar'], data, key, saveAll, setD),
+                const SizedBox(height: 8),
+                Text('HPV-HR-Test Ergebnis (Vorbefund)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                _m39Radio(vorsorge, 'hpv_hr_vorbefund', ['Liegt nicht vor', 'Liegt vor'], data, key, saveAll, setD),
+                if (vorsorge['hpv_hr_vorbefund'] == 'Liegt vor')
+                  _m39Radio(vorsorge, 'hpv_hr_vorbefund_ergebnis', ['Positiv', 'Negativ', 'Nicht verwertbar'], data, key, saveAll, setD),
+                const SizedBox(height: 8),
+                _m39JaNein(vorsorge, 'gyn_op', 'Gynäkologische OP', data, key, saveAll, setD),
+                if (vorsorge['gyn_op'] == 'ja') ...[
+                  Row(children: [
+                    Expanded(child: _m39TextField(vorsorge, 'gyn_op_welche', 'Welche?', data, key, saveAll)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _m39TextField(vorsorge, 'gyn_op_wann', 'Wann?', data, key, saveAll)),
+                  ]),
+                ],
+                const Divider(height: 16),
+
+                // Anamnese "Jetzt"
+                _m39Section('Jetzt'),
+                _m39DateField(vorsorge, 'letzte_periode', 'Letzte Periode', data, key, saveAll, context),
+                const SizedBox(height: 6),
+                _m39JaNein(vorsorge, 'graviditaet', 'Gravidität', data, key, saveAll, setD),
+                _m39JaNein(vorsorge, 'ausfluss_blutung', 'Ausfluss / pathologische Blutung', data, key, saveAll, setD),
+                _m39JaNein(vorsorge, 'iup', 'IUP', data, key, saveAll, setD),
+                _m39JaNein(vorsorge, 'ovulationshemmer', 'Ovulationshemmer / Hormonanwendung', data, key, saveAll, setD),
+                const Divider(height: 16),
+
+                // Klinischer Befund
+                _m39Section('Klinischer Befund'),
+                _m39Radio(vorsorge, 'klin_befund', ['Unauffällig', 'Auffällig'], data, key, saveAll, setD),
+                const Divider(height: 16),
+
+                // Zytologischer Befund / Kombinationsbefund
+                _m39Section('Zytologischer Befund / Kombinationsbefund'),
+                _m39DateField(vorsorge, 'eingangsdatum', 'Eingangsdatum', data, key, saveAll, context),
+                const SizedBox(height: 6),
+                _m39Radio(vorsorge, 'endozervikale_zellen', ['Vorhanden', 'Nicht vorhanden'], data, key, saveAll, setD),
+                const SizedBox(height: 6),
+                _m39TextField(vorsorge, 'proliferationsgrad', 'Proliferationsgrad', data, key, saveAll),
+                const SizedBox(height: 6),
+                Text('Flora', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Wrap(spacing: 6, runSpacing: 4, children: ['Ödenflora', 'Mischflora', 'Kokkenflora', 'Trichomonadenflora', 'Candida', 'Gardnerella'].map((f) => FilterChip(
+                  label: Text(f, style: TextStyle(fontSize: 10, color: vorsorge['flora_$f'] == true ? Colors.white : Colors.black87)),
+                  selected: vorsorge['flora_$f'] == true, selectedColor: color.shade300, visualDensity: VisualDensity.compact,
+                  onSelected: (v) { setD(() => vorsorge['flora_$f'] = v); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
+                const SizedBox(height: 6),
+                _m39TextField(vorsorge, 'befund_gruppe', 'Gruppe', data, key, saveAll),
+                const SizedBox(height: 6),
+                Text('HPV-HR-Testergebnis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                _m39Radio(vorsorge, 'befund_hpv', ['Positiv', 'Negativ', 'Nicht verwertbar'], data, key, saveAll, setD),
+                if (vorsorge['befund_hpv'] == 'Positiv') ...[
+                  Text('HPV 16/18', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  _m39Radio(vorsorge, 'hpv_16_18', ['Ja', 'Nein', 'Nicht differenzierbar'], data, key, saveAll, setD),
                 ],
                 const SizedBox(height: 6),
-                TextField(controller: TextEditingController(text: vorsorge['befund_bemerkungen']?.toString() ?? ''), maxLines: 2,
-                  decoration: InputDecoration(labelText: 'Bemerkungen (Flora, endozervikale Zellen)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  onChanged: (v) { vorsorge['befund_bemerkungen'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
+                _m39TextField(vorsorge, 'bemerkungen', 'Bemerkungen', data, key, saveAll, maxLines: 2),
                 const Divider(height: 16),
 
-                // ⑧ Zusammenfassende Empfehlung
-                Text('⑧ Zusammenfassende Empfehlung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Wrap(spacing: 6, runSpacing: 6, children: [
-                  ('keine', 'Keine weiteren Maßnahmen'), ('kontrolle_3m', 'Kontrolle in 3 Monaten'), ('kontrolle_6m', 'Kontrolle in 6 Monaten'),
-                  ('kontrolle_12m', 'Kontrolle in 12 Monaten'), ('kolposkopie', 'Kolposkopie'), ('biopsie', 'Biopsie'),
-                ].map((e) => ChoiceChip(
-                  label: Text(e.$2, style: TextStyle(fontSize: 10, color: vorsorge['empfehlung'] == e.$1 ? Colors.white : Colors.black87)),
-                  selected: vorsorge['empfehlung'] == e.$1, selectedColor: color, visualDensity: VisualDensity.compact,
-                  onSelected: (_) { setD(() => vorsorge['empfehlung'] = e.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                // Zusammenfassende Empfehlung
+                _m39Section('Zusammenfassende Empfehlung'),
+                Wrap(spacing: 6, runSpacing: 4, children: [
+                  ('zyt_kontrolle', 'Zytologische Kontrolle'), ('hpv_test', 'HPV-Test'), ('ko_test', 'Ko-Test'), ('abkl_kolposkopie', 'Abklärungskolposkopie'),
+                ].map((e) => FilterChip(
+                  label: Text(e.$2, style: TextStyle(fontSize: 10, color: vorsorge['empf_${e.$1}'] == true ? Colors.white : Colors.black87)),
+                  selected: vorsorge['empf_${e.$1}'] == true, selectedColor: color.shade300, visualDensity: VisualDensity.compact,
+                  onSelected: (v) { setD(() => vorsorge['empf_${e.$1}'] = v); data['vorsorge_$key'] = vorsorge; saveAll(); },
                 )).toList()),
+                if (vorsorge['empf_zyt_kontrolle'] == true) ...[
+                  const SizedBox(height: 4),
+                  _m39Radio(vorsorge, 'empf_zyt_nach', ['nach Entzündungsbehandlung', 'nach Östrogenbehandlung'], data, key, saveAll, setD),
+                ],
+                const SizedBox(height: 6),
+                Row(children: [
+                  Text('Zeitraum: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  const SizedBox(width: 4),
+                  SizedBox(width: 60, child: _m39TextField(vorsorge, 'empf_zeitraum_monate', 'Monate', data, key, saveAll)),
+                  const SizedBox(width: 8),
+                  ChoiceChip(label: Text('Sofort', style: TextStyle(fontSize: 10, color: vorsorge['empf_sofort'] == true ? Colors.white : Colors.black87)),
+                    selected: vorsorge['empf_sofort'] == true, selectedColor: Colors.red, visualDensity: VisualDensity.compact,
+                    onSelected: (v) { setD(() => vorsorge['empf_sofort'] = v); data['vorsorge_$key'] = vorsorge; saveAll(); }),
+                ]),
               ] else ...[
                 // Generic Vorsorge details
                 Text('Letztes $label', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
@@ -5064,6 +5046,48 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         ]))),
       );
     }));
+  }
+
+  // ── Muster 39a helper widgets ──
+  Widget _m39Section(String title) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)));
+
+  Widget _m39Radio(Map<String, dynamic> v, String field, List<String> options, Map<String, dynamic> data, String key, VoidCallback saveAll, StateSetter setD) {
+    return Wrap(spacing: 6, runSpacing: 4, children: options.map((o) => ChoiceChip(
+      label: Text(o, style: TextStyle(fontSize: 10, color: v[field] == o ? Colors.white : Colors.black87)),
+      selected: v[field] == o, selectedColor: Colors.pink, visualDensity: VisualDensity.compact,
+      onSelected: (_) { setD(() => v[field] = o); data['vorsorge_$key'] = v; saveAll(); },
+    )).toList());
+  }
+
+  Widget _m39JaNein(Map<String, dynamic> v, String field, String label, Map<String, dynamic> data, String key, VoidCallback saveAll, StateSetter setD) {
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
+      Expanded(child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      ...['ja', 'nein'].map((o) => Padding(padding: const EdgeInsets.only(left: 4), child: ChoiceChip(
+        label: Text(o == 'ja' ? 'Ja' : 'Nein', style: TextStyle(fontSize: 10, color: v[field] == o ? Colors.white : Colors.black87)),
+        selected: v[field] == o, selectedColor: Colors.pink, visualDensity: VisualDensity.compact,
+        onSelected: (_) { setD(() => v[field] = o); data['vorsorge_$key'] = v; saveAll(); },
+      ))),
+    ]));
+  }
+
+  Widget _m39TextField(Map<String, dynamic> v, String field, String label, Map<String, dynamic> data, String key, VoidCallback saveAll, {int maxLines = 1}) {
+    return TextField(controller: TextEditingController(text: v[field]?.toString() ?? ''), maxLines: maxLines,
+      decoration: InputDecoration(labelText: label, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+      style: const TextStyle(fontSize: 12),
+      onChanged: (val) { v[field] = val; data['vorsorge_$key'] = v; saveAll(); });
+  }
+
+  Widget _m39DateField(Map<String, dynamic> v, String field, String label, Map<String, dynamic> data, String key, VoidCallback saveAll, BuildContext ctx) {
+    final val = v[field]?.toString() ?? '';
+    return InkWell(
+      onTap: () async {
+        final p = await showDatePicker(context: ctx, initialDate: DateTime.tryParse(val) ?? DateTime.now(), firstDate: DateTime(2010), lastDate: DateTime.now(), locale: const Locale('de'));
+        if (p != null) { v[field] = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}'; data['vorsorge_$key'] = v; saveAll(); }
+      },
+      child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+        child: Row(children: [Icon(Icons.calendar_today, size: 14, color: Colors.pink.shade500), const SizedBox(width: 6),
+          Text(val.isEmpty ? '$label eintragen...' : '$label: $val', style: TextStyle(fontSize: 12, color: val.isEmpty ? Colors.grey.shade400 : Colors.black87))])),
+    );
   }
 
   Widget _buildKrankmeldungenTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
