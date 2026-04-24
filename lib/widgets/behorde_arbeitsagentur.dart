@@ -569,7 +569,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                   ]),
                   if ((v['arbeitgeber']?.toString() ?? '').isNotEmpty) Text(v['arbeitgeber'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
                   Row(children: [
-                    if ((v['datum']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.calendar_today, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), const SizedBox(width: 12)],
+                    if ((v['datum']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.edit_calendar, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), const SizedBox(width: 8)],
+                    if ((v['datum_erhalten']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.markunread_mailbox, size: 11, color: Colors.blue.shade400), const SizedBox(width: 4), Text(v['datum_erhalten'].toString(), style: TextStyle(fontSize: 11, color: Colors.blue.shade600)), const SizedBox(width: 8)],
                     if ((v['ort']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.location_on, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['ort'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))],
                     if (fristTage != null) ...[const Spacer(), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: fristTage < 0 ? Colors.red.shade100 : fristTage <= 3 ? Colors.orange.shade100 : Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
                       child: Text(fristTage < 0 ? 'Frist abgelaufen' : '$fristTage Tage', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: fristTage < 0 ? Colors.red.shade800 : fristTage <= 3 ? Colors.orange.shade800 : Colors.green.shade800)))],
@@ -583,24 +584,54 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   void _showVorschlagDialog(BuildContext ctx, Map<String, dynamic>? existing, Future<void> Function(Map<String, dynamic>) onSave) {
     final isEdit = existing != null;
     final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
+    final erhaltenC = TextEditingController(text: existing?['datum_erhalten']?.toString() ?? '');
+    final fristC = TextEditingController(text: existing?['frist']?.toString() ?? '');
     final arbeitgeberC = TextEditingController(text: existing?['arbeitgeber']?.toString() ?? '');
     final stelleC = TextEditingController(text: existing?['stelle']?.toString() ?? '');
     final ortC = TextEditingController(text: existing?['ort']?.toString() ?? '');
-    final fristC = TextEditingController(text: existing?['frist']?.toString() ?? '');
     final bewDatumC = TextEditingController(text: existing?['bewerbung_datum']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
     String status = existing?['status']?.toString() ?? 'offen';
     String bewArt = existing?['bewerbung_art']?.toString() ?? '';
     String ergebnis = existing?['ergebnis']?.toString() ?? '';
 
+    void calcFrist(StateSetter setDlg) {
+      if (erhaltenC.text.isNotEmpty) {
+        try {
+          final p = erhaltenC.text.split('.');
+          final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0]));
+          final frist = d.add(const Duration(days: 3));
+          setDlg(() => fristC.text = '${frist.day.toString().padLeft(2, '0')}.${frist.month.toString().padLeft(2, '0')}.${frist.year}');
+        } catch (_) {}
+      }
+    }
+
     showDialog(context: ctx, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.work_outline, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), Text(isEdit ? 'Vorschlag bearbeiten' : 'Neuer Vermittlungsvorschlag', style: const TextStyle(fontSize: 14))]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: _dateField('Erhalten am', datumC, dlgCtx)),
-          const SizedBox(width: 12),
-          Expanded(child: _dateField('Bewerbungsfrist', fristC, dlgCtx)),
+        _dateField('Datum erstellt (auf dem Schreiben)', datumC, dlgCtx),
+        const SizedBox(height: 12),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Datum erhalten (Post)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          TextField(controller: erhaltenC, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.markunread_mailbox, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+            onTap: () async {
+              final picked = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+              if (picked != null) { erhaltenC.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}'; calcFrist(setDlg); }
+            }),
         ]),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+          child: Row(children: [
+            Icon(Icons.timer, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
+            Text('Frist (3 Tage): ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700)),
+            Text(fristC.text.isNotEmpty ? fristC.text : '—', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+            if (fristC.text.isNotEmpty) ...[const SizedBox(width: 8),
+              Builder(builder: (_) { try { final p = fristC.text.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); final left = d.difference(DateTime.now()).inDays; return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: left < 0 ? Colors.red.shade100 : left <= 1 ? Colors.orange.shade100 : Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                child: Text(left < 0 ? 'Abgelaufen!' : left == 0 ? 'Heute!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: left < 0 ? Colors.red.shade800 : left <= 1 ? Colors.orange.shade800 : Colors.green.shade800))); } catch (_) { return const SizedBox.shrink(); } }),
+            ],
+          ])),
+        const SizedBox(height: 12),
         const SizedBox(height: 12),
         _textField('Arbeitgeber', arbeitgeberC, hint: 'Firmenname', icon: Icons.business),
         const SizedBox(height: 12),
@@ -667,7 +698,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           Navigator.pop(dlgCtx);
           final data = <String, dynamic>{
             if (isEdit) 'id': existing['id'],
-            'datum': datumC.text.trim(), 'arbeitgeber': arbeitgeberC.text.trim(), 'stelle': stelleC.text.trim(), 'ort': ortC.text.trim(),
+            'datum': datumC.text.trim(), 'datum_erhalten': erhaltenC.text.trim(), 'arbeitgeber': arbeitgeberC.text.trim(), 'stelle': stelleC.text.trim(), 'ort': ortC.text.trim(),
             'frist': fristC.text.trim(), 'status': status, 'bewerbung_datum': bewDatumC.text.trim(), 'bewerbung_art': bewArt, 'ergebnis': ergebnis, 'notiz': notizC.text.trim(),
           };
           await onSave(data);
