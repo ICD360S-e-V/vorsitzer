@@ -2071,6 +2071,16 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['akteneinsicht_methode'] = m;
         await _saveAntragField(a, 'akteneinsicht_methode', m);
       }),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.inbox, 'Akteneinsicht erhalten am', a['akteneinsicht_erhalten']?.toString() ?? '', (date) async {
+        a['akteneinsicht_erhalten'] = date;
+        await _saveAntragField(a, 'akteneinsicht_erhalten', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Akten erhalten per', a['akteneinsicht_erhalten_methode']?.toString() ?? '', (m) async {
+        a['akteneinsicht_erhalten_methode'] = m;
+        await _saveAntragField(a, 'akteneinsicht_erhalten_methode', m);
+      }),
       const Divider(height: 20),
       Text('Eingangsbestätigung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
       const SizedBox(height: 8),
@@ -2097,6 +2107,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       'bescheid_datum': a['bescheid_datum'] ?? '', 'bescheid_erhalten': a['bescheid_erhalten'] ?? '',
       'widerspruch_datum': a['widerspruch_datum'] ?? '', 'widerspruch_methode': a['widerspruch_methode'] ?? '',
       'akteneinsicht_datum': a['akteneinsicht_datum'] ?? '', 'akteneinsicht_methode': a['akteneinsicht_methode'] ?? '',
+      'akteneinsicht_erhalten': a['akteneinsicht_erhalten'] ?? '', 'akteneinsicht_erhalten_methode': a['akteneinsicht_erhalten_methode'] ?? '',
       'eingangsbestaetigung_datum': a['eingangsbestaetigung_datum'] ?? '', 'eingangsbestaetigung_erhalten': a['eingangsbestaetigung_erhalten'] ?? '',
     });
     setState(() {});
@@ -2380,7 +2391,11 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       if ((a['akteneinsicht_datum']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['akteneinsicht_datum'].toString()) != null)
         _tlItem(Icons.folder_open, 'Akteneinsicht beantragt${(a['akteneinsicht_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_methode']] ?? a['akteneinsicht_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_datum'].toString())), Colors.purple, true),
 
-      // 5c. Eingangsbestätigung
+      // 5c. Akteneinsicht erhalten
+      if ((a['akteneinsicht_erhalten']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['akteneinsicht_erhalten'].toString()) != null)
+        _tlItem(Icons.inbox, 'Akten erhalten${(a['akteneinsicht_erhalten_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_erhalten_methode']] ?? a['akteneinsicht_erhalten_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_erhalten'].toString())), Colors.purple, true),
+
+      // 5d. Eingangsbestätigung
       if ((a['eingangsbestaetigung_datum']?.toString() ?? '').isNotEmpty) ...[
         if (DateTime.tryParse(a['eingangsbestaetigung_datum'].toString()) != null)
           _tlItem(Icons.mark_email_read, 'Eingangsbestätigung vom Amt', fmt(DateTime.parse(a['eingangsbestaetigung_datum'].toString())), Colors.teal, true),
