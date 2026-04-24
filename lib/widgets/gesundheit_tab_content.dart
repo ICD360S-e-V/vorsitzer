@@ -4789,12 +4789,16 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         final overdue = naechst != null && heute.isAfter(naechst);
         final rest = naechst != null ? naechst.difference(heute).inDays : null;
         final berechtigt = alter != null && alter >= s.abAlter;
-        return Container(
+        return InkWell(
+          onTap: berechtigt ? () => _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0) : null,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
           margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: !berechtigt ? Colors.grey.shade50 : overdue ? s.color.shade50 : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: !berechtigt ? Colors.grey.shade200 : overdue ? s.color.shade300 : Colors.grey.shade300)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [Icon(s.icon, size: 20, color: berechtigt ? s.color.shade700 : Colors.grey.shade400), const SizedBox(width: 8),
               Expanded(child: Text(s.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: berechtigt ? s.color.shade800 : Colors.grey.shade500))),
+              if (berechtigt) Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
               if (letztes.isNotEmpty && berechtigt) Icon(overdue ? Icons.warning : Icons.check_circle, size: 18, color: overdue ? Colors.red : Colors.green)]),
             const SizedBox(height: 4),
             Text('Ab ${s.abAlter} Jahren • $beschreibung', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
@@ -4810,10 +4814,145 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(color: overdue ? Colors.red.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
                     child: Text('Nächstes: ${fmt(naechst)}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: overdue ? Colors.red.shade700 : Colors.green.shade700)))]])],
           ]),
-        );
+        ));
       }),
     ]));
   }
+  void _showVorsorgeDetailDialog(String type, String key, String label, MaterialColor color, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState, int alter) {
+    final vorsorge = data['vorsorge_$key'] is Map ? Map<String, dynamic>.from(data['vorsorge_$key'] as Map) : <String, dynamic>{};
+    final isHpv = key == 'hpv';
+    final history = vorsorge['history'] is List ? List<Map<String, dynamic>>.from((vorsorge['history'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(width: 580, height: 520, child: DefaultTabController(length: 2, child: Column(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(color: color.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+            child: Row(children: [
+              Icon(Icons.health_and_safety, color: Colors.white, size: 22), const SizedBox(width: 10),
+              Expanded(child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))),
+              IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(ctx)),
+            ]),
+          ),
+          TabBar(labelColor: color.shade700, indicatorColor: color.shade700, tabs: const [
+            Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+            Tab(icon: Icon(Icons.description, size: 18), text: 'Berichte'),
+          ]),
+          Expanded(child: TabBarView(children: [
+            // TAB 1: DETAILS
+            SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (isHpv) ...[
+                Text('Muster 39a — Krebsfrüherkennung Zervix-Karzinom', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+                const SizedBox(height: 12),
+                // Auftragsart
+                Text('Auftragsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                Wrap(spacing: 6, children: [
+                  ('primaerscreening', alter < 35 ? 'Primärscreening (Pap)' : 'Primärscreening (Ko-Testung Pap+HPV)'),
+                  ('abklaerung', 'Abklärungsdiagnostik'),
+                ].map((a) => ChoiceChip(
+                  label: Text(a.$2, style: TextStyle(fontSize: 11, color: vorsorge['auftragsart'] == a.$1 ? Colors.white : Colors.black87)),
+                  selected: vorsorge['auftragsart'] == a.$1, selectedColor: color,
+                  onSelected: (_) { setD(() => vorsorge['auftragsart'] = a.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
+                const Divider(height: 20),
+                // Anamnese
+                Text('Anamnese', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  ('hormonale_kontrazeption', 'Hormonale Kontrazeption'),
+                  ('iup', 'IUP (Spirale)'),
+                  ('postmenopausal', 'Postmenopausal'),
+                  ('nach_hysterektomie', 'Z.n. Hysterektomie'),
+                ].map((a) => FilterChip(
+                  label: Text(a.$2, style: TextStyle(fontSize: 10, color: vorsorge[a.$1] == true ? Colors.white : Colors.black87)),
+                  selected: vorsorge[a.$1] == true, selectedColor: color.shade300,
+                  onSelected: (v) { setD(() => vorsorge[a.$1] = v); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: TextField(controller: TextEditingController(text: vorsorge['gravida']?.toString() ?? ''),
+                    decoration: InputDecoration(labelText: 'Gravida', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    onChanged: (v) { vorsorge['gravida'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); })),
+                  const SizedBox(width: 8),
+                  Expanded(child: TextField(controller: TextEditingController(text: vorsorge['para']?.toString() ?? ''),
+                    decoration: InputDecoration(labelText: 'Para', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    onChanged: (v) { vorsorge['para'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); })),
+                ]),
+                const Divider(height: 20),
+                // Ergebnis
+                Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                Text('Pap-Befund', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Wrap(spacing: 4, children: ['I', 'II', 'III', 'IIID', 'IV', 'V'].map((p) => ChoiceChip(
+                  label: Text('Pap $p', style: TextStyle(fontSize: 10, color: vorsorge['pap_befund'] == p ? Colors.white : Colors.black87)),
+                  selected: vorsorge['pap_befund'] == p, selectedColor: color,
+                  onSelected: (_) { setD(() => vorsorge['pap_befund'] = p); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                )).toList()),
+                const SizedBox(height: 6),
+                if (alter >= 35) ...[
+                  Text('HPV-Test', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Wrap(spacing: 6, children: [('positiv', 'HPV positiv'), ('negativ', 'HPV negativ')].map((h) => ChoiceChip(
+                    label: Text(h.$2, style: TextStyle(fontSize: 10, color: vorsorge['hpv_ergebnis'] == h.$1 ? Colors.white : Colors.black87)),
+                    selected: vorsorge['hpv_ergebnis'] == h.$1, selectedColor: h.$1 == 'positiv' ? Colors.red : Colors.green,
+                    onSelected: (_) { setD(() => vorsorge['hpv_ergebnis'] = h.$1); data['vorsorge_$key'] = vorsorge; saveAll(); },
+                  )).toList()),
+                ],
+                const SizedBox(height: 8),
+                TextField(controller: TextEditingController(text: vorsorge['klinischer_befund']?.toString() ?? ''), maxLines: 3,
+                  decoration: InputDecoration(labelText: 'Klinischer Befund (Freitext)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                  onChanged: (v) { vorsorge['klinischer_befund'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
+              ] else ...[
+                // Generic Vorsorge details
+                Text('Letztes $label', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+                const SizedBox(height: 8),
+                Text('Datum: ${vorsorge['letztes_datum'] ?? 'Nicht eingetragen'}', style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 8),
+                TextField(controller: TextEditingController(text: vorsorge['ergebnis']?.toString() ?? ''), maxLines: 3,
+                  decoration: InputDecoration(labelText: 'Ergebnis / Befund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                  onChanged: (v) { vorsorge['ergebnis'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
+                const SizedBox(height: 8),
+                TextField(controller: TextEditingController(text: vorsorge['notizen']?.toString() ?? ''), maxLines: 3,
+                  decoration: InputDecoration(labelText: 'Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                  onChanged: (v) { vorsorge['notizen'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
+              ],
+            ])),
+            // TAB 2: BERICHTE (Dokumente)
+            Column(children: [
+              Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+                Icon(Icons.description, size: 20, color: color.shade700), const SizedBox(width: 8),
+                Expanded(child: Text('Berichte (${history.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade700))),
+                ElevatedButton.icon(onPressed: () {
+                  setD(() {
+                    history.insert(0, {'datum': '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}', 'ergebnis': '', 'notiz': ''});
+                    vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge;
+                  }); saveAll();
+                }, icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white)),
+              ])),
+              Expanded(child: history.isEmpty
+                ? Center(child: Text('Keine Berichte', style: TextStyle(color: Colors.grey.shade500)))
+                : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: history.length, itemBuilder: (_, i) {
+                    final h = history[i];
+                    return Card(child: ListTile(
+                      leading: Icon(Icons.description, color: color.shade600),
+                      title: Text(h['datum']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: Text(h['ergebnis']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () {
+                        setD(() { history.removeAt(i); vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll();
+                      }),
+                    ));
+                  })),
+            ]),
+          ])),
+        ]))),
+      );
+    }));
+  }
+
   Widget _buildKrankmeldungenTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
     final List<dynamic> krankmeldungen = data['krankmeldungen'] is List ? data['krankmeldungen'] as List : [];
 
