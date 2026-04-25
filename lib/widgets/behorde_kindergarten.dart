@@ -251,6 +251,7 @@ class _KindDetailState extends State<_KindDetail> {
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
         Icon(Icons.child_care, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8),
         Expanded(child: Text('${k['vorname'] ?? ''} ${k['nachname'] ?? ''}'.trim(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade800))),
+        IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.pink.shade400), tooltip: 'Bearbeiten', onPressed: () => _editKind()),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
       ])),
       TabBar(labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.pink.shade700, tabs: [
@@ -264,6 +265,59 @@ class _KindDetailState extends State<_KindDetail> {
         _buildTermine(),
       ])),
     ]));
+  }
+
+  void _editKind() {
+    final k = widget.kind;
+    final vnC = TextEditingController(text: k['vorname']?.toString() ?? '');
+    final nnC = TextEditingController(text: k['nachname']?.toString() ?? '');
+    final gebC = TextEditingController(text: k['geburtsdatum']?.toString() ?? '');
+    final gruppeC = TextEditingController(text: k['gruppe']?.toString() ?? '');
+    final eintrittC = TextEditingController(text: k['eintritt']?.toString() ?? '');
+    final austrittC = TextEditingController(text: k['austritt']?.toString() ?? '');
+    final notizC = TextEditingController(text: k['notiz']?.toString() ?? '');
+    String status = k['status']?.toString() ?? 'aktiv';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.edit, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8), const Text('Kind bearbeiten', style: TextStyle(fontSize: 14))]),
+      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Expanded(child: TextField(controller: vnC, decoration: InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: nnC, decoration: InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+        ]),
+        const SizedBox(height: 10),
+        TextFormField(controller: gebC, readOnly: true, decoration: InputDecoration(labelText: 'Geburtsdatum', prefixIcon: const Icon(Icons.cake, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (p != null) gebC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
+        const SizedBox(height: 10),
+        TextField(controller: gruppeC, decoration: InputDecoration(labelText: 'Gruppe', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: TextFormField(controller: eintrittC, readOnly: true, decoration: InputDecoration(labelText: 'Eintritt', prefixIcon: const Icon(Icons.login, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (p != null) eintrittC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; })))),
+          const SizedBox(width: 8),
+          Expanded(child: TextFormField(controller: austrittC, readOnly: true, decoration: InputDecoration(labelText: 'Austritt', prefixIcon: const Icon(Icons.logout, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (p != null) austrittC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; })))),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          ChoiceChip(label: const Text('Aktiv', style: TextStyle(fontSize: 12)), selected: status == 'aktiv', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => status = 'aktiv')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('Ausgetreten', style: TextStyle(fontSize: 12)), selected: status == 'ausgetreten', selectedColor: Colors.grey.shade300, onSelected: (_) => setDlg(() => status = 'ausgetreten')),
+        ]),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          k['vorname'] = vnC.text.trim(); k['nachname'] = nnC.text.trim(); k['geburtsdatum'] = gebC.text.trim();
+          k['gruppe'] = gruppeC.text.trim(); k['eintritt'] = eintrittC.text.trim(); k['austritt'] = austrittC.text.trim();
+          k['status'] = status; k['notiz'] = notizC.text.trim();
+          await widget.apiService.saveKindergartenKind(widget.userId, k);
+          widget.onChanged(); if (ctx.mounted) Navigator.pop(ctx); setState(() {});
+        }, child: const Text('Speichern')),
+      ],
+    )));
   }
 
   Widget _buildDetails() {
