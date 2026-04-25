@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class VertraegeContent extends StatefulWidget {
   final ApiService apiService;
@@ -154,7 +155,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
         ),
         Expanded(
           child: TabBarView(
-            children: _kategorien.map((k) => _buildKategorieTab(k.$1, k.$2, k.$3, k.$4)).toList(),
+            children: _kategorien.map((k) => k.$1 == 'verein' ? _VereinTab(apiService: widget.apiService, userId: widget.userId, vertraege: _vertraege.where((v) => v['kategorie'] == 'verein').toList(), onChanged: _load) : _buildKategorieTab(k.$1, k.$2, k.$3, k.$4)).toList(),
           ),
         ),
       ]),
@@ -1285,5 +1286,327 @@ class _DokTabState extends State<_DokTab> {
         ],
       )),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VEREIN TAB (sub-tabs: Zuständiger Verein + Vertrag)
+// ═══════════════════════════════════════════════════════
+class _VereinTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final List<Map<String, dynamic>> vertraege;
+  final VoidCallback onChanged;
+  const _VereinTab({required this.apiService, required this.userId, required this.vertraege, required this.onChanged});
+  @override
+  State<_VereinTab> createState() => _VereinTabState();
+}
+
+class _VereinTabState extends State<_VereinTab> {
+  Map<String, dynamic>? _selectedVerein;
+  bool _loadedVerein = false;
+
+  @override
+  void initState() { super.initState(); _loadSelectedVerein(); }
+
+  Future<void> _loadSelectedVerein() async {
+    try {
+      final r = await widget.apiService.getKindergartenData(widget.userId);
+      // reuse pattern — but we need a separate store. For now, just check if first verein vertrag has anbieter
+    } catch (_) {}
+    _loadedVerein = true;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _searchVerein() async {
+    final vereine = await widget.apiService.getVereinDatenbank();
+    if (!mounted || vereine.isEmpty) return;
+    final sel = await showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
+      String search = '';
+      List<Map<String, dynamic>> results = vereine;
+      return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+        title: Row(children: [Icon(Icons.groups, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Verein suchen', style: TextStyle(fontSize: 14))]),
+        content: SizedBox(width: 450, height: 400, child: Column(children: [
+          TextField(autofocus: true, decoration: InputDecoration(hintText: 'Name oder Ort...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: (v) => setS(() { search = v.toLowerCase(); results = vereine.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(search) || (s['plz_ort']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
+          const SizedBox(height: 8),
+          Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+            : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                final v = results[i];
+                return ListTile(dense: true, leading: Icon(Icons.groups, size: 18, color: Colors.indigo.shade400),
+                  title: Text(v['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  subtitle: Text([v['typ'], v['plz_ort']].where((x) => x != null && x.toString().isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  onTap: () => Navigator.pop(sCtx, v));
+              })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+      ));
+    });
+    if (sel != null) setState(() => _selectedVerein = sel);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(length: 2, child: Column(children: [
+      TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700,
+        tabs: const [Tab(icon: Icon(Icons.groups, size: 14), text: 'Zuständiger Verein'), Tab(icon: Icon(Icons.description, size: 14), text: 'Vertrag')]),
+      Expanded(child: TabBarView(children: [_buildVereinInfo(), _buildVertragList()])),
+    ]));
+  }
+
+  Widget _buildVereinInfo() {
+    final hasV = _selectedVerein != null;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.groups, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
+        Text('Zuständiger Verein', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.search, size: 16), label: Text(hasV ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          onPressed: _searchVerein),
+      ]),
+      const SizedBox(height: 16),
+      if (!hasV)
+        Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+          child: Column(children: [Icon(Icons.search, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Kein Verein ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500))]))
+      else
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [CircleAvatar(radius: 22, backgroundColor: Colors.indigo.shade100, child: Icon(Icons.groups, size: 24, color: Colors.indigo.shade700)), const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_selectedVerein!['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                if ((_selectedVerein!['typ']?.toString() ?? '').isNotEmpty) Text(_selectedVerein!['typ'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              ])),
+              IconButton(icon: Icon(Icons.close, size: 18, color: Colors.red.shade400), onPressed: () => setState(() => _selectedVerein = null)),
+            ]),
+            const Divider(height: 20),
+            if ((_selectedVerein!['strasse']?.toString() ?? '').isNotEmpty || (_selectedVerein!['plz_ort']?.toString() ?? '').isNotEmpty)
+              _ir(Icons.location_on, [_selectedVerein!['strasse'], _selectedVerein!['plz_ort']].where((v) => v != null && v.toString().isNotEmpty).join(', '), Colors.indigo),
+            if ((_selectedVerein!['telefon']?.toString() ?? '').isNotEmpty) _ir(Icons.phone, _selectedVerein!['telefon'].toString(), Colors.blue),
+            if ((_selectedVerein!['email']?.toString() ?? '').isNotEmpty) _ir(Icons.email, _selectedVerein!['email'].toString(), Colors.teal),
+            if ((_selectedVerein!['oeffnungszeiten']?.toString() ?? '').isNotEmpty) _ir(Icons.schedule, _selectedVerein!['oeffnungszeiten'].toString(), Colors.orange),
+          ])),
+    ]));
+  }
+
+  Widget _ir(IconData icon, String text, MaterialColor c) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+    Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10), Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
+
+  Widget _buildVertragList() {
+    final list = widget.vertraege;
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.description, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
+        Text('${list.length} Vertrag/Verträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vertrag', style: TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          onPressed: () async {
+            final anbieter = _selectedVerein?['name']?.toString() ?? '';
+            final tel = _selectedVerein?['telefon']?.toString() ?? '';
+            await _addVereinVertrag(anbieter, tel);
+          }),
+      ])),
+      Expanded(child: list.isEmpty ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Verträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: list.length, itemBuilder: (_, i) {
+            final v = list[i];
+            final aktiv = v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1';
+            return Container(margin: const EdgeInsets.only(bottom: 8), child: InkWell(borderRadius: BorderRadius.circular(8),
+              onTap: () => _showVertragDetail(v),
+              child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+                child: Row(children: [
+                  Icon(Icons.groups, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(child: Text(v['anbieter']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
+                        child: Text(aktiv ? 'Aktiv' : 'Gekündigt', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.grey.shade700))),
+                    ]),
+                    if ((v['tarif']?.toString() ?? '').isNotEmpty) Text(v['tarif'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    if ((v['monatliche_kosten']?.toString() ?? '').isNotEmpty) Text('${v['monatliche_kosten']} €/Jahr', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  ])),
+                  Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                ]))));
+          })),
+    ]);
+  }
+
+  Future<void> _addVereinVertrag(String anbieter, String tel) async {
+    final anbieterC = TextEditingController(text: anbieter);
+    final tarifC = TextEditingController();
+    final kostenC = TextEditingController();
+    final beginnC = TextEditingController();
+    final laufzeitC = TextEditingController(text: '12 Monate');
+    final fristC = TextEditingController(text: '3 Monate zum Jahresende');
+    final telC = TextEditingController(text: tel);
+    final notizenC = TextEditingController();
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [Icon(Icons.groups, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Neuer Vereinsvertrag', style: TextStyle(fontSize: 14))]),
+      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: anbieterC, decoration: InputDecoration(labelText: 'Verein *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: tarifC, decoration: InputDecoration(labelText: 'Art der Mitgliedschaft', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: kostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Mitgliedsbeitrag €/Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextFormField(controller: beginnC, readOnly: true, decoration: InputDecoration(labelText: 'Vertragsbeginn', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) beginnC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
+        const SizedBox(height: 8),
+        Row(children: [Expanded(child: TextField(controller: laufzeitC, decoration: InputDecoration(labelText: 'Laufzeit', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          const SizedBox(width: 8), Expanded(child: TextField(controller: fristC, decoration: InputDecoration(labelText: 'Kündigungsfrist', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
+        const SizedBox(height: 8),
+        TextField(controller: telC, decoration: InputDecoration(labelText: 'Telefon', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: notizenC, maxLines: 2, decoration: InputDecoration(labelText: 'Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.saveVertrag(widget.userId, {
+      'kategorie': 'verein', 'anbieter': anbieterC.text.trim(), 'tarif': tarifC.text.trim(),
+      'monatliche_kosten': kostenC.text.trim(), 'vertragsbeginn': beginnC.text.trim(),
+      'mindestlaufzeit': laufzeitC.text.trim(), 'kuendigungsfrist': fristC.text.trim(),
+      'telefonnummer': telC.text.trim(), 'notizen': notizenC.text.trim(),
+    });
+    widget.onChanged();
+  }
+
+  void _showVertragDetail(Map<String, dynamic> v) {
+    final vid = int.tryParse(v['id']?.toString() ?? '') ?? 0;
+    showDialog(context: context, builder: (ctx) => Dialog(child: SizedBox(width: 580, height: 500, child: DefaultTabController(length: 2, child: Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
+        Icon(Icons.groups, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
+        Expanded(child: Text(v['anbieter']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
+        IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx)),
+      ])),
+      TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, tabs: const [
+        Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+        Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+      ]),
+      Expanded(child: TabBarView(children: [
+        SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _dr(Icons.groups, 'Verein', v['anbieter']),
+          _dr(Icons.card_membership, 'Art', v['tarif']),
+          _dr(Icons.euro, 'Beitrag/Jahr', v['monatliche_kosten'] != null ? '${v['monatliche_kosten']} €' : null),
+          _dr(Icons.calendar_today, 'Beginn', v['vertragsbeginn']),
+          _dr(Icons.timelapse, 'Laufzeit', v['mindestlaufzeit']),
+          _dr(Icons.timer, 'Kündigungsfrist', v['kuendigungsfrist']),
+          _dr(Icons.phone, 'Telefon', v['telefonnummer']),
+          _dr(Icons.cancel, 'Gekündigt am', v['gekuendigt_am']),
+          _dr(Icons.event_busy, 'Vertragsende', v['vertragsende']),
+          if ((v['notizen']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 10),
+            Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+              child: Text(v['notizen'].toString(), style: const TextStyle(fontSize: 12)))],
+        ])),
+        _VereinKorrTab(apiService: widget.apiService, vertragId: vid),
+      ])),
+    ])))));
+  }
+
+  Widget _dr(IconData icon, String label, dynamic value) {
+    final val = value?.toString() ?? ''; if (val.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+      Icon(icon, size: 14, color: Colors.indigo.shade600), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
+  }
+}
+
+class _VereinKorrTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  const _VereinKorrTab({required this.apiService, required this.vertragId});
+  @override
+  State<_VereinKorrTab> createState() => _VereinKorrTabState();
+}
+
+class _VereinKorrTabState extends State<_VereinKorrTab> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final r = await widget.apiService.listVertraegeKorrespondenz(widget.vertragId);
+      if (r['success'] == true && r['data'] is List) _korr = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {}
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('eingang')),
+        const SizedBox(width: 6),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('ausgang')),
+      ])),
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
+            final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
+            final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade700), const SizedBox(width: 6),
+                  Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800))),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                    onPressed: () async { await widget.apiService.deleteVertraegeKorrespondenz(kId); _load(); }),
+                ]),
+                if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Padding(padding: const EdgeInsets.only(top: 4), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'verein_vertrag', korrespondenzId: kId)),
+              ]));
+          })),
+    ]);
+  }
+
+  void _addKorr(String richtung) {
+    final datumC = TextEditingController(); final betreffC = TextEditingController(); final notizC = TextEditingController();
+    String methode = richtung == 'eingang' ? 'post' : 'email';
+    List<PlatformFile> files = [];
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
+      title: Row(children: [Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8), Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14))]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Wrap(spacing: 6, runSpacing: 4, children: [for (final m in [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.mail), ('online', 'Online', Icons.language), ('persoenlich', 'Persönlich', Icons.person)])
+          ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : Colors.grey.shade700))]),
+            selected: methode == m.$1, selectedColor: Colors.indigo.shade600, onSelected: (_) => setDlg(() => methode = m.$1))]),
+        const SizedBox(height: 12),
+        TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) setDlg(() => datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'); }))),
+        const SizedBox(height: 8),
+        TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: Colors.teal.shade600),
+          label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
+          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+          onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }); }),
+        if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
+          Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+          Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+          IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setDlg(() => files.removeAt(e.key))),
+        ]))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          if (betreffC.text.trim().isEmpty) return;
+          final res = await widget.apiService.saveVertraegeKorrespondenz(widget.vertragId, {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+          final korrId = res['id'];
+          if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'verein_vertrag', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
+          if (ctx.mounted) Navigator.pop(ctx); _load();
+        }, child: const Text('Speichern')),
+      ],
+    )));
   }
 }
