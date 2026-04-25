@@ -1476,7 +1476,7 @@ class _VereinTabState extends State<_VereinTab> {
 
   void _showVertragDetail(Map<String, dynamic> v) {
     final vid = int.tryParse(v['id']?.toString() ?? '') ?? 0;
-    showDialog(context: context, builder: (ctx) => Dialog(child: SizedBox(width: 580, height: 500, child: DefaultTabController(length: 2, child: Column(children: [
+    showDialog(context: context, builder: (ctx) => Dialog(child: SizedBox(width: 580, height: 500, child: StatefulBuilder(builder: (ctx, setDlg) => DefaultTabController(length: 3, child: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
         Icon(Icons.groups, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
         Expanded(child: Text(v['anbieter']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
@@ -1485,6 +1485,7 @@ class _VereinTabState extends State<_VereinTab> {
       TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, tabs: const [
         Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.cancel_outlined, size: 16), text: 'Kündigung'),
       ]),
       Expanded(child: TabBarView(children: [
         SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1502,8 +1503,67 @@ class _VereinTabState extends State<_VereinTab> {
               child: Text(v['notizen'].toString(), style: const TextStyle(fontSize: 12)))],
         ])),
         _VereinKorrTab(apiService: widget.apiService, vertragId: vid),
+        // ──── Kündigung Tab ────
+        SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.cancel_outlined, size: 20, color: Colors.red.shade700), const SizedBox(width: 8),
+            Text('Kündigung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade700))]),
+          const SizedBox(height: 12),
+          if ((v['gekuendigt_am']?.toString() ?? '').isNotEmpty) ...[
+            Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [Icon(Icons.check_circle, size: 16, color: Colors.red.shade700), const SizedBox(width: 8), Text('Gekündigt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800))]),
+                const SizedBox(height: 8),
+                _dr(Icons.calendar_today, 'Gekündigt am', v['gekuendigt_am']),
+                _dr(Icons.event_busy, 'Vertragsende', v['vertragsende']),
+                if ((v['kuendigung_methode']?.toString() ?? '').isNotEmpty) _dr(Icons.send, 'Methode', {'online': 'Online', 'email': 'E-Mail', 'post': 'Post', 'persoenlich': 'Persönlich'}[v['kuendigung_methode']] ?? v['kuendigung_methode'].toString()),
+                if ((v['kuendigung_notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 6), Text(v['kuendigung_notiz'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700))],
+              ])),
+          ] else ...[
+            Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+              child: Column(children: [Icon(Icons.info_outline, size: 32, color: Colors.grey.shade400), const SizedBox(height: 8),
+                Text('Vertrag ist aktiv — noch nicht gekündigt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                if ((v['kuendigungsfrist']?.toString() ?? '').isNotEmpty) Text('Kündigungsfrist: ${v['kuendigungsfrist']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              ])),
+          ],
+          const SizedBox(height: 16),
+          FilledButton.icon(icon: Icon((v['gekuendigt_am']?.toString() ?? '').isNotEmpty ? Icons.edit : Icons.cancel, size: 16),
+            label: Text((v['gekuendigt_am']?.toString() ?? '').isNotEmpty ? 'Kündigung bearbeiten' : 'Jetzt kündigen', style: const TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
+            onPressed: () {
+              final gekDatumC = TextEditingController(text: v['gekuendigt_am']?.toString() ?? '');
+              final endeC = TextEditingController(text: v['vertragsende']?.toString() ?? '');
+              final notizKC = TextEditingController(text: v['kuendigung_notiz']?.toString() ?? '');
+              String methode = v['kuendigung_methode']?.toString() ?? '';
+              showDialog(context: ctx, builder: (kCtx) => StatefulBuilder(builder: (kCtx, setK) => AlertDialog(
+                title: Row(children: [Icon(Icons.cancel, size: 18, color: Colors.red.shade700), const SizedBox(width: 8), const Text('Kündigung', style: TextStyle(fontSize: 14))]),
+                content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text('Wie wurde gekündigt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 6, runSpacing: 4, children: [for (final m in [('online', 'Online', Icons.language), ('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.mail), ('persoenlich', 'Persönlich', Icons.person)])
+                    ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : Colors.grey.shade700))]),
+                      selected: methode == m.$1, selectedColor: Colors.red.shade600, onSelected: (_) => setK(() => methode = m.$1))]),
+                  const SizedBox(height: 12),
+                  TextFormField(controller: gekDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Gekündigt am', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: kCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) setK(() => gekDatumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'); }))),
+                  const SizedBox(height: 8),
+                  TextFormField(controller: endeC, readOnly: true, decoration: InputDecoration(labelText: 'Vertragsende', prefixIcon: const Icon(Icons.event_busy, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: kCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) setK(() => endeC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'); }))),
+                  const SizedBox(height: 8),
+                  TextField(controller: notizKC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                ])),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(kCtx), child: const Text('Abbrechen')),
+                  FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600), onPressed: () async {
+                    v['gekuendigt_am'] = gekDatumC.text.trim(); v['vertragsende'] = endeC.text.trim(); v['kuendigung_methode'] = methode; v['kuendigung_notiz'] = notizKC.text.trim(); v['is_active'] = 0;
+                    await widget.apiService.saveVertrag(widget.userId, v);
+                    widget.onChanged(); if (kCtx.mounted) Navigator.pop(kCtx); setDlg(() {});
+                  }, child: const Text('Speichern')),
+                ],
+              )));
+            }),
+        ])),
       ])),
-    ])))));
+    ]))))));
   }
 
   Widget _dr(IconData icon, String label, dynamic value) {
