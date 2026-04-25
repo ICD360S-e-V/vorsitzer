@@ -50,74 +50,92 @@ class _State extends State<BehordeKindergartenContent> with TickerProviderStateM
     ]);
   }
 
+  Future<void> _searchKiga() async {
+    final standorte = await widget.apiService.getBehoerdenStandorte(typ: 'kindergarten');
+    if (!mounted || standorte.isEmpty) return;
+    final selected = await showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
+      String search = '';
+      List<Map<String, dynamic>> results = standorte;
+      return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+        title: Row(children: [Icon(Icons.child_care, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8), const Text('Kindergarten suchen', style: TextStyle(fontSize: 14))]),
+        content: SizedBox(width: 450, height: 400, child: Column(children: [
+          TextField(autofocus: true, decoration: InputDecoration(hintText: 'Name oder Ort eingeben...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+            onChanged: (v) => setS(() { search = v.toLowerCase(); results = standorte.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(search) || (s['plz_ort']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
+          const SizedBox(height: 8),
+          Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+            : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                final s = results[i];
+                return ListTile(dense: true, leading: Icon(Icons.child_care, size: 18, color: Colors.pink.shade400),
+                  title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  subtitle: Text([s['strasse'], s['plz_ort']].where((v) => v != null && v.toString().isNotEmpty).join(', '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  onTap: () => Navigator.pop(sCtx, s));
+              })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+      ));
+    });
+    if (selected != null) {
+      final str = selected['strasse']?.toString() ?? '';
+      final plz = selected['plz_ort']?.toString() ?? '';
+      final m = <String, dynamic>{
+        'stammdaten.name': selected['name']?.toString() ?? '',
+        'stammdaten.adresse': [str, plz].where((v) => v.isNotEmpty).join(', '),
+        'stammdaten.telefon': selected['telefon']?.toString() ?? '',
+        'stammdaten.email': selected['email']?.toString() ?? '',
+        'stammdaten.oeffnungszeiten': selected['oeffnungszeiten']?.toString() ?? '',
+      };
+      await widget.apiService.saveKindergartenData(widget.userId, m);
+      for (final e in m.entries) { _data[e.key.split('.').last] = e.value; }
+      if (mounted) setState(() {});
+    }
+  }
+
   Widget _buildKigaTab() {
-    final nameC = TextEditingController(text: _v('name'));
-    final adresseC = TextEditingController(text: _v('adresse'));
-    final telefonC = TextEditingController(text: _v('telefon'));
-    final emailC = TextEditingController(text: _v('email'));
-    final leiterinC = TextEditingController(text: _v('leiterin'));
-    final oeffnungsC = TextEditingController(text: _v('oeffnungszeiten'));
+    final hasKiga = _v('name').isNotEmpty;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(Icons.child_care, size: 20, color: Colors.pink.shade700), const SizedBox(width: 8),
-        Text('Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+        Text('Zuständiger Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
         const Spacer(),
-        OutlinedButton.icon(icon: Icon(Icons.search, size: 16, color: Colors.pink.shade600), label: Text('Aus Datenbank', style: TextStyle(fontSize: 11, color: Colors.pink.shade600)),
-          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.pink.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
-          onPressed: () async {
-            final standorte = await widget.apiService.getBehoerdenStandorte(typ: 'kindergarten');
-            if (!mounted || standorte.isEmpty) return;
-            final selected = await showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
-              String search = '';
-              List<Map<String, dynamic>> results = standorte;
-              return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
-                title: Row(children: [Icon(Icons.child_care, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8), const Text('Kindergarten auswählen', style: TextStyle(fontSize: 14))]),
-                content: SizedBox(width: 450, height: 400, child: Column(children: [
-                  TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
-                    onChanged: (v) => setS(() { search = v.toLowerCase(); results = standorte.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(search) || (s['plz_ort']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
-                  const SizedBox(height: 8),
-                  Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
-                    : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
-                        final s = results[i];
-                        return ListTile(dense: true, leading: Icon(Icons.child_care, size: 18, color: Colors.pink.shade400),
-                          title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          subtitle: Text([s['strasse'], s['plz_ort']].where((v) => v != null && v.toString().isNotEmpty).join(', '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                          onTap: () => Navigator.pop(sCtx, s));
-                      })),
-                ])),
-                actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
-              ));
-            });
-            if (selected != null) {
-              setState(() {
-                nameC.text = selected['name']?.toString() ?? '';
-                final str = selected['strasse']?.toString() ?? '';
-                final plz = selected['plz_ort']?.toString() ?? '';
-                adresseC.text = [str, plz].where((v) => v.isNotEmpty).join(', ');
-                if ((selected['telefon']?.toString() ?? '').isNotEmpty) telefonC.text = selected['telefon'].toString();
-                if ((selected['email']?.toString() ?? '').isNotEmpty) emailC.text = selected['email'].toString();
-                if ((selected['oeffnungszeiten']?.toString() ?? '').isNotEmpty) oeffnungsC.text = selected['oeffnungszeiten'].toString();
-              });
-            }
-          }),
+        FilledButton.icon(icon: const Icon(Icons.search, size: 16), label: Text(hasKiga ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          onPressed: _searchKiga),
       ]),
-      const SizedBox(height: 12),
-      _tf('Name', nameC, Icons.child_care), const SizedBox(height: 10),
-      _tf('Adresse', adresseC, Icons.location_on), const SizedBox(height: 10),
-      Row(children: [Expanded(child: _tf('Telefon', telefonC, Icons.phone)), const SizedBox(width: 8), Expanded(child: _tf('E-Mail', emailC, Icons.email))]),
-      const SizedBox(height: 10),
-      _tf('Leitung', leiterinC, Icons.person), const SizedBox(height: 10),
-      _tf('Öffnungszeiten', oeffnungsC, Icons.schedule, maxLines: 2),
       const SizedBox(height: 16),
-      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: _saving ? null : () async {
-          setState(() => _saving = true);
-          final m = <String, dynamic>{}; for (final e in {'name': nameC, 'adresse': adresseC, 'telefon': telefonC, 'email': emailC, 'leiterin': leiterinC, 'oeffnungszeiten': oeffnungsC}.entries) { m['stammdaten.${e.key}'] = e.value.text.trim(); _data[e.key] = e.value.text.trim(); }
-          await widget.apiService.saveKindergartenData(widget.userId, m);
-          if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green)); setState(() => _saving = false); }
-        },
-        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.pink, foregroundColor: Colors.white))),
+      if (!hasKiga)
+        Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+          child: Column(children: [
+            Icon(Icons.search, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8),
+            Text('Kein Kindergarten ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+            const SizedBox(height: 4),
+            Text('Klicken Sie auf "Suchen" um einen Kindergarten auszuwählen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+          ]))
+      else
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.pink.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              CircleAvatar(radius: 22, backgroundColor: Colors.pink.shade100, child: Icon(Icons.child_care, size: 24, color: Colors.pink.shade700)),
+              const SizedBox(width: 12),
+              Expanded(child: Text(_v('name'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade800))),
+              IconButton(icon: Icon(Icons.close, size: 18, color: Colors.red.shade400), tooltip: 'Entfernen', onPressed: () async {
+                await widget.apiService.saveKindergartenData(widget.userId, {'stammdaten.name': '', 'stammdaten.adresse': '', 'stammdaten.telefon': '', 'stammdaten.email': '', 'stammdaten.oeffnungszeiten': ''});
+                _data.clear(); if (mounted) setState(() {});
+              }),
+            ]),
+            const Divider(height: 20),
+            if (_v('adresse').isNotEmpty) _infoRow(Icons.location_on, _v('adresse'), Colors.pink),
+            if (_v('telefon').isNotEmpty) _infoRow(Icons.phone, _v('telefon'), Colors.blue),
+            if (_v('email').isNotEmpty) _infoRow(Icons.email, _v('email'), Colors.teal),
+            if (_v('oeffnungszeiten').isNotEmpty) _infoRow(Icons.schedule, _v('oeffnungszeiten'), Colors.orange),
+            if (_v('leiterin').isNotEmpty) _infoRow(Icons.person, 'Leitung: ${_v('leiterin')}', Colors.purple),
+          ])),
+    ]));
+  }
+
+  Widget _infoRow(IconData icon, String text, MaterialColor c) {
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+      Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800))),
     ]));
   }
 
