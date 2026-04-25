@@ -4,6 +4,18 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 
+const _konsulatStatusMap = <String, (String, MaterialColor)>{
+  'offen': ('Offen', Colors.blue),
+  'termin_vereinbart': ('Termin vereinbart', Colors.purple),
+  'unterlagen_eingereicht': ('Unterlagen eingereicht', Colors.orange),
+  'in_bearbeitung': ('In Bearbeitung', Colors.amber),
+  'nachforderung': ('Nachforderung', Colors.red),
+  'versandt': ('Versandt / Unterwegs', Colors.teal),
+  'abholbereit': ('Abholbereit', Colors.green),
+  'erledigt': ('Erledigt', Colors.green),
+  'abgelehnt': ('Abgelehnt', Colors.red),
+};
+
 class BehordeKonsulatContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
@@ -150,9 +162,10 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vorfaelle.length, itemBuilder: (_, i) {
             final v = _vorfaelle[i];
             final status = v['status']?.toString() ?? 'offen';
-            final sc = status == 'erledigt' ? Colors.green : status == 'in_bearbeitung' ? Colors.orange : Colors.blue;
+            final sInfo = _konsulatStatusMap[status] ?? ('Offen', Colors.blue);
+            final sc = sInfo.$2;
             return Container(margin: const EdgeInsets.only(bottom: 8), child: InkWell(borderRadius: BorderRadius.circular(8),
-              onTap: () => _showVorfallDetail(v),
+              onTap: () async { await _showVorfallDetail(v); setState(() {}); },
               child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
                 child: Row(children: [
                   Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 10),
@@ -160,7 +173,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
                     Row(children: [
                       Expanded(child: Text(v['titel']?.toString() ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(6)),
-                        child: Text(status == 'erledigt' ? 'Erledigt' : status == 'in_bearbeitung' ? 'In Bearbeitung' : 'Offen', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
+                        child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
                     ]),
                     if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                   ])),
@@ -198,9 +211,9 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     )));
   }
 
-  void _showVorfallDetail(Map<String, dynamic> v) {
+  Future<void> _showVorfallDetail(Map<String, dynamic> v) async {
     final vid = v['id'] is int ? v['id'] as int : int.parse(v['id'].toString());
-    showDialog(context: context, builder: (ctx) => Dialog(
+    await showDialog(context: context, builder: (ctx) => Dialog(
       child: SizedBox(width: 600, height: 550, child: _KonsulatVorfallDetail(apiService: widget.apiService, userId: widget.userId, vorfallId: vid, vorfall: v, onChanged: _load))));
   }
 
@@ -260,18 +273,6 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
   List<Map<String, dynamic>> _termine = [], _korr = [];
   bool _loaded = false;
 
-  static const _statusMap = {
-    'offen': ('Offen', Colors.blue),
-    'termin_vereinbart': ('Termin vereinbart', Colors.purple),
-    'unterlagen_eingereicht': ('Unterlagen eingereicht', Colors.orange),
-    'in_bearbeitung': ('In Bearbeitung', Colors.amber),
-    'nachforderung': ('Nachforderung', Colors.red),
-    'versandt': ('Versandt / Unterwegs', Colors.teal),
-    'abholbereit': ('Abholbereit', Colors.green),
-    'erledigt': ('Erledigt', Colors.green),
-    'abgelehnt': ('Abgelehnt', Colors.red),
-  };
-
   @override
   void initState() { super.initState(); _load(); }
 
@@ -290,7 +291,7 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
   Widget build(BuildContext context) {
     final v = widget.vorfall;
     final status = v['status']?.toString() ?? 'offen';
-    final sInfo = _statusMap[status] ?? ('Offen', Colors.blue);
+    final sInfo = _konsulatStatusMap[status] ?? ('Offen', Colors.blue);
     final sc = sInfo.$2;
     return DefaultTabController(length: 4, child: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
@@ -298,11 +299,13 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
         Expanded(child: Text(v['titel']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (sc as MaterialColor).shade100, borderRadius: BorderRadius.circular(6)),
           child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
-        PopupMenuButton<String>(icon: const Icon(Icons.more_vert, size: 18), itemBuilder: (_) => _statusMap.entries.map((e) =>
+        PopupMenuButton<String>(icon: const Icon(Icons.more_vert, size: 18), itemBuilder: (_) => _konsulatStatusMap.entries.map((e) =>
           PopupMenuItem(value: e.key, child: Text(e.value.$1, style: const TextStyle(fontSize: 12)))).toList(),
           onSelected: (s) async {
-            await widget.apiService.saveKonsulatVorfall(widget.userId, {...v, 'status': s});
-            v['status'] = s; widget.onChanged(); setState(() {});
+            final now = DateTime.now();
+            final nowStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
+            await widget.apiService.saveKonsulatVorfall(widget.userId, {...v, 'status': s, 'status_datum': nowStr});
+            v['status'] = s; v['status_datum'] = nowStr; widget.onChanged(); setState(() {});
           }),
         IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.indigo.shade400), tooltip: 'Bearbeiten', onPressed: () => _editVorfall(v)),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
@@ -357,8 +360,8 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
       if (v['status'] != null) Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
         Icon(Icons.flag, size: 14, color: Colors.indigo.shade600), const SizedBox(width: 8),
         Text('Status: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (_statusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade100, borderRadius: BorderRadius.circular(4)),
-          child: Text(_statusMap[v['status']]?.$1 ?? v['status'].toString(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (_statusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade800))),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (_konsulatStatusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade100, borderRadius: BorderRadius.circular(4)),
+          child: Text(_konsulatStatusMap[v['status']]?.$1 ?? v['status'].toString(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (_konsulatStatusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade800))),
       ])),
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 10),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
@@ -504,6 +507,14 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
     for (final k in sortedKorr) {
       final kD = k['datum']?.toString() ?? ''; final isA = k['richtung'] == 'ausgang'; final m = k['methode']?.toString() ?? '';
       events.add((kD, isA ? Icons.call_made : Icons.call_received, '${isA ? "Ausgang" : "Eingang"}: ${k['betreff'] ?? ''}', m.isNotEmpty ? 'per ${mL[m] ?? m}' : '', isA ? Colors.blue : Colors.green));
+    }
+
+    final statusDatum = v['status_datum']?.toString() ?? '';
+    final status = v['status']?.toString() ?? 'offen';
+    if (statusDatum.isNotEmpty && status != 'offen') {
+      final sLabel = _konsulatStatusMap[status]?.$1 ?? status;
+      final sColor = _konsulatStatusMap[status]?.$2 ?? Colors.grey;
+      events.add((statusDatum, Icons.flag, 'Status: $sLabel', '', sColor));
     }
 
     for (final t in _termine) {
