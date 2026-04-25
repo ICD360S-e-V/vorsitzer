@@ -4949,6 +4949,48 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  // === BÜRGERAMT ===
+  Future<Map<String, dynamic>> getBuergeramtData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/buergeramt_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveBuergeramtData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_data', 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveBuergeramtVorfall(int userId, Map<String, dynamic> vorfall) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_vorfall', 'vorfall': vorfall})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteBuergeramtVorfall(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_vorfall', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> getBuergeramtVorfallDetail(int userId, int vorfallId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/buergeramt_manage.php?user_id=$userId&action=vorfall_detail&vorfall_id=$vorfallId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveBuergeramtKorr(int userId, int vorfallId, Map<String, dynamic> korr) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_korr', 'vorfall_id': vorfallId, 'korr': korr})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteBuergeramtKorr(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveBuergeramtTermin(int userId, int vorfallId, Map<String, dynamic> termin) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_termin', 'vorfall_id': vorfallId, 'termin': termin})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteBuergeramtTermin(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_termin', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveBuergeramtVerlauf(int userId, int vorfallId, Map<String, dynamic> verlauf) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/buergeramt_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_verlauf', 'vorfall_id': vorfallId, 'verlauf': verlauf})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === SCHULBILDUNG ===
   Future<Map<String, dynamic>> getUserSchulbildung(int userId) async {
     final response = await _client.get(Uri.parse('$baseUrl/admin/user_schulbildung.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
