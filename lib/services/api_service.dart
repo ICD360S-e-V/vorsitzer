@@ -5029,6 +5029,16 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === VEREIN DATA (dedicated DB) ===
+  Future<Map<String, dynamic>> getVereinData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/verein_data_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveVereinData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/verein_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === VEREIN DATENBANK ===
   Future<List<Map<String, dynamic>>> getVereinDatenbank() async {
     try {
