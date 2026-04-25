@@ -20,7 +20,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
   List<Map<String, dynamic>> _vorfaelle = [];
 
   static const _konsulate = [
-    {'name': 'Generalkonsulat von Rumänien — Stuttgart', 'adresse': 'Hauptstätter Straße 68-70, 70178 Stuttgart', 'telefon': '0711 6648611-15', 'fax': '0711 66486 22', 'email': 'stuttgart@mae.ro', 'website': 'https://stuttgart.mae.ro', 'oeffnungszeiten': 'Mo-Fr 09:00-17:00 (nur mit Termin)', 'konsul': 'Radu-Dumitru Florea'},
+    {'name': 'Generalkonsulat von Rumänien — Stuttgart', 'adresse': 'Hauptstätter Straße 70, 70178 Stuttgart', 'telefon': '0711 6648600', 'fax': '0711 6648622', 'email': 'stuttgart@mae.ro', 'website': 'https://stuttgart.mae.ro', 'oeffnungszeiten': 'Mo-Fr 09:00-15:00 (nur mit Termin)', 'konsul': 'Radu-Dumitru Florea'},
     {'name': 'Generalkonsulat von Rumänien — München', 'adresse': 'Richard-Strauss-Straße 149, 81679 München', 'telefon': '089 5529953', 'email': 'munchen@mae.ro', 'website': 'https://munchen.mae.ro', 'oeffnungszeiten': 'Mo-Fr 09:00-17:00 (nur mit Termin)'},
     {'name': 'Botschaft von Rumänien — Berlin', 'adresse': 'Dorotheenstraße 62-66, 10117 Berlin', 'telefon': '030 21239202', 'email': 'berlin@mae.ro', 'website': 'https://berlin.mae.ro', 'oeffnungszeiten': 'Mo-Fr 09:00-17:00'},
   ];
