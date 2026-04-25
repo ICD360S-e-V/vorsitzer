@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class BehordeArbeitsagenturContent extends StatefulWidget {
   final ApiService apiService;
@@ -693,7 +694,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
 
   void _showVorschlagDetailModal(BuildContext ctx, Map<String, dynamic> v) {
     final color = Colors.indigo;
-    showDialog(context: ctx, builder: (dlgCtx) => DefaultTabController(length: 2, child: StatefulBuilder(builder: (dlgCtx, setDlg) {
+    showDialog(context: ctx, builder: (dlgCtx) => DefaultTabController(length: 3, child: StatefulBuilder(builder: (dlgCtx, setDlg) {
       final status = v['status']?.toString() ?? '';
       final statusColor = status == 'beworben' ? Colors.blue : status == 'eingeladen' ? Colors.orange : status == 'abgelehnt' ? Colors.red : status == 'eingestellt' ? Colors.green : Colors.grey;
       return AlertDialog(
@@ -719,6 +720,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           TabBar(labelColor: color.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: color.shade700, tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
             Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
+            Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
           ]),
         ]),
         content: SizedBox(width: 550, height: 450, child: TabBarView(children: [
@@ -779,6 +781,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             const SizedBox(height: 12),
             ..._buildVerlaufTimeline(v),
           ])),
+          // ═══ TAB 3: Korrespondenz ═══
+          _VorschlagKorrTab(apiService: widget.apiService, userId: widget.userId, vorschlagId: v['id'] is int ? v['id'] : int.parse(v['id'].toString())),
         ])),
       );
     })));
@@ -1649,5 +1653,153 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
           );
         }),
     ]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VORSCHLAG KORRESPONDENZ TAB
+// ═══════════════════════════════════════════════════════
+class _VorschlagKorrTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int vorschlagId;
+  const _VorschlagKorrTab({required this.apiService, required this.userId, required this.vorschlagId});
+  @override
+  State<_VorschlagKorrTab> createState() => _VorschlagKorrTabState();
+}
+
+class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final res = await widget.apiService.getArbeitsagenturVorschlagKorr(widget.userId, widget.vorschlagId);
+      if (res['success'] == true && res['data'] is List) {
+        _korr = (res['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _addKorr(String richtung) async {
+    final datumC = TextEditingController();
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    String methode = 'email';
+    List<PlatformFile> files = [];
+
+    final ok = await showDialog<bool>(context: context, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
+      title: Row(children: [
+        Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? Colors.green.shade700 : Colors.blue.shade700),
+        const SizedBox(width: 8),
+        Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14)),
+      ]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          for (final m in [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.mail), ('online', 'Online', Icons.language), ('persoenlich', 'Persönlich', Icons.person), ('fax', 'Fax', Icons.fax), ('telefon', 'Telefon', Icons.phone)])
+            ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : Colors.grey.shade700))]),
+              selected: methode == m.$1, selectedColor: Colors.indigo.shade600, onSelected: (_) => setDlg(() => methode = m.$1)),
+        ]),
+        const SizedBox(height: 12),
+        TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
+            final p = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de'));
+            if (p != null) setDlg(() => datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}');
+          }))),
+        const SizedBox(height: 10),
+        TextFormField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextFormField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: Colors.teal.shade600),
+          label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
+          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+          onPressed: () async {
+            final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+            if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); });
+          }),
+        if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
+          Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+          Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+          IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setDlg(() => files.removeAt(e.key))),
+        ]))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlgCtx, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () {
+          if (betreffC.text.trim().isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Betreff angeben'), backgroundColor: Colors.orange)); return; }
+          Navigator.pop(dlgCtx, true);
+        }, child: const Text('Speichern')),
+      ],
+    )));
+
+    if (ok != true) return;
+    try {
+      final res = await widget.apiService.saveArbeitsagenturVorschlagKorr(widget.userId, widget.vorschlagId, {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+      final korrId = res['id'];
+      if (korrId != null && files.isNotEmpty) {
+        for (final f in files) {
+          if (f.path == null) continue;
+          await widget.apiService.uploadKorrAttachment(modul: 'aa_vorschlag', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name);
+        }
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.email, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Text('Korrespondenz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('eingang')),
+        const SizedBox(width: 6),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('ausgang')),
+      ]),
+      const SizedBox(height: 12),
+      if (_korr.isEmpty)
+        Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade400), textAlign: TextAlign.center))
+      else
+        ..._korr.map((k) {
+          final isEin = k['richtung'] == 'eingang';
+          final c = isEin ? Colors.green : Colors.blue;
+          const mLabels = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'telefon': 'Telefon'};
+          const mIcons = {'email': Icons.email, 'post': Icons.mail, 'online': Icons.language, 'persoenlich': Icons.person, 'fax': Icons.fax, 'telefon': Icons.phone};
+          final m = k['methode']?.toString() ?? '';
+          final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
+          return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade700), const SizedBox(width: 6),
+                Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800))),
+                if (m.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(mIcons[m] ?? Icons.mail, size: 10, color: c.shade700), const SizedBox(width: 3), Text(mLabels[m] ?? m, style: TextStyle(fontSize: 9, color: c.shade700))])),
+                const SizedBox(width: 4),
+                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  onPressed: () async { await widget.apiService.deleteArbeitsagenturVorschlagKorr(widget.userId, kId); _load(); }),
+              ]),
+              if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              const SizedBox(height: 4),
+              KorrAttachmentsWidget(apiService: widget.apiService, modul: 'aa_vorschlag', korrespondenzId: kId),
+            ]));
+        }),
+    ]));
   }
 }
