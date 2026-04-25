@@ -1305,12 +1305,31 @@ class _VereinTab extends StatefulWidget {
 class _VereinTabState extends State<_VereinTab> {
   Map<String, dynamic>? _selectedVerein;
   List<Map<String, dynamic>> _localVertraege = [];
+  bool _vereinLoaded = false;
 
   @override
-  void initState() { super.initState(); _localVertraege = List.from(widget.vertraege); }
+  void initState() { super.initState(); _localVertraege = List.from(widget.vertraege); _loadSelectedVerein(); }
 
   @override
   void didUpdateWidget(covariant _VereinTab old) { super.didUpdateWidget(old); _localVertraege = List.from(widget.vertraege); }
+
+  Future<void> _loadSelectedVerein() async {
+    try {
+      final r = await widget.apiService.getBehoerdeData(widget.userId, 'verein_selected');
+      if (r['success'] == true && r['data'] != null && r['data'] is Map && (r['data']['name'] ?? '').toString().isNotEmpty) {
+        _selectedVerein = Map<String, dynamic>.from(r['data']);
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _vereinLoaded = true);
+  }
+
+  Future<void> _saveSelectedVerein(Map<String, dynamic>? v) async {
+    if (v != null) {
+      await widget.apiService.saveBehoerdeData(widget.userId, 'verein_selected', v);
+    } else {
+      await widget.apiService.saveBehoerdeData(widget.userId, 'verein_selected', {});
+    }
+  }
 
   Future<void> _reload() async {
     await widget.onChanged();
@@ -1341,7 +1360,7 @@ class _VereinTabState extends State<_VereinTab> {
         actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
       ));
     });
-    if (sel != null) setState(() => _selectedVerein = sel);
+    if (sel != null) { setState(() => _selectedVerein = sel); _saveSelectedVerein(sel); }
   }
 
   @override
@@ -1376,7 +1395,7 @@ class _VereinTabState extends State<_VereinTab> {
                 Text(_selectedVerein!['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
                 if ((_selectedVerein!['typ']?.toString() ?? '').isNotEmpty) Text(_selectedVerein!['typ'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               ])),
-              IconButton(icon: Icon(Icons.close, size: 18, color: Colors.red.shade400), onPressed: () => setState(() => _selectedVerein = null)),
+              IconButton(icon: Icon(Icons.close, size: 18, color: Colors.red.shade400), onPressed: () { setState(() => _selectedVerein = null); _saveSelectedVerein(null); }),
             ]),
             const Divider(height: 20),
             if ((_selectedVerein!['strasse']?.toString() ?? '').isNotEmpty || (_selectedVerein!['plz_ort']?.toString() ?? '').isNotEmpty)
