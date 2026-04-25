@@ -1315,7 +1315,7 @@ class _VereinTabState extends State<_VereinTab> {
 
   Future<void> _loadSelectedVerein() async {
     try {
-      final r = await widget.apiService.getBehoerdeData(widget.userId, 'verein_selected');
+      final r = await widget.apiService.getVereinData(widget.userId);
       if (r['success'] == true && r['data'] != null && r['data'] is Map && (r['data']['name'] ?? '').toString().isNotEmpty) {
         _selectedVerein = Map<String, dynamic>.from(r['data']);
       }
@@ -1324,11 +1324,10 @@ class _VereinTabState extends State<_VereinTab> {
   }
 
   Future<void> _saveSelectedVerein(Map<String, dynamic>? v) async {
-    if (v != null) {
-      await widget.apiService.saveBehoerdeData(widget.userId, 'verein_selected', v);
-    } else {
-      await widget.apiService.saveBehoerdeData(widget.userId, 'verein_selected', {});
-    }
+    final data = <String, dynamic>{};
+    if (v != null) { for (final e in v.entries) data[e.key.toString()] = e.value?.toString() ?? ''; }
+    else { data['name'] = ''; data['typ'] = ''; data['strasse'] = ''; data['plz_ort'] = ''; data['telefon'] = ''; data['email'] = ''; data['oeffnungszeiten'] = ''; }
+    await widget.apiService.saveVereinData(widget.userId, data);
   }
 
   Future<void> _reload() async {
