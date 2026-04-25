@@ -1641,11 +1641,8 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
     final datum = v['datum']?.toString() ?? '';
     final erhalten = v['datum_erhalten']?.toString() ?? '';
     final frist = v['frist']?.toString() ?? '';
-    final bewDatum = v['bewerbung_datum']?.toString() ?? '';
-    final bewArt = v['bewerbung_art']?.toString() ?? '';
     final status = v['status']?.toString() ?? '';
     final ergebnis = v['ergebnis']?.toString() ?? '';
-    const artLabels = {'online': 'Online', 'email': 'E-Mail', 'post': 'Post', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'telefon': 'Telefon'};
     const mLabels = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'telefon': 'Telefon'};
 
     if (datum.isNotEmpty) events.add((datum, Icons.edit_calendar, 'Vermittlungsvorschlag erstellt', 'Datum auf dem Schreiben', Colors.grey));
@@ -1655,6 +1652,7 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
       events.add((frist, Icons.timer, 'Bewerbungsfrist (3 Tage)', left != null && left < 0 ? 'Abgelaufen' : left != null ? 'Noch $left Tage' : '', Colors.orange));
     }
 
+    DateTime? lastAusgangDate;
     for (final k in _korr) {
       final kDatum = k['datum']?.toString() ?? '';
       final kRichtung = k['richtung']?.toString() ?? '';
@@ -1662,9 +1660,18 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
       final kBetreff = k['betreff']?.toString() ?? '';
       final isAusgang = kRichtung == 'ausgang';
       events.add((kDatum, isAusgang ? Icons.call_made : Icons.call_received, '${isAusgang ? "Ausgang" : "Eingang"}: $kBetreff', kMethode.isNotEmpty ? 'per ${mLabels[kMethode] ?? kMethode}' : '', isAusgang ? Colors.blue : Colors.green));
+      if (isAusgang && kDatum.isNotEmpty) {
+        try { final p = kDatum.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); if (lastAusgangDate == null || d.isAfter(lastAusgangDate)) lastAusgangDate = d; } catch (_) {}
+      }
     }
 
-    if (bewDatum.isNotEmpty) events.add((bewDatum, Icons.send, 'Bewerbung eingereicht', bewArt.isNotEmpty ? 'Versand: ${artLabels[bewArt] ?? bewArt}' : '', Colors.teal));
+    if (lastAusgangDate != null && status != 'eingestellt' && status != 'abgelehnt' && status != 'absage_ag') {
+      final wartenBis = lastAusgangDate.add(const Duration(days: 14));
+      final wartenStr = '${wartenBis.day.toString().padLeft(2, '0')}.${wartenBis.month.toString().padLeft(2, '0')}.${wartenBis.year}';
+      final left = wartenBis.difference(DateTime.now()).inDays;
+      events.add((wartenStr, Icons.hourglass_top, 'Warten auf Antwort vom Arbeitgeber', left < 0 ? 'Frist abgelaufen (14 Tage)' : 'Noch $left Tage (14-Tage-Frist)', left < 0 ? Colors.red : Colors.purple));
+    }
+
     if (status == 'eingeladen') events.add(('', Icons.event, 'Vorstellungsgespräch', 'Einladung erhalten', Colors.purple));
     if (status == 'eingestellt') events.add(('', Icons.check_circle, 'Eingestellt', ergebnis.isNotEmpty ? ergebnis : 'Stelle angenommen', Colors.green));
     if (status == 'abgelehnt') events.add(('', Icons.cancel, 'Abgelehnt', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
