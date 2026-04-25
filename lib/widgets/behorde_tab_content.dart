@@ -534,6 +534,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   dienststelleBuilder: (t, c) => _buildDienststelleField(t, c),
                 ),
                 BehordeEinwohnermeldeamtContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
                   isSaving: (t) => _behoerdeSaving[t] == true,
