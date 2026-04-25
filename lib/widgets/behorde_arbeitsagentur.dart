@@ -1699,15 +1699,32 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
     final ergebnis = v['ergebnis']?.toString() ?? '';
     const mLabels = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'telefon': 'Telefon'};
 
+    DateTime? parseDate(String d) { if (d.isEmpty) return null; try { final p = d.split('.'); return DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); } catch (_) { return null; } }
+
     if (datum.isNotEmpty) events.add((datum, Icons.edit_calendar, 'Vermittlungsvorschlag erstellt', 'Datum auf dem Schreiben', Colors.grey));
     if (erhalten.isNotEmpty) events.add((erhalten, Icons.markunread_mailbox, 'Per Post erhalten', 'Eingang beim Mitglied', Colors.blue));
+
+    final hasKorr = _korr.isNotEmpty;
     if (frist.isNotEmpty) {
-      int? left; try { final p = frist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); left = d.difference(DateTime.now()).inDays; } catch (_) {}
-      events.add((frist, Icons.timer, 'Bewerbungsfrist (3 Tage)', left != null && left < 0 ? 'Abgelaufen' : left != null ? 'Noch $left Tage' : '', Colors.orange));
+      if (hasKorr) {
+        events.add((frist, Icons.check_circle, 'Bewerbungsfrist eingehalten', 'Frist wurde eingehalten', Colors.green));
+      } else {
+        int? left; try { final d = parseDate(frist); left = d?.difference(DateTime.now()).inDays; } catch (_) {}
+        events.add((frist, Icons.timer, 'Bewerbungsfrist (3 Tage)', left != null && left < 0 ? 'Abgelaufen!' : left != null ? 'Noch $left Tage' : '', Colors.orange));
+      }
     }
 
     DateTime? lastAusgangDate;
-    for (final k in _korr) {
+    final sortedKorr = List<Map<String, dynamic>>.from(_korr)..sort((a, b) {
+      final da = parseDate(a['datum']?.toString() ?? '');
+      final db = parseDate(b['datum']?.toString() ?? '');
+      if (da == null && db == null) return (a['id'] as int? ?? 0).compareTo(b['id'] as int? ?? 0);
+      if (da == null) return 1;
+      if (db == null) return -1;
+      final cmp = da.compareTo(db);
+      return cmp != 0 ? cmp : (a['id'] as int? ?? 0).compareTo(b['id'] as int? ?? 0);
+    });
+    for (final k in sortedKorr) {
       final kDatum = k['datum']?.toString() ?? '';
       final kRichtung = k['richtung']?.toString() ?? '';
       final kMethode = k['methode']?.toString() ?? '';
@@ -1715,7 +1732,8 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
       final isAusgang = kRichtung == 'ausgang';
       events.add((kDatum, isAusgang ? Icons.call_made : Icons.call_received, '${isAusgang ? "Ausgang" : "Eingang"}: $kBetreff', kMethode.isNotEmpty ? 'per ${mLabels[kMethode] ?? kMethode}' : '', isAusgang ? Colors.blue : Colors.green));
       if (isAusgang && kDatum.isNotEmpty) {
-        try { final p = kDatum.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); if (lastAusgangDate == null || d.isAfter(lastAusgangDate)) lastAusgangDate = d; } catch (_) {}
+        final d = parseDate(kDatum);
+        if (d != null && (lastAusgangDate == null || d.isAfter(lastAusgangDate))) lastAusgangDate = d;
       }
     }
 
@@ -1738,9 +1756,7 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
     if (aaDatum.isNotEmpty || status == 'absage_ag') events.add((aaDatum, Icons.block, 'Absage vom Arbeitgeber', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
     if (status == 'nicht_beworben') events.add(('', Icons.do_not_disturb, 'Nicht beworben', ergebnis.isNotEmpty ? ergebnis : '', Colors.grey));
 
-    // Sort by date
-    DateTime? _parseDate(String d) { if (d.isEmpty) return null; try { final p = d.split('.'); return DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); } catch (_) { return null; } }
-    events.sort((a, b) { final da = _parseDate(a.$1); final db = _parseDate(b.$1); if (da == null && db == null) return 0; if (da == null) return 1; if (db == null) return -1; return da.compareTo(db); });
+    events.sort((a, b) { final da = parseDate(a.$1); final db = parseDate(b.$1); if (da == null && db == null) return 0; if (da == null) return 1; if (db == null) return -1; return da.compareTo(db); });
 
     if (events.isEmpty) return Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)));
 
