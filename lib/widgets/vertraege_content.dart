@@ -1661,7 +1661,7 @@ class _VereinKorrTabState extends State<_VereinKorrTab> {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           if (betreffC.text.trim().isEmpty) return;
-          final res = await widget.apiService.saveVertraegeKorrespondenz(widget.vertragId, {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+          final res = await widget.apiService.saveVertraegeKorrespondenz({'vertrag_id': widget.vertragId, 'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
           final korrId = res['id'];
           if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'verein_vertrag', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
           if (ctx.mounted) Navigator.pop(ctx); _load();
