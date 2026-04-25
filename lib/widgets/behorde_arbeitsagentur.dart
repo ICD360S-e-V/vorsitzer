@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../services/api_service.dart';
+import '../services/ticket_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
@@ -28,6 +29,10 @@ class BehordeArbeitsagenturContent extends StatefulWidget {
   final List<Map<String, dynamic>> Function(Map<String, dynamic> data) getBegutachtungen;
   final List<Map<String, dynamic>> Function(Map<String, dynamic> data) getMeldungen;
   final List<Map<String, dynamic>> Function(Map<String, dynamic> data) getAntraege;
+  final TicketService? ticketService;
+  final String adminMitgliedernummer;
+  final String memberMitgliedernummer;
+  final String memberName;
 
   const BehordeArbeitsagenturContent({
     super.key,
@@ -49,6 +54,10 @@ class BehordeArbeitsagenturContent extends StatefulWidget {
     required this.getBegutachtungen,
     required this.getMeldungen,
     required this.getAntraege,
+    this.ticketService,
+    this.adminMitgliedernummer = '',
+    this.memberMitgliedernummer = '',
+    this.memberName = '',
   });
 
   @override
@@ -776,7 +785,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             ],
           ])),
           // ═══ TAB 2: Verlauf ═══
-          _VorschlagVerlaufTab(apiService: widget.apiService, userId: widget.userId, vorschlag: v),
+          _VorschlagVerlaufTab(apiService: widget.apiService, userId: widget.userId, vorschlag: v, ticketService: widget.ticketService, adminMnr: widget.adminMitgliedernummer, memberMnr: widget.memberMitgliedernummer, memberName: widget.memberName),
           // ═══ TAB 3: Korrespondenz ═══
           _VorschlagKorrTab(apiService: widget.apiService, userId: widget.userId, vorschlagId: v['id'] is int ? v['id'] : int.parse(v['id'].toString())),
         ])),
@@ -1610,7 +1619,11 @@ class _VorschlagVerlaufTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Map<String, dynamic> vorschlag;
-  const _VorschlagVerlaufTab({required this.apiService, required this.userId, required this.vorschlag});
+  final TicketService? ticketService;
+  final String adminMnr;
+  final String memberMnr;
+  final String memberName;
+  const _VorschlagVerlaufTab({required this.apiService, required this.userId, required this.vorschlag, this.ticketService, this.adminMnr = '', this.memberMnr = '', this.memberName = ''});
   @override
   State<_VorschlagVerlaufTab> createState() => _VorschlagVerlaufTabState();
 }
@@ -1632,6 +1645,46 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
       }
     } catch (_) {}
     if (mounted) setState(() => _loaded = true);
+    _checkAutoTicket();
+  }
+
+  Future<void> _checkAutoTicket() async {
+    final v = widget.vorschlag;
+    final status = v['status']?.toString() ?? '';
+    if (['eingestellt', 'abgelehnt', 'absage_ag'].contains(status)) return;
+    final existingTicket = v['erinnerung_ticket_id']?.toString() ?? '';
+
+    DateTime? lastAusgang;
+    for (final k in _korr) {
+      if (k['richtung'] == 'ausgang' && (k['datum']?.toString() ?? '').isNotEmpty) {
+        try { final p = k['datum'].toString().split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); if (lastAusgang == null || d.isAfter(lastAusgang)) lastAusgang = d; } catch (_) {}
+      }
+    }
+    if (lastAusgang == null) return;
+    final frist = lastAusgang.add(const Duration(days: 14));
+    if (!frist.isBefore(DateTime.now())) return;
+    if (existingTicket.isNotEmpty) return;
+
+    final ts = widget.ticketService;
+    if (ts == null || widget.adminMnr.isEmpty || widget.memberMnr.isEmpty) return;
+    final stelle = v['stelle']?.toString() ?? 'Vermittlungsvorschlag';
+    final ag = v['arbeitgeber']?.toString() ?? '';
+    try {
+      final result = await ts.createTicketForMember(
+        adminMitgliedernummer: widget.adminMnr,
+        memberMitgliedernummer: widget.memberMnr,
+        subject: 'Erinnerung: Keine Antwort von $ag ($stelle)',
+        message: 'Die 14-Tage-Frist für den Vermittlungsvorschlag "$stelle" bei $ag ist abgelaufen.\n\nBitte Arbeitgeber erneut kontaktieren und Rückmeldung anfordern.\n\nMitglied: ${widget.memberName}',
+        priority: 'high',
+        scheduledDate: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+        systemAuto: true,
+      );
+      if (result.containsKey('ticket')) {
+        final vid = v['id'] is int ? v['id'] as int : int.parse(v['id'].toString());
+        await widget.apiService.setArbeitsagenturErinnerungTicket(widget.userId, vid, 'auto');
+        v['erinnerung_ticket_id'] = 'auto';
+      }
+    } catch (_) {}
   }
 
   @override
@@ -1748,7 +1801,6 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
              ('eingestellt', 'Eingestellt', Icons.check_circle, Colors.green),
              ('abgelehnt', 'Abgelehnt (von uns)', Icons.cancel, Colors.red),
              ('absage_ag', 'Absage vom Arbeitgeber', Icons.block, Colors.red),
-             ('nicht_beworben', 'Nicht beworben', Icons.do_not_disturb, Colors.grey),
         ].map((e) => Padding(padding: const EdgeInsets.only(bottom: 4), child: InkWell(
           onTap: () => setDlg(() => selectedEvent = e.$1),
           borderRadius: BorderRadius.circular(8),
@@ -1874,6 +1926,9 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
           if (f.path == null) continue;
           await widget.apiService.uploadKorrAttachment(modul: 'aa_vorschlag', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name);
         }
+      }
+      if (richtung == 'ausgang') {
+        await widget.apiService.setArbeitsagenturErinnerungTicket(widget.userId, widget.vorschlagId, '');
       }
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
       _load();

@@ -4929,6 +4929,11 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  Future<Map<String, dynamic>> setArbeitsagenturErinnerungTicket(int userId, int vorschlagId, String ticketId) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'set_erinnerung_ticket', 'vorschlag_id': vorschlagId, 'ticket_id': ticketId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   Future<Map<String, dynamic>> getArbeitsagenturVorschlagKorr(int userId, int vorschlagId) async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'get_vorschlag_korr', 'vorschlag_id': vorschlagId})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }

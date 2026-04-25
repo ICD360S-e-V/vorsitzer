@@ -426,6 +426,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   getBegutachtungen: (d) => _getBegutachtungen(d),
                   getMeldungen: (d) => _getMeldungen(d),
                   getAntraege: (d) => _getAntraege(d),
+                  ticketService: TicketService(),
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
+                  memberMitgliedernummer: widget.user.mitgliedernummer,
+                  memberName: widget.user.name,
                 ),
                 BehordeJobcenterContent(
                   getData: (t) => _behoerdeData[t] ?? {},
