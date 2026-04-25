@@ -5029,6 +5029,16 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === VEREIN DATENBANK ===
+  Future<List<Map<String, dynamic>>> getVereinDatenbank() async {
+    try {
+      final r = await _client.get(Uri.parse('$baseUrl/admin/verein_datenbank.php'), headers: _headers).timeout(const Duration(seconds: 15));
+      final body = jsonDecode(r.body);
+      if (body['success'] == true && body['data'] is List) return List<Map<String, dynamic>>.from((body['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+      return [];
+    } catch (_) { return []; }
+  }
+
   // === KINDERGARTEN ===
   Future<Map<String, dynamic>> getKindergartenData(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/kindergarten_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));

@@ -25,6 +25,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
     ('internet', 'Internet & DSL', Icons.wifi, Colors.teal),
     ('versicherung', 'Versicherung', Icons.shield, Colors.green),
     ('strom_gas', 'Strom & Gas', Icons.bolt, Colors.orange),
+    ('verein', 'Verein', Icons.groups, Colors.indigo),
     ('sonstige', 'Sonstige', Icons.receipt_long, Colors.grey),
   ];
 
@@ -274,6 +275,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+        final isVerein = selKat == 'verein';
         final vorschlaege = selKat == 'handy' ? _handyAnbieter : (selKat == 'multimedia' ? _streamingAnbieter : <String>[]);
         final tarife = _streamingTarife[anbieterC.text.trim()];
         final hasTarife = tarife != null && tarife.isNotEmpty;
@@ -292,11 +294,40 @@ class _VertraegeContentState extends State<VertraegeContent> {
                   label: Text(k.$2, style: TextStyle(fontSize: 10, color: sel ? Colors.white : Colors.black87)),
                   selected: sel,
                   selectedColor: k.$4,
-                  onSelected: (_) => setD(() { selKat = k.$1; anbieterC.clear(); tarifC.clear(); kostenC.clear(); }),
+                  onSelected: (_) => setD(() { selKat = k.$1; anbieterC.clear(); tarifC.clear(); kostenC.clear(); if (k.$1 == 'verein') { laufzeitC.text = '12 Monate'; fristC.text = '3 Monate zum Jahresende'; } }),
                 );
               }).toList()),
               const SizedBox(height: 12),
-              if (vorschlaege.isNotEmpty)
+              if (isVerein)
+                TextField(controller: anbieterC, decoration: InputDecoration(labelText: 'Verein *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  suffixIcon: IconButton(icon: Icon(Icons.search, size: 20, color: Colors.indigo.shade600), tooltip: 'Aus Datenbank',
+                    onPressed: () async {
+                      final vereine = await widget.apiService.getVereinDatenbank();
+                      if (!ctx2.mounted || vereine.isEmpty) return;
+                      final sel = await showDialog<Map<String, dynamic>>(context: ctx2, builder: (sCtx) {
+                        String search = '';
+                        List<Map<String, dynamic>> results = vereine;
+                        return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+                          title: Row(children: [Icon(Icons.groups, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Verein auswählen', style: TextStyle(fontSize: 14))]),
+                          content: SizedBox(width: 450, height: 400, child: Column(children: [
+                            TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                              onChanged: (v) => setS(() { search = v.toLowerCase(); results = vereine.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(search) || (s['plz_ort']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
+                            const SizedBox(height: 8),
+                            Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                              : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                                  final v = results[i];
+                                  return ListTile(dense: true, leading: Icon(Icons.groups, size: 18, color: Colors.indigo.shade400),
+                                    title: Text(v['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                    subtitle: Text([v['typ'], v['plz_ort']].where((x) => x != null && x.toString().isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    onTap: () => Navigator.pop(sCtx, v));
+                                })),
+                          ])),
+                          actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+                        ));
+                      });
+                      if (sel != null) setD(() { anbieterC.text = sel['name']?.toString() ?? ''; if ((sel['telefon']?.toString() ?? '').isNotEmpty && telC.text.isEmpty) telC.text = sel['telefon'].toString(); if ((sel['email']?.toString() ?? '').isNotEmpty && emailC.text.isEmpty) emailC.text = sel['email'].toString(); });
+                    })))
+              else if (vorschlaege.isNotEmpty)
                 Autocomplete<String>(
                   initialValue: anbieterC.value,
                   optionsBuilder: (v) => v.text.isEmpty ? vorschlaege : vorschlaege.where((a) => a.toLowerCase().contains(v.text.toLowerCase())),
@@ -335,7 +366,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
                   ),
                 )
               else
-                TextField(controller: tarifC, decoration: InputDecoration(labelText: 'Tarif / Paket', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                TextField(controller: tarifC, decoration: InputDecoration(labelText: isVerein ? 'Art der Mitgliedschaft' : 'Tarif / Paket', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
               const SizedBox(height: 8),
               Row(children: [
                 Expanded(child: TextField(
@@ -344,7 +375,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
                   keyboardType: TextInputType.number,
                   style: TextStyle(fontSize: 14, color: kostenReadonly ? Colors.green.shade800 : null, fontWeight: kostenReadonly ? FontWeight.bold : null),
                   decoration: InputDecoration(
-                    labelText: 'Kosten €/Monat',
+                    labelText: isVerein ? 'Mitgliedsbeitrag €/Jahr' : 'Kosten €/Monat',
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     filled: kostenReadonly,
