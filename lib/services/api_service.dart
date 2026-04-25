@@ -4924,6 +4924,21 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  Future<Map<String, dynamic>> getArbeitsagenturVorschlagKorr(int userId, int vorschlagId) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'get_vorschlag_korr', 'vorschlag_id': vorschlagId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveArbeitsagenturVorschlagKorr(int userId, int vorschlagId, Map<String, dynamic> korr) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_vorschlag_korr', 'vorschlag_id': vorschlagId, 'korr': korr})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> deleteArbeitsagenturVorschlagKorr(int userId, int id) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_vorschlag_korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   // === SCHULBILDUNG ===
   Future<Map<String, dynamic>> getUserSchulbildung(int userId) async {
     final response = await _client.get(Uri.parse('$baseUrl/admin/user_schulbildung.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
