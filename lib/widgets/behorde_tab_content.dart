@@ -589,14 +589,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 ),
                 BehordeKonsulatContent(
                   apiService: widget.apiService,
-                  ticketService: widget.ticketService,
-                  adminMitgliedernummer: widget.adminMitgliedernummer,
-                  clientMitgliedernummer: widget.user.mitgliedernummer,
-                  getData: (t) => _behoerdeData[t] ?? {},
-                  isLoading: (t) => _behoerdeLoading[t] == true,
-                  isSaving: (t) => _behoerdeSaving[t] == true,
-                  loadData: (t) => _loadBehoerdeData(t),
-                  saveData: (t, d) => _saveBehoerdeData(t, d),
+                  userId: widget.user.id,
                 ),
                 BehordePolizeiContent(
                   apiService: widget.apiService,
