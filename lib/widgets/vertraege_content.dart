@@ -1332,6 +1332,12 @@ class _VereinTabState extends State<_VereinTab> {
 
   Future<void> _reload() async {
     await widget.onChanged();
+    try {
+      final r = await widget.apiService.listVertraege(widget.userId);
+      if (r['success'] == true && r['data'] is List && mounted) {
+        _localVertraege = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).where((v) => v['kategorie'] == 'verein').toList();
+      }
+    } catch (_) {}
     if (mounted) setState(() {});
   }
 
