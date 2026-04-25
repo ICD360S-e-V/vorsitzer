@@ -1296,7 +1296,7 @@ class _VereinTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final List<Map<String, dynamic>> vertraege;
-  final VoidCallback onChanged;
+  final Future<void> Function() onChanged;
   const _VereinTab({required this.apiService, required this.userId, required this.vertraege, required this.onChanged});
   @override
   State<_VereinTab> createState() => _VereinTabState();
@@ -1304,17 +1304,16 @@ class _VereinTab extends StatefulWidget {
 
 class _VereinTabState extends State<_VereinTab> {
   Map<String, dynamic>? _selectedVerein;
-  bool _loadedVerein = false;
+  List<Map<String, dynamic>> _localVertraege = [];
 
   @override
-  void initState() { super.initState(); _loadSelectedVerein(); }
+  void initState() { super.initState(); _localVertraege = List.from(widget.vertraege); }
 
-  Future<void> _loadSelectedVerein() async {
-    try {
-      final r = await widget.apiService.getKindergartenData(widget.userId);
-      // reuse pattern — but we need a separate store. For now, just check if first verein vertrag has anbieter
-    } catch (_) {}
-    _loadedVerein = true;
+  @override
+  void didUpdateWidget(covariant _VereinTab old) { super.didUpdateWidget(old); _localVertraege = List.from(widget.vertraege); }
+
+  Future<void> _reload() async {
+    await widget.onChanged();
     if (mounted) setState(() {});
   }
 
@@ -1393,7 +1392,7 @@ class _VereinTabState extends State<_VereinTab> {
     Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10), Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
 
   Widget _buildVertragList() {
-    final list = widget.vertraege;
+    final list = _localVertraege;
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
         Icon(Icons.description, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
@@ -1471,7 +1470,7 @@ class _VereinTabState extends State<_VereinTab> {
       'mindestlaufzeit': laufzeitC.text.trim(), 'kuendigungsfrist': fristC.text.trim(),
       'telefonnummer': telC.text.trim(), 'notizen': notizenC.text.trim(),
     });
-    widget.onChanged();
+    await _reload();
   }
 
   void _showVertragDetail(Map<String, dynamic> v) {
@@ -1556,7 +1555,7 @@ class _VereinTabState extends State<_VereinTab> {
                   FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600), onPressed: () async {
                     v['gekuendigt_am'] = gekDatumC.text.trim(); v['vertragsende'] = endeC.text.trim(); v['kuendigung_methode'] = methode; v['kuendigung_notiz'] = notizKC.text.trim(); v['is_active'] = 0;
                     await widget.apiService.saveVertrag(widget.userId, v);
-                    widget.onChanged(); if (kCtx.mounted) Navigator.pop(kCtx); setDlg(() {});
+                    await _reload(); if (kCtx.mounted) Navigator.pop(kCtx); setDlg(() {});
                   }, child: const Text('Speichern')),
                 ],
               )));
