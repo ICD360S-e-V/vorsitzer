@@ -38,8 +38,10 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
   ];
 
   static const _vorfallTypen = [
-    'Reisepass beantragen / verlängern',
-    'Personalausweis (Carte de Identitate)',
+    'Reisepass beantragen',
+    'Reisepass verlängern',
+    'Personalausweis beantragen (Carte de Identitate)',
+    'Personalausweis verlängern (Carte de Identitate)',
     'Geburtsurkunde beantragen',
     'Heiratsurkunde beantragen',
     'Sterbeurkunde beantragen',
