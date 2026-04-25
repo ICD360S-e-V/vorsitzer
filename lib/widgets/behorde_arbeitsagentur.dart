@@ -1618,6 +1618,7 @@ class _VorschlagVerlaufTab extends StatefulWidget {
 class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
   List<Map<String, dynamic>> _korr = [];
   bool _loaded = false;
+  bool _wartenAbgelaufen = false;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -1669,8 +1670,10 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
       final wartenBis = lastAusgangDate.add(const Duration(days: 14));
       final wartenStr = '${wartenBis.day.toString().padLeft(2, '0')}.${wartenBis.month.toString().padLeft(2, '0')}.${wartenBis.year}';
       final left = wartenBis.difference(DateTime.now()).inDays;
-      events.add((wartenStr, Icons.hourglass_top, 'Warten auf Antwort vom Arbeitgeber', left < 0 ? 'Frist abgelaufen (14 Tage)' : 'Noch $left Tage (14-Tage-Frist)', left < 0 ? Colors.red : Colors.purple));
+      final sub = left < 0 ? 'Frist abgelaufen — Erinnerung an Arbeitgeber senden!' : 'Noch $left Tage (14-Tage-Frist)';
+      events.add((wartenStr, Icons.hourglass_top, 'Warten auf Antwort vom Arbeitgeber', sub, left < 0 ? Colors.red : Colors.purple));
     }
+    _wartenAbgelaufen = lastAusgangDate != null && status != 'eingestellt' && status != 'abgelehnt' && status != 'absage_ag' && lastAusgangDate.add(const Duration(days: 14)).isBefore(DateTime.now());
 
     final vgDatum = v['vorstellungsgespraech_datum']?.toString() ?? '';
     final eDatum = v['eingestellt_datum']?.toString() ?? '';
@@ -1718,6 +1721,16 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
             ]))),
         ]));
       }),
+      if (_wartenAbgelaufen) ...[
+        const SizedBox(height: 8),
+        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade300)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Icon(Icons.warning_amber, size: 18, color: Colors.red.shade700), const SizedBox(width: 8),
+              Expanded(child: Text('14-Tage-Frist abgelaufen — Erinnerung an Arbeitgeber senden', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade800)))]),
+            const SizedBox(height: 8),
+            Text('Neuen Ausgang in Korrespondenz erstellen um den Arbeitgeber zu erinnern. Danach beginnt eine neue 14-Tage-Frist.', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          ])),
+      ],
     ]));
   }
 
