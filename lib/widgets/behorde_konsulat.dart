@@ -260,6 +260,18 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
   List<Map<String, dynamic>> _termine = [], _korr = [];
   bool _loaded = false;
 
+  static const _statusMap = {
+    'offen': ('Offen', Colors.blue),
+    'termin_vereinbart': ('Termin vereinbart', Colors.purple),
+    'unterlagen_eingereicht': ('Unterlagen eingereicht', Colors.orange),
+    'in_bearbeitung': ('In Bearbeitung', Colors.amber),
+    'nachforderung': ('Nachforderung', Colors.red),
+    'versandt': ('Versandt / Unterwegs', Colors.teal),
+    'abholbereit': ('Abholbereit', Colors.green),
+    'erledigt': ('Erledigt', Colors.green),
+    'abgelehnt': ('Abgelehnt', Colors.red),
+  };
+
   @override
   void initState() { super.initState(); _load(); }
 
@@ -278,40 +290,76 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
   Widget build(BuildContext context) {
     final v = widget.vorfall;
     final status = v['status']?.toString() ?? 'offen';
-    final sc = status == 'erledigt' ? Colors.green : status == 'in_bearbeitung' ? Colors.orange : Colors.blue;
-    return DefaultTabController(length: 3, child: Column(children: [
+    final sInfo = _statusMap[status] ?? ('Offen', Colors.blue);
+    final sc = sInfo.$2;
+    return DefaultTabController(length: 4, child: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
         Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
         Expanded(child: Text(v['titel']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(6)),
-          child: Text(status == 'erledigt' ? 'Erledigt' : status == 'in_bearbeitung' ? 'In Bearbeitung' : 'Offen', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
-        PopupMenuButton<String>(icon: const Icon(Icons.more_vert, size: 18), itemBuilder: (_) => [
-          const PopupMenuItem(value: 'offen', child: Text('Offen', style: TextStyle(fontSize: 12))),
-          const PopupMenuItem(value: 'in_bearbeitung', child: Text('In Bearbeitung', style: TextStyle(fontSize: 12))),
-          const PopupMenuItem(value: 'erledigt', child: Text('Erledigt', style: TextStyle(fontSize: 12))),
-        ], onSelected: (s) async {
-          await widget.apiService.saveKonsulatVorfall(widget.userId, {...v, 'status': s});
-          v['status'] = s; widget.onChanged(); setState(() {});
-        }),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (sc as MaterialColor).shade100, borderRadius: BorderRadius.circular(6)),
+          child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
+        PopupMenuButton<String>(icon: const Icon(Icons.more_vert, size: 18), itemBuilder: (_) => _statusMap.entries.map((e) =>
+          PopupMenuItem(value: e.key, child: Text(e.value.$1, style: const TextStyle(fontSize: 12)))).toList(),
+          onSelected: (s) async {
+            await widget.apiService.saveKonsulatVorfall(widget.userId, {...v, 'status': s});
+            v['status'] = s; widget.onChanged(); setState(() {});
+          }),
+        IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.indigo.shade400), tooltip: 'Bearbeiten', onPressed: () => _editVorfall(v)),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
       ])),
-      TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, tabs: [
+      TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: const Icon(Icons.email, size: 16), text: 'Korrespondenz (${_korr.length})'),
+        const Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
         Tab(icon: const Icon(Icons.event, size: 16), text: 'Termine (${_termine.length})'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
         _buildKorr(),
+        _buildVerlauf(v),
         _buildTermine(),
       ])),
     ]));
   }
 
+  void _editVorfall(Map<String, dynamic> v) {
+    final titelC = TextEditingController(text: v['titel']?.toString() ?? '');
+    final datumC = TextEditingController(text: v['datum']?.toString() ?? '');
+    final aktenC = TextEditingController(text: v['aktenzeichen']?.toString() ?? '');
+    final notizC = TextEditingController(text: v['notiz']?.toString() ?? '');
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Vorfall bearbeiten', style: TextStyle(fontSize: 14)),
+      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: aktenC, decoration: InputDecoration(labelText: 'Aktenzeichen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          v['titel'] = titelC.text.trim(); v['datum'] = datumC.text.trim(); v['aktenzeichen'] = aktenC.text.trim(); v['notiz'] = notizC.text.trim();
+          await widget.apiService.saveKonsulatVorfall(widget.userId, v);
+          widget.onChanged(); if (ctx.mounted) Navigator.pop(ctx); setState(() {});
+        }, child: const Text('Speichern')),
+      ],
+    ));
+  }
+
   Widget _buildDetails(Map<String, dynamic> v) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _row(Icons.category, 'Typ', v['typ']), _row(Icons.title, 'Titel', v['titel']), _row(Icons.calendar_today, 'Datum', v['datum']),
-      _row(Icons.folder, 'Aktenzeichen', v['aktenzeichen']), _row(Icons.flag, 'Status', v['status']),
+      _row(Icons.folder, 'Aktenzeichen', v['aktenzeichen']),
+      if (v['status'] != null) Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+        Icon(Icons.flag, size: 14, color: Colors.indigo.shade600), const SizedBox(width: 8),
+        Text('Status: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (_statusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade100, borderRadius: BorderRadius.circular(4)),
+          child: Text(_statusMap[v['status']]?.$1 ?? v['status'].toString(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (_statusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade800))),
+      ])),
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 10),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12)))],
@@ -398,6 +446,56 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
         }, child: const Text('Speichern')),
       ],
     )));
+  }
+
+  Widget _buildVerlauf(Map<String, dynamic> v) {
+    DateTime? parseDate(String d) { if (d.isEmpty) return null; try { final p = d.split('.'); return DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); } catch (_) { return null; } }
+    const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax'};
+    final events = <(String date, IconData icon, String title, String sub, MaterialColor color)>[];
+
+    final datum = v['datum']?.toString() ?? '';
+    if (datum.isNotEmpty) events.add((datum, Icons.add_circle, 'Antrag erstellt', v['typ']?.toString() ?? '', Colors.grey));
+
+    final sortedKorr = List<Map<String, dynamic>>.from(_korr)..sort((a, b) {
+      final da = parseDate(a['datum']?.toString() ?? ''); final db = parseDate(b['datum']?.toString() ?? '');
+      if (da == null && db == null) return 0; if (da == null) return 1; if (db == null) return -1;
+      final cmp = da.compareTo(db); return cmp != 0 ? cmp : (a['id'] as int? ?? 0).compareTo(b['id'] as int? ?? 0);
+    });
+    for (final k in sortedKorr) {
+      final kD = k['datum']?.toString() ?? ''; final isA = k['richtung'] == 'ausgang'; final m = k['methode']?.toString() ?? '';
+      events.add((kD, isA ? Icons.call_made : Icons.call_received, '${isA ? "Ausgang" : "Eingang"}: ${k['betreff'] ?? ''}', m.isNotEmpty ? 'per ${mL[m] ?? m}' : '', isA ? Colors.blue : Colors.green));
+    }
+
+    for (final t in _termine) {
+      final tD = t['datum']?.toString() ?? '';
+      events.add((tD, Icons.event, 'Termin: ${t['uhrzeit'] ?? ''}', t['ort']?.toString() ?? '', Colors.purple));
+    }
+
+    events.sort((a, b) { final da = parseDate(a.$1); final db = parseDate(b.$1); if (da == null && db == null) return 0; if (da == null) return 1; if (db == null) return -1; return da.compareTo(db); });
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+      const SizedBox(height: 12),
+      if (events.isEmpty) Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+        child: Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center))
+      else ...events.asMap().entries.map((entry) {
+        final i = entry.key; final e = entry.value; final isLast = i == events.length - 1;
+        return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 30, child: Column(children: [
+            Container(width: 24, height: 24, decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
+              child: Icon(e.$2, size: 12, color: e.$5.shade700)),
+            if (!isLast) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+          ])),
+          const SizedBox(width: 10),
+          Expanded(child: Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
+                if (e.$1.isNotEmpty) Text(e.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: e.$5.shade600))]),
+              if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            ]))),
+        ]));
+      }),
+    ]));
   }
 
   Widget _buildTermine() {
