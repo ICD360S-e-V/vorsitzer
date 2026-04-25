@@ -15,6 +15,7 @@ import 'behorde_einwohnermeldeamt.dart';
 import 'behorde_familienkasse.dart';
 import 'behorde_finanzamt.dart';
 import 'behorde_gericht.dart';
+import 'behorde_kindergarten.dart';
 import 'behorde_krankenkasse.dart';
 import 'behorde_rentenversicherung.dart';
 import 'behorde_jobcenter.dart';
@@ -81,7 +82,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'gericht',
     'krankenkasse', 'rentenversicherung', 'auslaenderbehoerde', 'familienkasse',
     'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei',
-    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag',
+    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten',
   ];
 
   // Fields per type for completion calculation
@@ -343,6 +344,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'polizei', 'icon': Icons.local_police, 'label': 'Polizei'},
     {'type': 'versorgungsamt', 'icon': Icons.accessible, 'label': 'Versorgungsamt'},
     {'type': 'rundfunkbeitrag', 'icon': Icons.radio, 'label': 'ARD ZDF'},
+    {'type': 'kindergarten', 'icon': Icons.child_care, 'label': 'Kindergarten'},
   ];
 
   @override
@@ -621,6 +623,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   isSaving: (t) => _behoerdeSaving[t] == true,
                   loadData: (t) => _loadBehoerdeData(t),
                   saveData: (t, d) => _saveBehoerdeData(t, d),
+                )),
+                _buildTabContent('kindergarten', () => BehordeKindergartenContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
                 )),
               ],
             ),

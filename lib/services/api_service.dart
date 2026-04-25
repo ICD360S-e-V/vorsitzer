@@ -4991,6 +4991,44 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === KINDERGARTEN ===
+  Future<Map<String, dynamic>> getKindergartenData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/kindergarten_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveKindergartenData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_data', 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveKindergartenKind(int userId, Map<String, dynamic> kind) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_kind', 'kind': kind})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteKindergartenKind(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_kind', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> getKindergartenKindDetail(int userId, int kindId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/kindergarten_manage.php?user_id=$userId&action=kind_detail&kind_id=$kindId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveKindergartenKorr(int userId, int kindId, Map<String, dynamic> korr) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_korr', 'kind_id': kindId, 'korr': korr})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteKindergartenKorr(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveKindergartenTermin(int userId, int kindId, Map<String, dynamic> termin) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_termin', 'kind_id': kindId, 'termin': termin})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteKindergartenTermin(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_termin', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === SCHULBILDUNG ===
   Future<Map<String, dynamic>> getUserSchulbildung(int userId) async {
     final response = await _client.get(Uri.parse('$baseUrl/admin/user_schulbildung.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
