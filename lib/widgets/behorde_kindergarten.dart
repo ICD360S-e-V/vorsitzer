@@ -58,7 +58,49 @@ class _State extends State<BehordeKindergartenContent> with TickerProviderStateM
     final leiterinC = TextEditingController(text: _v('leiterin'));
     final oeffnungsC = TextEditingController(text: _v('oeffnungszeiten'));
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.child_care, size: 20, color: Colors.pink.shade700), const SizedBox(width: 8), Text('Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700))]),
+      Row(children: [
+        Icon(Icons.child_care, size: 20, color: Colors.pink.shade700), const SizedBox(width: 8),
+        Text('Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+        const Spacer(),
+        OutlinedButton.icon(icon: Icon(Icons.search, size: 16, color: Colors.pink.shade600), label: Text('Aus Datenbank', style: TextStyle(fontSize: 11, color: Colors.pink.shade600)),
+          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.pink.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () async {
+            final standorte = await widget.apiService.getBehoerdenStandorte(typ: 'kindergarten');
+            if (!mounted || standorte.isEmpty) return;
+            final selected = await showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
+              String search = '';
+              List<Map<String, dynamic>> results = standorte;
+              return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+                title: Row(children: [Icon(Icons.child_care, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8), const Text('Kindergarten auswählen', style: TextStyle(fontSize: 14))]),
+                content: SizedBox(width: 450, height: 400, child: Column(children: [
+                  TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                    onChanged: (v) => setS(() { search = v.toLowerCase(); results = standorte.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(search) || (s['plz_ort']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
+                  const SizedBox(height: 8),
+                  Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                    : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                        final s = results[i];
+                        return ListTile(dense: true, leading: Icon(Icons.child_care, size: 18, color: Colors.pink.shade400),
+                          title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          subtitle: Text([s['strasse'], s['plz_ort']].where((v) => v != null && v.toString().isNotEmpty).join(', '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          onTap: () => Navigator.pop(sCtx, s));
+                      })),
+                ])),
+                actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+              ));
+            });
+            if (selected != null) {
+              setState(() {
+                nameC.text = selected['name']?.toString() ?? '';
+                final str = selected['strasse']?.toString() ?? '';
+                final plz = selected['plz_ort']?.toString() ?? '';
+                adresseC.text = [str, plz].where((v) => v.isNotEmpty).join(', ');
+                if ((selected['telefon']?.toString() ?? '').isNotEmpty) telefonC.text = selected['telefon'].toString();
+                if ((selected['email']?.toString() ?? '').isNotEmpty) emailC.text = selected['email'].toString();
+                if ((selected['oeffnungszeiten']?.toString() ?? '').isNotEmpty) oeffnungsC.text = selected['oeffnungszeiten'].toString();
+              });
+            }
+          }),
+      ]),
       const SizedBox(height: 12),
       _tf('Name', nameC, Icons.child_care), const SizedBox(height: 10),
       _tf('Adresse', adresseC, Icons.location_on), const SizedBox(height: 10),
