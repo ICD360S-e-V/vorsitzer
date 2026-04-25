@@ -1672,10 +1672,14 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
       events.add((wartenStr, Icons.hourglass_top, 'Warten auf Antwort vom Arbeitgeber', left < 0 ? 'Frist abgelaufen (14 Tage)' : 'Noch $left Tage (14-Tage-Frist)', left < 0 ? Colors.red : Colors.purple));
     }
 
-    if (status == 'eingeladen') events.add(('', Icons.event, 'Vorstellungsgespräch', 'Einladung erhalten', Colors.purple));
-    if (status == 'eingestellt') events.add(('', Icons.check_circle, 'Eingestellt', ergebnis.isNotEmpty ? ergebnis : 'Stelle angenommen', Colors.green));
-    if (status == 'abgelehnt') events.add(('', Icons.cancel, 'Abgelehnt', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
-    if (status == 'absage_ag') events.add(('', Icons.block, 'Absage vom Arbeitgeber', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
+    final vgDatum = v['vorstellungsgespraech_datum']?.toString() ?? '';
+    final eDatum = v['eingestellt_datum']?.toString() ?? '';
+    final aDatum = v['abgelehnt_datum']?.toString() ?? '';
+    final aaDatum = v['absage_ag_datum']?.toString() ?? '';
+    if (vgDatum.isNotEmpty || status == 'eingeladen') events.add((vgDatum, Icons.event, 'Vorstellungsgespräch', 'Einladung erhalten', Colors.purple));
+    if (eDatum.isNotEmpty || status == 'eingestellt') events.add((eDatum, Icons.check_circle, 'Eingestellt', ergebnis.isNotEmpty ? ergebnis : 'Stelle angenommen', Colors.green));
+    if (aDatum.isNotEmpty || status == 'abgelehnt') events.add((aDatum, Icons.cancel, 'Abgelehnt', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
+    if (aaDatum.isNotEmpty || status == 'absage_ag') events.add((aaDatum, Icons.block, 'Absage vom Arbeitgeber', ergebnis.isNotEmpty ? ergebnis : '', Colors.red));
     if (status == 'nicht_beworben') events.add(('', Icons.do_not_disturb, 'Nicht beworben', ergebnis.isNotEmpty ? ergebnis : '', Colors.grey));
 
     // Sort by date
@@ -1685,7 +1689,13 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
     if (events.isEmpty) return Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)));
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+      Row(children: [
+        Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Ereignis', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addStatusEvent(v)),
+      ]),
       const SizedBox(height: 12),
       ...events.asMap().entries.map((entry) {
         final i = entry.key;
@@ -1709,6 +1719,54 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
         ]));
       }),
     ]));
+  }
+
+  Future<void> _addStatusEvent(Map<String, dynamic> v) async {
+    final vid = v['id'] is int ? v['id'] as int : int.parse(v['id'].toString());
+    String selectedEvent = '';
+    final datumC = TextEditingController();
+
+    final ok = await showDialog<bool>(context: context, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.flag, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Ereignis hinzufügen', style: TextStyle(fontSize: 14))]),
+      content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Was ist passiert?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 8),
+        ...[ ('eingeladen', 'Vorstellungsgespräch', Icons.event, Colors.purple),
+             ('eingestellt', 'Eingestellt', Icons.check_circle, Colors.green),
+             ('abgelehnt', 'Abgelehnt (von uns)', Icons.cancel, Colors.red),
+             ('absage_ag', 'Absage vom Arbeitgeber', Icons.block, Colors.red),
+             ('nicht_beworben', 'Nicht beworben', Icons.do_not_disturb, Colors.grey),
+        ].map((e) => Padding(padding: const EdgeInsets.only(bottom: 4), child: InkWell(
+          onTap: () => setDlg(() => selectedEvent = e.$1),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(color: selectedEvent == e.$1 ? (e.$4 as Color).withValues(alpha: 0.1) : Colors.grey.shade50, borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: selectedEvent == e.$1 ? (e.$4 as Color).withValues(alpha: 0.5) : Colors.grey.shade200, width: selectedEvent == e.$1 ? 2 : 1)),
+            child: Row(children: [Icon(e.$3, size: 18, color: e.$4 as Color), const SizedBox(width: 10), Text(e.$2, style: TextStyle(fontSize: 13, fontWeight: selectedEvent == e.$1 ? FontWeight.bold : FontWeight.normal))]))))),
+        const SizedBox(height: 12),
+        Text('Datum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+          onTap: () async {
+            final p = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (p != null) datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
+          }),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlgCtx, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () {
+          if (selectedEvent.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Ereignis auswählen'), backgroundColor: Colors.orange)); return; }
+          Navigator.pop(dlgCtx, true);
+        }, child: const Text('Speichern')),
+      ],
+    )));
+
+    if (ok != true) return;
+    const fieldMap = {'eingeladen': 'vorstellungsgespraech_datum', 'eingestellt': 'eingestellt_datum', 'abgelehnt': 'abgelehnt_datum', 'absage_ag': 'absage_ag_datum'};
+    await widget.apiService.updateArbeitsagenturVorschlagStatus(widget.userId, vid, selectedEvent, dateField: fieldMap[selectedEvent] ?? '', eventDatum: datumC.text.trim());
+    v['status'] = selectedEvent;
+    if (fieldMap.containsKey(selectedEvent)) v[fieldMap[selectedEvent]!] = datumC.text.trim();
+    await _load();
   }
 }
 
