@@ -1742,53 +1742,51 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           return GestureDetector(
             onTap: () => setCard(() => showBack = !showBack),
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
-              // ── VORDERSEITE (Front) — identical to official card ──
+              // ── VORDERSEITE (Front) — 50/50 left green right salmon ──
               ? Container(key: const ValueKey('front'), width: double.infinity, height: 230,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))]),
-                child: Column(children: [
-                  // Header
-                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
-                    decoration: BoxDecoration(gradient: LinearGradient(colors: hasB ? [const Color(0xFFD5EACC), const Color(0xFFF0C4B0)] : [const Color(0xFFD5EACC), const Color(0xFFD5EACC)], begin: Alignment.centerLeft, end: Alignment.centerRight)),
+                child: Row(children: [
+                  // LEFT HALF — green
+                  Expanded(child: Container(color: const Color(0xFFD5EACC),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87, letterSpacing: -0.5)),
-                      const SizedBox(height: 1),
-                      Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 10, color: Colors.black54, fontStyle: FontStyle.italic)),
-                    ])),
-                  // Body
-                  Expanded(child: Row(children: [
-                    // Photo (green side)
-                    Container(width: 95, color: const Color(0xFFD5EACC), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      child: Center(child: Container(width: 70, height: 85, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade500), color: Colors.white),
+                      // Header on green
+                      Padding(padding: const EdgeInsets.fromLTRB(14, 10, 8, 2), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('Schwerbehinderten-\nausweis', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black87, height: 1.1)),
+                        const SizedBox(height: 2),
+                        Text('The holder of this card\nis severely disabled.', style: TextStyle(fontSize: 8, color: Colors.black54, fontStyle: FontStyle.italic, height: 1.2)),
+                      ])),
+                      // Lichtbild
+                      Expanded(child: Center(child: Container(width: 65, height: 80, margin: const EdgeInsets.only(left: 14),
+                        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade500), color: Colors.white),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(Icons.person, size: 32, color: Colors.grey.shade400),
+                          Icon(Icons.person, size: 28, color: Colors.grey.shade400),
                           Text('Lichtbild', style: TextStyle(fontSize: 7, color: Colors.grey.shade500)),
                         ])))),
-                    // B letter (on green)
-                    if (hasB) Container(width: 45, color: const Color(0xFFD5EACC),
-                      child: Center(child: const Text('B', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Colors.black87)))),
-                    // Right side data (salmon when B, green when not)
-                    Expanded(child: Container(color: hasB ? const Color(0xFFF0C4B0) : const Color(0xFFD5EACC),
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.black87)),
-                        const SizedBox(height: 3),
-                        Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        const SizedBox(height: 8),
-                        Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
-                        if (hasB) ...[
-                          const Spacer(),
-                          const Text('Die Berechtigung zur Mitnahme einer', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black87, fontStyle: FontStyle.italic)),
-                          const Text('Begleitperson ist nachgewiesen', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black87, fontStyle: FontStyle.italic)),
-                          const SizedBox(height: 4),
-                        ],
-                      ]))),
-                  ])),
-                  // Footer
-                  Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    color: const Color(0xFFD5EACC),
-                    child: Text('Gültig bis: ${gueltigBis.isNotEmpty ? gueltigBis : "—"}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black87))),
+                      // B letter
+                      if (hasB) Padding(padding: const EdgeInsets.only(left: 14, bottom: 4),
+                        child: const Text('B', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.black87))),
+                      // Gültig bis
+                      Padding(padding: const EdgeInsets.fromLTRB(14, 0, 8, 8),
+                        child: Text('Gültig bis: ${gueltigBis.isNotEmpty ? gueltigBis : "—"}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black87))),
+                    ]))),
+                  // RIGHT HALF — salmon when B, green when not
+                  Expanded(child: Container(color: hasB ? const Color(0xFFF0C4B0) : const Color(0xFFD5EACC),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const SizedBox(height: 24),
+                      Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87)),
+                      const SizedBox(height: 4),
+                      Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      const SizedBox(height: 10),
+                      Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
+                      if (hasB) ...[
+                        const Spacer(),
+                        const Text('Die Berechtigung zur Mitnahme einer\nBegleitperson ist nachgewiesen', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black87, fontStyle: FontStyle.italic, height: 1.3)),
+                        const SizedBox(height: 4),
+                      ],
+                    ]))),
                 ]))
               // ── RÜCKSEITE (Back) — 50/50 left salmon right green when B ──
               : Container(key: const ValueKey('back'), width: double.infinity, height: 230, clipBehavior: Clip.antiAlias,
@@ -1825,17 +1823,14 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                       Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
                       Text('Geburtsdatum', style: TextStyle(fontSize: 7, color: Colors.black45)),
                       Text(gebDatum.isNotEmpty ? gebDatum : '—', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    ]))),
-                  // Right half — green when B, green when not (always green)
-                  Expanded(child: Container(padding: const EdgeInsets.all(10), color: const Color(0xFFD5EACC),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
+                      const Spacer(),
                       Text('Ausstellungsbehörde / Geschäftszeichen:', style: TextStyle(fontSize: 7, color: Colors.black45)),
-                      const SizedBox(height: 2),
-                      Text(amtName.isNotEmpty ? amtName : '—', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      Text(aktenzeichen.isNotEmpty ? aktenzeichen : '—', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      const SizedBox(height: 6),
-                      Text('Gültig ab: ${gueltigAb.isNotEmpty ? gueltigAb : "—"}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.black87)),
+                      Text('${amtName.isNotEmpty ? amtName : "—"} / ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      const SizedBox(height: 4),
+                      Text('Gültig ab: ${gueltigAb.isNotEmpty ? gueltigAb : "—"}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black87)),
                     ]))),
+                  // Right half — green (empty)
+                  Expanded(child: Container(color: const Color(0xFFD5EACC))),
                 ])),
           ));
         }),
