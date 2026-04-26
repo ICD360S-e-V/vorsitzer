@@ -1742,53 +1742,57 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           return GestureDetector(
             onTap: () => setCard(() => showBack = !showBack),
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
-              // ── VORDERSEITE (Front) — Stack: background colors + text overlay ──
+              // ── VORDERSEITE (Front) ──
               ? Container(key: const ValueKey('front'), width: double.infinity, height: 300,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade400),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Stack(children: [
-                  // Background — 50/50 split
                   Row(children: [
                     Expanded(child: Container(color: const Color(0xFFD5EACC))),
                     if (hasB) Expanded(child: Container(color: const Color(0xFFF0C4B0))),
                   ]),
-                  // Text overlay
-                  Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.black87)),
-                    Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 11, color: Colors.black54, fontStyle: FontStyle.italic)),
-                    const SizedBox(height: 6),
+                  Column(children: [
+                    // Title — full width
+                    Padding(padding: const EdgeInsets.fromLTRB(14, 12, 14, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.black87)),
+                      Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 11, color: Colors.black54, fontStyle: FontStyle.italic)),
+                    ])),
+                    const SizedBox(height: 8),
+                    // Body — Lichtbild+B left, data right
                     Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      // Lichtbild
-                      Container(width: 70, height: 85, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade500), color: Colors.white),
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(Icons.person, size: 32, color: Colors.grey.shade400),
-                          Text('Lichtbild', style: TextStyle(fontSize: 8, color: Colors.grey.shade500)),
-                        ])),
-                      const SizedBox(width: 12),
-                      // B letter
-                      if (hasB) const Padding(padding: EdgeInsets.only(top: 6), child: Text('B', style: TextStyle(fontSize: 50, fontWeight: FontWeight.w900, color: Colors.black87))),
-                      if (hasB) const SizedBox(width: 14),
-                      // Name data
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      // Green side: Lichtbild + B
+                      Padding(padding: const EdgeInsets.only(left: 14), child: Column(children: [
+                        Container(width: 75, height: 90, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade500), color: Colors.white),
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.person, size: 32, color: Colors.grey.shade400),
+                            Text('Lichtbild', style: TextStyle(fontSize: 8, color: Colors.grey.shade500)),
+                          ])),
+                        if (hasB) const SizedBox(height: 4),
+                        if (hasB) const Text('B', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: Colors.black87)),
+                      ])),
+                      const SizedBox(width: 16),
+                      // Salmon side: Name data
+                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 4),
                         Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 11, color: Colors.black87)),
                         if (hasB) ...[
                           const Spacer(),
                           const Text('Die Berechtigung zur Mitnahme einer\nBegleitperson ist nachgewiesen', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.black87, fontStyle: FontStyle.italic, height: 1.3)),
                         ],
-                      ])),
+                      ]))),
                     ])),
-                    Row(children: [
+                    // Footer — on green
+                    Padding(padding: const EdgeInsets.fromLTRB(14, 4, 14, 10), child: Row(children: [
                       Text('Gültig bis: ${gueltigBis.isNotEmpty ? gueltigBis : "—"}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.black87)),
                       const Spacer(),
-                      Row(children: List.generate(6, (i) => Container(width: 4, height: 4, margin: const EdgeInsets.all(1.5),
+                      Row(children: List.generate(6, (i) => Container(width: 5, height: 5, margin: const EdgeInsets.all(1.5),
                         decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle)))),
-                    ]),
-                  ])),
+                    ])),
+                  ]),
                 ]))
               // ── RÜCKSEITE (Back) — Stack: top salmon bottom green ──
               : Container(key: const ValueKey('back'), width: double.infinity, height: 300, clipBehavior: Clip.antiAlias,
@@ -1802,25 +1806,33 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   ]),
                   // Text overlay
                   Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    // Merkzeichen + GdB row — spans full width across both colors
-                    Row(children: [
-                      Text('Merkzeichen  ', style: TextStyle(fontSize: 10, color: Colors.black54)),
-                      ...List.generate(7, (i) {
-                        final mz = i < activeMz.length ? activeMz[i] : '';
-                        return Expanded(child: Container(height: 32, margin: const EdgeInsets.only(right: 3),
-                          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
-                          child: Center(child: mz.isNotEmpty
-                            ? Text(mz, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.black87))
-                            : Container(width: 1, height: 18, color: Colors.black26))));
-                      }),
-                      const SizedBox(width: 6),
-                      Column(children: [
-                        Text('GdB', style: TextStyle(fontSize: 10, color: Colors.black54)),
-                        Container(width: 52, height: 32, decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
-                          child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87)))),
-                      ]),
+                    // Chenare: Merkzeichen (7 boxes) + GdB box — full width
+                    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      // Chenar 1: Merkzeichen
+                      Expanded(child: Container(
+                        decoration: BoxDecoration(border: Border.all(color: Colors.black45)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Padding(padding: const EdgeInsets.fromLTRB(4, 2, 4, 0), child: Text('Merkzeichen', style: TextStyle(fontSize: 9, color: Colors.black54))),
+                          Row(children: List.generate(7, (i) {
+                            final mz = i < activeMz.length ? activeMz[i] : '';
+                            return Expanded(child: Container(height: 34,
+                              decoration: BoxDecoration(border: Border(right: i < 6 ? const BorderSide(color: Colors.black26) : BorderSide.none)),
+                              child: Center(child: mz.isNotEmpty
+                                ? Text(mz, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black87))
+                                : Container(width: 1, height: 20, color: Colors.black26))));
+                          })),
+                        ]))),
+                      // Chenar 2: GdB
+                      Container(
+                        decoration: BoxDecoration(border: Border.all(color: Colors.black45)),
+                        child: Column(children: [
+                          Padding(padding: const EdgeInsets.fromLTRB(8, 2, 8, 0), child: Text('GdB', style: TextStyle(fontSize: 9, color: Colors.black54))),
+                          Container(width: 56, height: 34,
+                            child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)))),
+                        ])),
                     ]),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
+                    // Name data — on salmon
                     Text('Name', style: TextStyle(fontSize: 9, color: Colors.black45)),
                     Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)),
                     Text('Vorname', style: TextStyle(fontSize: 9, color: Colors.black45)),
@@ -1828,6 +1840,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                     Text('Geburtsdatum', style: TextStyle(fontSize: 9, color: Colors.black45)),
                     Text(gebDatum.isNotEmpty ? gebDatum : '—', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
                     const Spacer(),
+                    // Ausstellungsbehörde — starts on salmon, crosses to green
                     Text('Ausstellungsbehörde / Geschäftszeichen:', style: TextStyle(fontSize: 9, color: Colors.black45)),
                     Text('${amtName.isNotEmpty ? amtName : "—"} / ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
                     const SizedBox(height: 2),
