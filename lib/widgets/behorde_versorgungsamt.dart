@@ -1582,78 +1582,111 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   // ============ TAB 4: SB-AUSWEIS ============
 
   Widget _buildAusweisTab(Map<String, dynamic> data) {
-    final merkzeichen = [
-      ('g', 'G – Erhebliche Gehbehinderung'),
-      ('ag', 'aG – Außergewöhnliche Gehbehinderung'),
-      ('b', 'B – Begleitperson erforderlich'),
-      ('h', 'H – Hilflos'),
-      ('rf', 'RF – Rundfunkbeitragsermäßigung'),
-      ('bl', 'Bl – Blind'),
-      ('gl', 'Gl – Gehörlos'),
-      ('tbl', 'TBl – Taubblind'),
-    ];
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    final merkzeichenDefs = [('g', 'G'), ('ag', 'aG'), ('b', 'B'), ('h', 'H'), ('rf', 'RF'), ('bl', 'Bl'), ('gl', 'Gl'), ('tbl', 'TBl')];
+    final merkzeichenFull = [('g', 'G – Erhebliche Gehbehinderung'), ('ag', 'aG – Außergewöhnliche Gehbehinderung'), ('b', 'B – Begleitperson erforderlich'), ('h', 'H – Hilflos'), ('rf', 'RF – Rundfunkbeitragsermäßigung'), ('bl', 'Bl – Blind'), ('gl', 'Gl – Gehörlos'), ('tbl', 'TBl – Taubblind')];
+    final activeMz = merkzeichenDefs.where((m) => data['merkzeichen_${m.$1}'] == true).map((m) => m.$2).toList();
+    final user = widget.user;
+    final nachname = user.nachname ?? '';
+    final vorname = user.vorname ?? '';
+    final gebDatum = user.geburtsdatum ?? '';
+    final amtName = data['selected_amt_name']?.toString() ?? data['amt_name']?.toString() ?? '';
+    final aktenzeichen = _ausweisNrC.text;
+    final gueltigAb = _ausweisAusgestelltC.text;
+    final gueltigBis = _ausweisUnbefristet ? 'Unbefristet' : _ausweisGueltigBisC.text;
+    final gdb = _gdbAktuell;
+
+    return StatefulBuilder(builder: (ctx, setLocal) {
+      bool showBack = false;
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
         const SizedBox(height: 4),
-        Text('Ausweis im Bankkarten-Format seit 2013', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        Text('Tippen Sie auf den Ausweis um ihn zu drehen', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
         const SizedBox(height: 12),
-        TextField(
-          controller: _ausweisNrC,
-          decoration: const InputDecoration(labelText: 'Ausweisnummer', prefixIcon: Icon(Icons.badge, size: 18), border: OutlineInputBorder(), isDense: true),
-          onChanged: (_) => _saveAll(data),
-        ),
+
+        // ── CARD ──
+        StatefulBuilder(builder: (_, setCard) {
+          return GestureDetector(
+            onTap: () => setCard(() => showBack = !showBack),
+            child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
+              // ── VORDERSEITE (Front) ──
+              ? Container(key: const ValueKey('front'), width: double.infinity, height: 220, decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.green.shade700, Colors.green.shade500]), borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))]),
+                child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.flag, size: 16, color: Colors.yellow.shade700), const SizedBox(width: 6),
+                    Text('BUNDESREPUBLIK DEUTSCHLAND', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.9), letterSpacing: 1.2)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text('SCHWERBEHINDERTENAUSWEIS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5)),
+                  const Spacer(),
+                  if (gdb > 0) Row(children: [
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                      child: Text('GdB $gdb', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+                    const SizedBox(width: 12),
+                    if (activeMz.isNotEmpty) Expanded(child: Wrap(spacing: 4, runSpacing: 2, children: activeMz.map((mz) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4)),
+                      child: Text(mz, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)))).toList())),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(gueltigBis.isNotEmpty ? 'Gültig bis: $gueltigBis' : '', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
+                ])))
+              // ── RÜCKSEITE (Back) ──
+              : Container(key: const ValueKey('back'), width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(
+                  color: Colors.green.shade50, borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.green.shade300, width: 2),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Merkzeichen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                  const SizedBox(height: 6),
+                  Row(children: List.generate(8, (i) {
+                    final mz = i < activeMz.length ? activeMz[i] : '';
+                    return Expanded(child: Container(height: 32, margin: EdgeInsets.only(right: i < 7 ? 4 : 0),
+                      decoration: BoxDecoration(color: mz.isNotEmpty ? Colors.green.shade100 : Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: mz.isNotEmpty ? Colors.green.shade400 : Colors.grey.shade300)),
+                      child: Center(child: Text(mz, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: mz.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade400)))));
+                  })),
+                  const SizedBox(height: 12),
+                  _cardRow('Name', nachname),
+                  _cardRow('Vorname', vorname),
+                  _cardRow('Geburtsdatum', gebDatum),
+                  _cardRow('Ausstellungsbehörde', amtName),
+                  _cardRow('Geschäftszeichen', aktenzeichen),
+                  _cardRow('Gültig ab', gueltigAb),
+                ])),
+          ));
+        }),
+        const SizedBox(height: 20),
+
+        // ── FORM FIELDS ──
+        TextField(controller: _ausweisNrC, decoration: const InputDecoration(labelText: 'Ausweisnummer / Geschäftszeichen', prefixIcon: Icon(Icons.badge, size: 18), border: OutlineInputBorder(), isDense: true), onChanged: (_) => _saveAll(data)),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: _datePicker(context, _ausweisAusgestelltC, 'Ausgestellt am', () => _saveAll(data))),
+          Expanded(child: _datePicker(context, _ausweisAusgestelltC, 'Gültig ab', () => _saveAll(data))),
           const SizedBox(width: 12),
-          Expanded(
-            child: AbsorbPointer(
-              absorbing: _ausweisUnbefristet,
-              child: Opacity(
-                opacity: _ausweisUnbefristet ? 0.5 : 1.0,
-                child: _datePicker(context, _ausweisGueltigBisC, 'Gültig bis', () => _saveAll(data)),
-              ),
-            ),
-          ),
+          Expanded(child: AbsorbPointer(absorbing: _ausweisUnbefristet, child: Opacity(opacity: _ausweisUnbefristet ? 0.5 : 1.0,
+            child: _datePicker(context, _ausweisGueltigBisC, 'Gültig bis', () => _saveAll(data))))),
         ]),
         const SizedBox(height: 4),
-        Row(children: [
-          Checkbox(
-            value: _ausweisUnbefristet,
-            onChanged: (v) {
-              setState(() => _ausweisUnbefristet = v ?? false);
-              _saveAll(data);
-            },
-          ),
-          const Text('Unbefristet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-        ]),
+        Row(children: [Checkbox(value: _ausweisUnbefristet, onChanged: (v) { setState(() => _ausweisUnbefristet = v ?? false); _saveAll(data); }), const Text('Unbefristet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))]),
         const SizedBox(height: 16),
         Text('Merkzeichen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
         const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: merkzeichen.map((m) {
-            final key = 'merkzeichen_${m.$1}';
-            final sel = data[key] == true;
-            return FilterChip(
-              label: Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.indigo.shade700)),
-              selected: sel,
-              selectedColor: Colors.indigo.shade600,
-              backgroundColor: Colors.indigo.shade50,
-              checkmarkColor: Colors.white,
-              side: BorderSide(color: sel ? Colors.indigo.shade600 : Colors.indigo.shade200),
-              onSelected: (v) {
-                setState(() => data[key] = v);
-                widget.saveData(type, data);
-              },
-            );
-          }).toList(),
-        ),
-      ]),
-    );
+        Wrap(spacing: 6, runSpacing: 4, children: merkzeichenFull.map((m) {
+          final key = 'merkzeichen_${m.$1}'; final sel = data[key] == true;
+          return FilterChip(label: Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.indigo.shade700)),
+            selected: sel, selectedColor: Colors.indigo.shade600, backgroundColor: Colors.indigo.shade50, checkmarkColor: Colors.white,
+            side: BorderSide(color: sel ? Colors.indigo.shade600 : Colors.indigo.shade200),
+            onSelected: (v) { setState(() => data[key] = v); widget.saveData(type, data); });
+        }).toList()),
+      ]));
+    });
+  }
+
+  Widget _cardRow(String label, String value) {
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
+      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+      Expanded(child: Text(value.isNotEmpty ? value : '—', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: value.isNotEmpty ? Colors.green.shade900 : Colors.grey.shade400))),
+    ]));
   }
 
   // ============ TAB 5: GDB ============
