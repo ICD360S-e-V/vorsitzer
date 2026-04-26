@@ -37,6 +37,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
           _loaded = true;
         });
         debugPrint('[ServDiscount] _korr.length=${_korr.length}');
+        if (_korr.isNotEmpty && context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_korr.length} Korrespondenz geladen'), duration: const Duration(seconds: 1), backgroundColor: Colors.green));
         return;
       }
     } catch (e) { debugPrint('[ServDiscount] load error: $e'); }

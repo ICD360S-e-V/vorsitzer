@@ -203,7 +203,7 @@ class _State extends State<BehordeKindergartenContent> with TickerProviderStateM
   void _showKindDetail(Map<String, dynamic> k) {
     final kid = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
     showDialog(context: context, builder: (ctx) => Dialog(
-      child: SizedBox(width: 600, height: 550, child: _KindDetail(apiService: widget.apiService, userId: widget.userId, kindId: kid, kind: k, onChanged: _load, kindergartenName: _v('name')))));
+      child: SizedBox(width: 600, height: 550, child: _KindDetail(apiService: widget.apiService, userId: widget.userId, kindId: kid, kind: k, onChanged: _load, kindergartenName: _v('name'), kindergartenAdresse: _v('adresse')))));
   }
 
   Widget _tf(String label, TextEditingController c, IconData icon, {int maxLines = 1}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -221,8 +221,9 @@ class _KindDetail extends StatefulWidget {
   final int userId, kindId;
   final Map<String, dynamic> kind;
   final String kindergartenName;
+  final String kindergartenAdresse;
   final VoidCallback onChanged;
-  const _KindDetail({required this.apiService, required this.userId, required this.kindId, required this.kind, required this.onChanged, this.kindergartenName = ''});
+  const _KindDetail({required this.apiService, required this.userId, required this.kindId, required this.kind, required this.onChanged, this.kindergartenName = '', this.kindergartenAdresse = ''});
   @override
   State<_KindDetail> createState() => _KindDetailState();
 }
@@ -496,7 +497,10 @@ class _KindDetailState extends State<_KindDetail> {
                   if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  onPressed: () async { await widget.apiService.deleteKindergartenTermin(widget.userId, t['id'] is int ? t['id'] : int.parse(t['id'].toString())); _load(); }),
+                  onPressed: () async {
+                    final tvId = t['termin_id'];
+                    if (tvId != null && tvId.toString().isNotEmpty && tvId.toString() != 'null') { try { await widget.apiService.deleteTerminverwaltung(int.parse(tvId.toString())); } catch (_) {} }
+                    await widget.apiService.deleteKindergartenTermin(widget.userId, t['id'] is int ? t['id'] : int.parse(t['id'].toString())); _load(); }),
               ]));
           })),
     ]);
@@ -520,27 +524,31 @@ class _KindDetailState extends State<_KindDetail> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          await widget.apiService.saveKindergartenTermin(widget.userId, widget.kindId, {'datum': datumC.text.trim(), 'uhrzeit': uhrzeitC.text.trim(), 'typ': typC.text.trim(), 'notiz': notizC.text.trim()});
+          int? tvTerminId;
           if (pickedDate != null) {
             final kindName = '${widget.kind['vorname'] ?? ''} ${widget.kind['nachname'] ?? ''}'.trim();
             final kigaName = widget.kindergartenName;
+            final kigaAddr = widget.kindergartenAdresse;
+            final loc = [kigaName, kigaAddr].where((s) => s.isNotEmpty).join(', ');
             int hour = 9, minute = 0;
             final timeParts = uhrzeitC.text.trim().split(':');
             if (timeParts.length == 2) { hour = int.tryParse(timeParts[0]) ?? 9; minute = int.tryParse(timeParts[1]) ?? 0; }
             final terminDateTime = DateTime(pickedDate!.year, pickedDate!.month, pickedDate!.day, hour, minute);
             try {
               final terminDateStr = '${terminDateTime.year}-${terminDateTime.month.toString().padLeft(2, '0')}-${terminDateTime.day.toString().padLeft(2, '0')} ${terminDateTime.hour.toString().padLeft(2, '0')}:${terminDateTime.minute.toString().padLeft(2, '0')}:00';
-              await widget.apiService.createTerminverwaltung(
+              final tvRes = await widget.apiService.createTerminverwaltung(
                 title: '${typC.text.trim().isNotEmpty ? typC.text.trim() : "Kindergarten"} — $kindName',
                 category: 'kindergarten',
-                description: '${typC.text.trim()}\n$kindName\n${kigaName.isNotEmpty ? kigaName : "Kindergarten"}\n${notizC.text.trim()}',
+                description: '${typC.text.trim()}\n$kindName\n$loc\n${notizC.text.trim()}',
                 terminDate: terminDateStr,
                 durationMinutes: 60,
-                location: kigaName,
+                location: loc,
                 participantIds: [widget.userId],
               );
+              tvTerminId = tvRes['termin_id'] as int?;
             } catch (_) {}
           }
+          await widget.apiService.saveKindergartenTermin(widget.userId, widget.kindId, {'datum': datumC.text.trim(), 'uhrzeit': uhrzeitC.text.trim(), 'typ': typC.text.trim(), 'notiz': notizC.text.trim(), 'termin_id': tvTerminId});
           if (ctx.mounted) Navigator.pop(ctx); _load();
         }, child: const Text('Speichern')),
       ],
