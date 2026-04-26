@@ -1638,18 +1638,71 @@ class _VereinKorrTabState extends State<_VereinKorrTab> {
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
             final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade700), const SizedBox(width: 6),
-                  Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800))),
-                  IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                    onPressed: () async { await widget.apiService.deleteVertraegeKorrespondenz(kId); _load(); }),
-                ]),
-                if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                Padding(padding: const EdgeInsets.only(top: 4), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'verein_vertrag', korrespondenzId: kId)),
-              ]));
+            const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich'};
+            return InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showKorrDetail(k),
+              child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+                child: Row(children: [
+                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
+                    if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  ])),
+                  if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
+                    child: Text(mL[k['methode']] ?? k['methode'].toString(), style: TextStyle(fontSize: 9, color: c.shade700))),
+                  Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                ])));
           })),
     ]);
+  }
+
+  void _showKorrDetail(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingang';
+    final c = isEin ? Colors.green : Colors.blue;
+    const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich'};
+    final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+      title: Row(children: [
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c.shade800), overflow: TextOverflow.ellipsis)),
+        IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () async {
+          await widget.apiService.deleteVertraegeKorrespondenz(kId); _load(); if (ctx.mounted) Navigator.pop(ctx); }),
+        IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx)),
+      ]),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade600), const SizedBox(width: 6),
+              Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade700))]),
+            const SizedBox(height: 6),
+            if ((k['methode']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
+              Icon(Icons.send, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6),
+              Text('Methode: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              Text(mL[k['methode']] ?? k['methode'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))])),
+            if ((k['datum']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
+              Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6),
+              Text('Datum: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              Text(k['datum'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))])),
+            Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
+              Icon(Icons.subject, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6),
+              Text('Betreff: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              Expanded(child: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))])),
+          ])),
+        if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Inhalt / Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+              const SizedBox(height: 6),
+              Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13)),
+            ])),
+        ],
+        const SizedBox(height: 12),
+        Text('Dokumente', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+        const SizedBox(height: 4),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'verein_vertrag', korrespondenzId: kId),
+      ]))),
+    ));
   }
 
   void _addKorr(String richtung) {
