@@ -1741,55 +1741,60 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           return GestureDetector(
             onTap: () => setCard(() => showBack = !showBack),
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
-              // ── VORDERSEITE (Front) ──
-              ? Container(key: const ValueKey('front'), width: double.infinity, height: 240,
+              // ── VORDERSEITE (Front) — matches official Muster 5 ──
+              ? Container(key: const ValueKey('front'), width: double.infinity, height: 220,
                   clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade400),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))]),
                 child: Column(children: [
-                  // Top header
-                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-                    color: Colors.green.shade700,
+                  // Header — light green
+                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(14, 8, 14, 4), color: const Color(0xFFD4E8C2),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5)),
-                      Text('The holder of this card is severely disabled', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.8), fontStyle: FontStyle.italic)),
+                      Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87, letterSpacing: -0.3)),
+                      Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 9, color: Colors.black54)),
                     ])),
                   // Main body
                   Expanded(child: Row(children: [
-                    // Photo placeholder (left)
-                    Container(width: 80, color: Colors.green.shade600,
+                    // Left — Lichtbild (green)
+                    Container(width: 90, color: const Color(0xFFD4E8C2), padding: const EdgeInsets.all(8),
                       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Container(width: 56, height: 70, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4)),
-                          child: Icon(Icons.person, size: 36, color: Colors.white.withValues(alpha: 0.6))),
+                        Container(width: 65, height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(2), border: Border.all(color: Colors.grey.shade400)),
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.person, size: 30, color: Colors.grey.shade400),
+                            Text('Lichtbild', style: TextStyle(fontSize: 8, color: Colors.grey.shade500)),
+                          ])),
                       ])),
-                    // Green half with B letter
-                    Expanded(child: Container(color: Colors.green.shade500, padding: const EdgeInsets.all(10),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                        if (hasB) Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4)),
-                          child: const Text('B', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))),
-                        if (hasB) Text('Die Berechtigung zur Mitnahme einer\nBegleitperson ist nachgewiesen', style: TextStyle(fontSize: 7, color: Colors.white.withValues(alpha: 0.9), height: 1.3)),
-                      ]))),
-                    // Red/orange half with data
-                    Expanded(child: Container(
-                      decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                        colors: hasB ? [Colors.orange.shade500, Colors.red.shade500] : [Colors.green.shade400, Colors.green.shade500])),
-                      padding: const EdgeInsets.all(10),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text('Name', style: TextStyle(fontSize: 8, color: Colors.white.withValues(alpha: 0.7))),
-                        Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                    // Center — B letter (green)
+                    if (hasB) Container(width: 50, color: const Color(0xFFD4E8C2),
+                      child: Center(child: Text('B', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black87)))),
+                    // Right half — personal data (orange/salmon when B, green when not)
+                    Expanded(child: Container(color: hasB ? const Color(0xFFF5C5B3) : const Color(0xFFD4E8C2),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start, children: [
                         const SizedBox(height: 4),
-                        Text('Vorname', style: TextStyle(fontSize: 8, color: Colors.white.withValues(alpha: 0.7))),
-                        Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(nachname.isNotEmpty ? nachname : 'Nachname', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
                         const SizedBox(height: 4),
-                        Text('Geschäftszeichen', style: TextStyle(fontSize: 8, color: Colors.white.withValues(alpha: 0.7))),
-                        Text(aktenzeichen.isNotEmpty ? aktenzeichen : '—', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(vorname.isNotEmpty ? vorname : 'Vorname', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        const SizedBox(height: 6),
+                        Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: TextStyle(fontSize: 10, color: Colors.black87)),
+                        if (hasB) ...[
+                          const Spacer(),
+                          Text('Die Berechtigung zur Mitnahme einer', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          Text('Begleitperson ist nachgewiesen', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          const SizedBox(height: 4),
+                        ],
                       ]))),
                   ])),
                   // Bottom bar
-                  Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    color: Colors.green.shade800,
-                    child: Text('Gültig bis: $gueltigBis', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white))),
+                  Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    color: const Color(0xFFD4E8C2),
+                    child: Row(children: [
+                      Text('Gültig bis: $gueltigBis', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      const Spacer(),
+                      // Braille dots placeholder
+                      Row(children: List.generate(6, (i) => Container(width: 5, height: 5, margin: const EdgeInsets.all(1.5),
+                        decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle)))),
+                    ])),
                 ]))
               // ── RÜCKSEITE (Back) ──
               : Container(key: const ValueKey('back'), width: double.infinity, clipBehavior: Clip.antiAlias,
