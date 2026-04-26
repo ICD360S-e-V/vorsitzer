@@ -1433,7 +1433,10 @@ class _VereinTabState extends State<_VereinTab> {
       Expanded(child: list.isEmpty ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Verträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: list.length, itemBuilder: (_, i) {
             final v = list[i];
-            final aktiv = v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1';
+            bool aktiv = v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1';
+            final ende = v['vertragsende']?.toString() ?? '';
+            if (aktiv && ende.isNotEmpty) { try { final p = ende.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); if (d.isBefore(DateTime.now())) aktiv = false; } catch (_) {} }
+            final gekuendigt = (v['gekuendigt_am']?.toString() ?? '').isNotEmpty;
             return Container(margin: const EdgeInsets.only(bottom: 8), child: InkWell(borderRadius: BorderRadius.circular(8),
               onTap: () => _showVertragDetail(v),
               child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
@@ -1442,8 +1445,8 @@ class _VereinTabState extends State<_VereinTab> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
                       Expanded(child: Text(v['anbieter']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                        child: Text(aktiv ? 'Aktiv' : 'Gekündigt', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.grey.shade700))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : gekuendigt ? Colors.red.shade100 : Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
+                        child: Text(aktiv ? 'Aktiv' : gekuendigt ? 'Gekündigt' : 'Abgelaufen', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : gekuendigt ? Colors.red.shade800 : Colors.grey.shade700))),
                     ]),
                     if ((v['tarif']?.toString() ?? '').isNotEmpty) Text(v['tarif'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                     if ((v['monatliche_kosten']?.toString() ?? '').isNotEmpty) Text('${v['monatliche_kosten']} €/Jahr', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
