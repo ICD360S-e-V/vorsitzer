@@ -444,7 +444,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     if (sonstige['selected_amt_id'] != null) data['selected_amt_id'] = sonstige['selected_amt_id'];
 
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Column(
         children: [
           TabBar(
@@ -459,6 +459,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               Tab(icon: Icon(Icons.badge, size: 16), text: 'SB-Ausweis'),
               Tab(icon: Icon(Icons.accessible, size: 16), text: 'GdB'),
               Tab(icon: Icon(Icons.description, size: 16), text: 'Antrag'),
+              Tab(icon: Icon(Icons.confirmation_number, size: 16), text: 'Wertmarke'),
             ],
           ),
           Expanded(
@@ -470,6 +471,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 _buildAusweisTab(data),
                 _buildGdbTab(data),
                 _buildAntragTab(data),
+                _buildWertmarkeTab(data),
               ],
             ),
           ),
@@ -1586,6 +1588,130 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   // ============ TAB 4: SB-AUSWEIS ============
+
+  // ============ TAB 7: WERTMARKE ============
+
+  Widget _buildWertmarkeTab(Map<String, dynamic> data) {
+    final user = widget.user;
+    final nachname = user.nachname ?? '';
+    final vorname = user.vorname ?? '';
+    final fullName = '$vorname $nachname'.trim();
+    final aktenzeichen = _joinAkt();
+    String azFormatted = '';
+    if (aktenzeichen.isNotEmpty) {
+      final digits = aktenzeichen.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.length >= 8) { azFormatted = '${digits.substring(0, 2)}/${digits.substring(2, 5)} ${digits.substring(5, 8)}'; }
+      else { azFormatted = aktenzeichen; }
+    }
+    final wmAbMonat = data['wertmarke_ab_monat']?.toString() ?? '';
+    final wmAbJahr = data['wertmarke_ab_jahr']?.toString() ?? '';
+    final wmBisMonat = data['wertmarke_bis_monat']?.toString() ?? '';
+    final wmBisJahr = data['wertmarke_bis_jahr']?.toString() ?? '';
+    final wmAb = wmAbMonat.isNotEmpty && wmAbJahr.isNotEmpty ? '$wmAbMonat/$wmAbJahr' : '';
+    final wmBis = wmBisMonat.isNotEmpty && wmBisJahr.isNotEmpty ? '$wmBisMonat/$wmBisJahr' : '';
+
+    return StatefulBuilder(builder: (ctx, setLocal) {
+      bool showBack = false;
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Wertmarke', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 4),
+        Text('Tippen Sie auf die Karte um sie zu drehen', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 12),
+
+        // ── CARD ──
+        StatefulBuilder(builder: (_, setCard) {
+          return GestureDetector(onTap: () => setCard(() => showBack = !showBack),
+            child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
+              // ── VORDERSEITE ──
+              ? Container(key: const ValueKey('wm_front'), width: double.infinity, height: 200,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.amber.shade50,
+                    border: Border.all(color: Colors.amber.shade400, width: 2),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
+                child: Row(children: [
+                  // Left side — logo + dates
+                  Container(width: 120, padding: const EdgeInsets.all(12), color: Colors.amber.shade100,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                      Icon(Icons.directions_bus, size: 36, color: Colors.amber.shade800),
+                      Icon(Icons.train, size: 24, color: Colors.amber.shade700),
+                      const Spacer(),
+                      if (wmAb.isNotEmpty) ...[
+                        Text('Gültig ab:', style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+                        Text(wmAb, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                      ],
+                      if (wmBis.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text('Gültig bis:', style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+                        Text(wmBis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                      ],
+                      const SizedBox(height: 6),
+                      Text('Gültig in Verbindung\nmit dem gültigen\nAusweis', textAlign: TextAlign.center, style: TextStyle(fontSize: 7, color: Colors.grey.shade600, height: 1.3)),
+                    ])),
+                  // Right side — data
+                  Expanded(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Beiblatt zum Ausweis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                    Text('des Versorgungsamtes', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade800)),
+                    const SizedBox(height: 10),
+                    if (azFormatted.isNotEmpty) ...[
+                      Text('AZ:', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                      Text(azFormatted, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber.shade900, letterSpacing: 1.0)),
+                    ],
+                    const SizedBox(height: 8),
+                    Text('Name:', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                    Text(fullName.isNotEmpty ? fullName : '—', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                  ]))),
+                ]))
+              // ── RÜCKSEITE (weiß) ──
+              : Container(key: const ValueKey('wm_back'), width: double.infinity, height: 200,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.white,
+                    border: Border.all(color: Colors.grey.shade300, width: 2),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))]),
+                child: Center(child: Text('Rückseite', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)))),
+          ));
+        }),
+        const SizedBox(height: 20),
+
+        // ── SETTINGS ──
+        Text('Wertmarke Einstellungen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Gültig ab', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            Row(children: [
+              Expanded(child: DropdownButtonFormField<String>(value: wmAbMonat.isEmpty ? null : wmAbMonat, isExpanded: true, isDense: true,
+                decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+                items: List.generate(12, (i) => DropdownMenuItem(value: '${i + 1}'.padLeft(2, '0'), child: Text('${i + 1}'.padLeft(2, '0'), style: const TextStyle(fontSize: 13)))),
+                onChanged: (v) { data['wertmarke_ab_monat'] = v; _saveAll(data); setLocal(() {}); })),
+              const SizedBox(width: 4),
+              Expanded(child: TextField(
+                controller: TextEditingController(text: wmAbJahr)..selection = TextSelection.collapsed(offset: wmAbJahr.length),
+                decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10)),
+                style: const TextStyle(fontSize: 13), keyboardType: TextInputType.number,
+                onChanged: (v) { data['wertmarke_ab_jahr'] = v; _saveAll(data); setLocal(() {}); })),
+            ]),
+          ])),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Gültig bis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            Row(children: [
+              Expanded(child: DropdownButtonFormField<String>(value: wmBisMonat.isEmpty ? null : wmBisMonat, isExpanded: true, isDense: true,
+                decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+                items: List.generate(12, (i) => DropdownMenuItem(value: '${i + 1}'.padLeft(2, '0'), child: Text('${i + 1}'.padLeft(2, '0'), style: const TextStyle(fontSize: 13)))),
+                onChanged: (v) { data['wertmarke_bis_monat'] = v; _saveAll(data); setLocal(() {}); })),
+              const SizedBox(width: 4),
+              Expanded(child: TextField(
+                controller: TextEditingController(text: wmBisJahr)..selection = TextSelection.collapsed(offset: wmBisJahr.length),
+                decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10)),
+                style: const TextStyle(fontSize: 13), keyboardType: TextInputType.number,
+                onChanged: (v) { data['wertmarke_bis_jahr'] = v; _saveAll(data); setLocal(() {}); })),
+            ]),
+          ])),
+        ]),
+      ]));
+    });
+  }
 
   Widget _buildAusweisTab(Map<String, dynamic> data) {
     final merkzeichenDefs = [('g', 'G'), ('ag', 'aG'), ('b', 'B'), ('h', 'H'), ('rf', 'RF'), ('bl', 'Bl'), ('gl', 'Gl'), ('tbl', 'TBl')];
