@@ -1741,110 +1741,99 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           return GestureDetector(
             onTap: () => setCard(() => showBack = !showBack),
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
-              // ── VORDERSEITE (Front) — matches official Muster 5 ──
-              ? Container(key: const ValueKey('front'), width: double.infinity, height: 220,
+              // ── VORDERSEITE (Front) — identical to official card ──
+              ? Container(key: const ValueKey('front'), width: double.infinity, height: 230,
                   clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade400),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))]),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Column(children: [
-                  // Header — light green
-                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(14, 8, 14, 4), color: const Color(0xFFD4E8C2),
+                  // Header
+                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                    decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFFD5EACC), Color(0xFFE8D5C8)], begin: Alignment.centerLeft, end: Alignment.centerRight)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87, letterSpacing: -0.3)),
-                      Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 9, color: Colors.black54)),
+                      const Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87, letterSpacing: -0.5)),
+                      const SizedBox(height: 1),
+                      Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 10, color: Colors.black54, fontStyle: FontStyle.italic)),
                     ])),
-                  // Main body
+                  // Body
                   Expanded(child: Row(children: [
-                    // Left — Lichtbild (green)
-                    Container(width: 90, color: const Color(0xFFD4E8C2), padding: const EdgeInsets.all(8),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Container(width: 65, height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(2), border: Border.all(color: Colors.grey.shade400)),
-                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Icon(Icons.person, size: 30, color: Colors.grey.shade400),
-                            Text('Lichtbild', style: TextStyle(fontSize: 8, color: Colors.grey.shade500)),
-                          ])),
-                      ])),
-                    // Center — B letter (green)
-                    if (hasB) Container(width: 50, color: const Color(0xFFD4E8C2),
-                      child: Center(child: Text('B', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black87)))),
-                    // Right half — personal data (orange/salmon when B, green when not)
-                    Expanded(child: Container(color: hasB ? const Color(0xFFF5C5B3) : const Color(0xFFD4E8C2),
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start, children: [
-                        const SizedBox(height: 4),
-                        Text(nachname.isNotEmpty ? nachname : 'Nachname', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        const SizedBox(height: 4),
-                        Text(vorname.isNotEmpty ? vorname : 'Vorname', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        const SizedBox(height: 6),
-                        Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: TextStyle(fontSize: 10, color: Colors.black87)),
+                    // Photo (green side)
+                    Container(width: 95, color: const Color(0xFFD5EACC), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Center(child: Container(width: 70, height: 85, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade500), color: Colors.white),
+                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(Icons.person, size: 32, color: Colors.grey.shade400),
+                          Text('Lichtbild', style: TextStyle(fontSize: 7, color: Colors.grey.shade500)),
+                        ])))),
+                    // B letter (on green)
+                    if (hasB) Container(width: 45, color: const Color(0xFFD5EACC),
+                      child: Center(child: const Text('B', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Colors.black87)))),
+                    // Right side data (salmon when B, green when not)
+                    Expanded(child: Container(color: hasB ? const Color(0xFFF0C4B0) : const Color(0xFFD5EACC),
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.black87)),
+                        const SizedBox(height: 3),
+                        Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        const SizedBox(height: 8),
+                        Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 10, color: Colors.black87)),
                         if (hasB) ...[
                           const Spacer(),
-                          Text('Die Berechtigung zur Mitnahme einer', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black87)),
-                          Text('Begleitperson ist nachgewiesen', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          const Text('Die Berechtigung zur Mitnahme einer', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black87, fontStyle: FontStyle.italic)),
+                          const Text('Begleitperson ist nachgewiesen', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.black87, fontStyle: FontStyle.italic)),
                           const SizedBox(height: 4),
                         ],
                       ]))),
                   ])),
-                  // Bottom bar
-                  Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                    color: const Color(0xFFD4E8C2),
-                    child: Row(children: [
-                      Text('Gültig bis: $gueltigBis', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      const Spacer(),
-                      // Braille dots placeholder
-                      Row(children: List.generate(6, (i) => Container(width: 5, height: 5, margin: const EdgeInsets.all(1.5),
-                        decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle)))),
-                    ])),
+                  // Footer
+                  Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFFD5EACC), Color(0xFFE8D5C8)], begin: Alignment.centerLeft, end: Alignment.centerRight)),
+                    child: Text('Gültig bis: ${gueltigBis.isNotEmpty ? gueltigBis : "—"}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black87))),
                 ]))
-              // ── RÜCKSEITE (Back) — matches official Muster 5 back ──
-              : Container(key: const ValueKey('back'), width: double.infinity, height: 220, clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade400),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
+              // ── RÜCKSEITE (Back) — identical to official card ──
+              : Container(key: const ValueKey('back'), width: double.infinity, height: 230, clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Column(children: [
-                  // Top half — salmon/pink
-                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(10, 8, 10, 6), color: const Color(0xFFF5C5B3),
+                  // Top — salmon/pink half
+                  Expanded(flex: 3, child: Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(12, 10, 12, 6), color: const Color(0xFFF0C4B0),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      // Merkzeichen row + GdB
+                      // Merkzeichen + GdB row
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        // Merkzeichen label + 7 boxes
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('Merkzeichen', style: TextStyle(fontSize: 9, color: Colors.black54)),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Row(children: List.generate(7, (i) {
                             final mz = i < activeMz.length ? activeMz[i] : '';
-                            return Container(width: 28, height: 28, margin: const EdgeInsets.only(right: 2),
-                              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black54)),
-                              child: Center(child: Text(mz, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87))));
+                            return Container(width: 30, height: 30, margin: const EdgeInsets.only(right: 2),
+                              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
+                              child: Center(child: mz.isNotEmpty
+                                ? Text(mz, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.black87))
+                                : Column(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(1, (_) => Container(width: 1, height: 18, color: Colors.black26)))));
                           })),
                         ])),
-                        // GdB box
                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                           Text('GdB', style: TextStyle(fontSize: 9, color: Colors.black54)),
-                          const SizedBox(height: 2),
-                          Container(width: 44, height: 28, decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black54)),
-                            child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)))),
+                          const SizedBox(height: 3),
+                          Container(width: 48, height: 30, decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
+                            child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87)))),
                         ]),
                       ]),
                       const SizedBox(height: 6),
-                      // Name
-                      Text('Name', style: TextStyle(fontSize: 8, color: Colors.black54)),
-                      Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      const SizedBox(height: 2),
-                      // Vorname
-                      Text('Vorname', style: TextStyle(fontSize: 8, color: Colors.black54)),
-                      Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      const SizedBox(height: 2),
-                      // Geburtsdatum
-                      Text('Geburtsdatum', style: TextStyle(fontSize: 8, color: Colors.black54)),
-                      Text(gebDatum.isNotEmpty ? gebDatum : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    ])),
-                  // Bottom half — green
-                  Expanded(child: Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(10, 6, 10, 6), color: const Color(0xFFD4E8C2),
+                      Text('Name', style: TextStyle(fontSize: 8, color: Colors.black45)),
+                      Text(nachname.isNotEmpty ? nachname : '—', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87)),
+                      Text('Vorname', style: TextStyle(fontSize: 8, color: Colors.black45)),
+                      Text(vorname.isNotEmpty ? vorname : '—', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      Text('Geburtsdatum', style: TextStyle(fontSize: 8, color: Colors.black45)),
+                      Text(gebDatum.isNotEmpty ? gebDatum : '—', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    ]))),
+                  // Bottom — green half
+                  Expanded(flex: 2, child: Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(12, 8, 12, 8), color: const Color(0xFFD5EACC),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text('Ausstellungsbehörde / Geschäftszeichen:', style: TextStyle(fontSize: 8, color: Colors.black54)),
-                      Text('${amtName.isNotEmpty ? amtName : "—"} / ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      Text('Ausstellungsbehörde / Geschäftszeichen:', style: TextStyle(fontSize: 8, color: Colors.black45)),
+                      Text(amtName.isNotEmpty ? amtName : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      Text(aktenzeichen.isNotEmpty ? aktenzeichen : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
                       const SizedBox(height: 4),
-                      Text('Gültig ab: ${gueltigAb.isNotEmpty ? gueltigAb : "—"}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      Text('Gültig ab: ${gueltigAb.isNotEmpty ? gueltigAb : "—"}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black87)),
                     ]))),
                 ])),
           ));
