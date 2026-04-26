@@ -1891,6 +1891,18 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           const SizedBox(width: 12),
           Expanded(child: _datePicker(context, _gdbBescheidC, 'Bescheid vom', () => _saveAll(data))),
         ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          ChoiceChip(label: const Text('Befristet', style: TextStyle(fontSize: 12)), selected: !_ausweisUnbefristet, selectedColor: Colors.orange.shade200,
+            onSelected: (_) { setState(() => _ausweisUnbefristet = false); _saveAll(data); }),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('Unbefristet', style: TextStyle(fontSize: 12)), selected: _ausweisUnbefristet, selectedColor: Colors.green.shade200,
+            onSelected: (_) { setState(() => _ausweisUnbefristet = true); _saveAll(data); }),
+          if (!_ausweisUnbefristet) ...[
+            const SizedBox(width: 12),
+            Expanded(child: _datePicker(context, _ausweisGueltigBisC, 'Gültig bis', () => _saveAll(data))),
+          ],
+        ]),
         const SizedBox(height: 16),
         // Bescheid upload
         Container(
