@@ -499,7 +499,11 @@ class _KindDetailState extends State<_KindDetail> {
                 IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                   onPressed: () async {
                     final tvId = t['termin_id'];
-                    if (tvId != null && tvId.toString().isNotEmpty && tvId.toString() != 'null') { try { await widget.apiService.deleteTerminverwaltung(int.parse(tvId.toString())); } catch (_) {} }
+                    debugPrint('[Kindergarten] delete termin, tvId=$tvId type=${tvId.runtimeType}');
+                    if (tvId != null && tvId.toString().isNotEmpty && tvId.toString() != 'null' && tvId.toString() != '0') {
+                      debugPrint('[Kindergarten] calling deleteTerminverwaltung($tvId)');
+                      await widget.apiService.deleteTerminverwaltung(int.parse(tvId.toString()));
+                    }
                     await widget.apiService.deleteKindergartenTermin(widget.userId, t['id'] is int ? t['id'] : int.parse(t['id'].toString())); _load(); }),
               ]));
           })),
