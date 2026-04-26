@@ -1652,6 +1652,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   _cardRow('Ausstellungsbehörde', amtName),
                   _cardRow('Geschäftszeichen', aktenzeichen),
                   _cardRow('Gültig ab', gueltigAb),
+                  _cardRow('GdB', gdb > 0 ? '$gdb' : '—'),
                 ])),
           ));
         }),
