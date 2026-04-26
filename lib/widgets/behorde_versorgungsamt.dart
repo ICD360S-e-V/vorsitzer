@@ -1715,7 +1715,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   Widget _buildAusweisTab(Map<String, dynamic> data) {
     final merkzeichenDefs = [('g', 'G'), ('ag', 'aG'), ('b', 'B'), ('h', 'H'), ('rf', 'RF'), ('bl', 'Bl'), ('gl', 'Gl'), ('tbl', 'TBl')];
     final merkzeichenFull = [('g', 'G – Erhebliche Gehbehinderung'), ('ag', 'aG – Außergewöhnliche Gehbehinderung'), ('b', 'B – Begleitperson erforderlich'), ('h', 'H – Hilflos'), ('rf', 'RF – Rundfunkbeitragsermäßigung'), ('bl', 'Bl – Blind'), ('gl', 'Gl – Gehörlos'), ('tbl', 'TBl – Taubblind')];
-    final activeMz = merkzeichenDefs.where((m) => data['merkzeichen_${m.$1}'] == true).map((m) => m.$2).toList();
+    final activeMz = merkzeichenDefs.where((m) => data['merkzeichen_${m.$1}'] == true || data['merkzeichen_${m.$1}'] == 'true').map((m) => m.$2).toList();
     final user = widget.user;
     final nachname = user.nachname ?? '';
     final vorname = user.vorname ?? '';
@@ -1737,7 +1737,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
         // ── CARD ──
         StatefulBuilder(builder: (_, setCard) {
-          final hasB = data['merkzeichen_b'] == true;
+          final hasB = data['merkzeichen_b'] == true || data['merkzeichen_b'] == 'true';
           return GestureDetector(
             onTap: () => setCard(() => showBack = !showBack),
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
