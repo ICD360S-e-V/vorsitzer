@@ -1612,59 +1612,85 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
         // ── CARD ──
         StatefulBuilder(builder: (_, setCard) {
+          final hasB = data['merkzeichen_b'] == true;
           return GestureDetector(
             onTap: () => setCard(() => showBack = !showBack),
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
               // ── VORDERSEITE (Front) ──
-              ? Container(key: const ValueKey('front'), width: double.infinity, height: 220, decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Colors.green.shade700, Colors.green.shade500]), borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))]),
-                child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Icon(Icons.flag, size: 16, color: Colors.yellow.shade700), const SizedBox(width: 6),
-                    Text('BUNDESREPUBLIK DEUTSCHLAND', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.9), letterSpacing: 1.2)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text('SCHWERBEHINDERTENAUSWEIS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5)),
-                  const Spacer(),
-                  if (gdb > 0) Row(children: [
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                      child: Text('GdB $gdb', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-                    const SizedBox(width: 12),
-                    if (activeMz.isNotEmpty) Expanded(child: Wrap(spacing: 4, runSpacing: 2, children: activeMz.map((mz) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4)),
-                      child: Text(mz, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)))).toList())),
-                  ]),
-                  const SizedBox(height: 8),
-                  Text(gueltigBis.isNotEmpty ? 'Gültig bis: $gueltigBis' : '', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
-                ])))
+              ? Container(key: const ValueKey('front'), width: double.infinity, height: 220,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))]),
+                child: Row(children: [
+                  Expanded(child: Container(
+                    decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.green.shade700, Colors.green.shade500])),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Icon(Icons.flag, size: 16, color: Colors.yellow.shade700), const SizedBox(width: 6),
+                        Expanded(child: Text('BUNDESREPUBLIK DEUTSCHLAND', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.9), letterSpacing: 1.0))),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text('SCHWERBEHINDERTEN-\nAUSWEIS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5, height: 1.2)),
+                      const Spacer(),
+                      if (gdb > 0) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
+                        child: Text('GdB $gdb', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+                      const SizedBox(height: 6),
+                      if (activeMz.isNotEmpty) Wrap(spacing: 4, runSpacing: 2, children: activeMz.map((mz) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(3)),
+                        child: Text(mz, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)))).toList()),
+                      if (gueltigBis.isNotEmpty) Text('Gültig bis: $gueltigBis', style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.8))),
+                    ]))),
+                  if (hasB) Container(width: 100,
+                    decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.orange.shade600, Colors.red.shade600])),
+                    child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.accessible, size: 32, color: Colors.white),
+                      const SizedBox(height: 6),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(4)),
+                        child: const Text('B', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))),
+                      const SizedBox(height: 4),
+                      Text('Begleit-\nperson', textAlign: TextAlign.center, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.9))),
+                    ]))),
+                ]))
               // ── RÜCKSEITE (Back) ──
-              : Container(key: const ValueKey('back'), width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(
-                  color: Colors.green.shade50, borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.green.shade300, width: 2),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Merkzeichen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-                  const SizedBox(height: 6),
-                  Row(children: List.generate(8, (i) {
-                    if (i == 7) {
-                      return Expanded(child: Container(height: 32,
-                        decoration: BoxDecoration(color: gdb > 0 ? Colors.green.shade200 : Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: gdb > 0 ? Colors.green.shade500 : Colors.grey.shade300)),
-                        child: Center(child: Text(gdb > 0 ? 'GdB $gdb' : '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: gdb > 0 ? Colors.green.shade900 : Colors.grey.shade400)))));
-                    }
-                    final mz = i < activeMz.length ? activeMz[i] : '';
-                    return Expanded(child: Container(height: 32, margin: const EdgeInsets.only(right: 4),
-                      decoration: BoxDecoration(color: mz.isNotEmpty ? Colors.green.shade100 : Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: mz.isNotEmpty ? Colors.green.shade400 : Colors.grey.shade300)),
-                      child: Center(child: Text(mz, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: mz.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade400)))));
-                  })),
-                  const SizedBox(height: 12),
-                  _cardRow('Name', nachname),
-                  _cardRow('Vorname', vorname),
-                  _cardRow('Geburtsdatum', gebDatum),
-                  _cardRow('Ausstellungsbehörde', amtName),
-                  _cardRow('Geschäftszeichen', aktenzeichen),
-                  _cardRow('Gültig ab', gueltigAb),
-                  _cardRow('GdB', gdb > 0 ? '$gdb' : '—'),
+              : Container(key: const ValueKey('back'), width: double.infinity, clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
+                child: Column(children: [
+                  // Top half — green
+                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), color: Colors.green.shade50,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Merkzeichen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                      const SizedBox(height: 6),
+                      Row(children: List.generate(8, (i) {
+                        if (i == 7) {
+                          return Expanded(child: Container(height: 32,
+                            decoration: BoxDecoration(color: gdb > 0 ? Colors.green.shade200 : Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: gdb > 0 ? Colors.green.shade500 : Colors.grey.shade300)),
+                            child: Center(child: Text(gdb > 0 ? 'GdB $gdb' : '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: gdb > 0 ? Colors.green.shade900 : Colors.grey.shade400)))));
+                        }
+                        final mz = i < activeMz.length ? activeMz[i] : '';
+                        return Expanded(child: Container(height: 32, margin: const EdgeInsets.only(right: 4),
+                          decoration: BoxDecoration(color: mz.isNotEmpty ? Colors.green.shade100 : Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: mz.isNotEmpty ? Colors.green.shade400 : Colors.grey.shade300)),
+                          child: Center(child: Text(mz, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: mz.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade400)))));
+                      })),
+                      const SizedBox(height: 8),
+                      _cardRow('Name', nachname),
+                      _cardRow('Vorname', vorname),
+                      _cardRow('Geburtsdatum', gebDatum),
+                    ])),
+                  // Bottom half — red/orange when B, otherwise green
+                  Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    color: hasB ? Colors.orange.shade50 : Colors.green.shade50,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _cardRow('Ausstellungsbehörde', amtName),
+                      _cardRow('Geschäftszeichen', aktenzeichen),
+                      _cardRow('Gültig ab', gueltigAb),
+                      _cardRow('GdB', gdb > 0 ? '$gdb' : '—'),
+                      if (hasB) Padding(padding: const EdgeInsets.only(top: 4), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: Colors.orange.shade200, borderRadius: BorderRadius.circular(6)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.accessible, size: 14, color: Colors.orange.shade800), const SizedBox(width: 4),
+                          Text('Berechtigt zur Mitnahme einer Begleitperson', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade800))]))),
+                    ])),
                 ])),
           ));
         }),
