@@ -5112,6 +5112,11 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  Future<Map<String, dynamic>> deleteTerminverwaltung(int terminId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/termine_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'termin_id': terminId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === SCHULBILDUNG ===
   Future<Map<String, dynamic>> getUserSchulbildung(int userId) async {
     final response = await _client.get(Uri.parse('$baseUrl/admin/user_schulbildung.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
