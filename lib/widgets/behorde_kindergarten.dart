@@ -530,7 +530,9 @@ class _KindDetailState extends State<_KindDetail> {
             if (timeParts.length == 2) { hour = int.tryParse(timeParts[0]) ?? 9; minute = int.tryParse(timeParts[1]) ?? 0; }
             final terminDateTime = DateTime(pickedDate!.year, pickedDate!.month, pickedDate!.day, hour, minute);
             try {
-              await TerminService().createTermin(
+              final ts = TerminService();
+              ts.setToken(widget.apiService.token);
+              await ts.createTermin(
                 title: '${typC.text.trim().isNotEmpty ? typC.text.trim() : "Kindergarten"} — $kindName',
                 category: 'kindergarten',
                 description: '${typC.text.trim()}\n$kindName\n${kigaName.isNotEmpty ? kigaName : "Kindergarten"}\n${notizC.text.trim()}',
