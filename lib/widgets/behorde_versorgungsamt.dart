@@ -1592,7 +1592,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final nachname = user.nachname ?? '';
     final vorname = user.vorname ?? '';
     final gebDatum = user.geburtsdatum ?? '';
-    final amtName = data['selected_amt_name']?.toString() ?? data['amt_name']?.toString() ?? '';
+    final amtMap = data['selected_amt'] is Map ? data['selected_amt'] as Map : {};
+    final amtName = amtMap['name']?.toString() ?? data['selected_amt_name']?.toString() ?? '';
     final aktenzeichen = _ausweisNrC.text;
     final gueltigAb = _ausweisAusgestelltC.text;
     final gueltigBis = _ausweisUnbefristet ? 'Unbefristet' : _ausweisGueltigBisC.text;
