@@ -288,7 +288,8 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
           final res = await widget.apiService.servdiscountAction({'action': 'save_korr', 'korr': {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()}});
           final korrId = res['id'];
           if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
-          if (ctx.mounted) Navigator.pop(ctx);
+          Navigator.of(ctx, rootNavigator: true).pop();
+          await Future.delayed(const Duration(milliseconds: 200));
           await _load();
         }, child: const Text('Speichern'))],
     )));
