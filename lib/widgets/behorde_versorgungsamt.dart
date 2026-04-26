@@ -1790,15 +1790,15 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                     ]),
                   ])),
                 ]))
-              // ── RÜCKSEITE (Back) — Stack: background colors + text overlay ──
+              // ── RÜCKSEITE (Back) — Stack: top salmon bottom green ──
               : Container(key: const ValueKey('back'), width: double.infinity, height: 230, clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade400),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Stack(children: [
-                  // Background — inverted: left salmon, right green (when B)
-                  Row(children: [
-                    if (hasB) Expanded(child: Container(color: const Color(0xFFF0C4B0))),
-                    Expanded(child: Container(color: const Color(0xFFD5EACC))),
+                  // Background — top salmon, bottom green
+                  Column(children: [
+                    Expanded(flex: 3, child: Container(color: hasB ? const Color(0xFFF0C4B0) : const Color(0xFFD5EACC))),
+                    Expanded(flex: 2, child: Container(color: const Color(0xFFD5EACC))),
                   ]),
                   // Text overlay
                   Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
