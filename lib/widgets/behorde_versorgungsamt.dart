@@ -1986,6 +1986,57 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               ),
             );
           }),
+
+        // ── MERKZEICHEN ──
+        const SizedBox(height: 20),
+        Text('Merkzeichen', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          ('g', 'G – Gehbehinderung'), ('ag', 'aG – Außergewöhnliche Gehbehinderung'), ('b', 'B – Begleitperson'),
+          ('h', 'H – Hilflos'), ('rf', 'RF – Rundfunkbeitragsermäßigung'), ('bl', 'Bl – Blind'), ('gl', 'Gl – Gehörlos'), ('tbl', 'TBl – Taubblind'),
+        ].map((m) {
+          final key = 'merkzeichen_${m.$1}'; final sel = data[key] == true;
+          return FilterChip(label: Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.indigo.shade700)),
+            selected: sel, selectedColor: Colors.indigo.shade600, backgroundColor: Colors.indigo.shade50, checkmarkColor: Colors.white,
+            side: BorderSide(color: sel ? Colors.indigo.shade600 : Colors.indigo.shade200),
+            onSelected: (v) { setState(() { data[key] = v; _currentData[key] = v; }); _saveAll(data); });
+        }).toList()),
+
+        // ── WERTMARKE GÜLTIGKEIT ──
+        const SizedBox(height: 20),
+        Text('Wertmarke Gültigkeit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: InkWell(
+            onTap: () async {
+              final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+              if (p != null) { setState(() { data['wertmarke_ab_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_ab_jahr'] = '${p.year}'; _currentData['wertmarke_ab_monat'] = data['wertmarke_ab_monat']; _currentData['wertmarke_ab_jahr'] = data['wertmarke_ab_jahr']; }); _saveAll(data); }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [Icon(Icons.calendar_today, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Gültig ab', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text((data['wertmarke_ab_monat']?.toString() ?? '').isNotEmpty ? '${data['wertmarke_ab_monat']}/${data['wertmarke_ab_jahr']}' : '— wählen —',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: (data['wertmarke_ab_monat']?.toString() ?? '').isNotEmpty ? Colors.amber.shade900 : Colors.grey.shade400)),
+                ])])),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: InkWell(
+            onTap: () async {
+              final p = await showDatePicker(context: context, initialDate: DateTime.now().add(const Duration(days: 180)), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+              if (p != null) { setState(() { data['wertmarke_bis_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_bis_jahr'] = '${p.year}'; _currentData['wertmarke_bis_monat'] = data['wertmarke_bis_monat']; _currentData['wertmarke_bis_jahr'] = data['wertmarke_bis_jahr']; }); _saveAll(data); }
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [Icon(Icons.event, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Gültig bis', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text((data['wertmarke_bis_monat']?.toString() ?? '').isNotEmpty ? '${data['wertmarke_bis_monat']}/${data['wertmarke_bis_jahr']}' : '— wählen —',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: (data['wertmarke_bis_monat']?.toString() ?? '').isNotEmpty ? Colors.amber.shade900 : Colors.grey.shade400)),
+                ])])),
+          )),
+        ]),
       ]),
     );
   }
