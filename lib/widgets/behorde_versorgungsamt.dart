@@ -1174,7 +1174,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   void _showNewAntragDialog() {
     final datumC = TextEditingController();
-    final aktenzeichenC = TextEditingController();
+    final aktenzeichenC = TextEditingController(text: _joinAkt());
     String methode = '';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -1597,7 +1597,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final gebDatum = user.geburtsdatum ?? '';
     final amtMap = data['selected_amt'] is Map ? data['selected_amt'] as Map : {};
     final amtName = amtMap['name']?.toString() ?? data['selected_amt_name']?.toString() ?? '';
-    final aktenzeichen = _ausweisNrC.text;
+    final aktenzeichen = _joinAkt().isNotEmpty ? _joinAkt() : _ausweisNrC.text;
     final gueltigAb = _ausweisAusgestelltC.text;
     final gueltigBis = _ausweisUnbefristet ? 'Unbefristet' : _ausweisGueltigBisC.text;
     final gdb = _gdbAktuell;
