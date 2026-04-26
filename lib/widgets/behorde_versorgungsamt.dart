@@ -375,7 +375,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   Future<void> _pickVersorgungsamt(Map<String, dynamic> data) async {
-    final result = await widget.apiService.searchVersorgungsaemter(bundesland: 'Bayern');
+    final result = await widget.apiService.searchVersorgungsaemter();
     if (!mounted) return;
     final amter = (result['aerzte'] as List?) ?? (result['data'] as List?) ?? (result['versorgungsaemter'] as List?) ?? [];
 
