@@ -5029,6 +5029,16 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === SERVDISCOUNT ===
+  Future<Map<String, dynamic>> getServdiscountData() async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/servdiscount_manage.php?action=all'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> servdiscountAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/servdiscount_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === VEREIN DATA (dedicated DB) ===
   Future<Map<String, dynamic>> getVereinData(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/verein_data_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
