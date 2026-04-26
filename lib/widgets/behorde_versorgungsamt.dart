@@ -1841,6 +1841,56 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 ])),
           ));
         }),
+        const SizedBox(height: 20),
+        Text('Wertmarke', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+        const SizedBox(height: 4),
+        Text('Tippen Sie auf die Karte um sie zu drehen', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 8),
+        Builder(builder: (_) {
+          final wmAbMonat = data['wertmarke_ab_monat']?.toString() ?? '';
+          final wmAbJahr = data['wertmarke_ab_jahr']?.toString() ?? '';
+          final wmBisMonat = data['wertmarke_bis_monat']?.toString() ?? '';
+          final wmBisJahr = data['wertmarke_bis_jahr']?.toString() ?? '';
+          final wmAb = wmAbMonat.isNotEmpty && wmAbJahr.isNotEmpty ? '$wmAbMonat/$wmAbJahr' : '';
+          final wmBis = wmBisMonat.isNotEmpty && wmBisJahr.isNotEmpty ? '$wmBisMonat/$wmBisJahr' : '';
+          final azRaw = aktenzeichen;
+          String azFmt = '';
+          if (azRaw.isNotEmpty) { final d = azRaw.replaceAll(RegExp(r'[^0-9]'), ''); azFmt = d.length >= 8 ? '${d.substring(0, 2)}/${d.substring(2, 5)} ${d.substring(5, 8)}' : azRaw; }
+          return StatefulBuilder(builder: (_, setWm) {
+            bool wmBack = false;
+            return GestureDetector(onTap: () => setWm(() => wmBack = !wmBack),
+              child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !wmBack
+                ? Container(key: const ValueKey('wm2_front'), width: double.infinity, height: 180, clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.amber.shade50, border: Border.all(color: Colors.amber.shade400, width: 2),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
+                  child: Row(children: [
+                    Container(width: 110, padding: const EdgeInsets.all(10), color: Colors.amber.shade100,
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                        Icon(Icons.directions_bus, size: 30, color: Colors.amber.shade800),
+                        Icon(Icons.train, size: 20, color: Colors.amber.shade700),
+                        const Spacer(),
+                        if (wmAb.isNotEmpty) ...[Text('Gültig ab:', style: TextStyle(fontSize: 8, color: Colors.grey.shade700)), Text(wmAb, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900))],
+                        if (wmBis.isNotEmpty) ...[const SizedBox(height: 2), Text('Gültig bis:', style: TextStyle(fontSize: 8, color: Colors.grey.shade700)), Text(wmBis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900))],
+                        const SizedBox(height: 4),
+                        Text('Gültig in Verbindung\nmit dem gültigen\nAusweis', textAlign: TextAlign.center, style: TextStyle(fontSize: 6, color: Colors.grey.shade600, height: 1.3)),
+                      ])),
+                    Expanded(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Beiblatt zum Ausweis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                      Text('des Versorgungsamtes', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.amber.shade800)),
+                      const SizedBox(height: 8),
+                      if (azFmt.isNotEmpty) ...[Text('AZ:', style: TextStyle(fontSize: 8, color: Colors.grey.shade600)), Text(azFmt, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900, letterSpacing: 1.0))],
+                      const SizedBox(height: 6),
+                      Text('Name:', style: TextStyle(fontSize: 8, color: Colors.grey.shade600)),
+                      Text('$vorname $nachname'.trim().isNotEmpty ? '$vorname $nachname'.trim() : '—', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                    ]))),
+                  ]))
+                : Container(key: const ValueKey('wm2_back'), width: double.infinity, height: 180,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.white, border: Border.all(color: Colors.grey.shade300, width: 2),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))]),
+                  child: Center(child: Text('Rückseite', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)))),
+            ));
+          });
+        }),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text('Alle Daten werden automatisch aus den Tabs Amt, GdB und Mitgliederprofil übernommen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
