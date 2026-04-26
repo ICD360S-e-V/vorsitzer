@@ -1802,25 +1802,21 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   ]),
                   // Text overlay
                   Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    // Merkzeichen + GdB row
-                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Merkzeichen', style: TextStyle(fontSize: 10, color: Colors.black54)),
-                        const SizedBox(height: 3),
-                        Row(children: List.generate(7, (i) {
-                          final mz = i < activeMz.length ? activeMz[i] : '';
-                          return Container(width: 30, height: 30, margin: const EdgeInsets.only(right: 3),
-                            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
-                            child: Center(child: mz.isNotEmpty
-                              ? Text(mz, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.black87))
-                              : Container(width: 1, height: 18, color: Colors.black26)));
-                        })),
-                      ]),
-                      const Spacer(),
+                    // Merkzeichen + GdB row — spans full width across both colors
+                    Row(children: [
+                      Text('Merkzeichen  ', style: TextStyle(fontSize: 10, color: Colors.black54)),
+                      ...List.generate(7, (i) {
+                        final mz = i < activeMz.length ? activeMz[i] : '';
+                        return Expanded(child: Container(height: 32, margin: const EdgeInsets.only(right: 3),
+                          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
+                          child: Center(child: mz.isNotEmpty
+                            ? Text(mz, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.black87))
+                            : Container(width: 1, height: 18, color: Colors.black26))));
+                      }),
+                      const SizedBox(width: 6),
                       Column(children: [
                         Text('GdB', style: TextStyle(fontSize: 10, color: Colors.black54)),
-                        const SizedBox(height: 3),
-                        Container(width: 50, height: 30, decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
+                        Container(width: 52, height: 32, decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black45)),
                           child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87)))),
                       ]),
                     ]),
