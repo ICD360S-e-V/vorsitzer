@@ -353,13 +353,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     gdb['gdb_aktuell'] = _gdbAktuell.toString();
     gdb['gdb_feststellung_datum'] = _gdbFeststellungC.text.trim();
     gdb['gdb_bescheid_datum'] = _gdbBescheidC.text.trim();
-    for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
-      if (_currentData.containsKey('merkzeichen_$m')) gdb['merkzeichen_$m'] = (_currentData['merkzeichen_$m'] == true).toString();
-    }
-    if (_currentData.containsKey('wertmarke_ab_monat')) gdb['wertmarke_ab_monat'] = _currentData['wertmarke_ab_monat']?.toString() ?? '';
-    if (_currentData.containsKey('wertmarke_ab_jahr')) gdb['wertmarke_ab_jahr'] = _currentData['wertmarke_ab_jahr']?.toString() ?? '';
-    if (_currentData.containsKey('wertmarke_bis_monat')) gdb['wertmarke_bis_monat'] = _currentData['wertmarke_bis_monat']?.toString() ?? '';
-    if (_currentData.containsKey('wertmarke_bis_jahr')) gdb['wertmarke_bis_jahr'] = _currentData['wertmarke_bis_jahr']?.toString() ?? '';
+    // merkzeichen already in gdb via _db('gdb')[key] set in onSelected
     await widget.apiService.saveVersorgungsamtData(widget.userId, _dbData);
   }
 
@@ -1685,7 +1679,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           Expanded(child: InkWell(
             onTap: () async {
               final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
-              if (p != null) { data['wertmarke_ab_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_ab_jahr'] = '${p.year}'; _saveAll(data); setLocal(() {}); }
+              if (p != null) { data['wertmarke_ab_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_ab_jahr'] = '${p.year}'; _db('gdb')['wertmarke_ab_monat'] = data['wertmarke_ab_monat']; _db('gdb')['wertmarke_ab_jahr'] = data['wertmarke_ab_jahr']; _saveAll(data); setLocal(() {}); }
             },
             borderRadius: BorderRadius.circular(8),
             child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
@@ -1701,7 +1695,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           Expanded(child: InkWell(
             onTap: () async {
               final p = await showDatePicker(context: ctx, initialDate: DateTime.now().add(const Duration(days: 180)), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
-              if (p != null) { data['wertmarke_bis_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_bis_jahr'] = '${p.year}'; _saveAll(data); setLocal(() {}); }
+              if (p != null) { data['wertmarke_bis_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_bis_jahr'] = '${p.year}'; _db('gdb')['wertmarke_bis_monat'] = data['wertmarke_bis_monat']; _db('gdb')['wertmarke_bis_jahr'] = data['wertmarke_bis_jahr']; _saveAll(data); setLocal(() {}); }
             },
             borderRadius: BorderRadius.circular(8),
             child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
@@ -2070,7 +2064,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           Expanded(child: InkWell(
             onTap: () async {
               final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
-              if (p != null) { setState(() { data['wertmarke_ab_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_ab_jahr'] = '${p.year}'; _currentData['wertmarke_ab_monat'] = data['wertmarke_ab_monat']; _currentData['wertmarke_ab_jahr'] = data['wertmarke_ab_jahr']; }); _saveAll(data); }
+              if (p != null) { setState(() { data['wertmarke_ab_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_ab_jahr'] = '${p.year}'; _db('gdb')['wertmarke_ab_monat'] = data['wertmarke_ab_monat']; _db('gdb')['wertmarke_ab_jahr'] = data['wertmarke_ab_jahr']; }); _saveAll(data); }
             },
             borderRadius: BorderRadius.circular(8),
             child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
@@ -2085,7 +2079,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           Expanded(child: InkWell(
             onTap: () async {
               final p = await showDatePicker(context: context, initialDate: DateTime.now().add(const Duration(days: 180)), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
-              if (p != null) { setState(() { data['wertmarke_bis_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_bis_jahr'] = '${p.year}'; _currentData['wertmarke_bis_monat'] = data['wertmarke_bis_monat']; _currentData['wertmarke_bis_jahr'] = data['wertmarke_bis_jahr']; }); _saveAll(data); }
+              if (p != null) { setState(() { data['wertmarke_bis_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_bis_jahr'] = '${p.year}'; _db('gdb')['wertmarke_bis_monat'] = data['wertmarke_bis_monat']; _db('gdb')['wertmarke_bis_jahr'] = data['wertmarke_bis_jahr']; }); _saveAll(data); }
             },
             borderRadius: BorderRadius.circular(8),
             child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
