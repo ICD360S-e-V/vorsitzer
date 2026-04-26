@@ -2007,11 +2007,11 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           ('g', 'G – Gehbehinderung'), ('ag', 'aG – Außergewöhnliche Gehbehinderung'), ('b', 'B – Begleitperson'),
           ('h', 'H – Hilflos'), ('rf', 'RF – Rundfunkbeitragsermäßigung'), ('bl', 'Bl – Blind'), ('gl', 'Gl – Gehörlos'), ('tbl', 'TBl – Taubblind'),
         ].map((m) {
-          final key = 'merkzeichen_${m.$1}'; final sel = data[key] == true;
+          final key = 'merkzeichen_${m.$1}'; final sel = data[key] == true || data[key] == 'true';
           return FilterChip(label: Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.indigo.shade700)),
             selected: sel, selectedColor: Colors.indigo.shade600, backgroundColor: Colors.indigo.shade50, checkmarkColor: Colors.white,
             side: BorderSide(color: sel ? Colors.indigo.shade600 : Colors.indigo.shade200),
-            onSelected: (v) { setState(() { data[key] = v; _currentData[key] = v; }); _saveAll(data); });
+            onSelected: (v) { setState(() { data[key] = v; _currentData[key] = v; _db('gdb')[key] = v ? 'true' : 'false'; }); _saveAll(data); });
         }).toList()),
 
         // ── WERTMARKE GÜLTIGKEIT ──
