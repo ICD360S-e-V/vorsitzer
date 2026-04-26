@@ -1750,7 +1750,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 child: Column(children: [
                   // Header
                   Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
-                    decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFFD5EACC), Color(0xFFE8D5C8)], begin: Alignment.centerLeft, end: Alignment.centerRight)),
+                    decoration: BoxDecoration(gradient: LinearGradient(colors: hasB ? [const Color(0xFFD5EACC), const Color(0xFFF0C4B0)] : [const Color(0xFFD5EACC), const Color(0xFFD5EACC)], begin: Alignment.centerLeft, end: Alignment.centerRight)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       const Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87, letterSpacing: -0.5)),
                       const SizedBox(height: 1),
@@ -1787,7 +1787,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   ])),
                   // Footer
                   Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFFD5EACC), Color(0xFFE8D5C8)], begin: Alignment.centerLeft, end: Alignment.centerRight)),
+                    color: const Color(0xFFD5EACC),
                     child: Text('Gültig bis: ${gueltigBis.isNotEmpty ? gueltigBis : "—"}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.black87))),
                 ]))
               // ── RÜCKSEITE (Back) — identical to official card ──
@@ -1795,8 +1795,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Column(children: [
-                  // Top — salmon/pink half
-                  Expanded(flex: 3, child: Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(12, 10, 12, 6), color: const Color(0xFFF0C4B0),
+                  // Top — salmon when B, green when not
+                  Expanded(flex: 3, child: Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(12, 10, 12, 6), color: hasB ? const Color(0xFFF0C4B0) : const Color(0xFFD5EACC),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       // Merkzeichen + GdB row
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
