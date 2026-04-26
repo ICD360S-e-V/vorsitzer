@@ -268,6 +268,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   Map<String, Map<String, dynamic>> _dbData = {};
+  Map<String, dynamic> _currentData = {};
   List<Map<String, dynamic>> _dbTermine = [];
   List<Map<String, dynamic>> _dbKorr = [];
   bool _dbLoaded = false;
@@ -352,6 +353,13 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     gdb['gdb_aktuell'] = _gdbAktuell.toString();
     gdb['gdb_feststellung_datum'] = _gdbFeststellungC.text.trim();
     gdb['gdb_bescheid_datum'] = _gdbBescheidC.text.trim();
+    for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
+      if (_currentData.containsKey('merkzeichen_$m')) gdb['merkzeichen_$m'] = (_currentData['merkzeichen_$m'] == true).toString();
+    }
+    if (_currentData.containsKey('wertmarke_ab_monat')) gdb['wertmarke_ab_monat'] = _currentData['wertmarke_ab_monat']?.toString() ?? '';
+    if (_currentData.containsKey('wertmarke_ab_jahr')) gdb['wertmarke_ab_jahr'] = _currentData['wertmarke_ab_jahr']?.toString() ?? '';
+    if (_currentData.containsKey('wertmarke_bis_monat')) gdb['wertmarke_bis_monat'] = _currentData['wertmarke_bis_monat']?.toString() ?? '';
+    if (_currentData.containsKey('wertmarke_bis_jahr')) gdb['wertmarke_bis_jahr'] = _currentData['wertmarke_bis_jahr']?.toString() ?? '';
     await widget.apiService.saveVersorgungsamtData(widget.userId, _dbData);
   }
 
@@ -435,6 +443,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     if (!_dbLoaded) return const Center(child: CircularProgressIndicator());
     final data = <String, dynamic>{}; // legacy compat — flat map from DB data
     _dbData.forEach((bereich, fields) => fields.forEach((k, v) => data[k] = v));
+    _currentData = data;
     // Reconstruct selected_amt Map for UI
     final amt = _dbData['amt'] ?? {};
     if (amt.isNotEmpty && (amt['name']?.toString() ?? '').isNotEmpty) {
@@ -1832,29 +1841,9 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 ])),
           ));
         }),
-        const SizedBox(height: 20),
-
-        // ── FORM FIELDS ──
-        TextField(controller: _ausweisNrC, decoration: const InputDecoration(labelText: 'Ausweisnummer / Geschäftszeichen', prefixIcon: Icon(Icons.badge, size: 18), border: OutlineInputBorder(), isDense: true), onChanged: (_) => _saveAll(data)),
         const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: _datePicker(context, _ausweisAusgestelltC, 'Gültig ab', () => _saveAll(data))),
-          const SizedBox(width: 12),
-          Expanded(child: AbsorbPointer(absorbing: _ausweisUnbefristet, child: Opacity(opacity: _ausweisUnbefristet ? 0.5 : 1.0,
-            child: _datePicker(context, _ausweisGueltigBisC, 'Gültig bis', () => _saveAll(data))))),
-        ]),
-        const SizedBox(height: 4),
-        Row(children: [Checkbox(value: _ausweisUnbefristet, onChanged: (v) { setState(() => _ausweisUnbefristet = v ?? false); _saveAll(data); }), const Text('Unbefristet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))]),
-        const SizedBox(height: 16),
-        Text('Merkzeichen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-        const SizedBox(height: 6),
-        Wrap(spacing: 6, runSpacing: 4, children: merkzeichenFull.map((m) {
-          final key = 'merkzeichen_${m.$1}'; final sel = data[key] == true;
-          return FilterChip(label: Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.indigo.shade700)),
-            selected: sel, selectedColor: Colors.indigo.shade600, backgroundColor: Colors.indigo.shade50, checkmarkColor: Colors.white,
-            side: BorderSide(color: sel ? Colors.indigo.shade600 : Colors.indigo.shade200),
-            onSelected: (v) { setState(() => data[key] = v); widget.saveData(type, data); });
-        }).toList()),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Text('Alle Daten werden automatisch aus den Tabs Amt, GdB und Mitgliederprofil übernommen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
       ]));
     });
   }
