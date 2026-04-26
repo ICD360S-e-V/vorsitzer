@@ -227,7 +227,7 @@ class _KindDetail extends StatefulWidget {
 }
 
 class _KindDetailState extends State<_KindDetail> {
-  List<Map<String, dynamic>> _termine = [], _korr = [];
+  List<Map<String, dynamic>> _termine = [], _korr = [], _notizen = [];
   bool _loaded = false;
 
   @override
@@ -239,6 +239,7 @@ class _KindDetailState extends State<_KindDetail> {
       if (res['success'] == true && mounted) {
         _termine = (res['termine'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _korr = (res['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _notizen = (res['notizen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     } catch (_) {}
     if (mounted) setState(() => _loaded = true);
@@ -258,7 +259,7 @@ class _KindDetailState extends State<_KindDetail> {
         const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: const Icon(Icons.email, size: 16), text: 'Korrespondenz (${_korr.length})'),
         Tab(icon: const Icon(Icons.event, size: 16), text: 'Termine (${_termine.length})'),
-        const Tab(icon: Icon(Icons.notes, size: 16), text: 'Notizen'),
+        Tab(icon: const Icon(Icons.notes, size: 16), text: 'Notizen (${_notizen.length})'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(),
@@ -270,26 +271,55 @@ class _KindDetailState extends State<_KindDetail> {
   }
 
   Widget _buildNotizen() {
-    final notiz = widget.kind['notiz']?.toString() ?? '';
-    final notizC = TextEditingController(text: notiz);
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
         Icon(Icons.notes, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8),
-        Text('Notizen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
-      ]),
-      const SizedBox(height: 12),
-      TextField(controller: notizC, maxLines: 10, decoration: InputDecoration(hintText: 'Notizen zum Kind...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.all(12)), style: const TextStyle(fontSize: 13)),
-      const SizedBox(height: 12),
-      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: () async {
-          widget.kind['notiz'] = notizC.text.trim();
-          await widget.apiService.saveKindergartenKind(widget.userId, widget.kind);
-          widget.onChanged();
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notiz gespeichert'), backgroundColor: Colors.green));
-        },
-        icon: const Icon(Icons.save, size: 18), label: const Text('Speichern'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.pink, foregroundColor: Colors.white))),
-    ]));
+        Text('${_notizen.length} Notizen', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neue Notiz', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: _addNotiz),
+      ])),
+      Expanded(child: _notizen.isEmpty ? Center(child: Text('Keine Notizen', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _notizen.length, itemBuilder: (_, i) {
+            final n = _notizen[i];
+            return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.sticky_note_2, size: 18, color: Colors.amber.shade700), const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if ((n['datum']?.toString() ?? '').isNotEmpty) Text(n['datum'].toString(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+                  const SizedBox(height: 4),
+                  Text(n['text']?.toString() ?? '', style: const TextStyle(fontSize: 13)),
+                ])),
+                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  onPressed: () async { await widget.apiService.deleteKindergartenNotiz(widget.userId, n['id'] is int ? n['id'] : int.parse(n['id'].toString())); _load(); }),
+              ]));
+          })),
+    ]);
+  }
+
+  void _addNotiz() {
+    final textC = TextEditingController();
+    final now = DateTime.now();
+    final datumStr = '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [Icon(Icons.sticky_note_2, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8), const Text('Neue Notiz', style: TextStyle(fontSize: 14))]),
+      content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+          child: Row(children: [Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6), Text(datumStr, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))])),
+        const SizedBox(height: 12),
+        TextField(controller: textC, maxLines: 5, autofocus: true, decoration: InputDecoration(hintText: 'Notiz schreiben...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.all(12)), style: const TextStyle(fontSize: 13)),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          if (textC.text.trim().isEmpty) return;
+          Navigator.pop(ctx);
+          await widget.apiService.saveKindergartenNotiz(widget.userId, widget.kindId, {'datum': datumStr, 'text': textC.text.trim()});
+          await _load();
+        }, child: const Text('Speichern')),
+      ],
+    ));
   }
 
   void _editKind() {

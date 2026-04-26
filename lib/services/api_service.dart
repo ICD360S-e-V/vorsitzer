@@ -5097,6 +5097,15 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  Future<Map<String, dynamic>> saveKindergartenNotiz(int userId, int kindId, Map<String, dynamic> notiz) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_notiz', 'kind_id': kindId, 'notiz': notiz})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteKindergartenNotiz(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/kindergarten_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_notiz', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === SCHULBILDUNG ===
   Future<Map<String, dynamic>> getUserSchulbildung(int userId) async {
     final response = await _client.get(Uri.parse('$baseUrl/admin/user_schulbildung.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
