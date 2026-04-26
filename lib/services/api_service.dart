@@ -5106,6 +5106,12 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === TERMINVERWALTUNG (from apiService) ===
+  Future<Map<String, dynamic>> createTerminverwaltung({required String title, required String category, required String description, required String terminDate, required int durationMinutes, required String location, required List<int> participantIds}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/termine_create.php'), headers: _headers, body: jsonEncode({'title': title, 'category': category, 'description': description, 'termin_date': terminDate, 'duration_minutes': durationMinutes, 'location': location, 'participant_ids': participantIds})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === SCHULBILDUNG ===
   Future<Map<String, dynamic>> getUserSchulbildung(int userId) async {
     final response = await _client.get(Uri.parse('$baseUrl/admin/user_schulbildung.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));

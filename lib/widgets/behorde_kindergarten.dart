@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
-import '../services/termin_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 
@@ -530,13 +529,12 @@ class _KindDetailState extends State<_KindDetail> {
             if (timeParts.length == 2) { hour = int.tryParse(timeParts[0]) ?? 9; minute = int.tryParse(timeParts[1]) ?? 0; }
             final terminDateTime = DateTime(pickedDate!.year, pickedDate!.month, pickedDate!.day, hour, minute);
             try {
-              final ts = TerminService();
-              ts.setToken(widget.apiService.token);
-              await ts.createTermin(
+              final terminDateStr = '${terminDateTime.year}-${terminDateTime.month.toString().padLeft(2, '0')}-${terminDateTime.day.toString().padLeft(2, '0')} ${terminDateTime.hour.toString().padLeft(2, '0')}:${terminDateTime.minute.toString().padLeft(2, '0')}:00';
+              await widget.apiService.createTerminverwaltung(
                 title: '${typC.text.trim().isNotEmpty ? typC.text.trim() : "Kindergarten"} — $kindName',
                 category: 'kindergarten',
                 description: '${typC.text.trim()}\n$kindName\n${kigaName.isNotEmpty ? kigaName : "Kindergarten"}\n${notizC.text.trim()}',
-                terminDate: terminDateTime,
+                terminDate: terminDateStr,
                 durationMinutes: 60,
                 location: kigaName,
                 participantIds: [widget.userId],
