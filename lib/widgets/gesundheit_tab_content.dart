@@ -7704,6 +7704,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                               Expanded(child: Text(u['ausfuehrung_text'].toString(), style: const TextStyle(fontSize: 12))),
                             ]),
                           ],
+                          const SizedBox(height: 6),
+                          Builder(builder: (_) {
+                            final attachId = '${type}_ue_${u['datum'] ?? ''}_${u['an'] ?? ''}_$idx'.hashCode.abs();
+                            return KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ueberweisung_$type', korrespondenzId: attachId);
+                          }),
                         ],
                       ),
                     ),
