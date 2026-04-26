@@ -1647,8 +1647,13 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   Text('Merkzeichen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
                   const SizedBox(height: 6),
                   Row(children: List.generate(8, (i) {
+                    if (i == 7) {
+                      return Expanded(child: Container(height: 32,
+                        decoration: BoxDecoration(color: gdb > 0 ? Colors.green.shade200 : Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: gdb > 0 ? Colors.green.shade500 : Colors.grey.shade300)),
+                        child: Center(child: Text(gdb > 0 ? 'GdB $gdb' : '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: gdb > 0 ? Colors.green.shade900 : Colors.grey.shade400)))));
+                    }
                     final mz = i < activeMz.length ? activeMz[i] : '';
-                    return Expanded(child: Container(height: 32, margin: EdgeInsets.only(right: i < 7 ? 4 : 0),
+                    return Expanded(child: Container(height: 32, margin: const EdgeInsets.only(right: 4),
                       decoration: BoxDecoration(color: mz.isNotEmpty ? Colors.green.shade100 : Colors.grey.shade100, borderRadius: BorderRadius.circular(4), border: Border.all(color: mz.isNotEmpty ? Colors.green.shade400 : Colors.grey.shade300)),
                       child: Center(child: Text(mz, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: mz.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade400)))));
                   })),
