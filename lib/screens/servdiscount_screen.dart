@@ -26,6 +26,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   Future<void> _load() async {
     try {
       final r = await widget.apiService.getServdiscountData();
+      debugPrint('[ServDiscount] load success=${r['success']}, korr=${(r['korrespondenz'] as List?)?.length ?? 0}');
       if (r['success'] == true && mounted) {
         setState(() {
           _data = Map<String, dynamic>.from(r['data'] ?? {});
@@ -35,6 +36,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
           _verlauf = (r['verlauf'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
           _loaded = true;
         });
+        debugPrint('[ServDiscount] _korr.length=${_korr.length}');
         return;
       }
     } catch (e) { debugPrint('[ServDiscount] load error: $e'); }
@@ -292,10 +294,10 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     final res = await widget.apiService.servdiscountAction({'action': 'save_korr', 'korr': ok});
     final korrId = res['id'];
     if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
-    if (korrId != null && mounted) {
+    await _load();
+    if (_korr.isEmpty && korrId != null && mounted) {
       setState(() => _korr.insert(0, {'id': korrId, ...ok}));
     }
-    _load();
   }
 
   // ──── VERLAUF ────
