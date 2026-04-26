@@ -69,7 +69,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
         _buildFirma(),
         _buildVertraege(),
         _buildServers(),
-        _buildKorr(),
+        _ServdiscountKorrTab(apiService: widget.apiService),
         _buildVerlauf(),
       ])),
     ]);
@@ -77,24 +77,75 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
 
   // ──── FIRMA ────
   Widget _buildFirma() {
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [CircleAvatar(radius: 22, backgroundColor: Colors.orange.shade100, child: Icon(Icons.dns, size: 24, color: Colors.orange.shade700)), const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('myLoc managed IT AG', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-            Text('servdiscount.com · Marke der myLoc managed IT AG', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-          ]))]),
-        const Divider(height: 20),
-        _ir(Icons.location_on, 'Am Gatherhof 44, 40472 Düsseldorf'),
-        _ir(Icons.phone, '+49 211 749547-90'),
-        _ir(Icons.fax, '+49 211 749547-99'),
-        _ir(Icons.email, 'info@servdiscount.com'),
-        _ir(Icons.language, 'https://servdiscount.com'),
-        _ir(Icons.person, 'Vorstand: Christoph Herrnkind, Peter Hansen, Sascha Prütz'),
-        _ir(Icons.gavel, 'AG Düsseldorf, HRB 48531'),
-        _ir(Icons.receipt, 'USt-ID: DE 201 967 354'),
-        _ir(Icons.corporate_fare, 'Tochter von WIIT S.p.A. (seit 2020)'),
-      ])));
+    final hasF = (_data['firma_name']?.toString() ?? '').isNotEmpty;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.dns, size: 20, color: Colors.orange.shade700), const SizedBox(width: 8),
+        Text('Zuständige Firma', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.search, size: 16), label: Text(hasF ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          onPressed: () async {
+            final res = await widget.apiService.getArbeitgeberStammdaten();
+            if (res['success'] != true || !mounted) return;
+            final all = (res['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            final sel = await showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
+              String search = '';
+              List<Map<String, dynamic>> results = all;
+              return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+                title: Row(children: [Icon(Icons.business, size: 18, color: Colors.orange.shade700), const SizedBox(width: 8), const Text('Firma auswählen', style: TextStyle(fontSize: 14))]),
+                content: SizedBox(width: 450, height: 400, child: Column(children: [
+                  TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                    onChanged: (v) => setS(() { search = v.toLowerCase(); results = all.where((a) => (a['firma_name']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
+                  const SizedBox(height: 8),
+                  Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                    : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                        final a = results[i];
+                        return ListTile(dense: true, leading: Icon(Icons.business, size: 18, color: Colors.orange.shade400),
+                          title: Text(a['firma_name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          subtitle: Text([a['branche'], a['hauptzentrale_ort']].where((v) => v != null && v.toString().isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          onTap: () => Navigator.pop(sCtx, a));
+                      })),
+                ])),
+                actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+              ));
+            });
+            if (sel != null) {
+              final m = <String, dynamic>{};
+              for (final k in ['firma_name', 'rechtsform', 'branche', 'hauptzentrale_strasse', 'hauptzentrale_plz', 'hauptzentrale_ort', 'hauptzentrale_telefon', 'hauptzentrale_email', 'geschaeftsfuehrer', 'registergericht', 'registernummer', 'ust_id', 'website']) {
+                m[k] = sel[k]?.toString() ?? ''; _data[k] = sel[k]?.toString() ?? '';
+              }
+              await widget.apiService.servdiscountAction({'action': 'save_data', 'data': m});
+              if (mounted) setState(() {});
+            }
+          }),
+      ]),
+      const SizedBox(height: 16),
+      if (!hasF)
+        Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+          child: Column(children: [Icon(Icons.search, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Firma ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500))]))
+      else
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [CircleAvatar(radius: 22, backgroundColor: Colors.orange.shade100, child: Icon(Icons.dns, size: 24, color: Colors.orange.shade700)), const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_data['firma_name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                if ((_data['branche']?.toString() ?? '').isNotEmpty) Text(_data['branche'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              ])),
+              IconButton(icon: Icon(Icons.close, size: 18, color: Colors.red.shade400), onPressed: () async {
+                await widget.apiService.servdiscountAction({'action': 'save_data', 'data': {'firma_name': ''}}); _data.clear(); if (mounted) setState(() {}); }),
+            ]),
+            const Divider(height: 20),
+            if ((_data['hauptzentrale_strasse']?.toString() ?? '').isNotEmpty || (_data['hauptzentrale_ort']?.toString() ?? '').isNotEmpty)
+              _ir(Icons.location_on, [_data['hauptzentrale_strasse'], '${_data['hauptzentrale_plz'] ?? ''} ${_data['hauptzentrale_ort'] ?? ''}'.trim()].where((s) => (s?.toString() ?? '').isNotEmpty).join(', ')),
+            if ((_data['hauptzentrale_telefon']?.toString() ?? '').isNotEmpty) _ir(Icons.phone, _data['hauptzentrale_telefon'].toString()),
+            if ((_data['hauptzentrale_email']?.toString() ?? '').isNotEmpty) _ir(Icons.email, _data['hauptzentrale_email'].toString()),
+            if ((_data['website']?.toString() ?? '').isNotEmpty) _ir(Icons.language, _data['website'].toString()),
+            if ((_data['geschaeftsfuehrer']?.toString() ?? '').isNotEmpty) _ir(Icons.person, 'Vorstand: ${_data['geschaeftsfuehrer']}'),
+            if ((_data['registergericht']?.toString() ?? '').isNotEmpty) _ir(Icons.gavel, '${_data['registergericht']}, ${_data['registernummer'] ?? ''}'),
+            if ((_data['ust_id']?.toString() ?? '').isNotEmpty) _ir(Icons.receipt, 'USt-ID: ${_data['ust_id']}'),
+          ])),
+    ]));
   }
 
   Widget _ir(IconData icon, String text) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
@@ -198,23 +249,97 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     ));
   }
 
-  // ──── KORRESPONDENZ ────
-  Widget _buildKorr() {
+  // ──── VERLAUF ────
+  Widget _buildVerlauf() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Eintrag', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addVerlauf())])),
+      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
+            final e = _verlauf[i];
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [Icon(Icons.circle, size: 8, color: Colors.orange.shade400), const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [Expanded(child: Text(e['aktion']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                    if ((e['datum']?.toString() ?? '').isNotEmpty) Text(e['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600))]),
+                  if ((e['notiz']?.toString() ?? '').isNotEmpty) Text(e['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                ])),
+                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  onPressed: () async { await _act({'action': 'delete_verlauf', 'id': e['id']}); }),
+              ]));
+          })),
+    ]);
+  }
+
+  void _addVerlauf() {
+    final datumC = TextEditingController(); final aktionC = TextEditingController(); final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Verlauf-Eintrag', style: TextStyle(fontSize: 14)),
+      content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
+        const SizedBox(height: 8),
+        TextField(controller: aktionC, decoration: InputDecoration(labelText: 'Aktion *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ])),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async { Navigator.pop(ctx); await _act({'action': 'save_verlauf', 'verlauf': {'datum': datumC.text.trim(), 'aktion': aktionC.text.trim(), 'notiz': notizC.text.trim()}}); }, child: const Text('Speichern'))],
+    ));
+  }
+}
+
+class _ServdiscountKorrTab extends StatefulWidget {
+  final ApiService apiService;
+  const _ServdiscountKorrTab({required this.apiService});
+  @override
+  State<_ServdiscountKorrTab> createState() => _ServdiscountKorrTabState();
+}
+
+class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final r = await widget.apiService.getServdiscountData();
+      if (r['success'] == true && mounted) {
+        setState(() {
+          _korr = (r['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _loaded = true;
+        });
+        return;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
-          onPressed: () async { await _addKorr('eingang'); }),
+          onPressed: () => _addKorr('eingang')),
         const SizedBox(width: 6),
         FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
-          onPressed: () async { await _addKorr('ausgang'); })])),
+          onPressed: () => _addKorr('ausgang')),
+      ])),
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
             final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
             const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online/Ticket', 'persoenlich': 'Persönlich'};
-            return InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showKorrDetail(k),
+            return InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showDetail(k),
               child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
                 child: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -229,7 +354,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     ]);
   }
 
-  void _showKorrDetail(Map<String, dynamic> k) {
+  void _showDetail(Map<String, dynamic> k) {
     final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
     const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online/Ticket', 'persoenlich': 'Persönlich'};
     final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
@@ -237,14 +362,15 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
       titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
       title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
         Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c.shade800), overflow: TextOverflow.ellipsis)),
-        IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await _act({'action': 'delete_korr', 'id': kId}); if (ctx.mounted) Navigator.pop(ctx); }),
+        IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
+          await widget.apiService.servdiscountAction({'action': 'delete_korr', 'id': kId}); await _load(); if (ctx.mounted) Navigator.pop(ctx); }),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx))]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if ((k['methode']?.toString() ?? '').isNotEmpty) _dr(Icons.send, 'Methode', mL[k['methode']] ?? k['methode'].toString()),
-            if ((k['datum']?.toString() ?? '').isNotEmpty) _dr(Icons.calendar_today, 'Datum', k['datum'].toString()),
-            _dr(Icons.subject, 'Betreff', k['betreff']?.toString() ?? ''),
+            if ((k['methode']?.toString() ?? '').isNotEmpty) _r(Icons.send, 'Methode', mL[k['methode']] ?? k['methode'].toString()),
+            if ((k['datum']?.toString() ?? '').isNotEmpty) _r(Icons.calendar_today, 'Datum', k['datum'].toString()),
+            _r(Icons.subject, 'Betreff', k['betreff']?.toString() ?? ''),
           ])),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12),
           Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
@@ -255,7 +381,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     ));
   }
 
-  Widget _dr(IconData icon, String label, String val) => val.isEmpty ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
+  Widget _r(IconData icon, String label, String val) => val.isEmpty ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
     Icon(icon, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6), Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
 
   Future<void> _addKorr(String richtung) async {
@@ -296,46 +422,5 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     final korrId = res['id'];
     if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
     await _load();
-  }
-
-  // ──── VERLAUF ────
-  Widget _buildVerlauf() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
-        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Eintrag', style: TextStyle(fontSize: 11)),
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addVerlauf())])),
-      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
-            final e = _verlauf[i];
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Row(children: [Icon(Icons.circle, size: 8, color: Colors.orange.shade400), const SizedBox(width: 8),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [Expanded(child: Text(e['aktion']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-                    if ((e['datum']?.toString() ?? '').isNotEmpty) Text(e['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600))]),
-                  if ((e['notiz']?.toString() ?? '').isNotEmpty) Text(e['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                ])),
-                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  onPressed: () async { await _act({'action': 'delete_verlauf', 'id': e['id']}); }),
-              ]));
-          })),
-    ]);
-  }
-
-  void _addVerlauf() {
-    final datumC = TextEditingController(); final aktionC = TextEditingController(); final notizC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Verlauf-Eintrag', style: TextStyle(fontSize: 14)),
-      content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
-        const SizedBox(height: 8),
-        TextField(controller: aktionC, decoration: InputDecoration(labelText: 'Aktion *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 8),
-        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async { Navigator.pop(ctx); await _act({'action': 'save_verlauf', 'verlauf': {'datum': datumC.text.trim(), 'aktion': aktionC.text.trim(), 'notiz': notizC.text.trim()}}); }, child: const Text('Speichern'))],
-    ));
   }
 }
