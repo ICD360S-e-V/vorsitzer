@@ -247,23 +247,48 @@ class _KindDetailState extends State<_KindDetail> {
   @override
   Widget build(BuildContext context) {
     final k = widget.kind;
-    return DefaultTabController(length: 3, child: Column(children: [
+    return DefaultTabController(length: 4, child: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
         Icon(Icons.child_care, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8),
         Expanded(child: Text('${k['vorname'] ?? ''} ${k['nachname'] ?? ''}'.trim(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade800))),
         IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.pink.shade400), tooltip: 'Bearbeiten', onPressed: () => _editKind()),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
       ])),
-      TabBar(labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.pink.shade700, tabs: [
+      TabBar(labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.pink.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: const Icon(Icons.email, size: 16), text: 'Korrespondenz (${_korr.length})'),
         Tab(icon: const Icon(Icons.event, size: 16), text: 'Termine (${_termine.length})'),
+        const Tab(icon: Icon(Icons.notes, size: 16), text: 'Notizen'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(),
         _buildKorr(),
         _buildTermine(),
+        _buildNotizen(),
       ])),
+    ]));
+  }
+
+  Widget _buildNotizen() {
+    final notiz = widget.kind['notiz']?.toString() ?? '';
+    final notizC = TextEditingController(text: notiz);
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.notes, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8),
+        Text('Notizen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+      ]),
+      const SizedBox(height: 12),
+      TextField(controller: notizC, maxLines: 10, decoration: InputDecoration(hintText: 'Notizen zum Kind...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.all(12)), style: const TextStyle(fontSize: 13)),
+      const SizedBox(height: 12),
+      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+        onPressed: () async {
+          widget.kind['notiz'] = notizC.text.trim();
+          await widget.apiService.saveKindergartenKind(widget.userId, widget.kind);
+          widget.onChanged();
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notiz gespeichert'), backgroundColor: Colors.green));
+        },
+        icon: const Icon(Icons.save, size: 18), label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.pink, foregroundColor: Colors.white))),
     ]));
   }
 
