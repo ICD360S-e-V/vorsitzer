@@ -295,9 +295,6 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     final korrId = res['id'];
     if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
     await _load();
-    if (_korr.isEmpty && korrId != null && mounted) {
-      setState(() => _korr.insert(0, {'id': korrId, ...ok}));
-    }
   }
 
   // ──── VERLAUF ────
