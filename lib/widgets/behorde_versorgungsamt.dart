@@ -1743,7 +1743,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             onTap: () => setCard(() => showBack = !showBack),
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
               // ── VORDERSEITE (Front) — Stack: background colors + text overlay ──
-              ? Container(key: const ValueKey('front'), width: double.infinity, height: 260,
+              ? Container(key: const ValueKey('front'), width: double.infinity, height: 300,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade400),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))]),
@@ -1791,7 +1791,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   ])),
                 ]))
               // ── RÜCKSEITE (Back) — Stack: top salmon bottom green ──
-              : Container(key: const ValueKey('back'), width: double.infinity, height: 260, clipBehavior: Clip.antiAlias,
+              : Container(key: const ValueKey('back'), width: double.infinity, height: 300, clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade400),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Stack(children: [
