@@ -67,10 +67,10 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
         ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tab, children: [
         _buildFirma(),
-        _buildVertraege(),
-        _buildServers(),
+        _ServdiscountListTab(apiService: widget.apiService, type: 'vertraege'),
+        _ServdiscountListTab(apiService: widget.apiService, type: 'servers'),
         _ServdiscountKorrTab(apiService: widget.apiService),
-        _buildVerlauf(),
+        _ServdiscountVerlaufTab(apiService: widget.apiService),
       ])),
     ]);
   }
@@ -151,144 +151,6 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   Widget _ir(IconData icon, String text) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
     Icon(icon, size: 16, color: Colors.orange.shade600), const SizedBox(width: 10), Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
 
-  // ──── VERTRÄGE ────
-  Widget _buildVertraege() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Row(children: [Text('${_vertraege.length} Verträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)), const Spacer(),
-        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addVertrag())])),
-      Expanded(child: _vertraege.isEmpty ? Center(child: Text('Keine Verträge', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vertraege.length, itemBuilder: (_, i) {
-            final v = _vertraege[i]; final aktiv = v['status'] == 'aktiv';
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
-              child: Row(children: [Icon(Icons.description, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [Expanded(child: Text(v['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Text(aktiv ? 'Aktiv' : 'Gekündigt', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.red.shade800)))]),
-                  if ((v['kosten']?.toString() ?? '').isNotEmpty) Text('${v['kosten']} €/Monat', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                ])),
-                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  onPressed: () async { await _act({'action': 'delete_vertrag', 'id': v['id']}); }),
-              ]));
-          })),
-    ]);
-  }
-
-  void _addVertrag() {
-    final nameC = TextEditingController(); final typC = TextEditingController(); final kostenC = TextEditingController();
-    final laufzeitC = TextEditingController(); final fristC = TextEditingController(); final beginnC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Neuer Vertrag', style: TextStyle(fontSize: 14)),
-      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: nameC, decoration: InputDecoration(labelText: 'Name *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
-        TextField(controller: typC, decoration: InputDecoration(labelText: 'Typ (Dedicated, vServer, Hosting)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
-        TextField(controller: kostenC, decoration: InputDecoration(labelText: 'Kosten €/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
-        Row(children: [Expanded(child: TextField(controller: laufzeitC, decoration: InputDecoration(labelText: 'Laufzeit', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: fristC, decoration: InputDecoration(labelText: 'Kündigungsfrist', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
-        const SizedBox(height: 8),
-        TextFormField(controller: beginnC, readOnly: true, decoration: InputDecoration(labelText: 'Vertragsbeginn', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) beginnC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
-      ]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async { Navigator.pop(ctx); await _act({'action': 'save_vertrag', 'vertrag': {'name': nameC.text.trim(), 'typ': typC.text.trim(), 'kosten': kostenC.text.trim(), 'laufzeit': laufzeitC.text.trim(), 'kuendigungsfrist': fristC.text.trim(), 'vertragsbeginn': beginnC.text.trim()}}); }, child: const Text('Speichern'))],
-    ));
-  }
-
-  // ──── SERVERS ────
-  Widget _buildServers() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Row(children: [Text('${_servers.length} Server', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)), const Spacer(),
-        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addServer())])),
-      Expanded(child: _servers.isEmpty ? Center(child: Text('Keine Server', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _servers.length, itemBuilder: (_, i) {
-            final s = _servers[i]; final aktiv = s['status'] == 'aktiv';
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: aktiv ? Colors.green.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: aktiv ? Colors.green.shade200 : Colors.grey.shade200)),
-              child: Row(children: [Icon(Icons.dns, size: 18, color: aktiv ? Colors.green.shade700 : Colors.grey.shade500), const SizedBox(width: 8),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [Expanded(child: Text(s['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.grey.shade700))),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Text(aktiv ? 'Online' : 'Offline', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.red.shade800)))]),
-                  if ((s['ip']?.toString() ?? '').isNotEmpty) Text('IP: ${s['ip']}', style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade600)),
-                  Row(children: [
-                    if ((s['typ']?.toString() ?? '').isNotEmpty) Text('${s['typ']} · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                    if ((s['ram']?.toString() ?? '').isNotEmpty) Text('${s['ram']} RAM · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                    if ((s['storage']?.toString() ?? '').isNotEmpty) Text(s['storage'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                  ]),
-                  if ((s['monatliche_kosten']?.toString() ?? '').isNotEmpty) Text('${s['monatliche_kosten']} €/Monat', style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
-                ])),
-                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  onPressed: () async { await _act({'action': 'delete_server', 'id': s['id']}); }),
-              ]));
-          })),
-    ]);
-  }
-
-  void _addServer() {
-    final nameC = TextEditingController(); final ipC = TextEditingController(); final typC = TextEditingController(text: 'Dedicated');
-    final osC = TextEditingController(); final ramC = TextEditingController(); final cpuC = TextEditingController();
-    final storageC = TextEditingController(); final kostenC = TextEditingController(); final standortC = TextEditingController(text: 'Düsseldorf');
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Neuer Server', style: TextStyle(fontSize: 14)),
-      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [Expanded(child: TextField(controller: nameC, decoration: InputDecoration(labelText: 'Name *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: ipC, decoration: InputDecoration(labelText: 'IP-Adresse', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]), const SizedBox(height: 8),
-        Row(children: [Expanded(child: TextField(controller: typC, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: standortC, decoration: InputDecoration(labelText: 'Standort', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]), const SizedBox(height: 8),
-        TextField(controller: osC, decoration: InputDecoration(labelText: 'Betriebssystem', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
-        Row(children: [Expanded(child: TextField(controller: ramC, decoration: InputDecoration(labelText: 'RAM', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: cpuC, decoration: InputDecoration(labelText: 'CPU', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]), const SizedBox(height: 8),
-        Row(children: [Expanded(child: TextField(controller: storageC, decoration: InputDecoration(labelText: 'Storage', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: kostenC, decoration: InputDecoration(labelText: '€/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
-      ]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async { Navigator.pop(ctx); await _act({'action': 'save_server', 'server': {'name': nameC.text.trim(), 'ip': ipC.text.trim(), 'typ': typC.text.trim(), 'standort': standortC.text.trim(), 'os': osC.text.trim(), 'ram': ramC.text.trim(), 'cpu': cpuC.text.trim(), 'storage': storageC.text.trim(), 'monatliche_kosten': kostenC.text.trim()}}); }, child: const Text('Speichern'))],
-    ));
-  }
-
-  // ──── VERLAUF ────
-  Widget _buildVerlauf() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
-        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Eintrag', style: TextStyle(fontSize: 11)),
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addVerlauf())])),
-      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
-            final e = _verlauf[i];
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Row(children: [Icon(Icons.circle, size: 8, color: Colors.orange.shade400), const SizedBox(width: 8),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [Expanded(child: Text(e['aktion']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-                    if ((e['datum']?.toString() ?? '').isNotEmpty) Text(e['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600))]),
-                  if ((e['notiz']?.toString() ?? '').isNotEmpty) Text(e['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                ])),
-                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  onPressed: () async { await _act({'action': 'delete_verlauf', 'id': e['id']}); }),
-              ]));
-          })),
-    ]);
-  }
-
-  void _addVerlauf() {
-    final datumC = TextEditingController(); final aktionC = TextEditingController(); final notizC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Verlauf-Eintrag', style: TextStyle(fontSize: 14)),
-      content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
-        const SizedBox(height: 8),
-        TextField(controller: aktionC, decoration: InputDecoration(labelText: 'Aktion *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 8),
-        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async { Navigator.pop(ctx); await _act({'action': 'save_verlauf', 'verlauf': {'datum': datumC.text.trim(), 'aktion': aktionC.text.trim(), 'notiz': notizC.text.trim()}}); }, child: const Text('Speichern'))],
-    ));
-  }
 }
 
 class _ServdiscountKorrTab extends StatefulWidget {
@@ -422,5 +284,218 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
     final korrId = res['id'];
     if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
     await _load();
+  }
+}
+
+// ═══ VERTRÄGE + SERVER (shared widget) ═══
+class _ServdiscountListTab extends StatefulWidget {
+  final ApiService apiService;
+  final String type;
+  const _ServdiscountListTab({required this.apiService, required this.type});
+  @override
+  State<_ServdiscountListTab> createState() => _ServdiscountListTabState();
+}
+
+class _ServdiscountListTabState extends State<_ServdiscountListTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+  bool get _isServer => widget.type == 'servers';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final r = await widget.apiService.getServdiscountData();
+      if (r['success'] == true && mounted) {
+        setState(() { _items = (r[widget.type] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList(); _loaded = true; });
+        return;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  Future<void> _act(Map<String, dynamic> body) async { await widget.apiService.servdiscountAction(body); await _load(); }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Text('${_items.length} ${_isServer ? "Server" : "Verträge"}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)), const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: _add)])),
+      Expanded(child: _items.isEmpty ? Center(child: Text(_isServer ? 'Keine Server' : 'Keine Verträge', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _items.length, itemBuilder: (_, i) {
+            final v = _items[i];
+            if (_isServer) {
+              final aktiv = v['status'] == 'aktiv';
+              return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: aktiv ? Colors.green.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: aktiv ? Colors.green.shade200 : Colors.grey.shade200)),
+                child: Row(children: [Icon(Icons.dns, size: 18, color: aktiv ? Colors.green.shade700 : Colors.grey.shade500), const SizedBox(width: 8),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [Expanded(child: Text(v['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.grey.shade700))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+                        child: Text(aktiv ? 'Online' : 'Offline', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.red.shade800)))]),
+                    if ((v['ip']?.toString() ?? '').isNotEmpty) Text('IP: ${v['ip']}', style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade600)),
+                    Row(children: [if ((v['typ']?.toString() ?? '').isNotEmpty) Text('${v['typ']} · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      if ((v['ram']?.toString() ?? '').isNotEmpty) Text('${v['ram']} · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      if ((v['storage']?.toString() ?? '').isNotEmpty) Text(v['storage'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500))]),
+                    if ((v['monatliche_kosten']?.toString() ?? '').isNotEmpty) Text('${v['monatliche_kosten']} €/Monat', style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+                  ])),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                    onPressed: () => _act({'action': 'delete_server', 'id': v['id']})),
+                ]));
+            }
+            final aktiv = v['status'] == 'aktiv';
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+              child: Row(children: [Icon(Icons.description, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [Expanded(child: Text(v['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text(aktiv ? 'Aktiv' : 'Gekündigt', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.red.shade800)))]),
+                  if ((v['kosten']?.toString() ?? '').isNotEmpty) Text('${v['kosten']} €/Monat', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                ])),
+                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  onPressed: () => _act({'action': 'delete_vertrag', 'id': v['id']})),
+              ]));
+          })),
+    ]);
+  }
+
+  void _add() {
+    if (_isServer) {
+      final nameC = TextEditingController(); final ipC = TextEditingController(); final typC = TextEditingController(text: 'Dedicated');
+      final osC = TextEditingController(); final ramC = TextEditingController(); final cpuC = TextEditingController();
+      final storageC = TextEditingController(); final kostenC = TextEditingController(); final standortC = TextEditingController(text: 'Düsseldorf');
+      showDialog(context: context, builder: (ctx) => AlertDialog(
+        title: const Text('Neuer Server', style: TextStyle(fontSize: 14)),
+        content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [Expanded(child: TextField(controller: nameC, decoration: InputDecoration(labelText: 'Name *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8), Expanded(child: TextField(controller: ipC, decoration: InputDecoration(labelText: 'IP-Adresse', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]), const SizedBox(height: 8),
+          Row(children: [Expanded(child: TextField(controller: typC, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8), Expanded(child: TextField(controller: standortC, decoration: InputDecoration(labelText: 'Standort', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]), const SizedBox(height: 8),
+          TextField(controller: osC, decoration: InputDecoration(labelText: 'Betriebssystem', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
+          Row(children: [Expanded(child: TextField(controller: ramC, decoration: InputDecoration(labelText: 'RAM', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8), Expanded(child: TextField(controller: cpuC, decoration: InputDecoration(labelText: 'CPU', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]), const SizedBox(height: 8),
+          Row(children: [Expanded(child: TextField(controller: storageC, decoration: InputDecoration(labelText: 'Storage', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8), Expanded(child: TextField(controller: kostenC, decoration: InputDecoration(labelText: '€/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
+        ]))),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () async { Navigator.pop(ctx); await _act({'action': 'save_server', 'server': {'name': nameC.text.trim(), 'ip': ipC.text.trim(), 'typ': typC.text.trim(), 'standort': standortC.text.trim(), 'os': osC.text.trim(), 'ram': ramC.text.trim(), 'cpu': cpuC.text.trim(), 'storage': storageC.text.trim(), 'monatliche_kosten': kostenC.text.trim()}}); }, child: const Text('Speichern'))],
+      ));
+    } else {
+      final nameC = TextEditingController(); final typC = TextEditingController(); final kostenC = TextEditingController();
+      final laufzeitC = TextEditingController(); final fristC = TextEditingController(); final beginnC = TextEditingController();
+      showDialog(context: context, builder: (ctx) => AlertDialog(
+        title: const Text('Neuer Vertrag', style: TextStyle(fontSize: 14)),
+        content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: nameC, decoration: InputDecoration(labelText: 'Name *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
+          TextField(controller: typC, decoration: InputDecoration(labelText: 'Typ (Dedicated, vServer, Hosting)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
+          TextField(controller: kostenC, decoration: InputDecoration(labelText: 'Kosten €/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))), const SizedBox(height: 8),
+          Row(children: [Expanded(child: TextField(controller: laufzeitC, decoration: InputDecoration(labelText: 'Laufzeit', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8), Expanded(child: TextField(controller: fristC, decoration: InputDecoration(labelText: 'Kündigungsfrist', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]), const SizedBox(height: 8),
+          TextFormField(controller: beginnC, readOnly: true, decoration: InputDecoration(labelText: 'Vertragsbeginn', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) beginnC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
+        ]))),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () async { Navigator.pop(ctx); await _act({'action': 'save_vertrag', 'vertrag': {'name': nameC.text.trim(), 'typ': typC.text.trim(), 'kosten': kostenC.text.trim(), 'laufzeit': laufzeitC.text.trim(), 'kuendigungsfrist': fristC.text.trim(), 'vertragsbeginn': beginnC.text.trim()}}); }, child: const Text('Speichern'))],
+      ));
+    }
+  }
+}
+
+// ═══ VERLAUF (auto from korrespondenz + manual) ═══
+class _ServdiscountVerlaufTab extends StatefulWidget {
+  final ApiService apiService;
+  const _ServdiscountVerlaufTab({required this.apiService});
+  @override
+  State<_ServdiscountVerlaufTab> createState() => _ServdiscountVerlaufTabState();
+}
+
+class _ServdiscountVerlaufTabState extends State<_ServdiscountVerlaufTab> {
+  List<Map<String, dynamic>> _verlauf = [], _korr = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final r = await widget.apiService.getServdiscountData();
+      if (r['success'] == true && mounted) {
+        setState(() {
+          _verlauf = (r['verlauf'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _korr = (r['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _loaded = true;
+        });
+        return;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online/Ticket', 'persoenlich': 'Persönlich'};
+    final events = <(String date, IconData icon, String title, String sub, MaterialColor color)>[];
+    for (final k in _korr) {
+      final isA = k['richtung'] == 'ausgang';
+      events.add((k['datum']?.toString() ?? '', isA ? Icons.call_made : Icons.call_received, '${isA ? "Ausgang" : "Eingang"}: ${k['betreff'] ?? ''}', mL[k['methode']] ?? k['methode']?.toString() ?? '', isA ? Colors.blue : Colors.green));
+    }
+    for (final v in _verlauf) {
+      events.add((v['datum']?.toString() ?? '', Icons.flag, v['aktion']?.toString() ?? '', v['notiz']?.toString() ?? '', Colors.orange));
+    }
+    DateTime? parseDate(String d) { if (d.isEmpty) return null; try { final p = d.split('.'); return DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); } catch (_) { return null; } }
+    events.sort((a, b) { final da = parseDate(a.$1); final db = parseDate(b.$1); if (da == null && db == null) return 0; if (da == null) return 1; if (db == null) return -1; return da.compareTo(db); });
+
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Text('${events.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)), const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Eintrag', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: _addVerlauf)])),
+      Expanded(child: events.isEmpty ? Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: events.length, itemBuilder: (_, i) {
+            final e = events[i];
+            return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 30, child: Column(children: [
+                Container(width: 24, height: 24, decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
+                  child: Icon(e.$2, size: 12, color: e.$5.shade700)),
+                if (i < events.length - 1) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+              ])),
+              const SizedBox(width: 10),
+              Expanded(child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
+                    if (e.$1.isNotEmpty) Text(e.$1, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: e.$5.shade600))]),
+                  if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                ]))),
+            ]));
+          })),
+    ]);
+  }
+
+  void _addVerlauf() {
+    final datumC = TextEditingController(); final aktionC = TextEditingController(); final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Verlauf-Eintrag', style: TextStyle(fontSize: 14)),
+      content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
+        const SizedBox(height: 8),
+        TextField(controller: aktionC, decoration: InputDecoration(labelText: 'Was ist passiert? *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ])),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          if (aktionC.text.trim().isEmpty) return;
+          Navigator.pop(ctx);
+          await widget.apiService.servdiscountAction({'action': 'save_verlauf', 'verlauf': {'datum': datumC.text.trim(), 'aktion': aktionC.text.trim(), 'notiz': notizC.text.trim()}});
+          await _load();
+        }, child: const Text('Speichern'))],
+    ));
   }
 }
