@@ -453,7 +453,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     if (sonstige['selected_amt_id'] != null) data['selected_amt_id'] = sonstige['selected_amt_id'];
 
     return DefaultTabController(
-      length: 7,
+      length: 6,
       child: Column(
         children: [
           TabBar(
@@ -468,7 +468,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               Tab(icon: Icon(Icons.badge, size: 16), text: 'SB-Ausweis'),
               Tab(icon: Icon(Icons.accessible, size: 16), text: 'GdB'),
               Tab(icon: Icon(Icons.description, size: 16), text: 'Antrag'),
-              Tab(icon: Icon(Icons.confirmation_number, size: 16), text: 'Wertmarke'),
             ],
           ),
           Expanded(
@@ -480,7 +479,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 _buildAusweisTab(data),
                 _buildGdbTab(data),
                 _buildAntragTab(data),
-                _buildWertmarkeTab(data),
               ],
             ),
           ),
