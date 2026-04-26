@@ -27,11 +27,15 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     try {
       final r = await widget.apiService.getServdiscountData();
       if (r['success'] == true && mounted) {
-        _data = Map<String, dynamic>.from(r['data'] ?? {});
-        _servers = (r['servers'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        _vertraege = (r['vertraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        _korr = (r['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        _verlauf = (r['verlauf'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        setState(() {
+          _data = Map<String, dynamic>.from(r['data'] ?? {});
+          _servers = (r['servers'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _vertraege = (r['vertraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _korr = (r['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _verlauf = (r['verlauf'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _loaded = true;
+        });
+        return;
       }
     } catch (_) {}
     if (mounted) setState(() => _loaded = true);
@@ -284,7 +288,8 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
           final res = await widget.apiService.servdiscountAction({'action': 'save_korr', 'korr': {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()}});
           final korrId = res['id'];
           if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
-          if (ctx.mounted) Navigator.pop(ctx); _load();
+          if (ctx.mounted) Navigator.pop(ctx);
+          await _load();
         }, child: const Text('Speichern'))],
     )));
   }
