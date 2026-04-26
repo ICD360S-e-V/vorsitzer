@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
+import '../services/termin_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 
@@ -203,7 +204,7 @@ class _State extends State<BehordeKindergartenContent> with TickerProviderStateM
   void _showKindDetail(Map<String, dynamic> k) {
     final kid = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
     showDialog(context: context, builder: (ctx) => Dialog(
-      child: SizedBox(width: 600, height: 550, child: _KindDetail(apiService: widget.apiService, userId: widget.userId, kindId: kid, kind: k, onChanged: _load))));
+      child: SizedBox(width: 600, height: 550, child: _KindDetail(apiService: widget.apiService, userId: widget.userId, kindId: kid, kind: k, onChanged: _load, kindergartenName: _v('name')))));
   }
 
   Widget _tf(String label, TextEditingController c, IconData icon, {int maxLines = 1}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -220,8 +221,9 @@ class _KindDetail extends StatefulWidget {
   final ApiService apiService;
   final int userId, kindId;
   final Map<String, dynamic> kind;
+  final String kindergartenName;
   final VoidCallback onChanged;
-  const _KindDetail({required this.apiService, required this.userId, required this.kindId, required this.kind, required this.onChanged});
+  const _KindDetail({required this.apiService, required this.userId, required this.kindId, required this.kind, required this.onChanged, this.kindergartenName = ''});
   @override
   State<_KindDetail> createState() => _KindDetailState();
 }
@@ -503,13 +505,14 @@ class _KindDetailState extends State<_KindDetail> {
 
   void _addTermin() {
     final datumC = TextEditingController(); final uhrzeitC = TextEditingController(); final typC = TextEditingController(); final notizC = TextEditingController();
+    DateTime? pickedDate;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Neuer Termin', style: TextStyle(fontSize: 14)),
       content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; }))),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) { pickedDate = p; datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; } }))),
         const SizedBox(height: 8),
-        TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit (z.B. 09:00)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 8),
         TextField(controller: typC, decoration: InputDecoration(labelText: 'Typ (z.B. Elternabend, Eingewöhnung)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 8),
@@ -519,6 +522,25 @@ class _KindDetailState extends State<_KindDetail> {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           await widget.apiService.saveKindergartenTermin(widget.userId, widget.kindId, {'datum': datumC.text.trim(), 'uhrzeit': uhrzeitC.text.trim(), 'typ': typC.text.trim(), 'notiz': notizC.text.trim()});
+          if (pickedDate != null) {
+            final kindName = '${widget.kind['vorname'] ?? ''} ${widget.kind['nachname'] ?? ''}'.trim();
+            final kigaName = widget.kindergartenName;
+            int hour = 9, minute = 0;
+            final timeParts = uhrzeitC.text.trim().split(':');
+            if (timeParts.length == 2) { hour = int.tryParse(timeParts[0]) ?? 9; minute = int.tryParse(timeParts[1]) ?? 0; }
+            final terminDateTime = DateTime(pickedDate!.year, pickedDate!.month, pickedDate!.day, hour, minute);
+            try {
+              await TerminService().createTermin(
+                title: '${typC.text.trim().isNotEmpty ? typC.text.trim() : "Kindergarten"} — $kindName',
+                category: 'kindergarten',
+                description: '${typC.text.trim()}\n$kindName\n${kigaName.isNotEmpty ? kigaName : "Kindergarten"}\n${notizC.text.trim()}',
+                terminDate: terminDateTime,
+                durationMinutes: 60,
+                location: kigaName,
+                participantIds: [widget.userId],
+              );
+            } catch (_) {}
+          }
           if (ctx.mounted) Navigator.pop(ctx); _load();
         }, child: const Text('Speichern')),
       ],
