@@ -255,7 +255,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   Widget _dr(IconData icon, String label, String val) => val.isEmpty ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
     Icon(icon, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6), Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
 
-  void _addKorr(String richtung) {
+  Future<void> _addKorr(String richtung) async {
     final datumC = TextEditingController(); final betreffC = TextEditingController(); final notizC = TextEditingController();
     String methode = 'email';
     List<PlatformFile> files = [];
