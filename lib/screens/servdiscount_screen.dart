@@ -37,7 +37,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
         });
         return;
       }
-    } catch (_) {}
+    } catch (e) { debugPrint('[ServDiscount] load error: $e'); }
     if (mounted) setState(() => _loaded = true);
   }
 
@@ -201,11 +201,11 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addKorr('eingang')),
+          onPressed: () async { await _addKorr('eingang'); }),
         const SizedBox(width: 6),
         FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addKorr('ausgang'))])),
+          onPressed: () async { await _addKorr('ausgang'); })])),
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
@@ -292,7 +292,10 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     final res = await widget.apiService.servdiscountAction({'action': 'save_korr', 'korr': ok});
     final korrId = res['id'];
     if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
-    await _load();
+    if (korrId != null && mounted) {
+      setState(() => _korr.insert(0, {'id': korrId, ...ok}));
+    }
+    _load();
   }
 
   // ──── VERLAUF ────
