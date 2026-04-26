@@ -1795,10 +1795,10 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade400),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 4))]),
                 child: Stack(children: [
-                  // Background — top salmon, bottom green
-                  Column(children: [
-                    Expanded(flex: 3, child: Container(color: hasB ? const Color(0xFFF0C4B0) : const Color(0xFFD5EACC))),
-                    Expanded(flex: 2, child: Container(color: const Color(0xFFD5EACC))),
+                  // Background — left salmon, right green
+                  Row(children: [
+                    Expanded(child: Container(color: hasB ? const Color(0xFFF0C4B0) : const Color(0xFFD5EACC))),
+                    Expanded(child: Container(color: const Color(0xFFD5EACC))),
                   ]),
                   // Text overlay
                   Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
