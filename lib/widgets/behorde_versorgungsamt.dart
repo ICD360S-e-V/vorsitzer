@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
+import '../models/user.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,6 +17,7 @@ class BehordeVersorgungsamtContent extends StatefulWidget {
   final ApiService apiService;
   final TerminService terminService;
   final int userId;
+  final User user;
   final Map<String, dynamic> Function(String type) getData;
   final bool Function(String type) isLoading;
   final bool Function(String type) isSaving;
@@ -27,6 +29,7 @@ class BehordeVersorgungsamtContent extends StatefulWidget {
     required this.apiService,
     required this.terminService,
     required this.userId,
+    required this.user,
     required this.getData,
     required this.isLoading,
     required this.isSaving,
