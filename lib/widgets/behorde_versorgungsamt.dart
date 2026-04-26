@@ -1145,7 +1145,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   return Card(
                     child: ListTile(
                       leading: Icon(status == 'genehmigt' ? Icons.check_circle : status == 'abgelehnt' ? Icons.cancel : Icons.hourglass_top, color: statusColor, size: 28),
-                      title: Text('${a['datum'] ?? ''} — $methodeLabel', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      title: Text('${a['datum'] ?? ''} — $methodeLabel${(a['aktenzeichen']?.toString() ?? '').isNotEmpty ? '  •  Az: ${a['aktenzeichen']}' : ''}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       subtitle: Container(
                         margin: const EdgeInsets.only(top: 4),
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1174,12 +1174,15 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   void _showNewAntragDialog() {
     final datumC = TextEditingController();
+    final aktenzeichenC = TextEditingController();
     String methode = '';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Antrag'),
       content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, children: [
         _datePicker(ctx2, datumC, 'Datum der Antragstellung *', () => setD(() {})),
+        const SizedBox(height: 12),
+        TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.folder, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
         Text('Methode *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
         const SizedBox(height: 6),
@@ -1196,7 +1199,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           if (datumC.text.isEmpty || methode.isEmpty) return;
-          await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'datum': datumC.text, 'methode': methode, 'status': 'eingereicht'});
+          await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'datum': datumC.text, 'aktenzeichen': aktenzeichenC.text.trim(), 'methode': methode, 'status': 'eingereicht'});
           if (ctx.mounted) Navigator.pop(ctx);
           _loadAntraege();
         }, child: const Text('Antrag stellen')),
