@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../models/user.dart';
 import 'behoerden_screen.dart';
 import 'jasmina_screen.dart';
+import 'servdiscount_screen.dart';
 import 'stifter_helfen_screen.dart';
 import 'google_nonprofit_screen.dart';
 import 'microsoft_nonprofit_screen.dart';
@@ -206,6 +207,11 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
           setState(() => _vereinSubview = 'partner');
         },
       );
+    } else if (_vereinSubview == 'servdiscount') {
+      return ServdiscountScreen(
+        apiService: widget.apiService,
+        onBack: () => setState(() => _vereinSubview = 'partner'),
+      );
     } else if (_vereinSubview == 'ordnungsmassnahmen') {
       return OrdnungsmassnahmenScreen(
         users: widget.users,
@@ -383,7 +389,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 const SizedBox(width: 16),
                 Expanded(child: _buildJasminaCard()),
                 const SizedBox(width: 16),
-                const Expanded(child: SizedBox()),
+                Expanded(child: _buildServdiscountCard()),
               ],
             ),
           ),
@@ -1131,6 +1137,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
           ? '$_microsoftNonprofitOpenAufgaben offene Aufgaben'
           : null,
       badgeColor: _microsoftNonprofitOpenAufgaben > 0 ? Colors.orange : null,
+    );
+  }
+
+  Widget _buildServdiscountCard() {
+    return _buildClickableCard(
+      icon: Icons.dns,
+      title: 'servdiscount.com',
+      color: Colors.orange,
+      subtitle: 'myLoc managed IT AG — Dedicated Server',
+      onTap: () => setState(() => _vereinSubview = 'servdiscount'),
     );
   }
 
