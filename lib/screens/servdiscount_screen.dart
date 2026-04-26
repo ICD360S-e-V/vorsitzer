@@ -259,7 +259,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     final datumC = TextEditingController(); final betreffC = TextEditingController(); final notizC = TextEditingController();
     String methode = 'email';
     List<PlatformFile> files = [];
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
+    final ok = await showDialog<Map<String, dynamic>>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
       title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14)),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Wrap(spacing: 6, runSpacing: 4, children: [for (final m in [('email', 'E-Mail', Icons.email), ('online', 'Online/Ticket', Icons.language), ('post', 'Post', Icons.mail)])
@@ -283,16 +283,16 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
           IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setDlg(() => files.removeAt(e.key)))]))),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async {
+        FilledButton(onPressed: () {
           if (betreffC.text.trim().isEmpty) return;
-          final res = await widget.apiService.servdiscountAction({'action': 'save_korr', 'korr': {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()}});
-          final korrId = res['id'];
-          if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
-          Navigator.of(ctx, rootNavigator: true).pop();
-          await Future.delayed(const Duration(milliseconds: 200));
-          await _load();
+          Navigator.pop(ctx, {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
         }, child: const Text('Speichern'))],
     )));
+    if (ok == null) return;
+    final res = await widget.apiService.servdiscountAction({'action': 'save_korr', 'korr': ok});
+    final korrId = res['id'];
+    if (korrId != null && files.isNotEmpty) { for (final f in files) { if (f.path == null) continue; await widget.apiService.uploadKorrAttachment(modul: 'servdiscount', korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()), filePath: f.path!, fileName: f.name); } }
+    await _load();
   }
 
   // ──── VERLAUF ────
