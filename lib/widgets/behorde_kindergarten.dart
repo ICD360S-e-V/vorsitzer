@@ -528,31 +528,7 @@ class _KindDetailState extends State<_KindDetail> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          int? tvTerminId;
-          if (pickedDate != null) {
-            final kindName = '${widget.kind['vorname'] ?? ''} ${widget.kind['nachname'] ?? ''}'.trim();
-            final kigaName = widget.kindergartenName;
-            final kigaAddr = widget.kindergartenAdresse;
-            final loc = [kigaName, kigaAddr].where((s) => s.isNotEmpty).join(', ');
-            int hour = 9, minute = 0;
-            final timeParts = uhrzeitC.text.trim().split(':');
-            if (timeParts.length == 2) { hour = int.tryParse(timeParts[0]) ?? 9; minute = int.tryParse(timeParts[1]) ?? 0; }
-            final terminDateTime = DateTime(pickedDate!.year, pickedDate!.month, pickedDate!.day, hour, minute);
-            try {
-              final terminDateStr = '${terminDateTime.year}-${terminDateTime.month.toString().padLeft(2, '0')}-${terminDateTime.day.toString().padLeft(2, '0')} ${terminDateTime.hour.toString().padLeft(2, '0')}:${terminDateTime.minute.toString().padLeft(2, '0')}:00';
-              final tvRes = await widget.apiService.createTerminverwaltung(
-                title: '${typC.text.trim().isNotEmpty ? typC.text.trim() : "Kindergarten"} — $kindName',
-                category: 'kindergarten',
-                description: '${typC.text.trim()}\n$kindName\n$loc\n${notizC.text.trim()}',
-                terminDate: terminDateStr,
-                durationMinutes: 60,
-                location: loc,
-                participantIds: [widget.userId],
-              );
-              tvTerminId = tvRes['termin_id'] as int?;
-            } catch (_) {}
-          }
-          await widget.apiService.saveKindergartenTermin(widget.userId, widget.kindId, {'datum': datumC.text.trim(), 'uhrzeit': uhrzeitC.text.trim(), 'typ': typC.text.trim(), 'notiz': notizC.text.trim(), 'termin_id': tvTerminId});
+          await widget.apiService.saveKindergartenTermin(widget.userId, widget.kindId, {'datum': datumC.text.trim(), 'uhrzeit': uhrzeitC.text.trim(), 'typ': typC.text.trim(), 'notiz': notizC.text.trim()});
           if (ctx.mounted) Navigator.pop(ctx); _load();
         }, child: const Text('Speichern')),
       ],
