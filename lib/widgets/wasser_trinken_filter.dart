@@ -4,7 +4,7 @@ import '../screens/webview_screen.dart';
 
 class WasserTrinkenFilterTab extends StatefulWidget {
   final ApiService apiService;
-  const WasserFilterTab({super.key, required this.apiService});
+  const WasserTrinkenFilterTab({super.key, required this.apiService});
   @override
   State<WasserTrinkenFilterTab> createState() => _WasserTrinkenFilterTabState();
 }
