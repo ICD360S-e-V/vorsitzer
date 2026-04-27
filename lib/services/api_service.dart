@@ -6055,6 +6055,42 @@ class ApiService {
     }
   }
 
+  // ========== SANITÄTSHAUS (dedicated DB) ==========
+
+  Future<Map<String, dynamic>> getSanitaetshausData(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/sanitaetshaus_manage.php?user_id=$userId&action=all'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> searchSanitaetshausDatenbank(String q) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/sanitaetshaus_manage.php?action=datenbank&q=${Uri.encodeComponent(q)}'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> getSanitaetshausVorfallDetail(int userId, int vorfallId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/sanitaetshaus_manage.php?user_id=$userId&vorfall_id=$vorfallId&action=vorfall_detail'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> sanitaetshausAction(int userId, Map<String, dynamic> body) async {
+    body['user_id'] = userId;
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/sanitaetshaus_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== JOBCENTER (dedicated DB) ==========
 
   Future<Map<String, dynamic>> getJobcenterData(int userId) async {

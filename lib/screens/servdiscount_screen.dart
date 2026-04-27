@@ -523,6 +523,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
   late TextEditingController _urlC, _userC, _passC, _totpSecretC;
   bool _showPass = false;
   bool _showSecret = false;
+  bool _editing = false;
   bool _saving = false;
   String _totpCode = '';
   int _totpRemaining = 0;
@@ -604,13 +605,23 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
             Icon(Icons.vpn_key, size: 22, color: Colors.orange.shade700),
             const SizedBox(width: 10),
             Text('Online-Zugang', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => setState(() => _editing = !_editing),
+              icon: Icon(_editing ? Icons.lock : Icons.edit, size: 16),
+              label: Text(_editing ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)),
+            ),
           ]),
           const SizedBox(height: 16),
-          TextField(controller: _urlC, decoration: InputDecoration(labelText: 'Login-URL', prefixIcon: const Icon(Icons.link, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          TextField(controller: _urlC, readOnly: !_editing, decoration: InputDecoration(labelText: 'Login-URL', prefixIcon: const Icon(Icons.link, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
           const SizedBox(height: 12),
-          TextField(controller: _userC, decoration: InputDecoration(labelText: 'Benutzername / E-Mail', prefixIcon: const Icon(Icons.person, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          TextField(controller: _userC, readOnly: !_editing, obscureText: !_editing, decoration: InputDecoration(labelText: 'Benutzername / E-Mail', prefixIcon: const Icon(Icons.person, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+            suffixIcon: !_editing ? IconButton(icon: const Icon(Icons.visibility, size: 20), onPressed: () {}) : null)),
           const SizedBox(height: 12),
-          TextField(controller: _passC, obscureText: !_showPass, decoration: InputDecoration(labelText: 'Passwort', prefixIcon: const Icon(Icons.lock, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          TextField(controller: _passC, readOnly: !_editing, obscureText: !_showPass, decoration: InputDecoration(labelText: 'Passwort', prefixIcon: const Icon(Icons.lock, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
             suffixIcon: IconButton(icon: Icon(_showPass ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showPass = !_showPass)))),
           const SizedBox(height: 16),
           Row(children: [
@@ -620,13 +631,15 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
               label: const Text('Im Browser öffnen'),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
             )),
-            const SizedBox(width: 12),
-            ElevatedButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-              label: const Text('Speichern'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20)),
-            ),
+            if (_editing) ...[
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
+                label: const Text('Speichern'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20)),
+              ),
+            ],
           ]),
         ]),
       ),
@@ -644,12 +657,11 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
           const SizedBox(height: 12),
           Text('TOTP Secret Key (Base32) aus der Authenticator-App oder QR-Code:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
           const SizedBox(height: 8),
-          TextField(controller: _totpSecretC, obscureText: !_showSecret, decoration: InputDecoration(
+          TextField(controller: _totpSecretC, readOnly: !_editing, obscureText: !_showSecret, decoration: InputDecoration(
             labelText: 'TOTP Secret', prefixIcon: const Icon(Icons.key, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            hintText: 'z.B. JBSWY3DPEHPK3PXP',
-            suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: Icon(_showSecret ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showSecret = !_showSecret)),
-            ]),
+            hintText: _editing ? 'z.B. JBSWY3DPEHPK3PXP' : null,
+            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+            suffixIcon: IconButton(icon: Icon(_showSecret ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showSecret = !_showSecret)),
           )),
           const SizedBox(height: 16),
 
