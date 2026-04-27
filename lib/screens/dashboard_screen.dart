@@ -17,6 +17,7 @@ import '../services/news_service.dart';
 import '../services/radio_service.dart';
 import '../services/ntfy_service.dart';
 import '../services/diagnostic_service.dart';
+import '../services/update_service.dart';
 import '../widgets/login_approval_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/eastern.dart';
