@@ -23,7 +23,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _servers = [], _vertraege = [], _korr = [], _verlauf = [];
 
   @override
-  void initState() { super.initState(); _tab = TabController(length: 6, vsync: this); _load(); }
+  void initState() { super.initState(); _tab = TabController(length: 7, vsync: this); _load(); }
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
 
@@ -69,6 +69,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
           Tab(icon: Icon(Icons.email, size: 14), text: 'Korrespondenz'),
           Tab(icon: Icon(Icons.timeline, size: 14), text: 'Verlauf'),
           Tab(icon: Icon(Icons.vpn_key, size: 14), text: 'Zugang Online'),
+          Tab(icon: Icon(Icons.receipt_long, size: 14), text: 'Rechnung'),
         ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tab, children: [
         _buildFirma(),
@@ -77,6 +78,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
         _ServdiscountKorrTab(apiService: widget.apiService),
         _ServdiscountVerlaufTab(apiService: widget.apiService),
         _ServdiscountZugangTab(apiService: widget.apiService, data: _data, onSave: _act),
+        _ServdiscountRechnungTab(apiService: widget.apiService),
       ])),
     ]);
   }
@@ -701,5 +703,132 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
         ]),
       ),
     ]));
+  }
+}
+
+// ==================== RECHNUNG TAB ====================
+
+class _ServdiscountRechnungTab extends StatefulWidget {
+  final ApiService apiService;
+  const _ServdiscountRechnungTab({required this.apiService});
+  @override
+  State<_ServdiscountRechnungTab> createState() => _ServdiscountRechnungTabState();
+}
+
+class _ServdiscountRechnungTabState extends State<_ServdiscountRechnungTab> {
+  List<Map<String, dynamic>> _rechnungen = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final r = await widget.apiService.getServdiscountData();
+      if (r['success'] == true) {
+        _rechnungen = (r['rechnungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  static const _statusLabels = {
+    'offen': ('Offen', Colors.orange),
+    'bezahlt': ('Bezahlt', Colors.green),
+    'ueberfaellig': ('Überfällig', Colors.red),
+    'storniert': ('Storniert', Colors.grey),
+  };
+
+  void _add([Map<String, dynamic>? existing]) {
+    final isEdit = existing != null;
+    final nrC = TextEditingController(text: existing?['rechnungsnummer']?.toString() ?? '');
+    final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
+    final betragC = TextEditingController(text: existing?['betrag']?.toString() ?? '');
+    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+    String status = existing?['status']?.toString() ?? 'offen';
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.receipt_long, size: 18, color: Colors.orange.shade700),
+        const SizedBox(width: 8),
+        Text(isEdit ? 'Rechnung bearbeiten' : 'Neue Rechnung', style: const TextStyle(fontSize: 15)),
+      ]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: nrC, decoration: InputDecoration(labelText: 'Rechnungsnummer', prefixIcon: const Icon(Icons.tag, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        const SizedBox(height: 10),
+        TextField(controller: betragC, decoration: InputDecoration(labelText: 'Betrag (€)', prefixIcon: const Icon(Icons.euro, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(value: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          items: _statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.$1, style: TextStyle(fontSize: 13, color: e.value.$2)))).toList(),
+          onChanged: (v) => setDlg(() => status = v ?? status)),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () async {
+          Navigator.pop(ctx);
+          await widget.apiService.servdiscountAction({'action': 'save_rechnung', 'rechnung': {
+            if (isEdit) 'id': existing['id'],
+            'rechnungsnummer': nrC.text.trim(), 'datum': datumC.text.trim(), 'betrag': betragC.text.trim(), 'status': status, 'notiz': notizC.text.trim(),
+          }});
+          await _load();
+        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white), child: Text(isEdit ? 'Speichern' : 'Hinzufügen')),
+      ],
+    )));
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Rechnung löschen?', style: TextStyle(fontSize: 15)),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Löschen'))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.servdiscountAction({'action': 'delete_rechnung', 'id': id});
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.receipt_long, color: Colors.orange.shade700),
+        const SizedBox(width: 8),
+        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.orange.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: () => _add(), icon: const Icon(Icons.add, size: 16), label: const Text('Neue Rechnung', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white)),
+      ])),
+      Expanded(child: _rechnungen.isEmpty
+        ? Center(child: Text('Keine Rechnungen vorhanden', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _rechnungen.length, itemBuilder: (ctx, i) {
+            final r = _rechnungen[i];
+            final rId = int.tryParse(r['id'].toString()) ?? 0;
+            final status = r['status']?.toString() ?? 'offen';
+            final st = _statusLabels[status] ?? ('Offen', Colors.orange);
+            return Card(margin: const EdgeInsets.only(bottom: 8), child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(
+                onTap: () => _add(r),
+                leading: CircleAvatar(backgroundColor: st.$2.shade100, child: Icon(Icons.receipt, color: st.$2.shade700, size: 20)),
+                title: Text(r['rechnungsnummer']?.toString() ?? '(ohne Nr.)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: Text('${r['datum'] ?? ''} · ${r['betrag'] ?? ''} €', style: const TextStyle(fontSize: 11)),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: st.$2.shade100, borderRadius: BorderRadius.circular(12)),
+                    child: Text(st.$1, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: st.$2.shade800))),
+                  const SizedBox(width: 4),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () => _delete(rId)),
+                ]),
+              ),
+              Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'servdiscount_rechnung', korrespondenzId: rId)),
+            ]));
+          })),
+    ]);
   }
 }
