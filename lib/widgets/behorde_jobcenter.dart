@@ -749,6 +749,42 @@ class _AntragKorrTabState extends State<_AntragKorrTab> {
     await _load();
   }
 
+  void _openDetail(Map<String, dynamic> k) {
+    final kId = int.tryParse(k['id'].toString()) ?? 0;
+    final isEin = k['richtung'] == 'eingang';
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: isEin ? Colors.blue : Colors.orange),
+        const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+      ]),
+      content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEin ? Colors.blue.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(12)),
+                child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEin ? Colors.blue.shade800 : Colors.orange.shade800))),
+              const SizedBox(width: 8),
+              if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
+                child: Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+              const Spacer(),
+              if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+            ]),
+          ])),
+        if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+        ],
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: kId),
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
@@ -765,15 +801,21 @@ class _AntragKorrTabState extends State<_AntragKorrTab> {
             final k = _korr[i];
             final isEin = k['richtung'] == 'eingang';
             final kId = int.tryParse(k['id'].toString()) ?? 0;
-            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: Column(mainAxisSize: MainAxisSize.min, children: [
-              ListTile(dense: true,
-                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.orange, size: 20),
-                title: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                subtitle: Text('${k['datum'] ?? ''} · ${k['methode'] ?? ''}', style: const TextStyle(fontSize: 10)),
-                trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () => _delete(k['id'] as int)),
-              ),
-              Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: kId)),
-            ]));
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: InkWell(
+              onTap: () => _openDetail(k),
+              borderRadius: BorderRadius.circular(8),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                ListTile(dense: true,
+                  leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.orange, size: 20),
+                  title: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  subtitle: Text('${k['datum'] ?? ''} · ${k['methode'] ?? ''}', style: const TextStyle(fontSize: 10)),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                    IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () => _delete(k['id'] as int)),
+                  ]),
+                ),
+              ]),
+            ));
           })),
     ]);
   }
