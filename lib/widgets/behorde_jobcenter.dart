@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class BehordeJobcenterContent extends StatefulWidget {
   final ApiService apiService;
@@ -763,12 +764,16 @@ class _AntragKorrTabState extends State<_AntragKorrTab> {
         : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) {
             final k = _korr[i];
             final isEin = k['richtung'] == 'eingang';
-            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(dense: true,
-              leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.orange, size: 20),
-              title: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              subtitle: Text('${k['datum'] ?? ''} · ${k['methode'] ?? ''}', style: const TextStyle(fontSize: 10)),
-              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () => _delete(k['id'] as int)),
-            ));
+            final kId = int.tryParse(k['id'].toString()) ?? 0;
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(dense: true,
+                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.orange, size: 20),
+                title: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                subtitle: Text('${k['datum'] ?? ''} · ${k['methode'] ?? ''}', style: const TextStyle(fontSize: 10)),
+                trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () => _delete(k['id'] as int)),
+              ),
+              Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: kId)),
+            ]));
           })),
     ]);
   }
