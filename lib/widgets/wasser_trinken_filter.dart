@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../screens/webview_screen.dart';
 
-class WasserFilterTab extends StatefulWidget {
+class WasserTrinkenFilterTab extends StatefulWidget {
   final ApiService apiService;
   const WasserFilterTab({super.key, required this.apiService});
   @override
-  State<WasserFilterTab> createState() => _WasserFilterTabState();
+  State<WasserTrinkenFilterTab> createState() => _WasserTrinkenFilterTabState();
 }
 
-class _WasserFilterTabState extends State<WasserFilterTab> {
+class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
   List<Map<String, dynamic>> _produkte = [];
   bool _isLoading = true;
 
