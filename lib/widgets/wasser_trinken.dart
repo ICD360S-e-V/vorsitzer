@@ -37,7 +37,7 @@ class _WasserTrinkenTabState extends State<WasserTrinkenTab> {
     'Aktivkohle': Colors.green,
   };
 
-  Color _getColor(String typ) {
+  MaterialColor _getColor(String typ) {
     if (typ.toLowerCase().contains('umkehrosmose')) return Colors.blue;
     if (typ.toLowerCase().contains('aktivkohle')) return Colors.green;
     return Colors.teal;
