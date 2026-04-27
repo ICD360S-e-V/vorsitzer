@@ -693,7 +693,7 @@ class _AntragKorrTabState extends State<_AntragKorrTab> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
-      final res = await widget.apiService.getJobcenterAntragDetail(widget.antragId);
+      final res = await widget.apiService.getJobcenterAntragDetail(widget.userId, widget.antragId);
       if (res['success'] == true) {
         _korr = (res['korrespondenz'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
       }
@@ -803,7 +803,7 @@ class _AntragTerminTabState extends State<_AntragTerminTab> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
-      final res = await widget.apiService.getJobcenterAntragDetail(widget.antragId);
+      final res = await widget.apiService.getJobcenterAntragDetail(widget.userId, widget.antragId);
       if (res['success'] == true) {
         _termine = (res['termine'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
       }
