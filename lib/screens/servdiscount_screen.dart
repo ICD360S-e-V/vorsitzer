@@ -520,7 +520,8 @@ class _ServdiscountZugangTab extends StatefulWidget {
 }
 
 class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
-  late TextEditingController _urlC, _userC, _passC, _totpSecretC, _recoveryC;
+  late TextEditingController _urlC, _userC, _passC, _totpSecretC;
+  final List<TextEditingController> _recoveryCs = [];
   bool _showPass = false;
   bool _showSecret = false;
   bool _editing = false;
@@ -536,7 +537,10 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
     _userC = TextEditingController(text: widget.data['zugang_username']?.toString() ?? '');
     _passC = TextEditingController(text: widget.data['zugang_password']?.toString() ?? '');
     _totpSecretC = TextEditingController(text: widget.data['totp_secret']?.toString() ?? '');
-    _recoveryC = TextEditingController(text: widget.data['recovery_key']?.toString() ?? '');
+    for (int i = 0; i < 10; i++) {
+      final val = widget.data['recovery_key_$i']?.toString() ?? '';
+      _recoveryCs.add(TextEditingController(text: val));
+    }
     _totpSecretC.addListener(_onSecretChanged);
     _startTotpTimer();
   }
@@ -545,7 +549,8 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
   void dispose() {
     _totpTimer?.cancel();
     _totpSecretC.removeListener(_onSecretChanged);
-    _urlC.dispose(); _userC.dispose(); _passC.dispose(); _totpSecretC.dispose(); _recoveryC.dispose();
+    _urlC.dispose(); _userC.dispose(); _passC.dispose(); _totpSecretC.dispose();
+    for (final c in _recoveryCs) c.dispose();
     super.dispose();
   }
 
@@ -581,7 +586,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
       'zugang_username': _userC.text.trim(),
       'zugang_password': _passC.text.trim(),
       'totp_secret': _totpSecretC.text.trim(),
-      'recovery_key': _recoveryC.text.trim(),
+      ...{for (int i = 0; i < 10; i++) 'recovery_key_$i': _recoveryCs[i].text.trim()},
     }});
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
@@ -709,30 +714,34 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
 
       const SizedBox(height: 16),
 
-      // Recovery Key section
+      // Recovery Keys section (up to 10)
       Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.amber.shade200)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.vpn_key_off, size: 22, color: Colors.amber.shade800),
             const SizedBox(width: 10),
-            Text('Wiederherstellungsschlüssel', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+            Expanded(child: Text('Wiederherstellungsschlüssel (${_recoveryCs.where((c) => c.text.trim().isNotEmpty).length}/10)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade900))),
           ]),
           const SizedBox(height: 8),
-          Text('Backup-Code falls der 2FA-Zugang verloren geht.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text('Backup-Codes falls der 2FA-Zugang verloren geht.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           const SizedBox(height: 10),
-          TextField(controller: _recoveryC, readOnly: !_editing, obscureText: !_editing ? true : false, style: const TextStyle(fontFamily: 'monospace', fontSize: 15, letterSpacing: 1.5),
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.key, size: 20),
-              isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              hintText: _editing ? 'z.B. E7NY2HIH-A266COEM4-JMKGY' : null,
-              filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
-              suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
-                if (!_editing && _recoveryC.text.isNotEmpty) IconButton(icon: const Icon(Icons.copy, size: 18), onPressed: () {
-                  Clipboard.setData(ClipboardData(text: _recoveryC.text));
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Schlüssel kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1)));
-                }),
-              ]),
-            )),
+          ...List.generate(10, (i) {
+            final c = _recoveryCs[i];
+            final hasValue = c.text.trim().isNotEmpty;
+            if (!_editing && !hasValue) return const SizedBox.shrink();
+            return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+              SizedBox(width: 24, child: Text('${i + 1}.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade800))),
+              Expanded(child: TextField(controller: c, readOnly: !_editing, obscureText: !_editing, style: const TextStyle(fontFamily: 'monospace', fontSize: 13, letterSpacing: 1),
+                decoration: InputDecoration(
+                  isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  hintText: _editing ? 'Code ${i + 1}' : null, hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+                ))),
+              if (!_editing && hasValue) IconButton(icon: const Icon(Icons.copy, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () { Clipboard.setData(ClipboardData(text: c.text)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Code ${i + 1} kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); }),
+            ]));
+          }),
         ]),
       ),
 
