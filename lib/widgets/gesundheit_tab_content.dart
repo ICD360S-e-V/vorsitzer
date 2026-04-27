@@ -21,6 +21,7 @@ import '../services/termin_service.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
+import 'sanitaetshaus.dart';
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -202,7 +203,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 18,
+      length: 19,
       child: Column(
         children: [
           TabBar(
@@ -228,6 +229,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               _gesundheitTabItem(Icons.science, 'Endokrinologie', isCompact),
               _gesundheitTabItem(Icons.monitor_heart, 'Diabetologie', isCompact),
               _gesundheitTabItem(Icons.local_hospital, 'Krankenhaus', isCompact),
+              _gesundheitTabItem(Icons.medical_services, 'Sanitätshaus', isCompact),
               _gesundheitTabItem(Icons.more_horiz, 'Sonstige', isCompact),
             ],
           ),
@@ -250,6 +252,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 _buildArztContent('gesundheit_endokrinologie', 'Endokrinologe', 'Endokrinologie / Hormonerkrankungen / Schilddrüse'),
                 _buildArztContent('gesundheit_diabetologie', 'Diabetologe', 'Diabetologie / Diabetes mellitus / Stoffwechsel'),
                 _buildArztContent('gesundheit_krankenhaus', 'Krankenhaus', 'Klinik / Stationare Behandlung'),
+                SanitaetshausContent(apiService: widget.apiService, userId: widget.user.id),
                 _buildArztContent('gesundheit_sonstige', 'Sonstiger Arzt', 'Weitere Fachrichtung'),
               ],
             ),
