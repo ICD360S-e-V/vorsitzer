@@ -99,6 +99,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Auto-refresh timer for tickets
   Timer? _ticketRefreshTimer;
 
+  // Auto-update timer (every 60 seconds)
+  Timer? _autoUpdateTimer;
+
   // Payment reminder
   Timer? _paymentReminderTimer;
   bool _paymentReminderShownToday = false;
@@ -173,6 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Check payment reminder
       _checkPaymentReminder();
     });
+    _autoUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoUpdateCheck());
     // Check payment reminder every hour
     _paymentReminderTimer = Timer.periodic(const Duration(hours: 1), (_) => _checkPaymentReminder());
   }
@@ -184,11 +188,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // DO NOT stop: WebSocket, ntfy, heartbeat (notifications must work!)
       _ticketRefreshTimer?.cancel();
       _paymentReminderTimer?.cancel();
+      _autoUpdateTimer?.cancel();
       debugPrint('[Dashboard] App paused - UI timers stopped');
     } else if (state == AppLifecycleState.resumed) {
-      // App comes to foreground: refresh data
       _loadUsers();
-      debugPrint('[Dashboard] App resumed - data refreshed');
+      _autoUpdateCheck();
+      _autoUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoUpdateCheck());
+      debugPrint('[Dashboard] App resumed - data refreshed, update check restarted');
     }
   }
 
@@ -207,11 +213,34 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _ticketNotificationService.stop();
     NtfyService().stop();
     _paymentReminderTimer?.cancel();
+    _autoUpdateTimer?.cancel();
     _weatherService.stop();
     _transitService.stop();
     _newsService.stop();
     _radioService.dispose();
     super.dispose();
+  }
+
+  bool _autoUpdating = false;
+  Future<void> _autoUpdateCheck() async {
+    if (_autoUpdating) return;
+    try {
+      final updateService = UpdateService();
+      final info = await updateService.checkForUpdate();
+      if (info != null && mounted) {
+        _autoUpdating = true;
+        _log.info('Auto-update: v${info.version} (build ${info.buildNumber}) available, downloading...', tag: 'AUTO-UPDATE');
+        final path = await updateService.downloadUpdate(info.downloadUrl, (p) {});
+        if (path != null && mounted) {
+          _log.info('Auto-update: downloaded, installing...', tag: 'AUTO-UPDATE');
+          await updateService.launchInstaller(path);
+        }
+        _autoUpdating = false;
+      }
+    } catch (e) {
+      _autoUpdating = false;
+      debugPrint('[AUTO-UPDATE] error: $e');
+    }
   }
 
   void _setupMessageListener() {
