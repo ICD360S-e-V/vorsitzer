@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:otp/otp.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
@@ -515,20 +518,57 @@ class _ServdiscountZugangTab extends StatefulWidget {
 }
 
 class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
-  late TextEditingController _urlC, _userC, _passC;
+  late TextEditingController _urlC, _userC, _passC, _totpSecretC;
   bool _showPass = false;
+  bool _showSecret = false;
   bool _saving = false;
+  String _totpCode = '';
+  int _totpRemaining = 0;
+  Timer? _totpTimer;
 
   @override
   void initState() {
     super.initState();
-    _urlC = TextEditingController(text: widget.data['zugang_url']?.toString() ?? 'https://my.servdiscount.com');
+    _urlC = TextEditingController(text: widget.data['zugang_url']?.toString() ?? 'https://zkm.servdiscount.com/');
     _userC = TextEditingController(text: widget.data['zugang_username']?.toString() ?? '');
     _passC = TextEditingController(text: widget.data['zugang_password']?.toString() ?? '');
+    _totpSecretC = TextEditingController(text: widget.data['totp_secret']?.toString() ?? '');
+    _totpSecretC.addListener(_onSecretChanged);
+    _startTotpTimer();
   }
 
   @override
-  void dispose() { _urlC.dispose(); _userC.dispose(); _passC.dispose(); super.dispose(); }
+  void dispose() {
+    _totpTimer?.cancel();
+    _totpSecretC.removeListener(_onSecretChanged);
+    _urlC.dispose(); _userC.dispose(); _passC.dispose(); _totpSecretC.dispose();
+    super.dispose();
+  }
+
+  void _onSecretChanged() {
+    _generateTotp();
+  }
+
+  void _startTotpTimer() {
+    _generateTotp();
+    _totpTimer = Timer.periodic(const Duration(seconds: 1), (_) => _generateTotp());
+  }
+
+  void _generateTotp() {
+    final secret = _totpSecretC.text.trim().replaceAll(' ', '').toUpperCase();
+    if (secret.isEmpty || secret.length < 8) {
+      if (_totpCode.isNotEmpty && mounted) setState(() { _totpCode = ''; _totpRemaining = 0; });
+      return;
+    }
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final code = OTP.generateTOTPCodeString(secret, now, length: 6, interval: 30, algorithm: Algorithm.SHA1, isGoogle: true);
+      final remaining = 30 - ((now ~/ 1000) % 30);
+      if (mounted) setState(() { _totpCode = code; _totpRemaining = remaining; });
+    } catch (_) {
+      if (mounted && _totpCode.isNotEmpty) setState(() { _totpCode = ''; _totpRemaining = 0; });
+    }
+  }
 
   Future<void> _save() async {
     setState(() => _saving = true);
@@ -536,6 +576,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
       'zugang_url': _urlC.text.trim(),
       'zugang_username': _userC.text.trim(),
       'zugang_password': _passC.text.trim(),
+      'totp_secret': _totpSecretC.text.trim(),
     }});
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
@@ -554,6 +595,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Login section
       Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -562,15 +604,13 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
             Text('Online-Zugang', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
           ]),
           const SizedBox(height: 16),
-
           TextField(controller: _urlC, decoration: InputDecoration(labelText: 'Login-URL', prefixIcon: const Icon(Icons.link, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 12),
           TextField(controller: _userC, decoration: InputDecoration(labelText: 'Benutzername / E-Mail', prefixIcon: const Icon(Icons.person, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 12),
           TextField(controller: _passC, obscureText: !_showPass, decoration: InputDecoration(labelText: 'Passwort', prefixIcon: const Icon(Icons.lock, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             suffixIcon: IconButton(icon: Icon(_showPass ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showPass = !_showPass)))),
-          const SizedBox(height: 20),
-
+          const SizedBox(height: 16),
           Row(children: [
             Expanded(child: ElevatedButton.icon(
               onPressed: _openBrowser,
@@ -590,11 +630,73 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
       ),
 
       const SizedBox(height: 16),
+
+      // 2FA TOTP section
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.security, size: 22, color: Colors.indigo.shade700),
+            const SizedBox(width: 10),
+            Text('2FA — Zwei-Faktor-Authentifizierung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          ]),
+          const SizedBox(height: 12),
+          Text('TOTP Secret Key (Base32) aus der Authenticator-App oder QR-Code:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          const SizedBox(height: 8),
+          TextField(controller: _totpSecretC, obscureText: !_showSecret, decoration: InputDecoration(
+            labelText: 'TOTP Secret', prefixIcon: const Icon(Icons.key, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            hintText: 'z.B. JBSWY3DPEHPK3PXP',
+            suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: Icon(_showSecret ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showSecret = !_showSecret)),
+            ]),
+          )),
+          const SizedBox(height: 16),
+
+          if (_totpCode.isNotEmpty) ...[
+            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade300, width: 2)),
+              child: Column(children: [
+                Text('Aktueller Code', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text('${_totpCode.substring(0, 3)} ${_totpCode.substring(3)}', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 6, fontFamily: 'monospace', color: Colors.indigo.shade800)),
+                  const SizedBox(width: 16),
+                  InkWell(
+                    onTap: () { Clipboard.setData(ClipboardData(text: _totpCode)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Code kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); },
+                    child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(8)),
+                      child: Icon(Icons.copy, size: 20, color: Colors.indigo.shade700)),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  SizedBox(width: 24, height: 24, child: CircularProgressIndicator(
+                    value: _totpRemaining / 30.0,
+                    strokeWidth: 3,
+                    backgroundColor: Colors.grey.shade200,
+                    color: _totpRemaining <= 5 ? Colors.red : (_totpRemaining <= 10 ? Colors.orange : Colors.indigo.shade600),
+                  )),
+                  const SizedBox(width: 8),
+                  Text('${_totpRemaining}s', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _totpRemaining <= 5 ? Colors.red : Colors.grey.shade700)),
+                  Text(' verbleibend', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                ]),
+              ]),
+            ),
+          ] else if (_totpSecretC.text.trim().isNotEmpty) ...[
+            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+              child: Row(children: [
+                Icon(Icons.error_outline, size: 18, color: Colors.red.shade700),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Ungültiger Secret Key. Bitte den Base32-Schlüssel überprüfen.', style: TextStyle(fontSize: 12, color: Colors.red.shade800))),
+              ]),
+            ),
+          ],
+        ]),
+      ),
+
+      const SizedBox(height: 16),
       Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
-        child: Row(children: [
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
           const SizedBox(width: 10),
-          Expanded(child: Text('Zugangsdaten werden verschlüsselt (AES-256-CBC) gespeichert. Beim Öffnen im Browser werden Benutzername und Passwort automatisch ausgefüllt.',
+          Expanded(child: Text('Alle Zugangsdaten inkl. TOTP-Secret werden verschlüsselt (AES-256-CBC) gespeichert. Der 2FA-Code wird lokal auf dem Gerät generiert (RFC 6238, TOTP) und nicht an den Server übertragen.',
             style: TextStyle(fontSize: 11, color: Colors.blue.shade800))),
         ]),
       ),
