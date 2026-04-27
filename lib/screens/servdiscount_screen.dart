@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
+import 'webview_screen.dart';
 
 class ServdiscountScreen extends StatefulWidget {
   final ApiService apiService;
@@ -19,7 +20,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _servers = [], _vertraege = [], _korr = [], _verlauf = [];
 
   @override
-  void initState() { super.initState(); _tab = TabController(length: 5, vsync: this); _load(); }
+  void initState() { super.initState(); _tab = TabController(length: 6, vsync: this); _load(); }
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
 
@@ -64,6 +65,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
           Tab(icon: Icon(Icons.dns, size: 14), text: 'Server'),
           Tab(icon: Icon(Icons.email, size: 14), text: 'Korrespondenz'),
           Tab(icon: Icon(Icons.timeline, size: 14), text: 'Verlauf'),
+          Tab(icon: Icon(Icons.vpn_key, size: 14), text: 'Zugang Online'),
         ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tab, children: [
         _buildFirma(),
@@ -71,6 +73,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
         _ServdiscountListTab(apiService: widget.apiService, type: 'servers'),
         _ServdiscountKorrTab(apiService: widget.apiService),
         _ServdiscountVerlaufTab(apiService: widget.apiService),
+        _ServdiscountZugangTab(apiService: widget.apiService, data: _data, onSave: _act),
       ])),
     ]);
   }
@@ -497,5 +500,104 @@ class _ServdiscountVerlaufTabState extends State<_ServdiscountVerlaufTab> {
           await _load();
         }, child: const Text('Speichern'))],
     ));
+  }
+}
+
+// ==================== ZUGANG ONLINE TAB ====================
+
+class _ServdiscountZugangTab extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> data;
+  final Future<void> Function(Map<String, dynamic>) onSave;
+  const _ServdiscountZugangTab({required this.apiService, required this.data, required this.onSave});
+  @override
+  State<_ServdiscountZugangTab> createState() => _ServdiscountZugangTabState();
+}
+
+class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
+  late TextEditingController _urlC, _userC, _passC;
+  bool _showPass = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _urlC = TextEditingController(text: widget.data['zugang_url']?.toString() ?? 'https://my.servdiscount.com');
+    _userC = TextEditingController(text: widget.data['zugang_username']?.toString() ?? '');
+    _passC = TextEditingController(text: widget.data['zugang_password']?.toString() ?? '');
+  }
+
+  @override
+  void dispose() { _urlC.dispose(); _userC.dispose(); _passC.dispose(); super.dispose(); }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.onSave({'action': 'save_data', 'data': {
+      'zugang_url': _urlC.text.trim(),
+      'zugang_username': _userC.text.trim(),
+      'zugang_password': _passC.text.trim(),
+    }});
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+
+  void _openBrowser() {
+    final url = _urlC.text.trim();
+    if (url.isEmpty) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => WebViewScreen(
+      title: 'servdiscount.com',
+      url: url,
+      autoFillUsername: _userC.text.trim(),
+      autoFillPassword: _passC.text.trim(),
+    )));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.vpn_key, size: 22, color: Colors.orange.shade700),
+            const SizedBox(width: 10),
+            Text('Online-Zugang', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          ]),
+          const SizedBox(height: 16),
+
+          TextField(controller: _urlC, decoration: InputDecoration(labelText: 'Login-URL', prefixIcon: const Icon(Icons.link, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 12),
+          TextField(controller: _userC, decoration: InputDecoration(labelText: 'Benutzername / E-Mail', prefixIcon: const Icon(Icons.person, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 12),
+          TextField(controller: _passC, obscureText: !_showPass, decoration: InputDecoration(labelText: 'Passwort', prefixIcon: const Icon(Icons.lock, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            suffixIcon: IconButton(icon: Icon(_showPass ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showPass = !_showPass)))),
+          const SizedBox(height: 20),
+
+          Row(children: [
+            Expanded(child: ElevatedButton.icon(
+              onPressed: _openBrowser,
+              icon: const Icon(Icons.open_in_browser, size: 18),
+              label: const Text('Im Browser öffnen'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+            )),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
+              label: const Text('Speichern'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20)),
+            ),
+          ]),
+        ]),
+      ),
+
+      const SizedBox(height: 16),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+          const SizedBox(width: 10),
+          Expanded(child: Text('Zugangsdaten werden verschlüsselt (AES-256-CBC) gespeichert. Beim Öffnen im Browser werden Benutzername und Passwort automatisch ausgefüllt.',
+            style: TextStyle(fontSize: 11, color: Colors.blue.shade800))),
+        ]),
+      ),
+    ]));
   }
 }
