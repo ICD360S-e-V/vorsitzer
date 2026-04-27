@@ -520,7 +520,7 @@ class _ServdiscountZugangTab extends StatefulWidget {
 }
 
 class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
-  late TextEditingController _urlC, _userC, _passC, _totpSecretC;
+  late TextEditingController _urlC, _userC, _passC, _totpSecretC, _recoveryC;
   bool _showPass = false;
   bool _showSecret = false;
   bool _editing = false;
@@ -536,6 +536,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
     _userC = TextEditingController(text: widget.data['zugang_username']?.toString() ?? '');
     _passC = TextEditingController(text: widget.data['zugang_password']?.toString() ?? '');
     _totpSecretC = TextEditingController(text: widget.data['totp_secret']?.toString() ?? '');
+    _recoveryC = TextEditingController(text: widget.data['recovery_key']?.toString() ?? '');
     _totpSecretC.addListener(_onSecretChanged);
     _startTotpTimer();
   }
@@ -544,7 +545,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
   void dispose() {
     _totpTimer?.cancel();
     _totpSecretC.removeListener(_onSecretChanged);
-    _urlC.dispose(); _userC.dispose(); _passC.dispose(); _totpSecretC.dispose();
+    _urlC.dispose(); _userC.dispose(); _passC.dispose(); _totpSecretC.dispose(); _recoveryC.dispose();
     super.dispose();
   }
 
@@ -580,6 +581,7 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
       'zugang_username': _userC.text.trim(),
       'zugang_password': _passC.text.trim(),
       'totp_secret': _totpSecretC.text.trim(),
+      'recovery_key': _recoveryC.text.trim(),
     }});
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
@@ -702,6 +704,35 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
               ]),
             ),
           ],
+        ]),
+      ),
+
+      const SizedBox(height: 16),
+
+      // Recovery Key section
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.amber.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.vpn_key_off, size: 22, color: Colors.amber.shade800),
+            const SizedBox(width: 10),
+            Text('Wiederherstellungsschlüssel', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+          ]),
+          const SizedBox(height: 8),
+          Text('Backup-Code falls der 2FA-Zugang verloren geht.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 10),
+          TextField(controller: _recoveryC, readOnly: !_editing, obscureText: !_editing ? true : false, style: const TextStyle(fontFamily: 'monospace', fontSize: 15, letterSpacing: 1.5),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.key, size: 20),
+              isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              hintText: _editing ? 'z.B. E7NY2HIH-A266COEM4-JMKGY' : null,
+              filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+              suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (!_editing && _recoveryC.text.isNotEmpty) IconButton(icon: const Icon(Icons.copy, size: 18), onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _recoveryC.text));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Schlüssel kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1)));
+                }),
+              ]),
+            )),
         ]),
       ),
 
