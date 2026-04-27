@@ -6065,9 +6065,9 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
-  Future<Map<String, dynamic>> getJobcenterAntragDetail(int antragId) async {
+  Future<Map<String, dynamic>> getJobcenterAntragDetail(int userId, int antragId) async {
     final response = await _client.get(
-      Uri.parse('$baseUrl/admin/jobcenter_manage.php?antrag_id=$antragId&action=antrag_detail&user_id=0'),
+      Uri.parse('$baseUrl/admin/jobcenter_manage.php?user_id=$userId&antrag_id=$antragId&action=antrag_detail'),
       headers: _headers,
     ).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
