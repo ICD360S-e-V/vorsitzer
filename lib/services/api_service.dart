@@ -6055,6 +6055,16 @@ class ApiService {
     }
   }
 
+  // ========== EMPFEHLUNG PRODUKTE ==========
+
+  Future<Map<String, dynamic>> getEmpfehlungProdukte(String kategorie) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/empfehlung_manage.php?kategorie=${Uri.encodeComponent(kategorie)}'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== SANITÄTSHAUS (dedicated DB) ==========
 
   Future<Map<String, dynamic>> getSanitaetshausData(int userId) async {
