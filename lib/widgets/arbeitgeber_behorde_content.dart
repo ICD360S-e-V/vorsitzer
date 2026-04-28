@@ -2104,7 +2104,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
             }
 
             return DefaultTabController(
-              length: 6,
+              length: 7,
               child: AlertDialog(
                 title: Row(
                   children: [
@@ -2146,6 +2146,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           Tab(text: 'Lohn'),
                           Tab(text: 'Krankheit'),
                           Tab(text: 'K\u00FCndigung'),
+                          Tab(text: 'Vorfall'),
                           Tab(text: 'Sonstiges'),
                         ],
                       ),
@@ -2214,7 +2215,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             buildKrankheitTab(),
                             // Tab 5: K\u00FCndigung (enhanced)
                             buildKuendigungTab(),
-                            // Tab 6: Sonstiges
+                            // Tab 6: Vorfall
+                            _buildVorfallTab(ag, data, setDlg),
+                            // Tab 7: Sonstiges
                             buildDokTab('sonstiges', dokTypen['sonstiges']!),
                           ],
                         ),
@@ -4105,6 +4108,94 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
         ),
       ),
     );
+  }
+
+  // ==================== VORFALL TAB ====================
+  Widget _buildVorfallTab(Map<String, dynamic> ag, Map<String, dynamic> data, StateSetter setDlg) {
+    final agKey = ag['firma']?.toString() ?? 'ag';
+    List<Map<String, dynamic>> vorfaelle = data['vorfaelle_$agKey'] is List
+        ? List<Map<String, dynamic>>.from((data['vorfaelle_$agKey'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+
+    const typLabels = {
+      'abmahnung': 'Abmahnung', 'unfall': 'Arbeitsunfall', 'mobbing': 'Mobbing / Diskriminierung',
+      'lohn': 'Lohnstreit / Gehaltsproblem', 'ueberstunden': 'Überstunden-Streit',
+      'vertrag': 'Vertragsverstoß (AG)', 'datenschutz': 'Datenschutzverstoß',
+      'zeugnis': 'Zeugnis-Streit', 'kuendigungsschutz': 'Kündigungsschutzklage', 'sonstiges': 'Sonstiges',
+    };
+    const statusLabels = {'offen': 'Offen', 'in_bearbeitung': 'In Bearbeitung', 'eskaliert': 'Eskaliert', 'geloest': 'Gelöst', 'abgeschlossen': 'Abgeschlossen'};
+    const statusColors = {'offen': Colors.orange, 'in_bearbeitung': Colors.blue, 'eskaliert': Colors.red, 'geloest': Colors.green, 'abgeschlossen': Colors.grey};
+
+    void save() {
+      data['vorfaelle_$agKey'] = vorfaelle;
+      widget.onDataChanged(data);
+      setDlg(() {});
+    }
+
+    void addVorfall() {
+      String typ = 'sonstiges'; String status = 'offen';
+      final datumC = TextEditingController(); final titelC = TextEditingController(); final notizC = TextEditingController();
+      showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setV) => AlertDialog(
+        title: const Text('Neuer Vorfall', style: TextStyle(fontSize: 15)),
+        content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          DropdownButtonFormField<String>(value: typ, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: typLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
+            onChanged: (v) => setV(() => typ = v ?? typ)),
+          const SizedBox(height: 10),
+          TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel / Beschreibung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 10),
+          TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(value: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
+            onChanged: (v) => setV(() => status = v ?? status)),
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ]))),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          ElevatedButton(onPressed: () { Navigator.pop(ctx);
+            vorfaelle.insert(0, {'typ': typ, 'titel': titelC.text.trim(), 'datum': datumC.text.trim(), 'status': status, 'notiz': notizC.text.trim(), 'erstellt_am': DateTime.now().toIso8601String()});
+            save();
+          }, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white), child: const Text('Hinzufügen'))],
+      )));
+    }
+
+    return StatefulBuilder(builder: (ctx, setLocal) {
+      final current = data['vorfaelle_$agKey'] is List
+          ? List<Map<String, dynamic>>.from((data['vorfaelle_$agKey'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+          : <Map<String, dynamic>>[];
+      return Column(children: [
+        Padding(padding: const EdgeInsets.all(10), child: Row(children: [
+          Icon(Icons.report_problem, color: Colors.indigo.shade700, size: 18),
+          const SizedBox(width: 6),
+          Text('Vorfälle (${current.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade800)),
+          const Spacer(),
+          FilledButton.icon(onPressed: addVorfall, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
+        ])),
+        Expanded(child: current.isEmpty
+          ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade400)))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: current.length, itemBuilder: (_, i) {
+              final v = current[i];
+              final st = v['status']?.toString() ?? 'offen';
+              final stColor = (statusColors[st] ?? Colors.grey);
+              return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(dense: true,
+                leading: Icon(Icons.report_problem, color: stColor.shade600, size: 20),
+                title: Text(v['titel']?.toString() ?? (typLabels[v['typ']] ?? v['typ']?.toString() ?? ''), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                subtitle: Text('${typLabels[v['typ']] ?? ''} · ${v['datum'] ?? ''} · ${statusLabels[st] ?? st}', style: const TextStyle(fontSize: 10)),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(8)),
+                    child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: stColor.shade800))),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () {
+                    final list = List<dynamic>.from(data['vorfaelle_$agKey'] as List)..removeAt(i); data['vorfaelle_$agKey'] = list;
+                    widget.onDataChanged(data); setLocal(() {});
+                  }),
+                ]),
+              ));
+            })),
+      ]);
+    });
   }
 
 }
