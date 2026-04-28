@@ -103,8 +103,9 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
     bool loading = true;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
       if (loading && all.isEmpty) {
-        widget.apiService.getBehoerdenStandorte(typ: 'jobcenter').then((res) {
-          all = res; filtered = List.from(all);
+        widget.apiService.searchJobcenterDatenbank('').then((res) {
+          if (res['success'] == true) all = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+          filtered = List.from(all);
           setDlg(() => loading = false);
         }).catchError((_) => setDlg(() => loading = false));
       }
@@ -126,7 +127,7 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
                 return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
                   leading: CircleAvatar(backgroundColor: Colors.red.shade100, child: Icon(Icons.business_center, color: Colors.red.shade700, size: 20)),
                   title: Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  subtitle: Text('${s['adresse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                  subtitle: Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
                   trailing: Icon(Icons.check_circle_outline, color: Colors.red.shade400),
                   onTap: () { Navigator.pop(ctx); _selectAndSave(s); },
                 ));
@@ -141,11 +142,13 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
     setState(() { _selected = s; _saving = true; });
     await widget.onSave({
       'stammdaten.selected_amt_name': s['name']?.toString() ?? '',
-      'stammdaten.selected_amt_adresse': s['adresse']?.toString() ?? '',
+      'stammdaten.selected_amt_adresse': s['strasse']?.toString() ?? '',
       'stammdaten.selected_amt_ort': '${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim(),
       'stammdaten.selected_amt_telefon': s['telefon']?.toString() ?? '',
       'stammdaten.selected_amt_fax': s['fax']?.toString() ?? '',
       'stammdaten.selected_amt_email': s['email']?.toString() ?? '',
+      'stammdaten.selected_amt_website': s['website']?.toString() ?? '',
+      'stammdaten.selected_amt_oeffnungszeiten': s['oeffnungszeiten']?.toString() ?? '',
     });
     if (mounted) setState(() => _saving = false);
   }
@@ -190,10 +193,20 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
             IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selected = null)),
           ]),
           const Divider(height: 20),
-          _infoRow(Icons.location_on, 'Adresse', '${s['adresse'] ?? ''}, ${s['ort'] ?? ''}'.trim()),
+          _infoRow(Icons.location_on, 'Adresse', '${s['strasse'] ?? ''}, ${s['ort'] ?? ''}'.trim()),
           _infoRow(Icons.phone, 'Telefon', s['telefon']?.toString() ?? ''),
           _infoRow(Icons.fax, 'Fax', s['fax']?.toString() ?? ''),
           _infoRow(Icons.email, 'E-Mail', s['email']?.toString() ?? ''),
+          _infoRow(Icons.language, 'Website', s['website']?.toString() ?? ''),
+          if ((s['oeffnungszeiten']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade100)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.access_time, size: 16, color: Colors.red.shade400),
+                const SizedBox(width: 8),
+                Expanded(child: Text(s['oeffnungszeiten'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+              ])),
+          ],
         ]),
       ),
     ]));
