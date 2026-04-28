@@ -14247,7 +14247,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
                         ],
                         const SizedBox(height: 16),
-                        _buildBerichtDokumente(type, 'attest_${a['erstellt_am'] ?? i}', setLocal),
+                        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_attest_$type', korrespondenzId: i),
                       ]))),
                       actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
                     ));
