@@ -334,12 +334,46 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
 
   Widget _buildDoks(Map<String, dynamic> v) {
     final vId = int.tryParse(v['id'].toString()) ?? 0;
-    return DefaultTabController(length: 2, child: Column(children: [
-      const TabBar(labelColor: Colors.indigo, indicatorColor: Colors.indigo, tabs: [Tab(text: 'Vertrag'), Tab(text: 'Karte')]),
-      Expanded(child: TabBarView(children: [
-        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'dticket_vertrag', korrespondenzId: vId)),
-        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'dticket_karte', korrespondenzId: vId)),
-      ])),
-    ]));
+    return _DticketDokSubTabs(apiService: widget.apiService, vertragId: vId);
+  }
+}
+
+// ==================== DOKUMENTE SUB-TABS WITH CHECKMARKS ====================
+class _DticketDokSubTabs extends StatefulWidget {
+  final ApiService apiService; final int vertragId;
+  const _DticketDokSubTabs({required this.apiService, required this.vertragId});
+  @override State<_DticketDokSubTabs> createState() => _DticketDokSubTabsState();
+}
+class _DticketDokSubTabsState extends State<_DticketDokSubTabs> with TickerProviderStateMixin {
+  late TabController _tabC;
+  static const _tabs = [('dticket_vertrag', 'Vertrag'), ('dticket_karte', 'Karte'), ('dticket_bestelschein', 'Bestelschein'), ('dticket_datenschutz', 'Datenschutz'), ('dticket_widerrufsrecht', 'Widerrufsrecht')];
+  final Map<String, bool> _hasDocs = {};
+
+  @override void initState() { super.initState(); _tabC = TabController(length: _tabs.length, vsync: this); _loadCounts(); }
+  @override void dispose() { _tabC.dispose(); super.dispose(); }
+
+  Future<void> _loadCounts() async {
+    for (final t in _tabs) {
+      try {
+        final res = await widget.apiService.listKorrAttachments(t.$1, widget.vertragId);
+        if (res['success'] == true && res['data'] is List && (res['data'] as List).isNotEmpty) {
+          if (mounted) setState(() => _hasDocs[t.$1] = true);
+        }
+      } catch (_) {}
+    }
+  }
+
+  @override Widget build(BuildContext context) {
+    return Column(children: [
+      TabBar(controller: _tabC, isScrollable: true, tabAlignment: TabAlignment.start, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo,
+        labelStyle: const TextStyle(fontSize: 11),
+        tabs: _tabs.map((t) => Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(t.$2),
+          if (_hasDocs[t.$1] == true) ...[const SizedBox(width: 4), Icon(Icons.check_circle, size: 14, color: Colors.green.shade600)],
+        ]))).toList()),
+      Expanded(child: TabBarView(controller: _tabC, children: _tabs.map((t) =>
+        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: t.$1, korrespondenzId: widget.vertragId)),
+      ).toList())),
+    ]);
   }
 }
