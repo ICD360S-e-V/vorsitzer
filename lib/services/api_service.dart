@@ -6055,6 +6055,26 @@ class ApiService {
     }
   }
 
+  // ========== VERMIETER (dedicated DB) ==========
+
+  Future<Map<String, dynamic>> getVermieterData(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/vermieter_manage.php?user_id=$userId&action=all'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> vermieterAction(int userId, Map<String, dynamic> body) async {
+    body['user_id'] = userId;
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vermieter_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== EMPFEHLUNG PRODUKTE ==========
 
   Future<Map<String, dynamic>> getEmpfehlungProdukte(String kategorie) async {
