@@ -6065,6 +6065,14 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  Future<Map<String, dynamic>> searchVermieterDatenbank(String q) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/vermieter_manage.php?action=datenbank&q=${Uri.encodeComponent(q)}'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> vermieterAction(int userId, Map<String, dynamic> body) async {
     body['user_id'] = userId;
     final response = await _client.post(

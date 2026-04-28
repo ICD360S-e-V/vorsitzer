@@ -66,6 +66,10 @@ class _VermieterStammdatenTab extends StatefulWidget {
 }
 class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
   late TextEditingController _firmaC, _adresseC, _telefonC, _emailC;
+  final _searchC = TextEditingController();
+  List<Map<String, dynamic>> _results = [];
+  Map<String, dynamic>? _selected;
+  bool _searching = false;
   bool _saving = false;
   @override
   void initState() {
@@ -74,15 +78,47 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
     _adresseC = TextEditingController(text: widget.data['stammdaten.firma_adresse'] ?? '');
     _telefonC = TextEditingController(text: widget.data['stammdaten.telefon'] ?? '');
     _emailC = TextEditingController(text: widget.data['stammdaten.email'] ?? '');
+    final selName = widget.data['stammdaten.selected_name'] ?? '';
+    if (selName.isNotEmpty) _selected = {'name': selName, 'strasse': widget.data['stammdaten.selected_strasse'] ?? '', 'plz': widget.data['stammdaten.selected_plz'] ?? '', 'ort': widget.data['stammdaten.selected_ort'] ?? '', 'telefon': widget.data['stammdaten.selected_telefon'] ?? ''};
   }
   @override
-  void dispose() { _firmaC.dispose(); _adresseC.dispose(); _telefonC.dispose(); _emailC.dispose(); super.dispose(); }
+  void dispose() { _searchC.dispose(); _firmaC.dispose(); _adresseC.dispose(); _telefonC.dispose(); _emailC.dispose(); super.dispose(); }
+
+  Future<void> _search(String q) async {
+    if (q.length < 2) return;
+    setState(() => _searching = true);
+    try {
+      final res = await widget.apiService.searchVermieterDatenbank(q);
+      if (res['success'] == true) _results = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+    } catch (_) {}
+    if (mounted) setState(() => _searching = false);
+  }
+
+  void _selectVermieter(Map<String, dynamic> s) {
+    setState(() {
+      _selected = s;
+      _results = [];
+      _firmaC.text = s['name']?.toString() ?? '';
+      _adresseC.text = '${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim();
+      _telefonC.text = s['telefon']?.toString() ?? '';
+      _emailC.text = s['email']?.toString() ?? '';
+    });
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
-    await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': {
+    final fields = <String, String>{
       'stammdaten.firma': _firmaC.text.trim(), 'stammdaten.firma_adresse': _adresseC.text.trim(),
       'stammdaten.telefon': _telefonC.text.trim(), 'stammdaten.email': _emailC.text.trim(),
-    }});
+    };
+    if (_selected != null) {
+      fields['stammdaten.selected_name'] = _selected!['name']?.toString() ?? '';
+      fields['stammdaten.selected_strasse'] = _selected!['strasse']?.toString() ?? '';
+      fields['stammdaten.selected_plz'] = _selected!['plz']?.toString() ?? '';
+      fields['stammdaten.selected_ort'] = _selected!['ort']?.toString() ?? '';
+      fields['stammdaten.selected_telefon'] = _selected!['telefon']?.toString() ?? '';
+    }
+    await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': fields});
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
   Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) =>
@@ -91,6 +127,40 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Vermieter suchen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: TextField(controller: _searchC, decoration: InputDecoration(hintText: 'Name oder Ort...', prefixIcon: const Icon(Icons.search, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onSubmitted: _search)),
+        const SizedBox(width: 8),
+        ElevatedButton(onPressed: () => _search(_searchC.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: const Text('Suchen')),
+      ]),
+      if (_searching) const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator()),
+      if (_results.isNotEmpty) Container(
+        margin: const EdgeInsets.only(top: 8), constraints: const BoxConstraints(maxHeight: 200),
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+        child: ListView.builder(shrinkWrap: true, itemCount: _results.length, itemBuilder: (ctx, i) {
+          final s = _results[i];
+          return ListTile(dense: true, title: Text(s['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            subtitle: Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
+            trailing: const Icon(Icons.check_circle_outline, size: 20),
+            onTap: () => _selectVermieter(s));
+        }),
+      ),
+      if (_selected != null) Container(
+        margin: const EdgeInsets.only(top: 12), padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade200)),
+        child: Row(children: [
+          Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 24),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_selected!['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.deepPurple.shade800)),
+            Text('${_selected!['strasse'] ?? ''}, ${_selected!['plz'] ?? ''} ${_selected!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
+            if ((_selected!['telefon'] ?? '').isNotEmpty) Text('Tel: ${_selected!['telefon']}', style: const TextStyle(fontSize: 11)),
+          ])),
+          IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selected = null)),
+        ]),
+      ),
+      const Divider(height: 24),
       Text('Vermieter / Hausverwaltung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
       const SizedBox(height: 12),
       _field('Firma / Name des Vermieters', _firmaC, icon: Icons.business),
