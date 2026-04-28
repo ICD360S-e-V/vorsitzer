@@ -148,7 +148,7 @@ class _VertragTabState extends State<_VertragTab> {
   void _add([Map<String, dynamic>? e]) {
     final isEdit = e != null;
     final anbieterC = TextEditingController(text: e?['anbieter'] ?? ''); final aboC = TextEditingController(text: e?['abo_nr'] ?? '');
-    final preisC = TextEditingController(text: e?['preis'] ?? '49,00'); final ibanC = TextEditingController(text: e?['iban'] ?? '');
+    final preisC = TextEditingController(text: e?['preis'] ?? '63,00'); final ibanC = TextEditingController(text: e?['iban'] ?? '');
     final abC = TextEditingController(text: e?['gueltig_ab'] ?? ''); final bisC = TextEditingController(text: e?['gueltig_bis'] ?? '');
     final notizC = TextEditingController(text: e?['notiz'] ?? '');
     String zahlungsart = e?['zahlungsart'] ?? 'Lastschrift'; String status = e?['status'] ?? 'aktiv';
@@ -204,7 +204,7 @@ class _VertragTabState extends State<_VertragTab> {
             return Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(
               onTap: () => _openDetail(v),
               leading: CircleAvatar(backgroundColor: aktiv ? Colors.green.shade100 : Colors.grey.shade200, child: Icon(Icons.train, color: aktiv ? Colors.green.shade700 : Colors.grey, size: 20)),
-              title: Text('${v['anbieter'] ?? 'Deutschlandticket'} · ${v['preis'] ?? '49'} €/Mo', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              title: Text('${v['anbieter'] ?? 'Deutschlandticket'} · ${v['preis'] ?? '63'} €/Mo', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('Abo-Nr: ${v['abo_nr'] ?? '—'} · ab ${v['gueltig_ab'] ?? '—'}', style: const TextStyle(fontSize: 11)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
@@ -261,7 +261,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
       return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Icon(icon, size: 16, color: Colors.red.shade400), const SizedBox(width: 8), SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))), Expanded(child: Text(value, style: const TextStyle(fontSize: 13)))])); }
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       r(Icons.business, 'Anbieter', v['anbieter']?.toString() ?? ''), r(Icons.confirmation_number, 'Abo-Nr.', v['abo_nr']?.toString() ?? ''),
-      r(Icons.euro, 'Preis', '${v['preis'] ?? '49'} €/Monat'), r(Icons.payment, 'Zahlungsart', v['zahlungsart']?.toString() ?? ''),
+      r(Icons.euro, 'Preis', '${v['preis'] ?? '63'} €/Monat'), r(Icons.payment, 'Zahlungsart', v['zahlungsart']?.toString() ?? ''),
       r(Icons.calendar_today, 'Gültig ab', v['gueltig_ab']?.toString() ?? ''), r(Icons.event, 'Gültig bis', v['gueltig_bis']?.toString() ?? ''),
       r(Icons.account_balance, 'IBAN', v['iban']?.toString() ?? ''), r(Icons.flag, 'Status', v['status']?.toString() ?? ''),
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 8), Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)), child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 13)))],
