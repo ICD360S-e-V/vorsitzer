@@ -480,7 +480,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
         child: SizedBox(
-          width: 580, height: 560,
+          width: 800, height: 700,
           child: _VertragDetailView(
             apiService: widget.apiService,
             vertrag: v,
