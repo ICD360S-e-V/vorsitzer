@@ -855,30 +855,48 @@ class _DokSubTabs extends StatefulWidget {
 }
 class _DokSubTabsState extends State<_DokSubTabs> with TickerProviderStateMixin {
   late TabController _tabC;
+  static const _tabs = [
+    ('vertrag', 'Vertrag'),
+    ('agb', 'AGB'),
+    ('leistungsbeschreibung', 'Leistungsbeschreibung'),
+    ('preise', 'Preise'),
+    ('datenschutz', 'Datenschutz'),
+    ('widerrufsbelehrung', 'Widerrufsbelehrung'),
+  ];
+  final Map<String, bool> _hasDocs = {};
+
   @override
-  void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); }
+  void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); _loadCounts(); }
   @override
   void dispose() { _tabC.dispose(); super.dispose(); }
+
+  Future<void> _loadCounts() async {
+    for (final t in _tabs) {
+      try {
+        final res = await widget.apiService.listVertragDokumente(widget.vertragId, kategorie: t.$1);
+        if (res['success'] == true && res['data'] is List && (res['data'] as List).isNotEmpty) {
+          if (mounted) setState(() => _hasDocs[t.$1] = true);
+        }
+      } catch (_) {}
+    }
+  }
+
+  Widget _tabLabel(String kategorie, String label) {
+    final has = _hasDocs[kategorie] == true;
+    return Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Text(label),
+      if (has) ...[const SizedBox(width: 4), Icon(Icons.check_circle, size: 14, color: Colors.green.shade600)],
+    ]));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(children: [
       TabBar(controller: _tabC, isScrollable: true, tabAlignment: TabAlignment.start, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo.shade600,
-        labelStyle: const TextStyle(fontSize: 11), tabs: const [
-          Tab(text: 'Vertrag'),
-          Tab(text: 'AGB'),
-          Tab(text: 'Leistungsbeschreibung'),
-          Tab(text: 'Preise'),
-          Tab(text: 'Datenschutz'),
-          Tab(text: 'Widerrufsbelehrung'),
-        ]),
-      Expanded(child: TabBarView(controller: _tabC, children: [
-        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'vertrag', label: 'Vertragsdokumente'),
-        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'agb', label: 'AGB'),
-        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'leistungsbeschreibung', label: 'Leistungsbeschreibung'),
-        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'preise', label: 'Preisliste'),
-        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'datenschutz', label: 'Datenschutz'),
-        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'widerrufsbelehrung', label: 'Widerrufsbelehrung'),
-      ])),
+        labelStyle: const TextStyle(fontSize: 11), tabs: _tabs.map((t) => _tabLabel(t.$1, t.$2)).toList()),
+      Expanded(child: TabBarView(controller: _tabC, children: _tabs.map((t) =>
+        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: t.$1, label: t.$2, onChanged: () { _loadCounts(); }),
+      ).toList())),
     ]);
   }
 }
@@ -888,7 +906,8 @@ class _DokTab extends StatefulWidget {
   final int vertragId;
   final String kategorie;
   final String label;
-  const _DokTab({required this.apiService, required this.vertragId, required this.kategorie, required this.label});
+  final VoidCallback? onChanged;
+  const _DokTab({required this.apiService, required this.vertragId, required this.kategorie, required this.label, this.onChanged});
 
   @override
   State<_DokTab> createState() => _DokTabState();
@@ -921,6 +940,7 @@ class _DokTabState extends State<_DokTab> {
       _items = (r['success'] == true && r['data'] is List) ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
       _loaded = true;
     });
+    widget.onChanged?.call();
   }
 
   @override
