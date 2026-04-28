@@ -13467,41 +13467,78 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                               final k = entry.value;
                               final isEingang = k['richtung'] == 'eingang';
                               final methodeIcons = {'email': Icons.email, 'telefon': Icons.phone, 'post': Icons.mail, 'fax': Icons.fax};
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: isEingang ? Colors.green.shade50 : Colors.blue.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200),
-                                ),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Row(children: [
-                                    Icon(isEingang ? Icons.call_received : Icons.call_made, size: 14, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
-                                    const SizedBox(width: 4),
-                                    Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700)),
-                                    const SizedBox(width: 8),
-                                    Icon(methodeIcons[k['methode']] ?? Icons.email, size: 13, color: Colors.grey.shade500),
-                                    const SizedBox(width: 4),
-                                    Text(k['methode']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                                    const Spacer(),
-                                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                                    const SizedBox(width: 4),
-                                    InkWell(onTap: () { korrespondenz.removeAt(idx); r['korrespondenz'] = korrespondenz; doSave(r, fromStatus: true); setKorrState(() {}); },
-                                      child: Icon(Icons.delete, size: 16, color: Colors.red.shade300)),
+                              final methodeLabels = {'email': 'E-Mail', 'telefon': 'Telefon', 'post': 'Post', 'fax': 'Fax'};
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () {
+                                  showDialog(context: kCtx, builder: (detCtx) => AlertDialog(
+                                    title: Row(children: [
+                                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 20, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                                    ]),
+                                    content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                      Row(children: [
+                                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEingang ? Colors.green.shade100 : Colors.blue.shade100, borderRadius: BorderRadius.circular(12)),
+                                          child: Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade800 : Colors.blue.shade800))),
+                                        const SizedBox(width: 8),
+                                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
+                                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                            Icon(methodeIcons[k['methode']] ?? Icons.email, size: 13, color: Colors.purple.shade700),
+                                            const SizedBox(width: 4),
+                                            Text(methodeLabels[k['methode']] ?? k['methode']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.purple.shade700)),
+                                          ])),
+                                        const Spacer(),
+                                        Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                      ]),
+                                      if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 16),
+                                        Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                                        const SizedBox(height: 6),
+                                        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                                          child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.5))),
+                                      ],
+                                      const SizedBox(height: 16),
+                                      _buildBerichtDokumente(type, 'korr_${k['erstellt_am'] ?? idx}', setKorrState),
+                                    ]))),
+                                    actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
+                                  ));
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isEingang ? Colors.green.shade50 : Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200),
+                                  ),
+                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Row(children: [
+                                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 14, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                                      const SizedBox(width: 4),
+                                      Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700)),
+                                      const SizedBox(width: 8),
+                                      Icon(methodeIcons[k['methode']] ?? Icons.email, size: 13, color: Colors.grey.shade500),
+                                      const SizedBox(width: 4),
+                                      Text(methodeLabels[k['methode']] ?? k['methode']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                      const Spacer(),
+                                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                      const SizedBox(width: 8),
+                                      Icon(Icons.open_in_new, size: 14, color: Colors.grey.shade400),
+                                      const SizedBox(width: 4),
+                                      InkWell(onTap: () { korrespondenz.removeAt(idx); r['korrespondenz'] = korrespondenz; doSave(r, fromStatus: true); setKorrState(() {}); },
+                                        child: Icon(Icons.delete, size: 16, color: Colors.red.shade300)),
+                                    ]),
+                                    if ((k['betreff']?.toString() ?? '').isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(k['betreff'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                    ],
+                                    if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(k['inhalt'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    ],
                                   ]),
-                                  if ((k['betreff']?.toString() ?? '').isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(k['betreff'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                  ],
-                                  if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(k['inhalt'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                                  ],
-                                  // Doc upload per korrespondenz
-                                  const SizedBox(height: 6),
-                                  _buildBerichtDokumente(type, 'korr_${k['erstellt_am'] ?? idx}', setKorrState),
-                                ]),
+                                ),
                               );
                             }),
                         ]));
