@@ -78,13 +78,8 @@ class _JobcenterStammdatenTab extends StatefulWidget {
 }
 
 class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
-  List<Map<String, dynamic>> _standorte = [];
-  Map<String, dynamic>? _selectedAmt;
-  bool _searching = false;
-  final _searchC = TextEditingController();
-  late TextEditingController _kundennummerC, _bgNummerC, _arbeitsvermittlerC, _arbeitsvermittlerTelC, _arbeitsvermittlerEmailC, _emailC, _passkeyC;
-  bool _hasOnline = false;
-  bool _hasPasskey = false;
+  Map<String, dynamic>? _selected;
+  late TextEditingController _kundennummerC, _bgNummerC, _arbeitsvermittlerC, _arbeitsvermittlerTelC, _arbeitsvermittlerEmailC;
   bool _saving = false;
 
   @override
@@ -96,164 +91,142 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
     _arbeitsvermittlerC = TextEditingController(text: d['stammdaten.arbeitsvermittler'] ?? '');
     _arbeitsvermittlerTelC = TextEditingController(text: d['stammdaten.arbeitsvermittler_tel'] ?? '');
     _arbeitsvermittlerEmailC = TextEditingController(text: d['stammdaten.arbeitsvermittler_email'] ?? '');
-    _emailC = TextEditingController(text: d['stammdaten.online_email'] ?? '');
-    _passkeyC = TextEditingController(text: d['stammdaten.passkey_access'] ?? '');
-    _hasOnline = d['stammdaten.has_online_account'] == 'true';
-    _hasPasskey = d['stammdaten.has_passkey'] == 'true';
-    if (d['stammdaten.selected_amt'] != null) {
-      try { _selectedAmt = Map<String, dynamic>.from(d['stammdaten.selected_amt'] is Map ? d['stammdaten.selected_amt'] : {}); } catch (_) {}
-    }
-    final amtName = d['stammdaten.selected_amt_name'] ?? '';
-    if (amtName.isNotEmpty && _selectedAmt == null) {
-      _selectedAmt = {'name': amtName};
-    }
+    final selName = d['stammdaten.selected_amt_name'] ?? '';
+    if (selName.isNotEmpty) _selected = {'name': selName, 'adresse': d['stammdaten.selected_amt_adresse'] ?? '', 'ort': d['stammdaten.selected_amt_ort'] ?? '', 'telefon': d['stammdaten.selected_amt_telefon'] ?? ''};
   }
 
   @override
-  void dispose() {
-    _searchC.dispose(); _kundennummerC.dispose(); _bgNummerC.dispose();
-    _arbeitsvermittlerC.dispose(); _arbeitsvermittlerTelC.dispose(); _arbeitsvermittlerEmailC.dispose();
-    _emailC.dispose(); _passkeyC.dispose();
-    super.dispose();
+  void dispose() { _kundennummerC.dispose(); _bgNummerC.dispose(); _arbeitsvermittlerC.dispose(); _arbeitsvermittlerTelC.dispose(); _arbeitsvermittlerEmailC.dispose(); super.dispose(); }
+
+  void _openSearch() {
+    final searchC = TextEditingController();
+    List<Map<String, dynamic>> all = [];
+    List<Map<String, dynamic>> filtered = [];
+    bool loading = true;
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+      if (loading && all.isEmpty) {
+        widget.apiService.getBehoerdenStandorte(typ: 'jobcenter').then((res) {
+          all = res; filtered = List.from(all);
+          setDlg(() => loading = false);
+        }).catchError((_) => setDlg(() => loading = false));
+      }
+      void filterList(String q) {
+        if (q.isEmpty) { setDlg(() => filtered = List.from(all)); return; }
+        final lower = q.toLowerCase();
+        setDlg(() => filtered = all.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(lower) || (s['ort']?.toString() ?? '').toLowerCase().contains(lower)).toList());
+      }
+      return AlertDialog(
+        title: Row(children: [Icon(Icons.search, color: Colors.red.shade700), const SizedBox(width: 8), const Text('Jobcenter auswählen', style: TextStyle(fontSize: 16))]),
+        content: SizedBox(width: 500, height: 400, child: Column(children: [
+          TextField(controller: searchC, autofocus: true, decoration: InputDecoration(hintText: 'Filter...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: filterList),
+          const SizedBox(height: 12),
+          if (loading) const LinearProgressIndicator(),
+          Expanded(child: filtered.isEmpty
+            ? Center(child: Text(loading ? '' : 'Keine Jobcenter gefunden', style: TextStyle(color: Colors.grey.shade400)))
+            : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
+                final s = filtered[i];
+                return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
+                  leading: CircleAvatar(backgroundColor: Colors.red.shade100, child: Icon(Icons.business_center, color: Colors.red.shade700, size: 20)),
+                  title: Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: Text('${s['adresse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                  trailing: Icon(Icons.check_circle_outline, color: Colors.red.shade400),
+                  onTap: () { Navigator.pop(ctx); _selectAndSave(s); },
+                ));
+              })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      );
+    }));
   }
 
-  Future<void> _search(String q) async {
-    if (q.length < 2) return;
-    setState(() => _searching = true);
-    try {
-      _standorte = await widget.apiService.getBehoerdenStandorte(typ: 'jobcenter');
-      _standorte = _standorte.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(q.toLowerCase()) || (s['ort']?.toString() ?? '').toLowerCase().contains(q.toLowerCase())).toList();
-    } catch (_) {}
-    if (mounted) setState(() => _searching = false);
+  Future<void> _selectAndSave(Map<String, dynamic> s) async {
+    setState(() { _selected = s; _saving = true; });
+    await widget.onSave({
+      'stammdaten.selected_amt_name': s['name']?.toString() ?? '',
+      'stammdaten.selected_amt_adresse': s['adresse']?.toString() ?? '',
+      'stammdaten.selected_amt_ort': '${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim(),
+      'stammdaten.selected_amt_telefon': s['telefon']?.toString() ?? '',
+    });
+    if (mounted) setState(() => _saving = false);
   }
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    final fields = <String, String>{
+    await widget.onSave({
       'stammdaten.kundennummer': _kundennummerC.text.trim(),
       'stammdaten.bg_nummer': _bgNummerC.text.trim(),
       'stammdaten.arbeitsvermittler': _arbeitsvermittlerC.text.trim(),
       'stammdaten.arbeitsvermittler_tel': _arbeitsvermittlerTelC.text.trim(),
       'stammdaten.arbeitsvermittler_email': _arbeitsvermittlerEmailC.text.trim(),
-      'stammdaten.online_email': _emailC.text.trim(),
-      'stammdaten.passkey_access': _passkeyC.text.trim(),
-      'stammdaten.has_online_account': _hasOnline.toString(),
-      'stammdaten.has_passkey': _hasPasskey.toString(),
-    };
-    if (_selectedAmt != null) {
-      fields['stammdaten.selected_amt_name'] = _selectedAmt!['name']?.toString() ?? '';
-      fields['stammdaten.selected_amt_adresse'] = _selectedAmt!['adresse']?.toString() ?? '';
-      fields['stammdaten.selected_amt_ort'] = _selectedAmt!['ort']?.toString() ?? '';
-      fields['stammdaten.selected_amt_telefon'] = _selectedAmt!['telefon']?.toString() ?? '';
-    }
-    await widget.onSave(fields);
-    if (mounted) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600));
-    }
+    });
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
 
-  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit, int maxLines = 1}) {
-    return Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))));
-  }
+  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) =>
+    Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))));
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Search Jobcenter
-      Text('Zuständiges Jobcenter suchen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: TextField(controller: _searchC, decoration: InputDecoration(hintText: 'Name oder Ort...', prefixIcon: const Icon(Icons.search, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          onSubmitted: _search)),
-        const SizedBox(width: 8),
-        ElevatedButton(onPressed: () => _search(_searchC.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white), child: const Text('Suchen')),
-      ]),
-      if (_searching) const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator()),
-      if (_standorte.isNotEmpty) Container(
-        margin: const EdgeInsets.only(top: 8), constraints: const BoxConstraints(maxHeight: 200),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-        child: ListView.builder(shrinkWrap: true, itemCount: _standorte.length, itemBuilder: (ctx, i) {
-          final s = _standorte[i];
-          return ListTile(dense: true, title: Text(s['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: Text('${s['adresse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
-            trailing: const Icon(Icons.check_circle_outline, size: 20),
-            onTap: () => setState(() { _selectedAmt = s; _standorte = []; }));
-        }),
-      ),
-      if (_selectedAmt != null) Container(
-        margin: const EdgeInsets.only(top: 12), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade200)),
-        child: Row(children: [
-          Icon(Icons.business, color: Colors.red.shade700, size: 24),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_selectedAmt!['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.red.shade800)),
-            if (_selectedAmt!['adresse'] != null) Text('${_selectedAmt!['adresse']}, ${_selectedAmt!['plz'] ?? ''} ${_selectedAmt!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
-            if (_selectedAmt!['telefon'] != null) Text('Tel: ${_selectedAmt!['telefon']}', style: const TextStyle(fontSize: 11)),
-          ])),
-          IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selectedAmt = null)),
+      // Selected Jobcenter card or search button
+      if (_selected == null)
+        Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.business_center, size: 64, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text('Kein Jobcenter ausgewählt', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(onPressed: _openSearch, icon: const Icon(Icons.search, size: 20), label: const Text('Jobcenter suchen'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12))),
+        ]))
+      else ...[
+        Row(children: [
+          Text('Zuständiges Jobcenter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+          const Spacer(),
+          TextButton.icon(icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('Ändern', style: TextStyle(fontSize: 12)), onPressed: _openSearch),
         ]),
-      ),
-      const Divider(height: 24),
-
-      // Stammdaten
-      Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: _field('Kundennummer', _kundennummerC, icon: Icons.badge)),
-        const SizedBox(width: 12),
-        Expanded(child: _field('BG-Nummer', _bgNummerC, icon: Icons.numbers)),
-      ]),
-      const Divider(height: 16),
-
-      // Sachbearbeiter
-      Text('Sachbearbeiter / Arbeitsvermittler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-      const SizedBox(height: 8),
-      _field('Arbeitsvermittler/in (pAp)', _arbeitsvermittlerC, icon: Icons.support_agent),
-      Row(children: [
-        Expanded(child: _field('Telefon', _arbeitsvermittlerTelC, icon: Icons.phone)),
-        const SizedBox(width: 12),
-        Expanded(child: _field('E-Mail', _arbeitsvermittlerEmailC, icon: Icons.email)),
-      ]),
-      const Divider(height: 16),
-
-      // Online-Konto
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.cloud, size: 18, color: Colors.blue.shade700),
-            const SizedBox(width: 8),
-            Text('Online-Konto (jobcenter.digital)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)),
-            const Spacer(),
-            Switch(value: _hasOnline, onChanged: (v) => setState(() => _hasOnline = v), activeThumbColor: Colors.blue),
+        const SizedBox(height: 8),
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)),
+          child: Row(children: [
+            Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.business_center, color: Colors.red.shade700, size: 28)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_selected!['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+              if ((_selected!['adresse']?.toString() ?? '').isNotEmpty) Text('${_selected!['adresse']}, ${_selected!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
+              if ((_selected!['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${_selected!['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            ])),
+            IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selected = null)),
           ]),
-          if (_hasOnline) ...[
-            const SizedBox(height: 12),
-            _field('E-Mail', _emailC, icon: Icons.email),
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Icon(Icons.key, size: 18, color: Colors.orange.shade700),
-                  const SizedBox(width: 8),
-                  Text('Passkey aktiviert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade700)),
-                  const Spacer(),
-                  Switch(value: _hasPasskey, onChanged: (v) => setState(() => _hasPasskey = v), activeThumbColor: Colors.orange),
-                ]),
-                if (_hasPasskey) _field('Zugang zum Passkey', _passkeyC, icon: Icons.person_pin),
-              ]),
-            ),
-          ],
-        ]),
-      ),
-      const SizedBox(height: 20),
+        ),
+        const Divider(height: 24),
 
-      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: _saving ? null : _save,
-        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-        label: const Text('Speichern'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
-      )),
+        // Stammdaten
+        Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _field('Kundennummer', _kundennummerC, icon: Icons.badge)),
+          const SizedBox(width: 12),
+          Expanded(child: _field('BG-Nummer', _bgNummerC, icon: Icons.numbers)),
+        ]),
+        const Divider(height: 16),
+
+        // Sachbearbeiter
+        Text('Sachbearbeiter / Arbeitsvermittler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+        const SizedBox(height: 8),
+        _field('Arbeitsvermittler/in (pAp)', _arbeitsvermittlerC, icon: Icons.support_agent),
+        Row(children: [
+          Expanded(child: _field('Telefon', _arbeitsvermittlerTelC, icon: Icons.phone)),
+          const SizedBox(width: 12),
+          Expanded(child: _field('E-Mail', _arbeitsvermittlerEmailC, icon: Icons.email)),
+        ]),
+        const SizedBox(height: 16),
+        Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
+          label: const Text('Speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+        )),
+      ],
     ]));
   }
 }
