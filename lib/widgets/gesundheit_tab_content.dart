@@ -2025,7 +2025,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: 11,
+          length: 12,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -2206,6 +2206,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
                   Tab(icon: Icon(Icons.healing, size: 16), text: 'Heilmittel'),
                   Tab(icon: Icon(Icons.description, size: 16), text: 'Berichte'),
+                  Tab(icon: Icon(Icons.verified, size: 16), text: 'Ärztl. Attest'),
                 ],
               ),
               Expanded(
@@ -2487,6 +2488,9 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
                     // ===== TAB 10: BERICHTE =====
                     _buildBerichteTab(type, arztTitle, data, saveAll, setLocalState),
+
+                    // ===== TAB 11: ÄRZTLICHE ATTESTE =====
+                    _buildAttesteTab(type, arztTitle, data, saveAll, setLocalState),
                   ],
                 ),
               ),
@@ -14131,6 +14135,105 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         ],
       ),
     );
+  }
+
+  // ===== ÄRZTLICHE ATTESTE =====
+  Widget _buildAttesteTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
+    final atteste = data['atteste'] is List ? List<Map<String, dynamic>>.from((data['atteste'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
+
+    void addOrEdit({Map<String, dynamic>? existing, int? editIndex}) {
+      final titelC = TextEditingController(text: existing?['titel']?.toString() ?? '');
+      final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
+      final gueltigBisC = TextEditingController(text: existing?['gueltig_bis']?.toString() ?? '');
+      final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+      String befristung = existing?['befristung']?.toString() ?? 'befristet';
+      showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+        title: Row(children: [Icon(Icons.verified, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8), Text(existing != null ? 'Attest bearbeiten' : 'Neues Attest', style: const TextStyle(fontSize: 15))]),
+        content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: titelC, decoration: InputDecoration(labelText: 'Bezeichnung', hintText: 'z.B. Reisefähigkeitsattest, Sportbefreiung...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 10),
+          TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Ausstellungsdatum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+          const SizedBox(height: 10),
+          Row(children: [
+            ChoiceChip(label: const Text('Befristet'), selected: befristung == 'befristet', selectedColor: Colors.orange.shade100, onSelected: (_) => setDlg(() => befristung = 'befristet')),
+            const SizedBox(width: 8),
+            ChoiceChip(label: const Text('Unbefristet'), selected: befristung == 'unbefristet', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => befristung = 'unbefristet')),
+          ]),
+          if (befristung == 'befristet') ...[
+            const SizedBox(height: 10),
+            TextField(controller: gueltigBisC, readOnly: true, decoration: InputDecoration(labelText: 'Gültig bis', isDense: true, prefixIcon: const Icon(Icons.event, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) gueltigBisC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+          ],
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () {
+            final entry = {'titel': titelC.text.trim(), 'datum': datumC.text.trim(), 'befristung': befristung, 'gueltig_bis': befristung == 'befristet' ? gueltigBisC.text.trim() : '', 'notiz': notizC.text.trim(), 'erstellt_am': existing?['erstellt_am'] ?? DateTime.now().toIso8601String()};
+            final list = data['atteste'] is List ? List<dynamic>.from(data['atteste'] as List) : <dynamic>[];
+            if (editIndex != null && editIndex < list.length) { list[editIndex] = entry; } else { list.insert(0, entry); }
+            data['atteste'] = list;
+            saveAll();
+            Navigator.pop(ctx);
+            setLocalState(() {});
+          }, child: Text(existing != null ? 'Speichern' : 'Hinzufügen')),
+        ],
+      )));
+    }
+
+    return StatefulBuilder(builder: (ctx, setLocal) {
+      final current = data['atteste'] is List ? List<Map<String, dynamic>>.from((data['atteste'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
+      return Column(children: [
+        Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          Icon(Icons.verified, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          Text('Ärztliche Atteste (${current.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.purple.shade800)),
+          const Spacer(),
+          FilledButton.icon(onPressed: () => addOrEdit(), icon: const Icon(Icons.add, size: 16), label: const Text('Neues Attest', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero)),
+        ])),
+        Expanded(child: current.isEmpty
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.verified, size: 40, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text('Keine Atteste vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+            ]))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: current.length, itemBuilder: (_, i) {
+              final a = current[i];
+              final befristet = a['befristung'] != 'unbefristet';
+              final gueltigBis = a['gueltig_bis']?.toString() ?? '';
+              bool expired = false;
+              if (befristet && gueltigBis.isNotEmpty) {
+                try {
+                  final parts = gueltigBis.split('.');
+                  if (parts.length == 3) { final d = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0])); expired = DateTime.now().isAfter(d); }
+                } catch (_) {}
+              }
+              final color = expired ? Colors.red : (befristet ? Colors.orange : Colors.green);
+              return Card(margin: const EdgeInsets.only(bottom: 8), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                ListTile(
+                  onTap: () => addOrEdit(existing: a, editIndex: i),
+                  leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(expired ? Icons.warning : Icons.verified, color: color.shade700, size: 20)),
+                  title: Text(a['titel']?.toString() ?? 'Ärztliches Attest', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: Row(children: [
+                    Text(a['datum']?.toString() ?? '', style: const TextStyle(fontSize: 11)),
+                    const SizedBox(width: 8),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
+                      child: Text(befristet ? (expired ? 'Abgelaufen' : 'Befristet bis $gueltigBis') : 'Unbefristet',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
+                  ]),
+                  trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () {
+                    final list = List<dynamic>.from(data['atteste'] as List)..removeAt(i); data['atteste'] = list; saveAll(); setLocal(() {});
+                  }),
+                ),
+                Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                  child: _buildBerichtDokumente(type, 'attest_${a['erstellt_am'] ?? i}', setLocal)),
+              ]));
+            })),
+      ]);
+    });
   }
 
   /// Inline document list + upload for a single Bericht entry.
