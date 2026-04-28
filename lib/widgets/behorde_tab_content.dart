@@ -556,11 +556,6 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 BehordeDeutschlandticketContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
-                  getData: (t) => _behoerdeData[t] ?? {},
-                  isLoading: (t) => _behoerdeLoading[t] == true,
-                  isSaving: (t) => _behoerdeSaving[t] == true,
-                  loadData: (t) => _loadBehoerdeData(t),
-                  saveData: (t, d) => _saveBehoerdeData(t, d),
                 ),
                 BehordeSchuleContent(
                   apiService: widget.apiService,
