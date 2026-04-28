@@ -89,34 +89,38 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
 
   void _openSearch() {
     final searchC = TextEditingController();
-    List<Map<String, dynamic>> results = [];
-    bool searching = false;
+    List<Map<String, dynamic>> all = [];
+    List<Map<String, dynamic>> filtered = [];
+    bool loading = true;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
-      Future<void> doSearch(String q) async {
-        if (q.length < 2) return;
-        setDlg(() => searching = true);
-        try {
-          final res = await widget.apiService.searchVermieterDatenbank(q);
-          if (res['success'] == true) results = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-        } catch (_) {}
-        setDlg(() => searching = false);
+      if (loading && all.isEmpty) {
+        widget.apiService.searchVermieterDatenbank('').then((res) {
+          if (res['success'] == true) all = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+          filtered = List.from(all);
+          setDlg(() => loading = false);
+        }).catchError((_) => setDlg(() => loading = false));
+      }
+      void filterList(String q) {
+        if (q.isEmpty) { setDlg(() => filtered = List.from(all)); return; }
+        final lower = q.toLowerCase();
+        setDlg(() => filtered = all.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(lower) || (s['ort']?.toString() ?? '').toLowerCase().contains(lower)).toList());
       }
       return AlertDialog(
         title: Row(children: [
-          Icon(Icons.search, color: Colors.deepPurple.shade700),
+          Icon(Icons.apartment, color: Colors.deepPurple.shade700),
           const SizedBox(width: 8),
-          const Text('Vermieter suchen', style: TextStyle(fontSize: 16)),
+          const Text('Vermieter auswählen', style: TextStyle(fontSize: 16)),
         ]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true,
-            decoration: InputDecoration(hintText: 'Name oder Ort eingeben...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              suffixIcon: IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => doSearch(searchC.text))),
-            onSubmitted: doSearch),
+            decoration: InputDecoration(hintText: 'Filter...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: filterList),
           const SizedBox(height: 12),
-          if (searching) const LinearProgressIndicator(),
-          Expanded(child: results.isEmpty
-            ? Center(child: Text(searching ? '' : 'Suchbegriff eingeben...', style: TextStyle(color: Colors.grey.shade400)))
-            : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+          if (loading) const LinearProgressIndicator(),
+          Expanded(child: filtered.isEmpty
+            ? Center(child: Text(loading ? '' : 'Keine Vermieter gefunden', style: TextStyle(color: Colors.grey.shade400)))
+            : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
+                final s = filtered[i];
                 final s = results[i];
                 return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
                   leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 20)),
