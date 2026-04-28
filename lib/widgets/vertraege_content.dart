@@ -25,7 +25,8 @@ class _VertraegeContentState extends State<VertraegeContent> {
     ('handy', 'Handyvertrag', Icons.phone_android, Colors.blue),
     ('internet', 'Internet & DSL', Icons.wifi, Colors.teal),
     ('versicherung', 'Versicherung', Icons.shield, Colors.green),
-    ('strom_gas', 'Strom & Gas', Icons.bolt, Colors.orange),
+    ('strom', 'Strom', Icons.bolt, Colors.orange),
+    ('gas', 'Gas', Icons.local_fire_department, Colors.deepOrange),
     ('verein', 'Verein', Icons.groups, Colors.indigo),
     ('sonstige', 'Sonstige', Icons.receipt_long, Colors.grey),
   ];
