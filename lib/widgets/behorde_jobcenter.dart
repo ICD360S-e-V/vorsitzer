@@ -19,7 +19,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -53,13 +53,17 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      TabBar(controller: _tabController, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, tabs: const [
+      TabBar(controller: _tabController, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
         Tab(text: 'Zuständiges Jobcenter'),
         Tab(text: 'Antrag'),
+        Tab(text: 'Stammdaten'),
+        Tab(text: 'Arbeitsvermittler'),
       ]),
       Expanded(child: TabBarView(controller: _tabController, children: [
         _JobcenterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
         _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load),
+        _JobcenterStammdatenFieldsTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
+        _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
       ])),
     ]);
   }
@@ -79,24 +83,18 @@ class _JobcenterStammdatenTab extends StatefulWidget {
 
 class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
   Map<String, dynamic>? _selected;
-  late TextEditingController _kundennummerC, _bgNummerC, _arbeitsvermittlerC, _arbeitsvermittlerTelC, _arbeitsvermittlerEmailC;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     final d = widget.data;
-    _kundennummerC = TextEditingController(text: d['stammdaten.kundennummer'] ?? '');
-    _bgNummerC = TextEditingController(text: d['stammdaten.bg_nummer'] ?? '');
-    _arbeitsvermittlerC = TextEditingController(text: d['stammdaten.arbeitsvermittler'] ?? '');
-    _arbeitsvermittlerTelC = TextEditingController(text: d['stammdaten.arbeitsvermittler_tel'] ?? '');
-    _arbeitsvermittlerEmailC = TextEditingController(text: d['stammdaten.arbeitsvermittler_email'] ?? '');
     final selName = d['stammdaten.selected_amt_name'] ?? '';
-    if (selName.isNotEmpty) _selected = {'name': selName, 'adresse': d['stammdaten.selected_amt_adresse'] ?? '', 'ort': d['stammdaten.selected_amt_ort'] ?? '', 'telefon': d['stammdaten.selected_amt_telefon'] ?? ''};
+    if (selName.isNotEmpty) _selected = {'name': selName, 'adresse': d['stammdaten.selected_amt_adresse'] ?? '', 'ort': d['stammdaten.selected_amt_ort'] ?? '', 'telefon': d['stammdaten.selected_amt_telefon'] ?? '', 'fax': d['stammdaten.selected_amt_fax'] ?? '', 'email': d['stammdaten.selected_amt_email'] ?? ''};
   }
 
   @override
-  void dispose() { _kundennummerC.dispose(); _bgNummerC.dispose(); _arbeitsvermittlerC.dispose(); _arbeitsvermittlerTelC.dispose(); _arbeitsvermittlerEmailC.dispose(); super.dispose(); }
+  void dispose() { super.dispose(); }
 
   void _openSearch() {
     final searchC = TextEditingController();
@@ -146,87 +144,58 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
       'stammdaten.selected_amt_adresse': s['adresse']?.toString() ?? '',
       'stammdaten.selected_amt_ort': '${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim(),
       'stammdaten.selected_amt_telefon': s['telefon']?.toString() ?? '',
+      'stammdaten.selected_amt_fax': s['fax']?.toString() ?? '',
+      'stammdaten.selected_amt_email': s['email']?.toString() ?? '',
     });
     if (mounted) setState(() => _saving = false);
   }
 
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    await widget.onSave({
-      'stammdaten.kundennummer': _kundennummerC.text.trim(),
-      'stammdaten.bg_nummer': _bgNummerC.text.trim(),
-      'stammdaten.arbeitsvermittler': _arbeitsvermittlerC.text.trim(),
-      'stammdaten.arbeitsvermittler_tel': _arbeitsvermittlerTelC.text.trim(),
-      'stammdaten.arbeitsvermittler_email': _arbeitsvermittlerEmailC.text.trim(),
-    });
-    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  Widget _infoRow(IconData icon, String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+      Icon(icon, size: 16, color: Colors.red.shade400),
+      const SizedBox(width: 8),
+      SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+    ]));
   }
-
-  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) =>
-    Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))));
 
   @override
   Widget build(BuildContext context) {
+    if (_selected == null) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.business_center, size: 64, color: Colors.grey.shade300),
+        const SizedBox(height: 16),
+        Text('Kein Jobcenter ausgewählt', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(onPressed: _openSearch, icon: const Icon(Icons.search, size: 20), label: const Text('Jobcenter suchen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12))),
+      ]));
+    }
+    final s = _selected!;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Selected Jobcenter card or search button
-      if (_selected == null)
-        Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.business_center, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text('Kein Jobcenter ausgewählt', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(onPressed: _openSearch, icon: const Icon(Icons.search, size: 20), label: const Text('Jobcenter suchen'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12))),
-        ]))
-      else ...[
-        Row(children: [
-          Text('Zuständiges Jobcenter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-          const Spacer(),
-          TextButton.icon(icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('Ändern', style: TextStyle(fontSize: 12)), onPressed: _openSearch),
-        ]),
-        const SizedBox(height: 8),
-        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)),
-          child: Row(children: [
+      Row(children: [
+        Text('Zuständiges Jobcenter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const Spacer(),
+        TextButton.icon(icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('Ändern', style: TextStyle(fontSize: 12)), onPressed: _openSearch),
+      ]),
+      const SizedBox(height: 12),
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
             Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(12)),
               child: Icon(Icons.business_center, color: Colors.red.shade700, size: 28)),
             const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_selected!['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-              if ((_selected!['adresse']?.toString() ?? '').isNotEmpty) Text('${_selected!['adresse']}, ${_selected!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
-              if ((_selected!['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${_selected!['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-            ])),
+            Expanded(child: Text(s['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800))),
             IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selected = null)),
           ]),
-        ),
-        const Divider(height: 24),
-
-        // Stammdaten
-        Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _field('Kundennummer', _kundennummerC, icon: Icons.badge)),
-          const SizedBox(width: 12),
-          Expanded(child: _field('BG-Nummer', _bgNummerC, icon: Icons.numbers)),
+          const Divider(height: 20),
+          _infoRow(Icons.location_on, 'Adresse', '${s['adresse'] ?? ''}, ${s['ort'] ?? ''}'.trim()),
+          _infoRow(Icons.phone, 'Telefon', s['telefon']?.toString() ?? ''),
+          _infoRow(Icons.fax, 'Fax', s['fax']?.toString() ?? ''),
+          _infoRow(Icons.email, 'E-Mail', s['email']?.toString() ?? ''),
         ]),
-        const Divider(height: 16),
-
-        // Sachbearbeiter
-        Text('Sachbearbeiter / Arbeitsvermittler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-        const SizedBox(height: 8),
-        _field('Arbeitsvermittler/in (pAp)', _arbeitsvermittlerC, icon: Icons.support_agent),
-        Row(children: [
-          Expanded(child: _field('Telefon', _arbeitsvermittlerTelC, icon: Icons.phone)),
-          const SizedBox(width: 12),
-          Expanded(child: _field('E-Mail', _arbeitsvermittlerEmailC, icon: Icons.email)),
-        ]),
-        const SizedBox(height: 16),
-        Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-          onPressed: _saving ? null : _save,
-          icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-          label: const Text('Speichern'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
-        )),
-      ],
+      ),
     ]));
   }
 }
@@ -881,5 +850,107 @@ class _AntragTerminTabState extends State<_AntragTerminTab> {
             ));
           })),
     ]);
+  }
+}
+
+// ==================== TAB 3: Stammdaten (readonly) ====================
+
+class _JobcenterStammdatenFieldsTab extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final ApiService apiService;
+  final int userId;
+  final Future<void> Function(Map<String, String>) onSave;
+  const _JobcenterStammdatenFieldsTab({required this.data, required this.apiService, required this.userId, required this.onSave});
+  @override
+  State<_JobcenterStammdatenFieldsTab> createState() => _JobcenterStammdatenFieldsTabState();
+}
+class _JobcenterStammdatenFieldsTabState extends State<_JobcenterStammdatenFieldsTab> {
+  late TextEditingController _kundennummerC, _bgNummerC;
+  bool _editing = false, _saving = false;
+  @override
+  void initState() { super.initState(); _kundennummerC = TextEditingController(text: widget.data['stammdaten.kundennummer'] ?? ''); _bgNummerC = TextEditingController(text: widget.data['stammdaten.bg_nummer'] ?? ''); }
+  @override
+  void dispose() { _kundennummerC.dispose(); _bgNummerC.dispose(); super.dispose(); }
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.onSave({'stammdaten.kundennummer': _kundennummerC.text.trim(), 'stammdaten.bg_nummer': _bgNummerC.text.trim()});
+    if (mounted) { setState(() { _saving = false; _editing = false; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Stammdaten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+        const Spacer(),
+        TextButton.icon(icon: Icon(_editing ? Icons.lock : Icons.edit, size: 16), label: Text(_editing ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)), onPressed: () => setState(() => _editing = !_editing)),
+      ]),
+      const SizedBox(height: 16),
+      TextField(controller: _kundennummerC, readOnly: !_editing, decoration: InputDecoration(labelText: 'Kundennummer', prefixIcon: const Icon(Icons.badge, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
+      const SizedBox(height: 12),
+      TextField(controller: _bgNummerC, readOnly: !_editing, decoration: InputDecoration(labelText: 'BG-Nummer', prefixIcon: const Icon(Icons.numbers, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
+      if (_editing) ...[const SizedBox(height: 16), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
+        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)))],
+    ]));
+  }
+}
+
+// ==================== TAB 4: Arbeitsvermittler (readonly) ====================
+
+class _JobcenterArbeitsvermittlerTab extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final ApiService apiService;
+  final int userId;
+  final Future<void> Function(Map<String, String>) onSave;
+  const _JobcenterArbeitsvermittlerTab({required this.data, required this.apiService, required this.userId, required this.onSave});
+  @override
+  State<_JobcenterArbeitsvermittlerTab> createState() => _JobcenterArbeitsvermittlerTabState();
+}
+class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermittlerTab> {
+  late TextEditingController _vornameC, _nameC, _telefonC, _emailC, _zimmerC;
+  bool _editing = false, _saving = false;
+  @override
+  void initState() {
+    super.initState();
+    _vornameC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_vorname'] ?? '');
+    _nameC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler'] ?? '');
+    _telefonC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_tel'] ?? '');
+    _emailC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_email'] ?? '');
+    _zimmerC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_zimmer'] ?? '');
+  }
+  @override
+  void dispose() { _vornameC.dispose(); _nameC.dispose(); _telefonC.dispose(); _emailC.dispose(); _zimmerC.dispose(); super.dispose(); }
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.onSave({
+      'stammdaten.arbeitsvermittler_vorname': _vornameC.text.trim(), 'stammdaten.arbeitsvermittler': _nameC.text.trim(),
+      'stammdaten.arbeitsvermittler_tel': _telefonC.text.trim(), 'stammdaten.arbeitsvermittler_email': _emailC.text.trim(),
+      'stammdaten.arbeitsvermittler_zimmer': _zimmerC.text.trim(),
+    });
+    if (mounted) { setState(() { _saving = false; _editing = false; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+  Widget _f(String label, TextEditingController c, IconData icon) =>
+    Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: c, readOnly: !_editing, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)));
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.support_agent, size: 22, color: Colors.teal.shade700),
+        const SizedBox(width: 8),
+        Text('Arbeitsvermittler / pAp', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+        const Spacer(),
+        TextButton.icon(icon: Icon(_editing ? Icons.lock : Icons.edit, size: 16), label: Text(_editing ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)), onPressed: () => setState(() => _editing = !_editing)),
+      ]),
+      const SizedBox(height: 16),
+      Row(children: [Expanded(child: _f('Vorname', _vornameC, Icons.person)), const SizedBox(width: 12), Expanded(child: _f('Nachname', _nameC, Icons.person))]),
+      _f('Telefon / Durchwahl', _telefonC, Icons.phone),
+      _f('E-Mail', _emailC, Icons.email),
+      _f('Zimmernummer', _zimmerC, Icons.meeting_room),
+      if (_editing) ...[const SizedBox(height: 8), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
+        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)))],
+    ]));
   }
 }
