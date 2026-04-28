@@ -478,9 +478,9 @@ class _VertraegeContentState extends State<VertraegeContent> {
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        insetPadding: const EdgeInsets.all(16),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: SizedBox(
-          width: 800, height: 700,
+          width: double.infinity, height: MediaQuery.of(context).size.height * 0.85,
           child: _VertragDetailView(
             apiService: widget.apiService,
             vertrag: v,
