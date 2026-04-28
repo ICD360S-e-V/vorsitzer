@@ -2200,7 +2200,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             // Tab 5: K\u00FCndigung (enhanced)
                             buildKuendigungTab(),
                             // Tab 6: Vorfall
-                            _buildVorfallTab(ag, data, setDlg),
+                            _buildVorfallTab(ag, <String, dynamic>{}, setModalState),
                             // Tab 7: Sonstiges
                             buildDokTab('sonstiges', dokTypen['sonstiges']!),
                           ],
