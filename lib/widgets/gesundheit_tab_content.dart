@@ -14214,7 +14214,42 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               final color = expired ? Colors.red : (befristet ? Colors.orange : Colors.green);
               return Card(margin: const EdgeInsets.only(bottom: 8), child: Column(mainAxisSize: MainAxisSize.min, children: [
                 ListTile(
-                  onTap: () => addOrEdit(existing: a, editIndex: i),
+                  onTap: () {
+                    showDialog(context: context, builder: (detCtx) => AlertDialog(
+                      title: Row(children: [
+                        Icon(Icons.verified, size: 20, color: color.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(a['titel']?.toString() ?? 'Ärztliches Attest', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
+                        IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade500), tooltip: 'Bearbeiten', onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
+                      ]),
+                      content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                        Row(children: [
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
+                            child: Text(befristet ? (expired ? 'Abgelaufen' : 'Befristet') : 'Unbefristet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+                          const Spacer(),
+                          if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Ausgestellt: ${a['datum']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                        ]),
+                        if (befristet && gueltigBis.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            Icon(Icons.event, size: 16, color: color.shade600),
+                            const SizedBox(width: 6),
+                            Text('Gültig bis: $gueltigBis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade700)),
+                          ]),
+                        ],
+                        if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                          const SizedBox(height: 4),
+                          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                            child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+                        ],
+                        const SizedBox(height: 16),
+                        _buildBerichtDokumente(type, 'attest_${a['erstellt_am'] ?? i}', setLocal),
+                      ]))),
+                      actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
+                    ));
+                  },
                   leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(expired ? Icons.warning : Icons.verified, color: color.shade700, size: 20)),
                   title: Text(a['titel']?.toString() ?? 'Ärztliches Attest', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Row(children: [
@@ -14228,8 +14263,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     final list = List<dynamic>.from(data['atteste'] as List)..removeAt(i); data['atteste'] = list; saveAll(); setLocal(() {});
                   }),
                 ),
-                Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-                  child: _buildBerichtDokumente(type, 'attest_${a['erstellt_am'] ?? i}', setLocal)),
               ]));
             })),
       ]);
