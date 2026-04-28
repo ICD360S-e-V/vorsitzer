@@ -381,7 +381,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 3, vsync: this);
+    _tabC = TabController(length: 7, vsync: this);
   }
 
   @override
@@ -401,15 +401,23 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
           Expanded(child: Text(art, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800), overflow: TextOverflow.ellipsis)),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ])),
-      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, tabs: const [
+      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
         Tab(text: 'Details'),
         Tab(text: 'Korrespondenz'),
-        Tab(text: 'Termin'),
+        Tab(text: 'Terminen'),
+        Tab(text: 'Bewilligungsbescheid'),
+        Tab(text: 'EGV'),
+        Tab(text: 'Sanktionen'),
+        Tab(text: 'Begutachtung'),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
         _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
         _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+        _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+        _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+        _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+        _AntragBegutachtungTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
       ])),
     ]);
   }
@@ -430,12 +438,6 @@ class _AntragDetailsTab extends StatefulWidget {
 class _AntragDetailsTabState extends State<_AntragDetailsTab> {
   late String _art, _status;
   late TextEditingController _datumC, _aktenzeichenC, _notizC;
-  late TextEditingController _bescheidVonC, _bescheidBisC, _bescheidBetragC, _regelsatzC, _kduC, _heizkostenC, _mehrbedarfC, _mehrbedarfGrundC;
-  late TextEditingController _egvVonC, _egvBisC, _egvPflichtenC;
-  late TextEditingController _massnahmeNameC, _massnahmeVonC, _massnahmeBisC, _massnahmeTraegerC;
-  late TextEditingController _sanktionNotizC;
-  late String _massnahmeArt, _massnahmeStatus;
-  bool _hasEgv = false, _hasMassnahme = false, _hasSanktion = false;
   bool _saving = false;
 
   @override
@@ -447,56 +449,21 @@ class _AntragDetailsTabState extends State<_AntragDetailsTab> {
     _datumC = TextEditingController(text: a['datum']?.toString() ?? '');
     _aktenzeichenC = TextEditingController(text: a['aktenzeichen']?.toString() ?? '');
     _notizC = TextEditingController(text: a['notiz']?.toString() ?? '');
-    _bescheidVonC = TextEditingController(text: a['bescheid_von']?.toString() ?? '');
-    _bescheidBisC = TextEditingController(text: a['bescheid_bis']?.toString() ?? '');
-    _bescheidBetragC = TextEditingController(text: a['bescheid_betrag']?.toString() ?? '');
-    _regelsatzC = TextEditingController(text: a['regelsatz']?.toString() ?? '');
-    _kduC = TextEditingController(text: a['kdu']?.toString() ?? '');
-    _heizkostenC = TextEditingController(text: a['heizkosten']?.toString() ?? '');
-    _mehrbedarfC = TextEditingController(text: a['mehrbedarf']?.toString() ?? '');
-    _mehrbedarfGrundC = TextEditingController(text: a['mehrbedarf_grund']?.toString() ?? '');
-    _egvVonC = TextEditingController(text: a['egv_von']?.toString() ?? '');
-    _egvBisC = TextEditingController(text: a['egv_bis']?.toString() ?? '');
-    _egvPflichtenC = TextEditingController(text: a['egv_pflichten']?.toString() ?? '');
-    _massnahmeNameC = TextEditingController(text: a['massnahme_name']?.toString() ?? '');
-    _massnahmeVonC = TextEditingController(text: a['massnahme_von']?.toString() ?? '');
-    _massnahmeBisC = TextEditingController(text: a['massnahme_bis']?.toString() ?? '');
-    _massnahmeTraegerC = TextEditingController(text: a['massnahme_traeger']?.toString() ?? '');
-    _sanktionNotizC = TextEditingController(text: a['sanktion_notiz']?.toString() ?? '');
-    _massnahmeArt = a['massnahme_art']?.toString() ?? '';
-    _massnahmeStatus = a['massnahme_status']?.toString() ?? '';
-    _hasEgv = a['has_egv']?.toString() == 'true';
-    _hasMassnahme = a['has_massnahme']?.toString() == 'true';
+    // Bewilligungsbescheid, EGV, Sanktionen, Begutachtung moved to own tabs
     _hasSanktion = a['has_sanktion']?.toString() == 'true';
   }
 
   @override
-  void dispose() {
-    _datumC.dispose(); _aktenzeichenC.dispose(); _notizC.dispose();
-    _bescheidVonC.dispose(); _bescheidBisC.dispose(); _bescheidBetragC.dispose();
-    _regelsatzC.dispose(); _kduC.dispose(); _heizkostenC.dispose();
-    _mehrbedarfC.dispose(); _mehrbedarfGrundC.dispose();
-    _egvVonC.dispose(); _egvBisC.dispose(); _egvPflichtenC.dispose();
-    _massnahmeNameC.dispose(); _massnahmeVonC.dispose(); _massnahmeBisC.dispose(); _massnahmeTraegerC.dispose();
-    _sanktionNotizC.dispose();
-    super.dispose();
-  }
+  @override
+  void dispose() { _datumC.dispose(); _aktenzeichenC.dispose(); _notizC.dispose(); super.dispose(); }
 
   Future<void> _save() async {
     setState(() => _saving = true);
     await widget.apiService.jobcenterAction(widget.userId, {
       'action': 'save_antrag',
       'antrag': {
-        'id': widget.antrag['id'],
+        ...widget.antrag,
         'art': _art, 'status': _status, 'datum': _datumC.text, 'aktenzeichen': _aktenzeichenC.text, 'notiz': _notizC.text,
-        'bescheid_von': _bescheidVonC.text, 'bescheid_bis': _bescheidBisC.text, 'bescheid_betrag': _bescheidBetragC.text,
-        'regelsatz': _regelsatzC.text, 'kdu': _kduC.text, 'heizkosten': _heizkostenC.text,
-        'mehrbedarf': _mehrbedarfC.text, 'mehrbedarf_grund': _mehrbedarfGrundC.text,
-        'has_egv': _hasEgv.toString(), 'egv_von': _egvVonC.text, 'egv_bis': _egvBisC.text, 'egv_pflichten': _egvPflichtenC.text,
-        'has_massnahme': _hasMassnahme.toString(), 'massnahme_art': _massnahmeArt, 'massnahme_status': _massnahmeStatus,
-        'massnahme_name': _massnahmeNameC.text, 'massnahme_traeger': _massnahmeTraegerC.text,
-        'massnahme_von': _massnahmeVonC.text, 'massnahme_bis': _massnahmeBisC.text,
-        'has_sanktion': _hasSanktion.toString(), 'sanktion_notiz': _sanktionNotizC.text,
       },
     });
     await widget.onReload();
@@ -543,76 +510,6 @@ class _AntragDetailsTabState extends State<_AntragDetailsTab> {
       ]),
       _field('Notiz', _notizC, icon: Icons.notes, maxLines: 2),
 
-      // Bewilligungsbescheid
-      _section(Icons.description, 'Bewilligungsbescheid', Colors.green.shade700, [
-        Row(children: [Expanded(child: _dateField('Von', _bescheidVonC)), const SizedBox(width: 8), Expanded(child: _dateField('Bis', _bescheidBisC))]),
-        Row(children: [Expanded(child: _field('Gesamtbetrag €/Mo', _bescheidBetragC, icon: Icons.euro)), const SizedBox(width: 8), Expanded(child: _field('Regelsatz €', _regelsatzC, icon: Icons.account_balance_wallet))]),
-        Row(children: [Expanded(child: _field('KdU Miete €', _kduC, icon: Icons.home)), const SizedBox(width: 8), Expanded(child: _field('Heizkosten €', _heizkostenC, icon: Icons.local_fire_department))]),
-        Row(children: [Expanded(child: _field('Mehrbedarf €', _mehrbedarfC, icon: Icons.add_circle)), const SizedBox(width: 8), Expanded(child: _field('Mehrbedarf Grund', _mehrbedarfGrundC, icon: Icons.info))]),
-      ]),
-
-      // EGV
-      _section(Icons.handshake, 'EGV / Kooperationsplan', Colors.purple.shade700, [
-        Row(children: [
-          Text('Vorhanden', style: TextStyle(fontSize: 12, color: Colors.purple.shade700)),
-          const Spacer(),
-          Switch(value: _hasEgv, onChanged: (v) => setState(() => _hasEgv = v), activeThumbColor: Colors.purple),
-        ]),
-        if (_hasEgv) ...[
-          Row(children: [Expanded(child: _dateField('Von', _egvVonC)), const SizedBox(width: 8), Expanded(child: _dateField('Bis', _egvBisC))]),
-          _field('Pflichten / Eigenbemühungen', _egvPflichtenC, icon: Icons.checklist, maxLines: 2),
-        ],
-      ]),
-
-      // Maßnahme
-      _section(Icons.school, 'Maßnahme / Programm', Colors.cyan.shade700, [
-        Row(children: [
-          Text('Aktiv', style: TextStyle(fontSize: 12, color: Colors.cyan.shade700)),
-          const Spacer(),
-          Switch(value: _hasMassnahme, onChanged: (v) => setState(() => _hasMassnahme = v), activeThumbColor: Colors.cyan.shade700),
-        ]),
-        if (_hasMassnahme) ...[
-          Row(children: [
-            Expanded(child: DropdownButtonFormField<String>(value: _massnahmeArt.isEmpty ? null : _massnahmeArt, decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-              items: const [
-                DropdownMenuItem(value: 'bewerbungstraining', child: Text('Bewerbungstraining', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'aktivierung', child: Text('Aktivierungsmaßnahme', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'agh', child: Text('Arbeitsgelegenheit (1€-Job)', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'umschulung', child: Text('Umschulung', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'weiterbildung', child: Text('Weiterbildung (FbW)', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'sprachkurs', child: Text('Sprachkurs', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'praktikum', child: Text('Praktikum', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'coaching', child: Text('Coaching (AVGS)', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges', style: TextStyle(fontSize: 11))),
-              ],
-              onChanged: (v) => setState(() => _massnahmeArt = v ?? ''))),
-            const SizedBox(width: 8),
-            Expanded(child: DropdownButtonFormField<String>(value: _massnahmeStatus.isEmpty ? null : _massnahmeStatus, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-              items: const [
-                DropdownMenuItem(value: 'zugewiesen', child: Text('Zugewiesen', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'aktiv', child: Text('Aktiv', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'abgeschlossen', child: Text('Abgeschlossen', style: TextStyle(fontSize: 11))),
-                DropdownMenuItem(value: 'abgebrochen', child: Text('Abgebrochen', style: TextStyle(fontSize: 11))),
-              ],
-              onChanged: (v) => setState(() => _massnahmeStatus = v ?? ''))),
-          ]),
-          const SizedBox(height: 8),
-          _field('Bezeichnung', _massnahmeNameC, icon: Icons.label),
-          _field('Träger', _massnahmeTraegerC, icon: Icons.business),
-          Row(children: [Expanded(child: _dateField('Beginn', _massnahmeVonC)), const SizedBox(width: 8), Expanded(child: _dateField('Ende', _massnahmeBisC))]),
-        ],
-      ]),
-
-      // Sanktion
-      _section(Icons.warning_amber, 'Sanktionen', Colors.red.shade700, [
-        Row(children: [
-          Text('Aktiv', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
-          const Spacer(),
-          Switch(value: _hasSanktion, onChanged: (v) => setState(() => _hasSanktion = v), activeThumbColor: Colors.red),
-        ]),
-        if (_hasSanktion) _field('Details', _sanktionNotizC, icon: Icons.notes, maxLines: 2),
-      ]),
-
       const SizedBox(height: 8),
       Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
         onPressed: _saving ? null : _save,
@@ -620,6 +517,175 @@ class _AntragDetailsTabState extends State<_AntragDetailsTab> {
         label: const Text('Speichern'),
         style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
       )),
+    ]));
+  }
+}
+
+// ==================== BEWILLIGUNGSBESCHEID TAB ====================
+class _AntragBescheidTab extends StatefulWidget {
+  final Map<String, dynamic> antrag;
+  final ApiService apiService;
+  final int userId;
+  final Future<void> Function() onReload;
+  const _AntragBescheidTab({required this.antrag, required this.apiService, required this.userId, required this.onReload});
+  @override
+  State<_AntragBescheidTab> createState() => _AntragBescheidTabState();
+}
+class _AntragBescheidTabState extends State<_AntragBescheidTab> {
+  late TextEditingController _bescheidVonC, _bescheidBisC, _bescheidBetragC, _regelsatzC, _kduC, _heizkostenC, _mehrbedarfC, _mehrbedarfGrundC;
+  bool _saving = false;
+  @override
+  void initState() { super.initState(); final a = widget.antrag;
+    _bescheidVonC = TextEditingController(text: a['bescheid_von']?.toString() ?? ''); _bescheidBisC = TextEditingController(text: a['bescheid_bis']?.toString() ?? '');
+    _bescheidBetragC = TextEditingController(text: a['bescheid_betrag']?.toString() ?? ''); _regelsatzC = TextEditingController(text: a['regelsatz']?.toString() ?? '');
+    _kduC = TextEditingController(text: a['kdu']?.toString() ?? ''); _heizkostenC = TextEditingController(text: a['heizkosten']?.toString() ?? '');
+    _mehrbedarfC = TextEditingController(text: a['mehrbedarf']?.toString() ?? ''); _mehrbedarfGrundC = TextEditingController(text: a['mehrbedarf_grund']?.toString() ?? ''); }
+  @override
+  void dispose() { _bescheidVonC.dispose(); _bescheidBisC.dispose(); _bescheidBetragC.dispose(); _regelsatzC.dispose(); _kduC.dispose(); _heizkostenC.dispose(); _mehrbedarfC.dispose(); _mehrbedarfGrundC.dispose(); super.dispose(); }
+  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13)));
+  Widget _dateField(String label, TextEditingController c) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, readOnly: true, decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13), onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }));
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, 'bescheid_von': _bescheidVonC.text, 'bescheid_bis': _bescheidBisC.text, 'bescheid_betrag': _bescheidBetragC.text, 'regelsatz': _regelsatzC.text, 'kdu': _kduC.text, 'heizkosten': _heizkostenC.text, 'mehrbedarf': _mehrbedarfC.text, 'mehrbedarf_grund': _mehrbedarfGrundC.text}});
+    await widget.onReload();
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Bewilligungsbescheid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+      const SizedBox(height: 12),
+        Row(children: [Expanded(child: _dateField('Von', _bescheidVonC)), const SizedBox(width: 8), Expanded(child: _dateField('Bis', _bescheidBisC))]),
+        Row(children: [Expanded(child: _field('Gesamtbetrag €/Mo', _bescheidBetragC, icon: Icons.euro)), const SizedBox(width: 8), Expanded(child: _field('Regelsatz €', _regelsatzC, icon: Icons.account_balance_wallet))]),
+        Row(children: [Expanded(child: _field('KdU Miete €', _kduC, icon: Icons.home)), const SizedBox(width: 8), Expanded(child: _field('Heizkosten €', _heizkostenC, icon: Icons.local_fire_department))]),
+        Row(children: [Expanded(child: _field('Mehrbedarf €', _mehrbedarfC, icon: Icons.add_circle)), const SizedBox(width: 8), Expanded(child: _field('Mehrbedarf Grund', _mehrbedarfGrundC, icon: Icons.info))]),
+      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white))),
+    ]));
+  }
+}
+
+// ==================== EGV TAB (with Maßnahme) ====================
+class _AntragEgvTab extends StatefulWidget {
+  final Map<String, dynamic> antrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
+  const _AntragEgvTab({required this.antrag, required this.apiService, required this.userId, required this.onReload});
+  @override State<_AntragEgvTab> createState() => _AntragEgvTabState();
+}
+class _AntragEgvTabState extends State<_AntragEgvTab> {
+  late TextEditingController _egvVonC, _egvBisC, _egvPflichtenC, _massnahmeNameC, _massnahmeVonC, _massnahmeBisC, _massnahmeTraegerC;
+  late String _massnahmeArt, _massnahmeStatus;
+  bool _hasEgv = false, _hasMassnahme = false, _saving = false;
+  @override void initState() { super.initState(); final a = widget.antrag;
+    _egvVonC = TextEditingController(text: a['egv_von']?.toString() ?? ''); _egvBisC = TextEditingController(text: a['egv_bis']?.toString() ?? '');
+    _egvPflichtenC = TextEditingController(text: a['egv_pflichten']?.toString() ?? '');
+    _massnahmeNameC = TextEditingController(text: a['massnahme_name']?.toString() ?? ''); _massnahmeVonC = TextEditingController(text: a['massnahme_von']?.toString() ?? '');
+    _massnahmeBisC = TextEditingController(text: a['massnahme_bis']?.toString() ?? ''); _massnahmeTraegerC = TextEditingController(text: a['massnahme_traeger']?.toString() ?? '');
+    _massnahmeArt = a['massnahme_art']?.toString() ?? ''; _massnahmeStatus = a['massnahme_status']?.toString() ?? '';
+    _hasEgv = a['has_egv']?.toString() == 'true'; _hasMassnahme = a['has_massnahme']?.toString() == 'true'; }
+  @override void dispose() { _egvVonC.dispose(); _egvBisC.dispose(); _egvPflichtenC.dispose(); _massnahmeNameC.dispose(); _massnahmeVonC.dispose(); _massnahmeBisC.dispose(); _massnahmeTraegerC.dispose(); super.dispose(); }
+  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit, int maxLines = 1}) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 13)));
+  Widget _dateField(String label, TextEditingController c) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, readOnly: true, decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 13), onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) c.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; }));
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, 'has_egv': _hasEgv.toString(), 'egv_von': _egvVonC.text, 'egv_bis': _egvBisC.text, 'egv_pflichten': _egvPflichtenC.text, 'has_massnahme': _hasMassnahme.toString(), 'massnahme_art': _massnahmeArt, 'massnahme_status': _massnahmeStatus, 'massnahme_name': _massnahmeNameC.text, 'massnahme_traeger': _massnahmeTraegerC.text, 'massnahme_von': _massnahmeVonC.text, 'massnahme_bis': _massnahmeBisC.text}});
+    await widget.onReload();
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+  @override Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.handshake, size: 20, color: Colors.purple.shade700), const SizedBox(width: 8), Text('EGV / Kooperationsplan', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+        const Spacer(), Switch(value: _hasEgv, onChanged: (v) => setState(() => _hasEgv = v), activeThumbColor: Colors.purple)]),
+      if (_hasEgv) ...[const SizedBox(height: 12),
+        Row(children: [Expanded(child: _dateField('Von', _egvVonC)), const SizedBox(width: 8), Expanded(child: _dateField('Bis', _egvBisC))]),
+        _field('Pflichten / Eigenbemühungen', _egvPflichtenC, icon: Icons.checklist, maxLines: 3),
+      ],
+      const Divider(height: 24),
+      Row(children: [Icon(Icons.school, size: 20, color: Colors.cyan.shade700), const SizedBox(width: 8), Text('Maßnahme / Programm', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.cyan.shade800)),
+        const Spacer(), Switch(value: _hasMassnahme, onChanged: (v) => setState(() => _hasMassnahme = v), activeThumbColor: Colors.cyan.shade700)]),
+      if (_hasMassnahme) ...[const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: DropdownButtonFormField<String>(value: _massnahmeArt.isEmpty ? null : _massnahmeArt, decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: const [DropdownMenuItem(value: 'bewerbungstraining', child: Text('Bewerbungstraining', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'aktivierung', child: Text('Aktivierungsmaßnahme', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'agh', child: Text('Arbeitsgelegenheit', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'umschulung', child: Text('Umschulung', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'weiterbildung', child: Text('Weiterbildung (FbW)', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'sprachkurs', child: Text('Sprachkurs', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'praktikum', child: Text('Praktikum', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'coaching', child: Text('Coaching (AVGS)', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges', style: TextStyle(fontSize: 11)))],
+            onChanged: (v) => setState(() => _massnahmeArt = v ?? ''))),
+          const SizedBox(width: 8),
+          Expanded(child: DropdownButtonFormField<String>(value: _massnahmeStatus.isEmpty ? null : _massnahmeStatus, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: const [DropdownMenuItem(value: 'zugewiesen', child: Text('Zugewiesen', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'aktiv', child: Text('Aktiv', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'abgeschlossen', child: Text('Abgeschlossen', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'abgebrochen', child: Text('Abgebrochen', style: TextStyle(fontSize: 11)))],
+            onChanged: (v) => setState(() => _massnahmeStatus = v ?? ''))),
+        ]),
+        const SizedBox(height: 8), _field('Bezeichnung', _massnahmeNameC, icon: Icons.label), _field('Träger', _massnahmeTraegerC, icon: Icons.business),
+        Row(children: [Expanded(child: _dateField('Beginn', _massnahmeVonC)), const SizedBox(width: 8), Expanded(child: _dateField('Ende', _massnahmeBisC))]),
+      ],
+      const SizedBox(height: 12),
+      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white))),
+    ]));
+  }
+}
+
+// ==================== SANKTIONEN TAB ====================
+class _AntragSanktionenTab extends StatefulWidget {
+  final Map<String, dynamic> antrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
+  const _AntragSanktionenTab({required this.antrag, required this.apiService, required this.userId, required this.onReload});
+  @override State<_AntragSanktionenTab> createState() => _AntragSanktionenTabState();
+}
+class _AntragSanktionenTabState extends State<_AntragSanktionenTab> {
+  late TextEditingController _sanktionNotizC;
+  bool _hasSanktion = false, _saving = false;
+  @override void initState() { super.initState(); _sanktionNotizC = TextEditingController(text: widget.antrag['sanktion_notiz']?.toString() ?? ''); _hasSanktion = widget.antrag['has_sanktion']?.toString() == 'true'; }
+  @override void dispose() { _sanktionNotizC.dispose(); super.dispose(); }
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, 'has_sanktion': _hasSanktion.toString(), 'sanktion_notiz': _sanktionNotizC.text}});
+    await widget.onReload();
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+  @override Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.warning_amber, size: 22, color: Colors.red.shade700), const SizedBox(width: 8), Text('Sanktionen / Leistungsminderung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const Spacer(), Switch(value: _hasSanktion, onChanged: (v) => setState(() => _hasSanktion = v), activeThumbColor: Colors.red)]),
+      if (_hasSanktion) ...[const SizedBox(height: 12),
+        TextField(controller: _sanktionNotizC, maxLines: 5, decoration: InputDecoration(labelText: 'Details zur Sanktion (Grund, Minderung %, Zeitraum, Widerspruch...)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white))),
+      ],
+    ]));
+  }
+}
+
+// ==================== BEGUTACHTUNG / ÄRZTLICHER DIENST TAB ====================
+class _AntragBegutachtungTab extends StatefulWidget {
+  final Map<String, dynamic> antrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
+  const _AntragBegutachtungTab({required this.antrag, required this.apiService, required this.userId, required this.onReload});
+  @override State<_AntragBegutachtungTab> createState() => _AntragBegutachtungTabState();
+}
+class _AntragBegutachtungTabState extends State<_AntragBegutachtungTab> {
+  late TextEditingController _datumC, _ortC, _gutachterC, _ergebnisC, _notizC;
+  bool _saving = false;
+  @override void initState() { super.initState(); final a = widget.antrag;
+    _datumC = TextEditingController(text: a['begutachtung_datum']?.toString() ?? ''); _ortC = TextEditingController(text: a['begutachtung_ort']?.toString() ?? '');
+    _gutachterC = TextEditingController(text: a['begutachtung_gutachter']?.toString() ?? ''); _ergebnisC = TextEditingController(text: a['begutachtung_ergebnis']?.toString() ?? '');
+    _notizC = TextEditingController(text: a['begutachtung_notiz']?.toString() ?? ''); }
+  @override void dispose() { _datumC.dispose(); _ortC.dispose(); _gutachterC.dispose(); _ergebnisC.dispose(); _notizC.dispose(); super.dispose(); }
+  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit, int maxLines = 1}) => Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 13)));
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, 'begutachtung_datum': _datumC.text, 'begutachtung_ort': _ortC.text, 'begutachtung_gutachter': _gutachterC.text, 'begutachtung_ergebnis': _ergebnisC.text, 'begutachtung_notiz': _notizC.text}});
+    await widget.onReload();
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+  @override Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.medical_services, size: 22, color: Colors.indigo.shade700), const SizedBox(width: 8), Text('Begutachtung / Ärztlicher Dienst', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))]),
+      const SizedBox(height: 16),
+      TextField(controller: _datumC, readOnly: true, decoration: InputDecoration(labelText: 'Termin-Datum', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) _datumC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; }),
+      const SizedBox(height: 10),
+      _field('Ort / Adresse', _ortC, icon: Icons.location_on),
+      _field('Gutachter / Arzt', _gutachterC, icon: Icons.person),
+      _field('Ergebnis', _ergebnisC, icon: Icons.assignment, maxLines: 2),
+      _field('Notizen', _notizC, icon: Icons.notes, maxLines: 3),
+      const SizedBox(height: 8),
+      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white))),
     ]));
   }
 }
