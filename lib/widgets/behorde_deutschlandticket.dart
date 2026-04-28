@@ -42,7 +42,7 @@ class _State extends State<BehordeDeutschlandticketContent> with TickerProviderS
         Tab(text: 'Vertrag'),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
-        _FirmaTab(data: _data, apiService: widget.apiService, userId: widget.userId),
+        _FirmaTab(data: _data, apiService: widget.apiService, userId: widget.userId, onReload: _load),
         _VertragTab(vertraege: _vertraege, apiService: widget.apiService, userId: widget.userId, onReload: _load),
       ])),
     ]);
@@ -51,8 +51,8 @@ class _State extends State<BehordeDeutschlandticketContent> with TickerProviderS
 
 // ==================== ZUSTÄNDIGE FIRMA ====================
 class _FirmaTab extends StatefulWidget {
-  final Map<String, dynamic> data; final ApiService apiService; final int userId;
-  const _FirmaTab({required this.data, required this.apiService, required this.userId});
+  final Map<String, dynamic> data; final ApiService apiService; final int userId; final Future<void> Function() onReload;
+  const _FirmaTab({required this.data, required this.apiService, required this.userId, required this.onReload});
   @override State<_FirmaTab> createState() => _FirmaTabState();
 }
 class _FirmaTabState extends State<_FirmaTab> {
@@ -101,6 +101,7 @@ class _FirmaTabState extends State<_FirmaTab> {
       'stammdaten.selected_firma_ort': '${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim(), 'stammdaten.selected_firma_telefon': s['telefon']?.toString() ?? '',
       'stammdaten.selected_firma_email': s['email']?.toString() ?? '', 'stammdaten.selected_firma_website': s['website']?.toString() ?? '', 'stammdaten.selected_firma_notiz': s['notiz']?.toString() ?? '',
     }});
+    await widget.onReload();
   }
 
   Widget _row(IconData icon, String label, String value) { if (value.isEmpty) return const SizedBox.shrink();
