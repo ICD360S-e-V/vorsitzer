@@ -450,7 +450,6 @@ class _AntragDetailsTabState extends State<_AntragDetailsTab> {
     _aktenzeichenC = TextEditingController(text: a['aktenzeichen']?.toString() ?? '');
     _notizC = TextEditingController(text: a['notiz']?.toString() ?? '');
     // Bewilligungsbescheid, EGV, Sanktionen, Begutachtung moved to own tabs
-    _hasSanktion = a['has_sanktion']?.toString() == 'true';
   }
 
   @override
