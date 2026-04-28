@@ -65,112 +65,165 @@ class _VermieterStammdatenTab extends StatefulWidget {
   State<_VermieterStammdatenTab> createState() => _VermieterStammdatenTabState();
 }
 class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
-  late TextEditingController _firmaC, _adresseC, _telefonC, _emailC;
-  final _searchC = TextEditingController();
-  List<Map<String, dynamic>> _results = [];
   Map<String, dynamic>? _selected;
-  bool _searching = false;
   bool _saving = false;
+
   @override
   void initState() {
     super.initState();
-    _firmaC = TextEditingController(text: widget.data['stammdaten.firma'] ?? '');
-    _adresseC = TextEditingController(text: widget.data['stammdaten.firma_adresse'] ?? '');
-    _telefonC = TextEditingController(text: widget.data['stammdaten.telefon'] ?? '');
-    _emailC = TextEditingController(text: widget.data['stammdaten.email'] ?? '');
     final selName = widget.data['stammdaten.selected_name'] ?? '';
-    if (selName.isNotEmpty) _selected = {'name': selName, 'strasse': widget.data['stammdaten.selected_strasse'] ?? '', 'plz': widget.data['stammdaten.selected_plz'] ?? '', 'ort': widget.data['stammdaten.selected_ort'] ?? '', 'telefon': widget.data['stammdaten.selected_telefon'] ?? ''};
-  }
-  @override
-  void dispose() { _searchC.dispose(); _firmaC.dispose(); _adresseC.dispose(); _telefonC.dispose(); _emailC.dispose(); super.dispose(); }
-
-  Future<void> _search(String q) async {
-    if (q.length < 2) return;
-    setState(() => _searching = true);
-    try {
-      final res = await widget.apiService.searchVermieterDatenbank(q);
-      if (res['success'] == true) _results = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-    } catch (_) {}
-    if (mounted) setState(() => _searching = false);
-  }
-
-  void _selectVermieter(Map<String, dynamic> s) {
-    setState(() {
-      _selected = s;
-      _results = [];
-      _firmaC.text = s['name']?.toString() ?? '';
-      _adresseC.text = '${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim();
-      _telefonC.text = s['telefon']?.toString() ?? '';
-      _emailC.text = s['email']?.toString() ?? '';
-    });
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    final fields = <String, String>{
-      'stammdaten.firma': _firmaC.text.trim(), 'stammdaten.firma_adresse': _adresseC.text.trim(),
-      'stammdaten.telefon': _telefonC.text.trim(), 'stammdaten.email': _emailC.text.trim(),
-    };
-    if (_selected != null) {
-      fields['stammdaten.selected_name'] = _selected!['name']?.toString() ?? '';
-      fields['stammdaten.selected_strasse'] = _selected!['strasse']?.toString() ?? '';
-      fields['stammdaten.selected_plz'] = _selected!['plz']?.toString() ?? '';
-      fields['stammdaten.selected_ort'] = _selected!['ort']?.toString() ?? '';
-      fields['stammdaten.selected_telefon'] = _selected!['telefon']?.toString() ?? '';
+    if (selName.isNotEmpty) {
+      _selected = {
+        'name': selName,
+        'strasse': widget.data['stammdaten.selected_strasse'] ?? '',
+        'plz': widget.data['stammdaten.selected_plz'] ?? '',
+        'ort': widget.data['stammdaten.selected_ort'] ?? '',
+        'telefon': widget.data['stammdaten.selected_telefon'] ?? '',
+        'email': widget.data['stammdaten.selected_email'] ?? '',
+        'website': widget.data['stammdaten.selected_website'] ?? '',
+        'typ': widget.data['stammdaten.selected_typ'] ?? '',
+        'notiz': widget.data['stammdaten.selected_notiz'] ?? '',
+      };
     }
-    await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': fields});
-    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
-  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) =>
-    Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))));
+
+  void _openSearch() {
+    final searchC = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool searching = false;
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+      Future<void> doSearch(String q) async {
+        if (q.length < 2) return;
+        setDlg(() => searching = true);
+        try {
+          final res = await widget.apiService.searchVermieterDatenbank(q);
+          if (res['success'] == true) results = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        } catch (_) {}
+        setDlg(() => searching = false);
+      }
+      return AlertDialog(
+        title: Row(children: [
+          Icon(Icons.search, color: Colors.deepPurple.shade700),
+          const SizedBox(width: 8),
+          const Text('Vermieter suchen', style: TextStyle(fontSize: 16)),
+        ]),
+        content: SizedBox(width: 500, height: 400, child: Column(children: [
+          TextField(controller: searchC, autofocus: true,
+            decoration: InputDecoration(hintText: 'Name oder Ort eingeben...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixIcon: IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => doSearch(searchC.text))),
+            onSubmitted: doSearch),
+          const SizedBox(height: 12),
+          if (searching) const LinearProgressIndicator(),
+          Expanded(child: results.isEmpty
+            ? Center(child: Text(searching ? '' : 'Suchbegriff eingeben...', style: TextStyle(color: Colors.grey.shade400)))
+            : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                final s = results[i];
+                return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
+                  leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 20)),
+                  title: Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                    if ((s['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${s['telefon']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if ((s['typ']?.toString() ?? '').isNotEmpty) Text(s['typ'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade400)),
+                  ]),
+                  trailing: Icon(Icons.check_circle_outline, color: Colors.deepPurple.shade400),
+                  onTap: () { Navigator.pop(ctx); _selectAndSave(s); },
+                ));
+              })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      );
+    }));
+  }
+
+  Future<void> _selectAndSave(Map<String, dynamic> s) async {
+    setState(() { _selected = s; _saving = true; });
+    await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': {
+      'stammdaten.selected_name': s['name']?.toString() ?? '',
+      'stammdaten.selected_strasse': s['strasse']?.toString() ?? '',
+      'stammdaten.selected_plz': s['plz']?.toString() ?? '',
+      'stammdaten.selected_ort': s['ort']?.toString() ?? '',
+      'stammdaten.selected_telefon': s['telefon']?.toString() ?? '',
+      'stammdaten.selected_email': s['email']?.toString() ?? '',
+      'stammdaten.selected_website': s['website']?.toString() ?? '',
+      'stammdaten.selected_typ': s['typ']?.toString() ?? '',
+      'stammdaten.selected_notiz': s['notiz']?.toString() ?? '',
+    }});
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Vermieter gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+
+  Future<void> _clear() async {
+    setState(() { _selected = null; _saving = true; });
+    await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': {
+      'stammdaten.selected_name': '', 'stammdaten.selected_strasse': '', 'stammdaten.selected_plz': '',
+      'stammdaten.selected_ort': '', 'stammdaten.selected_telefon': '', 'stammdaten.selected_email': '',
+      'stammdaten.selected_website': '', 'stammdaten.selected_typ': '', 'stammdaten.selected_notiz': '',
+    }});
+    if (mounted) setState(() => _saving = false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_selected == null) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.apartment, size: 64, color: Colors.grey.shade300),
+        const SizedBox(height: 16),
+        Text('Kein Vermieter ausgewählt', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: _openSearch,
+          icon: const Icon(Icons.search, size: 20),
+          label: const Text('Vermieter suchen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+        ),
+      ]));
+    }
+    final s = _selected!;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Vermieter suchen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-      const SizedBox(height: 8),
       Row(children: [
-        Expanded(child: TextField(controller: _searchC, decoration: InputDecoration(hintText: 'Name oder Ort...', prefixIcon: const Icon(Icons.search, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onSubmitted: _search)),
-        const SizedBox(width: 8),
-        ElevatedButton(onPressed: () => _search(_searchC.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: const Text('Suchen')),
+        Text('Zuständiger Vermieter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+        const Spacer(),
+        TextButton.icon(icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('Ändern', style: TextStyle(fontSize: 12)), onPressed: _openSearch),
       ]),
-      if (_searching) const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator()),
-      if (_results.isNotEmpty) Container(
-        margin: const EdgeInsets.only(top: 8), constraints: const BoxConstraints(maxHeight: 200),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-        child: ListView.builder(shrinkWrap: true, itemCount: _results.length, itemBuilder: (ctx, i) {
-          final s = _results[i];
-          return ListTile(dense: true, title: Text(s['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
-            trailing: const Icon(Icons.check_circle_outline, size: 20),
-            onTap: () => _selectVermieter(s));
-        }),
-      ),
-      if (_selected != null) Container(
-        margin: const EdgeInsets.only(top: 12), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade200)),
-        child: Row(children: [
-          Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 24),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_selected!['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.deepPurple.shade800)),
-            Text('${_selected!['strasse'] ?? ''}, ${_selected!['plz'] ?? ''} ${_selected!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
-            if ((_selected!['telefon'] ?? '').isNotEmpty) Text('Tel: ${_selected!['telefon']}', style: const TextStyle(fontSize: 11)),
-          ])),
-          IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selected = null)),
+      const SizedBox(height: 12),
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.deepPurple.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.deepPurple.shade100, borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 28)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(s['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+              if ((s['typ']?.toString() ?? '').isNotEmpty) Text(s['typ'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade500)),
+            ])),
+            IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), tooltip: 'Entfernen', onPressed: _clear),
+          ]),
+          const Divider(height: 20),
+          _infoRow(Icons.location_on, 'Adresse', '${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim()),
+          if ((s['telefon']?.toString() ?? '').isNotEmpty) _infoRow(Icons.phone, 'Telefon', s['telefon'].toString()),
+          if ((s['email']?.toString() ?? '').isNotEmpty) _infoRow(Icons.email, 'E-Mail', s['email'].toString()),
+          if ((s['website']?.toString() ?? '').isNotEmpty) _infoRow(Icons.language, 'Website', s['website'].toString()),
+          if ((s['notiz']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade100)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.deepPurple.shade400),
+                const SizedBox(width: 8),
+                Expanded(child: Text(s['notiz'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+              ])),
+          ],
         ]),
       ),
-      const Divider(height: 24),
-      Text('Vermieter / Hausverwaltung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-      const SizedBox(height: 12),
-      _field('Firma / Name des Vermieters', _firmaC, icon: Icons.business),
-      _field('Adresse der Firma', _adresseC, icon: Icons.location_city),
-      Row(children: [Expanded(child: _field('Telefon', _telefonC, icon: Icons.phone)), const SizedBox(width: 12), Expanded(child: _field('E-Mail', _emailC, icon: Icons.email))]),
-      const SizedBox(height: 12),
-      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: _saving ? null : _save,
-        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white))),
+    ]));
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+      Icon(icon, size: 16, color: Colors.deepPurple.shade400),
+      const SizedBox(width: 8),
+      SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
     ]));
   }
 }
