@@ -17,11 +17,6 @@ class ArbeitgeberBehoerdeContent extends StatefulWidget {
   final User user;
   final ApiService apiService;
   final List<Map<String, dynamic>> dbArbeitgeberListe;
-  final Map<String, dynamic> behoerdeData;
-  final bool isLoading;
-  final VoidCallback onSave;
-  final Function(Map<String, dynamic>) onDataChanged;
-  final Map<String, dynamic> hausarztData;
   final TicketService? ticketService;
   final String? adminMitgliedernummer;
 
@@ -30,11 +25,6 @@ class ArbeitgeberBehoerdeContent extends StatefulWidget {
     required this.user,
     required this.apiService,
     required this.dbArbeitgeberListe,
-    required this.behoerdeData,
-    required this.isLoading,
-    required this.onSave,
-    required this.onDataChanged,
-    this.hausarztData = const {},
     this.ticketService,
     this.adminMitgliedernummer,
   });
@@ -48,6 +38,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   List<Map<String, dynamic>> _arbeitgeberFromDB = [];
   bool _dbLoaded = false;
   List<Map<String, dynamic>> _berufsbezeichnungen = [];
+  String _selectedArbeitgeberId = '';
 
   @override
   void initState() {
@@ -122,11 +113,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       ag['sort_order'] = i;
       _saveArbeitgeberToDB(ag);
     }
-    // Also keep JSON in sync for backward compatibility
-    widget.onDataChanged({
-      'liste': arbeitgeber,
-      'selected_arbeitgeber_id': selectedArbeitgeberId,
-    });
+    // DB is now the primary source — no more JSON blob sync
     setState(() {
       _arbeitgeberFromDB = List<Map<String, dynamic>>.from(arbeitgeber);
     });
@@ -146,10 +133,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         }
       }).catchError((_) {});
     }
-    widget.onDataChanged({
-      'liste': arbeitgeberListe,
-      'selected_arbeitgeber_id': selectedArbeitgeberId,
-    });
+    // DB is now primary — no more JSON blob sync
     setState(() {
       _arbeitgeberFromDB = List<Map<String, dynamic>>.from(arbeitgeberListe);
     });
@@ -2239,16 +2223,13 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isLoading) {
+    if (!_dbLoaded) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final data = widget.behoerdeData;
-    // Use DB data if loaded, fallback to JSON
-    List<Map<String, dynamic>> arbeitgeber = _dbLoaded
-        ? List<Map<String, dynamic>>.from(_arbeitgeberFromDB)
-        : List<Map<String, dynamic>>.from(data['liste'] ?? []);
-    String selectedArbeitgeberId = data['selected_arbeitgeber_id']?.toString() ?? '';
+    // DB is now the primary source
+    List<Map<String, dynamic>> arbeitgeber = List<Map<String, dynamic>>.from(_arbeitgeberFromDB);
+    String selectedArbeitgeberId = _selectedArbeitgeberId;
 
     return StatefulBuilder(
       builder: (context, setLocalState) {
@@ -3262,13 +3243,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
     void save() {
       ag['lohnsteuerbescheinigungen'] = List<Map<String, dynamic>>.from(bescheinigungen);
-      // Reconstruct full data and save
-      final data = Map<String, dynamic>.from(widget.behoerdeData);
-      final liste = data['liste'];
-      if (liste is List && arbeitgeberIndex >= 0 && arbeitgeberIndex < liste.length) {
-        liste[arbeitgeberIndex] = ag;
-      }
-      widget.onDataChanged(data);
+      // Save to DB
+      _saveArbeitgeberToDB(ag);
     }
 
     void showAddDialog() {
@@ -4127,8 +4103,7 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
     const statusColors = {'offen': Colors.orange, 'in_bearbeitung': Colors.blue, 'eskaliert': Colors.red, 'geloest': Colors.green, 'abgeschlossen': Colors.grey};
 
     void save() {
-      data['vorfaelle_$agKey'] = vorfaelle;
-      widget.onDataChanged(data);
+      // Vorfall saved via _buildVorfallTab — this is legacy, kept for compatibility
       setDlg(() {});
     }
 
@@ -4188,8 +4163,7 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
                   Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(8)),
                     child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: stColor.shade800))),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () {
-                    final list = List<dynamic>.from(data['vorfaelle_$agKey'] as List)..removeAt(i); data['vorfaelle_$agKey'] = list;
-                    widget.onDataChanged(data); setLocal(() {});
+                    vorfaelle.removeAt(i); setLocal(() {});
                   }),
                 ]),
               ));

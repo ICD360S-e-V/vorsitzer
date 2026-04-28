@@ -391,24 +391,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Expanded(
             child: TabBarView(
               children: [
-                _buildTabContent('arbeitgeber', () {
-                  // Lade Hausarzt-Daten falls nicht vorhanden (fuer Krankmeldungen)
-                  if (!_behoerdeData.containsKey('gesundheit_hausarzt') && _behoerdeLoading['gesundheit_hausarzt'] != true) {
-                    _loadBehoerdeData('gesundheit_hausarzt');
-                  }
-                  return ArbeitgeberBehoerdeContent(
-                    user: widget.user,
-                    apiService: widget.apiService,
-                    dbArbeitgeberListe: _dbArbeitgeberListe,
-                    behoerdeData: _behoerdeData['arbeitgeber'] ?? {},
-                    isLoading: _behoerdeLoading['arbeitgeber'] == true,
-                    onSave: () {},
-                    onDataChanged: (data) => _saveBehoerdeData('arbeitgeber', data),
-                    hausarztData: _behoerdeData['gesundheit_hausarzt'] ?? {},
-                    ticketService: widget.ticketService,
-                    adminMitgliedernummer: widget.adminMitgliedernummer,
-                  );
-                }),
+                ArbeitgeberBehoerdeContent(
+                  user: widget.user,
+                  apiService: widget.apiService,
+                  dbArbeitgeberListe: _dbArbeitgeberListe,
+                  ticketService: widget.ticketService,
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
+                ),
                 BehordeArbeitsagenturContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
