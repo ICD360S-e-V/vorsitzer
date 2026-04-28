@@ -557,7 +557,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
         Expanded(child: TabBarView(children: [
           _buildDetailsTab(v, aktiv),
           _KorrTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
-          _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'dokument', label: 'Dokumente'),
+          _DokSubTabs(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
           _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'rechnung', label: 'Rechnungen'),
           _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'kuendigung', label: 'Kündigung'),
         ])),
@@ -845,6 +845,44 @@ class _KorrTabState extends State<_KorrTab> {
 // ═══════════════════════════════════════════════════════
 // DOKUMENTE / RECHNUNG / KÜNDIGUNG TAB (unified)
 // ═══════════════════════════════════════════════════════
+// ==================== DOKUMENTE SUB-TABS ====================
+class _DokSubTabs extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  const _DokSubTabs({required this.apiService, required this.vertragId});
+  @override
+  State<_DokSubTabs> createState() => _DokSubTabsState();
+}
+class _DokSubTabsState extends State<_DokSubTabs> with TickerProviderStateMixin {
+  late TabController _tabC;
+  @override
+  void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); }
+  @override
+  void dispose() { _tabC.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      TabBar(controller: _tabC, isScrollable: true, tabAlignment: TabAlignment.start, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo.shade600,
+        labelStyle: const TextStyle(fontSize: 11), tabs: const [
+          Tab(text: 'Vertrag'),
+          Tab(text: 'AGB'),
+          Tab(text: 'Leistungsbeschreibung'),
+          Tab(text: 'Preise'),
+          Tab(text: 'Datenschutz'),
+          Tab(text: 'Widerrufsbelehrung'),
+        ]),
+      Expanded(child: TabBarView(controller: _tabC, children: [
+        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'vertrag', label: 'Vertragsdokumente'),
+        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'agb', label: 'AGB'),
+        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'leistungsbeschreibung', label: 'Leistungsbeschreibung'),
+        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'preise', label: 'Preisliste'),
+        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'datenschutz', label: 'Datenschutz'),
+        _DokTab(apiService: widget.apiService, vertragId: widget.vertragId, kategorie: 'widerrufsbelehrung', label: 'Widerrufsbelehrung'),
+      ])),
+    ]);
+  }
+}
+
 class _DokTab extends StatefulWidget {
   final ApiService apiService;
   final int vertragId;
