@@ -9879,7 +9879,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             const Spacer(),
             InkWell(
               onTap: () async {
-                final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: true);
+                final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
                 if (result == null || result.files.isEmpty || !mounted) return;
                 for (final f in result.files) {
                   if (f.path == null) continue;
