@@ -229,7 +229,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
   List<Map<String, dynamic>> _korr = [];
   bool _loading = true;
 
-  @override void initState() { super.initState(); _tabC = TabController(length: 3, vsync: this); _loadDetail(); }
+  @override void initState() { super.initState(); _tabC = TabController(length: 4, vsync: this); _loadDetail(); }
   @override void dispose() { _tabC.dispose(); super.dispose(); }
 
   Future<void> _loadDetail() async {
@@ -247,11 +247,11 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
         child: Row(children: [Icon(Icons.train, color: Colors.red.shade700), const SizedBox(width: 8),
           Expanded(child: Text('${v['anbieter'] ?? 'Deutschlandticket'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800))),
           IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); })])),
-      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, tabs: const [
-        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'),
+      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
+        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'),
       ]),
       Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
-        _buildDetails(v), _buildKorr(), _buildDoks(v),
+        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v),
       ])),
     ]);
   }
@@ -330,6 +330,70 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
           await _loadDetail();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen'))],
     )));
+  }
+
+  Widget _buildKuendigung(Map<String, dynamic> v) {
+    final gekuendigt = v['status'] == 'gekündigt';
+    final now = DateTime.now();
+    final deadlineDay = 10;
+    final canCancelThisMonth = now.day <= deadlineDay;
+    final effectiveMonth = canCancelThisMonth ? now : DateTime(now.year, now.month + 1);
+    final effectiveEnd = DateTime(effectiveMonth.year, effectiveMonth.month + 1, 0);
+    final deadlineStr = '${deadlineDay.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}';
+    final effectiveStr = '${effectiveEnd.day.toString().padLeft(2, '0')}.${effectiveEnd.month.toString().padLeft(2, '0')}.${effectiveEnd.year}';
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (gekuendigt) Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+        child: Row(children: [Icon(Icons.check_circle, size: 22, color: Colors.grey.shade600), const SizedBox(width: 10),
+          Expanded(child: Text('Dieser Vertrag wurde bereits gekündigt.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700)))]))
+      else ...[
+        Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: canCancelThisMonth ? Colors.green.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: canCancelThisMonth ? Colors.green.shade200 : Colors.orange.shade200)),
+          child: Row(children: [
+            Icon(canCancelThisMonth ? Icons.check_circle : Icons.warning_amber, size: 22, color: canCancelThisMonth ? Colors.green.shade700 : Colors.orange.shade700),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(canCancelThisMonth ? 'Kündigung noch möglich bis $deadlineStr' : 'Frist verpasst — nächste Kündigung zum ${effectiveEnd.month + 1}.${effectiveEnd.year}',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: canCancelThisMonth ? Colors.green.shade800 : Colors.orange.shade800)),
+              Text('Wirksam zum: $effectiveStr', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            ])),
+          ])),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(onPressed: () async {
+          final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+            title: const Text('Deutschlandticket kündigen?', style: TextStyle(fontSize: 15)),
+            content: Text('Die Kündigung wird zum $effectiveStr wirksam.\n\nMöchten Sie fortfahren?'),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Kündigen'))],
+          ));
+          if (ok != true) return;
+          await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {...widget.vertrag, 'status': 'gekündigt', 'gueltig_bis': effectiveStr}});
+          await widget.onReload();
+          if (mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gekündigt zum $effectiveStr'), backgroundColor: Colors.green.shade600)); }
+        }, icon: const Icon(Icons.cancel, size: 18), label: const Text('Jetzt kündigen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)),
+      ],
+      const Divider(height: 24),
+      Text('Kündigungsregeln — Deutschlandticket', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+      const SizedBox(height: 12),
+      _ruleCard(Icons.calendar_today, 'Kündigungsfrist', 'Bis zum 10. des Monats kündigen — Vertrag endet zum Monatsende.', Colors.blue),
+      _ruleCard(Icons.warning_amber, 'Frist verpasst?', 'Nach dem 10. läuft der Vertrag automatisch einen weiteren Monat.', Colors.orange),
+      _ruleCard(Icons.all_inclusive, 'Mindestlaufzeit', 'Keine — monatlich kündbar. Ausnahme: Abschluss nach dem 10. = 2 Monate Mindestlaufzeit.', Colors.green),
+      _ruleCard(Icons.computer, 'Wie kündigen?', 'Online im Kundenportal (am schnellsten), per E-Mail oder per Post. Immer beim eigenen Anbieter!', Colors.teal),
+      _ruleCard(Icons.euro, 'Aktueller Preis', '63 €/Monat (seit Januar 2026). Preisänderungen können Sonderkündigungsrecht auslösen — abhängig vom Anbieter.', Colors.purple),
+    ]));
+  }
+
+  Widget _ruleCard(IconData icon, String title, String text, MaterialColor color) {
+    return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 18, color: color.shade700),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+          const SizedBox(height: 2),
+          Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4)),
+        ])),
+      ]));
   }
 
   Widget _buildDoks(Map<String, dynamic> v) {
