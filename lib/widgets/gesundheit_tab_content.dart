@@ -13609,6 +13609,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         '${(r['diagnose1_icd10']?.toString() ?? '').isNotEmpty ? 'Diagnose: ${r['diagnose1_icd10']} ${r['diagnose1'] ?? ''}\n' : ''}'
                         '\nMit freundlichen Grüßen\nICD360S e.V.',
                     priority: 'high',
+                    scheduledDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
                   );
                   r['neue_rezept_ticket_erstellt'] = true;
                   final list = List<dynamic>.from(current);
