@@ -90,7 +90,7 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
     super.initState();
     final d = widget.data;
     final selName = d['stammdaten.selected_amt_name'] ?? '';
-    if (selName.isNotEmpty) _selected = {'name': selName, 'adresse': d['stammdaten.selected_amt_adresse'] ?? '', 'ort': d['stammdaten.selected_amt_ort'] ?? '', 'telefon': d['stammdaten.selected_amt_telefon'] ?? '', 'fax': d['stammdaten.selected_amt_fax'] ?? '', 'email': d['stammdaten.selected_amt_email'] ?? ''};
+    if (selName.isNotEmpty) _selected = {'name': selName, 'strasse': d['stammdaten.selected_amt_adresse'] ?? '', 'ort': d['stammdaten.selected_amt_ort'] ?? '', 'telefon': d['stammdaten.selected_amt_telefon'] ?? '', 'fax': d['stammdaten.selected_amt_fax'] ?? '', 'email': d['stammdaten.selected_amt_email'] ?? '', 'website': d['stammdaten.selected_amt_website'] ?? '', 'oeffnungszeiten': d['stammdaten.selected_amt_oeffnungszeiten'] ?? ''};
   }
 
   @override
