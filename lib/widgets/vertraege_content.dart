@@ -862,11 +862,12 @@ class _DokSubTabsState extends State<_DokSubTabs> with TickerProviderStateMixin 
     ('preise', 'Preise'),
     ('datenschutz', 'Datenschutz'),
     ('widerrufsbelehrung', 'Widerrufsbelehrung'),
+    ('elektrogesetz', 'Elektrogesetz'),
   ];
   final Map<String, bool> _hasDocs = {};
 
   @override
-  void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); _loadCounts(); }
+  void initState() { super.initState(); _tabC = TabController(length: _tabs.length, vsync: this); _loadCounts(); }
   @override
   void dispose() { _tabC.dispose(); super.dispose(); }
 
