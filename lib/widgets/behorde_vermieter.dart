@@ -121,7 +121,6 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
             ? Center(child: Text(loading ? '' : 'Keine Vermieter gefunden', style: TextStyle(color: Colors.grey.shade400)))
             : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
                 final s = filtered[i];
-                final s = results[i];
                 return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
                   leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 20)),
                   title: Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
