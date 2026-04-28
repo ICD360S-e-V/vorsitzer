@@ -13587,6 +13587,38 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             final datumStr = r['datum']?.toString() ?? '';
             final datumFmt = datumStr.isNotEmpty ? (() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(datumStr)); } catch (_) { return datumStr; } })() : '';
             final hms = [r['hm1'], r['hm2'], r['hm3']].where((h) => (h?.toString() ?? '').isNotEmpty).map((h) => h.toString().split(' – ').first).toList();
+            final sitzungen = r['sitzungen'] is List ? r['sitzungen'] as List : [];
+            final totalSitzungen = int.tryParse(r['behandlungseinheiten']?.toString() ?? '') ?? sitzungen.length;
+            final erledigtSitzungen = sitzungen.where((s) { final m = s is Map ? s : {}; final ss = m['sitzung_status']?.toString() ?? ''; return ss == 'wahrgenommen' || m['onorat'] == true || m['onorat'] == 'true'; }).length;
+            final verbleibend = totalSitzungen - erledigtSitzungen;
+            final needsNewRezept = verbleibend <= 3 && totalSitzungen > 0 && st != 'abgeschlossen' && r['neue_rezept_ticket_erstellt'] != true;
+
+            if (needsNewRezept && r['neue_rezept_ticket_erstellt'] != true) {
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                try {
+                  final bereichText = bereichShort[bereich] ?? bereich;
+                  await widget.ticketService.createTicketForMember(
+                    adminMitgliedernummer: widget.adminMitgliedernummer,
+                    memberMitgliedernummer: widget.user.mitgliedernummer,
+                    subject: 'Neue Heilmittelverordnung benötigt — $bereichText ($verbleibend Sitzungen übrig)',
+                    message: 'Sehr geehrtes Mitglied,\n\n'
+                        'Ihre Heilmittelverordnung ($bereichText) hat nur noch $verbleibend von $totalSitzungen Sitzungen übrig.\n\n'
+                        'Bitte vereinbaren Sie zeitnah einen Termin bei Ihrem Arzt ($arztTitle) für eine Folgeverordnung, '
+                        'damit die Therapie ohne Unterbrechung fortgesetzt werden kann.\n\n'
+                        'Heilmittel: ${hms.join(', ')}\n'
+                        '${(r['diagnose1_icd10']?.toString() ?? '').isNotEmpty ? 'Diagnose: ${r['diagnose1_icd10']} ${r['diagnose1'] ?? ''}\n' : ''}'
+                        '\nMit freundlichen Grüßen\nICD360S e.V.',
+                    priority: 'high',
+                  );
+                  r['neue_rezept_ticket_erstellt'] = true;
+                  final list = List<dynamic>.from(current);
+                  list[idx] = r;
+                  data['heilmittel'] = list;
+                  saveAll();
+                } catch (_) {}
+              });
+            }
+
             return Card(
               margin: const EdgeInsets.only(bottom: 8), elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -13613,6 +13645,20 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     if ((r['diagnose1_icd10']?.toString() ?? '').isNotEmpty) Text('${r['diagnose1_icd10']} ${r['diagnose1'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500), maxLines: 1, overflow: TextOverflow.ellipsis)
                     else if ((r['icd10']?.toString() ?? '').isNotEmpty) Text('ICD-10: ${r['icd10']} ${r['diagnose'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500), maxLines: 1, overflow: TextOverflow.ellipsis),
                     if (expStr != null) Text(expired ? '⚠ Abgelaufen am $expStr' : 'Läuft ab: $expStr', style: TextStyle(fontSize: 10, color: expired ? Colors.red.shade600 : Colors.grey.shade500)),
+                    // Sitzungen counter
+                    if (sitzungen.isNotEmpty || totalSitzungen > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        Icon(Icons.event_repeat, size: 13, color: verbleibend <= 3 && totalSitzungen > 0 ? Colors.red.shade600 : Colors.teal.shade600),
+                        const SizedBox(width: 4),
+                        Text('$erledigtSitzungen / $totalSitzungen Sitzungen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: verbleibend <= 3 && totalSitzungen > 0 ? Colors.red.shade700 : Colors.teal.shade700)),
+                        if (verbleibend <= 3 && totalSitzungen > 0 && st != 'abgeschlossen') ...[
+                          const SizedBox(width: 6),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+                            child: Text('Neue Verordnung nötig!', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red.shade800))),
+                        ],
+                      ]),
+                    ],
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300),
                     onPressed: () { final list = List<dynamic>.from(current)..removeAt(idx); data['heilmittel'] = list; saveAll(); setLocalState(() {}); },
