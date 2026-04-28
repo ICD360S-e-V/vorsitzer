@@ -9879,21 +9879,23 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             const Spacer(),
             InkWell(
               onTap: () async {
-                final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
-                if (result == null || result.files.isEmpty || !mounted) return;
-                for (final f in result.files) {
-                  if (f.path == null) continue;
-                  try {
-                    await widget.apiService.uploadGesundheitDoc(
+                try {
+                  final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+                  if (result == null || result.files.isEmpty || !mounted) return;
+                  for (final f in result.files.where((f) => f.path != null)) {
+                    final res = await widget.apiService.uploadGesundheitDoc(
                       userId: widget.user.id,
                       gesundheitType: type,
                       analyseId: berichtId,
                       filePath: f.path!,
                       fileName: f.name,
                     );
-                  } catch (_) {}
+                    debugPrint('[DOC-UPLOAD] $type/$berichtId: ${f.name} => ${res['success']}');
+                  }
+                } catch (e) {
+                  debugPrint('[DOC-UPLOAD] error: $e');
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload-Fehler: $e'), backgroundColor: Colors.red));
                 }
-                // Reload docs
                 _berichtDocs.remove(key);
                 _berichtDocsLoading.remove(key);
                 if (mounted) setState(() {});
