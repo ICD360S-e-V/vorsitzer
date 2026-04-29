@@ -1412,9 +1412,11 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final kammerterminC = TextEditingController(text: v['kammertermin_datum']?.toString() ?? '');
     final notizC = TextEditingController(text: v['klage_notiz']?.toString() ?? '');
 
+    // Parse klage_verlauf for timeline
+    List<Map<String, dynamic>> klageVerlauf = v['klage_verlauf'] is List ? List<Map<String, dynamic>>.from((v['klage_verlauf'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
+
     return StatefulBuilder(builder: (ctx, setK) {
-      String currentStatus = klageStatus;
-      bool editing = false;
+      String currentStatus = v['klage_status']?.toString() ?? '';
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (!klageRelevant && klageStatus.isEmpty) ...[
           Container(width: double.infinity, padding: const EdgeInsets.all(20),
@@ -1462,8 +1464,41 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             for (final s in klageStatusLabels.entries)
               ChoiceChip(label: Text(s.value, style: TextStyle(fontSize: 10, color: currentStatus == s.key ? Colors.white : (klageStatusColors[s.key] ?? Colors.grey).shade800)),
                 selected: currentStatus == s.key, selectedColor: (klageStatusColors[s.key] ?? Colors.grey).shade600,
-                onSelected: (_) => setK(() => currentStatus = s.key)),
+                onSelected: (_) async {
+                  final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+                  if (d == null) return;
+                  final datumStr = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}';
+                  klageVerlauf.insert(0, {'status': s.key, 'datum': datumStr, 'zeit': '${DateTime.now().hour.toString().padLeft(2,'0')}:${DateTime.now().minute.toString().padLeft(2,'0')}'});
+                  await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {
+                    ...v, 'id': widget.vorfallId,
+                    'klaeger': klaegerC.text.trim(), 'beklagter': beklagterC.text.trim(),
+                    'klage_aktenzeichen': aktenzeichenC.text.trim(), 'klage_richter': richterC.text.trim(),
+                    'guetetermin_datum': gueteterminC.text.trim(), 'kammertermin_datum': kammerterminC.text.trim(),
+                    'klage_status': s.key, 'klage_notiz': notizC.text.trim(), 'klage_verlauf': klageVerlauf,
+                  });
+                  _load(); widget.onChanged(); setK(() {});
+                }),
           ]),
+
+          // Klage Chronologie
+          if (klageVerlauf.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Chronologie', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 8),
+            ...klageVerlauf.map((e) {
+              final st = e['status']?.toString() ?? '';
+              final stColor = klageStatusColors[st] ?? Colors.grey;
+              return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: stColor.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: stColor.shade200)),
+                child: Row(children: [
+                  Icon(Icons.circle, size: 10, color: stColor.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(klageStatusLabels[st] ?? st, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: stColor.shade800))),
+                  Text('${e['datum'] ?? ''} ${e['zeit'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ]));
+            }),
+          ],
+
           const SizedBox(height: 16),
           Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
             onPressed: () async {
@@ -1472,7 +1507,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                 'klaeger': klaegerC.text.trim(), 'beklagter': beklagterC.text.trim(),
                 'klage_aktenzeichen': aktenzeichenC.text.trim(), 'klage_richter': richterC.text.trim(),
                 'guetetermin_datum': gueteterminC.text.trim(), 'kammertermin_datum': kammerterminC.text.trim(),
-                'klage_status': currentStatus, 'klage_notiz': notizC.text.trim(),
+                'klage_status': currentStatus, 'klage_notiz': notizC.text.trim(), 'klage_verlauf': klageVerlauf,
               });
               _load(); widget.onChanged();
               if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600));
