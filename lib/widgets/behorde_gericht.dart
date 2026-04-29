@@ -1342,8 +1342,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final klageStatus = v['klage_status']?.toString() ?? '';
     final klaegerC = TextEditingController(text: v['klaeger']?.toString() ?? '');
     final beklagterC = TextEditingController(text: v['beklagter']?.toString() ?? '');
-    final aktenzeichenC = TextEditingController(text: v['klage_aktenzeichen']?.toString() ?? '');
-    final richterC = TextEditingController(text: v['klage_richter']?.toString() ?? '');
+    final aktenzeichenC = TextEditingController(text: v['klage_aktenzeichen']?.toString().isNotEmpty == true ? v['klage_aktenzeichen'].toString() : v['aktenzeichen']?.toString() ?? '');
+    final richterC = TextEditingController(text: v['klage_richter']?.toString().isNotEmpty == true ? v['klage_richter'].toString() : v['sachbearbeiter']?.toString() ?? '');
     final gueteterminC = TextEditingController(text: v['guetetermin_datum']?.toString() ?? '');
     final kammerterminC = TextEditingController(text: v['kammertermin_datum']?.toString() ?? '');
     final notizC = TextEditingController(text: v['klage_notiz']?.toString() ?? '');
