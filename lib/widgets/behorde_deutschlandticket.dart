@@ -229,7 +229,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
   List<Map<String, dynamic>> _korr = [];
   bool _loading = true;
 
-  @override void initState() { super.initState(); _tabC = TabController(length: 4, vsync: this); _loadDetail(); }
+  @override void initState() { super.initState(); _tabC = TabController(length: 5, vsync: this); _loadDetail(); }
   @override void dispose() { _tabC.dispose(); super.dispose(); }
 
   Future<void> _loadDetail() async {
@@ -248,10 +248,10 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
           Expanded(child: Text('${v['anbieter'] ?? 'Deutschlandticket'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800))),
           IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); })])),
       TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
-        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'),
+        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'), Tab(text: 'Chipkarte'),
       ]),
       Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
-        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v),
+        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
       ])),
     ]);
   }
@@ -439,5 +439,201 @@ class _DticketDokSubTabsState extends State<_DticketDokSubTabs> with TickerProvi
         Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: t.$1, korrespondenzId: widget.vertragId)),
       ).toList())),
     ]);
+  }
+}
+
+// ==================== CHIPKARTE TAB ====================
+class _ChipkarteTab extends StatefulWidget {
+  final Map<String, dynamic> vertrag;
+  final ApiService apiService;
+  final int userId;
+  final Future<void> Function() onReload;
+  const _ChipkarteTab({required this.vertrag, required this.apiService, required this.userId, required this.onReload});
+  @override
+  State<_ChipkarteTab> createState() => _ChipkarteTabState();
+}
+
+class _ChipkarteTabState extends State<_ChipkarteTab> {
+  bool _showBack = false;
+  late TextEditingController _kundennrC, _codeC;
+  String _gueltigMonat = '';
+  String _gueltigJahr = '';
+  String _vorname = '';
+  String _nachname = '';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final v = widget.vertrag;
+    _kundennrC = TextEditingController(text: v['abo_nr']?.toString() ?? '');
+    _codeC = TextEditingController(text: v['chipkarte_code']?.toString() ?? '');
+    _vorname = v['chipkarte_vorname']?.toString() ?? '';
+    _nachname = v['chipkarte_nachname']?.toString() ?? '';
+    _gueltigMonat = v['chipkarte_gueltig_monat']?.toString() ?? '';
+    _gueltigJahr = v['chipkarte_gueltig_jahr']?.toString() ?? '';
+  }
+
+  @override
+  void dispose() { _kundennrC.dispose(); _codeC.dispose(); super.dispose(); }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {
+      ...widget.vertrag,
+      'chipkarte_vorname': _vorname, 'chipkarte_nachname': _nachname,
+      'chipkarte_gueltig_monat': _gueltigMonat, 'chipkarte_gueltig_jahr': _gueltigJahr,
+      'chipkarte_code': _codeC.text.trim(), 'abo_nr': _kundennrC.text.trim(),
+    }});
+    await widget.onReload();
+    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Chipkarte gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
+      // Card with flip
+      GestureDetector(
+        onTap: () => setState(() => _showBack = !_showBack),
+        child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: _showBack ? _buildBack() : _buildFront()),
+      ),
+      const SizedBox(height: 8),
+      Text('Tippen zum Umdrehen', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+      const SizedBox(height: 16),
+
+      // Edit fields
+      Row(children: [
+        Expanded(child: TextField(decoration: InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          controller: TextEditingController(text: _vorname), onChanged: (v) => _vorname = v)),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(decoration: InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          controller: TextEditingController(text: _nachname), onChanged: (v) => _nachname = v)),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: TextField(controller: _kundennrC, decoration: InputDecoration(labelText: 'Kundennummer (9 Ziffern)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), keyboardType: TextInputType.number)),
+        const SizedBox(width: 8),
+        SizedBox(width: 80, child: DropdownButtonFormField<String>(
+          value: _gueltigMonat.isEmpty ? null : _gueltigMonat,
+          decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          items: List.generate(12, (i) => DropdownMenuItem(value: (i + 1).toString().padLeft(2, '0'), child: Text((i + 1).toString().padLeft(2, '0'), style: const TextStyle(fontSize: 13)))),
+          onChanged: (v) => setState(() => _gueltigMonat = v ?? ''),
+        )),
+        const SizedBox(width: 8),
+        SizedBox(width: 90, child: DropdownButtonFormField<String>(
+          value: _gueltigJahr.isEmpty ? null : _gueltigJahr,
+          decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          items: List.generate(10, (i) => DropdownMenuItem(value: (2025 + i).toString(), child: Text((2025 + i).toString(), style: const TextStyle(fontSize: 13)))),
+          onChanged: (v) => setState(() => _gueltigJahr = v ?? ''),
+        )),
+      ]),
+      const SizedBox(height: 10),
+      TextField(controller: _codeC, decoration: InputDecoration(labelText: 'Code (z.B. 1234-56.789.012-3)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 12),
+      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white))),
+    ]));
+  }
+
+  Widget _buildFront() {
+    final gueltig = (_gueltigMonat.isNotEmpty && _gueltigJahr.isNotEmpty) ? '$_gueltigMonat/$_gueltigJahr' : '—/—';
+    return Container(key: const ValueKey('front'), height: 220, width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(colors: [Color(0xFF1a1a2e), Color(0xFF16213e), Color(0xFF0f3460)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))],
+      ),
+      child: Stack(children: [
+        // D-Ticket stripe top
+        Positioned(top: 0, left: 0, right: 0, child: Container(height: 44, decoration: BoxDecoration(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+          gradient: LinearGradient(colors: [Colors.red.shade700, Colors.red.shade500, Colors.amber.shade600])),
+          child: Row(children: [
+            const SizedBox(width: 16),
+            // German flag
+            Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(width: 28, height: 6, color: Colors.black),
+              Container(width: 28, height: 6, color: Colors.red.shade700),
+              Container(width: 28, height: 6, color: Colors.amber.shade600),
+            ]),
+            const SizedBox(width: 10),
+            const Text('D', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -1)),
+            const Text('-Ticket', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            const Spacer(),
+            Text('Deutschlandticket', style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.7))),
+            const SizedBox(width: 16),
+          ]),
+        )),
+        // Chip
+        Positioned(left: 20, top: 56, child: Container(width: 42, height: 32,
+          decoration: BoxDecoration(color: Colors.amber.shade300, borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.amber.shade600, width: 1)),
+          child: Center(child: Icon(Icons.memory, size: 18, color: Colors.amber.shade800)))),
+        // Name
+        Positioned(left: 20, bottom: 50, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_vorname.isEmpty ? 'VORNAME' : _vorname.toUpperCase(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5)),
+          Text(_nachname.isEmpty ? 'NACHNAME' : _nachname.toUpperCase(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 2)),
+        ])),
+        // Kundennummer
+        Positioned(left: 20, bottom: 16, child: Text('Nr. ${_kundennrC.text.isEmpty ? '000000000' : _kundennrC.text}',
+          style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7), fontFamily: 'monospace', letterSpacing: 1))),
+        // Gültig bis
+        Positioned(right: 20, bottom: 16, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('GÜLTIG BIS', style: TextStyle(fontSize: 8, color: Colors.white.withValues(alpha: 0.5), letterSpacing: 1)),
+          Text(gueltig, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'monospace')),
+        ])),
+        // Contactless icon
+        Positioned(right: 20, top: 56, child: Icon(Icons.contactless, size: 28, color: Colors.white.withValues(alpha: 0.5))),
+      ]),
+    );
+  }
+
+  Widget _buildBack() {
+    return Container(key: const ValueKey('back'), height: 220, width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(colors: [Color(0xFF0f3460), Color(0xFF16213e), Color(0xFF1a1a2e)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))],
+      ),
+      child: Stack(children: [
+        // Magnetic stripe
+        Positioned(top: 16, left: 0, right: 0, child: Container(height: 36, color: const Color(0xFF2d2d2d))),
+        // SWU / Firma
+        Positioned(top: 60, left: 20, right: 20, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+            child: Center(child: Text('SWU', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.red.shade700)))),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('SWU Verkehr GmbH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text('Karlstraße 1, 89073 Ulm', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
+            Text('Tel: 0731 166-0', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
+          ])),
+        ])),
+        // Unterschrift
+        Positioned(top: 116, left: 20, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('UNTERSCHRIFT', style: TextStyle(fontSize: 7, color: Colors.white.withValues(alpha: 0.4), letterSpacing: 1)),
+          const SizedBox(height: 2),
+          Container(width: 160, height: 28, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white.withValues(alpha: 0.2)))),
+        ])),
+        // QR Code placeholder
+        Positioned(bottom: 14, left: 20, child: Container(width: 44, height: 44,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+          child: const Center(child: Icon(Icons.qr_code_2, size: 36, color: Colors.black87)))),
+        // Code
+        Positioned(bottom: 28, left: 74, child: Text(_codeC.text.isEmpty ? '0000-00.000.000-0' : _codeC.text,
+          style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.white.withValues(alpha: 0.7), letterSpacing: 0.5))),
+        // DING info
+        Positioned(bottom: 14, left: 74, child: Text('Es gilt der DING Gemeinschaftstarif  www.ding.eu',
+          style: TextStyle(fontSize: 7, color: Colors.white.withValues(alpha: 0.4)))),
+        // D-Ticket badge bottom right
+        Positioned(bottom: 14, right: 16, child: Row(children: [
+          Column(mainAxisSize: MainAxisSize.min, children: [Container(width: 16, height: 4, color: Colors.black), Container(width: 16, height: 4, color: Colors.red.shade700), Container(width: 16, height: 4, color: Colors.amber.shade600)]),
+          const SizedBox(width: 4),
+          const Text('D-Ticket', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+        ])),
+      ]),
+    );
   }
 }
