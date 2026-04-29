@@ -452,14 +452,28 @@ class _StammdatenTab extends StatefulWidget {
 }
 class _StammdatenTabState extends State<_StammdatenTab> {
   late TextEditingController _kundennrC, _codeC;
+  String _karteMonat = '';
+  String _karteJahr = '';
   bool _editing = false, _saving = false;
   @override
-  void initState() { super.initState(); _kundennrC = TextEditingController(text: widget.vertrag['abo_nr']?.toString() ?? ''); _codeC = TextEditingController(text: widget.vertrag['chipkarte_code']?.toString() ?? ''); }
+  void initState() {
+    super.initState();
+    _kundennrC = TextEditingController(text: widget.vertrag['abo_nr']?.toString() ?? '');
+    _codeC = TextEditingController(text: widget.vertrag['chipkarte_code']?.toString() ?? '');
+    _karteMonat = widget.vertrag['chipkarte_gueltig_monat']?.toString() ?? '';
+    _karteJahr = widget.vertrag['chipkarte_gueltig_jahr']?.toString() ?? '';
+  }
   @override
   void dispose() { _kundennrC.dispose(); _codeC.dispose(); super.dispose(); }
   Future<void> _save() async {
     setState(() => _saving = true);
-    await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {...widget.vertrag, 'abo_nr': _kundennrC.text.trim(), 'chipkarte_code': _codeC.text.trim()}});
+    await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {
+      ...widget.vertrag,
+      'abo_nr': _kundennrC.text.trim(),
+      'chipkarte_code': _codeC.text.trim(),
+      'chipkarte_gueltig_monat': _karteMonat,
+      'chipkarte_gueltig_jahr': _karteJahr,
+    }});
     await widget.onReload();
     if (mounted) { setState(() { _saving = false; _editing = false; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
@@ -475,6 +489,26 @@ class _StammdatenTabState extends State<_StammdatenTab> {
       TextField(controller: _kundennrC, readOnly: !_editing, decoration: InputDecoration(labelText: 'Kundennummer (9 Ziffern)', prefixIcon: const Icon(Icons.badge, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null), keyboardType: TextInputType.number),
       const SizedBox(height: 12),
       TextField(controller: _codeC, readOnly: !_editing, decoration: InputDecoration(labelText: 'Code (z.B. 1234-56.789.012-3)', prefixIcon: const Icon(Icons.qr_code, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
+      const SizedBox(height: 20),
+      Text('Karte', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+      const SizedBox(height: 4),
+      Text('Gültig bis (Monat / Jahr)', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      const SizedBox(height: 8),
+      Row(children: [
+        SizedBox(width: 100, child: DropdownButtonFormField<String>(
+          value: _karteMonat.isEmpty ? null : _karteMonat,
+          decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+          items: List.generate(12, (i) => DropdownMenuItem(value: (i + 1).toString().padLeft(2, '0'), child: Text((i + 1).toString().padLeft(2, '0'), style: const TextStyle(fontSize: 13)))),
+          onChanged: _editing ? (v) => setState(() => _karteMonat = v ?? '') : null,
+        )),
+        const SizedBox(width: 12),
+        SizedBox(width: 110, child: DropdownButtonFormField<String>(
+          value: _karteJahr.isEmpty ? null : _karteJahr,
+          decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+          items: List.generate(10, (i) => DropdownMenuItem(value: (2025 + i).toString(), child: Text((2025 + i).toString(), style: const TextStyle(fontSize: 13)))),
+          onChanged: _editing ? (v) => setState(() => _karteJahr = v ?? '') : null,
+        )),
+      ]),
       if (_editing) ...[const SizedBox(height: 16), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
         onPressed: _saving ? null : _save,
         icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
