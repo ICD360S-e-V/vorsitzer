@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1413,7 +1414,12 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final notizC = TextEditingController(text: v['klage_notiz']?.toString() ?? '');
 
     // Parse klage_verlauf for timeline
-    List<Map<String, dynamic>> klageVerlauf = v['klage_verlauf'] is List ? List<Map<String, dynamic>>.from((v['klage_verlauf'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> klageVerlauf = [];
+    try {
+      final raw = v['klage_verlauf'];
+      if (raw is List) { klageVerlauf = List<Map<String, dynamic>>.from(raw.map((e) => Map<String, dynamic>.from(e as Map))); }
+      else if (raw is String && raw.isNotEmpty) { final decoded = jsonDecode(raw); if (decoded is List) klageVerlauf = List<Map<String, dynamic>>.from(decoded.map((e) => Map<String, dynamic>.from(e as Map))); }
+    } catch (_) {}
 
     return StatefulBuilder(builder: (ctx, setK) {
       String currentStatus = v['klage_status']?.toString() ?? '';
