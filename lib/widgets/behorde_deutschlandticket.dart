@@ -5,7 +5,9 @@ import 'korrespondenz_attachments_widget.dart';
 class BehordeDeutschlandticketContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  const BehordeDeutschlandticketContent({super.key, required this.apiService, required this.userId});
+  final String userName;
+  final String userNachname;
+  const BehordeDeutschlandticketContent({super.key, required this.apiService, required this.userId, this.userName = '', this.userNachname = ''});
   @override
   State<BehordeDeutschlandticketContent> createState() => _State();
 }
@@ -43,7 +45,7 @@ class _State extends State<BehordeDeutschlandticketContent> with TickerProviderS
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         _FirmaTab(data: _data, apiService: widget.apiService, userId: widget.userId, onReload: _load),
-        _VertragTab(vertraege: _vertraege, apiService: widget.apiService, userId: widget.userId, onReload: _load),
+        _VertragTab(vertraege: _vertraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, firmaData: _data, userName: widget.userName, userNachname: widget.userNachname),
       ])),
     ]);
   }
@@ -140,8 +142,8 @@ class _FirmaTabState extends State<_FirmaTab> {
 
 // ==================== VERTRAG ====================
 class _VertragTab extends StatefulWidget {
-  final List<Map<String, dynamic>> vertraege; final ApiService apiService; final int userId; final Future<void> Function() onReload;
-  const _VertragTab({required this.vertraege, required this.apiService, required this.userId, required this.onReload});
+  final List<Map<String, dynamic>> vertraege; final ApiService apiService; final int userId; final Future<void> Function() onReload; final Map<String, dynamic> firmaData; final String userName; final String userNachname;
+  const _VertragTab({required this.vertraege, required this.apiService, required this.userId, required this.onReload, required this.firmaData, this.userName = '', this.userNachname = ''});
   @override State<_VertragTab> createState() => _VertragTabState();
 }
 class _VertragTabState extends State<_VertragTab> {
@@ -183,7 +185,7 @@ class _VertragTabState extends State<_VertragTab> {
   void _openDetail(Map<String, dynamic> v) {
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: SizedBox(width: double.infinity, height: MediaQuery.of(context).size.height * 0.8, child: _VertragDetailModal(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload)),
+      child: SizedBox(width: double.infinity, height: MediaQuery.of(context).size.height * 0.8, child: _VertragDetailModal(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname)),
     ));
   }
 
@@ -220,8 +222,8 @@ class _VertragTabState extends State<_VertragTab> {
 
 // ==================== VERTRAG DETAIL MODAL ====================
 class _VertragDetailModal extends StatefulWidget {
-  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
-  const _VertragDetailModal({required this.vertrag, required this.apiService, required this.userId, required this.onReload});
+  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload; final Map<String, dynamic> firmaData; final String userName; final String userNachname;
+  const _VertragDetailModal({required this.vertrag, required this.apiService, required this.userId, required this.onReload, required this.firmaData, this.userName = '', this.userNachname = ''});
   @override State<_VertragDetailModal> createState() => _VertragDetailModalState();
 }
 class _VertragDetailModalState extends State<_VertragDetailModal> with TickerProviderStateMixin {
@@ -251,7 +253,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
         Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'), Tab(text: 'Chipkarte'),
       ]),
       Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
-        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname),
       ])),
     ]);
   }
@@ -448,7 +450,10 @@ class _ChipkarteTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  const _ChipkarteTab({required this.vertrag, required this.apiService, required this.userId, required this.onReload});
+  final Map<String, dynamic> firmaData;
+  final String userName;
+  final String userNachname;
+  const _ChipkarteTab({required this.vertrag, required this.apiService, required this.userId, required this.onReload, required this.firmaData, this.userName = '', this.userNachname = ''});
   @override
   State<_ChipkarteTab> createState() => _ChipkarteTabState();
 }
@@ -470,6 +475,8 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
     _codeC = TextEditingController(text: v['chipkarte_code']?.toString() ?? '');
     _vorname = v['chipkarte_vorname']?.toString() ?? '';
     _nachname = v['chipkarte_nachname']?.toString() ?? '';
+    if (_vorname.isEmpty) _vorname = widget.userName;
+    if (_nachname.isEmpty) _nachname = widget.userNachname;
     _gueltigMonat = v['chipkarte_gueltig_monat']?.toString() ?? '';
     _gueltigJahr = v['chipkarte_gueltig_jahr']?.toString() ?? '';
   }
@@ -488,6 +495,11 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
     await widget.onReload();
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Chipkarte gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
+
+  String _firmaName() => widget.firmaData['stammdaten.selected_firma_name']?.toString() ?? '';
+  String _firmaAdresse() { final s = widget.firmaData['stammdaten.selected_firma_strasse']?.toString() ?? ''; final o = widget.firmaData['stammdaten.selected_firma_ort']?.toString() ?? ''; return '$s, $o'.trim(); }
+  String _firmaTelefon() => widget.firmaData['stammdaten.selected_firma_telefon']?.toString() ?? '';
+  String _firmaKurz() { final n = _firmaName(); if (n.isEmpty) return '?'; final parts = n.split(' '); if (parts.first.length <= 5) return parts.first; return n.substring(0, 3).toUpperCase(); }
 
   @override
   Widget build(BuildContext context) {
@@ -600,15 +612,15 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
       child: Stack(children: [
         // Magnetic stripe
         Positioned(top: 16, left: 0, right: 0, child: Container(height: 36, color: const Color(0xFF2d2d2d))),
-        // SWU / Firma
+        // Firma from selected Zuständige Firma
         Positioned(top: 60, left: 20, right: 20, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-            child: Center(child: Text('SWU', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.red.shade700)))),
+            child: Center(child: Text(_firmaKurz(), style: TextStyle(fontSize: _firmaKurz().length > 4 ? 10 : 14, fontWeight: FontWeight.w900, color: Colors.red.shade700)))),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('SWU Verkehr GmbH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-            Text('Karlstraße 1, 89073 Ulm', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
-            Text('Tel: 0731 166-0', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
+            Text(_firmaName(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(_firmaAdresse(), style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
+            if (_firmaTelefon().isNotEmpty) Text('Tel: ${_firmaTelefon()}', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
           ])),
         ])),
         // Unterschrift

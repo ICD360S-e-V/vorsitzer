@@ -545,6 +545,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 BehordeDeutschlandticketContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
+                  userName: widget.user.vorname ?? '',
+                  userNachname: widget.user.nachname ?? widget.user.name,
                 ),
                 BehordeSchuleContent(
                   apiService: widget.apiService,
