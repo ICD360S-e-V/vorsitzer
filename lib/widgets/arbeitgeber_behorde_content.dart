@@ -2244,51 +2244,118 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   }
 
   Widget _buildZustaendigerTab() {
-    final vollzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && (a['art']?.toString() ?? 'vollzeit') != 'minijob').toList();
-    final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList();
+    return StatefulBuilder(builder: (ctx, setLocal) {
+      final vollzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && (a['art']?.toString() ?? 'vollzeit') == 'vollzeit').toList();
+      final teilzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'teilzeit').toList();
+      final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList();
 
-    Widget agCard(Map<String, dynamic> ag, String label, MaterialColor color) {
-      final dbAg = ag['arbeitgeber_db_id'] != null ? widget.dbArbeitgeberListe.cast<Map<String, dynamic>?>().firstWhere((d) => d?['id'].toString() == ag['arbeitgeber_db_id'].toString(), orElse: () => null) : null;
-      return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
-        child: InkWell(
-          onTap: () { final idx = _arbeitgeberFromDB.indexOf(ag); if (idx >= 0) _showBerufserfahrungModal(context, ag, idx, arbeitgeberListe: _arbeitgeberFromDB, selectedArbeitgeberId: _selectedArbeitgeberId); },
-          child: Row(children: [
+      Widget section(String label, IconData icon, MaterialColor color, List<Map<String, dynamic>> list, String artKey) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, size: 20, color: color.shade700),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
+            const Spacer(),
+            IconButton(icon: Icon(Icons.search, color: color.shade600), tooltip: '$label auswählen', onPressed: () => _openArbeitgeberSearch(artKey, setLocal)),
+          ]),
+          const SizedBox(height: 6),
+          if (list.isEmpty)
+            Container(padding: const EdgeInsets.all(16), width: double.infinity,
+              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+              child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 32, color: Colors.grey.shade300),
+                const SizedBox(height: 6),
+                Text('Kein $label ausgewählt', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+              ])))
+          else ...list.map((ag) => _agCard(ag, label, color)),
+          const SizedBox(height: 16),
+        ]);
+      }
+
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        section('Vollzeit', Icons.work, Colors.indigo, vollzeit, 'vollzeit'),
+        section('Teilzeit', Icons.timelapse, Colors.teal, teilzeit, 'teilzeit'),
+        section('Minijob', Icons.work_outline, Colors.orange, minijobs, 'minijob'),
+      ]));
+    });
+  }
+
+  Widget _agCard(Map<String, dynamic> ag, String label, MaterialColor color) {
+    final dbAg = ag['arbeitgeber_db_id'] != null ? widget.dbArbeitgeberListe.cast<Map<String, dynamic>?>().firstWhere((d) => d?['id'].toString() == ag['arbeitgeber_db_id'].toString(), orElse: () => null) : null;
+    final firma = ag['firma']?.toString() ?? dbAg?['firma_name']?.toString() ?? '';
+    final branche = dbAg?['branche']?.toString() ?? '';
+    final hauptOrt = dbAg?['hauptzentrale_ort']?.toString() ?? '';
+    final telefon = dbAg?['telefon']?.toString() ?? dbAg?['hauptzentrale_telefon']?.toString() ?? '';
+    final email = dbAg?['email']?.toString() ?? dbAg?['hauptzentrale_email']?.toString() ?? '';
+    final website = dbAg?['website']?.toString() ?? '';
+    final adresse = dbAg != null ? '${dbAg['hauptzentrale_strasse'] ?? ''}, ${dbAg['hauptzentrale_plz'] ?? ''} ${dbAg['hauptzentrale_ort'] ?? ''}'.trim() : '';
+
+    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () { final idx = _arbeitgeberFromDB.indexOf(ag); if (idx >= 0) _showBerufserfahrungModal(context, ag, idx, arbeitgeberListe: _arbeitgeberFromDB, selectedArbeitgeberId: _selectedArbeitgeberId); },
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
             Container(width: 48, height: 48, decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Icon(label == 'Minijob' ? Icons.work_outline : Icons.work, color: color.shade700, size: 26)),
+              child: Icon(label == 'Minijob' ? Icons.work_outline : (label == 'Teilzeit' ? Icons.timelapse : Icons.work), color: color.shade700, size: 26)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: color.shade200, borderRadius: BorderRadius.circular(8)),
-                child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade900))),
-              const SizedBox(height: 4),
-              Text(ag['firma']?.toString() ?? dbAg?['firma_name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
-              Text(ag['position']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-              if ((ag['ort']?.toString() ?? '').isNotEmpty) Text(ag['ort'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text(firma, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
+              if ((ag['position']?.toString() ?? '').isNotEmpty) Text(ag['position'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ])),
             Icon(Icons.chevron_right, color: color.shade400),
           ]),
-        ),
-      );
-    }
+          if (adresse.isNotEmpty || telefon.isNotEmpty || branche.isNotEmpty) ...[
+            const Divider(height: 16),
+            if (branche.isNotEmpty) _detailRow(Icons.category, branche, color),
+            if (adresse.isNotEmpty) _detailRow(Icons.location_on, adresse, color),
+            if ((ag['ort']?.toString() ?? '').isNotEmpty && adresse.isEmpty) _detailRow(Icons.location_on, ag['ort'].toString(), color),
+            if (telefon.isNotEmpty) _detailRow(Icons.phone, telefon, color),
+            if (email.isNotEmpty) _detailRow(Icons.email, email, color),
+            if (website.isNotEmpty) _detailRow(Icons.language, website, color),
+          ],
+        ]),
+      ),
+    );
+  }
 
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Vollzeit / Teilzeit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-      const SizedBox(height: 8),
-      if (vollzeit.isEmpty) Container(padding: const EdgeInsets.all(20), width: double.infinity,
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
-        child: Center(child: Text('Kein aktiver Arbeitgeber (Vollzeit)', style: TextStyle(color: Colors.grey.shade400))))
-      else ...vollzeit.map((a) => agCard(a, a['art']?.toString() == 'teilzeit' ? 'Teilzeit' : 'Vollzeit', Colors.indigo)),
-      const SizedBox(height: 20),
-      Text('Minijob', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-      const SizedBox(height: 8),
-      if (minijobs.isEmpty) Container(padding: const EdgeInsets.all(20), width: double.infinity,
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
-        child: Center(child: Text('Kein aktiver Minijob', style: TextStyle(color: Colors.grey.shade400))))
-      else ...minijobs.map((a) => agCard(a, 'Minijob', Colors.orange)),
-      const SizedBox(height: 16),
-      Center(child: TextButton.icon(icon: const Icon(Icons.list, size: 16), label: const Text('Alle Stellen verwalten', style: TextStyle(fontSize: 12)),
-        onPressed: () => _mainTabC.animateTo(1))),
-    ]));
+  Widget _detailRow(IconData icon, String text, MaterialColor color) =>
+    Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [Icon(icon, size: 14, color: color.shade400), const SizedBox(width: 8), Expanded(child: Text(text, style: const TextStyle(fontSize: 12)))]));
+
+  void _openArbeitgeberSearch(String art, StateSetter setLocal) {
+    final searchC = TextEditingController();
+    List<Map<String, dynamic>> filtered = List.from(widget.dbArbeitgeberListe);
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+      void filter(String q) {
+        if (q.isEmpty) { setDlg(() => filtered = List.from(widget.dbArbeitgeberListe)); return; }
+        final l = q.toLowerCase();
+        setDlg(() => filtered = widget.dbArbeitgeberListe.where((s) => (s['firma_name']?.toString() ?? '').toLowerCase().contains(l) || (s['hauptzentrale_ort']?.toString() ?? '').toLowerCase().contains(l) || (s['branche']?.toString() ?? '').toLowerCase().contains(l)).toList());
+      }
+      return AlertDialog(
+        title: Row(children: [Icon(Icons.search, color: Colors.indigo.shade700), const SizedBox(width: 8), Text('Arbeitgeber auswählen ($art)', style: const TextStyle(fontSize: 16))]),
+        content: SizedBox(width: 500, height: 400, child: Column(children: [
+          TextField(controller: searchC, autofocus: true, decoration: InputDecoration(hintText: 'Filter...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: filter),
+          const SizedBox(height: 12),
+          Expanded(child: filtered.isEmpty ? Center(child: Text('Keine Arbeitgeber gefunden', style: TextStyle(color: Colors.grey.shade400)))
+            : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) { final s = filtered[i];
+                return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
+                  leading: CircleAvatar(backgroundColor: Colors.indigo.shade100, child: Icon(Icons.business, color: Colors.indigo.shade700, size: 20)),
+                  title: Text(s['firma_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: Text('${s['branche'] ?? ''} · ${s['hauptzentrale_ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final result = await _saveArbeitgeberToDB({
+                      'firma': s['firma_name'], 'position': '', 'ort': s['hauptzentrale_ort'] ?? '',
+                      'aktuell': true, 'art': art, 'arbeitgeber_db_id': s['id'],
+                      'von_monat': DateTime.now().month.toString().padLeft(2, '0'), 'von_jahr': DateTime.now().year.toString(),
+                    });
+                    await _loadArbeitgeberFromDB();
+                    setLocal(() {});
+                  },
+                )); })),
+        ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))]);
+    }));
   }
 
   Widget _buildStellenTab() {
