@@ -4014,6 +4014,34 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: vorfaelle.length, itemBuilder: (_, i) {
               final v = vorfaelle[i]; final st = v['status']?.toString() ?? 'offen'; final stColor = (statusColors[st] ?? Colors.grey);
               return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(dense: true,
+                onTap: () {
+                  showDialog(context: context, builder: (detCtx) => AlertDialog(
+                    title: Row(children: [
+                      Icon(Icons.report_problem, size: 20, color: stColor.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(v['titel']?.toString() ?? (typLabels[v['typ']] ?? ''), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+                    ]),
+                    content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Row(children: [
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(12)),
+                          child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: stColor.shade800))),
+                        const SizedBox(width: 8),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12)),
+                          child: Text(typLabels[v['typ']] ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700))),
+                        const Spacer(),
+                        if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      ]),
+                      if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                        const SizedBox(height: 6),
+                        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                          child: SelectableText(v['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.5))),
+                      ],
+                    ]))),
+                    actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
+                  ));
+                },
                 leading: Icon(Icons.report_problem, color: stColor.shade600, size: 20),
                 title: Text(v['titel']?.toString() ?? (typLabels[v['typ']] ?? ''), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 subtitle: Text('${typLabels[v['typ']] ?? ''} · ${v['datum'] ?? ''}', style: const TextStyle(fontSize: 10)),
