@@ -604,7 +604,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   Widget build(BuildContext context) {
     final v = widget.vorfall;
     final status = v['status']?.toString() ?? 'offen';
-    return DefaultTabController(length: 6, child: Column(children: [
+    return DefaultTabController(length: 7, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: widget.color.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -625,14 +625,16 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
         Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
+        Tab(icon: Icon(Icons.balance, size: 18), text: 'Klage'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
         _buildDokumente(),
-        _buildVerlauf(),
+        _buildVerlaufUnified(v),
         _buildTermine(),
         _buildKorrespondenz(),
         _buildWiderspruch(v),
+        _buildKlageTab(v),
       ])),
     ]));
   }
@@ -1260,6 +1262,160 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         ],
       );
     }));
+  }
+
+  // Unified Verlauf — collects from all tabs chronologically
+  Widget _buildVerlaufUnified(Map<String, dynamic> v) {
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+    final List<(DateTime, IconData, String, String, MaterialColor)> items = [];
+
+    // Verlauf entries
+    for (final e in _verlauf) {
+      final d = _parseDate(e['datum']);
+      if (d != null) items.add((d, Icons.circle, e['notiz']?.toString() ?? _sLabel(e['status']?.toString() ?? ''), fmt(d), widget.color));
+    }
+    // Korrespondenz
+    for (final k in _korr) {
+      final d = _parseDate(k['datum']);
+      final isEin = k['richtung'] == 'eingang';
+      if (d != null) items.add((d, isEin ? Icons.call_received : Icons.call_made, '${isEin ? "Eingang" : "Ausgang"}: ${k['betreff'] ?? ''}', fmt(d), isEin ? Colors.green : Colors.blue));
+    }
+    // Termine
+    for (final t in _termine) {
+      final d = _parseDate(t['datum']);
+      if (d != null) items.add((d, Icons.event, 'Termin: ${t['ort'] ?? ''} ${t['uhrzeit'] ?? ''}', fmt(d), Colors.purple));
+    }
+    // Bescheid
+    final bescheidD = _parseDate(v['datum']);
+    if (bescheidD != null) items.add((bescheidD, Icons.description, 'Bescheid / Zustellung', fmt(bescheidD), Colors.indigo));
+
+    items.sort((a, b) => a.$1.compareTo(b.$1));
+
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.timeline, color: widget.color.shade700), const SizedBox(width: 8),
+        Text('Verlauf — Chronologisch (${items.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: widget.color.shade800)),
+      ])),
+      Expanded(child: items.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: items.length, itemBuilder: (_, i) {
+            final e = items[i];
+            return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 30, child: Column(children: [
+                Container(width: 24, height: 24, decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
+                  child: Icon(e.$2, size: 12, color: e.$5.shade700)),
+                if (i < items.length - 1) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+              ])),
+              const SizedBox(width: 10),
+              Expanded(child: Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
+                    Text(e.$4, style: TextStyle(fontSize: 10, color: e.$5.shade600))]),
+                ]))),
+            ]));
+          })),
+    ]);
+  }
+
+  // Klage Tab
+  Widget _buildKlageTab(Map<String, dynamic> v) {
+    final status = v['status']?.toString() ?? '';
+    final klageRelevant = status == 'bewilligt' || status == 'in_bearbeitung';
+
+    const klageStatusLabels = {
+      'vorbereitung': 'In Vorbereitung',
+      'eingereicht': 'Klage eingereicht',
+      'guetetermin': 'Gütetermin angesetzt',
+      'kammertermin': 'Kammertermin angesetzt',
+      'verhandlung': 'Verhandlung läuft',
+      'vergleich': 'Vergleich geschlossen',
+      'urteil': 'Urteil gesprochen',
+      'berufung': 'Berufung eingelegt',
+      'abgeschlossen': 'Abgeschlossen',
+    };
+    const klageStatusColors = {
+      'vorbereitung': Colors.orange, 'eingereicht': Colors.blue, 'guetetermin': Colors.purple,
+      'kammertermin': Colors.indigo, 'verhandlung': Colors.teal, 'vergleich': Colors.green,
+      'urteil': Colors.amber, 'berufung': Colors.red, 'abgeschlossen': Colors.grey,
+    };
+
+    final klageStatus = v['klage_status']?.toString() ?? '';
+    final klaegerC = TextEditingController(text: v['klaeger']?.toString() ?? '');
+    final beklagterC = TextEditingController(text: v['beklagter']?.toString() ?? '');
+    final aktenzeichenC = TextEditingController(text: v['klage_aktenzeichen']?.toString() ?? '');
+    final richterC = TextEditingController(text: v['klage_richter']?.toString() ?? '');
+    final gueteterminC = TextEditingController(text: v['guetetermin_datum']?.toString() ?? '');
+    final kammerterminC = TextEditingController(text: v['kammertermin_datum']?.toString() ?? '');
+    final notizC = TextEditingController(text: v['klage_notiz']?.toString() ?? '');
+
+    return StatefulBuilder(builder: (ctx, setK) {
+      String currentStatus = klageStatus;
+      bool editing = false;
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (!klageRelevant && klageStatus.isEmpty) ...[
+          Container(width: double.infinity, padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+            child: Column(children: [
+              Icon(Icons.balance, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text('Keine Klage erforderlich', style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+              const SizedBox(height: 4),
+              Text('Eine Klage wird erst relevant wenn der Widerspruch bewilligt/akzeptiert wurde.', style: TextStyle(fontSize: 11, color: Colors.grey.shade400), textAlign: TextAlign.center),
+            ])),
+        ] else ...[
+          Text('Klage', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          const SizedBox(height: 12),
+
+          // Parteien
+          Row(children: [
+            Expanded(child: TextField(controller: klaegerC, decoration: InputDecoration(labelText: 'Kläger (wer klagt)', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('vs.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+            Expanded(child: TextField(controller: beklagterC, decoration: InputDecoration(labelText: 'Beklagter', prefixIcon: const Icon(Icons.business, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          ]),
+          const SizedBox(height: 10),
+          TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen Gericht', prefixIcon: const Icon(Icons.bookmark, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 10),
+          TextField(controller: richterC, decoration: InputDecoration(labelText: 'Richter/in', prefixIcon: const Icon(Icons.person_pin, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: TextField(controller: gueteterminC, readOnly: true, decoration: InputDecoration(labelText: 'Gütetermin', prefixIcon: const Icon(Icons.handshake, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) gueteterminC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; })),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: kammerterminC, readOnly: true, decoration: InputDecoration(labelText: 'Kammertermin', prefixIcon: const Icon(Icons.event, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) kammerterminC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; })),
+          ]),
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 16),
+
+          // Klage Status
+          Text('Klage-Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final s in klageStatusLabels.entries)
+              ChoiceChip(label: Text(s.value, style: TextStyle(fontSize: 10, color: currentStatus == s.key ? Colors.white : (klageStatusColors[s.key] ?? Colors.grey).shade800)),
+                selected: currentStatus == s.key, selectedColor: (klageStatusColors[s.key] ?? Colors.grey).shade600,
+                onSelected: (_) => setK(() => currentStatus = s.key)),
+          ]),
+          const SizedBox(height: 16),
+          Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+            onPressed: () async {
+              await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {
+                ...v, 'id': widget.vorfallId,
+                'klaeger': klaegerC.text.trim(), 'beklagter': beklagterC.text.trim(),
+                'klage_aktenzeichen': aktenzeichenC.text.trim(), 'klage_richter': richterC.text.trim(),
+                'guetetermin_datum': gueteterminC.text.trim(), 'kammertermin_datum': kammerterminC.text.trim(),
+                'klage_status': currentStatus, 'klage_notiz': notizC.text.trim(),
+              });
+              _load(); widget.onChanged();
+              if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600));
+            },
+            icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+          )),
+        ],
+      ]));
+    });
   }
 
   Widget _tlItem(IconData icon, String title, String date, Color color, bool hasLine, {String? subtitle}) {
