@@ -540,6 +540,15 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     switch (s) { case 'offen': return 'Offen'; case 'in_bearbeitung': return 'In Bearbeitung'; case 'bewilligt': return 'Bewilligt'; case 'abgelehnt': return 'Abgelehnt'; case 'erledigt': return 'Erledigt'; default: return s; }
   }
 
+  String _getArbeitgeberName() {
+    // Try to get arbeitgeber from loaded behoerde data
+    try {
+      final agData = _gerichtData['arbeitgeber'];
+      if (agData != null && agData['firma'] != null) return agData['firma'].toString();
+    } catch (_) {}
+    return '';
+  }
+
   void _showVorfallDetailDialog(int vorfallId, Map<String, dynamic> vorfall, String typ, String label, MaterialColor color, List<String> antragTypen) {
     showDialog(
       context: context,
@@ -551,6 +560,8 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
           vorfallId: vorfallId, vorfall: vorfall, gerichtTyp: typ, color: color, antragTypen: antragTypen,
           onEdit: () { Navigator.pop(ctx); _showVorfallDialog(typ, label, color, antragTypen, existing: vorfall); },
           onChanged: () { _loaded[typ] = false; setState(() {}); },
+          userName: widget.user.vorname ?? '', userNachname: widget.user.nachname ?? widget.user.name,
+          arbeitgeberName: _getArbeitgeberName(),
         )),
       ),
     );
@@ -570,7 +581,10 @@ class _GerichtVorfallDetailView extends StatefulWidget {
   final List<String> antragTypen;
   final VoidCallback onEdit;
   final VoidCallback onChanged;
-  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged});
+  final String userName;
+  final String userNachname;
+  final String arbeitgeberName;
+  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged, this.userName = '', this.userNachname = '', this.arbeitgeberName = ''});
   @override
   State<_GerichtVorfallDetailView> createState() => _GerichtVorfallDetailViewState();
 }
@@ -1374,8 +1388,10 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     };
 
     final klageStatus = v['klage_status']?.toString() ?? '';
-    final klaegerC = TextEditingController(text: v['klaeger']?.toString() ?? '');
-    final beklagterC = TextEditingController(text: v['beklagter']?.toString() ?? '');
+    final memberName = '${widget.userName} ${widget.userNachname}'.trim();
+    final agName = widget.arbeitgeberName;
+    final klaegerC = TextEditingController(text: v['klaeger']?.toString().isNotEmpty == true ? v['klaeger'].toString() : memberName);
+    final beklagterC = TextEditingController(text: v['beklagter']?.toString().isNotEmpty == true ? v['beklagter'].toString() : agName);
     final aktenzeichenC = TextEditingController(text: v['klage_aktenzeichen']?.toString().isNotEmpty == true ? v['klage_aktenzeichen'].toString() : v['aktenzeichen']?.toString() ?? '');
     final richterC = TextEditingController(text: v['klage_richter']?.toString().isNotEmpty == true ? v['klage_richter'].toString() : v['sachbearbeiter']?.toString() ?? '');
     final gueteterminC = TextEditingController(text: v['guetetermin_datum']?.toString() ?? '');
@@ -1400,10 +1416,13 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           Text('Klage', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
           const SizedBox(height: 12),
 
-          // Parteien
+          // Parteien mit Switch
           Row(children: [
             Expanded(child: TextField(controller: klaegerC, decoration: InputDecoration(labelText: 'Kläger (wer klagt)', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('vs.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: IconButton(
+              icon: const Icon(Icons.swap_horiz, size: 24), tooltip: 'Kläger/Beklagter tauschen', color: Colors.indigo.shade600,
+              onPressed: () => setK(() { final tmp = klaegerC.text; klaegerC.text = beklagterC.text; beklagterC.text = tmp; }),
+            )),
             Expanded(child: TextField(controller: beklagterC, decoration: InputDecoration(labelText: 'Beklagter', prefixIcon: const Icon(Icons.business, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
           ]),
           const SizedBox(height: 10),
