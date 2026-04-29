@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/ticket_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 
 class BehordeDeutschlandticketContent extends StatefulWidget {
@@ -7,7 +8,10 @@ class BehordeDeutschlandticketContent extends StatefulWidget {
   final int userId;
   final String userName;
   final String userNachname;
-  const BehordeDeutschlandticketContent({super.key, required this.apiService, required this.userId, this.userName = '', this.userNachname = ''});
+  final TicketService? ticketService;
+  final String? adminMitgliedernummer;
+  final String? memberMitgliedernummer;
+  const BehordeDeutschlandticketContent({super.key, required this.apiService, required this.userId, this.userName = '', this.userNachname = '', this.ticketService, this.adminMitgliedernummer, this.memberMitgliedernummer});
   @override
   State<BehordeDeutschlandticketContent> createState() => _State();
 }
@@ -45,7 +49,7 @@ class _State extends State<BehordeDeutschlandticketContent> with TickerProviderS
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         _FirmaTab(data: _data, apiService: widget.apiService, userId: widget.userId, onReload: _load),
-        _VertragTab(vertraege: _vertraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, firmaData: _data, userName: widget.userName, userNachname: widget.userNachname),
+        _VertragTab(vertraege: _vertraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, firmaData: _data, userName: widget.userName, userNachname: widget.userNachname, ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer),
       ])),
     ]);
   }
@@ -142,8 +146,8 @@ class _FirmaTabState extends State<_FirmaTab> {
 
 // ==================== VERTRAG ====================
 class _VertragTab extends StatefulWidget {
-  final List<Map<String, dynamic>> vertraege; final ApiService apiService; final int userId; final Future<void> Function() onReload; final Map<String, dynamic> firmaData; final String userName; final String userNachname;
-  const _VertragTab({required this.vertraege, required this.apiService, required this.userId, required this.onReload, required this.firmaData, this.userName = '', this.userNachname = ''});
+  final List<Map<String, dynamic>> vertraege; final ApiService apiService; final int userId; final Future<void> Function() onReload; final Map<String, dynamic> firmaData; final String userName; final String userNachname; final TicketService? ticketService; final String? adminMitgliedernummer; final String? memberMitgliedernummer;
+  const _VertragTab({required this.vertraege, required this.apiService, required this.userId, required this.onReload, required this.firmaData, this.userName = '', this.userNachname = '', this.ticketService, this.adminMitgliedernummer, this.memberMitgliedernummer});
   @override State<_VertragTab> createState() => _VertragTabState();
 }
 class _VertragTabState extends State<_VertragTab> {
@@ -185,7 +189,7 @@ class _VertragTabState extends State<_VertragTab> {
   void _openDetail(Map<String, dynamic> v) {
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: SizedBox(width: double.infinity, height: MediaQuery.of(context).size.height * 0.8, child: _VertragDetailModal(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname)),
+      child: SizedBox(width: double.infinity, height: MediaQuery.of(context).size.height * 0.8, child: _VertragDetailModal(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname, ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer)),
     ));
   }
 
@@ -222,8 +226,8 @@ class _VertragTabState extends State<_VertragTab> {
 
 // ==================== VERTRAG DETAIL MODAL ====================
 class _VertragDetailModal extends StatefulWidget {
-  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload; final Map<String, dynamic> firmaData; final String userName; final String userNachname;
-  const _VertragDetailModal({required this.vertrag, required this.apiService, required this.userId, required this.onReload, required this.firmaData, this.userName = '', this.userNachname = ''});
+  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload; final Map<String, dynamic> firmaData; final String userName; final String userNachname; final TicketService? ticketService; final String? adminMitgliedernummer; final String? memberMitgliedernummer;
+  const _VertragDetailModal({required this.vertrag, required this.apiService, required this.userId, required this.onReload, required this.firmaData, this.userName = '', this.userNachname = '', this.ticketService, this.adminMitgliedernummer, this.memberMitgliedernummer});
   @override State<_VertragDetailModal> createState() => _VertragDetailModalState();
 }
 class _VertragDetailModalState extends State<_VertragDetailModal> with TickerProviderStateMixin {
@@ -253,7 +257,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
         Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'), Tab(text: 'Stammdaten'), Tab(text: 'Chipkarte'),
       ]),
       Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
-        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _StammdatenTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname),
+        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _StammdatenTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname),
       ])),
     ]);
   }
@@ -446,8 +450,8 @@ class _DticketDokSubTabsState extends State<_DticketDokSubTabs> with TickerProvi
 
 // ==================== STAMMDATEN TAB ====================
 class _StammdatenTab extends StatefulWidget {
-  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
-  const _StammdatenTab({required this.vertrag, required this.apiService, required this.userId, required this.onReload});
+  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload; final TicketService? ticketService; final String? adminMitgliedernummer; final String? memberMitgliedernummer;
+  const _StammdatenTab({required this.vertrag, required this.apiService, required this.userId, required this.onReload, this.ticketService, this.adminMitgliedernummer, this.memberMitgliedernummer});
   @override State<_StammdatenTab> createState() => _StammdatenTabState();
 }
 class _StammdatenTabState extends State<_StammdatenTab> {
@@ -468,10 +472,24 @@ class _StammdatenTabState extends State<_StammdatenTab> {
   Future<void> _checkExpiryTicket() async {
     if (_karteMonat.isEmpty || _karteJahr.isEmpty) return;
     if (widget.vertrag['karte_renewal_ticket_created'] == true || widget.vertrag['karte_renewal_ticket_created'] == 'true') return;
+    if (widget.ticketService == null || widget.adminMitgliedernummer == null || widget.memberMitgliedernummer == null) return;
     try {
       final expiryDate = DateTime(int.parse(_karteJahr), int.parse(_karteMonat) + 1, 0);
       final diff = expiryDate.difference(DateTime.now()).inDays;
       if (diff >= 0 && diff <= 90) {
+        await widget.ticketService!.createTicketForMember(
+          adminMitgliedernummer: widget.adminMitgliedernummer!,
+          memberMitgliedernummer: widget.memberMitgliedernummer!,
+          subject: 'Deutschlandticket Chipkarte läuft ab — $_karteMonat/$_karteJahr ($diff Tage)',
+          message: 'Sehr geehrtes Mitglied,\n\n'
+              'Ihre Deutschlandticket Chipkarte läuft in $diff Tagen ab ($_karteMonat/$_karteJahr).\n\n'
+              'Bitte beantragen Sie rechtzeitig eine neue Chipkarte bei Ihrem Verkehrsverbund, '
+              'damit Sie weiterhin das Deutschlandticket nutzen können.\n\n'
+              'Kundennummer: ${_kundennrC.text}\n\n'
+              'Mit freundlichen Grüßen\nICD360S e.V.',
+          priority: diff <= 30 ? 'high' : 'medium',
+          scheduledDate: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+        );
         await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {...widget.vertrag, 'karte_renewal_ticket_created': 'true'}});
       }
     } catch (_) {}
