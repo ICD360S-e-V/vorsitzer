@@ -462,6 +462,19 @@ class _StammdatenTabState extends State<_StammdatenTab> {
     _codeC = TextEditingController(text: widget.vertrag['chipkarte_code']?.toString() ?? '');
     _karteMonat = widget.vertrag['chipkarte_gueltig_monat']?.toString() ?? '';
     _karteJahr = widget.vertrag['chipkarte_gueltig_jahr']?.toString() ?? '';
+    _checkExpiryTicket();
+  }
+
+  Future<void> _checkExpiryTicket() async {
+    if (_karteMonat.isEmpty || _karteJahr.isEmpty) return;
+    if (widget.vertrag['karte_renewal_ticket_created'] == true || widget.vertrag['karte_renewal_ticket_created'] == 'true') return;
+    try {
+      final expiryDate = DateTime(int.parse(_karteJahr), int.parse(_karteMonat) + 1, 0);
+      final diff = expiryDate.difference(DateTime.now()).inDays;
+      if (diff >= 0 && diff <= 90) {
+        await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {...widget.vertrag, 'karte_renewal_ticket_created': 'true'}});
+      }
+    } catch (_) {}
   }
   @override
   void dispose() { _kundennrC.dispose(); _codeC.dispose(); super.dispose(); }
@@ -509,6 +522,26 @@ class _StammdatenTabState extends State<_StammdatenTab> {
           onChanged: _editing ? (v) => setState(() => _karteJahr = v ?? '') : null,
         )),
       ]),
+      // Expiry warning
+      if (_karteMonat.isNotEmpty && _karteJahr.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        Builder(builder: (ctx) {
+          final expiryDate = DateTime(int.parse(_karteJahr), int.parse(_karteMonat) + 1, 0);
+          final now = DateTime.now();
+          final diff = expiryDate.difference(now).inDays;
+          final expired = diff < 0;
+          final warnRenew = diff >= 0 && diff <= 90;
+          final color = expired ? Colors.red : (warnRenew ? Colors.orange : Colors.green);
+          return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+            child: Row(children: [
+              Icon(expired ? Icons.error : (warnRenew ? Icons.warning_amber : Icons.check_circle), size: 20, color: color.shade700),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                expired ? 'Karte abgelaufen! Bitte erneuern.' : (warnRenew ? 'Karte läuft in $diff Tagen ab — bitte rechtzeitig erneuern!' : 'Karte gültig bis $_karteMonat/$_karteJahr ($diff Tage)'),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+            ]));
+        }),
+      ],
       if (_editing) ...[const SizedBox(height: 16), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
         onPressed: _saving ? null : _save,
         icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
@@ -586,25 +619,7 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
       Text('Tippen zum Umdrehen', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
       const SizedBox(height: 16),
 
-      // Edit: only Gültig bis (month/year) — Kundennummer + Code are in Stammdaten tab
-      const SizedBox(height: 12),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text('Gültig bis: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-        const SizedBox(width: 8),
-        SizedBox(width: 80, child: DropdownButtonFormField<String>(
-          value: _gueltigMonat.isEmpty ? null : _gueltigMonat,
-          decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          items: List.generate(12, (i) => DropdownMenuItem(value: (i + 1).toString().padLeft(2, '0'), child: Text((i + 1).toString().padLeft(2, '0'), style: const TextStyle(fontSize: 13)))),
-          onChanged: (v) { setState(() => _gueltigMonat = v ?? ''); _save(); },
-        )),
-        const SizedBox(width: 8),
-        SizedBox(width: 90, child: DropdownButtonFormField<String>(
-          value: _gueltigJahr.isEmpty ? null : _gueltigJahr,
-          decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          items: List.generate(10, (i) => DropdownMenuItem(value: (2025 + i).toString(), child: Text((2025 + i).toString(), style: const TextStyle(fontSize: 13)))),
-          onChanged: (v) { setState(() => _gueltigJahr = v ?? ''); _save(); },
-        )),
-      ]),
+      // All data managed in Stammdaten tab — Chipkarte is readonly display only
     ]));
   }
 
