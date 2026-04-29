@@ -2351,6 +2351,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       'von_monat': DateTime.now().month.toString().padLeft(2, '0'), 'von_jahr': DateTime.now().year.toString(),
                     });
                     await _loadArbeitgeberFromDB();
+                    if (mounted) setState(() {});
                     setLocal(() {});
                   },
                 )); })),
