@@ -231,7 +231,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
   List<Map<String, dynamic>> _korr = [];
   bool _loading = true;
 
-  @override void initState() { super.initState(); _tabC = TabController(length: 5, vsync: this); _loadDetail(); }
+  @override void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); _loadDetail(); }
   @override void dispose() { _tabC.dispose(); super.dispose(); }
 
   Future<void> _loadDetail() async {
@@ -250,10 +250,10 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
           Expanded(child: Text('${v['anbieter'] ?? 'Deutschlandticket'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800))),
           IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); })])),
       TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
-        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'), Tab(text: 'Chipkarte'),
+        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'), Tab(text: 'Stammdaten'), Tab(text: 'Chipkarte'),
       ]),
       Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
-        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname),
+        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _StammdatenTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname),
       ])),
     ]);
   }
@@ -444,6 +444,45 @@ class _DticketDokSubTabsState extends State<_DticketDokSubTabs> with TickerProvi
   }
 }
 
+// ==================== STAMMDATEN TAB ====================
+class _StammdatenTab extends StatefulWidget {
+  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
+  const _StammdatenTab({required this.vertrag, required this.apiService, required this.userId, required this.onReload});
+  @override State<_StammdatenTab> createState() => _StammdatenTabState();
+}
+class _StammdatenTabState extends State<_StammdatenTab> {
+  late TextEditingController _kundennrC, _codeC;
+  bool _editing = false, _saving = false;
+  @override
+  void initState() { super.initState(); _kundennrC = TextEditingController(text: widget.vertrag['abo_nr']?.toString() ?? ''); _codeC = TextEditingController(text: widget.vertrag['chipkarte_code']?.toString() ?? ''); }
+  @override
+  void dispose() { _kundennrC.dispose(); _codeC.dispose(); super.dispose(); }
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {...widget.vertrag, 'abo_nr': _kundennrC.text.trim(), 'chipkarte_code': _codeC.text.trim()}});
+    await widget.onReload();
+    if (mounted) { setState(() { _saving = false; _editing = false; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Stammdaten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const Spacer(),
+        TextButton.icon(icon: Icon(_editing ? Icons.lock : Icons.edit, size: 16), label: Text(_editing ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)), onPressed: () => setState(() => _editing = !_editing)),
+      ]),
+      const SizedBox(height: 16),
+      TextField(controller: _kundennrC, readOnly: !_editing, decoration: InputDecoration(labelText: 'Kundennummer (9 Ziffern)', prefixIcon: const Icon(Icons.badge, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null), keyboardType: TextInputType.number),
+      const SizedBox(height: 12),
+      TextField(controller: _codeC, readOnly: !_editing, decoration: InputDecoration(labelText: 'Code (z.B. 1234-56.789.012-3)', prefixIcon: const Icon(Icons.qr_code, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
+      if (_editing) ...[const SizedBox(height: 16), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)))],
+    ]));
+  }
+}
+
 // ==================== CHIPKARTE TAB ====================
 class _ChipkarteTab extends StatefulWidget {
   final Map<String, dynamic> vertrag;
@@ -513,39 +552,25 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
       Text('Tippen zum Umdrehen', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
       const SizedBox(height: 16),
 
-      // Edit fields
-      Row(children: [
-        Expanded(child: TextField(decoration: InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          controller: TextEditingController(text: _vorname), onChanged: (v) => _vorname = v)),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(decoration: InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          controller: TextEditingController(text: _nachname), onChanged: (v) => _nachname = v)),
-      ]),
-      const SizedBox(height: 10),
-      Row(children: [
-        Expanded(child: TextField(controller: _kundennrC, decoration: InputDecoration(labelText: 'Kundennummer (9 Ziffern)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), keyboardType: TextInputType.number)),
+      // Edit: only Gültig bis (month/year) — Kundennummer + Code are in Stammdaten tab
+      const SizedBox(height: 12),
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text('Gültig bis: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
         const SizedBox(width: 8),
         SizedBox(width: 80, child: DropdownButtonFormField<String>(
           value: _gueltigMonat.isEmpty ? null : _gueltigMonat,
           decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: List.generate(12, (i) => DropdownMenuItem(value: (i + 1).toString().padLeft(2, '0'), child: Text((i + 1).toString().padLeft(2, '0'), style: const TextStyle(fontSize: 13)))),
-          onChanged: (v) => setState(() => _gueltigMonat = v ?? ''),
+          onChanged: (v) { setState(() => _gueltigMonat = v ?? ''); _save(); },
         )),
         const SizedBox(width: 8),
         SizedBox(width: 90, child: DropdownButtonFormField<String>(
           value: _gueltigJahr.isEmpty ? null : _gueltigJahr,
           decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: List.generate(10, (i) => DropdownMenuItem(value: (2025 + i).toString(), child: Text((2025 + i).toString(), style: const TextStyle(fontSize: 13)))),
-          onChanged: (v) => setState(() => _gueltigJahr = v ?? ''),
+          onChanged: (v) { setState(() => _gueltigJahr = v ?? ''); _save(); },
         )),
       ]),
-      const SizedBox(height: 10),
-      TextField(controller: _codeC, decoration: InputDecoration(labelText: 'Code (z.B. 1234-56.789.012-3)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      const SizedBox(height: 12),
-      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: _saving ? null : _save,
-        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
-        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white))),
     ]));
   }
 
