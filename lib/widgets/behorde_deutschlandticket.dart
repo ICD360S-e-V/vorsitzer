@@ -263,15 +263,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
   }
 
   Widget _buildDetails(Map<String, dynamic> v) {
-    Widget r(IconData icon, String label, String value) { if (value.isEmpty) return const SizedBox.shrink();
-      return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Icon(icon, size: 16, color: Colors.red.shade400), const SizedBox(width: 8), SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))), Expanded(child: Text(value, style: const TextStyle(fontSize: 13)))])); }
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      r(Icons.business, 'Anbieter', v['anbieter']?.toString() ?? ''), r(Icons.confirmation_number, 'Abo-Nr.', v['abo_nr']?.toString() ?? ''),
-      r(Icons.euro, 'Preis', '${v['preis'] ?? '63'} €/Monat'), r(Icons.payment, 'Zahlungsart', v['zahlungsart']?.toString() ?? ''),
-      r(Icons.calendar_today, 'Gültig ab', v['gueltig_ab']?.toString() ?? ''), r(Icons.event, 'Gültig bis', v['gueltig_bis']?.toString() ?? ''),
-      r(Icons.account_balance, 'IBAN', v['iban']?.toString() ?? ''), r(Icons.flag, 'Status', v['status']?.toString() ?? ''),
-      if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 8), Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)), child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 13)))],
-    ]));
+    return _DetailsEditTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload);
   }
 
   Widget _buildKorr() {
@@ -445,6 +437,87 @@ class _DticketDokSubTabsState extends State<_DticketDokSubTabs> with TickerProvi
         Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: t.$1, korrespondenzId: widget.vertragId)),
       ).toList())),
     ]);
+  }
+}
+
+// ==================== DETAILS EDIT TAB ====================
+class _DetailsEditTab extends StatefulWidget {
+  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
+  const _DetailsEditTab({required this.vertrag, required this.apiService, required this.userId, required this.onReload});
+  @override State<_DetailsEditTab> createState() => _DetailsEditTabState();
+}
+class _DetailsEditTabState extends State<_DetailsEditTab> {
+  late TextEditingController _anbieterC, _preisC, _ibanC, _abC, _bisC, _vertragsbeginnC, _notizC;
+  late String _zahlungsart, _status;
+  bool _editing = false, _saving = false;
+  @override
+  void initState() { super.initState(); final v = widget.vertrag;
+    _anbieterC = TextEditingController(text: v['anbieter']?.toString() ?? '');
+    _preisC = TextEditingController(text: v['preis']?.toString() ?? '63,00');
+    _ibanC = TextEditingController(text: v['iban']?.toString() ?? '');
+    _abC = TextEditingController(text: v['gueltig_ab']?.toString() ?? '');
+    _bisC = TextEditingController(text: v['gueltig_bis']?.toString() ?? '');
+    _vertragsbeginnC = TextEditingController(text: v['vertragsbeginn']?.toString() ?? '');
+    _notizC = TextEditingController(text: v['notiz']?.toString() ?? '');
+    _zahlungsart = v['zahlungsart']?.toString() ?? 'Lastschrift';
+    _status = v['status']?.toString() ?? 'aktiv';
+  }
+  @override void dispose() { _anbieterC.dispose(); _preisC.dispose(); _ibanC.dispose(); _abC.dispose(); _bisC.dispose(); _vertragsbeginnC.dispose(); _notizC.dispose(); super.dispose(); }
+
+  Future<void> _pickDate(TextEditingController c) async {
+    final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+    if (d != null) c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {
+      ...widget.vertrag, 'anbieter': _anbieterC.text.trim(), 'preis': _preisC.text.trim(), 'iban': _ibanC.text.trim(),
+      'gueltig_ab': _abC.text.trim(), 'gueltig_bis': _bisC.text.trim(), 'vertragsbeginn': _vertragsbeginnC.text.trim(),
+      'zahlungsart': _zahlungsart, 'status': _status, 'notiz': _notizC.text.trim(),
+    }});
+    await widget.onReload();
+    if (mounted) { setState(() { _saving = false; _editing = false; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+  }
+
+  Widget _f(String label, TextEditingController c, {IconData icon = Icons.edit, bool isDate = false}) =>
+    Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, readOnly: !_editing || isDate,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+      onTap: isDate && _editing ? () => _pickDate(c) : null));
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Vertragsdetails', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const Spacer(),
+        TextButton.icon(icon: Icon(_editing ? Icons.lock : Icons.edit, size: 16), label: Text(_editing ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)), onPressed: () => setState(() => _editing = !_editing)),
+      ]),
+      const SizedBox(height: 12),
+      _f('Anbieter', _anbieterC, icon: Icons.business),
+      Row(children: [
+        Expanded(child: _f('Preis €/Monat', _preisC, icon: Icons.euro)),
+        const SizedBox(width: 8),
+        Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(value: _zahlungsart, decoration: InputDecoration(labelText: 'Zahlungsart', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+          items: const [DropdownMenuItem(value: 'Lastschrift', child: Text('Lastschrift', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'Überweisung', child: Text('Überweisung', style: TextStyle(fontSize: 13)))],
+          onChanged: _editing ? (v) => setState(() => _zahlungsart = v ?? _zahlungsart) : null))),
+      ]),
+      _f('IBAN', _ibanC, icon: Icons.account_balance),
+      _f('Vertragsbeginn', _vertragsbeginnC, icon: Icons.play_arrow, isDate: true),
+      Row(children: [
+        Expanded(child: _f('Gültig ab', _abC, icon: Icons.calendar_today, isDate: true)),
+        const SizedBox(width: 8),
+        Expanded(child: _f('Gültig bis', _bisC, icon: Icons.event, isDate: true)),
+      ]),
+      Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(value: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+        items: const [DropdownMenuItem(value: 'aktiv', child: Text('Aktiv', style: TextStyle(fontSize: 13, color: Colors.green))), DropdownMenuItem(value: 'gekündigt', child: Text('Gekündigt', style: TextStyle(fontSize: 13, color: Colors.red)))],
+        onChanged: _editing ? (v) => setState(() => _status = v ?? _status) : null)),
+      _f('Notiz', _notizC, icon: Icons.notes),
+      if (_editing) ...[const SizedBox(height: 8), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)))],
+    ]));
   }
 }
 
