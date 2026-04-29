@@ -860,8 +860,9 @@ class _ZahlungTabState extends State<_ZahlungTab> {
       final key = '${current.year}-${current.month.toString().padLeft(2, '0')}';
       if (!existing.contains(key)) {
         widget.apiService.dticketAction(widget.userId, {'action': 'save_zahlung', 'zahlung': {
-          'vertrag_id': widget.vertrag['id'], 'monat': key, 'betrag': preis, 'zahlungsart': zahlungsart, 'status': 'offen',
+          'vertrag_id': widget.vertrag['id'], 'monat': key, 'betrag': preis, 'zahlungsart': zahlungsart, 'status': 'offen', 'ticket_created': 'true',
         }});
+        _createTicketForMonth(key);
       }
       current = DateTime(current.year, current.month + 1, 1);
     }
@@ -897,6 +898,7 @@ class _ZahlungTabState extends State<_ZahlungTab> {
     final zahlungsart = widget.vertrag['zahlungsart']?.toString() ?? 'SEPA-Lastschrift';
     final bezahlt = _zahlungen.where((z) => z['status'] == 'bezahlt').length;
     final offen = _zahlungen.where((z) => z['status'] == 'offen').length;
+    final nichtBez = _zahlungen.where((z) => z['status'] == 'nicht_bezahlt').length;
 
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Column(children: [
@@ -915,6 +917,8 @@ class _ZahlungTabState extends State<_ZahlungTab> {
           const SizedBox(width: 6),
           if (offen > 0) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
             child: Text('$offen offen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
+          if (nichtBez > 0) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text('$nichtBez nicht bezahlt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade800)))],
         ]),
       ])),
       Expanded(child: _zahlungen.isEmpty
@@ -926,26 +930,29 @@ class _ZahlungTabState extends State<_ZahlungTab> {
             final label = parts.length == 2 ? '${_monatNamen[parts[1]] ?? parts[1]} ${parts[0]}' : monat;
             final status = z['status']?.toString() ?? 'offen';
             final bezahltBool = status == 'bezahlt';
-            final color = bezahltBool ? Colors.green : Colors.orange;
+            final nichtBezahlt = status == 'nicht_bezahlt';
+            final color = bezahltBool ? Colors.green : (nichtBezahlt ? Colors.red : Colors.orange);
 
             return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(dense: true,
-              leading: Icon(bezahltBool ? Icons.check_circle : Icons.pending, color: color.shade600, size: 22),
+              leading: Icon(bezahltBool ? Icons.check_circle : (nichtBezahlt ? Icons.cancel : Icons.pending), color: color.shade600, size: 22),
               title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('${z['betrag'] ?? '63,00'} € · $zahlungsart', style: const TextStyle(fontSize: 11)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-                  child: Text(bezahltBool ? 'Bezahlt' : 'Offen', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
+                  child: Text(bezahltBool ? 'Bezahlt' : (nichtBezahlt ? 'Nicht bezahlt' : 'Offen'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
                 const SizedBox(width: 4),
                 PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade500),
                   itemBuilder: (_) => [
-                    if (!bezahltBool) const PopupMenuItem(value: 'bezahlt', child: Text('Als bezahlt markieren', style: TextStyle(fontSize: 12))),
-                    if (bezahltBool) const PopupMenuItem(value: 'offen', child: Text('Als offen markieren', style: TextStyle(fontSize: 12))),
+                    if (status != 'bezahlt') const PopupMenuItem(value: 'bezahlt', child: Text('Als bezahlt markieren', style: TextStyle(fontSize: 12))),
+                    if (status != 'nicht_bezahlt') const PopupMenuItem(value: 'nicht_bezahlt', child: Text('Nicht bezahlt', style: TextStyle(fontSize: 12, color: Colors.red))),
+                    if (status != 'offen') const PopupMenuItem(value: 'offen', child: Text('Als offen markieren', style: TextStyle(fontSize: 12))),
                     const PopupMenuItem(value: 'ticket', child: Text('Ticket erstellen', style: TextStyle(fontSize: 12))),
                   ],
                   onSelected: (val) {
                     if (val == 'bezahlt') _setStatus(z, 'bezahlt');
                     else if (val == 'offen') _setStatus(z, 'offen');
+                    else if (val == 'nicht_bezahlt') _setStatus(z, 'nicht_bezahlt');
                     else if (val == 'ticket') _createTicketForMonth(monat);
                   },
                 ),
