@@ -33,16 +33,18 @@ class ArbeitgeberBehoerdeContent extends StatefulWidget {
   State<ArbeitgeberBehoerdeContent> createState() => _ArbeitgeberBehoerdeContentState();
 }
 
-class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent> {
+class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent> with TickerProviderStateMixin {
   Map<String, dynamic> _hausarztData = {};
   List<Map<String, dynamic>> _arbeitgeberFromDB = [];
   bool _dbLoaded = false;
   List<Map<String, dynamic>> _berufsbezeichnungen = [];
   String _selectedArbeitgeberId = '';
+  late TabController _mainTabC;
 
   @override
   void initState() {
     super.initState();
+    _mainTabC = TabController(length: 2, vsync: this);
     _loadHausarztData();
     _loadArbeitgeberFromDB();
     _loadBerufsbezeichnungen();
@@ -2222,11 +2224,74 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   }
 
   @override
+  @override
+  void dispose() { _mainTabC.dispose(); super.dispose(); }
+
   Widget build(BuildContext context) {
     if (!_dbLoaded) {
       return const Center(child: CircularProgressIndicator());
     }
+    return Column(children: [
+      TabBar(controller: _mainTabC, labelColor: Colors.indigo.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo, tabs: const [
+        Tab(text: 'Zuständiger Arbeitgeber'),
+        Tab(text: 'Stellen'),
+      ]),
+      Expanded(child: TabBarView(controller: _mainTabC, children: [
+        _buildZustaendigerTab(),
+        _buildStellenTab(),
+      ])),
+    ]);
+  }
 
+  Widget _buildZustaendigerTab() {
+    final vollzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && (a['art']?.toString() ?? 'vollzeit') != 'minijob').toList();
+    final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList();
+
+    Widget agCard(Map<String, dynamic> ag, String label, MaterialColor color) {
+      final dbAg = ag['arbeitgeber_db_id'] != null ? widget.dbArbeitgeberListe.cast<Map<String, dynamic>?>().firstWhere((d) => d?['id'].toString() == ag['arbeitgeber_db_id'].toString(), orElse: () => null) : null;
+      return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
+        child: InkWell(
+          onTap: () { final idx = _arbeitgeberFromDB.indexOf(ag); if (idx >= 0) _showBerufserfahrungModal(context, ag, idx, arbeitgeberListe: _arbeitgeberFromDB, selectedArbeitgeberId: _selectedArbeitgeberId); },
+          child: Row(children: [
+            Container(width: 48, height: 48, decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
+              child: Icon(label == 'Minijob' ? Icons.work_outline : Icons.work, color: color.shade700, size: 26)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: color.shade200, borderRadius: BorderRadius.circular(8)),
+                child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade900))),
+              const SizedBox(height: 4),
+              Text(ag['firma']?.toString() ?? dbAg?['firma_name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
+              Text(ag['position']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              if ((ag['ort']?.toString() ?? '').isNotEmpty) Text(ag['ort'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ])),
+            Icon(Icons.chevron_right, color: color.shade400),
+          ]),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Vollzeit / Teilzeit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+      const SizedBox(height: 8),
+      if (vollzeit.isEmpty) Container(padding: const EdgeInsets.all(20), width: double.infinity,
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        child: Center(child: Text('Kein aktiver Arbeitgeber (Vollzeit)', style: TextStyle(color: Colors.grey.shade400))))
+      else ...vollzeit.map((a) => agCard(a, a['art']?.toString() == 'teilzeit' ? 'Teilzeit' : 'Vollzeit', Colors.indigo)),
+      const SizedBox(height: 20),
+      Text('Minijob', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+      const SizedBox(height: 8),
+      if (minijobs.isEmpty) Container(padding: const EdgeInsets.all(20), width: double.infinity,
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        child: Center(child: Text('Kein aktiver Minijob', style: TextStyle(color: Colors.grey.shade400))))
+      else ...minijobs.map((a) => agCard(a, 'Minijob', Colors.orange)),
+      const SizedBox(height: 16),
+      Center(child: TextButton.icon(icon: const Icon(Icons.list, size: 16), label: const Text('Alle Stellen verwalten', style: TextStyle(fontSize: 12)),
+        onPressed: () => _mainTabC.animateTo(1))),
+    ]));
+  }
+
+  Widget _buildStellenTab() {
     // DB is now the primary source
     List<Map<String, dynamic>> arbeitgeber = List<Map<String, dynamic>>.from(_arbeitgeberFromDB);
     String selectedArbeitgeberId = _selectedArbeitgeberId;
