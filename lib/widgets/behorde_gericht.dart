@@ -1006,28 +1006,35 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       ),
       const SizedBox(height: 16),
 
-      // Chronologische Timeline
+      // Unified chronological timeline
       Text('Chronologie', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
       const SizedBox(height: 12),
-      _tlItem(Icons.description, 'Bescheid / Zustellung', fmt(bescheidDatum), Colors.indigo, true),
-      if (hatWiderspruch && widerspruchDatum != null)
-        _tlItem(Icons.gavel, 'Widerspruch eingelegt', fmt(widerspruchDatum), Colors.blue, true,
-          subtitle: widerspruchEntry?['notiz']?.toString()),
-      _tlItem(abgelaufen && !hatWiderspruch ? Icons.cancel : Icons.timer, 'Fristende (${frist.tage} Tage)', fmt(fristEnde), abgelaufen && !hatWiderspruch ? Colors.red : Colors.grey, hatWiderspruch || (!abgelaufen),
-        subtitle: '${frist.beschreibung} — ${frist.paragraph}'),
-      // Show all Verlauf entries sorted chronologically
-      ...(List<Map<String, dynamic>>.from(_verlauf)..sort((a, b) {
-        final dA = _parseDate(a['datum']); final dB = _parseDate(b['datum']);
-        if (dA == null && dB == null) return 0; if (dA == null) return 1; if (dB == null) return -1;
-        return dA.compareTo(dB);
-      })).map((e) {
-        final notiz = e['notiz']?.toString() ?? '';
-        if (notiz.contains('Widerspruch eingelegt')) return const SizedBox.shrink();
-        final eDatum = _parseDate(e['datum']);
-        return _tlItem(Icons.circle, '${_sLabel(e['status']?.toString() ?? '')}${notiz.isNotEmpty ? ': $notiz' : ''}',
-          eDatum != null ? fmt(eDatum) : '', widget.color, true);
-      }),
-      if (!abgelaufen && !hatWiderspruch) _tlItem(Icons.today, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '$restTage Tage verbleibend'),
+      ...() {
+        // Build unified list with dates for sorting
+        final List<(DateTime, Widget)> items = [];
+        // Bescheid
+        items.add((bescheidDatum, _tlItem(Icons.description, 'Bescheid / Zustellung', fmt(bescheidDatum), Colors.indigo, true)));
+        // Fristende
+        items.add((fristEnde, _tlItem(abgelaufen && !hatWiderspruch ? Icons.cancel : Icons.timer, 'Fristende (${frist.tage} Tage)', fmt(fristEnde), abgelaufen && !hatWiderspruch ? Colors.red : Colors.grey, true, subtitle: '${frist.beschreibung} — ${frist.paragraph}')));
+        // Widerspruch
+        if (hatWiderspruch && widerspruchDatum != null) {
+          items.add((widerspruchDatum, _tlItem(Icons.gavel, 'Widerspruch eingelegt', fmt(widerspruchDatum), Colors.blue, true, subtitle: widerspruchEntry?['notiz']?.toString())));
+        }
+        // Heute
+        if (!abgelaufen && !hatWiderspruch) {
+          items.add((heute0, _tlItem(Icons.today, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '$restTage Tage verbleibend')));
+        }
+        // All Verlauf entries
+        for (final e in _verlauf) {
+          final notiz = e['notiz']?.toString() ?? '';
+          if (notiz.contains('Widerspruch eingelegt')) continue;
+          final eDatum = _parseDate(e['datum']) ?? heute0;
+          items.add((eDatum, _tlItem(Icons.circle, '${_sLabel(e['status']?.toString() ?? '')}${notiz.isNotEmpty ? ': $notiz' : ''}', fmt(eDatum), widget.color, true)));
+        }
+        // Sort by date
+        items.sort((a, b) => a.$1.compareTo(b.$1));
+        return items.map((e) => e.$2);
+      }(),
       if (hatWiderspruch) ...[
         const SizedBox(height: 12),
         Container(
