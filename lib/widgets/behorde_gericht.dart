@@ -1022,6 +1022,15 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         if (hatWiderspruch && widerspruchDatum != null) {
           items.add((widerspruchDatum, _tlItem(Icons.gavel, 'Widerspruch eingelegt', fmt(widerspruchDatum), Colors.blue, true, subtitle: widerspruchEntry?['notiz']?.toString())));
         }
+        // Widerspruch Entscheidung (Status + Datum)
+        final entscheidungDatum = _parseDate(v['widerspruch_entscheidung_datum']);
+        final istAbgeschlossen2 = status == 'bewilligt' || status == 'abgelehnt' || status == 'erledigt' || status == 'teilweise_bewilligt';
+        if (istAbgeschlossen2) {
+          final stLabel2 = {'bewilligt': 'Bewilligt / Akzeptiert', 'teilweise_bewilligt': 'Teilweise bewilligt', 'abgelehnt': 'Abgelehnt', 'erledigt': 'Erledigt'}[status] ?? status;
+          final stColor2 = {'bewilligt': Colors.green, 'teilweise_bewilligt': Colors.teal, 'abgelehnt': Colors.red, 'erledigt': Colors.grey}[status] ?? Colors.grey;
+          final eDatum = entscheidungDatum ?? heute0;
+          items.add((eDatum, _tlItem(Icons.verified, 'Widerspruch: $stLabel2', entscheidungDatum != null ? fmt(entscheidungDatum) : 'Datum ausstehend', stColor2, true)));
+        }
         // Heute
         if (!abgelaufen && !hatWiderspruch) {
           items.add((heute0, _tlItem(Icons.today, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '$restTage Tage verbleibend')));
@@ -1039,26 +1048,51 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       }(),
       // Status ändern
       const SizedBox(height: 16),
-      Container(width: double.infinity, padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.purple.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Widerspruch-Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
-          const SizedBox(height: 8),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final s in [('offen', 'Offen', Colors.orange), ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('bewilligt', 'Bewilligt / Akzeptiert', Colors.green), ('teilweise_bewilligt', 'Teilweise bewilligt', Colors.teal), ('abgelehnt', 'Abgelehnt', Colors.red), ('erledigt', 'Erledigt', Colors.grey)])
-              ChoiceChip(
-                label: Text(s.$2, style: TextStyle(fontSize: 11, color: status == s.$1 ? Colors.white : s.$3.shade800)),
-                selected: status == s.$1,
-                selectedColor: s.$3.shade600,
-                onSelected: (_) async {
-                  await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {...widget.vorfall, 'id': widget.vorfallId, 'status': s.$1});
-                  _load();
-                  widget.onChanged();
-                },
-              ),
+      () {
+        final istAbgeschlossen = status == 'bewilligt' || status == 'abgelehnt' || status == 'erledigt' || status == 'teilweise_bewilligt';
+        if (istAbgeschlossen) {
+          final stLabel = {'bewilligt': 'Bewilligt / Akzeptiert', 'teilweise_bewilligt': 'Teilweise bewilligt', 'abgelehnt': 'Abgelehnt', 'erledigt': 'Erledigt'}[status] ?? status;
+          final stColor = {'bewilligt': Colors.green, 'teilweise_bewilligt': Colors.teal, 'abgelehnt': Colors.red, 'erledigt': Colors.grey}[status] ?? Colors.grey;
+          return Container(width: double.infinity, padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: stColor.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: stColor.shade300, width: 2)),
+            child: Row(children: [
+              Icon(Icons.lock, size: 20, color: stColor.shade700),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Widerspruch abgeschlossen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: stColor.shade800)),
+                Text('Status: $stLabel', style: TextStyle(fontSize: 12, color: stColor.shade700)),
+                if (status == 'bewilligt') Text('→ Weiter zum Tab „Klage"', style: TextStyle(fontSize: 11, color: Colors.blue.shade700, fontStyle: FontStyle.italic)),
+              ])),
+            ]));
+        }
+        return Container(width: double.infinity, padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.purple.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Widerspruch-Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final s in [('offen', 'Offen', Colors.orange), ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('bewilligt', 'Bewilligt / Akzeptiert', Colors.green), ('teilweise_bewilligt', 'Teilweise bewilligt', Colors.teal), ('abgelehnt', 'Abgelehnt', Colors.red), ('erledigt', 'Erledigt', Colors.grey)])
+                ChoiceChip(
+                  label: Text(s.$2, style: TextStyle(fontSize: 11, color: status == s.$1 ? Colors.white : s.$3.shade800)),
+                  selected: status == s.$1,
+                  selectedColor: s.$3.shade600,
+                  onSelected: (_) async {
+                    final isFinal = s.$1 == 'bewilligt' || s.$1 == 'abgelehnt' || s.$1 == 'erledigt' || s.$1 == 'teilweise_bewilligt';
+                    String? datumStr;
+                    if (isFinal && context.mounted) {
+                      final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+                      if (d != null) datumStr = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+                      if (datumStr == null) return;
+                    }
+                    await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {...widget.vorfall, 'id': widget.vorfallId, 'status': s.$1, if (datumStr != null) 'widerspruch_entscheidung_datum': datumStr});
+                    _load();
+                    widget.onChanged();
+                  },
+                ),
+            ]),
           ]),
-        ]),
-      ),
+        );
+      }(),
       if (hatWiderspruch) ...[
         const SizedBox(height: 12),
         Container(
