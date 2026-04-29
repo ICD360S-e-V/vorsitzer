@@ -34,6 +34,8 @@ class BehordeGerichtContent extends StatefulWidget {
 }
 
 class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
+  @override
+  void initState() { super.initState(); _loadArbeitgeberName(); }
 
   // DB per gericht_typ
   final Map<String, Map<String, Map<String, dynamic>>> _gerichtData = {};
@@ -540,14 +542,26 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     switch (s) { case 'offen': return 'Offen'; case 'in_bearbeitung': return 'In Bearbeitung'; case 'bewilligt': return 'Bewilligt'; case 'abgelehnt': return 'Abgelehnt'; case 'erledigt': return 'Erledigt'; default: return s; }
   }
 
-  String _getArbeitgeberName() {
-    // Try to get arbeitgeber from loaded behoerde data
+  String _arbeitgeberName = '';
+
+  Future<void> _loadArbeitgeberName() async {
     try {
-      final agData = _gerichtData['arbeitgeber'];
-      if (agData != null && agData['firma'] != null) return agData['firma'].toString();
+      final res = await widget.apiService.getBerufserfahrung(widget.user.id);
+      if (res['success'] == true && res['data'] is List) {
+        final list = res['data'] as List;
+        // Find aktuelle Arbeitgeber (aktuell=1)
+        final aktuelle = list.where((a) => a['aktuell'] == 1 || a['aktuell'] == true || a['aktuell'] == '1').toList();
+        if (aktuelle.isNotEmpty) {
+          _arbeitgeberName = aktuelle.first['firma']?.toString() ?? '';
+        } else if (list.isNotEmpty) {
+          _arbeitgeberName = list.first['firma']?.toString() ?? '';
+        }
+      }
     } catch (_) {}
-    return '';
+    if (mounted) setState(() {});
   }
+
+  String _getArbeitgeberName() => _arbeitgeberName;
 
   void _showVorfallDetailDialog(int vorfallId, Map<String, dynamic> vorfall, String typ, String label, MaterialColor color, List<String> antragTypen) {
     showDialog(
