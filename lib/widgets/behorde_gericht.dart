@@ -727,8 +727,14 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           onPressed: _addVerlauf),
       ])),
       Expanded(child: _verlauf.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
-            final e = _verlauf[i];
+        : Builder(builder: (_) {
+            final sorted = List<Map<String, dynamic>>.from(_verlauf)..sort((a, b) {
+              final dA = _parseDate(a['datum']); final dB = _parseDate(b['datum']);
+              if (dA == null && dB == null) return 0; if (dA == null) return 1; if (dB == null) return -1;
+              return dA.compareTo(dB);
+            });
+            return ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: sorted.length, itemBuilder: (_, i) {
+            final e = sorted[i];
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: widget.color.shade200)),
               child: Row(children: [
@@ -740,7 +746,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteGerichtVorfallVerlauf(e['id'] as int); _load(); widget.onChanged(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
               ]));
-          })),
+          });
+        })),
     ]);
   }
 
@@ -1008,10 +1015,14 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           subtitle: widerspruchEntry?['notiz']?.toString()),
       _tlItem(abgelaufen && !hatWiderspruch ? Icons.cancel : Icons.timer, 'Fristende (${frist.tage} Tage)', fmt(fristEnde), abgelaufen && !hatWiderspruch ? Colors.red : Colors.grey, hatWiderspruch || (!abgelaufen),
         subtitle: '${frist.beschreibung} — ${frist.paragraph}'),
-      // Show all Verlauf entries chronologically
-      ..._verlauf.map((e) {
+      // Show all Verlauf entries sorted chronologically
+      ...(List<Map<String, dynamic>>.from(_verlauf)..sort((a, b) {
+        final dA = _parseDate(a['datum']); final dB = _parseDate(b['datum']);
+        if (dA == null && dB == null) return 0; if (dA == null) return 1; if (dB == null) return -1;
+        return dA.compareTo(dB);
+      })).map((e) {
         final notiz = e['notiz']?.toString() ?? '';
-        if (notiz.contains('Widerspruch eingelegt')) return const SizedBox.shrink(); // already shown above
+        if (notiz.contains('Widerspruch eingelegt')) return const SizedBox.shrink();
         final eDatum = _parseDate(e['datum']);
         return _tlItem(Icons.circle, '${_sLabel(e['status']?.toString() ?? '')}${notiz.isNotEmpty ? ': $notiz' : ''}',
           eDatum != null ? fmt(eDatum) : '', widget.color, true);
