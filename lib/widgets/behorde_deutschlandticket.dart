@@ -235,7 +235,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
   List<Map<String, dynamic>> _korr = [];
   bool _loading = true;
 
-  @override void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); _loadDetail(); }
+  @override void initState() { super.initState(); _tabC = TabController(length: 7, vsync: this); _loadDetail(); }
   @override void dispose() { _tabC.dispose(); super.dispose(); }
 
   Future<void> _loadDetail() async {
@@ -254,10 +254,10 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
           Expanded(child: Text('${v['anbieter'] ?? 'Deutschlandticket'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800))),
           IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); })])),
       TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
-        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'), Tab(text: 'Stammdaten'), Tab(text: 'Chipkarte'),
+        Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Dokumente'), Tab(text: 'Kündigung'), Tab(text: 'Stammdaten'), Tab(text: 'Chipkarte'), Tab(text: 'Zahlung'),
       ]),
       Expanded(child: _loading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
-        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _StammdatenTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname),
+        _buildDetails(v), _buildKorr(), _buildDoks(v), _buildKuendigung(v), _StammdatenTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer), _ChipkarteTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, firmaData: widget.firmaData, userName: widget.userName, userNachname: widget.userNachname), _ZahlungTab(vertrag: v, apiService: widget.apiService, userId: widget.userId, ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer),
       ])),
     ]);
   }
@@ -812,5 +812,146 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
         ])),
       ]),
     );
+  }
+}
+
+// ==================== ZAHLUNG TAB ====================
+class _ZahlungTab extends StatefulWidget {
+  final Map<String, dynamic> vertrag; final ApiService apiService; final int userId;
+  final TicketService? ticketService; final String? adminMitgliedernummer; final String? memberMitgliedernummer;
+  const _ZahlungTab({required this.vertrag, required this.apiService, required this.userId, this.ticketService, this.adminMitgliedernummer, this.memberMitgliedernummer});
+  @override State<_ZahlungTab> createState() => _ZahlungTabState();
+}
+class _ZahlungTabState extends State<_ZahlungTab> {
+  List<Map<String, dynamic>> _zahlungen = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final res = await widget.apiService.dticketAction(widget.userId, {'action': 'list_zahlungen', 'vertrag_id': widget.vertrag['id']});
+      if (res['success'] == true) _zahlungen = (res['zahlungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+    } catch (_) {}
+    _generateMonths();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _generateMonths() {
+    final beginn = widget.vertrag['vertragsbeginn']?.toString() ?? widget.vertrag['gueltig_ab']?.toString() ?? '';
+    if (beginn.isEmpty) return;
+    DateTime? start;
+    try {
+      final parts = beginn.split('.');
+      if (parts.length == 3) start = DateTime(int.parse(parts[2]), int.parse(parts[1]), 1);
+    } catch (_) {}
+    if (start == null) return;
+
+    final now = DateTime.now();
+    final end = DateTime(now.year, now.month, 1);
+    final existing = _zahlungen.map((z) => z['monat']?.toString() ?? '').toSet();
+    final preis = widget.vertrag['preis']?.toString() ?? '63,00';
+    final zahlungsart = widget.vertrag['zahlungsart']?.toString() ?? 'SEPA-Lastschrift';
+
+    var current = DateTime(start.year, start.month, 1);
+    while (!current.isAfter(end)) {
+      final key = '${current.year}-${current.month.toString().padLeft(2, '0')}';
+      if (!existing.contains(key)) {
+        widget.apiService.dticketAction(widget.userId, {'action': 'save_zahlung', 'zahlung': {
+          'vertrag_id': widget.vertrag['id'], 'monat': key, 'betrag': preis, 'zahlungsart': zahlungsart, 'status': 'offen',
+        }});
+      }
+      current = DateTime(current.year, current.month + 1, 1);
+    }
+  }
+
+  Future<void> _setStatus(Map<String, dynamic> z, String status) async {
+    await widget.apiService.dticketAction(widget.userId, {'action': 'save_zahlung', 'zahlung': {'id': z['id'], 'status': status}});
+    await _load();
+  }
+
+  Future<void> _createTicketForMonth(String monat) async {
+    if (widget.ticketService == null || widget.adminMitgliedernummer == null || widget.memberMitgliedernummer == null) return;
+    try {
+      await widget.ticketService!.createTicketForMember(
+        adminMitgliedernummer: widget.adminMitgliedernummer!,
+        memberMitgliedernummer: widget.memberMitgliedernummer!,
+        subject: 'Deutschlandticket Zahlung $monat — bitte bestätigen',
+        message: 'Sehr geehrtes Mitglied,\n\n'
+            'Wurde die Zahlung für Ihr Deutschlandticket im Monat $monat per SEPA-Lastschrift erfolgreich abgebucht?\n\n'
+            'Bitte bestätigen Sie, ob die Zahlung eingegangen ist.\n\n'
+            'Mit freundlichen Grüßen\nICD360S e.V.',
+        priority: 'medium',
+        scheduledDate: '$monat-01',
+      );
+    } catch (_) {}
+  }
+
+  static const _monatNamen = {'01': 'Januar', '02': 'Februar', '03': 'März', '04': 'April', '05': 'Mai', '06': 'Juni', '07': 'Juli', '08': 'August', '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Dezember'};
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final zahlungsart = widget.vertrag['zahlungsart']?.toString() ?? 'SEPA-Lastschrift';
+    final bezahlt = _zahlungen.where((z) => z['status'] == 'bezahlt').length;
+    final offen = _zahlungen.where((z) => z['status'] == 'offen').length;
+
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+        Row(children: [
+          Icon(Icons.payment, color: Colors.red.shade700, size: 20),
+          const SizedBox(width: 8),
+          Text('Zahlungen (${_zahlungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800)),
+        ]),
+        const SizedBox(height: 6),
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text(zahlungsart, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade800))),
+          const SizedBox(width: 8),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text('$bezahlt bezahlt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+          const SizedBox(width: 6),
+          if (offen > 0) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text('$offen offen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
+        ]),
+      ])),
+      Expanded(child: _zahlungen.isEmpty
+        ? Center(child: Text('Keine Zahlungen (Vertragsbeginn fehlt)', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _zahlungen.length, itemBuilder: (ctx, i) {
+            final z = _zahlungen[i];
+            final monat = z['monat']?.toString() ?? '';
+            final parts = monat.split('-');
+            final label = parts.length == 2 ? '${_monatNamen[parts[1]] ?? parts[1]} ${parts[0]}' : monat;
+            final status = z['status']?.toString() ?? 'offen';
+            final bezahltBool = status == 'bezahlt';
+            final color = bezahltBool ? Colors.green : Colors.orange;
+
+            return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(dense: true,
+              leading: Icon(bezahltBool ? Icons.check_circle : Icons.pending, color: color.shade600, size: 22),
+              title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Text('${z['betrag'] ?? '63,00'} € · $zahlungsart', style: const TextStyle(fontSize: 11)),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
+                  child: Text(bezahltBool ? 'Bezahlt' : 'Offen', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade800))),
+                const SizedBox(width: 4),
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade500),
+                  itemBuilder: (_) => [
+                    if (!bezahltBool) const PopupMenuItem(value: 'bezahlt', child: Text('Als bezahlt markieren', style: TextStyle(fontSize: 12))),
+                    if (bezahltBool) const PopupMenuItem(value: 'offen', child: Text('Als offen markieren', style: TextStyle(fontSize: 12))),
+                    const PopupMenuItem(value: 'ticket', child: Text('Ticket erstellen', style: TextStyle(fontSize: 12))),
+                  ],
+                  onSelected: (val) {
+                    if (val == 'bezahlt') _setStatus(z, 'bezahlt');
+                    else if (val == 'offen') _setStatus(z, 'offen');
+                    else if (val == 'ticket') _createTicketForMonth(monat);
+                  },
+                ),
+              ]),
+            ));
+          })),
+    ]);
   }
 }
