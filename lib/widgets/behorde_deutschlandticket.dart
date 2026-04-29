@@ -461,6 +461,18 @@ class _DetailsEditTabState extends State<_DetailsEditTab> {
     _notizC = TextEditingController(text: v['notiz']?.toString() ?? '');
     _zahlungsart = v['zahlungsart']?.toString() ?? 'Lastschrift';
     _status = v['status']?.toString() ?? 'aktiv';
+    if (_ibanC.text.isEmpty) _loadIbanFromHausbank();
+  }
+
+  Future<void> _loadIbanFromHausbank() async {
+    try {
+      final res = await widget.apiService.getFinanzenData(widget.userId, 'finanzen_bank');
+      if (res['success'] == true && res['data'] != null) {
+        final data = Map<String, dynamic>.from(res['data']);
+        final iban = data['iban']?.toString() ?? '';
+        if (iban.isNotEmpty && mounted) setState(() => _ibanC.text = iban);
+      }
+    } catch (_) {}
   }
   @override void dispose() { _anbieterC.dispose(); _preisC.dispose(); _ibanC.dispose(); _abC.dispose(); _bisC.dispose(); _vertragsbeginnC.dispose(); _notizC.dispose(); super.dispose(); }
 
