@@ -1035,6 +1035,28 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         items.sort((a, b) => a.$1.compareTo(b.$1));
         return items.map((e) => e.$2);
       }(),
+      // Status ändern
+      const SizedBox(height: 16),
+      Container(width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.purple.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Widerspruch-Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final s in [('offen', 'Offen', Colors.orange), ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('bewilligt', 'Bewilligt / Akzeptiert', Colors.green), ('teilweise_bewilligt', 'Teilweise bewilligt', Colors.teal), ('abgelehnt', 'Abgelehnt', Colors.red), ('erledigt', 'Erledigt', Colors.grey)])
+              ChoiceChip(
+                label: Text(s.$2, style: TextStyle(fontSize: 11, color: status == s.$1 ? Colors.white : s.$3.shade800)),
+                selected: status == s.$1,
+                selectedColor: s.$3.shade600,
+                onSelected: (_) async {
+                  await widget.apiService.saveGerichtVorfall(widget.userId, widget.gerichtTyp, {...widget.vorfall, 'id': widget.vorfallId, 'status': s.$1});
+                  _load();
+                  widget.onChanged();
+                },
+              ),
+          ]),
+        ]),
+      ),
       if (hatWiderspruch) ...[
         const SizedBox(height: 12),
         Container(
