@@ -369,7 +369,52 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            // Legend
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_pin_circle, size: 16, color: Colors.red.shade700),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Wird von ICD360S e.V. begleitet (Übersetzung / Assistenz)',
+                        style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.event, size: 16, color: Colors.amber.shade800),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Ohne Begleitung durch ICD360S e.V.',
+                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             // Weekly Calendar Grid
             Expanded(
               child: _isLoadingTermine
