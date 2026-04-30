@@ -71,6 +71,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
   // Cached network data per member (mitgliedernummer -> data)
   final Map<String, Map<String, dynamic>> _memberNetworkCache = {};
+
+  // Aufgaben counts per conversation
+  int _aufgabenTotal = 0;
+  int _aufgabenOffen = 0;
+
   bool _isConnected = false;
   bool _isSending = false;
   bool _isUrgent = false;  // 🆕 URGENT notifications flag
@@ -535,11 +540,23 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         if (_isConnected && mounted) {
           _chatService.joinConversation(_parseConvId(conversation['id']));
         }
+
+        _loadAufgabenCount(_parseConvId(conversation['id']));
       }
     } catch (e) {
       if (mounted) {
         _safeSetState(() => _isLoadingMessages = false);
       }
+    }
+  }
+
+  Future<void> _loadAufgabenCount(int conversationId) async {
+    final result = await _apiService.getChatAufgabenCount(conversationId);
+    if (mounted && result['success'] == true) {
+      _safeSetState(() {
+        _aufgabenTotal = result['total'] ?? 0;
+        _aufgabenOffen = result['offen'] ?? 0;
+      });
     }
   }
 
@@ -2619,6 +2636,176 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     );
   }
 
+  Future<void> _showAufgabenDialog(int conversationId) async {
+    List<Map<String, dynamic>> aufgaben = [];
+    bool isLoading = true;
+    final textController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) {
+          if (isLoading) {
+            _apiService.getChatAufgaben(conversationId).then((result) {
+              if (result['success'] == true) {
+                setDlgState(() {
+                  aufgaben = List<Map<String, dynamic>>.from(result['aufgaben'] ?? []);
+                  isLoading = false;
+                });
+              } else {
+                setDlgState(() => isLoading = false);
+              }
+            });
+          }
+
+          final offene = aufgaben.where((a) => a['erledigt'].toString() == '0').length;
+          final erledigte = aufgaben.length - offene;
+
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.checklist, color: Colors.orange.shade700),
+                const SizedBox(width: 8),
+                const Text('Aufgaben', style: TextStyle(fontSize: 18)),
+                const Spacer(),
+                if (aufgaben.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: offene > 0 ? Colors.orange.shade100 : Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$erledigte/${aufgaben.length}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: offene > 0 ? Colors.orange.shade800 : Colors.green.shade800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            content: SizedBox(
+              width: 500,
+              height: 400,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: textController,
+                          decoration: const InputDecoration(
+                            hintText: 'Neue Aufgabe...',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                          onSubmitted: (_) async {
+                            final text = textController.text.trim();
+                            if (text.isEmpty) return;
+                            await _apiService.chatAufgabeAction(conversationId, 'create', aufgabe: text);
+                            textController.clear();
+                            final r = await _apiService.getChatAufgaben(conversationId);
+                            if (r['success'] == true) {
+                              setDlgState(() => aufgaben = List<Map<String, dynamic>>.from(r['aufgaben'] ?? []));
+                            }
+                            _loadAufgabenCount(conversationId);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(Icons.add_circle, color: Colors.green.shade700, size: 32),
+                        onPressed: () async {
+                          final text = textController.text.trim();
+                          if (text.isEmpty) return;
+                          await _apiService.chatAufgabeAction(conversationId, 'create', aufgabe: text);
+                          textController.clear();
+                          final r = await _apiService.getChatAufgaben(conversationId);
+                          if (r['success'] == true) {
+                            setDlgState(() => aufgaben = List<Map<String, dynamic>>.from(r['aufgaben'] ?? []));
+                          }
+                          _loadAufgabenCount(conversationId);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : aufgaben.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'Keine Aufgaben',
+                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                                ),
+                              )
+                            : ListView.builder(
+                                itemCount: aufgaben.length,
+                                itemBuilder: (_, i) {
+                                  final a = aufgaben[i];
+                                  final erledigt = a['erledigt'].toString() == '1';
+                                  final createdAt = DateTime.tryParse(a['created_at'] ?? '');
+                                  return ListTile(
+                                    leading: IconButton(
+                                      icon: Icon(
+                                        erledigt ? Icons.check_circle : Icons.radio_button_unchecked,
+                                        color: erledigt ? Colors.green : Colors.orange,
+                                      ),
+                                      onPressed: () async {
+                                        final id = a['id'] is int ? a['id'] : int.parse(a['id'].toString());
+                                        await _apiService.chatAufgabeAction(conversationId, 'toggle', aufgabeId: id);
+                                        final r = await _apiService.getChatAufgaben(conversationId);
+                                        if (r['success'] == true) {
+                                          setDlgState(() => aufgaben = List<Map<String, dynamic>>.from(r['aufgaben'] ?? []));
+                                        }
+                                        _loadAufgabenCount(conversationId);
+                                      },
+                                    ),
+                                    title: Text(
+                                      a['aufgabe'] ?? '',
+                                      style: TextStyle(
+                                        decoration: erledigt ? TextDecoration.lineThrough : null,
+                                        color: erledigt ? Colors.grey : null,
+                                      ),
+                                    ),
+                                    subtitle: createdAt != null
+                                        ? Text(
+                                            '${createdAt.day.toString().padLeft(2, '0')}.${createdAt.month.toString().padLeft(2, '0')}.${createdAt.year}',
+                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                          )
+                                        : null,
+                                    trailing: IconButton(
+                                      icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 20),
+                                      onPressed: () async {
+                                        final id = a['id'] is int ? a['id'] : int.parse(a['id'].toString());
+                                        await _apiService.chatAufgabeAction(conversationId, 'delete', aufgabeId: id);
+                                        final r = await _apiService.getChatAufgaben(conversationId);
+                                        if (r['success'] == true) {
+                                          setDlgState(() => aufgaben = List<Map<String, dynamic>>.from(r['aufgaben'] ?? []));
+                                        }
+                                        _loadAufgabenCount(conversationId);
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+            ],
+          );
+        },
+      ),
+    );
+
+    textController.dispose();
+  }
+
   Future<void> _showMemberInfoDialog(Map<String, dynamic> conversation) async {
     final mitgliedernummer = conversation['mitgliedernummer']?.toString() ?? '';
 
@@ -2755,6 +2942,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           onMuteToggle: _showMuteOptions,
           onScheduledSettings: () => _showConversationScheduledDialog(_selectedConversation!),
           onInfoTap: () => _showMemberInfoDialog(_selectedConversation!),
+          onAufgabenTap: () => _showAufgabenDialog(_parseConvId(_selectedConversation!['id'])),
+          aufgabenTotal: _aufgabenTotal,
+          aufgabenOffen: _aufgabenOffen,
         ),
         const SizedBox(height: 8),
 

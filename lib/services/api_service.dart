@@ -886,6 +886,39 @@ class ApiService {
     }
   }
 
+  // Chat Aufgaben
+  Future<Map<String, dynamic>> getChatAufgaben(int conversationId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/chat/aufgaben.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'list', 'conversation_id': conversationId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> getChatAufgabenCount(int conversationId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/chat/aufgaben.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'count', 'conversation_id': conversationId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> chatAufgabeAction(int conversationId, String action, {int? aufgabeId, String? aufgabe}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/chat/aufgaben.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': action,
+        'conversation_id': conversationId,
+        if (aufgabeId != null) 'aufgabe_id': aufgabeId,
+        if (aufgabe != null) 'aufgabe': aufgabe,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Upload chat attachments (max 10 files, 100MB total)
   Future<Map<String, dynamic>> uploadChatAttachments({
     required int conversationId,
