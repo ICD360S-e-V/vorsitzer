@@ -117,6 +117,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -174,6 +175,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -235,6 +237,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -292,6 +295,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -350,6 +354,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -504,6 +509,13 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/.cocoapods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('macos/Podfile') }}
+          restore-keys: ${{ runner.os }}-cocoapods-
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -606,6 +618,13 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/.cocoapods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('ios/Podfile') }}
+          restore-keys: ${{ runner.os }}-cocoapods-
 
       - name: Install dependencies
         run: flutter pub get
