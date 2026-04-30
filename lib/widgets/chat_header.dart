@@ -11,6 +11,9 @@ class ConversationHeader extends StatelessWidget {
   final VoidCallback onMuteToggle;
   final VoidCallback? onScheduledSettings;
   final VoidCallback? onInfoTap;
+  final VoidCallback? onAufgabenTap;
+  final int aufgabenTotal;
+  final int aufgabenOffen;
 
   const ConversationHeader({
     super.key,
@@ -23,6 +26,9 @@ class ConversationHeader extends StatelessWidget {
     required this.onMuteToggle,
     this.onScheduledSettings,
     this.onInfoTap,
+    this.onAufgabenTap,
+    this.aufgabenTotal = 0,
+    this.aufgabenOffen = 0,
   });
 
   @override
@@ -61,6 +67,33 @@ class ConversationHeader extends StatelessWidget {
             onPressed: onInfoTap,
             tooltip: 'Mitglied-Informationen',
           ),
+          // Aufgaben button with badge
+          if (onAufgabenTap != null)
+            Stack(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.checklist, color: aufgabenOffen > 0 ? Colors.orange.shade300 : Colors.grey.shade400),
+                  onPressed: onAufgabenTap,
+                  tooltip: 'Aufgaben',
+                ),
+                if (aufgabenTotal > 0)
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: aufgabenOffen > 0 ? Colors.orange : Colors.green,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${aufgabenTotal - aufgabenOffen}/$aufgabenTotal',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           // Scheduled messages settings
           if (isOpen && onScheduledSettings != null)
             IconButton(
