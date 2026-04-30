@@ -709,6 +709,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       Widget buildSingleTerminCard(Termin termin, {bool compact = false}) {
         final isStartSlot = termin.terminDate.hour == hour;
         final durationHours = '${DateFormat('HH:mm').format(termin.terminDate)} - ${DateFormat('HH:mm').format(termin.terminEndTime)}';
+        final displayColor = termin.brauchtMich ? Colors.red.shade700 : termin.categoryColor;
 
         return GestureDetector(
           onTap: () async {
@@ -730,27 +731,39 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
             decoration: BoxDecoration(
               color: isPast
                   ? Colors.grey.shade200
-                  : termin.categoryColor.withValues(alpha: isStartSlot ? 0.2 : 0.1),
+                  : displayColor.withValues(alpha: isStartSlot ? 0.2 : 0.1),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: isPast
                     ? Colors.grey.shade400
-                    : termin.categoryColor.withValues(alpha: 0.4),
+                    : displayColor.withValues(alpha: termin.brauchtMich ? 0.7 : 0.4),
+                width: termin.brauchtMich && !isPast ? 2 : 1,
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (isStartSlot) ...[
-                  Text(
-                    durationHours,
-                    style: TextStyle(
-                      fontSize: compact ? 10 : 12,
-                      fontWeight: FontWeight.bold,
-                      color: isPast ? Colors.grey.shade500 : termin.categoryColor,
-                      decoration: isPast ? TextDecoration.lineThrough : null,
-                      decorationColor: Colors.grey.shade500,
-                    ),
+                  Row(
+                    children: [
+                      if (termin.brauchtMich && !isPast)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Icon(Icons.person_pin_circle, size: compact ? 12 : 14, color: Colors.red.shade700),
+                        ),
+                      Expanded(
+                        child: Text(
+                          durationHours,
+                          style: TextStyle(
+                            fontSize: compact ? 10 : 12,
+                            fontWeight: FontWeight.bold,
+                            color: isPast ? Colors.grey.shade500 : displayColor,
+                            decoration: isPast ? TextDecoration.lineThrough : null,
+                            decorationColor: Colors.grey.shade500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -776,7 +789,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                 ] else ...[
                   Row(
                     children: [
-                      Icon(Icons.more_vert, size: 12, color: isPast ? Colors.grey.shade400 : termin.categoryColor.withValues(alpha: 0.6)),
+                      Icon(Icons.more_vert, size: 12, color: isPast ? Colors.grey.shade400 : displayColor.withValues(alpha: 0.6)),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(

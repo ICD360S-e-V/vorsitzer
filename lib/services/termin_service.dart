@@ -18,6 +18,7 @@ class Termin {
   final String? createdByName;
   final int? ticketId;
   final String? ticketSubject;
+  final bool brauchtMich;
   final String status; // scheduled, completed, cancelled
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -46,6 +47,7 @@ class Termin {
     this.createdByName,
     this.ticketId,
     this.ticketSubject,
+    this.brauchtMich = false,
     required this.status,
     required this.createdAt,
     this.updatedAt,
@@ -78,6 +80,7 @@ class Termin {
           ? (json['ticket_id'] is int ? json['ticket_id'] : int.parse(json['ticket_id'].toString()))
           : null,
       ticketSubject: json['ticket_subject'],
+      brauchtMich: json['braucht_mich'] == 1 || json['braucht_mich'] == '1' || json['braucht_mich'] == true,
       status: json['status'] ?? 'scheduled',
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
@@ -260,6 +263,7 @@ class TerminService {
     required String location,
     required List<int> participantIds,
     int? ticketId,
+    bool brauchtMich = false,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/termine_create.php'),
@@ -273,6 +277,7 @@ class TerminService {
         'location': location,
         'participant_ids': participantIds,
         if (ticketId != null) 'ticket_id': ticketId,
+        'braucht_mich': brauchtMich ? 1 : 0,
       }),
     ).timeout(const Duration(seconds: 15));
 
@@ -342,6 +347,7 @@ class TerminService {
     String? location,
     List<int>? participantIds,
     int? ticketId,
+    bool? brauchtMich,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/termine_update.php'),
@@ -357,6 +363,7 @@ class TerminService {
         if (location != null) 'location': location,
         if (participantIds != null) 'participant_ids': participantIds,
         if (ticketId != null) 'ticket_id': ticketId,
+        if (brauchtMich != null) 'braucht_mich': brauchtMich ? 1 : 0,
       }),
     ).timeout(const Duration(seconds: 15));
 

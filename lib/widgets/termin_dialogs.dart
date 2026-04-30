@@ -36,6 +36,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
   TimeOfDay _selectedTime = const TimeOfDay(hour: 18, minute: 0);
   Set<int> _selectedParticipants = {};
   int? _selectedTicketId;
+  bool _brauchtMich = false;
   bool _isCreating = false;
 
   @override
@@ -98,6 +99,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
         location: _locationController.text.trim(),
         participantIds: _selectedParticipants.toList(),
         ticketId: _selectedTicketId,
+        brauchtMich: _brauchtMich,
       );
 
       if (!mounted) return;
@@ -378,6 +380,20 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                         ],
                         onChanged: (value) => setState(() => _selectedTicketId = value),
                       ),
+                      const SizedBox(height: 16),
+                      // Braucht mich toggle
+                      SwitchListTile(
+                        value: _brauchtMich,
+                        onChanged: (val) => setState(() => _brauchtMich = val),
+                        title: const Text('Braucht mich', style: TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: const Text('Meine Anwesenheit ist erforderlich'),
+                        secondary: Icon(
+                          Icons.person_pin_circle,
+                          color: _brauchtMich ? Colors.red.shade700 : Colors.grey,
+                        ),
+                        activeColor: Colors.red.shade700,
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ],
                   ),
                 ),
@@ -457,6 +473,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
   late int? _selectedTicketId;
+  late bool _brauchtMich;
   bool _isUpdating = false;
   bool _isDeleting = false;
   bool _isEditing = false;
@@ -473,6 +490,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
     _selectedDate = widget.termin.terminDate;
     _selectedTime = TimeOfDay.fromDateTime(widget.termin.terminDate);
     _selectedTicketId = widget.termin.ticketId;
+    _brauchtMich = widget.termin.brauchtMich;
   }
 
   @override
@@ -510,6 +528,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
         durationMinutes: int.parse(_durationController.text),
         location: _locationController.text.trim(),
         ticketId: _selectedTicketId,
+        brauchtMich: _brauchtMich,
       );
 
       if (!mounted) return;
@@ -746,7 +765,7 @@ ICD360S e.V. Vorstand''';
   @override
   Widget build(BuildContext context) {
     final termin = widget.termin;
-    final color = termin.categoryColor;
+    final color = _brauchtMich ? Colors.red.shade700 : termin.categoryColor;
     final timeStr = '${DateFormat('HH:mm').format(termin.terminDate)} - ${DateFormat('HH:mm').format(termin.terminEndTime)}';
 
     return Dialog(
@@ -809,6 +828,16 @@ ICD360S e.V. Vorstand''';
                       _readOnlyRow(Icons.notes, 'Beschreibung', termin.description),
                     if (termin.ticketSubject != null)
                       _readOnlyRow(Icons.confirmation_number, 'Ticket', termin.ticketSubject!),
+                    if (termin.brauchtMich)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(children: [
+                          Icon(Icons.person_pin_circle, size: 16, color: Colors.red.shade700),
+                          const SizedBox(width: 10),
+                          SizedBox(width: 120, child: Text('Braucht mich', style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w600))),
+                          Text('Ja', style: TextStyle(fontSize: 13, color: Colors.red.shade700, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
                     // Participants
                     if (termin.totalParticipants != null && termin.totalParticipants! > 0) ...[
                       const SizedBox(height: 12),
@@ -902,6 +931,16 @@ ICD360S e.V. Vorstand''';
                             const SizedBox(width: 12),
                             Expanded(flex: 2, child: TextFormField(controller: _locationController, decoration: const InputDecoration(labelText: 'Ort', border: OutlineInputBorder()))),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+                        SwitchListTile(
+                          value: _brauchtMich,
+                          onChanged: (val) => setState(() => _brauchtMich = val),
+                          title: const Text('Braucht mich', style: TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: const Text('Meine Anwesenheit ist erforderlich'),
+                          secondary: Icon(Icons.person_pin_circle, color: _brauchtMich ? Colors.red.shade700 : Colors.grey),
+                          activeColor: Colors.red.shade700,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ],
                     ),
