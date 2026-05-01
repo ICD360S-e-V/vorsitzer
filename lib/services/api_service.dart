@@ -919,6 +919,13 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Gericht Datenbank
+  Future<Map<String, dynamic>> getGerichtDatenbank(String gerichtTyp) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/gericht_datenbank.php'), headers: _headers,
+      body: jsonEncode({'action': 'list', 'gericht_typ': gerichtTyp})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Vereinsinventar
   Future<Map<String, dynamic>> getInventar() async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/inventar_manage.php'), headers: _headers,

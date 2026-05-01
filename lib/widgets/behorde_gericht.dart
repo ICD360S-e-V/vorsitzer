@@ -53,47 +53,25 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     ('strafverfahren', 'Strafverfahren', Icons.shield, Colors.brown),
   ];
 
-  // Gerichte Datenbank
-  static const Map<String, List<Map<String, String>>> _gerichtDB = {
-    'arbeitsgericht': [
-      {'name': 'Arbeitsgericht Ulm', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'fax': '0731 / 189-197', 'email': 'poststelle@agulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00, Di+Do 13:00–15:30', 'zustaendigkeit': 'Arbeitsrechtliche Streitigkeiten Stadt Ulm, Alb-Donau-Kreis'},
-      {'name': 'Arbeitsgericht Augsburg — Kammer Neu-Ulm', 'adresse': 'Meininger Allee 5, 89231 Neu-Ulm', 'telefon': '0821 / 3217-01', 'fax': '0821 / 3217-400', 'email': 'poststelle@arbg-a.bayern.de', 'oeffnungszeiten': 'Mo–Do 08:00–15:30, Fr 08:00–12:00', 'zustaendigkeit': 'Arbeitsrechtliche Streitigkeiten Landkreis Neu-Ulm, Schwaben'},
-      {'name': 'Arbeitsgericht Kempten', 'adresse': 'Residenzplatz 4, 87435 Kempten', 'telefon': '0831 / 25277-0', 'fax': '0831 / 25277-79', 'email': 'poststelle@arbg-ke.bayern.de', 'oeffnungszeiten': 'Mo–Do 08:00–15:30, Fr 08:00–12:00', 'zustaendigkeit': 'Oberallgäu, Lindau, Kaufbeuren'},
-      {'name': 'Arbeitsgericht Memmingen', 'adresse': 'Bodenseestraße 4, 87700 Memmingen', 'telefon': '08331 / 100-0', 'fax': '08331 / 100-299', 'email': 'poststelle@arbg-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Unterallgäu, Memmingen'},
-    ],
-    'sozialgericht': [
-      {'name': 'Sozialgericht Ulm', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'email': 'poststelle@sgulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00', 'zustaendigkeit': 'Sozialrechtliche Streitigkeiten Stadt Ulm, Alb-Donau-Kreis'},
-      {'name': 'Sozialgericht Augsburg', 'adresse': 'Am Alten Einlaß 1, 86150 Augsburg', 'telefon': '0821 / 3207-01', 'fax': '0821 / 3207-199', 'email': 'poststelle@sg-a.bayern.de', 'oeffnungszeiten': 'Mo–Do 08:00–15:30, Fr 08:00–12:00', 'zustaendigkeit': 'Sozialrechtliche Streitigkeiten Schwaben, Landkreis Neu-Ulm'},
-      {'name': 'Sozialgericht München', 'adresse': 'Bayerstraße 32, 80335 München', 'telefon': '089 / 5597-7800', 'email': 'poststelle@sg-m.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Oberbayern'},
-      {'name': 'Bayerisches Landessozialgericht', 'adresse': 'Ludwigstraße 15, 80539 München', 'telefon': '089 / 2160-0', 'email': 'poststelle@lsg.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Berufungsinstanz für alle Sozialgerichte in Bayern'},
-    ],
-    'betreuungsgericht': [
-      {'name': 'Amtsgericht Neu-Ulm — Betreuungsgericht', 'adresse': 'Schützenstraße 60, 89231 Neu-Ulm', 'telefon': '0731 / 70793 -422, -424, -425', 'fax': '0731 / 70793-499', 'email': 'betreuungsgericht@ag-nu.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Betreuungsverfahren, Vormundschaft, Pflegschaft — Landkreis Neu-Ulm'},
-      {'name': 'Amtsgericht Ulm — Betreuungsgericht', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'fax': '0731 / 189-197', 'email': 'poststelle@agulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00, Di+Do 13:00–15:30', 'zustaendigkeit': 'Betreuungsverfahren — Stadt Ulm'},
-      {'name': 'Amtsgericht Memmingen — Betreuungsgericht', 'adresse': 'Bodenseestraße 4, 87700 Memmingen', 'telefon': '08331 / 100-0', 'fax': '08331 / 100-299', 'email': 'poststelle@ag-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Betreuungsverfahren, Vormundschaft — Memmingen, Unterallgäu'},
-    ],
-    'insolvenzgericht': [
-      {'name': 'Amtsgericht Neu-Ulm — Insolvenzgericht', 'adresse': 'Schützenstraße 17, 89231 Neu-Ulm', 'telefon': '0731 / 70793-725, -726, -727, -728', 'fax': '0731 / 70793-920', 'email': 'insolvenzgericht@ag-nu.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Verbraucherinsolvenz, Privatinsolvenz — Landkreis Neu-Ulm'},
-      {'name': 'Amtsgericht Ulm — Insolvenzabteilung', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-2142, -2207, -2181', 'email': 'poststelle@agulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00', 'zustaendigkeit': 'Verbraucherinsolvenz — Stadt Ulm, Alb-Donau-Kreis'},
-      {'name': 'Amtsgericht Memmingen — Insolvenzgericht', 'adresse': 'Bodenseestraße 4, 87700 Memmingen', 'telefon': '08331 / 100-0', 'fax': '08331 / 100-299', 'email': 'poststelle@ag-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Verbraucherinsolvenz — Memmingen, Unterallgäu'},
-    ],
-    'strafverfahren': [
-      {'name': 'Staatsanwaltschaft Memmingen — Zweigstelle Neu-Ulm', 'adresse': 'Schützenstraße 17, 89231 Neu-Ulm', 'telefon': '0731 / 70793-0', 'fax': '0731 / 70793-38', 'email': 'poststelle@sta-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Landkreis Neu-Ulm, Günzburg'},
-      {'name': 'Staatsanwaltschaft Memmingen — Hauptsitz', 'adresse': 'Hallhof 1 + 4, 87700 Memmingen', 'telefon': '08331 / 105-0', 'fax': '08331 / 105-322', 'email': 'poststelle@sta-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Unterallgäu, Memmingen'},
-      {'name': 'Amtsgericht Neu-Ulm — Strafabteilung', 'adresse': 'Schützenstraße 60, 89231 Neu-Ulm', 'telefon': '0731 / 70793-0', 'fax': '0731 / 70793-499', 'email': 'poststelle@ag-nu.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Strafverfahren, Bußgeldsachen — Landkreis Neu-Ulm'},
-      {'name': 'Amtsgericht Ulm — Strafabteilung', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'fax': '0731 / 189-197', 'email': 'poststelle@agulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00, Di+Do 13:00–15:30', 'zustaendigkeit': 'Strafverfahren, OWi — Stadt Ulm, Alb-Donau-Kreis'},
-      {'name': 'Staatsanwaltschaft Ulm', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'email': 'poststelle@staulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Stadt Ulm, Alb-Donau-Kreis'},
-    ],
-  };
+  // Gerichte Datenbank — loaded from server
+  final Map<String, List<Map<String, dynamic>>> _gerichtDB = {};
 
   Future<void> _loadAll(String typ) async {
     if (_loaded[typ] == true) return;
     final uid = widget.user.id;
-    final dR = await widget.apiService.getGerichtData(uid, typ);
-    final vR = await widget.apiService.listGerichtVorfaelle(uid, typ);
-    final tR = await widget.apiService.listGerichtTermineDB(uid, typ);
-    final kR = await widget.apiService.listGerichtKorrespondenzDB(uid, typ);
+    final results = await Future.wait([
+      widget.apiService.getGerichtData(uid, typ),
+      widget.apiService.listGerichtVorfaelle(uid, typ),
+      widget.apiService.listGerichtTermineDB(uid, typ),
+      widget.apiService.listGerichtKorrespondenzDB(uid, typ),
+      widget.apiService.getGerichtDatenbank(typ),
+    ]);
     if (!mounted) return;
+    final dR = results[0];
+    final vR = results[1];
+    final tR = results[2];
+    final kR = results[3];
+    final dbR = results[4];
     setState(() {
       if (dR['success'] == true && dR['data'] is Map) {
         _gerichtData[typ] = {};
@@ -102,6 +80,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
       if (vR['success'] == true && vR['data'] is List) _vorfaelle[typ] = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (tR['success'] == true && tR['data'] is List) _termine[typ] = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (kR['success'] == true && kR['data'] is List) _korrespondenz[typ] = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (dbR['success'] == true && dbR['gerichte'] is List) _gerichtDB[typ] = List<Map<String, dynamic>>.from(dbR['gerichte']);
       _loaded[typ] = true;
     });
   }
