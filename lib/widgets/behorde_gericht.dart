@@ -253,7 +253,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
             : typ == 'insolvenzgericht'
                 ? ['Verbraucherinsolvenz (Privatinsolvenz)', 'Außergerichtlicher Einigungsversuch', 'Schuldenbereinigungsplan', 'Restschuldbefreiung', 'Prozesskostenhilfe', 'Sonstiges']
                 : typ == 'strafverfahren'
-                    ? ['Ermittlungsverfahren', 'Einstellung (§170 Abs. 2 StPO)', 'Strafbefehl', 'Hauptverhandlung', 'Berufung/Revision', 'Verkehrsunfall', 'Körperverletzung', 'Diebstahl', 'Betrug', 'Ordnungswidrigkeit', 'Sonstiges']
+                    ? ['Vorermittlungsverfahren', 'Ermittlungsverfahren', 'Einstellung (§170 Abs. 2 StPO)', 'Strafbefehl', 'Hauptverhandlung', 'Berufung/Revision', 'Verkehrsunfall', 'Körperverletzung', 'Diebstahl', 'Betrug', 'Ordnungswidrigkeit', 'Sonstiges']
                     : ['Kündigungsschutzklage', 'Lohnklage', 'Mahnbescheid (Lohnüberzahlung)', 'Zeugnis einklagen', 'Einstweilige Verfügung', 'Prozesskostenhilfe', 'Sonstiges'];
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
