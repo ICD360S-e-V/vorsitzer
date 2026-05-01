@@ -23,6 +23,7 @@ import 'mitglieder_device.dart';
 import 'member_devices_widget.dart';
 import 'vertraege_content.dart';
 import 'empfehlung.dart';
+import 'reparatur.dart';
 import '../utils/file_picker_helper.dart';
 
 class UserDetailsDialog extends StatefulWidget {
@@ -127,7 +128,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 17, vsync: this);
+    _tabController = TabController(length: 18, vsync: this);
     _nameController.text = widget.user.name;
     _emailController.text = widget.user.email;
     _selectedRole = widget.user.role;
@@ -679,6 +680,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Tab(icon: Icon(Icons.sports_esports), text: 'Freizeit'),
                   Tab(icon: Icon(Icons.receipt_long), text: 'Verträge'),
                   Tab(icon: Icon(Icons.thumb_up), text: 'Empfehlung'),
+                  Tab(icon: Icon(Icons.build), text: 'Reparatur'),
                 ],
               ),
             ),
@@ -720,6 +722,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   ),
                   EmpfehlungContent(
                     apiService: widget.apiService,
+                  ),
+                  ReparaturContent(
+                    apiService: widget.apiService,
+                    userId: widget.user.id,
                   ),
                 ],
               ),
