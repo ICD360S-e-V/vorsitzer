@@ -149,6 +149,11 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(item['marke'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                 ),
+              if (item['notizen']?.toString().isNotEmpty == true)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(item['notizen'], style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                ),
               const Spacer(),
               Row(
                 children: [
