@@ -204,7 +204,7 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
         Tab(text: 'Vorfall'),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
-        _StammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId),
+        _StammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSaved: _loadInstances),
         _VorfallTab(vorfaelle: _vorfaelle, apiService: widget.apiService, userId: widget.userId, onReload: () async { await _loadSelectedData(); }),
       ])),
     ]);
@@ -217,7 +217,8 @@ class _StammdatenTab extends StatefulWidget {
   final Map<String, dynamic> data;
   final ApiService apiService;
   final int userId;
-  const _StammdatenTab({required this.data, required this.apiService, required this.userId});
+  final VoidCallback? onSaved;
+  const _StammdatenTab({required this.data, required this.apiService, required this.userId, this.onSaved});
   @override
   State<_StammdatenTab> createState() => _StammdatenTabState();
 }
@@ -272,6 +273,7 @@ class _StammdatenTabState extends State<_StammdatenTab> {
     }
     await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_data', 'data': fields});
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+    widget.onSaved?.call();
   }
 
   Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) {
