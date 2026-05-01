@@ -12,220 +12,43 @@ class SanitaetshausContent extends StatefulWidget {
 
 class _SanitaetshausContentState extends State<SanitaetshausContent> with TickerProviderStateMixin {
   late TabController _tabC;
-  List<Map<String, dynamic>> _instances = [];
-  int _selectedIdx = 0;
-  bool _isLoading = true;
-
   Map<String, dynamic> _data = {};
   List<Map<String, dynamic>> _vorfaelle = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabC = TabController(length: 2, vsync: this);
-    _loadInstances();
+    _load();
   }
 
   @override
   void dispose() { _tabC.dispose(); super.dispose(); }
 
-  Future<void> _loadInstances() async {
+  Future<void> _load() async {
     setState(() => _isLoading = true);
-    final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_user_sanitaetshaus'});
-    if (mounted && res['success'] == true) {
-      _instances = List<Map<String, dynamic>>.from(res['sanitaetshaeuser'] ?? []);
-      if (_instances.isEmpty) {
-        // Fallback: load old single-sanitaetshaus data
-        final old = await widget.apiService.getSanitaetshausData(widget.userId);
-        if (old['success'] == true) {
-          _data = Map<String, dynamic>.from(old['data'] ?? {});
-          _vorfaelle = (old['vorfaelle'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-        }
-      } else {
-        await _loadSelectedData();
+    try {
+      final res = await widget.apiService.getSanitaetshausData(widget.userId);
+      if (res['success'] == true) {
+        _data = Map<String, dynamic>.from(res['data'] ?? {});
+        _vorfaelle = (res['vorfaelle'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
       }
-    }
+    } catch (e) { debugPrint('[Sanitaetshaus] load: $e'); }
     if (mounted) setState(() => _isLoading = false);
-  }
-
-  Future<void> _loadSelectedData() async {
-    if (_instances.isEmpty) return;
-    final inst = _instances[_selectedIdx];
-    final usId = inst['id'] is int ? inst['id'] : int.parse(inst['id'].toString());
-    final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_vorfaelle_by_sanitaetshaus', 'user_sanitaetshaus_id': usId});
-    if (mounted && res['success'] == true) {
-      var vList = List<Map<String, dynamic>>.from(res['vorfaelle'] ?? []);
-      // Fallback: if no vorfaelle linked to this instance, load all for user
-      if (vList.isEmpty) {
-        final allRes = await widget.apiService.getSanitaetshausData(widget.userId);
-        if (allRes['success'] == true) {
-          vList = (allRes['vorfaelle'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-        }
-      }
-      setState(() {
-        _vorfaelle = vList;
-        // Map to format expected by _StammdatenTab
-        _data = {
-          'stammdaten.selected_name': inst['sanitaetshaus_name'] ?? inst['db_name'] ?? '',
-          'stammdaten.selected_strasse': inst['strasse'] ?? '',
-          'stammdaten.selected_plz': inst['plz'] ?? '',
-          'stammdaten.selected_ort': inst['ort'] ?? '',
-          'stammdaten.selected_telefon': inst['db_telefon'] ?? '',
-          'stammdaten.kundennummer': inst['kundennummer'] ?? '',
-          'stammdaten.ansprechpartner': inst['ansprechpartner'] ?? '',
-          'stammdaten.telefon': inst['telefon'] ?? '',
-          'stammdaten.email': inst['email'] ?? '',
-        };
-      });
-    }
-  }
-
-  Future<void> _addInstance() async {
-    List<Map<String, dynamic>> allSani = [];
-    List<Map<String, dynamic>> filtered = [];
-    bool loading = true;
-    final searchC = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) {
-          if (loading) {
-            widget.apiService.sanitaetshausAction(widget.userId, {'action': 'search', 'query': ''}).then((res) {
-              setDlgState(() {
-                allSani = List<Map<String, dynamic>>.from(res['results'] ?? []);
-                filtered = List.from(allSani);
-                loading = false;
-              });
-            });
-          }
-
-          return AlertDialog(
-            title: Row(children: [Icon(Icons.local_pharmacy, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Sanitätshaus auswählen')]),
-            content: SizedBox(width: 500, height: 450, child: Column(children: [
-              TextField(
-                controller: searchC,
-                decoration: const InputDecoration(labelText: 'Suchen...', border: OutlineInputBorder(), prefixIcon: Icon(Icons.search)),
-                onChanged: (q) {
-                  final lower = q.toLowerCase();
-                  setDlgState(() {
-                    filtered = lower.isEmpty ? List.from(allSani) : allSani.where((s) =>
-                      (s['name']?.toString().toLowerCase() ?? '').contains(lower) ||
-                      (s['ort']?.toString().toLowerCase() ?? '').contains(lower)
-                    ).toList();
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-              Expanded(child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
-                  ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
-                  : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
-                      final r = filtered[i];
-                      return ListTile(
-                        leading: Icon(Icons.local_pharmacy, color: Colors.teal.shade600),
-                        title: Text(r['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        subtitle: Text('${r['strasse'] ?? ''}, ${r['plz'] ?? ''} ${r['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
-                        onTap: () async {
-                          final id = r['id'] is int ? r['id'] : int.parse(r['id'].toString());
-                          await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'add_user_sanitaetshaus', 'sanitaetshaus_id': id, 'sanitaetshaus_name': r['name'] ?? ''});
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          _loadInstances();
-                        },
-                      );
-                    })),
-            ])),
-            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
-          );
-        },
-      ),
-    );
-    searchC.dispose();
-  }
-
-  Future<void> _removeInstance(int idx) async {
-    final s = _instances[idx];
-    final name = s['sanitaetshaus_name'] ?? s['db_name'] ?? 'Sanitätshaus';
-    final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-      title: const Text('Entfernen?'), content: Text('$name und alle Vorfälle löschen?'),
-      actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
-        TextButton(onPressed: () => Navigator.pop(c, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Entfernen'))],
-    ));
-    if (confirm != true) return;
-    final id = s['id'] is int ? s['id'] : int.parse(s['id'].toString());
-    await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'delete_user_sanitaetshaus', 'user_sanitaetshaus_id': id});
-    _selectedIdx = 0;
-    _loadInstances();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      // Multi-instance bar (like Hausarzt)
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: Colors.teal.shade50, border: Border(bottom: BorderSide(color: Colors.teal.shade200))),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            for (int i = 0; i < _instances.length; i++) ...[
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: InkWell(
-                  onTap: () { setState(() => _selectedIdx = i); _loadSelectedData(); },
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _selectedIdx == i ? Colors.teal.shade600 : Colors.white,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                      border: Border.all(color: _selectedIdx == i ? Colors.teal.shade600 : Colors.teal.shade200),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.local_pharmacy, size: 14, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
-                      const SizedBox(width: 6),
-                      Text(
-                        _instances[i]['sanitaetshaus_name'] ?? _instances[i]['db_name'] ?? 'Sanitätshaus ${i + 1}',
-                        style: TextStyle(fontSize: 12, fontWeight: _selectedIdx == i ? FontWeight.bold : FontWeight.normal, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
-                      ),
-                      if (i > 0 && _selectedIdx == i) ...[
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () => _removeInstance(i),
-                          child: Icon(Icons.close, size: 14, color: Colors.white.withValues(alpha: 0.8)),
-                        ),
-                      ],
-                    ]),
-                  ),
-                ),
-              ),
-            ],
-            // + Button
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: InkWell(
-                onTap: _addInstance,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade300)),
-                  child: Icon(Icons.add, size: 16, color: Colors.teal.shade700),
-                ),
-              ),
-            ),
-          ]),
-        ),
-      ),
-      // Tabs below
       TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
         Tab(text: 'Zuständiges Sanitätshaus'),
         Tab(text: 'Vorfall'),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
-        _StammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSaved: _loadInstances),
-        _VorfallTab(vorfaelle: _vorfaelle, apiService: widget.apiService, userId: widget.userId, onReload: () async { await _loadSelectedData(); }),
+        _StammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId),
+        _VorfallTab(vorfaelle: _vorfaelle, apiService: widget.apiService, userId: widget.userId, onReload: _load),
       ])),
     ]);
   }
@@ -237,8 +60,7 @@ class _StammdatenTab extends StatefulWidget {
   final Map<String, dynamic> data;
   final ApiService apiService;
   final int userId;
-  final VoidCallback? onSaved;
-  const _StammdatenTab({required this.data, required this.apiService, required this.userId, this.onSaved});
+  const _StammdatenTab({required this.data, required this.apiService, required this.userId});
   @override
   State<_StammdatenTab> createState() => _StammdatenTabState();
 }
@@ -293,7 +115,6 @@ class _StammdatenTabState extends State<_StammdatenTab> {
     }
     await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_data', 'data': fields});
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
-    widget.onSaved?.call();
   }
 
   Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) {
