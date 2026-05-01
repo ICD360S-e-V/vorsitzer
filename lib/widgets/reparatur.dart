@@ -494,6 +494,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
                                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                                 child: KorrAttachmentsWidget(
                                   apiService: widget.apiService,
+                                  modul: 'reparatur',
                                   korrespondenzId: k['id'] is int ? k['id'] : int.parse(k['id'].toString()),
                                 ),
                               ),
