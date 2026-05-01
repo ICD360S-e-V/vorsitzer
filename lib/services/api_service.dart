@@ -919,6 +919,19 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Reparatur
+  Future<Map<String, dynamic>> getReparaturVorfaelle(int userId) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/reparatur_manage.php'), headers: _headers,
+      body: jsonEncode({'action': 'list', 'user_id': userId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> reparaturAction(int userId, String action, Map<String, dynamic> data) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/reparatur_manage.php'), headers: _headers,
+      body: jsonEncode({'action': action, 'user_id': userId, ...data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Upload chat attachments (max 10 files, 100MB total)
   Future<Map<String, dynamic>> uploadChatAttachments({
     required int conversationId,
