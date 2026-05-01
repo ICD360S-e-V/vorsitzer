@@ -54,8 +54,16 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
     final usId = inst['id'] is int ? inst['id'] : int.parse(inst['id'].toString());
     final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_vorfaelle_by_sanitaetshaus', 'user_sanitaetshaus_id': usId});
     if (mounted && res['success'] == true) {
+      var vList = List<Map<String, dynamic>>.from(res['vorfaelle'] ?? []);
+      // Fallback: if no vorfaelle linked to this instance, load all for user
+      if (vList.isEmpty) {
+        final allRes = await widget.apiService.getSanitaetshausData(widget.userId);
+        if (allRes['success'] == true) {
+          vList = (allRes['vorfaelle'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        }
+      }
       setState(() {
-        _vorfaelle = List<Map<String, dynamic>>.from(res['vorfaelle'] ?? []);
+        _vorfaelle = vList;
         // Map to format expected by _StammdatenTab
         _data = {
           'stammdaten.selected_name': inst['sanitaetshaus_name'] ?? inst['db_name'] ?? '',
