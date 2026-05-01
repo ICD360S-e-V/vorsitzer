@@ -11,6 +11,7 @@ import 'microsoft_nonprofit_screen.dart';
 import 'vr_bank_screen.dart';
 import 'gls_bank_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
+import 'vereinsinventar_screen.dart';
 import 'deutschepost_screen.dart';
 import '../widgets/eastern.dart';
 
@@ -217,6 +218,10 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
         users: widget.users,
         onBack: () => setState(() => _vereinSubview = 'overview'),
       );
+    } else if (_vereinSubview == 'inventar') {
+      return VereinsinventarScreen(
+        onBack: () => setState(() => _vereinSubview = 'overview'),
+      );
     }
 
     // Default overview
@@ -268,6 +273,21 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                       Expanded(child: _buildVorstandCard()),
                       const SizedBox(width: 16),
                       Expanded(child: _buildOrdnungsmassnahmenCard()),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Row 3
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildInventarCard()),
+                      const SizedBox(width: 16),
+                      Expanded(child: Container()),
+                      const SizedBox(width: 16),
+                      Expanded(child: Container()),
                     ],
                   ),
                 ),
@@ -339,6 +359,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       color: Colors.red,
       subtitle: 'Verwarnungen, Ordnungsgeld, Ausschluss (§6 Abs. 6)',
       onTap: () => setState(() => _vereinSubview = 'ordnungsmassnahmen'),
+    );
+  }
+
+  Widget _buildInventarCard() {
+    return _buildClickableCard(
+      icon: Icons.inventory_2,
+      title: 'Vereinsinventar',
+      color: Colors.teal,
+      subtitle: 'Gegenstände, Materialien, Entnahme & Rückgabe',
+      onTap: () => setState(() => _vereinSubview = 'inventar'),
     );
   }
 
