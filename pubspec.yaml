@@ -88,7 +88,7 @@ dependencies:
   file_selector: ^1.0.3
 
   # Image picker for camera capture (mobile)
-  image_picker: ^1.1.2
+  image_picker: ^1.2.2
 
   # Native macOS camera capture (AVFoundation)
   camera_macos: ^0.0.9
@@ -167,9 +167,7 @@ dependencies:
   archive: ^4.0.9
 
   # TOTP/HOTP RFC 6238 — generate 2FA codes for stored platform secrets
-  # Pinned to 3.1.3 because 3.1.4+ requires timezone ^0.9.0/^0.10.0 which conflicts
-  # with flutter_local_notifications ^21.0.0 (needs timezone ^0.11.0).
-  otp: 3.1.3
+  otp: ^3.2.0
 
 dev_dependencies:
   flutter_test:
