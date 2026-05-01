@@ -50,12 +50,24 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
 
   Future<void> _loadSelectedData() async {
     if (_instances.isEmpty) return;
-    final usId = _instances[_selectedIdx]['id'] is int ? _instances[_selectedIdx]['id'] : int.parse(_instances[_selectedIdx]['id'].toString());
+    final inst = _instances[_selectedIdx];
+    final usId = inst['id'] is int ? inst['id'] : int.parse(inst['id'].toString());
     final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_vorfaelle_by_sanitaetshaus', 'user_sanitaetshaus_id': usId});
     if (mounted && res['success'] == true) {
       setState(() {
         _vorfaelle = List<Map<String, dynamic>>.from(res['vorfaelle'] ?? []);
-        _data = Map<String, dynamic>.from(_instances[_selectedIdx]);
+        // Map to format expected by _StammdatenTab
+        _data = {
+          'stammdaten.selected_name': inst['sanitaetshaus_name'] ?? inst['db_name'] ?? '',
+          'stammdaten.selected_strasse': inst['strasse'] ?? '',
+          'stammdaten.selected_plz': inst['plz'] ?? '',
+          'stammdaten.selected_ort': inst['ort'] ?? '',
+          'stammdaten.selected_telefon': inst['db_telefon'] ?? '',
+          'stammdaten.kundennummer': inst['kundennummer'] ?? '',
+          'stammdaten.ansprechpartner': inst['ansprechpartner'] ?? '',
+          'stammdaten.telefon': inst['telefon'] ?? '',
+          'stammdaten.email': inst['email'] ?? '',
+        };
       });
     }
   }
