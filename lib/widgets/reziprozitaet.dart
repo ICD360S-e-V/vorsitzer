@@ -59,14 +59,14 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.card_giftcard, color: Colors.red.shade700),
                 const SizedBox(width: 6),
-                Text('+ Gegeben (${_gegeben.length})', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold)),
+                Text('+ Gegeben (${_sumPunkte(_gegeben).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold)),
               ]),
             ),
             Tab(
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.volunteer_activism, color: Colors.green.shade700),
                 const SizedBox(width: 6),
-                Text('- Erhalten (${_erhalten.length})', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+                Text('- Erhalten (${_sumPunkte(_erhalten).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold)),
               ]),
             ),
           ],
@@ -86,16 +86,27 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
     );
   }
 
+  double _sumPunkte(List<Map<String, dynamic>> items) {
+    double total = 0;
+    for (final item in items) {
+      final kosten = double.tryParse(item['kosten']?.toString().replaceAll(',', '.') ?? '0') ?? 0;
+      total += kosten;
+    }
+    return total;
+  }
+
   Widget _buildBilanzHeader() {
-    final diff = _gegeben.length - _erhalten.length;
+    final gegebenPunkte = _sumPunkte(_gegeben);
+    final erhaltenPunkte = _sumPunkte(_erhalten);
+    final diff = gegebenPunkte - erhaltenPunkte;
     Color balanceColor;
     String balanceText;
-    if (diff > 0) {
+    if (diff > 2) {
       balanceColor = Colors.red.shade700;
-      balanceText = 'Du hast +$diff mehr gegeben';
-    } else if (diff < 0) {
+      balanceText = 'Du gibst ${diff.toStringAsFixed(0)} Pkt. mehr';
+    } else if (diff < -2) {
       balanceColor = Colors.green.shade700;
-      balanceText = 'Du hast ${diff.abs()} mehr erhalten';
+      balanceText = 'Du erhältst ${diff.abs().toStringAsFixed(0)} Pkt. mehr';
     } else {
       balanceColor = Colors.blue.shade700;
       balanceText = 'Ausgeglichen';
@@ -119,13 +130,13 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-            child: Text('${_gegeben.length}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+            child: Text('${gegebenPunkte.toStringAsFixed(0)} Pkt.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade700, fontSize: 13)),
           ),
           const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Text(':', style: TextStyle(fontWeight: FontWeight.bold))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-            child: Text('${_erhalten.length}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+            child: Text('${erhaltenPunkte.toStringAsFixed(0)} Pkt.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700, fontSize: 13)),
           ),
         ],
       ),
@@ -175,9 +186,17 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ExpansionTile(
-        leading: CircleAvatar(
-          backgroundColor: color.shade50,
-          child: Icon(isGegeben ? Icons.card_giftcard : Icons.volunteer_activism, color: color.shade700, size: 20),
+        leading: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              backgroundColor: color.shade50,
+              radius: 16,
+              child: Icon(isGegeben ? Icons.card_giftcard : Icons.volunteer_activism, color: color.shade700, size: 16),
+            ),
+            if (kosten.isNotEmpty)
+              Text('${double.tryParse(kosten.replaceAll(',', '.'))?.toStringAsFixed(0) ?? kosten} P', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color.shade700)),
+          ],
         ),
         title: Text(entry['bezeichnung'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Row(
@@ -268,14 +287,14 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
                 const SizedBox(height: 12),
                 TextField(controller: beschreibungCtrl, decoration: const InputDecoration(labelText: 'Beschreibung', border: OutlineInputBorder()), maxLines: 3),
                 const SizedBox(height: 12),
-                if (isGegeben) ...[
-                  Row(children: [
-                    Expanded(child: TextField(controller: kostenCtrl, decoration: const InputDecoration(labelText: 'Kosten (€)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.euro)), keyboardType: TextInputType.number)),
+                Row(children: [
+                  Expanded(child: TextField(controller: kostenCtrl, decoration: InputDecoration(labelText: isGegeben ? 'Kosten (€) = Punkte' : 'Wert (€) = Punkte', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.euro)), keyboardType: TextInputType.number)),
+                  if (isGegeben) ...[
                     const SizedBox(width: 12),
                     Expanded(child: TextField(controller: gekauftBeiCtrl, decoration: const InputDecoration(labelText: 'Gekauft bei', border: OutlineInputBorder(), prefixIcon: Icon(Icons.store)))),
-                  ]),
-                  const SizedBox(height: 12),
-                ],
+                  ],
+                ]),
+                const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: () async {
                     final d = await showDatePicker(context: context, initialDate: datum, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365)));
