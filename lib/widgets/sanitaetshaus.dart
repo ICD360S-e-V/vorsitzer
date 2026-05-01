@@ -61,50 +61,64 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
   }
 
   Future<void> _addInstance() async {
-    List<Map<String, dynamic>> results = [];
-    bool searching = false;
+    List<Map<String, dynamic>> allSani = [];
+    List<Map<String, dynamic>> filtered = [];
+    bool loading = true;
     final searchC = TextEditingController();
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          title: Row(children: [Icon(Icons.search, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Sanitätshaus suchen')]),
-          content: SizedBox(width: 500, height: 400, child: Column(children: [
-            TextField(controller: searchC, decoration: InputDecoration(labelText: 'Name oder Ort...', border: const OutlineInputBorder(),
-              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: () async {
-                if (searchC.text.trim().isEmpty) return;
-                setDlgState(() => searching = true);
-                final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'search', 'query': searchC.text.trim()});
-                setDlgState(() { results = List<Map<String, dynamic>>.from(res['results'] ?? []); searching = false; });
-              })),
-              onSubmitted: (_) async {
-                if (searchC.text.trim().isEmpty) return;
-                setDlgState(() => searching = true);
-                final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'search', 'query': searchC.text.trim()});
-                setDlgState(() { results = List<Map<String, dynamic>>.from(res['results'] ?? []); searching = false; });
-              }),
-            const SizedBox(height: 12),
-            Expanded(child: searching
-              ? const Center(child: CircularProgressIndicator())
-              : results.isEmpty
-                ? Center(child: Text('Suche starten...', style: TextStyle(color: Colors.grey.shade500)))
-                : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
-                    final r = results[i];
-                    return ListTile(
-                      title: Text(r['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      subtitle: Text('${r['strasse'] ?? ''}, ${r['plz'] ?? ''} ${r['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
-                      onTap: () async {
-                        final id = r['id'] is int ? r['id'] : int.parse(r['id'].toString());
-                        await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'add_user_sanitaetshaus', 'sanitaetshaus_id': id, 'sanitaetshaus_name': r['name'] ?? ''});
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        _loadInstances();
-                      },
-                    );
-                  })),
-          ])),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
-        ),
+        builder: (context, setDlgState) {
+          if (loading) {
+            widget.apiService.sanitaetshausAction(widget.userId, {'action': 'search', 'query': ''}).then((res) {
+              setDlgState(() {
+                allSani = List<Map<String, dynamic>>.from(res['results'] ?? []);
+                filtered = List.from(allSani);
+                loading = false;
+              });
+            });
+          }
+
+          return AlertDialog(
+            title: Row(children: [Icon(Icons.local_pharmacy, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Sanitätshaus auswählen')]),
+            content: SizedBox(width: 500, height: 450, child: Column(children: [
+              TextField(
+                controller: searchC,
+                decoration: const InputDecoration(labelText: 'Suchen...', border: OutlineInputBorder(), prefixIcon: Icon(Icons.search)),
+                onChanged: (q) {
+                  final lower = q.toLowerCase();
+                  setDlgState(() {
+                    filtered = lower.isEmpty ? List.from(allSani) : allSani.where((s) =>
+                      (s['name']?.toString().toLowerCase() ?? '').contains(lower) ||
+                      (s['ort']?.toString().toLowerCase() ?? '').contains(lower)
+                    ).toList();
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              Expanded(child: loading
+                ? const Center(child: CircularProgressIndicator())
+                : filtered.isEmpty
+                  ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                  : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
+                      final r = filtered[i];
+                      return ListTile(
+                        leading: Icon(Icons.local_pharmacy, color: Colors.teal.shade600),
+                        title: Text(r['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text('${r['strasse'] ?? ''}, ${r['plz'] ?? ''} ${r['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                        onTap: () async {
+                          final id = r['id'] is int ? r['id'] : int.parse(r['id'].toString());
+                          await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'add_user_sanitaetshaus', 'sanitaetshaus_id': id, 'sanitaetshaus_name': r['name'] ?? ''});
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          _loadInstances();
+                        },
+                      );
+                    })),
+            ])),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+          );
+        },
       ),
     );
     searchC.dispose();
