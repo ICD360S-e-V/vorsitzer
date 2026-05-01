@@ -301,7 +301,21 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
         TextField(controller: aktenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.tag, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 8),
         Wrap(spacing: 6, runSpacing: 6, children: [
-          for (final s in [('offen', 'Offen', Colors.orange), ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('bewilligt', 'Bewilligt', Colors.green), ('abgelehnt', 'Abgelehnt', Colors.red), ('erledigt', 'Erledigt', Colors.grey)])
+          for (final s in [
+            ('offen', 'Offen', Colors.orange),
+            ('in_bearbeitung', 'In Bearbeitung', Colors.blue),
+            if (typ == 'strafverfahren') ...[
+              ('eingestellt', 'Eingestellt (§170 II)', Colors.teal),
+              ('anklage', 'Anklage erhoben', Colors.deepOrange),
+              ('freispruch', 'Freispruch', Colors.green),
+              ('verurteilt', 'Verurteilt', Colors.red),
+              ('strafbefehl', 'Strafbefehl', Colors.purple),
+            ] else ...[
+              ('bewilligt', 'Bewilligt', Colors.green),
+              ('abgelehnt', 'Abgelehnt', Colors.red),
+            ],
+            ('erledigt', 'Erledigt', Colors.grey),
+          ])
             ChoiceChip(label: Text(s.$2, style: TextStyle(fontSize: 11, color: status == s.$1 ? Colors.white : Colors.black87)), selected: status == s.$1, selectedColor: s.$3, onSelected: (_) => setD(() => status = s.$1)),
         ]),
         const SizedBox(height: 8),
@@ -523,13 +537,13 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
   }
 
   IconData _statusIcon(String s) {
-    switch (s) { case 'bewilligt': return Icons.check_circle; case 'abgelehnt': return Icons.cancel; case 'erledigt': return Icons.done_all; default: return Icons.hourglass_top; }
+    switch (s) { case 'bewilligt': case 'freispruch': return Icons.check_circle; case 'abgelehnt': case 'verurteilt': return Icons.cancel; case 'eingestellt': return Icons.block; case 'anklage': return Icons.gavel; case 'strafbefehl': return Icons.description; case 'erledigt': return Icons.done_all; default: return Icons.hourglass_top; }
   }
   Color _statusColor(String s) {
-    switch (s) { case 'bewilligt': return Colors.green; case 'abgelehnt': return Colors.red; case 'erledigt': return Colors.grey; case 'in_bearbeitung': return Colors.blue; default: return Colors.orange; }
+    switch (s) { case 'bewilligt': case 'freispruch': return Colors.green; case 'abgelehnt': case 'verurteilt': return Colors.red; case 'eingestellt': return Colors.teal; case 'anklage': return Colors.deepOrange; case 'strafbefehl': return Colors.purple; case 'erledigt': return Colors.grey; case 'in_bearbeitung': return Colors.blue; default: return Colors.orange; }
   }
   String _statusLabel(String s) {
-    switch (s) { case 'offen': return 'Offen'; case 'in_bearbeitung': return 'In Bearbeitung'; case 'bewilligt': return 'Bewilligt'; case 'abgelehnt': return 'Abgelehnt'; case 'erledigt': return 'Erledigt'; default: return s; }
+    switch (s) { case 'offen': return 'Offen'; case 'in_bearbeitung': return 'In Bearbeitung'; case 'bewilligt': return 'Bewilligt'; case 'abgelehnt': return 'Abgelehnt'; case 'eingestellt': return 'Eingestellt'; case 'anklage': return 'Anklage'; case 'freispruch': return 'Freispruch'; case 'verurteilt': return 'Verurteilt'; case 'strafbefehl': return 'Strafbefehl'; case 'erledigt': return 'Erledigt'; default: return s; }
   }
 
   String _arbeitgeberName = '';
