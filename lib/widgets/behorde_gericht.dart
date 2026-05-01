@@ -188,7 +188,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     ]));
   }
 
-  void _showGerichtSelectDialog(String typ, Map<String, dynamic> d, List<Map<String, String>> gerichte, MaterialColor color) {
+  void _showGerichtSelectDialog(String typ, Map<String, dynamic> d, List<Map<String, dynamic>> gerichte, MaterialColor color) {
     showDialog(context: context, builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: Row(children: [
