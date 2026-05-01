@@ -10,381 +10,47 @@ class SanitaetshausContent extends StatefulWidget {
   State<SanitaetshausContent> createState() => _SanitaetshausContentState();
 }
 
-class _SanitaetshausContentState extends State<SanitaetshausContent> {
-  List<Map<String, dynamic>> _userSanitaetshaeuser = [];
+class _SanitaetshausContentState extends State<SanitaetshausContent> with TickerProviderStateMixin {
+  late TabController _tabC;
+  Map<String, dynamic> _data = {};
+  List<Map<String, dynamic>> _vorfaelle = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _tabC = TabController(length: 2, vsync: this);
     _load();
   }
 
+  @override
+  void dispose() { _tabC.dispose(); super.dispose(); }
+
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_user_sanitaetshaus'});
-    if (mounted && res['success'] == true) {
-      setState(() {
-        _userSanitaetshaeuser = List<Map<String, dynamic>>.from(res['sanitaetshaeuser'] ?? []);
-        _isLoading = false;
-      });
-    } else if (mounted) {
-      setState(() => _isLoading = false);
-    }
+    try {
+      final res = await widget.apiService.getSanitaetshausData(widget.userId);
+      if (res['success'] == true) {
+        _data = Map<String, dynamic>.from(res['data'] ?? {});
+        _vorfaelle = (res['vorfaelle'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (e) { debugPrint('[Sanitaetshaus] load: $e'); }
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(children: [
-          Icon(Icons.local_pharmacy, color: Colors.teal.shade700),
-          const SizedBox(width: 8),
-          Text('Sanitätshäuser (${_userSanitaetshaeuser.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: _addSanitaetshaus,
-            icon: const Icon(Icons.add),
-            label: const Text('Hinzufügen'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
-          ),
-        ]),
-      ),
-      Expanded(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _userSanitaetshaeuser.isEmpty
-                ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.local_pharmacy, size: 48, color: Colors.grey.shade300),
-                    const SizedBox(height: 8),
-                    Text('Kein Sanitätshaus hinzugefügt', style: TextStyle(color: Colors.grey.shade500)),
-                  ]))
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: _userSanitaetshaeuser.length,
-                    itemBuilder: (_, i) => _buildSanitaetshausCard(_userSanitaetshaeuser[i]),
-                  ),
-      ),
+      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
+        Tab(text: 'Zuständiges Sanitätshaus'),
+        Tab(text: 'Vorfall'),
+      ]),
+      Expanded(child: TabBarView(controller: _tabC, children: [
+        _StammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId),
+        _VorfallTab(vorfaelle: _vorfaelle, apiService: widget.apiService, userId: widget.userId, onReload: _load),
+      ])),
     ]);
-  }
-
-  Widget _buildSanitaetshausCard(Map<String, dynamic> s) {
-    final name = s['sanitaetshaus_name'] ?? s['db_name'] ?? '';
-    final adresse = [s['strasse'], s['plz'], s['ort']].where((e) => e != null && e.toString().isNotEmpty).join(', ');
-    final kundennummer = s['kundennummer'] ?? '';
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Icon(Icons.local_pharmacy, color: Colors.teal.shade700)),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (adresse.isNotEmpty) Text(adresse, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-          if (kundennummer.isNotEmpty) Text('Kd-Nr: $kundennummer', style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
-        ]),
-        trailing: IconButton(
-          icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 20),
-          onPressed: () async {
-            final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-              title: const Text('Löschen?'), content: Text('$name und alle Vorfälle löschen?'),
-              actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
-                TextButton(onPressed: () => Navigator.pop(c, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Löschen'))],
-            ));
-            if (confirm != true) return;
-            final id = s['id'] is int ? s['id'] : int.parse(s['id'].toString());
-            await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'delete_user_sanitaetshaus', 'user_sanitaetshaus_id': id});
-            _load();
-          },
-        ),
-        onTap: () => _showVorfaelleDialog(s),
-      ),
-    );
-  }
-
-  Future<void> _addSanitaetshaus() async {
-    List<Map<String, dynamic>> results = [];
-    bool searching = false;
-    final searchC = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          title: Row(children: [Icon(Icons.search, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Sanitätshaus suchen')]),
-          content: SizedBox(
-            width: 500, height: 400,
-            child: Column(children: [
-              TextField(
-                controller: searchC,
-                decoration: InputDecoration(labelText: 'Name oder Ort...', border: const OutlineInputBorder(), suffixIcon: IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () async {
-                    if (searchC.text.trim().isEmpty) return;
-                    setDlgState(() => searching = true);
-                    final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'search', 'query': searchC.text.trim()});
-                    setDlgState(() { results = List<Map<String, dynamic>>.from(res['results'] ?? []); searching = false; });
-                  },
-                )),
-                onSubmitted: (_) async {
-                  if (searchC.text.trim().isEmpty) return;
-                  setDlgState(() => searching = true);
-                  final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'search', 'query': searchC.text.trim()});
-                  setDlgState(() { results = List<Map<String, dynamic>>.from(res['results'] ?? []); searching = false; });
-                },
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: searching
-                    ? const Center(child: CircularProgressIndicator())
-                    : results.isEmpty
-                        ? Center(child: Text('Suche starten...', style: TextStyle(color: Colors.grey.shade500)))
-                        : ListView.builder(
-                            itemCount: results.length,
-                            itemBuilder: (_, i) {
-                              final r = results[i];
-                              return ListTile(
-                                title: Text(r['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                subtitle: Text('${r['strasse'] ?? ''}, ${r['plz'] ?? ''} ${r['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
-                                onTap: () async {
-                                  final id = r['id'] is int ? r['id'] : int.parse(r['id'].toString());
-                                  await widget.apiService.sanitaetshausAction(widget.userId, {
-                                    'action': 'add_user_sanitaetshaus',
-                                    'sanitaetshaus_id': id,
-                                    'sanitaetshaus_name': r['name'] ?? '',
-                                  });
-                                  if (ctx.mounted) Navigator.pop(ctx);
-                                  _load();
-                                },
-                              );
-                            },
-                          ),
-              ),
-            ]),
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
-        ),
-      ),
-    );
-    searchC.dispose();
-  }
-
-  Future<void> _showVorfaelleDialog(Map<String, dynamic> sanitaetshaus) async {
-    final usId = sanitaetshaus['id'] is int ? sanitaetshaus['id'] : int.parse(sanitaetshaus['id'].toString());
-    final name = sanitaetshaus['sanitaetshaus_name'] ?? sanitaetshaus['db_name'] ?? '';
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: SizedBox(
-          width: 700,
-          height: MediaQuery.of(context).size.height * 0.8,
-          child: _SanitaetshausVorfaelleView(
-            apiService: widget.apiService,
-            userId: widget.userId,
-            userSanitaetshausId: usId,
-            name: name,
-            onClose: () => Navigator.pop(ctx),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SanitaetshausVorfaelleView extends StatefulWidget {
-  final ApiService apiService;
-  final int userId;
-  final int userSanitaetshausId;
-  final String name;
-  final VoidCallback onClose;
-
-  const _SanitaetshausVorfaelleView({required this.apiService, required this.userId, required this.userSanitaetshausId, required this.name, required this.onClose});
-
-  @override
-  State<_SanitaetshausVorfaelleView> createState() => _SanitaetshausVorfaelleViewState();
-}
-
-class _SanitaetshausVorfaelleViewState extends State<_SanitaetshausVorfaelleView> {
-  List<Map<String, dynamic>> _vorfaelle = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() { super.initState(); _loadVorfaelle(); }
-
-  Future<void> _loadVorfaelle() async {
-    final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_vorfaelle_by_sanitaetshaus', 'user_sanitaetshaus_id': widget.userSanitaetshausId});
-    if (mounted && res['success'] == true) {
-      setState(() { _vorfaelle = List<Map<String, dynamic>>.from(res['vorfaelle'] ?? []); _isLoading = false; });
-    } else if (mounted) setState(() => _isLoading = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(children: [
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))),
-        child: Row(children: [
-          const Icon(Icons.local_pharmacy, color: Colors.white),
-          const SizedBox(width: 12),
-          Expanded(child: Text(widget.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
-          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: widget.onClose),
-        ]),
-      ),
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(children: [
-          Text('Vorfälle (${_vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: () => _addVorfall(),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Neuer Vorfall'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
-          ),
-        ]),
-      ),
-      Expanded(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _vorfaelle.isEmpty
-                ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade500)))
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: _vorfaelle.length,
-                    itemBuilder: (_, i) {
-                      final v = _vorfaelle[i];
-                      final status = v['status'] ?? 'offen';
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: Icon(
-                            status == 'erledigt' ? Icons.check_circle : status == 'offen' ? Icons.radio_button_unchecked : Icons.hourglass_top,
-                            color: status == 'erledigt' ? Colors.green : status == 'offen' ? Colors.orange : Colors.blue,
-                          ),
-                          title: Text(v['titel'] ?? v['typ'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('${v['datum'] ?? ''} • ${v['typ'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                          onTap: () => _openVorfallDetail(v),
-                        ),
-                      );
-                    },
-                  ),
-      ),
-    ]);
-  }
-
-  Future<void> _addVorfall() async {
-    final typList = ['Hilfsmittelversorgung', 'Reparatur', 'Rezept einlösen', 'Beratung', 'Reklamation', 'Rückgabe', 'Anpassung', 'Nachversorgung', 'Sonstiges'];
-    final titelC = TextEditingController();
-    final datumC = TextEditingController(text: DateTime.now().toString().substring(0, 10));
-    final notizC = TextEditingController();
-    String typ = typList.first;
-    String status = 'offen';
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setD) => AlertDialog(
-          title: const Text('Neuer Vorfall'),
-          content: SizedBox(width: 450, child: Column(mainAxisSize: MainAxisSize.min, children: [
-            DropdownButtonFormField<String>(value: typ, decoration: const InputDecoration(labelText: 'Art', border: OutlineInputBorder()),
-              items: typList.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(), onChanged: (v) => setD(() => typ = v!)),
-            const SizedBox(height: 12),
-            TextField(controller: titelC, decoration: const InputDecoration(labelText: 'Titel/Produkt', border: OutlineInputBorder())),
-            const SizedBox(height: 12),
-            TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', border: OutlineInputBorder()), readOnly: true,
-              onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040)); if (d != null) datumC.text = d.toString().substring(0, 10); }),
-            const SizedBox(height: 12),
-            Wrap(spacing: 6, children: [('offen', 'Offen', Colors.orange), ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('erledigt', 'Erledigt', Colors.green)].map((s) =>
-              ChoiceChip(label: Text(s.$2, style: TextStyle(fontSize: 11, color: status == s.$1 ? Colors.white : null)), selected: status == s.$1, selectedColor: s.$3, onSelected: (_) => setD(() => status = s.$1))).toList()),
-            const SizedBox(height: 12),
-            TextField(controller: notizC, decoration: const InputDecoration(labelText: 'Notiz', border: OutlineInputBorder()), maxLines: 2),
-          ])),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-            ElevatedButton(onPressed: () async {
-              await widget.apiService.sanitaetshausAction(widget.userId, {
-                'action': 'save_vorfall_multi',
-                'user_sanitaetshaus_id': widget.userSanitaetshausId,
-                'vorfall': {'typ': typ, 'titel': titelC.text.trim(), 'datum': datumC.text, 'status': status, 'notiz': notizC.text.trim()},
-              });
-              if (ctx.mounted) Navigator.pop(ctx);
-              _loadVorfaelle();
-            }, child: const Text('Erstellen')),
-          ],
-        ),
-      ),
-    );
-    titelC.dispose(); datumC.dispose(); notizC.dispose();
-  }
-
-  void _openVorfallDetail(Map<String, dynamic> v) {
-    // Use existing _VorfallDetailDialog pattern
-    showDialog(
-      context: context,
-      builder: (ctx) => _VorfallDetailModal(vorfall: v, apiService: widget.apiService, userId: widget.userId, onReload: _loadVorfaelle),
-    );
-  }
-}
-
-class _VorfallDetailModal extends StatelessWidget {
-  final Map<String, dynamic> vorfall;
-  final ApiService apiService;
-  final int userId;
-  final dynamic onReload;
-
-  const _VorfallDetailModal({required this.vorfall, required this.apiService, required this.userId, required this.onReload});
-
-  @override
-  Widget build(BuildContext context) {
-    final vorfallId = vorfall['id'] is int ? vorfall['id'] : int.parse(vorfall['id'].toString());
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: SizedBox(
-        width: 650,
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: DefaultTabController(
-          length: 3,
-          child: Column(children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))),
-              child: Row(children: [
-                const Icon(Icons.report_problem, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(child: Text(vorfall['titel'] ?? vorfall['typ'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
-                IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
-              ]),
-            ),
-            TabBar(labelColor: Colors.teal.shade700, tabs: const [
-              Tab(text: 'Details'), Tab(text: 'Korrespondenz'), Tab(text: 'Termine'),
-            ]),
-            Expanded(child: TabBarView(children: [
-              SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _row('Art', vorfall['typ'] ?? ''),
-                _row('Titel', vorfall['titel'] ?? ''),
-                _row('Datum', vorfall['datum'] ?? ''),
-                _row('Status', vorfall['status'] ?? ''),
-                _row('Aktenzeichen', vorfall['aktenzeichen'] ?? ''),
-                if (vorfall['notiz']?.toString().isNotEmpty == true) _row('Notiz', vorfall['notiz']),
-              ])),
-              _KorrListView(apiService: apiService, userId: userId, vorfallId: vorfallId),
-              _TerminListView(apiService: apiService, userId: userId, vorfallId: vorfallId),
-            ])),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _row(String label, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 120, child: Text(label, style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade600, fontSize: 13))),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
-    ]));
   }
 }
 
@@ -637,148 +303,257 @@ class _VorfallTabState extends State<_VorfallTab> {
   }
 }
 
+// ==================== VORFALL DETAIL MODAL ====================
 
-
-// ==================== KORRESPONDENZ LIST (for multi-sanitaetshaus modal) ====================
-
-class _KorrListView extends StatefulWidget {
+class _VorfallDetailModal extends StatefulWidget {
+  final Map<String, dynamic> vorfall;
   final ApiService apiService;
   final int userId;
-  final int vorfallId;
-  const _KorrListView({required this.apiService, required this.userId, required this.vorfallId});
+  final Future<void> Function() onReload;
+  const _VorfallDetailModal({required this.vorfall, required this.apiService, required this.userId, required this.onReload});
   @override
-  State<_KorrListView> createState() => _KorrListViewState();
+  State<_VorfallDetailModal> createState() => _VorfallDetailModalState();
 }
 
-class _KorrListViewState extends State<_KorrListView> {
+class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerProviderStateMixin {
+  late TabController _tabC;
+  List<Map<String, dynamic>> _termine = [];
   List<Map<String, dynamic>> _korr = [];
   bool _isLoading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _tabC = TabController(length: 3, vsync: this);
+    _loadDetail();
+  }
 
-  Future<void> _load() async {
-    final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_korr', 'vorfall_id': widget.vorfallId});
-    if (mounted) setState(() { _korr = List<Map<String, dynamic>>.from(res['korrespondenz'] ?? []); _isLoading = false; });
+  @override
+  void dispose() { _tabC.dispose(); super.dispose(); }
+
+  Future<void> _loadDetail() async {
+    setState(() => _isLoading = true);
+    try {
+      final res = await widget.apiService.getSanitaetshausVorfallDetail(widget.userId, widget.vorfall['id'] as int);
+      if (res['success'] == true) {
+        _termine = (res['termine'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        _korr = (res['korrespondenz'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    final titel = widget.vorfall['titel']?.toString() ?? _VorfallTabState._typLabels[widget.vorfall['typ']] ?? '';
     return Column(children: [
-      Padding(padding: const EdgeInsets.all(8), child: Row(children: [const Spacer(),
-        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
-          onPressed: () async {
-            final betreffC = TextEditingController();
-            final notizC = TextEditingController();
-            await showDialog(context: context, builder: (ctx) => AlertDialog(
-              title: const Text('Neue Korrespondenz'),
-              content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', border: OutlineInputBorder())),
-                const SizedBox(height: 12),
-                TextField(controller: notizC, decoration: const InputDecoration(labelText: 'Notiz', border: OutlineInputBorder()), maxLines: 3),
-              ])),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-                ElevatedButton(onPressed: () async {
-                  await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_korr', 'vorfall_id': widget.vorfallId, 'korr': {'betreff': betreffC.text, 'notiz': notizC.text, 'datum': DateTime.now().toString().substring(0, 10), 'richtung': 'ausgehend', 'methode': 'Brief'}});
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  _load();
-                }, child: const Text('Speichern')),
-              ],
-            ));
-            betreffC.dispose(); notizC.dispose();
-          }),
+      Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
+        child: Row(children: [
+          Icon(Icons.medical_services, color: Colors.teal.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(titel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
+          IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); }),
+        ])),
+      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
+        Tab(text: 'Details'),
+        Tab(text: 'Korrespondenz'),
+        Tab(text: 'Termin'),
+      ]),
+      Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
+        _buildDetailsTab(),
+        _buildKorrTab(),
+        _buildTerminTab(),
+      ])),
+    ]);
+  }
+
+  Widget _buildDetailsTab() {
+    final v = widget.vorfall;
+    final status = v['status']?.toString() ?? 'offen';
+    final st = _VorfallTabState._statusLabels[status] ?? ('Offen', Colors.orange);
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: st.$2.shade100, borderRadius: BorderRadius.circular(12)),
+          child: Text(st.$1, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: st.$2.shade800))),
+        const Spacer(),
+        if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+      ]),
+      const SizedBox(height: 12),
+      _infoRow('Typ', _VorfallTabState._typLabels[v['typ']] ?? v['typ']?.toString() ?? ''),
+      _infoRow('Titel', v['titel']?.toString() ?? ''),
+      _infoRow('Aktenzeichen', v['aktenzeichen']?.toString() ?? ''),
+      if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+      ],
+    ]));
+  }
+
+  Widget _infoRow(String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+      SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+    ]));
+  }
+
+  // Korrespondenz tab
+  Widget _buildKorrTab() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(8), child: Row(children: [
+        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: _addKorr, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _korr.isEmpty
         ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(itemCount: _korr.length, itemBuilder: (_, i) {
+        : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) {
             final k = _korr[i];
-            final kId = k['id'] is int ? k['id'] : int.parse(k['id'].toString());
-            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: ExpansionTile(
-              leading: Icon(k['richtung'] == 'eingehend' ? Icons.call_received : Icons.call_made, color: k['richtung'] == 'eingehend' ? Colors.blue : Colors.green),
-              title: Text(k['betreff'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              subtitle: Text('${k['datum'] ?? ''}', style: const TextStyle(fontSize: 11)),
-              children: [
-                if (k['notiz']?.toString().isNotEmpty == true) Padding(padding: const EdgeInsets.all(12), child: Text(k['notiz'])),
-                Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_korr', korrespondenzId: kId)),
-              ],
+            final isEin = k['richtung'] == 'eingang';
+            final kId = int.tryParse(k['id'].toString()) ?? 0;
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: InkWell(
+              onTap: () => _openKorrDetail(k),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                ListTile(dense: true,
+                  leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.orange, size: 20),
+                  title: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  subtitle: Text('${k['datum'] ?? ''} · ${k['methode'] ?? ''}', style: const TextStyle(fontSize: 10)),
+                  trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () async {
+                    await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'delete_korr', 'id': k['id']});
+                    await _loadDetail();
+                  }),
+                ),
+              ]),
             ));
           })),
     ]);
   }
-}
 
-// ==================== TERMINE LIST (for multi-sanitaetshaus modal) ====================
-
-class _TerminListView extends StatefulWidget {
-  final ApiService apiService;
-  final int userId;
-  final int vorfallId;
-  const _TerminListView({required this.apiService, required this.userId, required this.vorfallId});
-  @override
-  State<_TerminListView> createState() => _TerminListViewState();
-}
-
-class _TerminListViewState extends State<_TerminListView> {
-  List<Map<String, dynamic>> _termine = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    final res = await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'list_termine', 'vorfall_id': widget.vorfallId});
-    if (mounted) setState(() { _termine = List<Map<String, dynamic>>.from(res['termine'] ?? []); _isLoading = false; });
+  void _openKorrDetail(Map<String, dynamic> k) {
+    final kId = int.tryParse(k['id'].toString()) ?? 0;
+    final isEin = k['richtung'] == 'eingang';
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: isEin ? Colors.blue : Colors.orange),
+        const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+      ]),
+      content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEin ? Colors.blue.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(12)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEin ? Colors.blue.shade800 : Colors.orange.shade800))),
+          const SizedBox(width: 8),
+          if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
+            child: Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+          const Spacer(),
+          if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ]),
+        if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+        ],
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_korr', korrespondenzId: kId),
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+  void _addKorr() {
+    String richtung = 'eingang';
+    String methode = 'Brief';
+    final datumC = TextEditingController();
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15)),
+      content: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang', onSelected: (_) => setDlg(() => richtung = 'eingang')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', onSelected: (_) => setDlg(() => richtung = 'ausgang')),
+        ]),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(value: methode, decoration: InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          items: const [DropdownMenuItem(value: 'Brief', child: Text('Brief')), DropdownMenuItem(value: 'E-Mail', child: Text('E-Mail')), DropdownMenuItem(value: 'Telefon', child: Text('Telefon')), DropdownMenuItem(value: 'Fax', child: Text('Fax')), DropdownMenuItem(value: 'Persönlich', child: Text('Persönlich'))],
+          onChanged: (v) => setDlg(() => methode = v ?? methode)),
+        const SizedBox(height: 10),
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        const SizedBox(height: 10),
+        TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () async {
+          Navigator.pop(ctx);
+          await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_korr', 'vorfall_id': widget.vorfall['id'], 'korr': {'richtung': richtung, 'methode': methode, 'datum': datumC.text, 'betreff': betreffC.text, 'notiz': notizC.text}});
+          await _loadDetail();
+        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
+      ],
+    )));
+  }
+
+  // Termin tab
+  Widget _buildTerminTab() {
     return Column(children: [
-      Padding(padding: const EdgeInsets.all(8), child: Row(children: [const Spacer(),
-        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
-          onPressed: () async {
-            final datumC = TextEditingController(text: DateTime.now().toString().substring(0, 10));
-            final uhrzeitC = TextEditingController();
-            final ortC = TextEditingController();
-            final notizC = TextEditingController();
-            await showDialog(context: context, builder: (ctx) => AlertDialog(
-              title: const Text('Neuer Termin'),
-              content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', border: OutlineInputBorder()), readOnly: true,
-                  onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040)); if (d != null) datumC.text = d.toString().substring(0, 10); }),
-                const SizedBox(height: 12),
-                TextField(controller: uhrzeitC, decoration: const InputDecoration(labelText: 'Uhrzeit', border: OutlineInputBorder())),
-                const SizedBox(height: 12),
-                TextField(controller: ortC, decoration: const InputDecoration(labelText: 'Ort', border: OutlineInputBorder())),
-                const SizedBox(height: 12),
-                TextField(controller: notizC, decoration: const InputDecoration(labelText: 'Notiz', border: OutlineInputBorder()), maxLines: 2),
-              ])),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-                ElevatedButton(onPressed: () async {
-                  await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_termin', 'vorfall_id': widget.vorfallId, 'termin': {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'ort': ortC.text, 'notiz': notizC.text}});
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  _load();
-                }, child: const Text('Speichern')),
-              ],
-            ));
-            datumC.dispose(); uhrzeitC.dispose(); ortC.dispose(); notizC.dispose();
-          }),
+      Padding(padding: const EdgeInsets.all(8), child: Row(children: [
+        Text('Termine (${_termine.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: _addTermin, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _termine.isEmpty
         ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(itemCount: _termine.length, itemBuilder: (_, i) {
+        : ListView.builder(itemCount: _termine.length, itemBuilder: (ctx, i) {
             final t = _termine[i];
-            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: ListTile(
-              leading: Icon(Icons.event, color: Colors.teal.shade700),
-              title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              subtitle: Text('${t['ort'] ?? ''}${t['notiz']?.toString().isNotEmpty == true ? ' • ${t['notiz']}' : ''}', style: const TextStyle(fontSize: 11)),
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(dense: true,
+              leading: Icon(Icons.event, color: Colors.teal.shade600, size: 20),
+              title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              subtitle: Text(t['ort']?.toString() ?? '', style: const TextStyle(fontSize: 10)),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () async {
+                await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'delete_termin', 'id': t['id']});
+                await _loadDetail();
+              }),
             ));
           })),
     ]);
+  }
+
+  void _addTermin() {
+    final datumC = TextEditingController();
+    final uhrzeitC = TextEditingController();
+    final ortC = TextEditingController();
+    final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Neuer Termin', style: TextStyle(fontSize: 15)),
+      content: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        const SizedBox(height: 10),
+        TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit', isDense: true, hintText: '09:00', prefixIcon: const Icon(Icons.access_time, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: ortC, decoration: InputDecoration(labelText: 'Ort', isDense: true, prefixIcon: const Icon(Icons.location_on, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () async {
+          Navigator.pop(ctx);
+          await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_termin', 'vorfall_id': widget.vorfall['id'], 'termin': {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'ort': ortC.text, 'notiz': notizC.text}});
+          await _loadDetail();
+        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
+      ],
+    ));
   }
 }
