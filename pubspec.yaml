@@ -69,7 +69,8 @@ dependencies:
   path_provider: ^2.1.0
 
   # Device info for unique device identification
-  device_info_plus: ^13.1.0
+  # Pinned to 12.x: 13.x requires win32_registry ^3.0.3 which conflicts with launch_at_startup ^0.5.1
+  device_info_plus: ^12.4.0
 
   # UUID generation for device ID
   uuid: ^4.5.3
