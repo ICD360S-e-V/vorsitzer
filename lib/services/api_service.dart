@@ -932,6 +932,19 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Reziprozität
+  Future<Map<String, dynamic>> getReziprozitaet(int userId, {String? typ}) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/reziprozitaet_manage.php'), headers: _headers,
+      body: jsonEncode({'action': 'list', 'user_id': userId, if (typ != null) 'typ': typ})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> reziprozitaetAction(int userId, String action, Map<String, dynamic> data) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/reziprozitaet_manage.php'), headers: _headers,
+      body: jsonEncode({'action': action, 'user_id': userId, ...data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Reparatur
   Future<Map<String, dynamic>> getReparaturVorfaelle(int userId) async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/reparatur_manage.php'), headers: _headers,
