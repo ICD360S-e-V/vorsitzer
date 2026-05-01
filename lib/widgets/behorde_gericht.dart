@@ -50,6 +50,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     ('sozialgericht', 'Sozialgericht', Icons.balance, Colors.teal),
     ('betreuungsgericht', 'Betreuungsgericht', Icons.family_restroom, Colors.deepPurple),
     ('insolvenzgericht', 'Insolvenzgericht', Icons.account_balance_wallet, Colors.red),
+    ('strafverfahren', 'Strafverfahren', Icons.shield, Colors.brown),
   ];
 
   // Gerichte Datenbank
@@ -75,6 +76,12 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
       {'name': 'Amtsgericht Neu-Ulm — Insolvenzgericht', 'adresse': 'Schützenstraße 17, 89231 Neu-Ulm', 'telefon': '0731 / 70793-725, -726, -727, -728', 'fax': '0731 / 70793-920', 'email': 'insolvenzgericht@ag-nu.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Verbraucherinsolvenz, Privatinsolvenz — Landkreis Neu-Ulm'},
       {'name': 'Amtsgericht Ulm — Insolvenzabteilung', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-2142, -2207, -2181', 'email': 'poststelle@agulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00', 'zustaendigkeit': 'Verbraucherinsolvenz — Stadt Ulm, Alb-Donau-Kreis'},
       {'name': 'Amtsgericht Memmingen — Insolvenzgericht', 'adresse': 'Bodenseestraße 4, 87700 Memmingen', 'telefon': '08331 / 100-0', 'fax': '08331 / 100-299', 'email': 'poststelle@ag-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Verbraucherinsolvenz — Memmingen, Unterallgäu'},
+    ],
+    'strafverfahren': [
+      {'name': 'Amtsgericht Neu-Ulm — Strafabteilung', 'adresse': 'Schützenstraße 60, 89231 Neu-Ulm', 'telefon': '0731 / 70793-0', 'fax': '0731 / 70793-499', 'email': 'poststelle@ag-nu.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Strafverfahren, Bußgeldsachen — Landkreis Neu-Ulm'},
+      {'name': 'Amtsgericht Ulm — Strafabteilung', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'fax': '0731 / 189-197', 'email': 'poststelle@agulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00, Di+Do 13:00–15:30', 'zustaendigkeit': 'Strafverfahren, OWi — Stadt Ulm, Alb-Donau-Kreis'},
+      {'name': 'Staatsanwaltschaft Memmingen', 'adresse': 'Bodenseestraße 4, 87700 Memmingen', 'telefon': '08331 / 100-0', 'fax': '08331 / 100-299', 'email': 'poststelle@sta-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Memmingen, Unterallgäu'},
+      {'name': 'Staatsanwaltschaft Ulm', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'email': 'poststelle@staulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Stadt Ulm, Alb-Donau-Kreis'},
     ],
   };
 
@@ -245,7 +252,9 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
             ? ['Klage gegen Bescheid', 'Einstweiliger Rechtsschutz', 'Widerspruch', 'Berufung', 'Prozesskostenhilfe', 'Sonstiges']
             : typ == 'insolvenzgericht'
                 ? ['Verbraucherinsolvenz (Privatinsolvenz)', 'Außergerichtlicher Einigungsversuch', 'Schuldenbereinigungsplan', 'Restschuldbefreiung', 'Prozesskostenhilfe', 'Sonstiges']
-                : ['Kündigungsschutzklage', 'Lohnklage', 'Mahnbescheid (Lohnüberzahlung)', 'Zeugnis einklagen', 'Einstweilige Verfügung', 'Prozesskostenhilfe', 'Sonstiges'];
+                : typ == 'strafverfahren'
+                    ? ['Ermittlungsverfahren', 'Einstellung (§170 Abs. 2 StPO)', 'Strafbefehl', 'Hauptverhandlung', 'Berufung/Revision', 'Verkehrsunfall', 'Körperverletzung', 'Diebstahl', 'Betrug', 'Ordnungswidrigkeit', 'Sonstiges']
+                    : ['Kündigungsschutzklage', 'Lohnklage', 'Mahnbescheid (Lohnüberzahlung)', 'Zeugnis einklagen', 'Einstweilige Verfügung', 'Prozesskostenhilfe', 'Sonstiges'];
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.report_problem, size: 20, color: color.shade700), const SizedBox(width: 8),
