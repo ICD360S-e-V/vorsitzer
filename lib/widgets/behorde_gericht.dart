@@ -78,9 +78,10 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
       {'name': 'Amtsgericht Memmingen — Insolvenzgericht', 'adresse': 'Bodenseestraße 4, 87700 Memmingen', 'telefon': '08331 / 100-0', 'fax': '08331 / 100-299', 'email': 'poststelle@ag-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Verbraucherinsolvenz — Memmingen, Unterallgäu'},
     ],
     'strafverfahren': [
+      {'name': 'Staatsanwaltschaft Memmingen — Zweigstelle Neu-Ulm', 'adresse': 'Schützenstraße 17, 89231 Neu-Ulm', 'telefon': '0731 / 70793-0', 'fax': '0731 / 70793-38', 'email': 'poststelle@sta-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Landkreis Neu-Ulm, Günzburg'},
+      {'name': 'Staatsanwaltschaft Memmingen — Hauptsitz', 'adresse': 'Hallhof 1 + 4, 87700 Memmingen', 'telefon': '08331 / 105-0', 'fax': '08331 / 105-322', 'email': 'poststelle@sta-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Unterallgäu, Memmingen'},
       {'name': 'Amtsgericht Neu-Ulm — Strafabteilung', 'adresse': 'Schützenstraße 60, 89231 Neu-Ulm', 'telefon': '0731 / 70793-0', 'fax': '0731 / 70793-499', 'email': 'poststelle@ag-nu.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Strafverfahren, Bußgeldsachen — Landkreis Neu-Ulm'},
       {'name': 'Amtsgericht Ulm — Strafabteilung', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'fax': '0731 / 189-197', 'email': 'poststelle@agulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00, Di+Do 13:00–15:30', 'zustaendigkeit': 'Strafverfahren, OWi — Stadt Ulm, Alb-Donau-Kreis'},
-      {'name': 'Staatsanwaltschaft Memmingen', 'adresse': 'Bodenseestraße 4, 87700 Memmingen', 'telefon': '08331 / 100-0', 'fax': '08331 / 100-299', 'email': 'poststelle@sta-mm.bayern.de', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Memmingen, Unterallgäu'},
       {'name': 'Staatsanwaltschaft Ulm', 'adresse': 'Olgastraße 109, 89073 Ulm', 'telefon': '0731 / 189-0', 'email': 'poststelle@staulm.justiz.bwl.de', 'oeffnungszeiten': 'Mo–Fr 08:30–12:00', 'zustaendigkeit': 'Ermittlungsverfahren, Anklageerhebung — Stadt Ulm, Alb-Donau-Kreis'},
     ],
   };
