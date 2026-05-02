@@ -146,7 +146,7 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         _StammdatenTab(data: currentData, apiService: widget.apiService, userId: widget.userId, bereichPrefix: _prefix(_selectedIdx), onSaved: _load),
-        _VorfallTab(vorfaelle: _vorfaelle, apiService: widget.apiService, userId: widget.userId, onReload: _load),
+        _VorfallTab(vorfaelle: _vorfaelle.where((v) => (int.tryParse(v['user_sanitaetshaus_id']?.toString() ?? '') ?? 0) == _selectedIdx).toList(), apiService: widget.apiService, userId: widget.userId, instanceIdx: _selectedIdx, onReload: _load),
       ])),
     ]);
   }
@@ -303,8 +303,9 @@ class _VorfallTab extends StatefulWidget {
   final List<Map<String, dynamic>> vorfaelle;
   final ApiService apiService;
   final int userId;
+  final int instanceIdx;
   final Future<void> Function() onReload;
-  const _VorfallTab({required this.vorfaelle, required this.apiService, required this.userId, required this.onReload});
+  const _VorfallTab({required this.vorfaelle, required this.apiService, required this.userId, this.instanceIdx = 0, required this.onReload});
   @override
   State<_VorfallTab> createState() => _VorfallTabState();
 }
@@ -363,7 +364,7 @@ class _VorfallTabState extends State<_VorfallTab> {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         ElevatedButton(onPressed: () async {
           Navigator.pop(ctx);
-          await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_vorfall', 'vorfall': {'typ': typ, 'titel': titelC.text, 'status': status, 'datum': datumC.text, 'aktenzeichen': aktenzeichenC.text, 'notiz': notizC.text}});
+          await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_vorfall', 'instance_idx': widget.instanceIdx, 'vorfall': {'typ': typ, 'titel': titelC.text, 'status': status, 'datum': datumC.text, 'aktenzeichen': aktenzeichenC.text, 'notiz': notizC.text}});
           await widget.onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
       ],
