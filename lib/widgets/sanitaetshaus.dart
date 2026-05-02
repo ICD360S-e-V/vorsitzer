@@ -176,13 +176,30 @@ class _StammdatenTabState extends State<_StammdatenTab> {
   @override
   void initState() {
     super.initState();
-    final d = widget.data;
+    _initFromData(widget.data);
+  }
+
+  void _initFromData(Map<String, dynamic> d) {
     _kundennummerC = TextEditingController(text: d['stammdaten.kundennummer'] ?? '');
     _ansprechpartnerC = TextEditingController(text: d['stammdaten.ansprechpartner'] ?? '');
     _telefonC = TextEditingController(text: d['stammdaten.telefon'] ?? '');
     _emailC = TextEditingController(text: d['stammdaten.email'] ?? '');
     final name = d['stammdaten.selected_name'] ?? '';
-    if (name.isNotEmpty) _selected = {'name': name, 'strasse': d['stammdaten.selected_strasse'] ?? '', 'plz': d['stammdaten.selected_plz'] ?? '', 'ort': d['stammdaten.selected_ort'] ?? '', 'telefon': d['stammdaten.selected_telefon'] ?? ''};
+    if (name.isNotEmpty) {
+      _selected = {'name': name, 'strasse': d['stammdaten.selected_strasse'] ?? '', 'plz': d['stammdaten.selected_plz'] ?? '', 'ort': d['stammdaten.selected_ort'] ?? '', 'telefon': d['stammdaten.selected_telefon'] ?? ''};
+    } else {
+      _selected = null;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _StammdatenTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bereichPrefix != widget.bereichPrefix || oldWidget.data != widget.data) {
+      _kundennummerC.dispose(); _ansprechpartnerC.dispose(); _telefonC.dispose(); _emailC.dispose();
+      _initFromData(widget.data);
+      setState(() {});
+    }
   }
 
   @override
