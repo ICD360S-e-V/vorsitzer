@@ -12,6 +12,7 @@ import 'vr_bank_screen.dart';
 import 'gls_bank_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
 import 'vereinsinventar_screen.dart';
+import 'telekom_screen.dart';
 import 'deutschepost_screen.dart';
 import '../widgets/eastern.dart';
 
@@ -207,6 +208,10 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
           _loadJasminaAufgaben();
           setState(() => _vereinSubview = 'partner');
         },
+      );
+    } else if (_vereinSubview == 'telekom') {
+      return TelekomScreen(
+        onBack: () => setState(() => _vereinSubview = 'partner'),
       );
     } else if (_vereinSubview == 'servdiscount') {
       return ServdiscountScreen(
@@ -418,6 +423,8 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 Expanded(child: _buildITBeschaffungCard()),
                 const SizedBox(width: 16),
                 Expanded(child: _buildJasminaCard()),
+                const SizedBox(width: 16),
+                Expanded(child: _buildTelekomCard()),
                 const SizedBox(width: 16),
                 Expanded(child: _buildServdiscountCard()),
               ],
@@ -1167,6 +1174,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
           ? '$_microsoftNonprofitOpenAufgaben offene Aufgaben'
           : null,
       badgeColor: _microsoftNonprofitOpenAufgaben > 0 ? Colors.orange : null,
+    );
+  }
+
+  Widget _buildTelekomCard() {
+    return _buildClickableCard(
+      icon: Icons.phone_android,
+      title: 'Telekom',
+      color: Colors.pink,
+      subtitle: 'Mobilfunk, Festnetz, DSL — Verträge & Filialen',
+      onTap: () => setState(() => _vereinSubview = 'telekom'),
     );
   }
 
