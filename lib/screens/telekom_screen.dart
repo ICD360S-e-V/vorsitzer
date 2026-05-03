@@ -22,7 +22,7 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 2, vsync: this);
+    _tabC = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -59,12 +59,14 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
         const SizedBox(height: 16),
         TabBar(controller: _tabC, labelColor: Colors.pink.shade700, indicatorColor: Colors.pink.shade700, tabs: const [
           Tab(icon: Icon(Icons.business), text: 'Firma'),
+          Tab(icon: Icon(Icons.badge), text: 'Stammdaten'),
           Tab(icon: Icon(Icons.receipt_long), text: 'Verträge'),
         ]),
         Expanded(child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(controller: _tabC, children: [
               _buildFirmaTab(),
+              _buildStammdatenTab(),
               _buildVertraegeTab(),
             ])),
       ]),
@@ -113,6 +115,83 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
         ),
       ],
     ]));
+  }
+
+  Widget _buildStammdatenTab() {
+    final d = _firmaData;
+    final kdnr = d['stammdaten.kundennummer'] ?? '';
+    final loginId = d['stammdaten.login_id'] ?? '';
+    final ansprechpartner = d['stammdaten.ansprechpartner'] ?? '';
+    final telefon = d['stammdaten.telefon'] ?? '';
+    final email = d['stammdaten.email'] ?? '';
+
+    return StatefulBuilder(builder: (context, setLocalState) {
+      bool editing = false;
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.badge, size: 20, color: Colors.pink.shade700),
+          const SizedBox(width: 8),
+          Text('Kundenstammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+          const Spacer(),
+          OutlinedButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten', style: TextStyle(fontSize: 12)),
+            onPressed: () => _editStammdaten()),
+        ]),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _infoCard('Kundennummer', kdnr),
+            _infoCard('Login-ID / Benutzername', loginId),
+            _infoCard('Ansprechpartner', ansprechpartner),
+            _infoCard('Telefon (Kontakt)', telefon),
+            _infoCard('E-Mail', email),
+            if (kdnr.isEmpty && loginId.isEmpty && ansprechpartner.isEmpty)
+              Text('Noch keine Stammdaten hinterlegt', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          ]),
+        ),
+      ]));
+    });
+  }
+
+  void _editStammdaten() {
+    final d = _firmaData;
+    final kdnrC = TextEditingController(text: d['stammdaten.kundennummer'] ?? '');
+    final loginC = TextEditingController(text: d['stammdaten.login_id'] ?? '');
+    final ansprechC = TextEditingController(text: d['stammdaten.ansprechpartner'] ?? '');
+    final telC = TextEditingController(text: d['stammdaten.telefon'] ?? '');
+    final emailC = TextEditingController(text: d['stammdaten.email'] ?? '');
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Stammdaten bearbeiten'),
+      content: SizedBox(width: 450, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: kdnrC, decoration: const InputDecoration(labelText: 'Kundennummer', isDense: true, prefixIcon: Icon(Icons.numbers, size: 18), border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: loginC, decoration: const InputDecoration(labelText: 'Login-ID / Benutzername', isDense: true, prefixIcon: Icon(Icons.person, size: 18), border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: ansprechC, decoration: const InputDecoration(labelText: 'Ansprechpartner', isDense: true, prefixIcon: Icon(Icons.contact_phone, size: 18), border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: telC, decoration: const InputDecoration(labelText: 'Telefon (Kontakt)', isDense: true, prefixIcon: Icon(Icons.phone, size: 18), border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: emailC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, prefixIcon: Icon(Icons.email, size: 18), border: OutlineInputBorder())),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton.icon(icon: const Icon(Icons.check), label: const Text('Speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade700, foregroundColor: Colors.white),
+          onPressed: () async {
+            await _apiService.telekomAction({'action': 'save_data', 'data': {
+              'stammdaten.kundennummer': kdnrC.text.trim(),
+              'stammdaten.login_id': loginC.text.trim(),
+              'stammdaten.ansprechpartner': ansprechC.text.trim(),
+              'stammdaten.telefon': telC.text.trim(),
+              'stammdaten.email': emailC.text.trim(),
+            }});
+            if (ctx.mounted) Navigator.pop(ctx);
+            _load();
+          }),
+      ],
+    ));
   }
 
   void _showFilialeSearchDialog() async {
