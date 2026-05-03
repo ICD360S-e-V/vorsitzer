@@ -419,7 +419,19 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                 title: Text(grund?.label ?? a['befreiungsgrund']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Text('${a['antrag_datum'] ?? ''} • ${_statusLabel(status)}${methodeLabel.isNotEmpty ? ' • $methodeLabel' : ''}', style: TextStyle(fontSize: 11, color: isBefreit ? Colors.green.shade700 : isAbgelehnt ? Colors.red.shade700 : Colors.orange.shade700)),
                 onTap: () => _showAntragDetailDialog(a),
-                trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                trailing: PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                  onSelected: (action) {
+                    if (action == 'edit') { _showAntragDetailDialog(a); }
+                    else if (action == 'status') { _quickStatusChange(a); }
+                    else if (action == 'delete') { _deleteAntrag(a); }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Bearbeiten')])),
+                    const PopupMenuItem(value: 'status', child: Row(children: [Icon(Icons.flag, size: 18), SizedBox(width: 8), Text('Status ändern')])),
+                    PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red.shade400), const SizedBox(width: 8), Text('Löschen', style: TextStyle(color: Colors.red.shade400))])),
+                  ],
+                ),
               ));
             })),
     ]);
@@ -451,6 +463,42 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       case 'ermaessigung_blind': return 'auf Ermäßigung des Rundfunkbeitrags aufgrund von Blindheit/Gehörlosigkeit';
       default: return 'als Empfänger/in von Sozialleistungen';
     }
+  }
+
+  void _quickStatusChange(Map<String, dynamic> a) {
+    final aid = int.tryParse(a['id']?.toString() ?? '');
+    if (aid == null) return;
+    String status = a['status']?.toString() ?? 'eingereicht';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(
+      title: const Text('Status ändern'),
+      content: Wrap(spacing: 6, runSpacing: 6, children: ['eingereicht', 'in_bearbeitung', 'bewilligt', 'abgelehnt', 'widerspruch'].map((s) => ChoiceChip(
+        label: Text(_statusLabel(s), style: TextStyle(fontSize: 11, color: status == s ? Colors.white : Colors.black87)),
+        selected: status == s, selectedColor: s == 'bewilligt' ? Colors.green : s == 'abgelehnt' ? Colors.red : Colors.indigo,
+        onSelected: (_) => setD(() => status = s),
+      )).toList()),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          await widget.apiService!.saveRundfunkbeitragAntrag(widget.userId!, {'id': aid, 'status': status});
+          await widget.apiService!.addRfbAntragVerlauf(aid, {'datum': '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}', 'status': status, 'notiz': 'Status geändert auf ${_statusLabel(status)}'});
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadFromDB();
+        }, child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  void _deleteAntrag(Map<String, dynamic> a) async {
+    final aid = int.tryParse(a['id']?.toString() ?? '');
+    if (aid == null) return;
+    final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('Antrag löschen?'), content: const Text('Alle zugehörigen Dokumente und Verlaufseinträge werden gelöscht.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(c, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Löschen'))],
+    ));
+    if (confirm != true) return;
+    await widget.apiService!.deleteRundfunkbeitragAntrag(aid);
+    _loadFromDB();
   }
 
   void _openAntragOnline(Map<String, dynamic> antrag) {
@@ -646,6 +694,10 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
             if (res['success'] != true && ctx.mounted) {
               ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Speichern fehlgeschlagen'}'), backgroundColor: Colors.red));
               return;
+            }
+            final newId = res['id'];
+            if (newId != null) {
+              await widget.apiService!.addRfbAntragVerlauf(newId is int ? newId : int.parse(newId.toString()), {'datum': datumC.text, 'status': 'eingereicht', 'notiz': 'Antrag erstellt (${methode == 'online' ? 'Online' : methode == 'email' ? 'E-Mail' : methode == 'postalisch' ? 'Postalisch' : 'Persönlich'})'});
             }
           }
           if (ctx.mounted) Navigator.pop(ctx);
@@ -1163,9 +1215,12 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     final files = result.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) werden hochgeladen...'), duration: const Duration(seconds: 2)));
+    final katLabel = kategorie == 'brief' ? 'Brief' : kategorie == 'antrag' ? 'Antrag' : kategorie == 'bewilligung' ? 'Bewilligung' : 'Dokument';
     for (final file in files) {
       await widget.apiService.uploadRfbAntragDoc(antragId: widget.antragId, filePath: file.path!, fileName: file.name, kategorie: kategorie);
     }
+    final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+    await widget.apiService.addRfbAntragVerlauf(widget.antragId, {'datum': today, 'status': '', 'notiz': '${files.length} $katLabel-Dokument(e) hochgeladen: ${files.map((f) => f.name).join(', ')}'});
     _load();
   }
 
