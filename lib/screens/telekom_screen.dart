@@ -480,7 +480,16 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
   }
 
   Widget _buildDokumenteTab() {
-    return Center(child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_vertrag', korrespondenzId: widget.vertragId));
+    return DefaultTabController(length: 2, child: Column(children: [
+      TabBar(labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey, indicatorColor: Colors.pink.shade700, tabs: const [
+        Tab(text: 'Antrag'),
+        Tab(text: 'Vertrag'),
+      ]),
+      Expanded(child: TabBarView(children: [
+        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_antrag', korrespondenzId: widget.vertragId)),
+        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_vertrag_doc', korrespondenzId: widget.vertragId)),
+      ])),
+    ]));
   }
 
   Widget _buildRechnungenTab() {
