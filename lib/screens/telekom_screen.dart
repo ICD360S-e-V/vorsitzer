@@ -387,6 +387,8 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
   List<Map<String, dynamic>> _rechnungen = [];
   List<Map<String, dynamic>> _vorfaelle = [];
   bool _isLoading = true;
+  bool _hasAntragDocs = false;
+  bool _hasVertragDocs = false;
 
   @override
   void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); _loadDetail(); }
@@ -395,18 +397,24 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
 
   Future<void> _loadDetail() async {
     try {
-      final res = await widget.apiService.telekomAction({'action': 'vertrag_detail', 'vertrag_id': widget.vertragId});
-      if (mounted && res['success'] == true) {
-        setState(() {
+      final results = await Future.wait([
+        widget.apiService.telekomAction({'action': 'vertrag_detail', 'vertrag_id': widget.vertragId}),
+        widget.apiService.listKorrAttachments('telekom_antrag', widget.vertragId),
+        widget.apiService.listKorrAttachments('telekom_vertrag_doc', widget.vertragId),
+      ]);
+      if (mounted) {
+        final res = results[0];
+        if (res['success'] == true) {
           _verlauf = List<Map<String, dynamic>>.from(res['verlauf'] ?? []);
           _korr = List<Map<String, dynamic>>.from(res['korrespondenz'] ?? []);
           _rechnungen = List<Map<String, dynamic>>.from(res['rechnungen'] ?? []);
           _vorfaelle = List<Map<String, dynamic>>.from(res['vorfaelle'] ?? []);
-          _isLoading = false;
-        });
+        }
+        _hasAntragDocs = (results[1]['files'] as List?)?.isNotEmpty == true;
+        _hasVertragDocs = (results[2]['files'] as List?)?.isNotEmpty == true;
       }
     } catch (_) {}
-    if (mounted && _isLoading) setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
@@ -481,9 +489,9 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
 
   Widget _buildDokumenteTab() {
     return DefaultTabController(length: 2, child: Column(children: [
-      TabBar(labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey, indicatorColor: Colors.pink.shade700, tabs: const [
-        Tab(text: 'Antrag'),
-        Tab(text: 'Vertrag'),
+      TabBar(labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey, indicatorColor: Colors.pink.shade700, tabs: [
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasAntragDocs) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasAntragDocs) const SizedBox(width: 4), const Text('Antrag')])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasVertragDocs) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasVertragDocs) const SizedBox(width: 4), const Text('Vertrag')])),
       ]),
       Expanded(child: TabBarView(children: [
         Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_antrag', korrespondenzId: widget.vertragId)),
