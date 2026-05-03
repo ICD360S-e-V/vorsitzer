@@ -439,12 +439,13 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   late TabController _tabC;
   List<Map<String, dynamic>> _termine = [];
   List<Map<String, dynamic>> _korr = [];
+  List<Map<String, dynamic>> _rechnungen = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 3, vsync: this);
+    _tabC = TabController(length: 4, vsync: this);
     _loadDetail();
   }
 
@@ -458,6 +459,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
       if (res['success'] == true) {
         _termine = (res['termine'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
         _korr = (res['korrespondenz'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        _rechnungen = (res['rechnungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
       }
     } catch (_) {}
     if (mounted) setState(() => _isLoading = false);
@@ -474,15 +476,17 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
           Expanded(child: Text(titel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
           IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); }),
         ])),
-      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
+      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: const [
         Tab(text: 'Details'),
         Tab(text: 'Korrespondenz'),
         Tab(text: 'Termin'),
+        Tab(text: 'Rechnungen'),
       ]),
       Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
         _buildDetailsTab(),
         _buildKorrTab(),
         _buildTerminTab(),
+        _buildRechnungenTab(),
       ])),
     ]);
   }
@@ -675,5 +679,86 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
       ],
     ));
+  }
+
+  // Rechnungen tab
+  Widget _buildRechnungenTab() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(8), child: Row(children: [
+        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: _addRechnung, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
+      ])),
+      Expanded(child: _rechnungen.isEmpty
+        ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _rechnungen.length, itemBuilder: (ctx, i) {
+            final r = _rechnungen[i];
+            final status = r['status'] ?? 'offen';
+            final statusColor = status == 'bezahlt' ? Colors.green : status == 'ueberfaellig' ? Colors.red : Colors.orange;
+            final kId = int.tryParse(r['id'].toString()) ?? 0;
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ExpansionTile(
+              leading: Icon(Icons.receipt_long, color: statusColor, size: 20),
+              title: Row(children: [
+                Text(r['rechnungsnummer']?.toString().isNotEmpty == true ? 'Nr. ${r['rechnungsnummer']}' : 'Rechnung', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 8),
+                if (r['betrag']?.toString().isNotEmpty == true)
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6)),
+                    child: Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade800))),
+                const SizedBox(width: 8),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                  child: Text(status == 'bezahlt' ? 'Bezahlt' : status == 'ueberfaellig' ? 'Überfällig' : 'Offen', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor))),
+              ]),
+              subtitle: Text(r['datum'] ?? '', style: const TextStyle(fontSize: 10)),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () async {
+                await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'delete_rechnung', 'id': r['id']});
+                await _loadDetail();
+              }),
+              children: [
+                if (r['notiz']?.toString().isNotEmpty == true)
+                  Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Align(alignment: Alignment.centerLeft, child: Text(r['notiz'], style: const TextStyle(fontSize: 12)))),
+                Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_rechnung', korrespondenzId: kId)),
+              ],
+            ));
+          })),
+    ]);
+  }
+
+  void _addRechnung() {
+    final nrC = TextEditingController();
+    final betragC = TextEditingController();
+    final datumC = TextEditingController();
+    final notizC = TextEditingController();
+    String status = 'offen';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: const Text('Neue Rechnung', style: TextStyle(fontSize: 15)),
+      content: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: nrC, decoration: InputDecoration(labelText: 'Rechnungsnummer', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: betragC, decoration: InputDecoration(labelText: 'Betrag (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), keyboardType: TextInputType.number),
+        const SizedBox(height: 10),
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        const SizedBox(height: 10),
+        Row(children: [
+          ChoiceChip(label: const Text('Offen'), selected: status == 'offen', selectedColor: Colors.orange, onSelected: (_) => setDlg(() => status = 'offen')),
+          const SizedBox(width: 6),
+          ChoiceChip(label: const Text('Bezahlt'), selected: status == 'bezahlt', selectedColor: Colors.green, onSelected: (_) => setDlg(() => status = 'bezahlt')),
+          const SizedBox(width: 6),
+          ChoiceChip(label: const Text('Überfällig'), selected: status == 'ueberfaellig', selectedColor: Colors.red, onSelected: (_) => setDlg(() => status = 'ueberfaellig')),
+        ]),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () async {
+          Navigator.pop(ctx);
+          await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_rechnung', 'vorfall_id': widget.vorfall['id'], 'rechnung': {'rechnungsnummer': nrC.text, 'betrag': betragC.text, 'datum': datumC.text, 'status': status, 'notiz': notizC.text}});
+          await _loadDetail();
+        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
+      ],
+    )));
   }
 }
