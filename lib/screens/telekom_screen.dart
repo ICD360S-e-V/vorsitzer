@@ -73,54 +73,90 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
 
   Widget _buildFirmaTab() {
     final d = _firmaData;
-    if (!_firmaEditing) {
-      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Spacer(), OutlinedButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten'), onPressed: () => setState(() => _firmaEditing = true))]),
-        const SizedBox(height: 8),
-        _infoCard('Filiale', d['firma.filiale'] ?? ''),
-        _infoCard('Adresse', d['firma.adresse'] ?? ''),
-        _infoCard('Telefon', d['firma.telefon'] ?? ''),
-        _infoCard('E-Mail', d['firma.email'] ?? ''),
-        _infoCard('Kundennummer', d['firma.kundennummer'] ?? ''),
-        _infoCard('Ansprechpartner', d['firma.ansprechpartner'] ?? ''),
-        _infoCard('Öffnungszeiten', d['firma.oeffnungszeiten'] ?? ''),
-      ]));
-    }
+    final selectedName = d['firma.filiale'] ?? '';
 
-    final filialeC = TextEditingController(text: d['firma.filiale'] ?? '');
-    final adresseC = TextEditingController(text: d['firma.adresse'] ?? '');
-    final telefonC = TextEditingController(text: d['firma.telefon'] ?? '');
-    final emailC = TextEditingController(text: d['firma.email'] ?? '');
-    final kdnrC = TextEditingController(text: d['firma.kundennummer'] ?? '');
-    final ansprechC = TextEditingController(text: d['firma.ansprechpartner'] ?? '');
-    final oeffnungC = TextEditingController(text: d['firma.oeffnungszeiten'] ?? '');
-
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
-      _field('Filiale / Standort', filialeC, Icons.business),
-      _field('Adresse', adresseC, Icons.location_on),
-      _field('Telefon', telefonC, Icons.phone),
-      _field('E-Mail', emailC, Icons.email),
-      _field('Kundennummer', kdnrC, Icons.numbers),
-      _field('Ansprechpartner', ansprechC, Icons.person),
-      _field('Öffnungszeiten', oeffnungC, Icons.access_time),
-      const SizedBox(height: 16),
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        TextButton(onPressed: () => setState(() => _firmaEditing = false), child: const Text('Abbrechen')),
-        const Spacer(),
-        ElevatedButton.icon(icon: const Icon(Icons.check), label: const Text('Speichern'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade700, foregroundColor: Colors.white),
-          onPressed: () async {
-            await _apiService.telekomAction({'action': 'save_data', 'data': {
-              'firma.filiale': filialeC.text.trim(), 'firma.adresse': adresseC.text.trim(),
-              'firma.telefon': telefonC.text.trim(), 'firma.email': emailC.text.trim(),
-              'firma.kundennummer': kdnrC.text.trim(), 'firma.ansprechpartner': ansprechC.text.trim(),
-              'firma.oeffnungszeiten': oeffnungC.text.trim(),
-            }});
-            _firmaEditing = false;
-            _load();
-          }),
+        Icon(Icons.store, size: 20, color: Colors.pink.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Zuständige Filiale', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade700))),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.search, size: 16),
+          label: Text(selectedName.isEmpty ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
+          onPressed: _showFilialeSearchDialog,
+        ),
       ]),
+      const SizedBox(height: 12),
+      if (selectedName.isEmpty)
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+          child: Column(children: [
+            Icon(Icons.search, size: 40, color: Colors.grey.shade400), const SizedBox(height: 8),
+            Text('Keine Filiale ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          ]),
+        )
+      else ...[
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(selectedName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade900)),
+            const SizedBox(height: 6),
+            _infoCard('Adresse', d['firma.adresse'] ?? ''),
+            _infoCard('Telefon', d['firma.telefon'] ?? ''),
+            _infoCard('E-Mail', d['firma.email'] ?? ''),
+            _infoCard('Öffnungszeiten', d['firma.oeffnungszeiten'] ?? ''),
+            _infoCard('Kundennummer', d['firma.kundennummer'] ?? ''),
+            _infoCard('Ansprechpartner', d['firma.ansprechpartner'] ?? ''),
+          ]),
+        ),
+      ],
     ]));
+  }
+
+  void _showFilialeSearchDialog() async {
+    List<Map<String, dynamic>> filialen = [];
+    List<Map<String, dynamic>> filtered = [];
+    bool loading = true;
+    final searchC = TextEditingController();
+
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlgState) {
+      if (loading) {
+        _apiService.telekomAction({'action': 'search_filialen', 'query': ''}).then((res) {
+          setDlgState(() { filialen = List<Map<String, dynamic>>.from(res['filialen'] ?? []); filtered = List.from(filialen); loading = false; });
+        });
+      }
+      return AlertDialog(
+        title: Row(children: [Icon(Icons.search, color: Colors.pink.shade700), const SizedBox(width: 8), const Text('Telekom Filiale auswählen')]),
+        content: SizedBox(width: 500, height: 400, child: Column(children: [
+          TextField(controller: searchC, decoration: const InputDecoration(labelText: 'Suchen...', border: OutlineInputBorder(), prefixIcon: Icon(Icons.search)),
+            onChanged: (q) { final lower = q.toLowerCase(); setDlgState(() { filtered = lower.isEmpty ? List.from(filialen) : filialen.where((f) =>
+              (f['name']?.toString().toLowerCase() ?? '').contains(lower) || (f['ort']?.toString().toLowerCase() ?? '').contains(lower)).toList(); }); }),
+          const SizedBox(height: 12),
+          Expanded(child: loading ? const Center(child: CircularProgressIndicator())
+            : filtered.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+            : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
+                final f = filtered[i];
+                return ListTile(
+                  leading: Icon(Icons.store, color: Colors.pink.shade600),
+                  title: Text(f['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: Text('${f['strasse'] ?? ''}, ${f['plz'] ?? ''} ${f['ort'] ?? ''} • ${f['oeffnungszeiten'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                  onTap: () async {
+                    await _apiService.telekomAction({'action': 'save_data', 'data': {
+                      'firma.filiale': f['name'] ?? '', 'firma.adresse': '${f['strasse'] ?? ''}, ${f['plz'] ?? ''} ${f['ort'] ?? ''}',
+                      'firma.telefon': f['telefon'] ?? '', 'firma.email': f['email'] ?? '', 'firma.oeffnungszeiten': f['oeffnungszeiten'] ?? '',
+                    }});
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    _load();
+                  },
+                );
+              })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      );
+    }));
+    searchC.dispose();
   }
 
   Widget _field(String label, TextEditingController c, IconData icon) {
