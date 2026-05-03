@@ -284,7 +284,7 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
                   PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red.shade400), const SizedBox(width: 8), Text('Löschen', style: TextStyle(color: Colors.red.shade400))])),
                 ],
               ),
-              onTap: () => _showVertragDialog(v),
+              onTap: () => _showVertragDetailModal(v),
             ));
           })),
     ]);
@@ -358,5 +358,228 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
           child: Text(isEdit ? 'Speichern' : 'Erstellen')),
       ],
     )));
+  }
+
+  void _showVertragDetailModal(Map<String, dynamic> vertrag) {
+    final vid = vertrag['id'] is int ? vertrag['id'] : int.parse(vertrag['id'].toString());
+    showDialog(context: context, builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(width: 750, height: MediaQuery.of(context).size.height * 0.85,
+        child: _TelekomVertragDetail(apiService: _apiService, vertrag: vertrag, vertragId: vid, onChanged: _load)),
+    ));
+  }
+}
+
+class _TelekomVertragDetail extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> vertrag;
+  final int vertragId;
+  final VoidCallback onChanged;
+  const _TelekomVertragDetail({required this.apiService, required this.vertrag, required this.vertragId, required this.onChanged});
+  @override
+  State<_TelekomVertragDetail> createState() => _TelekomVertragDetailState();
+}
+
+class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with TickerProviderStateMixin {
+  late TabController _tabC;
+  List<Map<String, dynamic>> _verlauf = [];
+  List<Map<String, dynamic>> _korr = [];
+  List<Map<String, dynamic>> _rechnungen = [];
+  List<Map<String, dynamic>> _vorfaelle = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() { super.initState(); _tabC = TabController(length: 6, vsync: this); _loadDetail(); }
+  @override
+  void dispose() { _tabC.dispose(); super.dispose(); }
+
+  Future<void> _loadDetail() async {
+    try {
+      final res = await widget.apiService.telekomAction({'action': 'vertrag_detail', 'vertrag_id': widget.vertragId});
+      if (mounted && res['success'] == true) {
+        setState(() {
+          _verlauf = List<Map<String, dynamic>>.from(res['verlauf'] ?? []);
+          _korr = List<Map<String, dynamic>>.from(res['korrespondenz'] ?? []);
+          _rechnungen = List<Map<String, dynamic>>.from(res['rechnungen'] ?? []);
+          _vorfaelle = List<Map<String, dynamic>>.from(res['vorfaelle'] ?? []);
+          _isLoading = false;
+        });
+      }
+    } catch (_) {}
+    if (mounted && _isLoading) setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.vertrag;
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.pink.shade700, borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))),
+        child: Row(children: [
+          const Icon(Icons.sim_card, color: Colors.white),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${v['vertragsart'] ?? ''} — ${v['tarifname'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            if (v['rufnummer']?.toString().isNotEmpty == true) Text(v['rufnummer'], style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { Navigator.pop(context); widget.onChanged(); }),
+        ])),
+      TabBar(controller: _tabC, labelColor: Colors.pink.shade700, isScrollable: true, tabs: const [
+        Tab(text: 'Verlauf'), Tab(text: 'Details'), Tab(text: 'Dokumente'), Tab(text: 'Rechnungen'), Tab(text: 'Korrespondenz'), Tab(text: 'Vorfall'),
+      ]),
+      Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
+        _buildVerlaufTab(), _buildDetailsTab(), _buildDokumenteTab(), _buildRechnungenTab(), _buildKorrTab(), _buildVorfallTab(),
+      ])),
+    ]);
+  }
+
+  Widget _buildVerlaufTab() {
+    final eintragC = TextEditingController();
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: TextField(controller: eintragC, decoration: const InputDecoration(hintText: 'Neuer Eintrag...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)))),
+        const SizedBox(width: 8),
+        IconButton(icon: Icon(Icons.add_circle, color: Colors.green.shade700, size: 32), onPressed: () async {
+          if (eintragC.text.trim().isEmpty) return;
+          final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+          await widget.apiService.telekomAction({'action': 'add_verlauf', 'vertrag_id': widget.vertragId, 'datum': today, 'eintrag': eintragC.text.trim()});
+          eintragC.clear(); _loadDetail();
+        }),
+      ])),
+      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
+            final e = _verlauf[i];
+            return ListTile(
+              leading: Icon(Icons.circle, size: 10, color: Colors.pink.shade300),
+              title: Text(e['eintrag'] ?? '', style: const TextStyle(fontSize: 13)),
+              subtitle: Text(e['datum'] ?? e['created_at'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
+                await widget.apiService.telekomAction({'action': 'delete_verlauf', 'id': e['id']}); _loadDetail();
+              }),
+            );
+          })),
+    ]);
+  }
+
+  Widget _buildDetailsTab() {
+    final v = widget.vertrag;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _dRow('Vertragsart', v['vertragsart']), _dRow('Tarifname', v['tarifname']), _dRow('Rufnummer', v['rufnummer']),
+      _dRow('Vertragsnummer', v['vertragsnummer']), _dRow('Monatl. Kosten', v['monatliche_kosten']?.toString().isNotEmpty == true ? '${v['monatliche_kosten']} €' : ''),
+      _dRow('Vertragsbeginn', v['vertragsbeginn']), _dRow('Vertragsende', v['vertragsende']), _dRow('Kündigungsfrist', v['kuendigungsfrist']),
+      _dRow('Status', v['status'] == 'aktiv' ? 'Aktiv' : v['status'] == 'gekuendigt' ? 'Gekündigt' : 'Ausgelaufen'),
+      if (v['notiz']?.toString().isNotEmpty == true) ...[const SizedBox(height: 8), Text(v['notiz'], style: const TextStyle(fontSize: 12))],
+    ]));
+  }
+
+  Widget _dRow(String label, dynamic value) {
+    final s = value?.toString() ?? ''; if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
+      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+    ]));
+  }
+
+  Widget _buildDokumenteTab() {
+    return Center(child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_vertrag', korrespondenzId: widget.vertragId));
+  }
+
+  Widget _buildRechnungenTab() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
+        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neue Rechnung'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade700, foregroundColor: Colors.white),
+          onPressed: () async {
+            final nrC = TextEditingController(); final betragC = TextEditingController(); final notizC = TextEditingController();
+            await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Neue Rechnung'),
+              content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(controller: nrC, decoration: const InputDecoration(labelText: 'Rechnungsnr.', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 10),
+                TextField(controller: betragC, decoration: const InputDecoration(labelText: 'Betrag (€)', isDense: true, border: OutlineInputBorder()), keyboardType: TextInputType.number), const SizedBox(height: 10),
+                TextField(controller: notizC, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+              ])),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+                ElevatedButton(onPressed: () async {
+                  final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+                  await widget.apiService.telekomAction({'action': 'save_rechnung', 'vertrag_id': widget.vertragId, 'rechnung': {'rechnungsnummer': nrC.text, 'betrag': betragC.text, 'datum': today, 'status': 'offen', 'notiz': notizC.text}});
+                  if (ctx.mounted) Navigator.pop(ctx); _loadDetail();
+                }, child: const Text('Speichern'))],
+            ));
+          }),
+      ])),
+      Expanded(child: _rechnungen.isEmpty ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _rechnungen.length, itemBuilder: (_, i) {
+            final r = _rechnungen[i]; final sc = r['status'] == 'bezahlt' ? Colors.green : r['status'] == 'ueberfaellig' ? Colors.red : Colors.orange;
+            return ListTile(leading: Icon(Icons.receipt, color: sc), title: Text('${r['rechnungsnummer'] ?? 'Rechnung'} — ${r['betrag'] ?? ''} €'),
+              subtitle: Text('${r['datum'] ?? ''} • ${r['status'] == 'bezahlt' ? 'Bezahlt' : r['status'] == 'ueberfaellig' ? 'Überfällig' : 'Offen'}', style: TextStyle(fontSize: 11, color: sc)),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async { await widget.apiService.telekomAction({'action': 'delete_rechnung', 'id': r['id']}); _loadDetail(); }));
+          })),
+    ]);
+  }
+
+  Widget _buildKorrTab() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
+        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade700, foregroundColor: Colors.white),
+          onPressed: () async {
+            final betreffC = TextEditingController(); final notizC = TextEditingController();
+            await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Neue Korrespondenz'),
+              content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 10),
+                TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+              ])),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+                ElevatedButton(onPressed: () async {
+                  final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+                  await widget.apiService.telekomAction({'action': 'save_korr', 'vertrag_id': widget.vertragId, 'korr': {'betreff': betreffC.text, 'notiz': notizC.text, 'datum': today, 'richtung': 'ausgehend'}});
+                  if (ctx.mounted) Navigator.pop(ctx); _loadDetail();
+                }, child: const Text('Speichern'))],
+            ));
+          }),
+      ])),
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _korr.length, itemBuilder: (_, i) {
+            final k = _korr[i]; final isEin = k['richtung'] == 'eingehend';
+            return ListTile(leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.green),
+              title: Text(k['betreff'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async { await widget.apiService.telekomAction({'action': 'delete_korr', 'id': k['id']}); _loadDetail(); }));
+          })),
+    ]);
+  }
+
+  Widget _buildVorfallTab() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [const Spacer(),
+        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorfall'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade700, foregroundColor: Colors.white),
+          onPressed: () async {
+            final titelC = TextEditingController(); final notizC = TextEditingController();
+            String typ = 'Störung';
+            await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(title: const Text('Neuer Vorfall'),
+              content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<String>(value: typ, decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+                  items: ['Störung', 'Reklamation', 'Tarifwechsel', 'Kündigung', 'Vertragsverlängerung', 'Sonstiges'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                  onChanged: (v) => setD(() => typ = v!)), const SizedBox(height: 10),
+                TextField(controller: titelC, decoration: const InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 10),
+                TextField(controller: notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+              ])),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+                ElevatedButton(onPressed: () async {
+                  final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+                  await widget.apiService.telekomAction({'action': 'save_vorfall', 'vertrag_id': widget.vertragId, 'vorfall': {'typ': typ, 'titel': titelC.text, 'datum': today, 'status': 'offen', 'notiz': notizC.text}});
+                  if (ctx.mounted) Navigator.pop(ctx); _loadDetail();
+                }, child: const Text('Speichern'))],
+            )));
+          }),
+      ])),
+      Expanded(child: _vorfaelle.isEmpty ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _vorfaelle.length, itemBuilder: (_, i) {
+            final v = _vorfaelle[i]; final sc = v['status'] == 'erledigt' ? Colors.green : Colors.orange;
+            return ListTile(leading: Icon(Icons.report_problem, color: sc),
+              title: Text('${v['typ'] ?? ''} — ${v['titel'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Text('${v['datum'] ?? ''} • ${v['status'] == 'erledigt' ? 'Erledigt' : 'Offen'}', style: TextStyle(fontSize: 11, color: sc)),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async { await widget.apiService.telekomAction({'action': 'delete_vorfall', 'id': v['id']}); _loadDetail(); }));
+          })),
+    ]);
   }
 }
