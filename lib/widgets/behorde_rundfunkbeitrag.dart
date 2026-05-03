@@ -1003,22 +1003,45 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
   }
 
   Widget _buildUnterlagen() {
+    return DefaultTabController(
+      length: 3,
+      child: Column(children: [
+        const TabBar(
+          labelColor: Colors.green,
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: Colors.green,
+          tabs: [
+            Tab(text: 'Brief'),
+            Tab(text: 'Antrag'),
+            Tab(text: 'Bewilligung'),
+          ],
+        ),
+        Expanded(child: TabBarView(children: [
+          _buildDocSubTab('brief', 'Briefe (Schriftverkehr)'),
+          _buildDocSubTab('antrag', 'Antragsunterlagen'),
+          _buildDocSubTab('bewilligung', 'Bewilligungsbescheid'),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _buildDocSubTab(String kategorie, String title) {
+    final filtered = _docs.where((d) => (d['kategorie']?.toString() ?? '') == kategorie).toList();
+    final hasAny = filtered.isNotEmpty;
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
-        ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+        Icon(hasAny ? Icons.check_circle : Icons.folder_open, size: 20, color: hasAny ? Colors.green.shade700 : Colors.grey.shade400), const SizedBox(width: 8),
+        Expanded(child: Text('$title (${filtered.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: hasAny ? Colors.green.shade700 : Colors.grey.shade600))),
+        ElevatedButton.icon(onPressed: () => _uploadDoc(kategorie: kategorie), icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),
-      Expanded(child: _docs.isEmpty
+      Expanded(child: filtered.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8),
-              Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500)),
-              const SizedBox(height: 4),
-              Text('Bewilligungsbescheid, Leistungsbescheid etc. hochladen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+              Icon(Icons.cloud_upload, size: 40, color: Colors.grey.shade300), const SizedBox(height: 8),
+              Text('Keine Dokumente', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
             ]))
-          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) {
-              final d = _docs[i];
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: filtered.length, itemBuilder: (_, i) {
+              final d = filtered[i];
               return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
                 child: Row(children: [
@@ -1058,14 +1081,14 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     ]);
   }
 
-  Future<void> _uploadDoc() async {
+  Future<void> _uploadDoc({String kategorie = ''}) async {
     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) werden hochgeladen...'), duration: const Duration(seconds: 2)));
     for (final file in files) {
-      await widget.apiService.uploadRfbAntragDoc(antragId: widget.antragId, filePath: file.path!, fileName: file.name);
+      await widget.apiService.uploadRfbAntragDoc(antragId: widget.antragId, filePath: file.path!, fileName: file.name, kategorie: kategorie);
     }
     _load();
   }
