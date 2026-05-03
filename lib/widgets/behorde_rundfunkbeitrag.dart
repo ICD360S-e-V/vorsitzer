@@ -910,6 +910,12 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     final grund = widget.befreiungsgruende.where((g) => g.key == a['befreiungsgrund']?.toString()).firstOrNull;
     final methodeLabel = {'online': 'Online', 'email': 'E-Mail', 'persoenlich': 'Persönlich', 'postalisch': 'Postalisch'}[a['methode']?.toString() ?? ''] ?? '';
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Spacer(),
+        OutlinedButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten', style: TextStyle(fontSize: 12)),
+          onPressed: () => _editAntrag(a)),
+      ]),
+      const SizedBox(height: 8),
       _dRow(Icons.description, 'Befreiungsgrund', grund?.label ?? a['befreiungsgrund']?.toString()),
       if (grund != null) Padding(padding: const EdgeInsets.only(left: 22, bottom: 8), child: Text(grund.beschreibung, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
       _dRow(Icons.calendar_today, 'Antragsdatum', a['antrag_datum']),
@@ -924,6 +930,76 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
       ],
     ]));
+  }
+
+  void _editAntrag(Map<String, dynamic> a) {
+    String befreiungsgrund = a['befreiungsgrund']?.toString() ?? '';
+    String methode = a['methode']?.toString() ?? '';
+    String status = a['status']?.toString() ?? 'eingereicht';
+    final datumC = TextEditingController(text: a['antrag_datum']?.toString() ?? '');
+    final aktenzeichenC = TextEditingController(text: a['aktenzeichen']?.toString() ?? '');
+    final zeitraumVonC = TextEditingController(text: a['zeitraum_von']?.toString() ?? '');
+    final zeitraumBisC = TextEditingController(text: a['zeitraum_bis']?.toString() ?? '');
+    final notizC = TextEditingController(text: a['notiz']?.toString() ?? '');
+
+    Future<void> pickDate(BuildContext ctx, TextEditingController c) async {
+      final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+      if (d != null) c.text = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      title: const Text('Antrag bearbeiten'),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        DropdownButtonFormField<String>(value: befreiungsgrund.isEmpty ? null : befreiungsgrund,
+          decoration: const InputDecoration(labelText: 'Befreiungsgrund', isDense: true, border: OutlineInputBorder()),
+          items: widget.befreiungsgruende.map((g) => DropdownMenuItem(value: g.key, child: Text(g.label, style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setD(() => befreiungsgrund = v ?? '')),
+        const SizedBox(height: 10),
+        TextField(controller: datumC, readOnly: true, decoration: const InputDecoration(labelText: 'Antragsdatum', isDense: true, prefixIcon: Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder()),
+          onTap: () async { await pickDate(ctx2, datumC); setD(() {}); }),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(value: methode.isEmpty ? null : methode,
+          decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()),
+          items: const [DropdownMenuItem(value: 'online', child: Text('Online')), DropdownMenuItem(value: 'email', child: Text('E-Mail')), DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')), DropdownMenuItem(value: 'postalisch', child: Text('Postalisch'))],
+          onChanged: (v) => setD(() => methode = v ?? '')),
+        const SizedBox(height: 10),
+        TextField(controller: aktenzeichenC, decoration: const InputDecoration(labelText: 'Beitragsnummer / Aktenzeichen', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        Wrap(spacing: 6, children: ['eingereicht', 'in_bearbeitung', 'bewilligt', 'abgelehnt', 'widerspruch'].map((s) => ChoiceChip(
+          label: Text(_statusLabel(s), style: TextStyle(fontSize: 10, color: status == s ? Colors.white : Colors.black87)),
+          selected: status == s, selectedColor: s == 'bewilligt' ? Colors.green : s == 'abgelehnt' ? Colors.red : Colors.indigo,
+          onSelected: (_) => setD(() => status = s),
+        )).toList()),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: TextField(controller: zeitraumVonC, readOnly: true, decoration: const InputDecoration(labelText: 'Zeitraum von', isDense: true, border: OutlineInputBorder()),
+            onTap: () async { await pickDate(ctx2, zeitraumVonC); setD(() {}); })),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: zeitraumBisC, readOnly: true, decoration: const InputDecoration(labelText: 'Zeitraum bis', isDense: true, border: OutlineInputBorder()),
+            onTap: () async { await pickDate(ctx2, zeitraumBisC); setD(() {}); })),
+        ]),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          await widget.apiService.saveRundfunkbeitragAntrag(widget.userId, {
+            'id': widget.antragId,
+            'befreiungsgrund': befreiungsgrund,
+            'antrag_datum': datumC.text,
+            'aktenzeichen': aktenzeichenC.text,
+            'methode': methode,
+            'status': status,
+            'zeitraum_von': zeitraumVonC.text,
+            'zeitraum_bis': zeitraumBisC.text,
+            'notiz': notizC.text,
+          });
+          if (ctx.mounted) Navigator.pop(ctx);
+          _load(); widget.onChanged();
+        }, child: const Text('Speichern')),
+      ],
+    )));
   }
 
   String _statusLabel(String s) {
