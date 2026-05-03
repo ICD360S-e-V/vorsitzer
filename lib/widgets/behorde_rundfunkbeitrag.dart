@@ -1130,18 +1130,20 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     )));
   }
 
+  bool _hasDocsFor(String kat) => _docs.any((d) => (d['kategorie']?.toString() ?? '') == kat);
+
   Widget _buildUnterlagen() {
     return DefaultTabController(
       length: 3,
       child: Column(children: [
-        const TabBar(
+        TabBar(
           labelColor: Colors.green,
           unselectedLabelColor: Colors.grey,
           indicatorColor: Colors.green,
           tabs: [
-            Tab(text: 'Brief'),
-            Tab(text: 'Antrag'),
-            Tab(text: 'Bewilligung'),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('brief')) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasDocsFor('brief')) const SizedBox(width: 4), const Text('Brief')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('antrag')) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasDocsFor('antrag')) const SizedBox(width: 4), const Text('Antrag')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('bewilligung')) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasDocsFor('bewilligung')) const SizedBox(width: 4), const Text('Bewilligung')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
