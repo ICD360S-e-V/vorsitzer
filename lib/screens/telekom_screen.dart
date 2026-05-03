@@ -31,17 +31,19 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final results = await Future.wait([
-      _apiService.telekomAction({'action': 'get_data'}),
-      _apiService.telekomAction({'action': 'list_vertraege'}),
-    ]);
-    if (mounted) {
-      setState(() {
-        if (results[0]['success'] == true) _firmaData = Map<String, dynamic>.from(results[0]['data'] ?? {});
-        if (results[1]['success'] == true) _vertraege = List<Map<String, dynamic>>.from(results[1]['vertraege'] ?? []);
-        _isLoading = false;
-      });
+    try {
+      final results = await Future.wait([
+        _apiService.telekomAction({'action': 'get_data'}),
+        _apiService.telekomAction({'action': 'list_vertraege'}),
+      ]);
+      if (mounted) {
+        _firmaData = results[0]['success'] == true ? Map<String, dynamic>.from(results[0]['data'] ?? {}) : {};
+        _vertraege = results[1]['success'] == true ? List<Map<String, dynamic>>.from(results[1]['vertraege'] ?? []) : [];
+      }
+    } catch (e) {
+      debugPrint('[Telekom] load error: $e');
     }
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
