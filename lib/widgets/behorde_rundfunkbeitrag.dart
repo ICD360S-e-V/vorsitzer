@@ -667,6 +667,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           apiService: widget.apiService!, antragId: aid, antrag: antrag,
           onChanged: () => _loadFromDB(),
           befreiungsgruende: _befreiungsgruende,
+          userId: widget.userId!,
         )),
       ),
     );
@@ -843,7 +844,8 @@ class _RfbAntragDetailView extends StatefulWidget {
   final Map<String, dynamic> antrag;
   final VoidCallback onChanged;
   final List<({String key, String label, IconData icon, String beschreibung})> befreiungsgruende;
-  const _RfbAntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.onChanged, required this.befreiungsgruende});
+  final int userId;
+  const _RfbAntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.onChanged, required this.befreiungsgruende, required this.userId});
   @override
   State<_RfbAntragDetailView> createState() => _RfbAntragDetailViewState();
 }
@@ -993,7 +995,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         FilledButton(onPressed: () async {
           await widget.apiService.addRfbAntragVerlauf(widget.antragId, {'datum': datumC.text, 'status': status, 'notiz': notizC.text});
           if (status.isNotEmpty) {
-            await widget.apiService.saveRundfunkbeitragAntrag(0, {'id': widget.antragId, 'status': status, 'user_id': 0});
+            await widget.apiService.saveRundfunkbeitragAntrag(widget.userId, {'id': widget.antragId, 'status': status});
           }
           if (ctx.mounted) Navigator.pop(ctx); _load(); widget.onChanged();
         }, child: const Text('Hinzufügen'))],
