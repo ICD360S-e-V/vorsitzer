@@ -8602,7 +8602,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         final selArzt = arztData['selected_arzt'] as Map? ?? {};
                         final arztEmail = selArzt['email']?.toString() ?? '';
                         final arztPraxis = selArzt['praxis_name']?.toString() ?? '';
-                        final isKlinik = fachrichtung.contains('Krankenhaus') || fachrichtung.contains('Klinik') || fachrichtung.contains('Stationare') || fachrichtung.contains('Wundversorgung') || type.contains('wundzentrum') || type.contains('krankenhaus');
+                        final isKlinik = type.contains('krankenhaus') || type.contains('wundzentrum');
                         String kkName = '';
                         String versNr = '';
                         try {
