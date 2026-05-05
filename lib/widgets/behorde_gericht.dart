@@ -124,9 +124,9 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
       child: Column(children: [
         TabBar(
           labelColor: color.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: color.shade700,
-          tabs: const [
-            Tab(icon: Icon(Icons.account_balance, size: 14), text: 'Zuständiges Gericht'),
-            Tab(icon: Icon(Icons.report_problem, size: 14), text: 'Vorfall'),
+          tabs: [
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_d(typ, 'gericht')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 14), const SizedBox(width: 4), const Text('Zuständiges Gericht')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_vorfaelle[typ]?.isNotEmpty == true) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.report_problem, size: 14), const SizedBox(width: 4), const Text('Vorfall')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
