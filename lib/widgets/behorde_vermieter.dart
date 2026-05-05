@@ -46,7 +46,7 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> with 
         Tab(text: 'Zahlungen'),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
-        _VermieterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId),
+        _VermieterStammdatenTab(key: ValueKey(_data['stammdaten.selected_name'] ?? ''), data: _data, apiService: widget.apiService, userId: widget.userId, onSaved: _load),
         _MietvertragTab(mietvertraege: _mietvertraege, apiService: widget.apiService, userId: widget.userId, onReload: _load),
         _BescheinigungTab(bescheinigungen: _bescheinigungen, apiService: widget.apiService, userId: widget.userId, onReload: _load),
         _ZahlungenTab(zahlungen: _zahlungen, apiService: widget.apiService, userId: widget.userId, onReload: _load),
@@ -60,7 +60,8 @@ class _VermieterStammdatenTab extends StatefulWidget {
   final Map<String, dynamic> data;
   final ApiService apiService;
   final int userId;
-  const _VermieterStammdatenTab({required this.data, required this.apiService, required this.userId});
+  final VoidCallback? onSaved;
+  const _VermieterStammdatenTab({super.key, required this.data, required this.apiService, required this.userId, this.onSaved});
   @override
   State<_VermieterStammdatenTab> createState() => _VermieterStammdatenTabState();
 }
@@ -153,6 +154,7 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
       'stammdaten.selected_notiz': s['notiz']?.toString() ?? '',
     }});
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Vermieter gespeichert'), backgroundColor: Colors.green.shade600)); }
+    widget.onSaved?.call();
   }
 
   Future<void> _clear() async {
