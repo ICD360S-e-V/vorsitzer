@@ -84,7 +84,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     if (_loading || !_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       TabBar(controller: _tabCtrl, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700,
-        tabs: const [Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Zuständiges Konsulat'), Tab(icon: Icon(Icons.assignment, size: 16), text: 'Vorfall'), Tab(icon: Icon(Icons.cloud, size: 16), text: 'Online-Konto')]),
+        tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('name').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständiges Konsulat')])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment, size: 16), const SizedBox(width: 4), const Text('Vorfall')])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('has_online_account') == 'true' ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.cloud, size: 16), const SizedBox(width: 4), const Text('Online-Konto')]))]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildKonsulatTab(), _buildVorfallTab(), _buildOnlineTab()])),
     ]);
   }
