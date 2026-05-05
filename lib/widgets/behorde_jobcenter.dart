@@ -53,11 +53,11 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      TabBar(controller: _tabController, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
-        Tab(text: 'Zuständiges Jobcenter'),
-        Tab(text: 'Antrag'),
-        Tab(text: 'Stammdaten'),
-        Tab(text: 'Arbeitsvermittler'),
+      TabBar(controller: _tabController, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['stammdaten.selected_amt_name'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Zuständiges Jobcenter')])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _antraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Antrag')])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['stammdaten.kundennummer'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Stammdaten')])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['vermittler.name'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Arbeitsvermittler')])),
       ]),
       Expanded(child: TabBarView(controller: _tabController, children: [
         _JobcenterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
