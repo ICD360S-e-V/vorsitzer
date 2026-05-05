@@ -77,13 +77,13 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
           unselectedLabelColor: Colors.grey.shade600,
           indicatorColor: Colors.brown.shade700,
           isScrollable: true,
-          tabs: const [
-            Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Amt'),
-            Tab(icon: Icon(Icons.directions_car, size: 16), text: 'KFZ'),
-            Tab(icon: Icon(Icons.badge, size: 16), text: 'Führerschein'),
-            Tab(icon: Icon(Icons.home_work, size: 16), text: 'Bau & Wohnen'),
-            Tab(icon: Icon(Icons.eco, size: 16), text: 'Umwelt & Natur'),
-            Tab(icon: Icon(Icons.more_horiz, size: 16), text: 'Sonstiges'),
+          tabs: [
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('amt')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Amt')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('kfz')['kennzeichen']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.directions_car, size: 16), const SizedBox(width: 4), const Text('KFZ')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('fuehrerschein')['fs_nummer']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 16), const SizedBox(width: 4), const Text('Führerschein')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('bau')['genehmigung_nr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.home_work, size: 16), const SizedBox(width: 4), const Text('Bau & Wohnen')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('umwelt')['biotonne']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.eco, size: 16), const SizedBox(width: 4), const Text('Umwelt & Natur')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('sonstiges')['waffenschein']?.toString() ?? '').isNotEmpty || (_bereich('sonstiges')['jagdschein']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.more_horiz, size: 16), const SizedBox(width: 4), const Text('Sonstiges')])),
           ],
         ),
         Expanded(
@@ -265,9 +265,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
         TabBar(
           labelColor: Colors.green.shade700,
           indicatorColor: Colors.green.shade700,
-          tabs: const [
-            Tab(icon: Icon(Icons.badge, size: 14), text: 'Führerschein'),
-            Tab(icon: Icon(Icons.calendar_month, size: 14), text: 'Termine'),
+          tabs: [
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: hasData ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 14), const SizedBox(width: 4), const Text('Führerschein')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: termine.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.calendar_month, size: 14), const SizedBox(width: 4), const Text('Termine')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
