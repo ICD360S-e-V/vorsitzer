@@ -2126,14 +2126,14 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         indicatorColor: Colors.indigo,
                         labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                         unselectedLabelStyle: const TextStyle(fontSize: 12),
-                        tabs: const [
-                          Tab(text: 'Firmendaten'),
-                          Tab(text: 'Vertrag'),
-                          Tab(text: 'Lohn'),
-                          Tab(text: 'Krankheit'),
-                          Tab(text: 'K\u00FCndigung'),
-                          Tab(text: 'Vorfall'),
-                          Tab(text: 'Sonstiges'),
+                        tabs: [
+                          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (ag['firma']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Firmendaten')])),
+                          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (ag['vertragsbeginn']?.toString() ?? '').isNotEmpty || (ag['befristung']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Vertrag')])),
+                          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (ag['lohnsteuerbescheinigungen'] is List && (ag['lohnsteuerbescheinigungen'] as List).isNotEmpty) || (ag['nettolohn']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Lohn')])),
+                          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ag['krankheit_meldungen'] is Map && (ag['krankheit_meldungen'] as Map).isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Krankheit')])),
+                          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (ag['kuendigungsart']?.toString() ?? '').isNotEmpty || (ag['kuendigungsdatum']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Kündigung')])),
+                          const Tab(text: 'Vorfall'),
+                          const Tab(text: 'Sonstiges'),
                         ],
                       ),
                       Expanded(
