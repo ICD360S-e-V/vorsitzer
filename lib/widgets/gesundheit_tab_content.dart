@@ -14329,11 +14329,18 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       'Abgelehnt': Colors.red,
     };
 
-    void addOrEdit({Map<String, dynamic>? existing, int? editIndex}) {
+    void addOrEdit({Map<String, dynamic>? existing, int? editIndex}) async {
+      String kkName = existing?['krankenkasse']?.toString() ?? '';
+      if (kkName.isEmpty && existing == null) {
+        try {
+          final res = await widget.apiService.getBehoerdeData(widget.user.id, 'krankenkasse');
+          if (res['data'] != null) kkName = (res['data']['name'] ?? '').toString();
+        } catch (_) {}
+      }
       final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
       final zahnarztC = TextEditingController(text: existing?['zahnarzt']?.toString() ?? '');
       final hkpNrC = TextEditingController(text: existing?['hkp_nr']?.toString() ?? '');
-      final krankenkasseC = TextEditingController(text: existing?['krankenkasse']?.toString() ?? '');
+      final krankenkasseC = TextEditingController(text: kkName);
       final einkommenC = TextEditingController(text: existing?['einkommen']?.toString() ?? '');
       final haushaltC = TextEditingController(text: existing?['haushaltsgroesse']?.toString() ?? '1');
       final kostenC = TextEditingController(text: existing?['gesamtkosten']?.toString() ?? '');
@@ -14343,6 +14350,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       String status = existing?['status']?.toString() ?? 'Offen';
       String art = existing?['art']?.toString() ?? 'zahnersatz';
 
+      if (!mounted) return;
       showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
         final grenzen = {1: '1.582,00', 2: '2.175,25', 3: '2.570,75', 4: '2.966,25'};
         final hh = int.tryParse(haushaltC.text) ?? 1;
