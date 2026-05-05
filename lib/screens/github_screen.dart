@@ -14,6 +14,7 @@ class GitHubScreen extends StatefulWidget {
 class _GitHubScreenState extends State<GitHubScreen> {
   bool _loading = true;
   bool _tokenConfigured = false;
+  bool _webhookActive = false;
   String _org = '';
   List<Map<String, dynamic>> _repos = [];
   Map<int, List<Map<String, dynamic>>> _runs = {};
@@ -39,6 +40,7 @@ class _GitHubScreenState extends State<GitHubScreen> {
       final res = await widget.apiService.githubAction({'action': 'get_config'});
       if (res['success'] == true && res['configured'] == true) {
         _tokenConfigured = true;
+        _webhookActive = res['webhook_active'] == true;
         _org = res['org']?.toString() ?? '';
         _orgController.text = _org;
         await _loadRepos();
@@ -108,6 +110,18 @@ class _GitHubScreenState extends State<GitHubScreen> {
               ),
             ],
             const Spacer(),
+            if (_tokenConfigured && _webhookActive) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.notifications_active, size: 14, color: Colors.green.shade700),
+                  const SizedBox(width: 4),
+                  Text('Webhook aktiv', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade700)),
+                ]),
+              ),
+              const SizedBox(width: 8),
+            ],
             if (_tokenConfigured) ...[
               IconButton(icon: const Icon(Icons.refresh), tooltip: 'Aktualisieren', onPressed: _load),
               const SizedBox(width: 8),
