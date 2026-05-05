@@ -45,7 +45,7 @@ class _State extends State<BehordeKindergartenContent> with TickerProviderStateM
     if (_loading || !_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       TabBar(controller: _tabCtrl, labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.pink.shade700,
-        tabs: const [Tab(icon: Icon(Icons.child_care, size: 16), text: 'Zuständiger Kindergarten'), Tab(icon: Icon(Icons.people, size: 16), text: 'Kinder')]),
+        tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('name').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.child_care, size: 16), const SizedBox(width: 4), const Text('Zuständiger Kindergarten')])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _kinder.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.people, size: 16), const SizedBox(width: 4), const Text('Kinder')]))]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildKigaTab(), _buildKinderTab()])),
     ]);
   }
