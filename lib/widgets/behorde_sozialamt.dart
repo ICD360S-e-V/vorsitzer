@@ -120,12 +120,12 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
           unselectedLabelColor: Colors.grey.shade600,
           indicatorColor: Colors.indigo.shade700,
           isScrollable: true,
-          tabs: const [
-            Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Zuständige Behörde'),
-            Tab(icon: Icon(Icons.person, size: 16), text: 'Mitarbeiter/in'),
-            Tab(icon: Icon(Icons.description, size: 16), text: 'Anträge'),
-            Tab(icon: Icon(Icons.check_circle, size: 16), text: 'Bewilligung'),
-            Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
+          tabs: [
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_b('behoerde')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständige Behörde')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_b('mitarbeiter')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.person, size: 16), const SizedBox(width: 4), const Text('Mitarbeiter/in')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _antraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.description, size: 16), const SizedBox(width: 4), const Text('Anträge')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _bewilligungen.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.check_circle, size: 16), const SizedBox(width: 4), const Text('Bewilligung')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _korrespondenz.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
