@@ -39,11 +39,23 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> with 
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      TabBar(controller: _tabC, labelColor: Colors.deepPurple.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.deepPurple, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
-        Tab(text: 'Zuständiger Vermieter'),
-        Tab(text: 'Mietvertrag'),
-        Tab(text: 'Mietbescheinigung'),
-        Tab(text: 'Zahlungen'),
+      TabBar(controller: _tabC, labelColor: Colors.deepPurple.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.deepPurple, isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.circle, size: 8, color: (_data['stammdaten.selected_name'] ?? '').isNotEmpty ? Colors.green : Colors.red),
+          const SizedBox(width: 6), const Text('Zuständiger Vermieter'),
+        ])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.circle, size: 8, color: _mietvertraege.isNotEmpty ? Colors.green : Colors.red),
+          const SizedBox(width: 6), const Text('Mietvertrag'),
+        ])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.circle, size: 8, color: _bescheinigungen.isNotEmpty ? Colors.green : Colors.red),
+          const SizedBox(width: 6), const Text('Mietbescheinigung'),
+        ])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.circle, size: 8, color: _zahlungen.isNotEmpty ? Colors.green : Colors.red),
+          const SizedBox(width: 6), const Text('Zahlungen'),
+        ])),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         _VermieterStammdatenTab(key: ValueKey(_data['stammdaten.selected_name'] ?? ''), data: _data, apiService: widget.apiService, userId: widget.userId, onSaved: _load),
