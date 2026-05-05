@@ -2024,10 +2024,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     // Auto-save on focus lost: use onChanged in text fields instead of listeners
     // (listeners in build cause infinite rebuilds)
 
+    final isZahnarzt = baseType.contains('zahnarzt');
+
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: 12,
+          length: isZahnarzt ? 13 : 12,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -2196,19 +2198,20 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 unselectedLabelColor: Colors.grey.shade500,
                 indicatorColor: Colors.teal.shade700,
                 isScrollable: true,
-                tabs: const [
-                  Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Arzt'),
-                  Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Termine'),
-                  Tab(icon: Icon(Icons.medication, size: 16), text: 'Medikamente'),
-                  Tab(icon: Icon(Icons.note, size: 16), text: 'Notizen'),
-                  Tab(icon: Icon(Icons.bloodtype, size: 16), text: 'Blutanalyse'),
-                  Tab(icon: Icon(Icons.health_and_safety, size: 16), text: 'Vorsorge'),
-                  Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankmeldungen'),
-                  Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Überweisung'),
-                  Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
-                  Tab(icon: Icon(Icons.healing, size: 16), text: 'Heilmittel'),
-                  Tab(icon: Icon(Icons.description, size: 16), text: 'Berichte'),
-                  Tab(icon: Icon(Icons.verified, size: 16), text: 'Ärztl. Attest'),
+                tabs: [
+                  const Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Arzt'),
+                  const Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Termine'),
+                  const Tab(icon: Icon(Icons.medication, size: 16), text: 'Medikamente'),
+                  const Tab(icon: Icon(Icons.note, size: 16), text: 'Notizen'),
+                  const Tab(icon: Icon(Icons.bloodtype, size: 16), text: 'Blutanalyse'),
+                  const Tab(icon: Icon(Icons.health_and_safety, size: 16), text: 'Vorsorge'),
+                  const Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankmeldungen'),
+                  const Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Überweisung'),
+                  const Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
+                  const Tab(icon: Icon(Icons.healing, size: 16), text: 'Heilmittel'),
+                  const Tab(icon: Icon(Icons.description, size: 16), text: 'Berichte'),
+                  const Tab(icon: Icon(Icons.verified, size: 16), text: 'Ärztl. Attest'),
+                  if (isZahnarzt) const Tab(icon: Icon(Icons.gavel, size: 16), text: 'Härtefall'),
                 ],
               ),
               Expanded(
@@ -2493,6 +2496,9 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
                     // ===== TAB 11: ÄRZTLICHE ATTESTE =====
                     _buildAttesteTab(type, arztTitle, data, saveAll, setLocalState),
+
+                    // ===== TAB 12: HÄRTEFALL (nur Zahnarzt) =====
+                    if (isZahnarzt) _buildHartefallTab(type, data, saveAll, setLocalState),
                   ],
                 ),
               ),
@@ -14306,6 +14312,311 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             })),
       ]);
     });
+  }
+
+  // ===== HÄRTEFALL (Zahnersatz) =====
+  Widget _buildHartefallTab(String type, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
+    final antraege = data['haertefall'] is List
+        ? List<Map<String, dynamic>>.from((data['haertefall'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+
+    const statusList = ['Offen', 'Eingereicht', 'Bewilligt', 'Gleitend bewilligt', 'Abgelehnt'];
+    final statusColors = <String, MaterialColor>{
+      'Offen': Colors.grey,
+      'Eingereicht': Colors.blue,
+      'Bewilligt': Colors.green,
+      'Gleitend bewilligt': Colors.orange,
+      'Abgelehnt': Colors.red,
+    };
+
+    void addOrEdit({Map<String, dynamic>? existing, int? editIndex}) {
+      final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
+      final zahnarztC = TextEditingController(text: existing?['zahnarzt']?.toString() ?? '');
+      final hkpNrC = TextEditingController(text: existing?['hkp_nr']?.toString() ?? '');
+      final krankenkasseC = TextEditingController(text: existing?['krankenkasse']?.toString() ?? '');
+      final einkommenC = TextEditingController(text: existing?['einkommen']?.toString() ?? '');
+      final haushaltC = TextEditingController(text: existing?['haushaltsgroesse']?.toString() ?? '1');
+      final kostenC = TextEditingController(text: existing?['gesamtkosten']?.toString() ?? '');
+      final festzuschussC = TextEditingController(text: existing?['festzuschuss']?.toString() ?? '');
+      final eigenanteilC = TextEditingController(text: existing?['eigenanteil']?.toString() ?? '');
+      final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+      String status = existing?['status']?.toString() ?? 'Offen';
+      String art = existing?['art']?.toString() ?? 'zahnersatz';
+
+      showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+        final grenzen = {1: '1.582,00', 2: '2.175,25', 3: '2.570,75', 4: '2.966,25'};
+        final hh = int.tryParse(haushaltC.text) ?? 1;
+        final grenze = hh <= 4 ? grenzen[hh]! : '${(2175.25 + (hh - 2) * 395.50).toStringAsFixed(2).replaceAll('.', ',')}';
+
+        return AlertDialog(
+          title: Row(children: [
+            Icon(Icons.gavel, size: 18, color: Colors.indigo.shade700),
+            const SizedBox(width: 8),
+            Text(existing != null ? 'Härtefall bearbeiten' : 'Neuer Härtefallantrag', style: const TextStyle(fontSize: 15)),
+          ]),
+          content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+              child: Row(children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.indigo.shade600),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Einkommensgrenze 2026: $grenze € (Haushalt: $hh Pers.)\nBei Bewilligung: Doppelter Festzuschuss = 100% der Regelversorgung',
+                  style: TextStyle(fontSize: 11, color: Colors.indigo.shade800),
+                )),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Text('Art der Behandlung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, children: [
+              ChoiceChip(label: const Text('Zahnersatz'), selected: art == 'zahnersatz', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'zahnersatz')),
+              ChoiceChip(label: const Text('Zahnkrone'), selected: art == 'zahnkrone', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'zahnkrone')),
+              ChoiceChip(label: const Text('Brücke'), selected: art == 'bruecke', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'bruecke')),
+              ChoiceChip(label: const Text('Prothese'), selected: art == 'prothese', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'prothese')),
+              ChoiceChip(label: const Text('Implantat'), selected: art == 'implantat', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'implantat')),
+            ]),
+            const SizedBox(height: 12),
+            TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Antragsdatum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+            const SizedBox(height: 10),
+            TextField(controller: zahnarztC, decoration: InputDecoration(labelText: 'Behandelnder Zahnarzt', isDense: true, prefixIcon: const Icon(Icons.person, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 10),
+            TextField(controller: hkpNrC, decoration: InputDecoration(labelText: 'Heil- und Kostenplan Nr.', isDense: true, prefixIcon: const Icon(Icons.description, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 10),
+            TextField(controller: krankenkasseC, decoration: InputDecoration(labelText: 'Krankenkasse', isDense: true, prefixIcon: const Icon(Icons.health_and_safety, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            const SizedBox(height: 12),
+            Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(child: TextField(controller: einkommenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Bruttoeinkommen (€/Monat)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+              const SizedBox(width: 10),
+              SizedBox(width: 120, child: TextField(controller: haushaltC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Haushaltsgröße', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                onChanged: (_) => setDlg(() {}))),
+            ]),
+            const SizedBox(height: 12),
+            Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(child: TextField(controller: kostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Gesamtkosten (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+              const SizedBox(width: 10),
+              Expanded(child: TextField(controller: festzuschussC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Festzuschuss (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+              const SizedBox(width: 10),
+              Expanded(child: TextField(controller: eigenanteilC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Eigenanteil (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            ]),
+            const SizedBox(height: 12),
+            Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, children: statusList.map((s) => ChoiceChip(
+              label: Text(s),
+              selected: status == s,
+              selectedColor: (statusColors[s] ?? Colors.grey).shade100,
+              onSelected: (_) => setDlg(() => status = s),
+            )).toList()),
+            const SizedBox(height: 10),
+            TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz / Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          ]))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () {
+              final entry = {
+                'art': art,
+                'datum': datumC.text.trim(),
+                'zahnarzt': zahnarztC.text.trim(),
+                'hkp_nr': hkpNrC.text.trim(),
+                'krankenkasse': krankenkasseC.text.trim(),
+                'einkommen': einkommenC.text.trim(),
+                'haushaltsgroesse': haushaltC.text.trim(),
+                'gesamtkosten': kostenC.text.trim(),
+                'festzuschuss': festzuschussC.text.trim(),
+                'eigenanteil': eigenanteilC.text.trim(),
+                'status': status,
+                'notiz': notizC.text.trim(),
+                'erstellt_am': existing?['erstellt_am'] ?? DateTime.now().toIso8601String(),
+              };
+              final list = data['haertefall'] is List ? List<dynamic>.from(data['haertefall'] as List) : <dynamic>[];
+              if (editIndex != null && editIndex < list.length) { list[editIndex] = entry; } else { list.insert(0, entry); }
+              data['haertefall'] = list;
+              saveAll();
+              Navigator.pop(ctx);
+              setLocalState(() {});
+            }, child: Text(existing != null ? 'Speichern' : 'Hinzufügen')),
+          ],
+        );
+      }));
+    }
+
+    final artLabels = {'zahnersatz': 'Zahnersatz', 'zahnkrone': 'Zahnkrone', 'bruecke': 'Brücke', 'prothese': 'Prothese', 'implantat': 'Implantat'};
+    final artIcons = {'zahnersatz': Icons.mood, 'zahnkrone': Icons.circle, 'bruecke': Icons.compare_arrows, 'prothese': Icons.settings_accessibility, 'implantat': Icons.hardware};
+
+    return StatefulBuilder(builder: (ctx, setLocal) {
+      final current = data['haertefall'] is List
+          ? List<Map<String, dynamic>>.from((data['haertefall'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+          : <Map<String, dynamic>>[];
+
+      return Column(children: [
+        Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          Icon(Icons.gavel, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          Text('Härtefallanträge (${current.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.indigo.shade800)),
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: () => addOrEdit(),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neuer Antrag', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          ),
+        ])),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber.shade800),
+              const SizedBox(width: 6),
+              Text('Härtefallregelung Zahnersatz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              '• Einkommensgrenze 2026: 1.582 € (alleinstehend), +593,25 € pro Person\n'
+              '• Automatisch: Bürgergeld, Sozialhilfe, Grundsicherung, BAföG\n'
+              '• Bewilligung = Doppelter Festzuschuss (100% Regelversorgung)\n'
+              '• Gleitende Härtefallregelung bei knapper Überschreitung\n'
+              '• Heil- und Kostenplan VOR Behandlung einreichen!',
+              style: TextStyle(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 8),
+        Expanded(child: current.isEmpty
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.gavel, size: 40, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text('Keine Härtefallanträge vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+            ]))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: current.length, itemBuilder: (_, i) {
+              final a = current[i];
+              final st = a['status']?.toString() ?? 'Offen';
+              final color = statusColors[st] ?? Colors.grey;
+              final artKey = a['art']?.toString() ?? 'zahnersatz';
+              return Card(margin: const EdgeInsets.only(bottom: 8), child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  showDialog(context: context, builder: (detCtx) => AlertDialog(
+                    title: Row(children: [
+                      Icon(Icons.gavel, size: 20, color: color.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('Härtefall — ${artLabels[artKey] ?? artKey}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
+                      IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade500), tooltip: 'Bearbeiten', onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
+                    ]),
+                    content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                      Row(children: [
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
+                          child: Text(st, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+                        const Spacer(),
+                        if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Antrag vom ${a['datum']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      ]),
+                      const SizedBox(height: 12),
+                      if ((a['zahnarzt']?.toString() ?? '').isNotEmpty) ...[
+                        _buildHartefallDetailRow(Icons.person, 'Zahnarzt', a['zahnarzt'].toString()),
+                      ],
+                      if ((a['hkp_nr']?.toString() ?? '').isNotEmpty) ...[
+                        _buildHartefallDetailRow(Icons.description, 'Heil- und Kostenplan', a['hkp_nr'].toString()),
+                      ],
+                      if ((a['krankenkasse']?.toString() ?? '').isNotEmpty) ...[
+                        _buildHartefallDetailRow(Icons.health_and_safety, 'Krankenkasse', a['krankenkasse'].toString()),
+                      ],
+                      const SizedBox(height: 8),
+                      Divider(color: Colors.grey.shade200),
+                      const SizedBox(height: 8),
+                      Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        if ((a['einkommen']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Bruttoeinkommen', '${a['einkommen']} €/Monat', Colors.blue)),
+                        if ((a['haushaltsgroesse']?.toString() ?? '').isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: _buildHartefallInfoBox('Haushaltsgröße', '${a['haushaltsgroesse']} Person(en)', Colors.purple)),
+                        ],
+                      ]),
+                      const SizedBox(height: 8),
+                      Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        if ((a['gesamtkosten']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Gesamtkosten', '${a['gesamtkosten']} €', Colors.red)),
+                        if ((a['festzuschuss']?.toString() ?? '').isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: _buildHartefallInfoBox('Festzuschuss', '${a['festzuschuss']} €', Colors.green)),
+                        ],
+                        if ((a['eigenanteil']?.toString() ?? '').isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: _buildHartefallInfoBox('Eigenanteil', '${a['eigenanteil']} €', Colors.orange)),
+                        ],
+                      ]),
+                      if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text('Notiz / Begründung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                        const SizedBox(height: 4),
+                        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                          child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+                      ],
+                      const SizedBox(height: 16),
+                      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_haertefall_$type', korrespondenzId: i),
+                    ]))),
+                    actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
+                  ));
+                },
+                child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                  CircleAvatar(backgroundColor: color.shade100, child: Icon(artIcons[artKey] ?? Icons.gavel, color: color.shade700, size: 20)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(artLabels[artKey] ?? artKey, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    Row(children: [
+                      Text(a['datum']?.toString() ?? '', style: const TextStyle(fontSize: 11)),
+                      if ((a['krankenkasse']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text('• ${a['krankenkasse']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      ],
+                    ]),
+                    if ((a['gesamtkosten']?.toString() ?? '').isNotEmpty)
+                      Text('Kosten: ${a['gesamtkosten']} € · Eigenanteil: ${a['eigenanteil'] ?? '?'} €', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  ])),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
+                    child: Text(st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+                  const SizedBox(width: 4),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () {
+                    final list = List<dynamic>.from(data['haertefall'] as List)..removeAt(i); data['haertefall'] = list; saveAll(); setLocal(() {});
+                  }),
+                ])),
+              ));
+            })),
+      ]);
+    });
+  }
+
+  Widget _buildHartefallDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(children: [
+        Icon(icon, size: 16, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        Text('$label: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+      ]),
+    );
+  }
+
+  Widget _buildHartefallInfoBox(String label, String value, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: TextStyle(fontSize: 10, color: color.shade600)),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+      ]),
+    );
   }
 
   /// Inline document list + upload for a single Bericht entry.
