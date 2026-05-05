@@ -455,13 +455,13 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             unselectedLabelColor: Colors.grey.shade600,
             indicatorColor: Colors.indigo.shade700,
             isScrollable: true,
-            tabs: const [
-              Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Amt'),
-              Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Termine'),
-              Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
-              Tab(icon: Icon(Icons.badge, size: 16), text: 'SB-Ausweis'),
-              Tab(icon: Icon(Icons.accessible, size: 16), text: 'GdB'),
-              Tab(icon: Icon(Icons.description, size: 16), text: 'Antrag'),
+            tabs: [
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['amt'] ?? {})['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Amt')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _dbTermine.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.calendar_month, size: 16), const SizedBox(width: 4), const Text('Termine')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['korrespondenz'] is List && (data['korrespondenz'] as List).isNotEmpty) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['ausweis'] ?? {})['ausweis_nr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 16), const SizedBox(width: 4), const Text('SB-Ausweis')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['gdb'] ?? {})['gdb_aktuell'] != null && (_dbData['gdb'] ?? {})['gdb_aktuell'] != 0) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.accessible, size: 16), const SizedBox(width: 4), const Text('GdB')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _dbAntraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.description, size: 16), const SizedBox(width: 4), const Text('Antrag')])),
             ],
           ),
           Expanded(
