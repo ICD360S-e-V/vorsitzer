@@ -4572,6 +4572,19 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> githubAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/vereinverwaltung/github_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   Future<Map<String, dynamic>> paypalAction(Map<String, dynamic> data) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/vereinverwaltung/paypal_manage.php'),
