@@ -203,7 +203,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 19,
+      length: 20,
       child: Column(
         children: [
           TabBar(
@@ -228,6 +228,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               _gesundheitTabItem(Icons.biotech, 'Onkologie', isCompact),
               _gesundheitTabItem(Icons.science, 'Endokrinologie', isCompact),
               _gesundheitTabItem(Icons.monitor_heart, 'Diabetologie', isCompact),
+              _gesundheitTabItem(Icons.healing, 'Wundzentrum', isCompact),
               _gesundheitTabItem(Icons.local_hospital, 'Krankenhaus', isCompact),
               _gesundheitTabItem(Icons.medical_services, 'Sanitätshaus', isCompact),
               _gesundheitTabItem(Icons.more_horiz, 'Sonstige', isCompact),
@@ -251,6 +252,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 _buildArztContent('gesundheit_onkologie', 'Onkologe', 'Onkologie / Krebsmedizin'),
                 _buildArztContent('gesundheit_endokrinologie', 'Endokrinologe', 'Endokrinologie / Hormonerkrankungen / Schilddrüse'),
                 _buildArztContent('gesundheit_diabetologie', 'Diabetologe', 'Diabetologie / Diabetes mellitus / Stoffwechsel'),
+                _buildArztContent('gesundheit_wundzentrum', 'Wundzentrum', 'Wundversorgung / Chronische Wunden'),
                 _buildArztContent('gesundheit_krankenhaus', 'Krankenhaus', 'Klinik / Stationare Behandlung'),
                 SanitaetshausContent(apiService: widget.apiService, userId: widget.user.id),
                 _buildArztContent('gesundheit_sonstige', 'Sonstiger Arzt', 'Weitere Fachrichtung'),
