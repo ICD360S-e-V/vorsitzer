@@ -10,6 +10,7 @@ import 'google_nonprofit_screen.dart';
 import 'microsoft_nonprofit_screen.dart';
 import 'vr_bank_screen.dart';
 import 'gls_bank_screen.dart';
+import 'paypal_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
 import 'vereinsinventar_screen.dart';
 import 'telekom_screen.dart';
@@ -197,6 +198,11 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       return GlsBankScreen(
         onBack: () => setState(() => _vereinSubview = 'banken'),
       );
+    } else if (_vereinSubview == 'paypal') {
+      return PayPalScreen(
+        onBack: () => setState(() => _vereinSubview = 'banken'),
+        apiService: widget.apiService,
+      );
     } else if (_vereinSubview == 'it-beschaffung') {
       return _buildITBeschaffungDetailView();
     } else if (_vereinSubview == 'stifter-helfen') {
@@ -342,7 +348,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       icon: Icons.account_balance,
       title: 'Banken',
       color: Colors.amber,
-      subtitle: 'VR Bank, GLS Bank',
+      subtitle: 'VR Bank, GLS Bank, PayPal',
       onTap: () => setState(() => _vereinSubview = 'banken'),
     );
   }
@@ -563,7 +569,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 const SizedBox(width: 16),
                 Expanded(child: _buildGlsBankCard()),
                 const SizedBox(width: 16),
-                const Expanded(child: SizedBox()),
+                Expanded(child: _buildPayPalCard()),
               ],
             ),
           ),
@@ -589,6 +595,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       color: Colors.green,
       subtitle: 'Nachhaltige Bankgeschäfte',
       onTap: () => setState(() => _vereinSubview = 'gls'),
+    );
+  }
+
+  Widget _buildPayPalCard() {
+    return _buildClickableCard(
+      icon: Icons.account_balance_wallet,
+      title: 'PayPal',
+      color: Colors.blue,
+      subtitle: 'Konto, E-Mail, Passwort',
+      onTap: () => setState(() => _vereinSubview = 'paypal'),
     );
   }
 
