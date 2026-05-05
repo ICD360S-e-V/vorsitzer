@@ -111,11 +111,11 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           unselectedLabelColor: Colors.grey.shade600,
           indicatorColor: Colors.indigo.shade700,
           isScrollable: true,
-          tabs: const [
-            Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Zuständige Behörde'),
-            Tab(icon: Icon(Icons.euro, size: 16), text: 'Beitrag'),
-            Tab(icon: Icon(Icons.description, size: 16), text: 'Anträge'),
-            Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
+          tabs: [
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_b('beitrag')['beitragsnummer']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständige Behörde')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_b('beitrag')['status']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.euro, size: 16), const SizedBox(width: 4), const Text('Beitrag')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _antraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.description, size: 16), const SizedBox(width: 4), const Text('Anträge')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _korrespondenz.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
