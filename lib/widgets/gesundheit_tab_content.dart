@@ -8602,6 +8602,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         final selArzt = arztData['selected_arzt'] as Map? ?? {};
                         final arztEmail = selArzt['email']?.toString() ?? '';
                         final arztPraxis = selArzt['praxis_name']?.toString() ?? '';
+                        final isKlinik = fachrichtung.contains('Krankenhaus') || fachrichtung.contains('Klinik') || fachrichtung.contains('Stationare') || fachrichtung.contains('Wundversorgung') || type.contains('wundzentrum') || type.contains('krankenhaus');
                         String kkName = '';
                         String versNr = '';
                         try {
@@ -8613,30 +8614,64 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                           }
                         } catch (_) {}
                         final patientName = widget.user.name;
+                        final vorname = widget.user.vorname ?? '';
+                        final nachname = widget.user.nachname ?? '';
                         final geb = widget.user.geburtsdatum ?? '';
-                        final betreff = 'Terminanfrage: $vorsorge – $patientName';
-                        betreffC.text = betreff;
-                        final intervall = type == 'gesundheit_zahnarzt' ? 'halbjährliche' : 'jährliche';
+                        final diagnose = betreffC.text.isNotEmpty ? betreffC.text : (arztData['diagnose']?.toString() ?? '');
                         final script = StringBuffer();
-                        if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
-                        script.writeln('Betreff: $betreff');
-                        script.writeln();
-                        script.writeln('Sehr geehrte Damen und Herren,');
-                        script.writeln();
-                        script.writeln('hiermit möchte ich einen Termin für eine $vorsorge vereinbaren.');
-                        script.writeln();
-                        script.writeln('Angaben zum Patienten:');
-                        script.writeln('Name: $patientName');
-                        if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
-                        if (kkName.isNotEmpty) script.writeln('Krankenkasse: $kkName');
-                        if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
-                        script.writeln();
-                        script.writeln('Ich bitte um einen zeitnahen Termin für die $intervall Vorsorgeuntersuchung.');
-                        script.writeln();
-                        script.writeln('Bitte teilen Sie mir mögliche Termine per E-Mail mit.');
-                        script.writeln();
-                        script.writeln('Mit freundlichen Grüßen');
-                        script.writeln(patientName);
+
+                        if (isKlinik) {
+                          final betreff = 'Terminanfrage Erstvorstellung – $vorname $nachname';
+                          betreffC.text = betreff;
+                          if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
+                          script.writeln('Betreff: $betreff');
+                          script.writeln();
+                          script.writeln('Sehr geehrte Damen und Herren,');
+                          script.writeln();
+                          script.writeln('hiermit bitte ich um einen Termin zur Erstvorstellung/Konsultation in Ihrer Klinik.');
+                          script.writeln();
+                          script.writeln('Angaben zum Patienten:');
+                          script.writeln('Vorname: $vorname');
+                          script.writeln('Nachname: $nachname');
+                          if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
+                          if (kkName.isNotEmpty) script.writeln('Krankenkasse: $kkName');
+                          if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
+                          script.writeln();
+                          if (diagnose.isNotEmpty) {
+                            script.writeln('Diagnose / Grund der Vorstellung:');
+                            script.writeln(diagnose);
+                            script.writeln();
+                          }
+                          script.writeln('Eine Überweisung des behandelnden Arztes liegt vor / wird nachgereicht.');
+                          script.writeln();
+                          script.writeln('Bitte teilen Sie mir mögliche Termine mit.');
+                          script.writeln();
+                          script.writeln('Mit freundlichen Grüßen');
+                          script.writeln('$vorname $nachname');
+                        } else {
+                          final betreff = 'Terminanfrage: $vorsorge – $patientName';
+                          betreffC.text = betreff;
+                          final intervall = type == 'gesundheit_zahnarzt' ? 'halbjährliche' : 'jährliche';
+                          if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
+                          script.writeln('Betreff: $betreff');
+                          script.writeln();
+                          script.writeln('Sehr geehrte Damen und Herren,');
+                          script.writeln();
+                          script.writeln('hiermit möchte ich einen Termin für eine $vorsorge vereinbaren.');
+                          script.writeln();
+                          script.writeln('Angaben zum Patienten:');
+                          script.writeln('Name: $patientName');
+                          if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
+                          if (kkName.isNotEmpty) script.writeln('Krankenkasse: $kkName');
+                          if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
+                          script.writeln();
+                          script.writeln('Ich bitte um einen zeitnahen Termin für die $intervall Vorsorgeuntersuchung.');
+                          script.writeln();
+                          script.writeln('Bitte teilen Sie mir mögliche Termine per E-Mail mit.');
+                          script.writeln();
+                          script.writeln('Mit freundlichen Grüßen');
+                          script.writeln(patientName);
+                        }
                         script.writeln();
                         script.writeln('---');
                         script.writeln('Dieser Service wird im Rahmen der ICD360S e.V. – gemeinnützige Organisation 2025–${DateTime.now().year} bereitgestellt.');
