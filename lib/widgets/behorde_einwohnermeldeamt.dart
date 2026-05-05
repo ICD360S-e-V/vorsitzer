@@ -104,7 +104,7 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     if (_loading || !_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       TabBar(controller: _tabCtrl, labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700,
-        tabs: const [Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Zuständiges Bürgeramt'), Tab(icon: Icon(Icons.assignment, size: 16), text: 'Vorfall')]),
+        tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['name']?.toString() ?? '').isNotEmpty || (_data['dienststelle']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständiges Bürgeramt')])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment, size: 16), const SizedBox(width: 4), const Text('Vorfall')]))]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildAmtTab(), _buildVorfallTab()])),
     ]);
   }
