@@ -305,6 +305,9 @@ class _PayPalScreenState extends State<PayPalScreen> {
     );
   }
 
+  static const _kategorieLabels = {'online': 'Online', 'email': 'E-Mail', 'fax': 'Fax', 'postalisch': 'Postalisch'};
+  static const _kategorieIcons = {'online': Icons.language, 'email': Icons.email, 'fax': Icons.fax, 'postalisch': Icons.local_post_office};
+
   // ===== TAB 2: KORRESPONDENZ =====
   Widget _buildKorrespondenzTab() {
     return Column(children: [
@@ -330,15 +333,23 @@ class _PayPalScreenState extends State<PayPalScreen> {
             final k = _korr[i];
             final isEin = k['richtung'] == 'eingehend';
             final color = isEin ? Colors.blue : Colors.green;
+            final kat = k['kategorie']?.toString() ?? 'email';
+            final katIcon = _kategorieIcons[kat] ?? Icons.email;
+            final katLabel = _kategorieLabels[kat] ?? kat;
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => _showKorrDetail(k, i),
                 child: ListTile(
-                  leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 20)),
+                  leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(katIcon, color: color.shade700, size: 20)),
                   title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
+                  subtitle: Row(children: [
+                    Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
+                    const SizedBox(width: 6),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
+                      child: Text(katLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+                  ]),
                   trailing: IconButton(
                     icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300),
                     onPressed: () async {
@@ -357,6 +368,7 @@ class _PayPalScreenState extends State<PayPalScreen> {
     final betreffC = TextEditingController();
     final notizC = TextEditingController();
     String richtung = 'ausgehend';
+    String kategorie = 'email';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
         Icon(Icons.mail, size: 18, color: Colors.blue.shade700),
@@ -371,6 +383,14 @@ class _PayPalScreenState extends State<PayPalScreen> {
           ChoiceChip(label: const Text('Eingehend'), avatar: const Icon(Icons.call_received, size: 16), selected: richtung == 'eingehend',
             selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'eingehend')),
         ]),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, children: _kategorieLabels.entries.map((e) => ChoiceChip(
+          avatar: Icon(_kategorieIcons[e.key], size: 16),
+          label: Text(e.value),
+          selected: kategorie == e.key,
+          selectedColor: Colors.blue.shade100,
+          onSelected: (_) => setDlg(() => kategorie = e.key),
+        )).toList()),
         const SizedBox(height: 12),
         TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
@@ -382,7 +402,7 @@ class _PayPalScreenState extends State<PayPalScreen> {
           final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
           await widget.apiService.paypalAction({
             'action': 'save_korr',
-            'korr': {'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim(), 'datum': today, 'richtung': richtung},
+            'korr': {'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim(), 'datum': today, 'richtung': richtung, 'kategorie': kategorie},
           });
           if (ctx.mounted) Navigator.pop(ctx);
           _load();
@@ -394,9 +414,12 @@ class _PayPalScreenState extends State<PayPalScreen> {
   void _showKorrDetail(Map<String, dynamic> k, int index) {
     final isEin = k['richtung'] == 'eingehend';
     final color = isEin ? Colors.blue : Colors.green;
+    final kat = k['kategorie']?.toString() ?? 'email';
+    final katLabel = _kategorieLabels[kat] ?? kat;
+    final katIcon = _kategorieIcons[kat] ?? Icons.email;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        Icon(katIcon, size: 20, color: color.shade700),
         const SizedBox(width: 8),
         Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
       ]),
@@ -404,6 +427,13 @@ class _PayPalScreenState extends State<PayPalScreen> {
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
             child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+          const SizedBox(width: 8),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(katIcon, size: 14, color: Colors.grey.shade700),
+              const SizedBox(width: 4),
+              Text(katLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            ])),
           const Spacer(),
           Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
         ]),
