@@ -434,13 +434,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             unselectedLabelColor: Colors.grey.shade600,
             indicatorColor: Colors.blue.shade700,
             isScrollable: true,
-            tabs: const [
-              Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankenkasse'),
-              Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Termine'),
-              Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
-              Tab(icon: Icon(Icons.elderly, size: 16), text: 'Pflegegrad'),
-              Tab(icon: Icon(Icons.shield, size: 16), text: 'Versicherung'),
-              Tab(icon: Icon(Icons.card_membership, size: 16), text: 'Befreiungskarte'),
+            tabs: [
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.local_hospital, size: 16), const SizedBox(width: 4), const Text('Krankenkasse')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _getTermineListe(data).isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.calendar_month, size: 16), const SizedBox(width: 4), const Text('Termine')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _kkKorrespondenz.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['pflegegrad']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.elderly, size: 16), const SizedBox(width: 4), const Text('Pflegegrad')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['versicherungsart']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.shield, size: 16), const SizedBox(width: 4), const Text('Versicherung')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1') ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.card_membership, size: 16), const SizedBox(width: 4), const Text('Befreiungskarte')])),
             ],
           ),
           Expanded(
