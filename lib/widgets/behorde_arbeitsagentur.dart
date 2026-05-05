@@ -109,6 +109,16 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   String _v(String field) => _dbData[field]?.toString() ?? '';
   bool _bv(String field) => _dbData[field] == true || _dbData[field] == 'true' || _dbData[field] == '1' || _dbData[field] == 1;
 
+  Widget _cTab(IconData icon, String label, bool hasData) {
+    return Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.circle, size: 8, color: hasData ? Colors.green : Colors.red),
+      const SizedBox(width: 4),
+      Icon(icon, size: 14),
+      const SizedBox(width: 4),
+      Text(label),
+    ]));
+  }
+
   Future<void> _loadFromDB() async {
     if (_dbLoading) return;
     setState(() => _dbLoading = true);
@@ -211,7 +221,21 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     return Column(children: [
       TabBar(controller: _tabCtrl, isScrollable: true, labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), unselectedLabelStyle: const TextStyle(fontSize: 11),
         labelColor: const Color(0xFF003F7D), unselectedLabelColor: Colors.grey.shade500, indicatorColor: const Color(0xFF003F7D), tabAlignment: TabAlignment.start,
-        tabs: _tabs.map((t) => Tab(icon: Icon(t.$1, size: 16), text: t.$2)).toList()),
+        tabs: [
+          _cTab(Icons.account_balance, 'BAA', (_dbData['name']?.toString() ?? '').isNotEmpty),
+          _cTab(Icons.person_pin, 'Vermittler', (_dbData['vermittler_name']?.toString() ?? '').isNotEmpty),
+          _cTab(Icons.person_off, 'Meldung', _dbMeldungen.isNotEmpty),
+          _cTab(Icons.assignment, 'Anträge', _dbAntraege.isNotEmpty),
+          _cTab(Icons.description, 'Bescheid', (_dbData['bescheid_typ']?.toString() ?? '').isNotEmpty),
+          _cTab(Icons.block, 'Sperrzeit', _bv('has_sperrzeit')),
+          _cTab(Icons.handshake, 'EGV', _bv('has_egv')),
+          _cTab(Icons.school, 'BGS', _bv('has_bgs')),
+          _cTab(Icons.work_outline, 'Vorschläge', _dbVorschlaege.isNotEmpty),
+          _cTab(Icons.cloud, 'Online', (_dbData['online_url']?.toString() ?? '').isNotEmpty),
+          _cTab(Icons.medical_services, 'Med.Gutachten', _dbBegutachtungen.isNotEmpty),
+          _cTab(Icons.event, 'Termine', _dbTermine.isNotEmpty),
+          _cTab(Icons.email, 'Korrespondenz', false),
+        ]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [
         _buildBAATab(),
         _buildVermittlerTab(),
