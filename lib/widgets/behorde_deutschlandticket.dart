@@ -43,9 +43,9 @@ class _State extends State<BehordeDeutschlandticketContent> with TickerProviderS
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, tabs: const [
-        Tab(text: 'Zuständige Firma'),
-        Tab(text: 'Vertrag'),
+      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, tabs: [
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['firma.name'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Zuständige Firma')])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vertraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Vertrag')])),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         _FirmaTab(data: _data, apiService: widget.apiService, userId: widget.userId, onReload: _load),
