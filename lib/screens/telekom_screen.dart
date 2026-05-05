@@ -594,9 +594,100 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
             final v = _vorfaelle[i]; final sc = v['status'] == 'erledigt' ? Colors.green : Colors.orange;
             return ListTile(leading: Icon(Icons.report_problem, color: sc),
               title: Text('${v['typ'] ?? ''} — ${v['titel'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              subtitle: Text('${v['datum'] ?? ''} • ${v['status'] == 'erledigt' ? 'Erledigt' : 'Offen'}', style: TextStyle(fontSize: 11, color: sc)),
-              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async { await widget.apiService.telekomAction({'action': 'delete_vorfall', 'id': v['id']}); _loadDetail(); }));
+              subtitle: Text('${v['datum'] ?? ''} • ${v['status'] == 'erledigt' ? 'Erledigt' : v['status'] == 'in_bearbeitung' ? 'In Bearbeitung' : v['status'] == 'beantragt' ? 'Beantragt' : 'Offen'}', style: TextStyle(fontSize: 11, color: sc)),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async { await widget.apiService.telekomAction({'action': 'delete_vorfall', 'id': v['id']}); _loadDetail(); }),
+              onTap: () => _showVorfallDetailDialog(v));
           })),
     ]);
+  }
+
+  void _showVorfallDetailDialog(Map<String, dynamic> vorfall) {
+    final vfId = vorfall['id'] is int ? vorfall['id'] : int.parse(vorfall['id'].toString());
+    List<Map<String, dynamic>> verlauf = [];
+    bool loading = true;
+    String status = vorfall['status']?.toString() ?? 'offen';
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlgState) {
+      if (loading) {
+        widget.apiService.telekomAction({'action': 'vorfall_detail', 'vorfall_id': vfId}).then((res) {
+          setDlgState(() { verlauf = List<Map<String, dynamic>>.from(res['verlauf'] ?? []); loading = false; });
+        });
+      }
+
+      final statusLabel = status == 'erledigt' ? 'Erledigt' : status == 'in_bearbeitung' ? 'In Bearbeitung' : status == 'beantragt' ? 'Beantragt' : 'Offen';
+      final statusColor = status == 'erledigt' ? Colors.green : status == 'in_bearbeitung' ? Colors.blue : status == 'beantragt' ? Colors.purple : Colors.orange;
+
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SizedBox(width: 600, height: MediaQuery.of(context).size.height * 0.75,
+          child: DefaultTabController(length: 2, child: Column(children: [
+            Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.pink.shade700, borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))),
+              child: Row(children: [
+                const Icon(Icons.report_problem, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(child: Text('${vorfall['typ'] ?? ''} — ${vorfall['titel'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))),
+                IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { Navigator.pop(ctx); _loadDetail(); }),
+              ])),
+            const TabBar(labelColor: Colors.pink, tabs: [Tab(text: 'Details'), Tab(text: 'Verlauf')]),
+            Expanded(child: loading ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
+              // Details tab
+              SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _dRow('Art', vorfall['typ']),
+                _dRow('Titel', vorfall['titel']),
+                _dRow('Datum', vorfall['datum']),
+                const SizedBox(height: 12),
+                Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, children: [
+                  ('offen', 'Offen', Colors.orange), ('beantragt', 'Beantragt', Colors.purple),
+                  ('in_bearbeitung', 'In Bearbeitung', Colors.blue), ('erledigt', 'Erledigt', Colors.green),
+                ].map((s) => ChoiceChip(
+                  label: Text(s.$2, style: TextStyle(fontSize: 11, color: status == s.$1 ? Colors.white : null)),
+                  selected: status == s.$1, selectedColor: s.$3,
+                  onSelected: (_) async {
+                    await widget.apiService.telekomAction({'action': 'update_vorfall_status', 'vorfall_id': vfId, 'status': s.$1});
+                    final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+                    await widget.apiService.telekomAction({'action': 'add_vorfall_verlauf', 'vorfall_id': vfId, 'datum': today, 'eintrag': 'Status: ${s.$2}'});
+                    setDlgState(() { status = s.$1; loading = true; });
+                  },
+                )).toList()),
+                if (vorfall['notiz']?.toString().isNotEmpty == true) ...[
+                  const SizedBox(height: 16),
+                  Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  const SizedBox(height: 4),
+                  Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                    child: Text(vorfall['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+                ],
+              ])),
+              // Verlauf tab
+              Column(children: [
+                Builder(builder: (ctx2) {
+                  final eintragC = TextEditingController();
+                  return Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                    Expanded(child: TextField(controller: eintragC, decoration: const InputDecoration(hintText: 'Neuer Eintrag...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)))),
+                    const SizedBox(width: 8),
+                    IconButton(icon: Icon(Icons.add_circle, color: Colors.green.shade700, size: 32), onPressed: () async {
+                      if (eintragC.text.trim().isEmpty) return;
+                      final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+                      await widget.apiService.telekomAction({'action': 'add_vorfall_verlauf', 'vorfall_id': vfId, 'datum': today, 'eintrag': eintragC.text.trim()});
+                      eintragC.clear();
+                      setDlgState(() => loading = true);
+                    }),
+                  ]));
+                }),
+                Expanded(child: verlauf.isEmpty ? Center(child: Text('Keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+                  : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: verlauf.length, itemBuilder: (_, i) {
+                      final e = verlauf[i];
+                      return ListTile(
+                        leading: Icon(Icons.circle, size: 10, color: Colors.pink.shade300),
+                        title: Text(e['eintrag'] ?? '', style: const TextStyle(fontSize: 13)),
+                        subtitle: Text(e['datum'] ?? e['created_at'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      );
+                    })),
+              ]),
+            ])),
+          ]))),
+      );
+    }));
   }
 }
