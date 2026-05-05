@@ -6,6 +6,8 @@ import '../widgets/grundfreibetrag_einstellung.dart';
 import '../widgets/jobcenter_einstellung.dart';
 import '../widgets/kindergeld_einstellung.dart';
 import '../widgets/deutschlandticket_einstellung.dart';
+import 'server_screen.dart';
+import 'client_screen.dart';
 
 class EinstellungenScreen extends StatefulWidget {
   final ApiService apiService;
@@ -80,6 +82,20 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
                 section: 'banken_db',
                 subtitle: 'Banken verwalten',
               ),
+              const Divider(height: 1),
+              const SizedBox(height: 4),
+              _buildNavItem(
+                icon: Icons.dns,
+                title: 'Server',
+                section: 'server',
+                subtitle: 'Server-Verwaltung',
+              ),
+              _buildNavItem(
+                icon: Icons.devices,
+                title: 'Client',
+                section: 'client',
+                subtitle: 'Client-Verwaltung',
+              ),
             ],
           ),
         ),
@@ -147,6 +163,10 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
         return DeutschlandticketEinstellungWidget(apiService: widget.apiService);
       case 'banken_db':
         return _buildBankenPlaceholder();
+      case 'server':
+        return const ServerScreen();
+      case 'client':
+        return const ClientScreen();
       default:
         return const Center(child: Text('Abschnitt wählen'));
     }

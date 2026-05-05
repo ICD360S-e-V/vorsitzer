@@ -1613,10 +1613,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           currentMitgliedernummer: widget.currentMitgliedernummer,
         );
       case 11:
-        return const ServerScreen();
-      case 12:
-        return const ClientScreen();
-      case 13:
         return EinstellungenScreen(apiService: _apiService);
       default:
         return _buildDashboardOverview();
