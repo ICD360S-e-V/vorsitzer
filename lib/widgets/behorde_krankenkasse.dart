@@ -62,6 +62,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   final _ehicKennummerController = TextEditingController();
   final _ehicInstitutionskennzeichenController = TextEditingController();
   final _pflegekasseNameController = TextEditingController();
+  final _pflegedienstNameController = TextEditingController();
+  Map<String, dynamic> _selectedPflegedienst = {};
   final _pflegegradSeitController = TextEditingController();
   final _befreiungGueltigBisController = TextEditingController();
   final _pflegeboxFirmaController = TextEditingController();
@@ -94,6 +96,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _ehicKennummerController.text = data['ehic_kennnummer'] ?? '';
       _ehicInstitutionskennzeichenController.text = data['ehic_institutionskennzeichen'] ?? '';
       _pflegekasseNameController.text = (data['pflegekasse_name'] ?? '').toString().isNotEmpty ? data['pflegekasse_name'] : (data['name'] ?? '');
+      _pflegedienstNameController.text = data['pflegedienst_name'] ?? '';
+      if (data['selected_pflegedienst'] is Map) _selectedPflegedienst = Map<String, dynamic>.from(data['selected_pflegedienst'] as Map);
       _pflegegradSeitController.text = data['pflegegrad_seit'] ?? '';
       _befreiungGueltigBisController.text = data['befreiung_gueltig_bis'] ?? '';
       _pflegeboxFirmaController.text = data['pflegebox_firma'] ?? '';
@@ -127,6 +131,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _ehicKennummerController.dispose();
     _ehicInstitutionskennzeichenController.dispose();
     _pflegekasseNameController.dispose();
+    _pflegedienstNameController.dispose();
     _pflegegradSeitController.dispose();
     _befreiungGueltigBisController.dispose();
     _pflegeboxFirmaController.dispose();
@@ -698,6 +703,66 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             ),
             style: const TextStyle(fontSize: 14),
           ),
+          const SizedBox(height: 16),
+          Text('Pflegedienst', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _pflegedienstNameController,
+            readOnly: true,
+            decoration: InputDecoration(
+              hintText: 'Pflegedienst auswählen...',
+              prefixIcon: const Icon(Icons.medical_services, size: 20),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  icon: const Icon(Icons.search, size: 20),
+                  tooltip: 'Pflegedienst suchen',
+                  onPressed: () => _showPflegedienstSuche(),
+                ),
+                if (_pflegedienstNameController.text.isNotEmpty)
+                  IconButton(
+                    icon: Icon(Icons.clear, size: 18, color: Colors.red.shade300),
+                    tooltip: 'Entfernen',
+                    onPressed: () => setState(() {
+                      _pflegedienstNameController.clear();
+                      _selectedPflegedienst = {};
+                    }),
+                  ),
+              ]),
+            ),
+            style: const TextStyle(fontSize: 14),
+            onTap: () => _showPflegedienstSuche(),
+          ),
+          if (_selectedPflegedienst.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_selectedPflegedienst['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+                if ((_selectedPflegedienst['strasse']?.toString() ?? '').isNotEmpty || (_selectedPflegedienst['plz_ort']?.toString() ?? '').isNotEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                    Icon(Icons.location_on, size: 14, color: Colors.purple.shade600),
+                    const SizedBox(width: 4),
+                    Text('${_selectedPflegedienst['strasse'] ?? ''}, ${_selectedPflegedienst['plz_ort'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.purple.shade700)),
+                  ])),
+                if ((_selectedPflegedienst['telefon']?.toString() ?? '').isNotEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                    Icon(Icons.phone, size: 14, color: Colors.purple.shade600),
+                    const SizedBox(width: 4),
+                    Text(_selectedPflegedienst['telefon'].toString(), style: TextStyle(fontSize: 12, color: Colors.purple.shade700)),
+                  ])),
+                if ((_selectedPflegedienst['email']?.toString() ?? '').isNotEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                    Icon(Icons.email, size: 14, color: Colors.purple.shade600),
+                    const SizedBox(width: 4),
+                    Text(_selectedPflegedienst['email'].toString(), style: TextStyle(fontSize: 12, color: Colors.purple.shade700)),
+                  ])),
+              ]),
+            ),
+          ],
           const SizedBox(height: 16),
           Text('Pflegegrad', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
           const SizedBox(height: 4),
@@ -1372,6 +1437,71 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   }
 
   // ============ Save footer ============
+  void _showPflegedienstSuche() {
+    final searchC = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool loading = false;
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+      Future<void> doSearch() async {
+        setDlg(() => loading = true);
+        try {
+          final res = await widget.apiService.searchPflegedienst(search: searchC.text.trim());
+          if (res['success'] == true && res['pflegedienste'] is List) {
+            results = List<Map<String, dynamic>>.from((res['pflegedienste'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+          }
+        } catch (_) {}
+        setDlg(() => loading = false);
+      }
+      return AlertDialog(
+        title: Row(children: [
+          Icon(Icons.medical_services, size: 20, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          const Text('Pflegedienst suchen', style: TextStyle(fontSize: 16)),
+        ]),
+        content: SizedBox(width: 500, height: 400, child: Column(children: [
+          TextField(
+            controller: searchC,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Name oder Ort eingeben...',
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: doSearch),
+            ),
+            onSubmitted: (_) => doSearch(),
+          ),
+          const SizedBox(height: 12),
+          Expanded(child: loading
+            ? const Center(child: CircularProgressIndicator())
+            : results.isEmpty
+              ? Center(child: Text(searchC.text.isEmpty ? 'Suchbegriff eingeben' : 'Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade400)))
+              : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                  final p = results[i];
+                  return Card(child: ListTile(
+                    onTap: () {
+                      setState(() {
+                        _selectedPflegedienst = p;
+                        _pflegedienstNameController.text = p['name']?.toString() ?? '';
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Icon(Icons.medical_services, color: Colors.purple.shade700, size: 20)),
+                    title: Text(p['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if ((p['strasse']?.toString() ?? '').isNotEmpty || (p['plz_ort']?.toString() ?? '').isNotEmpty)
+                        Text('${p['strasse'] ?? ''}, ${p['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if ((p['telefon']?.toString() ?? '').isNotEmpty)
+                        Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    ]),
+                  ));
+                })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      );
+    }));
+  }
+
   Widget _buildSaveFooter() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1400,6 +1530,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               'befreiung_jahr': _befreiungJahr,
               'befreiung_gueltig_bis': _befreiungGueltigBisController.text.trim(),
               'pflegekasse_name': _pflegekasseNameController.text.trim(),
+              'pflegedienst_name': _pflegedienstNameController.text.trim(),
+              'selected_pflegedienst': _selectedPflegedienst,
               'pflegegrad': _pflegegrad,
               'pflegegrad_seit': _pflegegradSeitController.text.trim(),
               'pflegebox_firma': _pflegeboxFirmaName.isNotEmpty ? _pflegeboxFirmaName : _pflegeboxFirmaController.text.trim(),
