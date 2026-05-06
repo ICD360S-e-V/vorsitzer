@@ -93,7 +93,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _egkGueltigBisController.text = data['egk_gueltig_bis'] ?? '';
       _ehicKennummerController.text = data['ehic_kennnummer'] ?? '';
       _ehicInstitutionskennzeichenController.text = data['ehic_institutionskennzeichen'] ?? '';
-      _pflegekasseNameController.text = data['pflegekasse_name'] ?? '';
+      _pflegekasseNameController.text = (data['pflegekasse_name'] ?? '').toString().isNotEmpty ? data['pflegekasse_name'] : (data['name'] ?? '');
       _pflegegradSeitController.text = data['pflegegrad_seit'] ?? '';
       _befreiungGueltigBisController.text = data['befreiung_gueltig_bis'] ?? '';
       _pflegeboxFirmaController.text = data['pflegebox_firma'] ?? '';
