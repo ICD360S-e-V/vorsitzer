@@ -428,9 +428,10 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         else { color = Colors.grey; icon = Icons.help_outline; }
 
         return Card(child: ListTile(
+          onTap: () => _showRunDetail(run),
           leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.15), child: Icon(icon, color: color, size: 20)),
           title: Text(run['name']?.toString() ?? 'Workflow', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          subtitle: Text('${run['head_branch'] ?? 'main'} • ${run['event'] ?? ''} • ${_fmt(run['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          subtitle: Text('${run['head_branch'] ?? 'main'} • ${run['event'] ?? ''} • #${run['run_number'] ?? ''} • ${_fmt(run['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
@@ -440,6 +441,11 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         ));
       },
     );
+  }
+
+  void _showRunDetail(Map<String, dynamic> run) {
+    final runId = run['id']?.toString() ?? '';
+    showDialog(context: context, builder: (ctx) => _RunDetailDialog(apiService: widget.apiService, repo: _fullName, runId: runId, run: run));
   }
 
   // ===== ISSUES TAB =====
@@ -766,6 +772,193 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
       return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
     } catch (_) {
       return iso;
+    }
+  }
+}
+
+// ===== RUN DETAIL DIALOG =====
+class _RunDetailDialog extends StatefulWidget {
+  final ApiService apiService;
+  final String repo;
+  final String runId;
+  final Map<String, dynamic> run;
+
+  const _RunDetailDialog({required this.apiService, required this.repo, required this.runId, required this.run});
+
+  @override
+  State<_RunDetailDialog> createState() => _RunDetailDialogState();
+}
+
+class _RunDetailDialogState extends State<_RunDetailDialog> {
+  bool _loading = true;
+  Map<String, dynamic>? _runDetail;
+  List<Map<String, dynamic>> _jobs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await widget.apiService.githubAction({'action': 'get_run_jobs', 'repo': widget.repo, 'run_id': widget.runId});
+      if (res['success'] == true) {
+        _jobs = (res['jobs'] is List) ? List<Map<String, dynamic>>.from((res['jobs'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : [];
+        if (res['run'] != null) _runDetail = Map<String, dynamic>.from(res['run'] as Map);
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final conclusion = (_runDetail?['conclusion'] ?? widget.run['conclusion'] ?? '').toString();
+    final status = (_runDetail?['status'] ?? widget.run['status'] ?? '').toString();
+    Color mainColor;
+    IconData mainIcon;
+    if (status == 'in_progress' || status == 'queued') { mainColor = Colors.orange; mainIcon = Icons.hourglass_top; }
+    else if (conclusion == 'success') { mainColor = Colors.green; mainIcon = Icons.check_circle; }
+    else if (conclusion == 'failure') { mainColor = Colors.red; mainIcon = Icons.error; }
+    else if (conclusion == 'cancelled') { mainColor = Colors.grey; mainIcon = Icons.cancel; }
+    else { mainColor = Colors.grey; mainIcon = Icons.help_outline; }
+
+    return AlertDialog(
+      titlePadding: EdgeInsets.zero,
+      title: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: mainColor.withValues(alpha: 0.1),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: Row(children: [
+          Icon(mainIcon, size: 24, color: mainColor),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.run['name']?.toString() ?? 'Workflow', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: mainColor)),
+            Text('Run #${_runDetail?['run_number'] ?? widget.run['run_number'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ])),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: mainColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+            child: Text(status == 'in_progress' ? 'Läuft' : (conclusion.isNotEmpty ? conclusion : status),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: mainColor)),
+          ),
+        ]),
+      ),
+      content: SizedBox(
+        width: 580,
+        height: 500,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _buildRunInfoSection(),
+                const SizedBox(height: 16),
+                Text('Jobs (${_jobs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                const SizedBox(height: 8),
+                ..._jobs.map(_buildJobCard),
+              ])),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen'))],
+    );
+  }
+
+  Widget _buildRunInfoSection() {
+    final detail = _runDetail ?? widget.run;
+    final duration = _calcDuration(detail['run_started_at']?.toString() ?? detail['created_at']?.toString() ?? '', detail['updated_at']?.toString() ?? '');
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+      child: Wrap(spacing: 16, runSpacing: 8, children: [
+        _infoChip(Icons.commit, 'Commit', detail['head_sha']?.toString() ?? ''),
+        _infoChip(Icons.account_tree, 'Branch', detail['head_branch']?.toString() ?? ''),
+        _infoChip(Icons.flash_on, 'Event', detail['event']?.toString() ?? ''),
+        _infoChip(Icons.person, 'Triggered by', detail['triggering_actor']?.toString() ?? ''),
+        if (detail['run_attempt'] != null && (detail['run_attempt'] as int? ?? 1) > 1)
+          _infoChip(Icons.replay, 'Attempt', '#${detail['run_attempt']}'),
+        if (duration.isNotEmpty)
+          _infoChip(Icons.timer, 'Dauer', duration),
+      ]),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 14, color: Colors.grey.shade600),
+      const SizedBox(width: 4),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+    ]);
+  }
+
+  Widget _buildJobCard(Map<String, dynamic> job) {
+    final conclusion = job['conclusion']?.toString() ?? '';
+    final status = job['status']?.toString() ?? '';
+    Color color;
+    IconData icon;
+    if (status == 'in_progress' || status == 'queued') { color = Colors.orange; icon = Icons.hourglass_top; }
+    else if (conclusion == 'success') { color = Colors.green; icon = Icons.check_circle; }
+    else if (conclusion == 'failure') { color = Colors.red; icon = Icons.error; }
+    else if (conclusion == 'cancelled' || conclusion == 'skipped') { color = Colors.grey; icon = Icons.cancel; }
+    else { color = Colors.grey; icon = Icons.help_outline; }
+
+    final steps = (job['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final duration = _calcDuration(job['started_at']?.toString() ?? '', job['completed_at']?.toString() ?? '');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withValues(alpha: 0.4))),
+      child: ExpansionTile(
+        leading: Icon(icon, color: color, size: 20),
+        title: Row(children: [
+          Expanded(child: Text(job['name']?.toString() ?? 'Job', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+          if (duration.isNotEmpty)
+            Text(duration, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        ]),
+        subtitle: Text(
+          status == 'in_progress' ? 'Läuft...' : conclusion,
+          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+        ),
+        children: steps.map((step) {
+          final sConclusion = step['conclusion']?.toString() ?? '';
+          final sStatus = step['status']?.toString() ?? '';
+          Color sColor;
+          IconData sIcon;
+          if (sStatus == 'in_progress') { sColor = Colors.orange; sIcon = Icons.hourglass_top; }
+          else if (sConclusion == 'success') { sColor = Colors.green; sIcon = Icons.check_circle_outline; }
+          else if (sConclusion == 'failure') { sColor = Colors.red; sIcon = Icons.error_outline; }
+          else if (sConclusion == 'skipped') { sColor = Colors.grey; sIcon = Icons.skip_next; }
+          else { sColor = Colors.grey; sIcon = Icons.circle_outlined; }
+
+          final sDuration = _calcDuration(step['started_at']?.toString() ?? '', step['completed_at']?.toString() ?? '');
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+            child: Row(children: [
+              Icon(sIcon, size: 14, color: sColor),
+              const SizedBox(width: 8),
+              Expanded(child: Text(step['name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade800))),
+              if (sDuration.isNotEmpty)
+                Text(sDuration, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+            ]),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  String _calcDuration(String start, String end) {
+    if (start.isEmpty || end.isEmpty) return '';
+    try {
+      final s = DateTime.parse(start);
+      final e = DateTime.parse(end);
+      final diff = e.difference(s);
+      if (diff.inSeconds < 60) return '${diff.inSeconds}s';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ${diff.inSeconds % 60}s';
+      return '${diff.inHours}h ${diff.inMinutes % 60}m';
+    } catch (_) {
+      return '';
     }
   }
 }
