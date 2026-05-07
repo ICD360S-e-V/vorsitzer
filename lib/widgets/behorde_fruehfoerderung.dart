@@ -551,62 +551,152 @@ class _AnfrageKorrespondenzTab extends StatefulWidget {
 
 class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
   bool _showTemplate = false;
+  List<Map<String, dynamic>> _korr = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _loadKorr(); }
+
+  Future<void> _loadKorr() async {
+    try {
+      final res = await widget.apiService.fruehfoerderungAction({'action': 'list_anfrage_korr', 'anfrage_id': widget.anfId});
+      if (res['success'] == true && res['korrespondenz'] is List) {
+        _korr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.email, color: Colors.teal.shade700),
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.email, color: Colors.teal.shade700, size: 20),
         const SizedBox(width: 8),
-        Text('Korrespondenz', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+        Text('Korrespondenz (${_loading ? '...' : _korr.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
         const Spacer(),
         if (widget.stelleEmail.isNotEmpty)
           OutlinedButton.icon(
             onPressed: () => setState(() => _showTemplate = !_showTemplate),
-            icon: Icon(_showTemplate ? Icons.close : Icons.auto_awesome, size: 16, color: Colors.blue.shade700),
-            label: Text(_showTemplate ? 'Schließen' : 'Anfrage generieren', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
-            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+            icon: Icon(_showTemplate ? Icons.close : Icons.auto_awesome, size: 14, color: Colors.blue.shade700),
+            label: Text(_showTemplate ? 'Schließen' : 'Anfrage generieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), minimumSize: Size.zero),
           ),
-      ]),
-      const SizedBox(height: 12),
-
-      if (_showTemplate) ...[
-        Container(
-          width: double.infinity, padding: const EdgeInsets.all(14),
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.auto_awesome, size: 16, color: Colors.blue.shade700),
-              const SizedBox(width: 6),
-              Text('E-Mail-Vorlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-            ]),
-            const SizedBox(height: 8),
-            Text('An: ${widget.stelleEmail}', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
-            const SizedBox(height: 4),
-            Text('Betreff: Anfrage Frühförderung — Platz verfügbar?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
-            const Divider(height: 16),
-            SelectableText(
-              'Sehr geehrte Damen und Herren,\n\n'
-              'hiermit möchten wir im Namen unseres Mitglieds anfragen, ob in Ihrer '
-              'interdisziplinären Frühförderstelle derzeit Plätze für eine Förderung '
-              'verfügbar sind.\n\n'
-              'Wir bitten um Rückmeldung bezüglich:\n'
-              '• Verfügbarkeit eines Förderplatzes\n'
-              '• Voraussichtliche Wartezeit\n'
-              '• Benötigte Unterlagen für die Anmeldung\n'
-              '• Möglichkeit eines Erstgesprächs\n\n'
-              'Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n'
-              'Mit freundlichen Grüßen\n'
-              'ICD360S e.V.\n'
-              'Vorsitzender',
-              style: TextStyle(fontSize: 12, height: 1.5, color: Colors.grey.shade800),
-            ),
-          ]),
+        const SizedBox(width: 8),
+        FilledButton.icon(
+          onPressed: _addKorr,
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
         ),
-      ],
+      ])),
 
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ff_anfrage', korrespondenzId: widget.anfId),
-    ]));
+      if (_showTemplate) Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Container(
+        width: double.infinity, padding: const EdgeInsets.all(14), margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.auto_awesome, size: 16, color: Colors.blue.shade700), const SizedBox(width: 6),
+            Text('E-Mail-Vorlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800))]),
+          const SizedBox(height: 6),
+          Text('An: ${widget.stelleEmail}', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
+          Text('Betreff: Anfrage Frühförderung — Platz verfügbar?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+          const Divider(height: 12),
+          SelectableText(
+            'Sehr geehrte Damen und Herren,\n\nhiermit möchten wir im Namen unseres Mitglieds anfragen, ob in Ihrer '
+            'interdisziplinären Frühförderstelle derzeit Plätze für eine Förderung verfügbar sind.\n\n'
+            'Wir bitten um Rückmeldung bezüglich:\n• Verfügbarkeit eines Förderplatzes\n• Voraussichtliche Wartezeit\n'
+            '• Benötigte Unterlagen für die Anmeldung\n• Möglichkeit eines Erstgesprächs\n\n'
+            'Mit freundlichen Grüßen\nICD360S e.V.\nVorsitzender',
+            style: TextStyle(fontSize: 11, height: 1.4, color: Colors.grey.shade800)),
+        ]),
+      )),
+
+      Expanded(child: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : _korr.isEmpty
+          ? Center(child: Text('Keine Korrespondenz vorhanden', style: TextStyle(color: Colors.grey.shade400)))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
+              final k = _korr[i];
+              final isEin = k['richtung'] == 'eingehend';
+              final color = isEin ? Colors.blue : Colors.green;
+              return Card(child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _showKorrDetail(k),
+                child: ListTile(
+                  leading: CircleAvatar(backgroundColor: color.shade50, child: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18)),
+                  title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
+                    await widget.apiService.fruehfoerderungAction({'action': 'delete_anfrage_korr', 'id': k['id']});
+                    _loadKorr();
+                  }),
+                ),
+              ));
+            })),
+    ]);
+  }
+
+  void _addKorr() {
+    final betreffC = TextEditingController();
+    final inhaltC = TextEditingController();
+    String richtung = 'ausgehend';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.email, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15))]),
+      content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          ChoiceChip(label: const Text('Ausgehend'), avatar: const Icon(Icons.call_made, size: 14), selected: richtung == 'ausgehend',
+            selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('Eingehend'), avatar: const Icon(Icons.call_received, size: 14), selected: richtung == 'eingehend',
+            selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'eingehend')),
+        ]),
+        const SizedBox(height: 12),
+        TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: inhaltC, maxLines: 8, decoration: InputDecoration(labelText: 'Inhalt / E-Mail-Text', hintText: 'Den Inhalt der E-Mail hier einfügen...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
+          await widget.apiService.fruehfoerderungAction({
+            'action': 'save_anfrage_korr', 'anfrage_id': widget.anfId,
+            'korr': {'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today, 'richtung': richtung},
+          });
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadKorr();
+        }, child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  void _showKorrDetail(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingehend';
+    final color = isEin ? Colors.blue : Colors.green;
+    final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id'].toString()) ?? 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+      ]),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          const Spacer(),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        ]),
+        if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(width: double.infinity, padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
+        ],
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ff_anfrage_korr', korrespondenzId: kId),
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
   }
 }
