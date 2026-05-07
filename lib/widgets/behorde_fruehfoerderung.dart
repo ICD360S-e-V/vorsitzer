@@ -10,248 +10,159 @@ class BehordeFruehfoerderungContent extends StatefulWidget {
   State<BehordeFruehfoerderungContent> createState() => _State();
 }
 
-class _State extends State<BehordeFruehfoerderungContent> with TickerProviderStateMixin {
-  late final TabController _tabCtrl;
-  bool _loading = true, _saving = false;
-  Map<String, dynamic> _data = {};
-
-  final _ansprechpartnerC = TextEditingController();
-  final _ansprechpartnerTelC = TextEditingController();
-  final _kindNameC = TextEditingController();
-  final _diagnoseC = TextEditingController();
-  final _beginnC = TextEditingController();
-  final _frequenzC = TextEditingController();
-  final _notizenC = TextEditingController();
+class _State extends State<BehordeFruehfoerderungContent> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _instances = [];
+  int _selectedIdx = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    _ansprechpartnerC.dispose();
-    _ansprechpartnerTelC.dispose();
-    _kindNameC.dispose();
-    _diagnoseC.dispose();
-    _beginnC.dispose();
-    _frequenzC.dispose();
-    _notizenC.dispose();
-    super.dispose();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     try {
       final res = await widget.apiService.fruehfoerderungAction({'action': 'get', 'user_id': widget.userId});
-      if (res['success'] == true && res['data'] != null && mounted) {
-        _data = Map<String, dynamic>.from(res['data'] as Map);
-        _ansprechpartnerC.text = _data['ansprechpartner']?.toString() ?? '';
-        _ansprechpartnerTelC.text = _data['ansprechpartner_tel']?.toString() ?? '';
-        _kindNameC.text = _data['kind_name']?.toString() ?? '';
-        _diagnoseC.text = _data['diagnose']?.toString() ?? '';
-        _beginnC.text = _data['beginn_datum']?.toString() ?? '';
-        _frequenzC.text = _data['frequenz']?.toString() ?? '';
-        _notizenC.text = _data['notizen']?.toString() ?? '';
+      if (res['success'] == true && res['instances'] is List) {
+        _instances = List<Map<String, dynamic>>.from((res['instances'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    await widget.apiService.fruehfoerderungAction({
-      'action': 'save',
-      'user_id': widget.userId,
-      'data': {
-        'stelle_name': _data['stelle_name'] ?? '',
-        'stelle_strasse': _data['stelle_strasse'] ?? '',
-        'stelle_plz_ort': _data['stelle_plz_ort'] ?? '',
-        'stelle_telefon': _data['stelle_telefon'] ?? '',
-        'stelle_email': _data['stelle_email'] ?? '',
-        'ansprechpartner': _ansprechpartnerC.text.trim(),
-        'ansprechpartner_tel': _ansprechpartnerTelC.text.trim(),
-        'kind_name': _kindNameC.text.trim(),
-        'diagnose': _diagnoseC.text.trim(),
-        'beginn_datum': _beginnC.text.trim(),
-        'frequenz': _frequenzC.text.trim(),
-        'notizen': _notizenC.text.trim(),
-        'status': _data['status'] ?? 'aktiv',
-      },
-    });
-    if (mounted) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      TabBar(controller: _tabCtrl, labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700,
-        tabs: [
-          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.circle, size: 8, color: (_data['stelle_name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red),
-            const SizedBox(width: 4), const Icon(Icons.psychology, size: 16), const SizedBox(width: 4), const Text('Frühförderstelle'),
-          ])),
-          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.circle, size: 8, color: _kindNameC.text.isNotEmpty ? Colors.green : Colors.red),
-            const SizedBox(width: 4), const Icon(Icons.child_care, size: 16), const SizedBox(width: 4), const Text('Förderung'),
-          ])),
-          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.folder, size: 16), const SizedBox(width: 4), const Text('Dokumente'),
-          ])),
-        ]),
-      Expanded(child: TabBarView(controller: _tabCtrl, children: [
-        _buildStelleTab(),
-        _buildFoerderungTab(),
-        _buildDokumenteTab(),
-      ])),
+      _buildInstanceBar(),
+      Expanded(child: _instances.isEmpty
+        ? _buildEmpty()
+        : _buildStelleContent(_instances[_selectedIdx])),
     ]);
   }
 
-  // ===== TAB 1: FRÜHFÖRDERSTELLE =====
-  Widget _buildStelleTab() {
-    final hasStelle = (_data['stelle_name']?.toString() ?? '').isNotEmpty;
+  Widget _buildInstanceBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: Colors.teal.shade50, border: Border(bottom: BorderSide(color: Colors.teal.shade200))),
+      child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+        for (int i = 0; i < _instances.length; i++) ...[
+          Padding(padding: const EdgeInsets.only(right: 4), child: InkWell(
+            onTap: () => setState(() => _selectedIdx = i),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _selectedIdx == i ? Colors.teal.shade600 : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                border: Border.all(color: _selectedIdx == i ? Colors.teal.shade600 : Colors.teal.shade200),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.psychology, size: 14, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
+                const SizedBox(width: 6),
+                Text(
+                  (_instances[i]['stelle_name']?.toString() ?? '').isNotEmpty ? _instances[i]['stelle_name'].toString() : 'Frühförderstelle ${i + 1}',
+                  style: TextStyle(fontSize: 12, fontWeight: _selectedIdx == i ? FontWeight.bold : FontWeight.normal, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
+                ),
+              ]),
+            ),
+          )),
+        ],
+        Padding(padding: const EdgeInsets.only(left: 4), child: InkWell(
+          onTap: _addInstance,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: Colors.teal.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade300)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.add, size: 16, color: Colors.teal.shade700),
+              const SizedBox(width: 4),
+              Text('Weitere Stelle', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade700)),
+            ]),
+          ),
+        )),
+      ])),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.psychology, size: 48, color: Colors.grey.shade300),
+      const SizedBox(height: 12),
+      Text('Keine Frühförderstelle zugewiesen', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+      const SizedBox(height: 16),
+      FilledButton.icon(onPressed: _addInstance, icon: const Icon(Icons.add, size: 18), label: const Text('Stelle hinzufügen'),
+        style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
+    ]));
+  }
+
+  void _addInstance() {
+    final newNr = _instances.isEmpty ? 1 : (_instances.last['instance_nr'] as int? ?? _instances.length) + 1;
+    _searchStelle(newNr);
+  }
+
+  Widget _buildStelleContent(Map<String, dynamic> inst) {
+    final name = inst['stelle_name']?.toString() ?? '';
+    final nr = inst['instance_nr'] as int? ?? 1;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.psychology, color: Colors.teal.shade700),
-          const SizedBox(width: 8),
-          Text('Zuständige Frühförderstelle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-          const Spacer(),
-          FilledButton.icon(
-            onPressed: _searchStelle,
-            icon: const Icon(Icons.search, size: 16),
-            label: Text(hasStelle ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
-            style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+        if (name.isEmpty) ...[
+          Center(child: FilledButton.icon(onPressed: () => _searchStelle(nr), icon: const Icon(Icons.search, size: 16), label: const Text('Frühförderstelle suchen'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600))),
+        ] else ...[
+          InkWell(
+            onTap: () => _showStelleModal(inst),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity, padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.shade200)),
+              child: Row(children: [
+                CircleAvatar(backgroundColor: Colors.teal.shade100, radius: 22, child: Icon(Icons.psychology, color: Colors.teal.shade700, size: 22)),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                  if ((inst['stelle_strasse']?.toString() ?? '').isNotEmpty)
+                    Text('${inst['stelle_strasse']}, ${inst['stelle_plz_ort'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
+                  if ((inst['stelle_telefon']?.toString() ?? '').isNotEmpty)
+                    Text('Tel: ${inst['stelle_telefon']}', style: TextStyle(fontSize: 12, color: Colors.teal.shade600)),
+                ])),
+                Icon(Icons.chevron_right, color: Colors.teal.shade400),
+              ]),
+            ),
           ),
-        ]),
-        const SizedBox(height: 12),
-        if (!hasStelle)
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
-            child: Column(children: [
-              Icon(Icons.psychology, size: 48, color: Colors.grey.shade300),
-              const SizedBox(height: 8),
-              Text('Keine Frühförderstelle zugewiesen', style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
-            ]),
-          )
-        else ...[
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.shade200)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_data['stelle_name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-              if ((_data['stelle_strasse']?.toString() ?? '').isNotEmpty || (_data['stelle_plz_ort']?.toString() ?? '').isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Row(children: [
-                  Icon(Icons.location_on, size: 14, color: Colors.teal.shade600), const SizedBox(width: 4),
-                  Text('${_data['stelle_strasse'] ?? ''}, ${_data['stelle_plz_ort'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-                ]),
-              ],
-              if ((_data['stelle_telefon']?.toString() ?? '').isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(children: [
-                  Icon(Icons.phone, size: 14, color: Colors.teal.shade600), const SizedBox(width: 4),
-                  Text(_data['stelle_telefon'].toString(), style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-                ]),
-              ],
-              if ((_data['stelle_email']?.toString() ?? '').isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Row(children: [
-                  Icon(Icons.email, size: 14, color: Colors.teal.shade600), const SizedBox(width: 4),
-                  Text(_data['stelle_email'].toString(), style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-                ]),
-              ],
-            ]),
-          ),
-          const SizedBox(height: 16),
-          Text('Ansprechpartner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          TextField(controller: _ansprechpartnerC, decoration: InputDecoration(hintText: 'Name des Ansprechpartners', isDense: true, prefixIcon: const Icon(Icons.person, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-          const SizedBox(height: 10),
-          TextField(controller: _ansprechpartnerTelC, decoration: InputDecoration(hintText: 'Telefon Ansprechpartner', isDense: true, prefixIcon: const Icon(Icons.phone, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 8),
+          Text('Klicken für Details, Anfragen & Vorfälle', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
           const SizedBox(height: 16),
           Row(children: [
-            FilledButton.icon(onPressed: _saving ? null : _save, icon: Icon(_saving ? Icons.hourglass_top : Icons.save, size: 16), label: Text(_saving ? 'Speichern...' : 'Speichern', style: const TextStyle(fontSize: 12)),
-              style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
+            FilledButton.icon(onPressed: () => _searchStelle(nr), icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('Ändern', style: TextStyle(fontSize: 12)),
+              style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero)),
+            if (nr > 1) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(onPressed: () async {
+                await widget.apiService.fruehfoerderungAction({'action': 'delete_instance', 'user_id': widget.userId, 'instance_nr': nr});
+                _selectedIdx = 0;
+                _load();
+              }, icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400), label: Text('Entfernen', style: TextStyle(fontSize: 12, color: Colors.red.shade400))),
+            ],
           ]),
         ],
       ]),
     );
   }
 
-  // ===== TAB 2: FÖRDERUNG =====
-  Widget _buildFoerderungTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.child_care, color: Colors.teal.shade700),
-          const SizedBox(width: 8),
-          Text('Förderung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-        ]),
-        const SizedBox(height: 16),
-        Text('Kind', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        TextField(controller: _kindNameC, decoration: InputDecoration(hintText: 'Name des Kindes', isDense: true, prefixIcon: const Icon(Icons.child_care, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 14),
-        Text('Diagnose / Förderbedarf', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        TextField(controller: _diagnoseC, maxLines: 3, decoration: InputDecoration(hintText: 'z.B. Sprachentwicklungsverzögerung, motorische Förderung...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Beginn der Förderung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-            const SizedBox(height: 4),
-            TextField(controller: _beginnC, readOnly: true, decoration: InputDecoration(hintText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-              onTap: () async {
-                final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
-                if (d != null) _beginnC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-              }),
-          ])),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Frequenz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-            const SizedBox(height: 4),
-            TextField(controller: _frequenzC, decoration: InputDecoration(hintText: 'z.B. 1x/Woche', isDense: true, prefixIcon: const Icon(Icons.schedule, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-          ])),
-        ]),
-        const SizedBox(height: 14),
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        Wrap(spacing: 8, children: ['aktiv', 'pausiert', 'beendet'].map((s) => ChoiceChip(
-          label: Text(s[0].toUpperCase() + s.substring(1)),
-          selected: (_data['status'] ?? 'aktiv') == s,
-          selectedColor: s == 'aktiv' ? Colors.green.shade100 : (s == 'pausiert' ? Colors.orange.shade100 : Colors.grey.shade200),
-          onSelected: (_) => setState(() => _data['status'] = s),
-        )).toList()),
-        const SizedBox(height: 14),
-        Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        TextField(controller: _notizenC, maxLines: 3, decoration: InputDecoration(hintText: 'Weitere Informationen...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 16),
-        FilledButton.icon(onPressed: _saving ? null : _save, icon: Icon(_saving ? Icons.hourglass_top : Icons.save, size: 16), label: Text(_saving ? 'Speichern...' : 'Speichern', style: const TextStyle(fontSize: 12)),
-          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
-      ]),
-    );
+  void _showStelleModal(Map<String, dynamic> inst) {
+    final nr = inst['instance_nr'] as int? ?? 1;
+    showDialog(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ClipRRect(borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: MediaQuery.of(ctx).size.width * 0.8,
+          height: MediaQuery.of(ctx).size.height * 0.8,
+          child: _StelleDetailModal(apiService: widget.apiService, userId: widget.userId, instanceNr: nr, inst: inst),
+        )),
+    ));
   }
 
-  // ===== TAB 3: DOKUMENTE =====
-  Widget _buildDokumenteTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'fruehfoerderung', korrespondenzId: widget.userId),
-    );
-  }
-
-  void _searchStelle() async {
+  void _searchStelle(int instanceNr) async {
     final searchC = TextEditingController();
     List<Map<String, dynamic>> results = [];
     bool loading = false;
@@ -267,16 +178,11 @@ class _State extends State<BehordeFruehfoerderungContent> with TickerProviderSta
         setDlg(() => loading = false);
       }
       return AlertDialog(
-        title: Row(children: [
-          Icon(Icons.psychology, size: 20, color: Colors.teal.shade700),
-          const SizedBox(width: 8),
-          const Text('Frühförderstelle suchen', style: TextStyle(fontSize: 15)),
-        ]),
+        title: Row(children: [Icon(Icons.psychology, size: 20, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Frühförderstelle suchen', style: TextStyle(fontSize: 15))]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true,
             decoration: InputDecoration(hintText: 'Name oder Ort...', isDense: true, prefixIcon: const Icon(Icons.search, size: 18),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: doSearch)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: doSearch)),
             onSubmitted: (_) => doSearch()),
           const SizedBox(height: 12),
           Expanded(child: loading
@@ -290,10 +196,8 @@ class _State extends State<BehordeFruehfoerderungContent> with TickerProviderSta
                     leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Icon(Icons.psychology, color: Colors.teal.shade700, size: 20)),
                     title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      if ((s['strasse']?.toString() ?? '').isNotEmpty || (s['plz_ort']?.toString() ?? '').isNotEmpty)
-                        Text('${s['strasse'] ?? ''}, ${s['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                      if ((s['telefon']?.toString() ?? '').isNotEmpty)
-                        Text('Tel: ${s['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if ((s['strasse']?.toString() ?? '').isNotEmpty) Text('${s['strasse']}, ${s['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if ((s['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${s['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                     ]),
                   ));
                 })),
@@ -302,14 +206,255 @@ class _State extends State<BehordeFruehfoerderungContent> with TickerProviderSta
       );
     }));
     if (selected != null && mounted) {
-      setState(() {
-        _data['stelle_name'] = selected['name']?.toString() ?? '';
-        _data['stelle_strasse'] = selected['strasse']?.toString() ?? '';
-        _data['stelle_plz_ort'] = selected['plz_ort']?.toString() ?? '';
-        _data['stelle_telefon'] = selected['telefon']?.toString() ?? '';
-        _data['stelle_email'] = selected['email']?.toString() ?? '';
+      await widget.apiService.fruehfoerderungAction({
+        'action': 'save', 'user_id': widget.userId, 'instance_nr': instanceNr,
+        'data': {
+          'stelle_name': selected['name'] ?? '', 'stelle_strasse': selected['strasse'] ?? '',
+          'stelle_plz_ort': selected['plz_ort'] ?? '', 'stelle_telefon': selected['telefon'] ?? '',
+          'stelle_email': selected['email'] ?? '',
+        },
       });
-      _save();
+      await _load();
+      setState(() => _selectedIdx = _instances.indexWhere((i) => i['instance_nr'] == instanceNr).clamp(0, _instances.length - 1));
     }
+  }
+}
+
+// ===== STELLE DETAIL MODAL =====
+class _StelleDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int instanceNr;
+  final Map<String, dynamic> inst;
+  const _StelleDetailModal({required this.apiService, required this.userId, required this.instanceNr, required this.inst});
+  @override
+  State<_StelleDetailModal> createState() => _StelleDetailModalState();
+}
+
+class _StelleDetailModalState extends State<_StelleDetailModal> {
+  List<Map<String, dynamic>> _anfragen = [];
+  List<Map<String, dynamic>> _vorfaelle = [];
+  bool _loadingA = true, _loadingV = true;
+
+  @override
+  void initState() { super.initState(); _loadAll(); }
+
+  Future<void> _loadAll() async { _loadAnfragen(); _loadVorfaelle(); }
+
+  Future<void> _loadAnfragen() async {
+    try {
+      final res = await widget.apiService.fruehfoerderungAction({'action': 'list_anfragen', 'user_id': widget.userId, 'instance_nr': widget.instanceNr});
+      if (res['success'] == true && res['anfragen'] is List) _anfragen = List<Map<String, dynamic>>.from((res['anfragen'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+    } catch (_) {}
+    if (mounted) setState(() => _loadingA = false);
+  }
+
+  Future<void> _loadVorfaelle() async {
+    try {
+      final res = await widget.apiService.fruehfoerderungAction({'action': 'list_vorfaelle', 'user_id': widget.userId, 'instance_nr': widget.instanceNr});
+      if (res['success'] == true && res['vorfaelle'] is List) _vorfaelle = List<Map<String, dynamic>>.from((res['vorfaelle'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+    } catch (_) {}
+    if (mounted) setState(() => _loadingV = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(length: 3, child: Column(children: [
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.teal.shade600, Colors.teal.shade800])),
+        child: Row(children: [
+          const Icon(Icons.psychology, size: 24, color: Colors.white),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.inst['stelle_name']?.toString() ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            if ((widget.inst['stelle_plz_ort']?.toString() ?? '').isNotEmpty)
+              Text(widget.inst['stelle_plz_ort'].toString(), style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.8))),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: [
+        const Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
+        Tab(icon: const Icon(Icons.question_answer, size: 16), text: 'Anfragen (${_loadingA ? '...' : _anfragen.length})'),
+        Tab(icon: const Icon(Icons.warning, size: 16), text: 'Vorfälle (${_loadingV ? '...' : _vorfaelle.length})'),
+      ]),
+      Expanded(child: TabBarView(children: [_buildDetailsTab(), _buildAnfragenTab(), _buildVorfaelleTab()])),
+    ]));
+  }
+
+  Widget _buildDetailsTab() {
+    final i = widget.inst;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _detailRow(Icons.business, 'Name', i['stelle_name']?.toString() ?? ''),
+      _detailRow(Icons.location_on, 'Adresse', '${i['stelle_strasse'] ?? ''}, ${i['stelle_plz_ort'] ?? ''}'),
+      _detailRow(Icons.phone, 'Telefon', i['stelle_telefon']?.toString() ?? ''),
+      _detailRow(Icons.email, 'E-Mail', i['stelle_email']?.toString() ?? ''),
+      if ((i['ansprechpartner']?.toString() ?? '').isNotEmpty) _detailRow(Icons.person, 'Ansprechpartner', i['ansprechpartner'].toString()),
+      if ((i['ansprechpartner_tel']?.toString() ?? '').isNotEmpty) _detailRow(Icons.phone_callback, 'Tel. Ansprechpartner', i['ansprechpartner_tel'].toString()),
+      const SizedBox(height: 16),
+      if ((i['kind_name']?.toString() ?? '').isNotEmpty) ...[
+        Text('Förderung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+        const SizedBox(height: 8),
+        _detailRow(Icons.child_care, 'Kind', i['kind_name'].toString()),
+        if ((i['diagnose']?.toString() ?? '').isNotEmpty) _detailRow(Icons.medical_information, 'Diagnose', i['diagnose'].toString()),
+        if ((i['beginn_datum']?.toString() ?? '').isNotEmpty) _detailRow(Icons.calendar_today, 'Beginn', i['beginn_datum'].toString()),
+        if ((i['frequenz']?.toString() ?? '').isNotEmpty) _detailRow(Icons.schedule, 'Frequenz', i['frequenz'].toString()),
+        _detailRow(Icons.flag, 'Status', i['status']?.toString() ?? 'aktiv'),
+      ],
+      const SizedBox(height: 16),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'fruehfoerderung', korrespondenzId: widget.userId * 10 + widget.instanceNr),
+    ]));
+  }
+
+  Widget _detailRow(IconData icon, String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
+      Icon(icon, size: 16, color: Colors.teal.shade600), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+    ]));
+  }
+
+  // ===== ANFRAGEN TAB =====
+  Widget _buildAnfragenTab() {
+    if (_loadingA) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        const Spacer(),
+        FilledButton.icon(onPressed: _addAnfrage, icon: const Icon(Icons.add, size: 16), label: const Text('Neue Anfrage', style: TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero)),
+      ])),
+      Expanded(child: _anfragen.isEmpty
+        ? Center(child: Text('Keine Anfragen', style: TextStyle(color: Colors.grey.shade400)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _anfragen.length, itemBuilder: (_, i) {
+            final a = _anfragen[i];
+            final plaetze = a['plaetze_frei']?.toString() ?? 'unbekannt';
+            final pColor = plaetze == 'ja' ? Colors.green : (plaetze == 'nein' ? Colors.red : Colors.orange);
+            final ergebnis = a['ergebnis']?.toString() ?? 'offen';
+            return Card(child: ListTile(
+              leading: CircleAvatar(backgroundColor: pColor.shade50, child: Icon(plaetze == 'ja' ? Icons.check_circle : (plaetze == 'nein' ? Icons.cancel : Icons.help), color: pColor.shade700, size: 20)),
+              title: Text('Anfrage — ${a['art'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Row(children: [
+                Text(a['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                const SizedBox(width: 8),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: pColor.shade100, borderRadius: BorderRadius.circular(6)),
+                  child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: pColor.shade800))),
+                const SizedBox(width: 6),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
+                  child: Text(ergebnis, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+              ]),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
+                await widget.apiService.fruehfoerderungAction({'action': 'delete_anfrage', 'id': a['id']});
+                _loadAnfragen();
+              }),
+            ));
+          })),
+    ]);
+  }
+
+  void _addAnfrage() {
+    final notizC = TextEditingController();
+    String art = 'telefonisch';
+    String plaetze = 'unbekannt';
+    String ergebnis = 'offen';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.question_answer, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neue Anfrage', style: TextStyle(fontSize: 15))]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Art der Anfrage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 8, children: ['telefonisch', 'per E-Mail', 'persönlich', 'online'].map((s) => ChoiceChip(label: Text(s), selected: art == s, selectedColor: Colors.teal.shade100, onSelected: (_) => setDlg(() => art = s))).toList()),
+        const SizedBox(height: 12),
+        Text('Plätze frei?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 8, children: [
+          ChoiceChip(label: const Text('Ja'), selected: plaetze == 'ja', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => plaetze = 'ja')),
+          ChoiceChip(label: const Text('Nein'), selected: plaetze == 'nein', selectedColor: Colors.red.shade100, onSelected: (_) => setDlg(() => plaetze = 'nein')),
+          ChoiceChip(label: const Text('Warteliste'), selected: plaetze == 'warteliste', selectedColor: Colors.orange.shade100, onSelected: (_) => setDlg(() => plaetze = 'warteliste')),
+          ChoiceChip(label: const Text('Unbekannt'), selected: plaetze == 'unbekannt', selectedColor: Colors.grey.shade200, onSelected: (_) => setDlg(() => plaetze = 'unbekannt')),
+        ]),
+        const SizedBox(height: 12),
+        Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 8, children: ['offen', 'zugesagt', 'abgesagt', 'warteliste'].map((s) => ChoiceChip(label: Text(s[0].toUpperCase() + s.substring(1)), selected: ergebnis == s, selectedColor: Colors.teal.shade100, onSelected: (_) => setDlg(() => ergebnis = s))).toList()),
+        const SizedBox(height: 12),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
+          await widget.apiService.fruehfoerderungAction({
+            'action': 'save_anfrage', 'user_id': widget.userId, 'instance_nr': widget.instanceNr,
+            'anfrage': {'stelle_name': widget.inst['stelle_name'] ?? '', 'datum': today, 'art': art, 'ergebnis': ergebnis, 'plaetze_frei': plaetze, 'notiz': notizC.text.trim()},
+          });
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadAnfragen();
+        }, child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  // ===== VORFÄLLE TAB =====
+  Widget _buildVorfaelleTab() {
+    if (_loadingV) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        const Spacer(),
+        FilledButton.icon(onPressed: _addVorfall, icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorfall', style: TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero)),
+      ])),
+      Expanded(child: _vorfaelle.isEmpty
+        ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade400)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vorfaelle.length, itemBuilder: (_, i) {
+            final v = _vorfaelle[i];
+            final st = v['status']?.toString() ?? 'offen';
+            final sColor = st == 'erledigt' ? Colors.green : (st == 'offen' ? Colors.orange : Colors.grey);
+            return Card(child: ListTile(
+              leading: CircleAvatar(backgroundColor: sColor.shade50, child: Icon(Icons.warning, color: sColor.shade700, size: 20)),
+              title: Text(v['titel']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Row(children: [
+                Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                const SizedBox(width: 8),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: sColor.shade100, borderRadius: BorderRadius.circular(6)),
+                  child: Text(st, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sColor.shade800))),
+              ]),
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
+                await widget.apiService.fruehfoerderungAction({'action': 'delete_vorfall', 'id': v['id']});
+                _loadVorfaelle();
+              }),
+            ));
+          })),
+    ]);
+  }
+
+  void _addVorfall() {
+    final titelC = TextEditingController();
+    final notizC = TextEditingController();
+    String status = 'offen';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.warning, size: 18, color: Colors.orange.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 15))]),
+      content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, children: ['offen', 'in Bearbeitung', 'erledigt'].map((s) => ChoiceChip(label: Text(s[0].toUpperCase() + s.substring(1)), selected: status == s,
+          selectedColor: s == 'erledigt' ? Colors.green.shade100 : (s == 'offen' ? Colors.orange.shade100 : Colors.blue.shade100),
+          onSelected: (_) => setDlg(() => status = s))).toList()),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
+          await widget.apiService.fruehfoerderungAction({
+            'action': 'save_vorfall', 'user_id': widget.userId, 'instance_nr': widget.instanceNr,
+            'vorfall': {'titel': titelC.text.trim(), 'datum': today, 'status': status, 'notiz': notizC.text.trim()},
+          });
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadVorfaelle();
+        }, child: const Text('Speichern')),
+      ],
+    )));
   }
 }
