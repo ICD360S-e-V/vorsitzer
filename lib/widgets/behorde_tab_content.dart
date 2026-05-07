@@ -16,6 +16,7 @@ import 'behorde_familienkasse.dart';
 import 'behorde_finanzamt.dart';
 import 'behorde_gericht.dart';
 import 'behorde_kindergarten.dart';
+import 'behorde_fruehfoerderung.dart';
 import 'behorde_krankenkasse.dart';
 import 'behorde_rentenversicherung.dart';
 import 'behorde_jobcenter.dart';
@@ -82,7 +83,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'gericht',
     'krankenkasse', 'rentenversicherung', 'auslaenderbehoerde', 'familienkasse',
     'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei',
-    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten',
+    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten', 'fruehfoerderung',
   ];
 
   // Fields per type for completion calculation
@@ -345,6 +346,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'versorgungsamt', 'icon': Icons.accessible, 'label': 'Versorgungsamt'},
     {'type': 'rundfunkbeitrag', 'icon': Icons.radio, 'label': 'ARD ZDF'},
     {'type': 'kindergarten', 'icon': Icons.child_care, 'label': 'Kindergarten'},
+    {'type': 'fruehfoerderung', 'icon': Icons.psychology, 'label': 'Frühförderung'},
   ];
 
   @override
@@ -352,7 +354,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 22,
+      length: 23,
       child: Column(
         children: [
           _buildMemberAddressCard(),
@@ -592,6 +594,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   saveData: (t, d) => _saveBehoerdeData(t, d),
                 )),
                 _buildTabContent('kindergarten', () => BehordeKindergartenContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                )),
+                _buildTabContent('fruehfoerderung', () => BehordeFruehfoerderungContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
                 )),
