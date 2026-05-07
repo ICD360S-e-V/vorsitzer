@@ -455,54 +455,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
               ],
             ])),
             // === KORRESPONDENZ TAB ===
-            SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (stelleEmail.isNotEmpty) ...[
-                Container(
-                  width: double.infinity, padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Icon(Icons.email, size: 16, color: Colors.blue.shade700),
-                      const SizedBox(width: 6),
-                      Text('E-Mail-Vorlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                    ]),
-                    const SizedBox(height: 8),
-                    Text('An: $stelleEmail', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
-                    const SizedBox(height: 4),
-                    Text('Betreff: Anfrage Frühförderung — Platz verfügbar?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
-                    const Divider(height: 16),
-                    SelectableText(
-                      'Sehr geehrte Damen und Herren,\n\n'
-                      'hiermit möchten wir im Namen unseres Mitglieds anfragen, ob in Ihrer '
-                      'interdisziplinären Frühförderstelle derzeit Plätze für eine Förderung '
-                      'verfügbar sind.\n\n'
-                      'Wir bitten um Rückmeldung bezüglich:\n'
-                      '• Verfügbarkeit eines Förderplatzes\n'
-                      '• Voraussichtliche Wartezeit\n'
-                      '• Benötigte Unterlagen für die Anmeldung\n'
-                      '• Möglichkeit eines Erstgesprächs\n\n'
-                      'Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n'
-                      'Mit freundlichen Grüßen\n'
-                      'ICD360S e.V.\n'
-                      'Vorsitzender',
-                      style: TextStyle(fontSize: 12, height: 1.5, color: Colors.grey.shade800),
-                    ),
-                  ]),
-                ),
-              ] else ...[
-                Container(
-                  width: double.infinity, padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade200)),
-                  child: Row(children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.orange.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('Keine E-Mail-Adresse für diese Frühförderstelle hinterlegt.', style: TextStyle(fontSize: 12, color: Colors.orange.shade800))),
-                  ]),
-                ),
-              ],
-              const SizedBox(height: 16),
-              KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ff_anfrage', korrespondenzId: anfId),
-            ])),
+            _AnfrageKorrespondenzTab(apiService: widget.apiService, anfId: anfId, stelleName: stelleName, stelleEmail: stelleEmail),
           ])),
         ])),
       )),
@@ -582,5 +535,78 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
         }, child: const Text('Speichern')),
       ],
     )));
+  }
+}
+
+// ===== ANFRAGE KORRESPONDENZ TAB =====
+class _AnfrageKorrespondenzTab extends StatefulWidget {
+  final ApiService apiService;
+  final int anfId;
+  final String stelleName;
+  final String stelleEmail;
+  const _AnfrageKorrespondenzTab({required this.apiService, required this.anfId, required this.stelleName, required this.stelleEmail});
+  @override
+  State<_AnfrageKorrespondenzTab> createState() => _AnfrageKorrespondenzTabState();
+}
+
+class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
+  bool _showTemplate = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.email, color: Colors.teal.shade700),
+        const SizedBox(width: 8),
+        Text('Korrespondenz', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+        const Spacer(),
+        if (widget.stelleEmail.isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: () => setState(() => _showTemplate = !_showTemplate),
+            icon: Icon(_showTemplate ? Icons.close : Icons.auto_awesome, size: 16, color: Colors.blue.shade700),
+            label: Text(_showTemplate ? 'Schließen' : 'Anfrage generieren', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
+            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          ),
+      ]),
+      const SizedBox(height: 12),
+
+      if (_showTemplate) ...[
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(14),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.auto_awesome, size: 16, color: Colors.blue.shade700),
+              const SizedBox(width: 6),
+              Text('E-Mail-Vorlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+            ]),
+            const SizedBox(height: 8),
+            Text('An: ${widget.stelleEmail}', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
+            const SizedBox(height: 4),
+            Text('Betreff: Anfrage Frühförderung — Platz verfügbar?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+            const Divider(height: 16),
+            SelectableText(
+              'Sehr geehrte Damen und Herren,\n\n'
+              'hiermit möchten wir im Namen unseres Mitglieds anfragen, ob in Ihrer '
+              'interdisziplinären Frühförderstelle derzeit Plätze für eine Förderung '
+              'verfügbar sind.\n\n'
+              'Wir bitten um Rückmeldung bezüglich:\n'
+              '• Verfügbarkeit eines Förderplatzes\n'
+              '• Voraussichtliche Wartezeit\n'
+              '• Benötigte Unterlagen für die Anmeldung\n'
+              '• Möglichkeit eines Erstgesprächs\n\n'
+              'Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n'
+              'Mit freundlichen Grüßen\n'
+              'ICD360S e.V.\n'
+              'Vorsitzender',
+              style: TextStyle(fontSize: 12, height: 1.5, color: Colors.grey.shade800),
+            ),
+          ]),
+        ),
+      ],
+
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ff_anfrage', korrespondenzId: widget.anfId),
+    ]));
   }
 }
