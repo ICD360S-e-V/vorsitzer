@@ -10,10 +10,13 @@ class BehordeFruehfoerderungContent extends StatefulWidget {
   State<BehordeFruehfoerderungContent> createState() => _State();
 }
 
-class _State extends State<BehordeFruehfoerderungContent> {
+class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliveClientMixin {
   bool _loading = true;
   List<Map<String, dynamic>> _instances = [];
   int _selectedIdx = 0;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -30,6 +33,7 @@ class _State extends State<BehordeFruehfoerderungContent> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_loading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       _buildInstanceBar(),
