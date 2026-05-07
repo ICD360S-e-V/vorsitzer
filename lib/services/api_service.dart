@@ -4572,6 +4572,19 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> fruehfoerderungAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/fruehfoerderung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   Future<Map<String, dynamic>> searchPflegedienst({String search = ''}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/pflegedienst_search.php'),
