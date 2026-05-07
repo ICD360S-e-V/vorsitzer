@@ -337,6 +337,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
             final pColor = plaetze == 'ja' ? Colors.green : (plaetze == 'nein' ? Colors.red : Colors.orange);
             final ergebnis = a['ergebnis']?.toString() ?? 'offen';
             return Card(child: ListTile(
+              onTap: () => _showAnfrageDetail(a),
               leading: CircleAvatar(backgroundColor: pColor.shade50, child: Icon(plaetze == 'ja' ? Icons.check_circle : (plaetze == 'nein' ? Icons.cancel : Icons.help), color: pColor.shade700, size: 20)),
               title: Text('Anfrage — ${a['art'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Row(children: [
@@ -397,6 +398,127 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
         }, child: const Text('Speichern')),
       ],
     )));
+  }
+
+  void _showAnfrageDetail(Map<String, dynamic> a) {
+    final stelleName = widget.inst['stelle_name']?.toString() ?? '';
+    final stelleEmail = widget.inst['stelle_email']?.toString() ?? '';
+    final plaetze = a['plaetze_frei']?.toString() ?? 'unbekannt';
+    final pColor = plaetze == 'ja' ? Colors.green : (plaetze == 'nein' ? Colors.red : Colors.orange);
+    final anfId = a['id'] is int ? a['id'] as int : int.tryParse(a['id'].toString()) ?? 0;
+
+    showDialog(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.all(32),
+      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
+        width: MediaQuery.of(ctx).size.width * 0.7,
+        height: MediaQuery.of(ctx).size.height * 0.7,
+        child: DefaultTabController(length: 2, child: Column(children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: pColor.shade50),
+            child: Row(children: [
+              Icon(Icons.question_answer, size: 22, color: pColor.shade700),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Anfrage — ${a['art'] ?? ''}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: pColor.shade800)),
+                Text('$stelleName • ${a['datum'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              ])),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: pColor.shade100, borderRadius: BorderRadius.circular(8)),
+                child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: pColor.shade800))),
+              const SizedBox(width: 8),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+            ]),
+          ),
+          TabBar(labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: const [
+            Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
+            Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+          ]),
+          Expanded(child: TabBarView(children: [
+            // === DETAILS TAB ===
+            SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _detailRow(Icons.business, 'Frühförderstelle', stelleName),
+              _detailRow(Icons.calendar_today, 'Datum', a['datum']?.toString() ?? ''),
+              _detailRow(Icons.phone, 'Art', a['art']?.toString() ?? ''),
+              const SizedBox(height: 12),
+              Row(children: [
+                _anfInfoBox('Plätze frei', plaetze, pColor),
+                const SizedBox(width: 12),
+                _anfInfoBox('Ergebnis', a['ergebnis']?.toString() ?? 'offen', a['ergebnis'] == 'zugesagt' ? Colors.green : (a['ergebnis'] == 'abgesagt' ? Colors.red : Colors.orange)),
+              ]),
+              if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                const SizedBox(height: 4),
+                Container(width: double.infinity, padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                  child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+              ],
+            ])),
+            // === KORRESPONDENZ TAB ===
+            SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (stelleEmail.isNotEmpty) ...[
+                Container(
+                  width: double.infinity, padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.email, size: 16, color: Colors.blue.shade700),
+                      const SizedBox(width: 6),
+                      Text('E-Mail-Vorlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text('An: $stelleEmail', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
+                    const SizedBox(height: 4),
+                    Text('Betreff: Anfrage Frühförderung — Platz verfügbar?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+                    const Divider(height: 16),
+                    SelectableText(
+                      'Sehr geehrte Damen und Herren,\n\n'
+                      'hiermit möchten wir im Namen unseres Mitglieds anfragen, ob in Ihrer '
+                      'interdisziplinären Frühförderstelle derzeit Plätze für eine Förderung '
+                      'verfügbar sind.\n\n'
+                      'Wir bitten um Rückmeldung bezüglich:\n'
+                      '• Verfügbarkeit eines Förderplatzes\n'
+                      '• Voraussichtliche Wartezeit\n'
+                      '• Benötigte Unterlagen für die Anmeldung\n'
+                      '• Möglichkeit eines Erstgesprächs\n\n'
+                      'Für Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\n'
+                      'Mit freundlichen Grüßen\n'
+                      'ICD360S e.V.\n'
+                      'Vorsitzender',
+                      style: TextStyle(fontSize: 12, height: 1.5, color: Colors.grey.shade800),
+                    ),
+                  ]),
+                ),
+              ] else ...[
+                Container(
+                  width: double.infinity, padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade200)),
+                  child: Row(children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Keine E-Mail-Adresse für diese Frühförderstelle hinterlegt.', style: TextStyle(fontSize: 12, color: Colors.orange.shade800))),
+                  ]),
+                ),
+              ],
+              const SizedBox(height: 16),
+              KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ff_anfrage', korrespondenzId: anfId),
+            ])),
+          ])),
+        ])),
+      )),
+    ));
+  }
+
+  Widget _anfInfoBox(String label, String value, MaterialColor color) {
+    return Expanded(child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: TextStyle(fontSize: 10, color: color.shade600)),
+        const SizedBox(height: 2),
+        Text(value[0].toUpperCase() + value.substring(1), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800)),
+      ]),
+    ));
   }
 
   // ===== VORFÄLLE TAB =====
