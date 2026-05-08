@@ -771,38 +771,13 @@ class _AntragKorrTabState extends State<_AntragKorrTab> {
   }
 
   void _openDetail(Map<String, dynamic> k) {
-    final kId = int.tryParse(k['id'].toString()) ?? 0;
-    final isEin = k['richtung'] == 'eingang';
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Row(children: [
-        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: isEin ? Colors.blue : Colors.orange),
-        const SizedBox(width: 8),
-        Expanded(child: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-      ]),
-      content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEin ? Colors.blue.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(12)),
-                child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEin ? Colors.blue.shade800 : Colors.orange.shade800))),
-              const SizedBox(width: 8),
-              if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
-                child: Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
-              const Spacer(),
-              if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
-            ]),
-          ])),
-        if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-            child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
-        ],
-        const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: kId),
-      ]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    showDialog(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.all(28),
+      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
+        width: MediaQuery.of(ctx).size.width * 0.75,
+        height: MediaQuery.of(ctx).size.height * 0.75,
+        child: _KorrDetailModal(k: k, apiService: widget.apiService, userId: widget.userId, onSaved: _load),
+      )),
     ));
   }
 
@@ -1031,5 +1006,216 @@ class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermitt
         icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
         label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)))],
     ]));
+  }
+}
+
+// ===== KORRESPONDENZ DETAIL MODAL (Details + Antwort) =====
+class _KorrDetailModal extends StatefulWidget {
+  final Map<String, dynamic> k;
+  final ApiService apiService;
+  final int userId;
+  final VoidCallback onSaved;
+  const _KorrDetailModal({required this.k, required this.apiService, required this.userId, required this.onSaved});
+  @override
+  State<_KorrDetailModal> createState() => _KorrDetailModalState();
+}
+
+class _KorrDetailModalState extends State<_KorrDetailModal> {
+  late final TextEditingController _erstelltAmC, _empfangenAmC, _fristDatumC, _fristNotizC;
+  late final TextEditingController _antwortDatumC, _antwortInhaltC;
+  late String _antwortMethode, _antwortStatus;
+  bool _saving = false;
+
+  int get _kId => int.tryParse(widget.k['id'].toString()) ?? 0;
+  bool get _isEin => widget.k['richtung'] == 'eingang';
+
+  @override
+  void initState() {
+    super.initState();
+    _erstelltAmC = TextEditingController(text: widget.k['erstellt_am']?.toString() ?? '');
+    _empfangenAmC = TextEditingController(text: widget.k['empfangen_am']?.toString() ?? '');
+    _fristDatumC = TextEditingController(text: widget.k['frist_datum']?.toString() ?? '');
+    _fristNotizC = TextEditingController(text: widget.k['frist_notiz']?.toString() ?? '');
+    _antwortDatumC = TextEditingController(text: widget.k['antwort_datum']?.toString() ?? '');
+    _antwortInhaltC = TextEditingController(text: widget.k['antwort_inhalt']?.toString() ?? '');
+    _antwortMethode = widget.k['antwort_methode']?.toString() ?? '';
+    _antwortStatus = widget.k['antwort_status']?.toString() ?? '';
+  }
+
+  @override
+  void dispose() {
+    _erstelltAmC.dispose(); _empfangenAmC.dispose(); _fristDatumC.dispose(); _fristNotizC.dispose();
+    _antwortDatumC.dispose(); _antwortInhaltC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await widget.apiService.jobcenterAction(widget.userId, {
+      'action': 'update_korr', 'korr_id': _kId,
+      'korr': {
+        'erstellt_am': _erstelltAmC.text.trim(), 'empfangen_am': _empfangenAmC.text.trim(),
+        'frist_datum': _fristDatumC.text.trim(), 'frist_notiz': _fristNotizC.text.trim(),
+        'antwort_methode': _antwortMethode, 'antwort_datum': _antwortDatumC.text.trim(),
+        'antwort_inhalt': _antwortInhaltC.text.trim(), 'antwort_status': _antwortStatus,
+      },
+    });
+    widget.onSaved();
+    if (mounted) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
+    }
+  }
+
+  Future<void> _pickDate(TextEditingController c) async {
+    final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+    if (d != null) c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _isEin ? Colors.blue : Colors.orange;
+    return DefaultTabController(length: 3, child: Column(children: [
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: color.shade50),
+        child: Row(children: [
+          Icon(_isEin ? Icons.call_received : Icons.call_made, size: 22, color: color.shade700),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.k['betreff']?.toString() ?? '(kein Betreff)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
+            Row(children: [
+              Text('${widget.k['datum'] ?? ''} • ${widget.k['methode'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              if (_fristDatumC.text.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.timer, size: 12, color: Colors.red.shade700),
+                    const SizedBox(width: 3),
+                    Text('Frist: ${_fristDatumC.text}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+                  ])),
+              ],
+            ]),
+          ])),
+          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.red.shade700, tabs: const [
+        Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
+        Tab(icon: Icon(Icons.reply, size: 16), text: 'Antwort'),
+        Tab(icon: Icon(Icons.attach_file, size: 16), text: 'Dokumente'),
+      ]),
+      Expanded(child: TabBarView(children: [_buildDetailsTab(), _buildAntwortTab(), _buildDokumenteTab()])),
+    ]));
+  }
+
+  // ===== DETAILS TAB =====
+  Widget _buildDetailsTab() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Schreiben-Details', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+      const SizedBox(height: 12),
+      _dateField('Erstellt am (Jobcenter)', _erstelltAmC, Icons.edit_calendar, 'Wann wurde das Schreiben vom Jobcenter erstellt?'),
+      const SizedBox(height: 10),
+      _dateField('Empfangen am (Mitglied)', _empfangenAmC, Icons.markunread_mailbox, 'Wann hat das Mitglied den Brief erhalten?'),
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.timer, size: 16, color: Colors.red.shade700),
+            const SizedBox(width: 6),
+            Text('Frist', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+          ]),
+          const SizedBox(height: 8),
+          _dateField('Frist bis', _fristDatumC, Icons.event_busy, 'Bis wann muss reagiert werden?'),
+          const SizedBox(height: 8),
+          TextField(controller: _fristNotizC, maxLines: 2, decoration: InputDecoration(labelText: 'Frist-Hinweis', hintText: 'z.B. Unterlagen nachreichen, Widerspruch einlegen...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ]),
+      ),
+      if ((widget.k['notiz']?.toString() ?? '').isNotEmpty) ...[
+        const SizedBox(height: 16),
+        Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: SelectableText(widget.k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+      ],
+      const SizedBox(height: 16),
+      Align(alignment: Alignment.centerRight, child: FilledButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: Icon(_saving ? Icons.hourglass_top : Icons.save, size: 16),
+        label: Text(_saving ? 'Speichern...' : 'Speichern', style: const TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+      )),
+    ]));
+  }
+
+  Widget _dateField(String label, TextEditingController c, IconData icon, String hint) {
+    return TextField(controller: c, readOnly: true, decoration: InputDecoration(labelText: label, hintText: hint, isDense: true, prefixIcon: Icon(icon, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+      onTap: () => _pickDate(c));
+  }
+
+  // ===== ANTWORT TAB =====
+  Widget _buildAntwortTab() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Antwort auf das Schreiben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+      const SizedBox(height: 12),
+      Text('Versandart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 6),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        _methodeChip('Online', Icons.language),
+        _methodeChip('Postalisch', Icons.local_post_office),
+        _methodeChip('Fax', Icons.fax),
+        _methodeChip('Persönlich', Icons.person),
+        _methodeChip('E-Mail', Icons.email),
+        _methodeChip('Telefon', Icons.phone),
+      ]),
+      const SizedBox(height: 14),
+      _dateField('Antwort gesendet am', _antwortDatumC, Icons.send, 'Wann wurde die Antwort abgeschickt?'),
+      const SizedBox(height: 14),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 6),
+      Wrap(spacing: 8, children: [
+        _statusChip('offen', Colors.orange),
+        _statusChip('gesendet', Colors.blue),
+        _statusChip('bestätigt', Colors.green),
+        _statusChip('abgelehnt', Colors.red),
+      ]),
+      const SizedBox(height: 14),
+      TextField(controller: _antwortInhaltC, maxLines: 8, decoration: InputDecoration(labelText: 'Inhalt der Antwort', hintText: 'Den Antworttext hier einfügen oder beschreiben...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 16),
+      Align(alignment: Alignment.centerRight, child: FilledButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: Icon(_saving ? Icons.hourglass_top : Icons.save, size: 16),
+        label: Text(_saving ? 'Speichern...' : 'Speichern', style: const TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+      )),
+    ]));
+  }
+
+  Widget _methodeChip(String label, IconData icon) {
+    final sel = _antwortMethode == label;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 16), label: Text(label),
+      selected: sel, selectedColor: Colors.red.shade100,
+      onSelected: (_) => setState(() => _antwortMethode = label),
+    );
+  }
+
+  Widget _statusChip(String label, MaterialColor color) {
+    final sel = _antwortStatus == label;
+    return ChoiceChip(
+      label: Text(label[0].toUpperCase() + label.substring(1)),
+      selected: sel, selectedColor: color.shade100,
+      onSelected: (_) => setState(() => _antwortStatus = label),
+    );
+  }
+
+  // ===== DOKUMENTE TAB =====
+  Widget _buildDokumenteTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: _kId),
+    );
   }
 }
