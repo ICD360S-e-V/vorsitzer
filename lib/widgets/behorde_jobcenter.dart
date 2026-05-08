@@ -1025,6 +1025,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   late final TextEditingController _antwortDatumC, _antwortInhaltC;
   late String _antwortMethode, _antwortStatus;
   bool _saving = false;
+  bool _antwortLocked = false;
 
   int get _kId => int.tryParse(widget.k['id'].toString()) ?? 0;
   bool get _isEin => widget.k['richtung'] == 'eingang';
@@ -1040,6 +1041,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     _antwortInhaltC = TextEditingController(text: widget.k['antwort_inhalt']?.toString() ?? '');
     _antwortMethode = widget.k['antwort_methode']?.toString() ?? '';
     _antwortStatus = widget.k['antwort_status']?.toString() ?? '';
+    _antwortLocked = _antwortMethode.isNotEmpty && _antwortInhaltC.text.isNotEmpty;
   }
 
   @override
@@ -1062,7 +1064,10 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     });
     widget.onSaved();
     if (mounted) {
-      setState(() => _saving = false);
+      setState(() {
+        _saving = false;
+        if (_antwortMethode.isNotEmpty && _antwortInhaltC.text.isNotEmpty) _antwortLocked = true;
+      });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
     }
   }
@@ -1157,6 +1162,35 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
 
   // ===== ANTWORT TAB =====
   Widget _buildAntwortTab() {
+    if (_antwortLocked) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.lock, size: 16, color: Colors.green.shade700),
+          const SizedBox(width: 6),
+          Text('Antwort gesendet', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        ]),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(_methodeIcon(_antwortMethode), size: 14, color: Colors.purple.shade700), const SizedBox(width: 4), Text(_antwortMethode, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.purple.shade700))])),
+              const SizedBox(width: 8),
+              if (_antwortDatumC.text.isNotEmpty) Text('am ${_antwortDatumC.text}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              const Spacer(),
+              if (_antwortStatus.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: _antwortStatus == 'bestätigt' ? Colors.green.shade100 : (_antwortStatus == 'abgelehnt' ? Colors.red.shade100 : Colors.blue.shade100), borderRadius: BorderRadius.circular(8)),
+                child: Text(_antwortStatus[0].toUpperCase() + _antwortStatus.substring(1), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _antwortStatus == 'bestätigt' ? Colors.green.shade800 : (_antwortStatus == 'abgelehnt' ? Colors.red.shade800 : Colors.blue.shade800)))),
+            ]),
+            if (_antwortInhaltC.text.isNotEmpty) ...[
+              const Divider(height: 20),
+              SelectableText(_antwortInhaltC.text, style: const TextStyle(fontSize: 13, height: 1.5)),
+            ],
+          ]),
+        ),
+      ]));
+    }
+
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Antwort auf das Schreiben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
       const SizedBox(height: 12),
@@ -1191,6 +1225,18 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
         style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
       )),
     ]));
+  }
+
+  IconData _methodeIcon(String m) {
+    switch (m) {
+      case 'Online': return Icons.language;
+      case 'Postalisch': return Icons.local_post_office;
+      case 'Fax': return Icons.fax;
+      case 'Persönlich': return Icons.person;
+      case 'E-Mail': return Icons.email;
+      case 'Telefon': return Icons.phone;
+      default: return Icons.send;
+    }
   }
 
   Widget _methodeChip(String label, IconData icon) {
