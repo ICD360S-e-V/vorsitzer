@@ -46,6 +46,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
   Future<void> _saveData(Map<String, String> fields) async {
     try {
       await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_data', 'data': fields});
+      setState(() { for (final e in fields.entries) { _data[e.key] = e.value; } });
     } catch (_) {}
   }
 
