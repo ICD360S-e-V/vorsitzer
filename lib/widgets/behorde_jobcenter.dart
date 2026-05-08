@@ -1022,9 +1022,12 @@ class _KorrDetailModal extends StatefulWidget {
 
 class _KorrDetailModalState extends State<_KorrDetailModal> {
   late final TextEditingController _erstelltAmC, _empfangenAmC, _fristDatumC, _fristNotizC;
+  late final TextEditingController _sachbearbeiterNameC, _meinZeichenC;
+  late String _sachbearbeiterAnrede;
   late final TextEditingController _antwortDatumC, _antwortInhaltC;
   late String _antwortMethode, _antwortStatus;
   bool _saving = false;
+  bool _detailsLocked = false;
   bool _antwortLocked = false;
 
   int get _kId => int.tryParse(widget.k['id'].toString()) ?? 0;
@@ -1037,16 +1040,21 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     _empfangenAmC = TextEditingController(text: widget.k['empfangen_am']?.toString() ?? '');
     _fristDatumC = TextEditingController(text: widget.k['frist_datum']?.toString() ?? '');
     _fristNotizC = TextEditingController(text: widget.k['frist_notiz']?.toString() ?? '');
+    _sachbearbeiterNameC = TextEditingController(text: widget.k['sachbearbeiter_name']?.toString() ?? '');
+    _meinZeichenC = TextEditingController(text: widget.k['mein_zeichen']?.toString() ?? '');
+    _sachbearbeiterAnrede = widget.k['sachbearbeiter_anrede']?.toString() ?? '';
     _antwortDatumC = TextEditingController(text: widget.k['antwort_datum']?.toString() ?? '');
     _antwortInhaltC = TextEditingController(text: widget.k['antwort_inhalt']?.toString() ?? '');
     _antwortMethode = widget.k['antwort_methode']?.toString() ?? '';
     _antwortStatus = widget.k['antwort_status']?.toString() ?? '';
+    _detailsLocked = _erstelltAmC.text.isNotEmpty && _empfangenAmC.text.isNotEmpty;
     _antwortLocked = _antwortMethode.isNotEmpty && _antwortInhaltC.text.isNotEmpty;
   }
 
   @override
   void dispose() {
     _erstelltAmC.dispose(); _empfangenAmC.dispose(); _fristDatumC.dispose(); _fristNotizC.dispose();
+    _sachbearbeiterNameC.dispose(); _meinZeichenC.dispose();
     _antwortDatumC.dispose(); _antwortInhaltC.dispose();
     super.dispose();
   }
@@ -1058,6 +1066,8 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
       'korr': {
         'erstellt_am': _erstelltAmC.text.trim(), 'empfangen_am': _empfangenAmC.text.trim(),
         'frist_datum': _fristDatumC.text.trim(), 'frist_notiz': _fristNotizC.text.trim(),
+        'sachbearbeiter_anrede': _sachbearbeiterAnrede, 'sachbearbeiter_name': _sachbearbeiterNameC.text.trim(),
+        'mein_zeichen': _meinZeichenC.text.trim(),
         'antwort_methode': _antwortMethode, 'antwort_datum': _antwortDatumC.text.trim(),
         'antwort_inhalt': _antwortInhaltC.text.trim(), 'antwort_status': _antwortStatus,
       },
@@ -1066,6 +1076,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     if (mounted) {
       setState(() {
         _saving = false;
+        if (_erstelltAmC.text.isNotEmpty && _empfangenAmC.text.isNotEmpty) _detailsLocked = true;
         if (_antwortMethode.isNotEmpty && _antwortInhaltC.text.isNotEmpty) _antwortLocked = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
@@ -1116,9 +1127,62 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
 
   // ===== DETAILS TAB =====
   Widget _buildDetailsTab() {
+    if (_detailsLocked) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.lock, size: 16, color: Colors.green.shade700),
+          const SizedBox(width: 6),
+          Text('Schreiben erfasst', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        ]),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (_sachbearbeiterAnrede.isNotEmpty || _sachbearbeiterNameC.text.isNotEmpty)
+              _readonlyRow(Icons.person, 'Sachbearbeiter', '${_sachbearbeiterAnrede.isNotEmpty ? '$_sachbearbeiterAnrede ' : ''}${_sachbearbeiterNameC.text}'),
+            if (_meinZeichenC.text.isNotEmpty)
+              _readonlyRow(Icons.tag, 'Mein Zeichen', _meinZeichenC.text),
+            _readonlyRow(Icons.edit_calendar, 'Erstellt am', _erstelltAmC.text),
+            _readonlyRow(Icons.markunread_mailbox, 'Empfangen am', _empfangenAmC.text),
+          ]),
+        ),
+        if (_fristDatumC.text.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Icon(Icons.timer, size: 16, color: Colors.red.shade700), const SizedBox(width: 6),
+                Text('Frist: ${_fristDatumC.text}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800))]),
+              if (_fristNotizC.text.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(_fristNotizC.text, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+              ],
+            ]),
+          ),
+        ],
+        if ((widget.k['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: SelectableText(widget.k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+        ],
+      ]));
+    }
+
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Schreiben-Details', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
       const SizedBox(height: 12),
+      Text('Sachbearbeiter', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 6),
+      Row(children: [
+        ChoiceChip(label: const Text('Frau'), selected: _sachbearbeiterAnrede == 'Frau', selectedColor: Colors.red.shade100, onSelected: (_) => setState(() => _sachbearbeiterAnrede = 'Frau')),
+        const SizedBox(width: 8),
+        ChoiceChip(label: const Text('Herr'), selected: _sachbearbeiterAnrede == 'Herr', selectedColor: Colors.red.shade100, onSelected: (_) => setState(() => _sachbearbeiterAnrede = 'Herr')),
+      ]),
+      const SizedBox(height: 8),
+      TextField(controller: _sachbearbeiterNameC, decoration: InputDecoration(labelText: 'Name', hintText: 'Name des Sachbearbeiters', isDense: true, prefixIcon: const Icon(Icons.person, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: _meinZeichenC, decoration: InputDecoration(labelText: 'Mein Zeichen', hintText: 'Aktenzeichen des Sachbearbeiters', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 14),
       _dateField('Erstellt am (Jobcenter)', _erstelltAmC, Icons.edit_calendar, 'Wann wurde das Schreiben vom Jobcenter erstellt?'),
       const SizedBox(height: 10),
       _dateField('Empfangen am (Mitglied)', _empfangenAmC, Icons.markunread_mailbox, 'Wann hat das Mitglied den Brief erhalten?'),
@@ -1127,11 +1191,8 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.timer, size: 16, color: Colors.red.shade700),
-            const SizedBox(width: 6),
-            Text('Frist', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-          ]),
+          Row(children: [Icon(Icons.timer, size: 16, color: Colors.red.shade700), const SizedBox(width: 6),
+            Text('Frist', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800))]),
           const SizedBox(height: 8),
           _dateField('Frist bis', _fristDatumC, Icons.event_busy, 'Bis wann muss reagiert werden?'),
           const SizedBox(height: 8),
@@ -1152,6 +1213,15 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
         label: Text(_saving ? 'Speichern...' : 'Speichern', style: const TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
       )),
+    ]));
+  }
+
+  Widget _readonlyRow(IconData icon, String label, String value) {
+    if (value.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
+      Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
     ]));
   }
 
