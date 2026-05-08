@@ -1028,6 +1028,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   late String _antwortMethode, _antwortStatus;
   bool _saving = false;
   bool _detailsLocked = false;
+  bool _detailsEditing = false;
   bool _antwortLocked = false;
 
   int get _kId => int.tryParse(widget.k['id'].toString()) ?? 0;
@@ -1127,12 +1128,18 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
 
   // ===== DETAILS TAB =====
   Widget _buildDetailsTab() {
-    if (_detailsLocked) {
+    if (_detailsLocked && !_detailsEditing) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.lock, size: 16, color: Colors.green.shade700),
           const SizedBox(width: 6),
           Text('Schreiben erfasst', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+          const Spacer(),
+          TextButton.icon(
+            icon: Icon(Icons.edit, size: 16, color: Colors.grey.shade600),
+            label: Text('Bearbeiten', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            onPressed: () => setState(() => _detailsEditing = true),
+          ),
         ]),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
