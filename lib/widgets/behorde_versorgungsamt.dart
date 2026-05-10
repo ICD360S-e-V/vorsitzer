@@ -1923,8 +1923,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   // ============ TAB 5: GDB ============
 
   Widget _buildGdbTab(Map<String, dynamic> data) {
-    final historie = List<Map<String, dynamic>>.from(data['gdb_historie'] ?? []);
-    final bescheidDocs = List<Map<String, dynamic>>.from(data['bescheid_dokumente'] ?? []);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1969,100 +1967,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           ],
         ]),
         const SizedBox(height: 16),
-        // Bescheid upload
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.description, size: 16, color: Colors.indigo.shade700),
-              const SizedBox(width: 6),
-              Text('Bescheid-Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-              const Spacer(),
-              TextButton.icon(
-                icon: const Icon(Icons.upload_file, size: 14),
-                label: const Text('Bescheid hochladen', style: TextStyle(fontSize: 11)),
-                onPressed: () async {
-                  final result = await FilePicker.platform.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
-                  if (result == null) return;
-                  for (final f in result.files) {
-                    if (f.path == null) continue;
-                    try {
-                      final bytes = await File(f.path!).readAsBytes();
-                      bescheidDocs.add({
-                        'name': f.name,
-                        'size': f.size,
-                        'data': base64Encode(bytes),
-                        'uploaded_at': DateTime.now().toIso8601String(),
-                      });
-                    } catch (_) {}
-                  }
-                  setState(() => data['bescheid_dokumente'] = bescheidDocs);
-                  widget.saveData(type, data);
-                },
-              ),
-            ]),
-            if (bescheidDocs.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Noch kein Bescheid hochgeladen', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
-              )
-            else
-              ...bescheidDocs.asMap().entries.map((e) => Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6)),
-                child: Row(children: [
-                  Icon(Icons.picture_as_pdf, size: 14, color: Colors.indigo.shade700),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(e.value['name']?.toString() ?? '', style: const TextStyle(fontSize: 11))),
-                  InkWell(
-                    onTap: () {
-                      bescheidDocs.removeAt(e.key);
-                      setState(() => data['bescheid_dokumente'] = bescheidDocs);
-                      widget.saveData(type, data);
-                    },
-                    child: Icon(Icons.close, size: 14, color: Colors.red.shade400),
-                  ),
-                ]),
-              )),
-          ]),
-        ),
-        const SizedBox(height: 16),
-        // Verlauf
-        Row(children: [
-          Icon(Icons.history, size: 16, color: Colors.indigo.shade700),
-          const SizedBox(width: 6),
-          Text('Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-          const Spacer(),
-          TextButton.icon(onPressed: () => _showGdbHistoryDialog(data), icon: const Icon(Icons.add, size: 14), label: const Text('Eintrag hinzufügen', style: TextStyle(fontSize: 11))),
-        ]),
-        if (historie.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text('Keine früheren GdB-Einträge', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
-          )
-        else
-          ...historie.asMap().entries.map((e) {
-            final h = e.value;
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              child: ListTile(
-                dense: true,
-                leading: CircleAvatar(backgroundColor: Colors.indigo.shade100, child: Text('${h['gdb'] ?? '?'}', style: TextStyle(fontSize: 12, color: Colors.indigo.shade700, fontWeight: FontWeight.bold))),
-                title: Text('GdB ${h['gdb'] ?? '?'}%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text('${h['datum'] ?? ''}${(h['notiz']?.toString() ?? '').isNotEmpty ? ' • ${h['notiz']}' : ''}', style: const TextStyle(fontSize: 11)),
-                trailing: IconButton(
-                  icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
-                  onPressed: () {
-                    setState(() => historie.removeAt(e.key));
-                    data['gdb_historie'] = historie;
-                    widget.saveData(type, data);
-                  },
-                ),
-              ),
-            );
-          }),
 
         // ── MERKZEICHEN ──
         const SizedBox(height: 20),
