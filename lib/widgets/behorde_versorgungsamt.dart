@@ -2348,20 +2348,120 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
             ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade400)))
             : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: termine.length, itemBuilder: (_, i) {
                 final t = termine[i];
+                final onorat = (t['onorat'] is int ? t['onorat'] : int.tryParse(t['onorat']?.toString() ?? '0') ?? 0) == 1;
+                final tColor = onorat ? Colors.green : Colors.indigo;
                 return Card(child: ListTile(
-                  leading: Icon(Icons.calendar_month, color: Colors.indigo.shade600),
-                  title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  subtitle: t['notiz']?.toString().isNotEmpty == true ? Text(t['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)) : null,
-                  trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
-                    final tid = t['id'];
-                    if (tid != null) await widget.apiService.deleteVersorgungsamtTermin(tid is int ? tid : int.parse(tid.toString()));
-                    setState(() {});
-                  }),
+                  onTap: () => _showTerminDetail(t),
+                  leading: Icon(onorat ? Icons.check_circle : Icons.calendar_month, color: tColor.shade600),
+                  title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: tColor.shade800)),
+                  subtitle: Row(children: [
+                    if (t['notiz']?.toString().isNotEmpty == true) Expanded(child: Text(t['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                    if ((t['methode']?.toString() ?? '').isNotEmpty) Container(margin: const EdgeInsets.only(left: 6), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6)),
+                      child: Text(t['methode'].toString(), style: TextStyle(fontSize: 9, color: Colors.purple.shade700))),
+                    if (onorat) Container(margin: const EdgeInsets.only(left: 6), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(6)),
+                      child: Text('Onorat', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+                  ]),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                    IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
+                      final tid = t['id'];
+                      if (tid != null) await widget.apiService.deleteVersorgungsamtTermin(tid is int ? tid : int.parse(tid.toString()));
+                      setState(() {});
+                    }),
+                  ]),
                 ));
               })),
         ]);
       },
     );
+  }
+
+  void _showTerminDetail(Map<String, dynamic> t) {
+    final tid = t['id'] is int ? t['id'] as int : int.tryParse(t['id'].toString()) ?? 0;
+    String methode = t['methode']?.toString() ?? '';
+    bool onorat = (t['onorat'] is int ? t['onorat'] : int.tryParse(t['onorat']?.toString() ?? '0') ?? 0) == 1;
+    final onoratDatumC = TextEditingController(text: t['onorat_datum']?.toString() ?? '');
+    bool saved = false;
+
+    showDialog(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.all(32),
+      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
+        width: MediaQuery.of(ctx).size.width * 0.65,
+        height: MediaQuery.of(ctx).size.height * 0.65,
+        child: DefaultTabController(length: 2, child: StatefulBuilder(builder: (ctx2, setDlg) => Column(children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.indigo.shade50),
+            child: Row(children: [
+              Icon(Icons.calendar_month, size: 22, color: Colors.indigo.shade700),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${t['datum'] ?? ''} — ${t['uhrzeit'] ?? ''}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              ])),
+              IconButton(icon: const Icon(Icons.close), onPressed: () { if (saved) setState(() {}); Navigator.pop(ctx); }),
+            ]),
+          ),
+          TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, tabs: const [
+            Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
+            Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+          ]),
+          Expanded(child: TabBarView(children: [
+            // === DETAILS ===
+            SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Art des Termins', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 8, children: ['Online', 'Persönlich', 'Telefon'].map((m) => ChoiceChip(
+                label: Text(m), selected: methode == m, selectedColor: Colors.indigo.shade100,
+                onSelected: (_) => setDlg(() => methode = m),
+              )).toList()),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: onorat ? Colors.green.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: onorat ? Colors.green.shade200 : Colors.orange.shade200)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(onorat ? Icons.check_circle : Icons.schedule, size: 18, color: onorat ? Colors.green.shade700 : Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    Text(onorat ? 'Termin wurde wahrgenommen' : 'Termin noch offen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: onorat ? Colors.green.shade800 : Colors.orange.shade800)),
+                  ]),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    title: const Text('Termin onorat (wahrgenommen)', style: TextStyle(fontSize: 13)),
+                    value: onorat, dense: true, contentPadding: EdgeInsets.zero,
+                    activeColor: Colors.green,
+                    onChanged: (v) => setDlg(() => onorat = v),
+                  ),
+                  if (onorat) ...[
+                    const SizedBox(height: 8),
+                    TextField(controller: onoratDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Onorat am (Datum)', isDense: true, prefixIcon: const Icon(Icons.event_available, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                      onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) setDlg(() => onoratDatumC.text = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}'); }),
+                  ],
+                ]),
+              ),
+              const SizedBox(height: 16),
+              Align(alignment: Alignment.centerRight, child: FilledButton.icon(
+                onPressed: () async {
+                  await widget.apiService.saveVersorgungsamtTermin(widget.userId, {
+                    'id': tid, 'datum': t['datum'], 'uhrzeit': t['uhrzeit'], 'notiz': t['notiz'] ?? '',
+                    'methode': methode, 'onorat': onorat ? 1 : 0, 'onorat_datum': onoratDatumC.text,
+                  });
+                  saved = true;
+                  if (ctx2.mounted) ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
+                },
+                icon: const Icon(Icons.save, size: 16), label: const Text('Speichern', style: TextStyle(fontSize: 12)),
+                style: FilledButton.styleFrom(backgroundColor: Colors.indigo),
+              )),
+            ])),
+            // === KORRESPONDENZ ===
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin', korrespondenzId: tid),
+            ),
+          ])),
+        ]))),
+      )),
+    ));
   }
 
   final Map<String, bool> _sbEditing = {};
