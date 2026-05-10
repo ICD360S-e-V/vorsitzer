@@ -2744,29 +2744,65 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
-              child: Row(children: [
-                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
+            final kColor = isEin ? Colors.green : Colors.blue;
+            return Card(margin: const EdgeInsets.only(bottom: 6), child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _showKorrDetail(k),
+              child: Padding(padding: const EdgeInsets.all(10), child: Row(children: [
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: kColor.shade700), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
+                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
                   Row(children: [
                     Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                     if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
                       const SizedBox(width: 6),
-                      Icon({'email': Icons.email, 'post': Icons.local_post_office, 'fax': Icons.fax, 'persoenlich': Icons.person}[k['methode']] ?? Icons.send, size: 12, color: Colors.grey.shade500),
-                      const SizedBox(width: 2),
-                      Text({'email': 'E-Mail', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'Persönlich'}[k['methode']?.toString()] ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      Text({'email': 'E-Mail', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'Persönlich', 'online': 'Online'}[k['methode']?.toString()] ?? k['methode'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
                     ],
                   ]),
-                  if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
-                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
                 ])),
+                Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragKorr(k['id'] as int); _load(); },
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
-              ]));
+              ])),
+            ));
           })),
     ]);
+  }
+
+  void _showKorrDetail(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingang';
+    final color = isEin ? Colors.green : Colors.blue;
+    final kId = int.tryParse(k['id'].toString()) ?? 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '(kein Betreff)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+      ]),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
+              child: Text({'email': 'E-Mail', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'Persönlich', 'online': 'Online'}[k['methode']?.toString()] ?? k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+          ],
+          const Spacer(),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+        ]),
+        if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: SelectableText(k['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
+        ],
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: kId),
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
   }
 
   void _addKorr(String richtung) {
