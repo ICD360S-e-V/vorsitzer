@@ -2580,66 +2580,112 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final eingangsbestErhalten = parse(a['eingangsbestaetigung_erhalten']?.toString());
     final heute = DateTime.now();
 
-    // Build smart timeline
     final entries = <Map<String, dynamic>>[];
-    void add(DateTime? d, String text, MaterialColor color, IconData icon, {String? hint, bool warning = false}) {
-      if (d != null) entries.add({'datum': d, 'text': text, 'color': color, 'icon': icon, 'hint': hint, 'warning': warning, 'auto': true});
+    void addE(DateTime? d, String text, MaterialColor color, IconData icon, {String? hint, bool warning = false, bool pending = false}) {
+      if (d != null) entries.add({'datum': d, 'text': text, 'color': color, 'icon': icon, 'hint': hint, 'warning': warning, 'pending': pending, 'auto': true});
+    }
+    void addPending(String text, MaterialColor color, IconData icon, {String? hint}) {
+      entries.add({'datum': heute, 'text': text, 'color': color, 'icon': icon, 'hint': hint, 'warning': true, 'pending': true, 'auto': true});
     }
 
-    // 1. Antrag
-    add(antragDatum, 'Antrag eingereicht', Colors.indigo, Icons.send);
-
-    // 2. Bescheid
-    if (bescheidDatum != null) add(bescheidDatum, 'Bescheid erstellt vom Amt', Colors.teal, Icons.description);
-    if (bescheidErhalten != null) {
-      add(bescheidErhalten, 'Bescheid per Post erhalten', Colors.teal, Icons.markunread_mailbox);
-      final frist = bescheidErhalten.add(const Duration(days: 30));
-      final fristOk = widerspruchDatum != null && widerspruchDatum.isBefore(frist);
-      if (widerspruchDatum == null && heute.isBefore(frist)) {
-        entries.add({'datum': frist, 'text': 'FRIST: Widerspruch einlegen bis ${fmt(frist)}', 'color': Colors.red, 'icon': Icons.timer, 'auto': true, 'warning': true,
-          'hint': '§ 84 SGG: 1 Monat ab Zustellung. Noch ${frist.difference(heute).inDays} Tage!'});
-      } else if (widerspruchDatum == null && heute.isAfter(frist)) {
-        entries.add({'datum': frist, 'text': 'FRIST ABGELAUFEN — Widerspruch nicht eingelegt', 'color': Colors.red, 'icon': Icons.cancel, 'auto': true, 'warning': true});
-      } else if (fristOk) {
-        entries.add({'datum': frist, 'text': '✓ Frist eingehalten (${frist.difference(widerspruchDatum!).inDays} Tage vor Ablauf)', 'color': Colors.green, 'icon': Icons.check_circle, 'auto': true});
-      }
-    }
-
-    // 3. Widerspruch
-    if (widerspruchVorbereitet != null) add(widerspruchVorbereitet, 'Widerspruch vorbereitet', Colors.purple, Icons.edit_note);
-    if (widerspruchDatum != null) add(widerspruchDatum, 'Widerspruch eingelegt (fristwahrend)', Colors.orange, Icons.gavel,
-      hint: 'Sofort Akteneinsicht beantragen nach § 25 SGB X!');
-    if (widerspruchGeliefert != null) add(widerspruchGeliefert, 'Widerspruch geliefert (${a['widerspruch_lieferung_methode'] ?? ''})', Colors.deepPurple, Icons.send);
-
-    // 4. Akteneinsicht
-    if (akteneinsichtDatum != null) {
-      add(akteneinsichtDatum, 'Akteneinsicht beantragt', Colors.purple, Icons.folder_open);
-      if (akteneinsichtErhalten == null && widerspruchDatum != null) {
-        final wartezeit = heute.difference(akteneinsichtDatum).inDays;
-        if (wartezeit > 14) {
-          entries.add({'datum': heute, 'text': '⚠ Akteneinsicht seit $wartezeit Tagen ausstehend — nachhaken!', 'color': Colors.orange, 'icon': Icons.warning, 'auto': true, 'warning': true});
+    // ===== REGEL 1: ANTRAG =====
+    if (antragDatum != null) {
+      addE(antragDatum, '📤 AUSGANG: Antrag eingereicht', Colors.indigo, Icons.send);
+      // Eingang: Bescheid
+      if (bescheidErhalten != null) {
+        final wartezeit = bescheidErhalten.difference(antragDatum).inDays;
+        addE(bescheidErhalten, '📥 EINGANG: Bescheid erhalten (nach $wartezeit Tagen)', Colors.teal, Icons.markunread_mailbox);
+      } else if (bescheidDatum == null) {
+        final wartezeit = heute.difference(antragDatum).inDays;
+        if (wartezeit > 49) { // > 7 Wochen
+          addPending('⚠ Seit $wartezeit Tagen keine Antwort auf Antrag — nachhaken!', Colors.orange, Icons.warning,
+            hint: 'Gesetzliche Bearbeitungsfrist: 3-7 Wochen');
+        } else {
+          addPending('⏳ Warte auf Bescheid (Tag $wartezeit von ca. 49)', Colors.grey, Icons.hourglass_top,
+            hint: 'Bearbeitungszeit: 3-7 Wochen üblich');
         }
       }
-    } else if (widerspruchDatum != null) {
-      entries.add({'datum': widerspruchDatum.add(const Duration(days: 1)), 'text': '→ NÄCHSTER SCHRITT: Akteneinsicht beantragen (§ 25 SGB X)', 'color': Colors.orange, 'icon': Icons.arrow_forward, 'auto': true, 'warning': true,
-        'hint': 'Ohne Akteneinsicht kann keine fundierte Begründung geschrieben werden'});
+    } else {
+      addPending('→ SCHRITT 1: Antrag beim Versorgungsamt einreichen', Colors.indigo, Icons.arrow_forward);
     }
-    if (akteneinsichtErhalten != null) add(akteneinsichtErhalten, 'Akteneinsicht erhalten — Akten analysieren', Colors.green, Icons.inbox,
-      hint: 'Jetzt Begründung mit ärztlichen Befunden + Aktenanalyse erstellen');
 
-    // 5. Eingangsbestätigung
-    if (eingangsbestDatum != null) add(eingangsbestDatum, 'Eingangsbestätigung vom Amt', Colors.teal, Icons.mark_email_read);
-    if (eingangsbestErhalten != null) add(eingangsbestErhalten, 'Eingangsbestätigung erhalten', Colors.teal, Icons.local_post_office);
+    // ===== REGEL 2: BESCHEID + FRIST =====
+    if (bescheidDatum != null && bescheidErhalten == null) {
+      addE(bescheidDatum, 'Bescheid erstellt vom Amt', Colors.teal, Icons.description);
+      addPending('→ Wann wurde der Bescheid per Post erhalten? (Tab Bescheid eintragen)', Colors.orange, Icons.arrow_forward);
+    }
+    if (bescheidErhalten != null) {
+      final frist = bescheidErhalten.add(const Duration(days: 30));
+      if (widerspruchDatum != null) {
+        final tageVorher = frist.difference(widerspruchDatum).inDays;
+        addE(widerspruchDatum, '✓ REGEL ERFÜLLT: Widerspruch $tageVorher Tage vor Fristende eingelegt', Colors.green, Icons.check_circle);
+      } else if (heute.isBefore(frist)) {
+        addPending('🚨 FRIST: Widerspruch einlegen bis ${fmt(frist)} (noch ${frist.difference(heute).inDays} Tage!)', Colors.red, Icons.timer,
+          hint: '§ 84 SGG: 1 Monat ab Zustellung');
+      } else {
+        entries.add({'datum': frist, 'text': '❌ FRIST ABGELAUFEN — Widerspruch nicht eingelegt', 'color': Colors.red, 'icon': Icons.cancel, 'auto': true, 'warning': true});
+      }
+    }
 
-    // 6. Bearbeitungsfrist + Untätigkeitsklage
+    // ===== REGEL 3: WIDERSPRUCH EINLEGEN =====
+    if (widerspruchVorbereitet != null) addE(widerspruchVorbereitet, '📝 Widerspruch vorbereitet', Colors.purple, Icons.edit_note);
+    if (widerspruchDatum != null) {
+      addE(widerspruchDatum, '📤 AUSGANG: Widerspruch eingelegt (fristwahrend)', Colors.orange, Icons.gavel);
+      if (widerspruchGeliefert != null) addE(widerspruchGeliefert, '📤 Widerspruch geliefert per ${a['widerspruch_lieferung_methode'] ?? ''}', Colors.deepPurple, Icons.send);
+      // Eingang: Eingangsbestätigung
+      if (eingangsbestErhalten != null) {
+        addE(eingangsbestErhalten, '📥 EINGANG: Eingangsbestätigung vom Amt erhalten', Colors.teal, Icons.mark_email_read);
+      } else if (eingangsbestDatum != null) {
+        addE(eingangsbestDatum, 'Eingangsbestätigung ausgestellt', Colors.teal, Icons.description);
+        addPending('→ Eingangsbestätigung noch nicht per Post erhalten', Colors.orange, Icons.arrow_forward);
+      } else {
+        final tage = heute.difference(widerspruchDatum).inDays;
+        if (tage > 14) addPending('⚠ Seit $tage Tagen keine Eingangsbestätigung — nachhaken!', Colors.orange, Icons.warning);
+      }
+    }
+
+    // ===== REGEL 4: AKTENEINSICHT =====
+    if (widerspruchDatum != null && akteneinsichtDatum == null) {
+      addPending('→ SCHRITT: Akteneinsicht beantragen nach § 25 SGB X', Colors.purple, Icons.arrow_forward,
+        hint: 'Wichtig! Ohne Akteneinsicht keine fundierte Begründung möglich');
+    }
+    if (akteneinsichtDatum != null) {
+      addE(akteneinsichtDatum, '📤 AUSGANG: Akteneinsicht beantragt (§ 25 SGB X)', Colors.purple, Icons.folder_open);
+      // Eingang: Akten
+      if (akteneinsichtErhalten != null) {
+        final wartezeit = akteneinsichtErhalten.difference(akteneinsichtDatum).inDays;
+        addE(akteneinsichtErhalten, '📥 EINGANG: Akteneinsicht erhalten (nach $wartezeit Tagen)', Colors.green, Icons.inbox,
+          hint: '→ Jetzt Akten analysieren + Begründung mit ärztlichen Befunden erstellen');
+      } else {
+        final wartezeit = heute.difference(akteneinsichtDatum).inDays;
+        if (wartezeit > 14) {
+          addPending('⚠ Akteneinsicht seit $wartezeit Tagen ausstehend — nachhaken!', Colors.orange, Icons.warning);
+        } else {
+          addPending('⏳ Warte auf Akteneinsicht (Tag $wartezeit)', Colors.grey, Icons.hourglass_top);
+        }
+      }
+    }
+
+    // ===== REGEL 5: BEGRÜNDUNG (nach Akteneinsicht) =====
+    if (akteneinsichtErhalten != null) {
+      // Check if Begründung exists in manual verlauf
+      final hasBeg = _verlauf.any((e) => (e['notiz']?.toString() ?? '').toLowerCase().contains('begründung'));
+      if (!hasBeg) {
+        addPending('→ SCHRITT: Begründung nachreichen (mit Aktenanalyse + ärztliche Befunde)', Colors.indigo, Icons.arrow_forward,
+          hint: 'Begründung kann auch nach Widerspruchsfrist nachgereicht werden');
+      }
+    }
+
+    // ===== REGEL 6: BEARBEITUNGSFRIST AMT (3 Monate) =====
     if (widerspruchDatum != null) {
       final bearbeitungFrist = widerspruchDatum.add(const Duration(days: 90));
       if (heute.isAfter(bearbeitungFrist)) {
-        entries.add({'datum': bearbeitungFrist, 'text': '⚠ 3 Monate überschritten — Untätigkeitsklage möglich (§ 88 SGG)', 'color': Colors.red, 'icon': Icons.gavel, 'auto': true, 'warning': true});
+        entries.add({'datum': bearbeitungFrist, 'text': '🚨 3 MONATE ÜBERSCHRITTEN — Untätigkeitsklage möglich (§ 88 SGG)', 'color': Colors.red, 'icon': Icons.gavel, 'auto': true, 'warning': true,
+          'hint': 'Sozialgericht einschalten — Amt reagiert nicht'});
       } else {
         final restTage = bearbeitungFrist.difference(heute).inDays;
-        entries.add({'datum': bearbeitungFrist, 'text': 'Bearbeitungsfrist Amt endet (noch $restTage Tage)', 'color': Colors.grey, 'icon': Icons.hourglass_top, 'auto': true,
-          'hint': 'Nach 3 Monaten ohne Antwort: Untätigkeitsklage § 88 SGG'});
+        entries.add({'datum': bearbeitungFrist, 'text': '⏳ Bearbeitungsfrist Amt: noch $restTage Tage (bis ${fmt(bearbeitungFrist)})', 'color': Colors.grey, 'icon': Icons.hourglass_top, 'auto': true,
+          'hint': 'Nach 3 Monaten ohne Widerspruchsbescheid → Untätigkeitsklage § 88 SGG'});
       }
     }
 
@@ -2650,7 +2696,13 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       if (d != null) entries.add({'datum': d, 'text': e['notiz']?.toString() ?? '', 'color': Colors.grey, 'icon': Icons.circle, 'auto': false, 'id': e['id'], 'status': e['status']});
     }
 
-    entries.sort((a, b) => (a['datum'] as DateTime).compareTo(b['datum'] as DateTime));
+    // Sort: pending items last (today), rest chronologically
+    entries.sort((a, b) {
+      final ap = a['pending'] == true ? 1 : 0;
+      final bp = b['pending'] == true ? 1 : 0;
+      if (ap != bp) return ap - bp;
+      return (a['datum'] as DateTime).compareTo(b['datum'] as DateTime);
+    });
 
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
