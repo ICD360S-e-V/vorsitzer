@@ -2323,7 +2323,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final status = a['status']?.toString() ?? 'eingereicht';
     final methode = {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? ''] ?? '';
     final isOk = status == 'genehmigt';
-    return DefaultTabController(length: 5, child: Column(children: [
+    return DefaultTabController(length: 6, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: isOk ? Colors.green.shade700 : Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -2339,12 +2339,13 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+        Tab(icon: Icon(Icons.description, size: 18), text: 'Bescheid'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
         Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
-        _buildVerlauf(), _buildDetails(a), _buildDokumente(), _buildKorrespondenz(), _buildWiderspruch(a),
+        _buildVerlauf(), _buildDetails(a), _buildBescheid(a), _buildDokumente(), _buildKorrespondenz(), _buildWiderspruch(a),
       ])),
     ]));
   }
@@ -2360,35 +2361,43 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       _dRow(Icons.send, 'Methode', {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? '']),
       _dRow(Icons.flag, 'Status', a['status']?.toString().replaceAll('_', ' ').toUpperCase()),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_antrag_$aid', korrespondenzId: 0),
-      const Divider(height: 20),
-      Text('Bescheid', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-      const SizedBox(height: 8),
-      _datePickerRow(Icons.description, 'Bescheid-Datum', bescheidDatum, (date) async {
-        a['bescheid_datum'] = date;
-        await _saveAntragField(a, 'bescheid_datum', date);
-      }),
-      const SizedBox(height: 6),
-      _datePickerRow(Icons.local_post_office, 'Erhalten per Post am', bescheidErhalten, (date) async {
-        a['bescheid_erhalten'] = date;
-        await _saveAntragField(a, 'bescheid_erhalten', date);
-      }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1),
-      const SizedBox(height: 8),
-      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
-      const SizedBox(height: 6),
-      _buildSbSection(a, 'bescheid_sb'),
-      if (bescheidErhalten.isNotEmpty) ...[
-        const SizedBox(height: 4),
-        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
-          child: Row(children: [
-            Icon(Icons.timer, size: 16, color: Colors.amber.shade700), const SizedBox(width: 6),
-            Expanded(child: Text('Widerspruchsfrist: 1 Monat ab $bescheidErhalten (§ 84 SGG)', style: TextStyle(fontSize: 11, color: Colors.amber.shade800))),
-          ])),
-      ],
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+      ],
+    ]));
+  }
+
+  Widget _buildBescheid(Map<String, dynamic> a) {
+    final bescheidDatum = a['bescheid_datum']?.toString() ?? '';
+    final bescheidErhalten = a['bescheid_erhalten']?.toString() ?? '';
+    final aid = widget.antragId;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Bescheid', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      const SizedBox(height: 12),
+      _datePickerRow(Icons.description, 'Bescheid-Datum', bescheidDatum, (date) async {
+        a['bescheid_datum'] = date;
+        await _saveAntragField(a, 'bescheid_datum', date);
+      }),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.local_post_office, 'Erhalten per Post am', bescheidErhalten, (date) async {
+        a['bescheid_erhalten'] = date;
+        await _saveAntragField(a, 'bescheid_erhalten', date);
+      }),
+      const SizedBox(height: 12),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1),
+      const SizedBox(height: 16),
+      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
+      const SizedBox(height: 6),
+      _buildSbSection(a, 'bescheid_sb'),
+      if (bescheidErhalten.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+          child: Row(children: [
+            Icon(Icons.timer, size: 16, color: Colors.amber.shade700), const SizedBox(width: 6),
+            Expanded(child: Text('Widerspruchsfrist: 1 Monat ab $bescheidErhalten (§ 84 SGG)', style: TextStyle(fontSize: 11, color: Colors.amber.shade800))),
+          ])),
       ],
     ]));
   }
