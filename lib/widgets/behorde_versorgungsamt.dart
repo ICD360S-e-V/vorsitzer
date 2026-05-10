@@ -2337,14 +2337,14 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         ]),
       ),
       TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
+        Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
-        Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
         Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
-        _buildDetails(a), _buildDokumente(), _buildVerlauf(), _buildKorrespondenz(), _buildWiderspruch(a),
+        _buildVerlauf(), _buildDetails(a), _buildDokumente(), _buildKorrespondenz(), _buildWiderspruch(a),
       ])),
     ]));
   }
@@ -2677,164 +2677,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   // Widerspruch GdB — chronologisch basiert auf Verlauf-Einträgen
   Widget _buildWiderspruch(Map<String, dynamic> a) {
     final aid = widget.antragId;
-    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-
-    // Parse Verlauf entries by type
-    Map<String, dynamic>? findEntry(String keyword) => _verlauf.where((e) => (e['notiz']?.toString() ?? '').toLowerCase().contains(keyword)).firstOrNull;
-    DateTime? parseEntry(Map<String, dynamic>? e) => e != null ? DateTime.tryParse(e['datum']?.toString() ?? '') : null;
-
-    // First check bescheid_erhalten field on antrag, then fallback to Verlauf
-    final bescheidErhaltenDirekt = DateTime.tryParse(a['bescheid_erhalten']?.toString() ?? '');
-    final bescheidEntry = bescheidErhaltenDirekt == null ? findEntry('bescheid') : null;
-    final bescheidDatum = bescheidErhaltenDirekt ?? parseEntry(bescheidEntry);
-    final widerspruchVorbereitet = findEntry('vorbereitet');
-    final widerspruchVorbereitetDatum = parseEntry(widerspruchVorbereitet);
-    // Widerspruch: direct from antrag fields first, then Verlauf
-    final widerspruchDirekt = DateTime.tryParse(a['widerspruch_datum']?.toString() ?? '');
-    final widerspruchGesendet = widerspruchDirekt == null ? (findEntry('widerspruch eingelegt') ?? findEntry('widerspruch gesendet') ?? findEntry('widerspruch per')) : null;
-    final widerspruchGesendetDatum = widerspruchDirekt ?? parseEntry(widerspruchGesendet);
-    final widerspruchMethode = a['widerspruch_methode']?.toString() ?? widerspruchGesendet?['notiz']?.toString() ?? '';
-    final begruendungEntry = findEntry('begründung');
-    final begruendungDatum = parseEntry(begruendungEntry);
-    final widerspruchsbescheidEntry = findEntry('widerspruchsbescheid');
-    final widerspruchsbescheidDatum = parseEntry(widerspruchsbescheidEntry);
-    final antragDatum = DateTime.tryParse(a['datum']?.toString() ?? '');
-
-    // Frist: 1 Monat ab Bescheid-Zustellung
-    final fristStart = bescheidDatum;
-    final fristEnde = fristStart != null ? _addMonths(fristStart, 1) : null;
-    final heute = DateTime.now();
-    final heute0 = DateTime(heute.year, heute.month, heute.day);
-    final restTage = fristEnde != null ? fristEnde.difference(heute0).inDays : null;
-    final abgelaufen = fristEnde != null && heute0.isAfter(fristEnde);
-    final hatW = widerspruchGesendetDatum != null;
-
-    // Begründungsfrist: +1 Monat nach Widerspruch (Frist für endgültige Begründung)
-    final begruendungFrist = widerspruchGesendetDatum != null ? _addMonths(widerspruchGesendetDatum, 1) : null;
-    // Bearbeitungsfrist Amt: 3 Monate nach Widerspruch
-    final bearbeitungFrist = widerspruchGesendetDatum != null ? _addMonths(widerspruchGesendetDatum, 3) : null;
-
-    final statusColor = hatW ? Colors.blue : bescheidDatum == null ? Colors.grey : abgelaufen == true ? Colors.red : (restTage != null && restTage <= 7) ? Colors.orange : Colors.green;
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Status Banner
-      Container(width: double.infinity, padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: statusColor.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: statusColor.shade300, width: 2)),
-        child: Row(children: [
-          Icon(hatW ? Icons.gavel : bescheidDatum == null ? Icons.info : abgelaufen == true ? Icons.cancel : Icons.timer, size: 28, color: statusColor.shade700),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(hatW ? 'Widerspruch eingelegt${widerspruchGesendetDatum != null ? ' am ${fmt(widerspruchGesendetDatum)}' : ''}'
-                : bescheidDatum == null ? 'Bescheid-Datum fehlt — bitte im Verlauf eintragen'
-                : abgelaufen == true ? 'Frist abgelaufen seit ${-(restTage ?? 0)} Tagen'
-                : '${restTage ?? 0} Tage verbleibend',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: statusColor.shade800)),
-            if (fristEnde != null && !hatW && abgelaufen != true) Text('Fristende: ${fmt(fristEnde)}', style: TextStyle(fontSize: 12, color: statusColor.shade700)),
-          ])),
-        ]),
-      ),
-      const SizedBox(height: 16),
-
-      // Chronologie
-      Text('Chronologie', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-      const SizedBox(height: 12),
-
-      // 1. Antrag gestellt
-      if (antragDatum != null)
-        _tlItem(Icons.send, 'Antrag gestellt', fmt(antragDatum), Colors.indigo, true, subtitle: 'Antrag auf GdB-Feststellung beim Versorgungsamt'),
-
-      // 2. Bescheid erhalten
-      if (bescheidDatum != null)
-        _tlItem(Icons.local_post_office, 'Bescheid per Post erhalten', fmt(bescheidDatum), Colors.teal, true, subtitle: bescheidEntry?['notiz']?.toString())
-      else
-        _tlItem(Icons.help_outline, 'Bescheid erhalten — Datum fehlt', '?', Colors.grey, true, subtitle: 'Im Verlauf eintragen: "Bescheid erhalten am ..." mit Datum'),
-
-      // 3. Fristende
-      if (fristEnde != null)
-        _tlItem(abgelaufen == true && !hatW ? Icons.cancel : Icons.timer, 'Widerspruchsfrist endet', fmt(fristEnde), abgelaufen == true && !hatW ? Colors.red : Colors.orange, true, subtitle: '§ 84 SGG: 1 Monat nach Bekanntgabe'),
-
-      // 4. Widerspruch vorbereitet
-      if (widerspruchVorbereitetDatum != null)
-        _tlItem(Icons.edit_document, 'Widerspruch vorbereitet', fmt(widerspruchVorbereitetDatum), Colors.purple, true, subtitle: widerspruchVorbereitet?['notiz']?.toString()),
-
-      // 5. Widerspruch gesendet
-      if (widerspruchGesendetDatum != null)
-        _tlItem(Icons.gavel, 'Widerspruch eingelegt${widerspruchMethode.isNotEmpty ? ' per ${{'online': 'Online', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[widerspruchMethode] ?? widerspruchMethode}' : ''}', fmt(widerspruchGesendetDatum), Colors.blue, true),
-
-      // 5b. Akteneinsicht
-      if ((a['akteneinsicht_datum']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['akteneinsicht_datum'].toString()) != null)
-        _tlItem(Icons.folder_open, 'Akteneinsicht beantragt${(a['akteneinsicht_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'online': 'Online', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_methode']] ?? a['akteneinsicht_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_datum'].toString())), Colors.purple, true),
-
-      // 5c. Akteneinsicht erhalten
-      if ((a['akteneinsicht_erhalten']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['akteneinsicht_erhalten'].toString()) != null)
-        _tlItem(Icons.inbox, 'Akten erhalten${(a['akteneinsicht_erhalten_methode']?.toString() ?? '').isNotEmpty ? ' per ${{'online': 'Online', 'post': 'Post', 'fax': 'Fax', 'persoenlich': 'persönlich', 'email': 'E-Mail'}[a['akteneinsicht_erhalten_methode']] ?? a['akteneinsicht_erhalten_methode']}' : ''}', fmt(DateTime.parse(a['akteneinsicht_erhalten'].toString())), Colors.purple, true),
-
-      // 5d. Eingangsbestätigung
-      if ((a['eingangsbestaetigung_datum']?.toString() ?? '').isNotEmpty) ...[
-        if (DateTime.tryParse(a['eingangsbestaetigung_datum'].toString()) != null)
-          _tlItem(Icons.mark_email_read, 'Eingangsbestätigung vom Amt', fmt(DateTime.parse(a['eingangsbestaetigung_datum'].toString())), Colors.teal, true),
-        if ((a['eingangsbestaetigung_erhalten']?.toString() ?? '').isNotEmpty && DateTime.tryParse(a['eingangsbestaetigung_erhalten'].toString()) != null)
-          _tlItem(Icons.local_post_office, 'Eingangsbestätigung erhalten', fmt(DateTime.parse(a['eingangsbestaetigung_erhalten'].toString())), Colors.teal, true),
-      ],
-
-      // 6. Begründung nachgereicht
-      if (begruendungDatum != null)
-        _tlItem(Icons.article, 'Begründung nachgereicht', fmt(begruendungDatum), Colors.indigo, true, subtitle: begruendungEntry?['notiz']?.toString())
-      else if (hatW && begruendungFrist != null)
-        _tlItem(Icons.article, 'Begründung nachreichen bis', fmt(begruendungFrist), Colors.orange, true, subtitle: 'Begründung kann bis 1 Monat nach Widerspruch nachgereicht werden'),
-
-      // 7. Bearbeitungsfrist Amt
-      if (hatW && bearbeitungFrist != null && widerspruchsbescheidEntry == null)
-        _tlItem(Icons.hourglass_top, 'Bearbeitungsfrist Amt endet', fmt(bearbeitungFrist), Colors.grey, true, subtitle: '3 Monate — danach Untätigkeitsklage möglich (§ 88 SGG)'),
-
-      // 8. Widerspruchsbescheid
-      if (widerspruchsbescheidDatum != null)
-        _tlItem(Icons.description, 'Widerspruchsbescheid erhalten', fmt(widerspruchsbescheidDatum), Colors.deepPurple, true, subtitle: widerspruchsbescheidEntry?['notiz']?.toString()),
-
-      // Heute
-      if (!hatW && bescheidDatum != null && abgelaufen != true)
-        _tlItem(Icons.today, 'Heute', fmt(heute0), Colors.blue, false, subtitle: '${restTage ?? 0} Tage verbleibend'),
-
-      const SizedBox(height: 16),
-
-      // Hinweise
-      if (hatW && widerspruchsbescheidEntry == null)
-        Container(width: double.infinity, padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(Icons.lightbulb, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8),
-              Text('Nächste Schritte', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800))]),
-            const SizedBox(height: 6),
-            if (begruendungEntry == null) Text('• Begründung nachreichen (ärztliche Befunde, Atteste)', style: TextStyle(fontSize: 11, color: Colors.blue.shade900)),
-            Text('• Versorgungsamt hat 3 Monate Bearbeitungszeit', style: TextStyle(fontSize: 11, color: Colors.blue.shade900)),
-            Text('• Nach 3 Monaten ohne Antwort: Untätigkeitsklage (§ 88 SGG)', style: TextStyle(fontSize: 11, color: Colors.blue.shade900)),
-            Text('• Bei Ablehnung: Klage beim Sozialgericht (1 Monat Frist)', style: TextStyle(fontSize: 11, color: Colors.blue.shade900)),
-          ]),
-        ),
-
-      // Verlauf Einträge als Tipp
-      if (bescheidDatum == null) ...[
-        const SizedBox(height: 12),
-        Container(width: double.infinity, padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(Icons.info, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8),
-              Text('So funktioniert es', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade800))]),
-            const SizedBox(height: 6),
-            Text('1. Im Verlauf-Tab eintragen: "Bescheid erhalten" mit Datum der Post-Zustellung', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-            Text('2. Widerspruch vorbereiten (Verlauf: "Widerspruch vorbereitet")', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-            Text('3. Widerspruch senden (Verlauf: "Widerspruch eingelegt per Post/Fax")', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-            Text('4. Begründung nachreichen (Verlauf: "Begründung nachgereicht")', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-            Text('\nDie Chronologie wird automatisch aus dem Verlauf erstellt.', style: TextStyle(fontSize: 10, color: Colors.amber.shade700, fontStyle: FontStyle.italic)),
-          ]),
-        ),
-      ],
-
-      const SizedBox(height: 24),
-      const Divider(height: 1),
-      const SizedBox(height: 16),
-      Text('Daten erfassen', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-      const SizedBox(height: 12),
       Text('Widerspruch', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
       const SizedBox(height: 8),
       _datePickerRow(Icons.gavel, 'Widerspruch eingelegt am', a['widerspruch_datum']?.toString() ?? '', (date) async {
