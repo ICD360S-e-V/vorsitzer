@@ -2212,11 +2212,12 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final dR = await widget.apiService.listVaAntragDocs(widget.antragId);
     final kR = await widget.apiService.listVaAntragKorr(widget.antragId);
     if (!mounted) return;
+    final tR = await widget.apiService.listVersorgungsamtTermine(widget.userId);
+    if (!mounted) return;
     setState(() {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      final tR = await widget.apiService.listVersorgungsamtTermine(widget.userId);
       if (tR['success'] == true && tR['data'] is List) _termine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       _loaded = true;
     });
