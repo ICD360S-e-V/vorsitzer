@@ -2657,12 +2657,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     }
 
     // Sort: pending items last (today), rest chronologically
-    entries.sort((a, b) {
-      final ap = a['pending'] == true ? 1 : 0;
-      final bp = b['pending'] == true ? 1 : 0;
-      if (ap != bp) return ap - bp;
-      return (a['datum'] as DateTime).compareTo(b['datum'] as DateTime);
-    });
+    entries.sort((a, b) => (a['datum'] as DateTime).compareTo(b['datum'] as DateTime));
 
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
