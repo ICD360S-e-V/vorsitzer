@@ -1214,7 +1214,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 600, height: 560, child: _VaAntragDetailView(
+        child: SizedBox(width: MediaQuery.of(context).size.width * 0.85, height: MediaQuery.of(context).size.height * 0.85, child: _VaAntragDetailView(
           apiService: widget.apiService, antragId: antragId, antrag: antrag, userId: widget.userId,
           onChanged: () => _loadAntraege(),
         )),
@@ -2406,7 +2406,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       future: widget.apiService.listVersorgungsamtTermine(widget.userId),
       builder: (ctx, snap) {
         if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final termine = (snap.data?['termine'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        final termine = (snap.data?['data'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
         return Column(children: [
           Padding(padding: const EdgeInsets.all(12), child: Row(children: [
             Text('Termine (${termine.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
