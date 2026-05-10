@@ -447,7 +447,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     if (sonstige['selected_amt_id'] != null) data['selected_amt_id'] = sonstige['selected_amt_id'];
 
     return DefaultTabController(
-      length: 6,
+      length: 5,
       child: Column(
         children: [
           TabBar(
@@ -457,7 +457,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             isScrollable: true,
             tabs: [
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['amt'] ?? {})['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Amt')])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _dbTermine.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.calendar_month, size: 16), const SizedBox(width: 4), const Text('Termine')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['korrespondenz'] is List && (data['korrespondenz'] as List).isNotEmpty) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['ausweis'] ?? {})['ausweis_nr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 16), const SizedBox(width: 4), const Text('SB-Ausweis')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['gdb'] ?? {})['gdb_aktuell'] != null && (_dbData['gdb'] ?? {})['gdb_aktuell'] != 0) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.accessible, size: 16), const SizedBox(width: 4), const Text('GdB')])),
@@ -468,7 +467,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             child: TabBarView(
               children: [
                 _buildAmtTab(data),
-                _buildTermineTab(data),
                 _buildKorrespondenzTab(data),
                 _buildAusweisTab(data),
                 _buildGdbTab(data),
@@ -2323,7 +2321,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final status = a['status']?.toString() ?? 'eingereicht';
     final methode = {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? ''] ?? '';
     final isOk = status == 'genehmigt';
-    return DefaultTabController(length: 6, child: Column(children: [
+    return DefaultTabController(length: 7, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: isOk ? Colors.green.shade700 : Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -2339,13 +2337,14 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+        Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
         Tab(icon: Icon(Icons.description, size: 18), text: 'Bescheid'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
         Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
-        _buildVerlauf(), _buildDetails(a), _buildBescheid(a), _buildDokumente(), _buildKorrespondenz(), _buildWiderspruch(a),
+        _buildVerlauf(), _buildDetails(a), _buildAntragTermine(), _buildBescheid(a), _buildDokumente(), _buildKorrespondenz(), _buildWiderspruch(a),
       ])),
     ]));
   }
@@ -2400,6 +2399,63 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
           ])),
       ],
     ]));
+  }
+
+  Widget _buildAntragTermine() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: widget.apiService.listVersorgungsamtTermine(widget.userId),
+      builder: (ctx, snap) {
+        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        final termine = (snap.data?['termine'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        return Column(children: [
+          Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+            Text('Termine (${termine.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+            const Spacer(),
+            FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Termin', style: TextStyle(fontSize: 11)),
+              style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+              onPressed: () async {
+                final datumC = TextEditingController();
+                final uhrzeitC = TextEditingController();
+                final notizC = TextEditingController();
+                await showDialog(context: ctx, builder: (dCtx) => AlertDialog(
+                  title: const Text('Neuer Termin', style: TextStyle(fontSize: 15)),
+                  content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                      onTap: () async { final d = await showDatePicker(context: dCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}'; }),
+                    const SizedBox(height: 8),
+                    TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit', hintText: '10:00', isDense: true, prefixIcon: const Icon(Icons.access_time, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                    const SizedBox(height: 8),
+                    TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                  ])),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Abbrechen')),
+                    FilledButton(onPressed: () async {
+                      await widget.apiService.saveVersorgungsamtTermin(widget.userId, {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'notiz': notizC.text});
+                      if (dCtx.mounted) Navigator.pop(dCtx);
+                    }, child: const Text('Speichern')),
+                  ],
+                ));
+                setState(() {});
+              }),
+          ])),
+          Expanded(child: termine.isEmpty
+            ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade400)))
+            : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: termine.length, itemBuilder: (_, i) {
+                final t = termine[i];
+                return Card(child: ListTile(
+                  leading: Icon(Icons.calendar_month, color: Colors.indigo.shade600),
+                  title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: t['notiz']?.toString().isNotEmpty == true ? Text(t['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)) : null,
+                  trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
+                    final tid = t['id'];
+                    if (tid != null) await widget.apiService.deleteVersorgungsamtTermin(tid is int ? tid : int.parse(tid.toString()));
+                    setState(() {});
+                  }),
+                ));
+              })),
+        ]);
+      },
+    );
   }
 
   final Map<String, bool> _sbEditing = {};
