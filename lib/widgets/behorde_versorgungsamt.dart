@@ -2556,55 +2556,124 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
   Widget _buildVerlauf() {
     final a = widget.antrag;
-    // Build auto-generated timeline from existing fields
-    final autoEntries = <Map<String, dynamic>>[];
-    void addAuto(String? datum, String text, MaterialColor color) {
-      if (datum != null && datum.isNotEmpty) autoEntries.add({'datum': datum, 'text': text, 'color': color, 'auto': true});
-    }
-    addAuto(a['datum']?.toString(), 'Antrag eingereicht (${{'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'E-Mail'}[a['methode']?.toString() ?? ''] ?? a['methode']?.toString() ?? ''})', Colors.indigo);
-    addAuto(a['bescheid_datum']?.toString(), 'Bescheid vom Versorgungsamt erstellt', Colors.teal);
-    addAuto(a['bescheid_erhalten']?.toString(), 'Bescheid per Post erhalten', Colors.teal);
-    addAuto(a['widerspruch_datum']?.toString(), 'Widerspruch eingelegt (${{'online': 'Online', 'post': 'Per Post', 'fax': 'Per Fax', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['widerspruch_methode']?.toString() ?? ''] ?? a['widerspruch_methode']?.toString() ?? ''})', Colors.orange);
-    addAuto(a['widerspruch_vorbereitet']?.toString(), 'Widerspruch vorbereitet', Colors.purple);
-    addAuto(a['widerspruch_geliefert']?.toString(), 'Widerspruch geliefert (${{'Online': 'Online', 'Postalisch': 'Per Post', 'Fax': 'Per Fax', 'Persönlich': 'Persönlich', 'E-Mail': 'Per E-Mail'}[a['widerspruch_lieferung_methode']?.toString() ?? ''] ?? a['widerspruch_lieferung_methode']?.toString() ?? ''})', Colors.deepPurple);
-    addAuto(a['akteneinsicht_datum']?.toString(), 'Akteneinsicht beantragt', Colors.purple);
-    addAuto(a['akteneinsicht_erhalten']?.toString(), 'Akteneinsicht erhalten', Colors.purple);
-    addAuto(a['eingangsbestaetigung_datum']?.toString(), 'Eingangsbestätigung vom Amt', Colors.teal);
-    addAuto(a['eingangsbestaetigung_erhalten']?.toString(), 'Eingangsbestätigung per Post erhalten', Colors.teal);
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+    DateTime? parse(String? s) => (s != null && s.isNotEmpty) ? DateTime.tryParse(s) : null;
 
-    // Combine auto + manual entries
+    final antragDatum = parse(a['datum']?.toString());
+    final bescheidDatum = parse(a['bescheid_datum']?.toString());
+    final bescheidErhalten = parse(a['bescheid_erhalten']?.toString());
+    final widerspruchDatum = parse(a['widerspruch_datum']?.toString());
+    final widerspruchVorbereitet = parse(a['widerspruch_vorbereitet']?.toString());
+    final widerspruchGeliefert = parse(a['widerspruch_geliefert']?.toString());
+    final akteneinsichtDatum = parse(a['akteneinsicht_datum']?.toString());
+    final akteneinsichtErhalten = parse(a['akteneinsicht_erhalten']?.toString());
+    final eingangsbestDatum = parse(a['eingangsbestaetigung_datum']?.toString());
+    final eingangsbestErhalten = parse(a['eingangsbestaetigung_erhalten']?.toString());
+    final heute = DateTime.now();
+
+    // Build smart timeline
+    final entries = <Map<String, dynamic>>[];
+    void add(DateTime? d, String text, MaterialColor color, IconData icon, {String? hint, bool warning = false}) {
+      if (d != null) entries.add({'datum': d, 'text': text, 'color': color, 'icon': icon, 'hint': hint, 'warning': warning, 'auto': true});
+    }
+
+    // 1. Antrag
+    add(antragDatum, 'Antrag eingereicht', Colors.indigo, Icons.send);
+
+    // 2. Bescheid
+    if (bescheidDatum != null) add(bescheidDatum, 'Bescheid erstellt vom Amt', Colors.teal, Icons.description);
+    if (bescheidErhalten != null) {
+      add(bescheidErhalten, 'Bescheid per Post erhalten', Colors.teal, Icons.markunread_mailbox);
+      final frist = bescheidErhalten.add(const Duration(days: 30));
+      final fristOk = widerspruchDatum != null && widerspruchDatum.isBefore(frist);
+      if (widerspruchDatum == null && heute.isBefore(frist)) {
+        entries.add({'datum': frist, 'text': 'FRIST: Widerspruch einlegen bis ${fmt(frist)}', 'color': Colors.red, 'icon': Icons.timer, 'auto': true, 'warning': true,
+          'hint': '§ 84 SGG: 1 Monat ab Zustellung. Noch ${frist.difference(heute).inDays} Tage!'});
+      } else if (widerspruchDatum == null && heute.isAfter(frist)) {
+        entries.add({'datum': frist, 'text': 'FRIST ABGELAUFEN — Widerspruch nicht eingelegt', 'color': Colors.red, 'icon': Icons.cancel, 'auto': true, 'warning': true});
+      } else if (fristOk) {
+        entries.add({'datum': frist, 'text': '✓ Frist eingehalten (${frist.difference(widerspruchDatum!).inDays} Tage vor Ablauf)', 'color': Colors.green, 'icon': Icons.check_circle, 'auto': true});
+      }
+    }
+
+    // 3. Widerspruch
+    if (widerspruchVorbereitet != null) add(widerspruchVorbereitet, 'Widerspruch vorbereitet', Colors.purple, Icons.edit_note);
+    if (widerspruchDatum != null) add(widerspruchDatum, 'Widerspruch eingelegt (fristwahrend)', Colors.orange, Icons.gavel,
+      hint: 'Sofort Akteneinsicht beantragen nach § 25 SGB X!');
+    if (widerspruchGeliefert != null) add(widerspruchGeliefert, 'Widerspruch geliefert (${a['widerspruch_lieferung_methode'] ?? ''})', Colors.deepPurple, Icons.send);
+
+    // 4. Akteneinsicht
+    if (akteneinsichtDatum != null) {
+      add(akteneinsichtDatum, 'Akteneinsicht beantragt', Colors.purple, Icons.folder_open);
+      if (akteneinsichtErhalten == null && widerspruchDatum != null) {
+        final wartezeit = heute.difference(akteneinsichtDatum).inDays;
+        if (wartezeit > 14) {
+          entries.add({'datum': heute, 'text': '⚠ Akteneinsicht seit $wartezeit Tagen ausstehend — nachhaken!', 'color': Colors.orange, 'icon': Icons.warning, 'auto': true, 'warning': true});
+        }
+      }
+    } else if (widerspruchDatum != null) {
+      entries.add({'datum': widerspruchDatum.add(const Duration(days: 1)), 'text': '→ NÄCHSTER SCHRITT: Akteneinsicht beantragen (§ 25 SGB X)', 'color': Colors.orange, 'icon': Icons.arrow_forward, 'auto': true, 'warning': true,
+        'hint': 'Ohne Akteneinsicht kann keine fundierte Begründung geschrieben werden'});
+    }
+    if (akteneinsichtErhalten != null) add(akteneinsichtErhalten, 'Akteneinsicht erhalten — Akten analysieren', Colors.green, Icons.inbox,
+      hint: 'Jetzt Begründung mit ärztlichen Befunden + Aktenanalyse erstellen');
+
+    // 5. Eingangsbestätigung
+    if (eingangsbestDatum != null) add(eingangsbestDatum, 'Eingangsbestätigung vom Amt', Colors.teal, Icons.mark_email_read);
+    if (eingangsbestErhalten != null) add(eingangsbestErhalten, 'Eingangsbestätigung erhalten', Colors.teal, Icons.local_post_office);
+
+    // 6. Bearbeitungsfrist + Untätigkeitsklage
+    if (widerspruchDatum != null) {
+      final bearbeitungFrist = widerspruchDatum.add(const Duration(days: 90));
+      if (heute.isAfter(bearbeitungFrist)) {
+        entries.add({'datum': bearbeitungFrist, 'text': '⚠ 3 Monate überschritten — Untätigkeitsklage möglich (§ 88 SGG)', 'color': Colors.red, 'icon': Icons.gavel, 'auto': true, 'warning': true});
+      } else {
+        final restTage = bearbeitungFrist.difference(heute).inDays;
+        entries.add({'datum': bearbeitungFrist, 'text': 'Bearbeitungsfrist Amt endet (noch $restTage Tage)', 'color': Colors.grey, 'icon': Icons.hourglass_top, 'auto': true,
+          'hint': 'Nach 3 Monaten ohne Antwort: Untätigkeitsklage § 88 SGG'});
+      }
+    }
+
+    // Add manual entries
     final manual = List<Map<String, dynamic>>.from(_verlauf);
-    final all = <Map<String, dynamic>>[
-      ...autoEntries,
-      ...manual.map((e) => {'datum': e['datum']?.toString() ?? '', 'text': e['notiz']?.toString() ?? '', 'color': Colors.grey, 'auto': false, 'id': e['id'], 'status': e['status']}),
-    ];
-    all.sort((a, b) => (a['datum']?.toString() ?? '').compareTo(b['datum']?.toString() ?? ''));
+    for (final e in manual) {
+      final d = parse(e['datum']?.toString());
+      if (d != null) entries.add({'datum': d, 'text': e['notiz']?.toString() ?? '', 'color': Colors.grey, 'icon': Icons.circle, 'auto': false, 'id': e['id'], 'status': e['status']});
+    }
+
+    entries.sort((a, b) => (a['datum'] as DateTime).compareTo(b['datum'] as DateTime));
 
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${all.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${entries.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: _addVerlauf),
       ])),
-      Expanded(child: all.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: all.length, itemBuilder: (_, i) {
-            final e = all[i];
+      Expanded(child: entries.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: entries.length, itemBuilder: (_, i) {
+            final e = entries[i];
             final isAuto = e['auto'] == true;
             final color = e['color'] as MaterialColor? ?? Colors.grey;
+            final icon = e['icon'] as IconData? ?? Icons.circle;
+            final isWarning = e['warning'] == true;
+            final hint = e['hint']?.toString();
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: isAuto ? color.shade50 : Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isAuto ? color.shade300 : Colors.indigo.shade200)),
-              child: Row(children: [
-                Icon(Icons.circle, size: 10, color: isAuto ? color.shade600 : Colors.indigo.shade400), const SizedBox(width: 8),
+              decoration: BoxDecoration(
+                color: isWarning ? color.shade100 : (isAuto ? color.shade50 : Colors.white),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isWarning ? color.shade400 : (isAuto ? color.shade300 : Colors.indigo.shade200), width: isWarning ? 2 : 1)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(icon, size: 16, color: color.shade700), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  Text(fmt(e['datum'] as DateTime), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
                   if (!isAuto && (e['status']?.toString() ?? '').isNotEmpty) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)),
                     child: Text(e['status'].toString().replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
                   Padding(padding: const EdgeInsets.only(top: 2), child: Text(e['text']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: isAuto ? FontWeight.w600 : FontWeight.normal, color: isAuto ? color.shade800 : Colors.black87))),
+                  if (hint != null) Padding(padding: const EdgeInsets.only(top: 3), child: Text(hint, style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: color.shade600))),
                 ])),
                 if (!isAuto) IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragVerlauf(e['id'] as int); _load(); widget.onChanged(); },
-                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24))
-                else Padding(padding: const EdgeInsets.only(left: 4), child: Icon(Icons.auto_awesome, size: 14, color: color.shade400)),
+                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
               ]));
           })),
     ]);
