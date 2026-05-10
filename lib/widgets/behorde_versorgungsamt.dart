@@ -2454,10 +2454,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
               )),
             ])),
             // === KORRESPONDENZ ===
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin', korrespondenzId: tid),
-            ),
+            _TerminKorrTab(apiService: widget.apiService, terminId: tid),
           ])),
         ]))),
       )),
@@ -3048,5 +3045,128 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       const SizedBox(width: 8),
       Expanded(child: Text(t, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
     ]));
+  }
+}
+
+// ===== TERMIN KORRESPONDENZ TAB =====
+class _TerminKorrTab extends StatefulWidget {
+  final ApiService apiService;
+  final int terminId;
+  const _TerminKorrTab({required this.apiService, required this.terminId});
+  @override
+  State<_TerminKorrTab> createState() => _TerminKorrTabState();
+}
+
+class _TerminKorrTabState extends State<_TerminKorrTab> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final res = await widget.apiService.saveVersorgungsamtTermin(0, {'action': 'list_korr', 'termin_id': widget.terminId});
+      if (res['success'] == true && res['korrespondenz'] is List) {
+        _korr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.email, size: 18, color: Colors.indigo.shade700),
+        const SizedBox(width: 6),
+        Text('Korrespondenz (${_loading ? '...' : _korr.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const Spacer(),
+        FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
+      ])),
+      Expanded(child: _loading ? const Center(child: CircularProgressIndicator())
+        : _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade400)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
+            final k = _korr[i];
+            final isEin = k['richtung'] == 'eingang';
+            final color = isEin ? Colors.green : Colors.blue;
+            return Card(child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _showDetail(k),
+              child: ListTile(
+                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18),
+                title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: () async { await widget.apiService.saveVersorgungsamtTermin(0, {'action': 'delete_korr', 'id': k['id']}); _load(); }),
+                ]),
+              ),
+            ));
+          })),
+      const Divider(height: 1),
+      Padding(padding: const EdgeInsets.all(12),
+        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin', korrespondenzId: widget.terminId)),
+    ]);
+  }
+
+  void _add() {
+    final betreffC = TextEditingController();
+    final inhaltC = TextEditingController();
+    String richtung = 'ausgang';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.email, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15))]),
+      content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          ChoiceChip(label: const Text('Ausgang'), avatar: const Icon(Icons.call_made, size: 14), selected: richtung == 'ausgang', selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgang')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('Eingang'), avatar: const Icon(Icons.call_received, size: 14), selected: richtung == 'eingang', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'eingang')),
+        ]),
+        const SizedBox(height: 12),
+        TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: inhaltC, maxLines: 6, decoration: InputDecoration(labelText: 'Inhalt / E-Mail-Text', hintText: 'Mail-Inhalt hier einfügen...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
+          await widget.apiService.saveVersorgungsamtTermin(0, {'action': 'save_korr', 'termin_id': widget.terminId, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
+          if (ctx.mounted) Navigator.pop(ctx);
+          _load();
+        }, child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  void _showDetail(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingang';
+    final color = isEin ? Colors.green : Colors.blue;
+    final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id'].toString()) ?? 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800))),
+      ]),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          const Spacer(),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        ]),
+        if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
+        ],
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin_korr', korrespondenzId: kId),
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
   }
 }
