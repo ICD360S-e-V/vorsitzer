@@ -2518,7 +2518,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   }
 
   Future<void> _uploadDoc() async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    final result = await FilePickerHelper.pickFiles(type: FileType.any, allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     for (final file in result.files.where((f) => f.path != null)) {
       await widget.apiService.uploadVaAntragDoc(antragId: widget.antragId, filePath: file.path!, fileName: file.name);
