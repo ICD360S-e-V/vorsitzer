@@ -447,7 +447,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     if (sonstige['selected_amt_id'] != null) data['selected_amt_id'] = sonstige['selected_amt_id'];
 
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Column(
         children: [
           TabBar(
@@ -457,7 +457,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             isScrollable: true,
             tabs: [
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['amt'] ?? {})['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Amt')])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['korrespondenz'] is List && (data['korrespondenz'] as List).isNotEmpty) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['ausweis'] ?? {})['ausweis_nr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 16), const SizedBox(width: 4), const Text('SB-Ausweis')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['gdb'] ?? {})['gdb_aktuell'] != null && (_dbData['gdb'] ?? {})['gdb_aktuell'] != 0) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.accessible, size: 16), const SizedBox(width: 4), const Text('GdB')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _dbAntraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.description, size: 16), const SizedBox(width: 4), const Text('Antrag')])),
@@ -467,7 +466,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             child: TabBarView(
               children: [
                 _buildAmtTab(data),
-                _buildKorrespondenzTab(data),
                 _buildAusweisTab(data),
                 _buildGdbTab(data),
                 _buildAntragTab(data),
