@@ -2201,6 +2201,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   List<Map<String, dynamic>> _verlauf = [];
   List<Map<String, dynamic>> _docs = [];
   List<Map<String, dynamic>> _korr = [];
+  List<Map<String, dynamic>> _termine = [];
   bool _loaded = false;
 
   @override
@@ -2215,6 +2216,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final tR = await widget.apiService.listVersorgungsamtTermine(widget.userId);
+      if (tR['success'] == true && tR['data'] is List) _termine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       _loaded = true;
     });
   }
@@ -2649,6 +2652,16 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       }
     }
 
+    // Add Termine
+    for (final t in _termine) {
+      final d = parse(t['datum']?.toString());
+      if (d != null) {
+        final uhrzeit = t['uhrzeit']?.toString() ?? '';
+        final notiz = t['notiz']?.toString() ?? '';
+        entries.add({'datum': d, 'text': '📅 Termin${uhrzeit.isNotEmpty ? ' um $uhrzeit' : ''}${notiz.isNotEmpty ? ' — $notiz' : ''}', 'color': Colors.blue, 'icon': Icons.calendar_month, 'auto': true});
+      }
+    }
+
     // Add manual entries
     final manual = List<Map<String, dynamic>>.from(_verlauf);
     for (final e in manual) {
@@ -2656,7 +2669,6 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       if (d != null) entries.add({'datum': d, 'text': e['notiz']?.toString() ?? '', 'color': Colors.grey, 'icon': Icons.circle, 'auto': false, 'id': e['id'], 'status': e['status']});
     }
 
-    // Sort: pending items last (today), rest chronologically
     entries.sort((a, b) => (a['datum'] as DateTime).compareTo(b['datum'] as DateTime));
 
     return Column(children: [
