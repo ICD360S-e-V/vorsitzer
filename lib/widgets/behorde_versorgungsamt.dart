@@ -2421,6 +2421,24 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       }),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4),
       const Divider(height: 20),
+      Text('Ausgang Widerspruch von Mitglieder', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.edit_note, 'Vorbereitet am', a['widerspruch_vorbereitet']?.toString() ?? '', (date) async {
+        a['widerspruch_vorbereitet'] = date;
+        await _saveAntragField(a, 'widerspruch_vorbereitet', date);
+      }),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.send, 'Geliefert am', a['widerspruch_geliefert']?.toString() ?? '', (date) async {
+        a['widerspruch_geliefert'] = date;
+        await _saveAntragField(a, 'widerspruch_geliefert', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Geliefert per', a['widerspruch_lieferung_methode']?.toString() ?? '', (m) async {
+        a['widerspruch_lieferung_methode'] = m;
+        await _saveAntragField(a, 'widerspruch_lieferung_methode', m);
+      }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6),
+      const Divider(height: 20),
       Text('Eingangsbestätigung Widerspruch vom Amt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
       const SizedBox(height: 8),
       _datePickerRow(Icons.mark_email_read, 'Eingangsbestätigung vom', a['eingangsbestaetigung_datum']?.toString() ?? '', (date) async {
