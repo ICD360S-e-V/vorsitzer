@@ -2554,31 +2554,56 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   }
 
   Widget _buildVerlauf() {
-    // Sort chronologically old → new
-    final sorted = List<Map<String, dynamic>>.from(_verlauf);
-    sorted.sort((a, b) => (a['datum']?.toString() ?? '').compareTo(b['datum']?.toString() ?? ''));
+    final a = widget.antrag;
+    // Build auto-generated timeline from existing fields
+    final autoEntries = <Map<String, dynamic>>[];
+    void addAuto(String? datum, String text, MaterialColor color) {
+      if (datum != null && datum.isNotEmpty) autoEntries.add({'datum': datum, 'text': text, 'color': color, 'auto': true});
+    }
+    addAuto(a['datum']?.toString(), 'Antrag eingereicht (${{'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'E-Mail'}[a['methode']?.toString() ?? ''] ?? a['methode']?.toString() ?? ''})', Colors.indigo);
+    addAuto(a['bescheid_datum']?.toString(), 'Bescheid vom Versorgungsamt erstellt', Colors.teal);
+    addAuto(a['bescheid_erhalten']?.toString(), 'Bescheid per Post erhalten', Colors.teal);
+    addAuto(a['widerspruch_datum']?.toString(), 'Widerspruch eingelegt (${{'online': 'Online', 'post': 'Per Post', 'fax': 'Per Fax', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['widerspruch_methode']?.toString() ?? ''] ?? a['widerspruch_methode']?.toString() ?? ''})', Colors.orange);
+    addAuto(a['widerspruch_vorbereitet']?.toString(), 'Widerspruch vorbereitet', Colors.purple);
+    addAuto(a['widerspruch_geliefert']?.toString(), 'Widerspruch geliefert (${{'Online': 'Online', 'Postalisch': 'Per Post', 'Fax': 'Per Fax', 'Persönlich': 'Persönlich', 'E-Mail': 'Per E-Mail'}[a['widerspruch_lieferung_methode']?.toString() ?? ''] ?? a['widerspruch_lieferung_methode']?.toString() ?? ''})', Colors.deepPurple);
+    addAuto(a['akteneinsicht_datum']?.toString(), 'Akteneinsicht beantragt', Colors.purple);
+    addAuto(a['akteneinsicht_erhalten']?.toString(), 'Akteneinsicht erhalten', Colors.purple);
+    addAuto(a['eingangsbestaetigung_datum']?.toString(), 'Eingangsbestätigung vom Amt', Colors.teal);
+    addAuto(a['eingangsbestaetigung_erhalten']?.toString(), 'Eingangsbestätigung per Post erhalten', Colors.teal);
+
+    // Combine auto + manual entries
+    final manual = List<Map<String, dynamic>>.from(_verlauf);
+    final all = <Map<String, dynamic>>[
+      ...autoEntries,
+      ...manual.map((e) => {'datum': e['datum']?.toString() ?? '', 'text': e['notiz']?.toString() ?? '', 'color': Colors.grey, 'auto': false, 'id': e['id'], 'status': e['status']}),
+    ];
+    all.sort((a, b) => (a['datum']?.toString() ?? '').compareTo(b['datum']?.toString() ?? ''));
+
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${sorted.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${all.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: _addVerlauf),
       ])),
-      Expanded(child: sorted.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: sorted.length, itemBuilder: (_, i) {
-            final e = sorted[i];
+      Expanded(child: all.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: all.length, itemBuilder: (_, i) {
+            final e = all[i];
+            final isAuto = e['auto'] == true;
+            final color = e['color'] as MaterialColor? ?? Colors.grey;
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+              decoration: BoxDecoration(color: isAuto ? color.shade50 : Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isAuto ? color.shade300 : Colors.indigo.shade200)),
               child: Row(children: [
-                Icon(Icons.circle, size: 10, color: Colors.indigo.shade400), const SizedBox(width: 8),
+                Icon(Icons.circle, size: 10, color: isAuto ? color.shade600 : Colors.indigo.shade400), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                  if ((e['status']?.toString() ?? '').isNotEmpty) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)),
+                  Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  if (!isAuto && (e['status']?.toString() ?? '').isNotEmpty) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)),
                     child: Text(e['status'].toString().replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
-                  if ((e['notiz']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(e['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+                  Padding(padding: const EdgeInsets.only(top: 2), child: Text(e['text']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: isAuto ? FontWeight.w600 : FontWeight.normal, color: isAuto ? color.shade800 : Colors.black87))),
                 ])),
-                IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragVerlauf(e['id'] as int); _load(); widget.onChanged(); },
-                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+                if (!isAuto) IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragVerlauf(e['id'] as int); _load(); widget.onChanged(); },
+                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24))
+                else Padding(padding: const EdgeInsets.only(left: 4), child: Icon(Icons.auto_awesome, size: 14, color: color.shade400)),
               ]));
           })),
     ]);
