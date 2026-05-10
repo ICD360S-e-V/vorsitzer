@@ -2385,76 +2385,6 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
             Expanded(child: Text('Widerspruchsfrist: 1 Monat ab $bescheidErhalten (§ 84 SGG)', style: TextStyle(fontSize: 11, color: Colors.amber.shade800))),
           ])),
       ],
-      const Divider(height: 20),
-      Text('Widerspruch', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
-      const SizedBox(height: 8),
-      _datePickerRow(Icons.gavel, 'Widerspruch eingelegt am', a['widerspruch_datum']?.toString() ?? '', (date) async {
-        a['widerspruch_datum'] = date;
-        await _saveAntragField(a, 'widerspruch_datum', date);
-      }),
-      const SizedBox(height: 6),
-      _methodeRow('Widerspruch per', a['widerspruch_methode']?.toString() ?? '', (m) async {
-        a['widerspruch_methode'] = m;
-        await _saveAntragField(a, 'widerspruch_methode', m);
-      }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_$aid', korrespondenzId: 2),
-      const SizedBox(height: 6),
-      _datePickerRow(Icons.folder_open, 'Akteneinsicht beantragt am', a['akteneinsicht_datum']?.toString() ?? '', (date) async {
-        a['akteneinsicht_datum'] = date;
-        await _saveAntragField(a, 'akteneinsicht_datum', date);
-      }),
-      const SizedBox(height: 6),
-      _methodeRow('Akteneinsicht per', a['akteneinsicht_methode']?.toString() ?? '', (m) async {
-        a['akteneinsicht_methode'] = m;
-        await _saveAntragField(a, 'akteneinsicht_methode', m);
-      }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akteneinsicht_$aid', korrespondenzId: 3),
-      const SizedBox(height: 6),
-      _datePickerRow(Icons.inbox, 'Akteneinsicht erhalten am', a['akteneinsicht_erhalten']?.toString() ?? '', (date) async {
-        a['akteneinsicht_erhalten'] = date;
-        await _saveAntragField(a, 'akteneinsicht_erhalten', date);
-      }),
-      const SizedBox(height: 6),
-      _methodeRow('Akten erhalten per', a['akteneinsicht_erhalten_methode']?.toString() ?? '', (m) async {
-        a['akteneinsicht_erhalten_methode'] = m;
-        await _saveAntragField(a, 'akteneinsicht_erhalten_methode', m);
-      }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4),
-      const Divider(height: 20),
-      Text('Eingangsbestätigung Widerspruch vom Amt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-      const SizedBox(height: 8),
-      _datePickerRow(Icons.mark_email_read, 'Eingangsbestätigung vom', a['eingangsbestaetigung_datum']?.toString() ?? '', (date) async {
-        a['eingangsbestaetigung_datum'] = date;
-        await _saveAntragField(a, 'eingangsbestaetigung_datum', date);
-      }),
-      const SizedBox(height: 6),
-      _datePickerRow(Icons.local_post_office, 'Erhalten per Post am', a['eingangsbestaetigung_erhalten']?.toString() ?? '', (date) async {
-        a['eingangsbestaetigung_erhalten'] = date;
-        await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
-      }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5),
-      const SizedBox(height: 12),
-      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
-      const SizedBox(height: 6),
-      _buildSachbearbeiterSection(a),
-      const Divider(height: 20),
-      Text('Ausgang Widerspruch von Mitglieder', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
-      const SizedBox(height: 8),
-      _datePickerRow(Icons.edit_note, 'Vorbereitet am', a['widerspruch_vorbereitet']?.toString() ?? '', (date) async {
-        a['widerspruch_vorbereitet'] = date;
-        await _saveAntragField(a, 'widerspruch_vorbereitet', date);
-      }),
-      const SizedBox(height: 6),
-      _datePickerRow(Icons.send, 'Geliefert am', a['widerspruch_geliefert']?.toString() ?? '', (date) async {
-        a['widerspruch_geliefert'] = date;
-        await _saveAntragField(a, 'widerspruch_geliefert', date);
-      }),
-      const SizedBox(height: 6),
-      _methodeRow('Geliefert per', a['widerspruch_lieferung_methode']?.toString() ?? '', (m) async {
-        a['widerspruch_lieferung_methode'] = m;
-        await _saveAntragField(a, 'widerspruch_lieferung_methode', m);
-      }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
@@ -2746,6 +2676,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
   // Widerspruch GdB — chronologisch basiert auf Verlauf-Einträgen
   Widget _buildWiderspruch(Map<String, dynamic> a) {
+    final aid = widget.antragId;
     String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
     // Parse Verlauf entries by type
@@ -2898,6 +2829,83 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
           ]),
         ),
       ],
+
+      const SizedBox(height: 24),
+      const Divider(height: 1),
+      const SizedBox(height: 16),
+      Text('Daten erfassen', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+      const SizedBox(height: 12),
+      Text('Widerspruch', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.gavel, 'Widerspruch eingelegt am', a['widerspruch_datum']?.toString() ?? '', (date) async {
+        a['widerspruch_datum'] = date;
+        await _saveAntragField(a, 'widerspruch_datum', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Widerspruch per', a['widerspruch_methode']?.toString() ?? '', (m) async {
+        a['widerspruch_methode'] = m;
+        await _saveAntragField(a, 'widerspruch_methode', m);
+      }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_$aid', korrespondenzId: 2),
+      const SizedBox(height: 12),
+      Text('Akteneinsicht', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.folder_open, 'Akteneinsicht beantragt am', a['akteneinsicht_datum']?.toString() ?? '', (date) async {
+        a['akteneinsicht_datum'] = date;
+        await _saveAntragField(a, 'akteneinsicht_datum', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Akteneinsicht per', a['akteneinsicht_methode']?.toString() ?? '', (m) async {
+        a['akteneinsicht_methode'] = m;
+        await _saveAntragField(a, 'akteneinsicht_methode', m);
+      }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akteneinsicht_$aid', korrespondenzId: 3),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.inbox, 'Akteneinsicht erhalten am', a['akteneinsicht_erhalten']?.toString() ?? '', (date) async {
+        a['akteneinsicht_erhalten'] = date;
+        await _saveAntragField(a, 'akteneinsicht_erhalten', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Akten erhalten per', a['akteneinsicht_erhalten_methode']?.toString() ?? '', (m) async {
+        a['akteneinsicht_erhalten_methode'] = m;
+        await _saveAntragField(a, 'akteneinsicht_erhalten_methode', m);
+      }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4),
+      const SizedBox(height: 12),
+      Text('Eingangsbestätigung Widerspruch vom Amt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.mark_email_read, 'Eingangsbestätigung vom', a['eingangsbestaetigung_datum']?.toString() ?? '', (date) async {
+        a['eingangsbestaetigung_datum'] = date;
+        await _saveAntragField(a, 'eingangsbestaetigung_datum', date);
+      }),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.local_post_office, 'Erhalten per Post am', a['eingangsbestaetigung_erhalten']?.toString() ?? '', (date) async {
+        a['eingangsbestaetigung_erhalten'] = date;
+        await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
+      }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5),
+      const SizedBox(height: 12),
+      Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
+      const SizedBox(height: 6),
+      _buildSachbearbeiterSection(a),
+      const SizedBox(height: 12),
+      Text('Ausgang Widerspruch von Mitglieder', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.edit_note, 'Vorbereitet am', a['widerspruch_vorbereitet']?.toString() ?? '', (date) async {
+        a['widerspruch_vorbereitet'] = date;
+        await _saveAntragField(a, 'widerspruch_vorbereitet', date);
+      }),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.send, 'Geliefert am', a['widerspruch_geliefert']?.toString() ?? '', (date) async {
+        a['widerspruch_geliefert'] = date;
+        await _saveAntragField(a, 'widerspruch_geliefert', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Geliefert per', a['widerspruch_lieferung_methode']?.toString() ?? '', (m) async {
+        a['widerspruch_lieferung_methode'] = m;
+        await _saveAntragField(a, 'widerspruch_lieferung_methode', m);
+      }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6),
 
       const SizedBox(height: 16),
       // Rechtsgrundlage
