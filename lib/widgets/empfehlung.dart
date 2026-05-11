@@ -5,7 +5,8 @@ import 'deo.dart';
 
 class EmpfehlungContent extends StatefulWidget {
   final ApiService apiService;
-  const EmpfehlungContent({super.key, required this.apiService});
+  final int? userId;
+  const EmpfehlungContent({super.key, required this.apiService, this.userId});
   @override
   State<EmpfehlungContent> createState() => _EmpfehlungContentState();
 }
@@ -32,7 +33,7 @@ class _EmpfehlungContentState extends State<EmpfehlungContent> with TickerProvid
         ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         WasserTab(apiService: widget.apiService),
-        DeoTab(apiService: widget.apiService),
+        DeoTab(apiService: widget.apiService, userId: widget.userId),
       ])),
     ]);
   }
