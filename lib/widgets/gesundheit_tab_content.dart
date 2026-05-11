@@ -2029,7 +2029,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: isZahnarzt ? 13 : 12,
+          length: isZahnarzt ? 14 : 13,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -2211,6 +2211,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   const Tab(icon: Icon(Icons.healing, size: 16), text: 'Heilmittel'),
                   const Tab(icon: Icon(Icons.description, size: 16), text: 'Berichte'),
                   const Tab(icon: Icon(Icons.verified, size: 16), text: 'Ärztl. Attest'),
+                  const Tab(icon: Icon(Icons.receipt, size: 16), text: 'Rechnung'),
                   if (isZahnarzt) const Tab(icon: Icon(Icons.gavel, size: 16), text: 'Härtefall'),
                 ],
               ),
@@ -2497,7 +2498,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     // ===== TAB 11: ÄRZTLICHE ATTESTE =====
                     _buildAttesteTab(type, arztTitle, data, saveAll, setLocalState),
 
-                    // ===== TAB 12: HÄRTEFALL (nur Zahnarzt) =====
+                    // ===== TAB 12: RECHNUNG =====
+                    _buildRechnungTab(type),
+
+                    // ===== TAB 13: HÄRTEFALL (nur Zahnarzt) =====
                     if (isZahnarzt) _buildHartefallTab(type, data, saveAll, setLocalState),
                   ],
                 ),
@@ -14312,6 +14316,22 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             })),
       ]);
     });
+  }
+
+  // ===== RECHNUNG =====
+  Widget _buildRechnungTab(String type) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.receipt, color: Colors.brown.shade700),
+          const SizedBox(width: 8),
+          Text('Rechnungen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.brown.shade800)),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_$type', korrespondenzId: widget.user.id)),
+      ]),
+    );
   }
 
   // ===== HÄRTEFALL (Zahnersatz) =====
