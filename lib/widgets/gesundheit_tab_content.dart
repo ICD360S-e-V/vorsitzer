@@ -14320,18 +14320,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
   // ===== RECHNUNG =====
   Widget _buildRechnungTab(String type) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.receipt, color: Colors.brown.shade700),
-          const SizedBox(width: 8),
-          Text('Rechnungen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.brown.shade800)),
-        ]),
-        const SizedBox(height: 12),
-        Expanded(child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_$type', korrespondenzId: widget.user.id)),
-      ]),
-    );
+    return _GesundheitRechnungTab(apiService: widget.apiService, userId: widget.user.id, arztType: type);
   }
 
   // ===== HÄRTEFALL (Zahnersatz) =====
@@ -14779,5 +14768,331 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         );
       },
     );
+  }
+}
+
+// ===== GESUNDHEIT RECHNUNG TAB =====
+class _GesundheitRechnungTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String arztType;
+  const _GesundheitRechnungTab({required this.apiService, required this.userId, required this.arztType});
+  @override
+  State<_GesundheitRechnungTab> createState() => _GesundheitRechnungTabState();
+}
+
+class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
+  List<Map<String, dynamic>> _rechnungen = [];
+  bool _loading = true;
+
+  static const _gruende = ['Terminversäumnis', 'Behandlung', 'Labor', 'Gutachten', 'IGeL-Leistung', 'Sonstige'];
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final res = await widget.apiService.gesundheitRechnungAction({'action': 'list', 'user_id': widget.userId, 'arzt_type': widget.arztType});
+      if (res['success'] == true && res['rechnungen'] is List) _rechnungen = List<Map<String, dynamic>>.from((res['rechnungen'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.receipt, color: Colors.brown.shade700),
+        const SizedBox(width: 8),
+        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.brown.shade800)),
+        const Spacer(),
+        FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 14), label: const Text('Neue Rechnung', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
+      ])),
+      Expanded(child: _rechnungen.isEmpty
+        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300), const SizedBox(height: 8),
+            Text('Keine Rechnungen', style: TextStyle(color: Colors.grey.shade400))]))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _rechnungen.length, itemBuilder: (_, i) {
+            final r = _rechnungen[i];
+            final st = r['status']?.toString() ?? 'offen';
+            final stColor = st == 'bezahlt' ? Colors.green : (st == 'widerspruch' ? Colors.purple : (st == 'storniert' ? Colors.grey : Colors.orange));
+            return Card(child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _showDetail(r),
+              child: ListTile(
+                leading: CircleAvatar(backgroundColor: stColor.shade50, child: Icon(Icons.receipt, color: stColor.shade700, size: 20)),
+                title: Text(r['grund']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: Row(children: [
+                  Text(r['erstellt_am']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  if ((r['betrag']?.toString() ?? '').isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.brown.shade700)),
+                  ],
+                  const SizedBox(width: 8),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(6)),
+                    child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: stColor.shade800))),
+                ]),
+                trailing: Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+              ),
+            ));
+          })),
+    ]);
+  }
+
+  void _add() {
+    String grund = _gruende.first;
+    final betragC = TextEditingController();
+    final erstelltC = TextEditingController();
+    final erhaltenC = TextEditingController();
+    final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.receipt, size: 18, color: Colors.brown.shade700), const SizedBox(width: 8), const Text('Neue Rechnung', style: TextStyle(fontSize: 15))]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        DropdownButtonFormField<String>(value: grund, decoration: InputDecoration(labelText: 'Grund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          items: _gruende.map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setDlg(() => grund = v ?? grund)),
+        const SizedBox(height: 10),
+        TextField(controller: betragC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Betrag (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: erstelltC, readOnly: true, decoration: InputDecoration(labelText: 'Rechnung erstellt am', isDense: true, prefixIcon: const Icon(Icons.edit_calendar, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) erstelltC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        const SizedBox(height: 10),
+        TextField(controller: erhaltenC, readOnly: true, decoration: InputDecoration(labelText: 'Erhalten per Post am', isDense: true, prefixIcon: const Icon(Icons.markunread_mailbox, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) erhaltenC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          await widget.apiService.gesundheitRechnungAction({'action': 'save', 'user_id': widget.userId, 'arzt_type': widget.arztType,
+            'data': {'grund': grund, 'betrag': betragC.text.trim(), 'erstellt_am': erstelltC.text, 'erhalten_am': erhaltenC.text, 'notiz': notizC.text.trim()}});
+          if (ctx.mounted) Navigator.pop(ctx);
+          _load();
+        }, child: const Text('Hinzufügen')),
+      ],
+    )));
+  }
+
+  void _showDetail(Map<String, dynamic> r) {
+    showDialog(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.all(28),
+      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
+        width: MediaQuery.of(ctx).size.width * 0.7,
+        height: MediaQuery.of(ctx).size.height * 0.7,
+        child: _RechnungDetailModal(apiService: widget.apiService, rechnung: r, onSaved: _load),
+      )),
+    ));
+  }
+}
+
+// ===== RECHNUNG DETAIL MODAL =====
+class _RechnungDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> rechnung;
+  final VoidCallback onSaved;
+  const _RechnungDetailModal({required this.apiService, required this.rechnung, required this.onSaved});
+  @override
+  State<_RechnungDetailModal> createState() => _RechnungDetailModalState();
+}
+
+class _RechnungDetailModalState extends State<_RechnungDetailModal> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loadingK = true;
+  int get _rid => widget.rechnung['id'] is int ? widget.rechnung['id'] as int : int.tryParse(widget.rechnung['id'].toString()) ?? 0;
+
+  @override
+  void initState() { super.initState(); _loadKorr(); }
+
+  Future<void> _loadKorr() async {
+    try {
+      final res = await widget.apiService.gesundheitRechnungAction({'action': 'list_korr', 'rechnung_id': _rid});
+      if (res['success'] == true && res['korrespondenz'] is List) _korr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+    } catch (_) {}
+    if (mounted) setState(() => _loadingK = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.rechnung;
+    final st = r['status']?.toString() ?? 'offen';
+    final stColor = st == 'bezahlt' ? Colors.green : (st == 'widerspruch' ? Colors.purple : (st == 'storniert' ? Colors.grey : Colors.orange));
+    return DefaultTabController(length: 3, child: Column(children: [
+      Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: stColor.shade50),
+        child: Row(children: [
+          Icon(Icons.receipt, size: 22, color: stColor.shade700), const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(r['grund']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: stColor.shade800)),
+            Row(children: [
+              if ((r['betrag']?.toString() ?? '').isNotEmpty) Text('${r['betrag']} €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700)),
+              const SizedBox(width: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(6)),
+                child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: stColor.shade800))),
+            ]),
+          ])),
+          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(labelColor: Colors.brown.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.brown.shade700, tabs: const [
+        Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
+        Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.gavel, size: 16), text: 'Widerspruch'),
+      ]),
+      Expanded(child: TabBarView(children: [_buildDetails(), _buildKorr(), _buildWiderspruch()])),
+    ]));
+  }
+
+  Widget _buildDetails() {
+    final r = widget.rechnung;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _row(Icons.description, 'Grund', r['grund']?.toString() ?? ''),
+      _row(Icons.euro, 'Betrag', '${r['betrag'] ?? ''} €'),
+      _row(Icons.edit_calendar, 'Erstellt am', r['erstellt_am']?.toString() ?? ''),
+      _row(Icons.markunread_mailbox, 'Erhalten per Post am', r['erhalten_am']?.toString() ?? ''),
+      if ((r['notiz']?.toString() ?? '').isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: SelectableText(r['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+      ],
+      const SizedBox(height: 16),
+      Text('Rechnung (PDF)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+      const SizedBox(height: 6),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_doc', korrespondenzId: _rid),
+    ]));
+  }
+
+  Widget _row(IconData icon, String label, String value) {
+    if (value.trim().isEmpty || value == ' €') return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
+      Icon(icon, size: 16, color: Colors.brown.shade600), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+    ]));
+  }
+
+  Widget _buildKorr() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Text('Korrespondenz (${_loadingK ? '...' : _korr.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700)),
+        const Spacer(),
+        FilledButton.icon(onPressed: _addKorr, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
+      ])),
+      Expanded(child: _loadingK ? const Center(child: CircularProgressIndicator())
+        : _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade400)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
+            final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.blue;
+            return Card(child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showKorrDetail(k),
+              child: ListTile(
+                leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18),
+                title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: () async { await widget.apiService.gesundheitRechnungAction({'action': 'delete_korr', 'id': k['id']}); _loadKorr(); }),
+                ]),
+              )));
+          })),
+    ]);
+  }
+
+  void _addKorr() {
+    final betreffC = TextEditingController(); final inhaltC = TextEditingController(); String richtung = 'ausgang';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
+      title: const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15)),
+      content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgang')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'eingang')),
+        ]),
+        const SizedBox(height: 12),
+        TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: inhaltC, maxLines: 6, decoration: InputDecoration(labelText: 'Inhalt', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
+          await widget.apiService.gesundheitRechnungAction({'action': 'save_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
+          if (ctx.mounted) Navigator.pop(ctx); _loadKorr();
+        }, child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  void _showKorrDetail(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.blue;
+    final kId = k['id'] is int ? k['id'] as int : int.tryParse(k['id'].toString()) ?? 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 20, color: color.shade700), const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)))]),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
+          const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))]),
+        if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)))],
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_korr', korrespondenzId: kId),
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
+  }
+
+  Widget _buildWiderspruch() {
+    final r = widget.rechnung;
+    final wDatum = r['widerspruch_datum']?.toString() ?? '';
+    final wMethode = r['widerspruch_methode']?.toString() ?? '';
+    final wNotiz = r['widerspruch_notiz']?.toString() ?? '';
+    final hasW = wDatum.isNotEmpty;
+
+    if (hasW) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(Icons.gavel, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8),
+          Text('Widerspruch eingelegt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.purple.shade800))]),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _row(Icons.calendar_today, 'Datum', wDatum),
+            if (wMethode.isNotEmpty) _row(Icons.send, 'Methode', wMethode),
+            if (wNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(wNotiz, style: const TextStyle(fontSize: 13))],
+          ])),
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid),
+      ]));
+    }
+
+    final datumC = TextEditingController();
+    final notizC = TextEditingController();
+    String methode = '';
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Widerspruch gegen Rechnung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+      const SizedBox(height: 12),
+      TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Widerspruch am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, children: ['Per Post', 'Per Fax', 'Per E-Mail', 'Online', 'Persönlich'].map((m) => ChoiceChip(label: Text(m), selected: methode == m, selectedColor: Colors.purple.shade100,
+        onSelected: (_) => setLocal(() => methode = m))).toList()),
+      const SizedBox(height: 10),
+      TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 16),
+      FilledButton.icon(onPressed: () async {
+        await widget.apiService.gesundheitRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+          'data': {...widget.rechnung, 'widerspruch_datum': datumC.text, 'widerspruch_methode': methode, 'widerspruch_notiz': notizC.text.trim(), 'status': 'widerspruch'}});
+        widget.onSaved();
+        if (ctx.mounted) { widget.rechnung['widerspruch_datum'] = datumC.text; widget.rechnung['widerspruch_methode'] = methode; widget.rechnung['widerspruch_notiz'] = notizC.text; widget.rechnung['status'] = 'widerspruch';
+          setState(() {}); ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Widerspruch gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1))); }
+      }, icon: const Icon(Icons.gavel, size: 16), label: const Text('Widerspruch einlegen', style: TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600)),
+      const SizedBox(height: 16),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid),
+    ])));
   }
 }
