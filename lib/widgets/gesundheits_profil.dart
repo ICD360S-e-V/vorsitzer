@@ -182,6 +182,8 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
             const SizedBox(height: 12),
             if (bmi > 0) ...[
               _buildBmiCard(bmi),
+              const SizedBox(height: 8),
+              _buildGesundheitsCriteria(bmi, age, isMale),
               const SizedBox(height: 12),
             ],
             Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern', style: TextStyle(fontSize: 12)),
@@ -190,6 +192,106 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
         ],
       ),
     );
+  }
+
+  Widget _buildGesundheitsCriteria(double bmi, int age, bool isMale) {
+    // Optimal BMI ranges by age and gender
+    double optMin, optMax;
+    if (isMale) {
+      if (age < 25) { optMin = 19; optMax = 24; }
+      else if (age < 35) { optMin = 20; optMax = 25; }
+      else if (age < 45) { optMin = 21; optMax = 26; }
+      else if (age < 55) { optMin = 22; optMax = 27; }
+      else if (age < 65) { optMin = 23; optMax = 28; }
+      else { optMin = 24; optMax = 29; }
+    } else {
+      if (age < 25) { optMin = 18; optMax = 23; }
+      else if (age < 35) { optMin = 19; optMax = 24; }
+      else if (age < 45) { optMin = 20; optMax = 25; }
+      else if (age < 55) { optMin = 21; optMax = 26; }
+      else if (age < 65) { optMin = 22; optMax = 27; }
+      else { optMin = 23; optMax = 28; }
+    }
+
+    final kg = double.tryParse(_gewichtC.text) ?? 0;
+    final cm = int.tryParse(_groesseC.text) ?? 0;
+    final m = cm / 100.0;
+    final idealMin = optMin * m * m;
+    final idealMax = optMax * m * m;
+
+    // 10 criteria evaluation
+    final criteria = <Map<String, dynamic>>[
+      {'name': 'BMI-Klassifikation (WHO)', 'icon': Icons.monitor_weight,
+        'status': bmi < 18.5 ? 'gelb' : (bmi <= 24.9 ? 'gruen' : (bmi <= 29.9 ? 'gelb' : 'rot')),
+        'text': bmi < 18.5 ? 'Untergewicht' : (bmi <= 24.9 ? 'Normalgewicht' : (bmi <= 29.9 ? 'Übergewicht (Präadipositas)' : (bmi <= 34.9 ? 'Adipositas Grad I' : (bmi <= 39.9 ? 'Adipositas Grad II' : 'Adipositas Grad III'))))},
+      {'name': 'Altersgerechter BMI (${age}J, ${isMale ? "M" : "W"})', 'icon': Icons.cake,
+        'status': (bmi >= optMin && bmi <= optMax) ? 'gruen' : ((bmi >= optMin - 2 && bmi <= optMax + 2) ? 'gelb' : 'rot'),
+        'text': 'Optimal: ${optMin.toStringAsFixed(0)}–${optMax.toStringAsFixed(0)} | Aktuell: ${bmi.toStringAsFixed(1)}'},
+      {'name': 'Idealgewicht-Bereich', 'icon': Icons.fitness_center,
+        'status': (kg >= idealMin && kg <= idealMax) ? 'gruen' : ((kg >= idealMin - 5 && kg <= idealMax + 5) ? 'gelb' : 'rot'),
+        'text': '${idealMin.toStringAsFixed(0)}–${idealMax.toStringAsFixed(0)} kg | Aktuell: ${kg.toStringAsFixed(0)} kg'},
+      {'name': 'Gewichtsabweichung', 'icon': Icons.trending_flat,
+        'status': (kg >= idealMin && kg <= idealMax) ? 'gruen' : ((kg - idealMax).abs() <= 5 || (idealMin - kg).abs() <= 5 ? 'gelb' : 'rot'),
+        'text': kg > idealMax ? '+${(kg - idealMax).toStringAsFixed(1)} kg über Ideal' : (kg < idealMin ? '${(idealMin - kg).toStringAsFixed(1)} kg unter Ideal' : 'Im Idealbereich')},
+      {'name': 'Adipositas-Risiko', 'icon': Icons.warning,
+        'status': bmi < 30 ? 'gruen' : (bmi < 35 ? 'gelb' : 'rot'),
+        'text': bmi < 25 ? 'Kein erhöhtes Risiko' : (bmi < 30 ? 'Leicht erhöht' : (bmi < 35 ? 'Erhöht (Grad I)' : (bmi < 40 ? 'Hoch (Grad II)' : 'Sehr hoch (Grad III)')))},
+      {'name': 'Herz-Kreislauf-Risiko (BMI)', 'icon': Icons.favorite,
+        'status': bmi <= 25 ? 'gruen' : (bmi <= 30 ? 'gelb' : 'rot'),
+        'text': bmi <= 25 ? 'Normal' : (bmi <= 30 ? 'Leicht erhöht' : 'Deutlich erhöht')},
+      {'name': 'Diabetes-Typ-2-Risiko (BMI)', 'icon': Icons.bloodtype,
+        'status': bmi < 25 ? 'gruen' : (bmi < 30 ? 'gelb' : 'rot'),
+        'text': bmi < 25 ? 'Normal' : (bmi < 30 ? 'Erhöht' : 'Stark erhöht')},
+      {'name': 'Gelenkbelastung', 'icon': Icons.accessibility_new,
+        'status': bmi < 25 ? 'gruen' : (bmi < 30 ? 'gelb' : 'rot'),
+        'text': bmi < 25 ? 'Normal' : (bmi < 30 ? 'Erhöht' : 'Stark erhöht — Knie/Hüfte gefährdet')},
+      {'name': 'Stoffwechsel-Indikator', 'icon': Icons.local_fire_department,
+        'status': (bmi >= 18.5 && bmi <= 27) ? 'gruen' : ((bmi >= 16 && bmi <= 30) ? 'gelb' : 'rot'),
+        'text': bmi < 18.5 ? 'Mögliche Unterversorgung' : (bmi <= 27 ? 'Ausgewogen' : 'Belastet')},
+      {'name': 'Altersempfehlung 65+ (DGE)', 'icon': Icons.elderly,
+        'status': age < 65 ? 'gruen' : ((bmi >= 22 && bmi <= 27) ? 'gruen' : ((bmi >= 20 && bmi <= 29) ? 'gelb' : 'rot')),
+        'text': age < 65 ? 'Nicht zutreffend (< 65 Jahre)' : (bmi >= 22 && bmi <= 27 ? 'Im empfohlenen Bereich (DGE)' : 'Außerhalb DGE-Empfehlung')},
+    ];
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Gesundheits-Check (10 Kriterien)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      const SizedBox(height: 8),
+      ...criteria.map((c) {
+        final status = c['status'] as String;
+        final color = status == 'gruen' ? Colors.green : (status == 'gelb' ? Colors.orange : Colors.red);
+        final icon = status == 'gruen' ? Icons.check_circle : (status == 'gelb' ? Icons.warning : Icons.cancel);
+        return Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: color.shade200)),
+          child: Row(children: [
+            Icon(icon, size: 16, color: color.shade700),
+            const SizedBox(width: 8),
+            Icon(c['icon'] as IconData, size: 14, color: color.shade600),
+            const SizedBox(width: 6),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(c['name'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800)),
+              Text(c['text'] as String, style: TextStyle(fontSize: 10, color: color.shade700)),
+            ])),
+          ]),
+        );
+      }),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Hinweis: Diese Auswertung basiert auf BMI-Richtwerten der WHO und DGE. '
+            'Sie ersetzt keine ärztliche Diagnose. Individuelle Faktoren (Muskelmasse, '
+            'Körperbau, Gesundheitszustand) werden nicht berücksichtigt.',
+            style: TextStyle(fontSize: 9, color: Colors.blue.shade800, height: 1.3),
+          )),
+        ]),
+      ),
+    ]);
   }
 
   Widget _infoCard(IconData icon, String label, String value) {
