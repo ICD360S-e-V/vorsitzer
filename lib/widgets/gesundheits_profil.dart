@@ -319,7 +319,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
 
   Widget _buildBmiCard(double bmi) {
     String kategorie;
-    Color color;
+    MaterialColor color;
     if (bmi < 18.5) { kategorie = 'Untergewicht'; color = Colors.blue; }
     else if (bmi < 25) { kategorie = 'Normalgewicht'; color = Colors.green; }
     else if (bmi < 30) { kategorie = 'Übergewicht'; color = Colors.orange; }
