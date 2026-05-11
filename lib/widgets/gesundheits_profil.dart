@@ -27,6 +27,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
   final _gewichtC = TextEditingController();
   final _groesseC = TextEditingController();
   bool _loading = true;
+  bool _showBack = false;
 
   @override
   void initState() {
@@ -102,21 +103,50 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Body silhouette
+          // Body silhouette with swipe rotation
           SizedBox(
             width: 200,
             child: Column(children: [
-              Container(
-                width: 180,
-                height: 380,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
+              GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  if (details.primaryVelocity != null) {
+                    setState(() => _showBack = !_showBack);
+                  }
+                },
+                onTap: () => setState(() => _showBack = !_showBack),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  transitionBuilder: (child, animation) {
+                    final rotate = Tween(begin: 0.5, end: 1.0).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
+                    return ScaleTransition(scale: rotate, child: FadeTransition(opacity: animation, child: child));
+                  },
+                  child: Container(
+                    key: ValueKey(_showBack),
+                    width: 180,
+                    height: 380,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Stack(children: [
+                      CustomPaint(size: const Size(180, 380), painter: _BodyPainter(isMale: isMale, showBack: _showBack)),
+                      Positioned(top: 8, right: 8, child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(6)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.rotate_left, size: 12, color: Colors.grey.shade500),
+                          const SizedBox(width: 2),
+                          Text(_showBack ? 'Rücken' : 'Vorne', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+                        ]),
+                      )),
+                    ]),
+                  ),
                 ),
-                child: CustomPaint(painter: _BodyPainter(isMale: isMale)),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
+              Text('← Wischen oder Tippen zum Drehen →', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+              const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(color: isMale ? Colors.blue.shade50 : Colors.pink.shade50, borderRadius: BorderRadius.circular(8)),
@@ -201,7 +231,8 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
 // Body silhouette painter
 class _BodyPainter extends CustomPainter {
   final bool isMale;
-  _BodyPainter({required this.isMale});
+  final bool showBack;
+  _BodyPainter({required this.isMale, this.showBack = false});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -264,8 +295,40 @@ class _BodyPainter extends CustomPainter {
 
     canvas.drawPath(body, paint);
     canvas.drawPath(body, outline);
+
+    if (showBack) {
+      // Spine line
+      final spine = Paint()..color = (isMale ? Colors.blue : Colors.pink).shade400..strokeWidth = 2..style = PaintingStyle.stroke;
+      final spinePath = Path();
+      spinePath.moveTo(cx, neckY + 5);
+      spinePath.cubicTo(cx - 2, waistY * 0.6, cx + 2, waistY * 0.8, cx, waistY);
+      spinePath.lineTo(cx, hipY - 5);
+      canvas.drawPath(spinePath, spine);
+      // Vertebrae dots
+      for (double y = neckY + 15; y < hipY - 10; y += 14) {
+        canvas.drawCircle(Offset(cx, y), 2.5, Paint()..color = (isMale ? Colors.blue : Colors.pink).shade300);
+      }
+      // Scapula lines
+      final scap = Paint()..color = (isMale ? Colors.blue : Colors.pink).shade300..strokeWidth = 1.5..style = PaintingStyle.stroke;
+      canvas.drawArc(Rect.fromCenter(center: Offset(cx - 25, shoulderY + 15), width: 30, height: 20), -0.5, 2, false, scap);
+      canvas.drawArc(Rect.fromCenter(center: Offset(cx + 25, shoulderY + 15), width: 30, height: 20), 1.6, 2, false, scap);
+    } else {
+      // Front details - chest line
+      final detail = Paint()..color = (isMale ? Colors.blue : Colors.pink).shade300..strokeWidth = 1..style = PaintingStyle.stroke;
+      // Navel
+      canvas.drawCircle(Offset(cx, waistY - 10), 3, detail);
+      if (!isMale) {
+        // Chest curves for female
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx - 15, shoulderY + 25), width: 22, height: 16), 0.3, 2.5, false, detail);
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx + 15, shoulderY + 25), width: 22, height: 16), 0.3, 2.5, false, detail);
+      } else {
+        // Pectoral lines for male
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx - 18, shoulderY + 18), width: 28, height: 10), 0.2, 2.6, false, detail);
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx + 18, shoulderY + 18), width: 28, height: 10), 0.2, 2.6, false, detail);
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _BodyPainter oldDelegate) => oldDelegate.isMale != isMale || oldDelegate.showBack != showBack;
 }
