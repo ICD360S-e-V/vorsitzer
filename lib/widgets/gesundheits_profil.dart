@@ -100,97 +100,83 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Body silhouette with swipe rotation
-          SizedBox(
-            width: 200,
-            child: Column(children: [
-              GestureDetector(
-                onHorizontalDragEnd: (details) {
-                  if (details.primaryVelocity != null) {
-                    setState(() => _showBack = !_showBack);
-                  }
-                },
-                onTap: () => setState(() => _showBack = !_showBack),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 400),
-                  transitionBuilder: (child, animation) {
-                    final rotate = Tween(begin: 0.5, end: 1.0).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
-                    return ScaleTransition(scale: rotate, child: FadeTransition(opacity: animation, child: child));
-                  },
-                  child: Container(
-                    key: ValueKey(_showBack),
-                    width: 180,
-                    height: 380,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Stack(children: [
-                      CustomPaint(size: const Size(180, 380), painter: _BodyPainter(isMale: isMale, showBack: _showBack)),
-                      Positioned(top: 8, right: 8, child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(6)),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.rotate_left, size: 12, color: Colors.grey.shade500),
-                          const SizedBox(width: 2),
-                          Text(_showBack ? 'Rücken' : 'Vorne', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
-                        ]),
-                      )),
-                    ]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header centered
+        Center(child: Text('Gesundheitsprofil', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        const SizedBox(height: 16),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Left: Person info
+          SizedBox(width: 160, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            const SizedBox(height: 40),
+            _sideInfo(Icons.person, widget.vorname, isMale),
+            _sideInfo(Icons.person_outline, widget.nachname, isMale),
+            _sideInfo(Icons.cake, age > 0 ? '$age Jahre' : '—', isMale),
+            _sideInfo(isMale ? Icons.male : Icons.female, isMale ? 'Männlich' : 'Weiblich', isMale),
+          ])),
+          const SizedBox(width: 12),
+          // Center: Body
+          Expanded(child: Column(children: [
+            GestureDetector(
+              onHorizontalDragEnd: (details) { if (details.primaryVelocity != null) setState(() => _showBack = !_showBack); },
+              onTap: () => setState(() => _showBack = !_showBack),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                transitionBuilder: (child, anim) => ScaleTransition(scale: Tween(begin: 0.5, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+                  child: FadeTransition(opacity: anim, child: child)),
+                child: Container(
+                  key: ValueKey(_showBack),
+                  width: 220,
+                  height: 440,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                      colors: [isMale ? Colors.blue.shade50 : Colors.pink.shade50, Colors.white]),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: (isMale ? Colors.blue : Colors.pink).shade200),
                   ),
+                  child: Stack(children: [
+                    CustomPaint(size: const Size(220, 440), painter: _BodyPainter(isMale: isMale, showBack: _showBack)),
+                    Positioned(top: 8, left: 0, right: 0, child: Center(child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: (isMale ? Colors.blue : Colors.pink).shade100.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(8)),
+                      child: Text(_showBack ? 'Rückenansicht' : 'Vorderansicht', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: (isMale ? Colors.blue : Colors.pink).shade800)),
+                    ))),
+                  ]),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text('← Wischen oder Tippen zum Drehen →', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: isMale ? Colors.blue.shade50 : Colors.pink.shade50, borderRadius: BorderRadius.circular(8)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(isMale ? Icons.male : Icons.female, size: 18, color: isMale ? Colors.blue.shade700 : Colors.pink.shade700),
-                  const SizedBox(width: 4),
-                  Text(isMale ? 'Männlich' : 'Weiblich', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isMale ? Colors.blue.shade700 : Colors.pink.shade700)),
-                ]),
-              ),
-            ]),
-          ),
-          const SizedBox(width: 24),
-          // Info + fields
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Gesundheitsprofil', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-            const SizedBox(height: 16),
-            _infoCard(Icons.person, 'Vorname', widget.vorname),
-            _infoCard(Icons.person_outline, 'Nachname', widget.nachname),
-            _infoCard(Icons.cake, 'Alter', age > 0 ? '$age Jahre' : 'Unbekannt'),
-            _infoCard(isMale ? Icons.male : Icons.female, 'Geschlecht', isMale ? 'Männlich' : 'Weiblich'),
-            const SizedBox(height: 16),
-            Text('Körperdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: TextField(controller: _gewichtC, keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Gewicht (kg)', isDense: true, prefixIcon: const Icon(Icons.monitor_weight, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                onChanged: (_) => setState(() {}))),
-              const SizedBox(width: 12),
-              Expanded(child: TextField(controller: _groesseC, keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: 'Größe (cm)', isDense: true, prefixIcon: const Icon(Icons.height, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                onChanged: (_) => setState(() {}))),
-            ]),
-            const SizedBox(height: 12),
-            if (bmi > 0) ...[
-              _buildBmiCard(bmi),
-              const SizedBox(height: 8),
-              _buildGesundheitsCriteria(bmi, age, isMale),
-              const SizedBox(height: 12),
-            ],
-            Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern', style: TextStyle(fontSize: 12)),
-              style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600))),
+            ),
+            const SizedBox(height: 4),
+            Text('← Tippen zum Drehen →', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
           ])),
+          const SizedBox(width: 12),
+          // Right: Body data
+          SizedBox(width: 160, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const SizedBox(height: 40),
+            _sideData(Icons.monitor_weight, 'Gewicht', _gewichtC.text.isNotEmpty ? '${_gewichtC.text} kg' : '—', isMale),
+            _sideData(Icons.height, 'Größe', _groesseC.text.isNotEmpty ? '${_groesseC.text} cm' : '—', isMale),
+            if (bmi > 0) _sideData(Icons.speed, 'BMI', bmi.toStringAsFixed(1), isMale),
+            if (bmi > 0) _sideData(Icons.favorite, 'Status', bmi < 18.5 ? 'Untergewicht' : (bmi < 25 ? 'Normal' : (bmi < 30 ? 'Übergewicht' : 'Adipositas')), isMale,
+              statusColor: bmi < 18.5 ? Colors.orange : (bmi < 25 ? Colors.green : (bmi < 30 ? Colors.orange : Colors.red))),
+          ])),
+        ]),
+        const SizedBox(height: 20),
+        // Input fields
+        Row(children: [
+          Expanded(child: TextField(controller: _gewichtC, keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: 'Gewicht (kg)', isDense: true, prefixIcon: const Icon(Icons.monitor_weight, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: (_) => setState(() {}))),
+          const SizedBox(width: 12),
+          Expanded(child: TextField(controller: _groesseC, keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: 'Größe (cm)', isDense: true, prefixIcon: const Icon(Icons.height, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: (_) => setState(() {}))),
+          const SizedBox(width: 12),
+          FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
+        ]),
+        if (bmi > 0) ...[
+          const SizedBox(height: 16),
+          _buildGesundheitsCriteria(bmi, age, isMale),
         ],
-      ),
+      ]),
     );
   }
 
@@ -304,15 +290,33 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     ]);
   }
 
-  Widget _infoCard(IconData icon, String label, String value) {
+  Widget _sideInfo(IconData icon, String text, bool isMale) {
+    final c = isMale ? Colors.blue : Colors.pink;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
-      child: Row(children: [
-        Icon(icon, size: 18, color: Colors.teal.shade700), const SizedBox(width: 10),
-        Text('$label:', style: TextStyle(fontSize: 12, color: Colors.teal.shade600)), const SizedBox(width: 8),
-        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade800)),
+        const SizedBox(width: 6),
+        Icon(icon, size: 14, color: c.shade600),
+      ]),
+    );
+  }
+
+  Widget _sideData(IconData icon, String label, String value, bool isMale, {MaterialColor? statusColor}) {
+    final c = statusColor ?? (isMale ? Colors.blue : Colors.pink);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: c.shade600),
+        const SizedBox(width: 6),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: TextStyle(fontSize: 9, color: c.shade600)),
+          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c.shade800)),
+        ]),
       ]),
     );
   }
@@ -340,7 +344,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
   }
 }
 
-// Body silhouette painter
+// Realistic body silhouette painter
 class _BodyPainter extends CustomPainter {
   final bool isMale;
   final bool showBack;
@@ -348,96 +352,116 @@ class _BodyPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = isMale ? Colors.blue.shade200 : Colors.pink.shade200
-      ..style = PaintingStyle.fill;
-    final outline = Paint()
-      ..color = isMale ? Colors.blue.shade400 : Colors.pink.shade400
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+    final baseColor = isMale ? Colors.blue : Colors.pink;
+    final skinPaint = Paint()..color = baseColor.shade100..style = PaintingStyle.fill;
+    final outlinePaint = Paint()..color = baseColor.shade400..style = PaintingStyle.stroke..strokeWidth = 2.0..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round;
+    final detailPaint = Paint()..color = baseColor.shade300..style = PaintingStyle.stroke..strokeWidth = 1.2;
 
-    final cx = size.width / 2;
-    final headR = size.width * 0.1;
-    final headY = size.height * 0.08;
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
 
-    // Head
-    canvas.drawCircle(Offset(cx, headY), headR, paint);
-    canvas.drawCircle(Offset(cx, headY), headR, outline);
+    // Proportions (head = 1/8 of height)
+    final headH = h * 0.09;
+    final headW = headH * 0.75;
+    final headY = h * 0.06;
+    final neckY = headY + headH;
+    final shoulderY = h * 0.17;
+    final chestY = h * 0.25;
+    final waistY = h * 0.38;
+    final hipY = h * 0.44;
+    final crotchY = h * 0.50;
+    final kneeY = h * 0.70;
+    final ankleY = h * 0.88;
+    final footY = h * 0.93;
 
-    // Body path
+    final shoulderW = isMale ? w * 0.38 : w * 0.30;
+    final waistW = isMale ? w * 0.20 : w * 0.17;
+    final hipW = isMale ? w * 0.22 : w * 0.28;
+    final neckW = w * 0.06;
+
+    // Head — oval
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx, headY + headH * 0.45), width: headW * 2, height: headH * 1.1), skinPaint);
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx, headY + headH * 0.45), width: headW * 2, height: headH * 1.1), outlinePaint);
+
+    // Body path with smooth curves
     final body = Path();
-    final shoulderW = isMale ? size.width * 0.35 : size.width * 0.28;
-    final waistW = isMale ? size.width * 0.22 : size.width * 0.18;
-    final hipW = isMale ? size.width * 0.24 : size.width * 0.30;
-    final neckY = headY + headR + 4;
-    final shoulderY = size.height * 0.2;
-    final waistY = size.height * 0.45;
-    final hipY = size.height * 0.55;
-    final legEndY = size.height * 0.92;
-
-    // Neck to shoulders
-    body.moveTo(cx - 8, neckY);
-    body.lineTo(cx - shoulderW, shoulderY);
-    // Arms left
-    body.lineTo(cx - shoulderW - 15, size.height * 0.42);
-    body.lineTo(cx - shoulderW - 10, size.height * 0.42);
-    body.lineTo(cx - shoulderW + 5, shoulderY + 10);
+    // Left side: neck → shoulder → arm → hand → back to torso → waist → hip → leg → foot
+    body.moveTo(cx - neckW, neckY);
+    body.quadraticBezierTo(cx - shoulderW * 0.7, shoulderY * 0.95, cx - shoulderW, shoulderY); // neck to shoulder
+    // Left arm
+    body.quadraticBezierTo(cx - shoulderW - 8, shoulderY + (waistY - shoulderY) * 0.3, cx - shoulderW - 12, waistY * 0.85); // upper arm
+    body.quadraticBezierTo(cx - shoulderW - 14, waistY * 0.95, cx - shoulderW - 10, waistY); // elbow
+    body.lineTo(cx - shoulderW - 6, hipY * 0.95); // forearm
+    body.lineTo(cx - shoulderW - 8, hipY); // hand
+    body.lineTo(cx - shoulderW - 2, hipY); // hand width
+    body.lineTo(cx - shoulderW + 2, waistY + 5); // back to body
     // Torso left
-    body.lineTo(cx - waistW, waistY);
-    body.lineTo(cx - hipW, hipY);
+    body.quadraticBezierTo(cx - waistW - 2, waistY, cx - waistW, waistY); // chest to waist
+    body.quadraticBezierTo(cx - hipW + 2, hipY * 0.98, cx - hipW, hipY); // waist to hip
     // Left leg
-    body.lineTo(cx - hipW + 5, legEndY);
-    body.lineTo(cx - 5, legEndY);
-    body.lineTo(cx - 5, hipY + 10);
-    // Right leg
-    body.lineTo(cx + 5, hipY + 10);
-    body.lineTo(cx + 5, legEndY);
-    body.lineTo(cx + hipW - 5, legEndY);
-    // Hip right
-    body.lineTo(cx + hipW, hipY);
-    body.lineTo(cx + waistW, waistY);
-    // Arms right
-    body.lineTo(cx + shoulderW - 5, shoulderY + 10);
-    body.lineTo(cx + shoulderW + 10, size.height * 0.42);
-    body.lineTo(cx + shoulderW + 15, size.height * 0.42);
-    body.lineTo(cx + shoulderW, shoulderY);
-    // Neck
-    body.lineTo(cx + 8, neckY);
+    body.quadraticBezierTo(cx - hipW + 3, crotchY, cx - hipW + 5, crotchY + 5);
+    body.quadraticBezierTo(cx - w * 0.16, kneeY, cx - w * 0.13, kneeY); // thigh to knee
+    body.quadraticBezierTo(cx - w * 0.12, (kneeY + ankleY) / 2, cx - w * 0.08, ankleY); // shin
+    body.lineTo(cx - w * 0.12, footY); // foot
+    body.lineTo(cx - w * 0.02, footY); // foot sole
+    body.lineTo(cx - w * 0.02, crotchY + 10);
+    // Right leg (mirror)
+    body.lineTo(cx + w * 0.02, crotchY + 10);
+    body.lineTo(cx + w * 0.02, footY);
+    body.lineTo(cx + w * 0.12, footY);
+    body.lineTo(cx + w * 0.08, ankleY);
+    body.quadraticBezierTo(cx + w * 0.12, (kneeY + ankleY) / 2, cx + w * 0.13, kneeY);
+    body.quadraticBezierTo(cx + w * 0.16, kneeY, cx + hipW - 5, crotchY + 5);
+    body.quadraticBezierTo(cx + hipW - 3, crotchY, cx + hipW, hipY);
+    // Right torso
+    body.quadraticBezierTo(cx + hipW - 2, hipY * 0.98, cx + waistW, waistY);
+    body.lineTo(cx + shoulderW - 2, waistY + 5);
+    body.lineTo(cx + shoulderW + 2, hipY);
+    body.lineTo(cx + shoulderW + 8, hipY);
+    body.lineTo(cx + shoulderW + 6, hipY * 0.95);
+    body.lineTo(cx + shoulderW + 10, waistY);
+    body.quadraticBezierTo(cx + shoulderW + 14, waistY * 0.95, cx + shoulderW + 12, waistY * 0.85);
+    body.quadraticBezierTo(cx + shoulderW + 8, shoulderY + (waistY - shoulderY) * 0.3, cx + shoulderW, shoulderY);
+    body.quadraticBezierTo(cx + shoulderW * 0.7, shoulderY * 0.95, cx + neckW, neckY);
     body.close();
 
-    canvas.drawPath(body, paint);
-    canvas.drawPath(body, outline);
+    canvas.drawPath(body, skinPaint);
+    canvas.drawPath(body, outlinePaint);
 
+    // Details
     if (showBack) {
-      // Spine line
-      final spine = Paint()..color = (isMale ? Colors.blue : Colors.pink).shade400..strokeWidth = 2..style = PaintingStyle.stroke;
+      // Spine
       final spinePath = Path();
       spinePath.moveTo(cx, neckY + 5);
-      spinePath.cubicTo(cx - 2, waistY * 0.6, cx + 2, waistY * 0.8, cx, waistY);
-      spinePath.lineTo(cx, hipY - 5);
-      canvas.drawPath(spinePath, spine);
-      // Vertebrae dots
-      for (double y = neckY + 15; y < hipY - 10; y += 14) {
-        canvas.drawCircle(Offset(cx, y), 2.5, Paint()..color = (isMale ? Colors.blue : Colors.pink).shade300);
+      for (double y = neckY + 5; y < hipY; y += 12) {
+        canvas.drawCircle(Offset(cx, y), 2, Paint()..color = baseColor.shade300);
       }
-      // Scapula lines
-      final scap = Paint()..color = (isMale ? Colors.blue : Colors.pink).shade300..strokeWidth = 1.5..style = PaintingStyle.stroke;
-      canvas.drawArc(Rect.fromCenter(center: Offset(cx - 25, shoulderY + 15), width: 30, height: 20), -0.5, 2, false, scap);
-      canvas.drawArc(Rect.fromCenter(center: Offset(cx + 25, shoulderY + 15), width: 30, height: 20), 1.6, 2, false, scap);
+      // Spine line
+      canvas.drawLine(Offset(cx, neckY + 5), Offset(cx, hipY - 5), detailPaint);
+      // Scapula
+      canvas.drawArc(Rect.fromCenter(center: Offset(cx - shoulderW * 0.45, chestY), width: shoulderW * 0.5, height: h * 0.06), -0.3, 2.2, false, detailPaint);
+      canvas.drawArc(Rect.fromCenter(center: Offset(cx + shoulderW * 0.45, chestY), width: shoulderW * 0.5, height: h * 0.06), 1.2, 2.2, false, detailPaint);
+      // Lower back dimples
+      canvas.drawCircle(Offset(cx - 8, hipY - 8), 2, detailPaint);
+      canvas.drawCircle(Offset(cx + 8, hipY - 8), 2, detailPaint);
     } else {
-      // Front details - chest line
-      final detail = Paint()..color = (isMale ? Colors.blue : Colors.pink).shade300..strokeWidth = 1..style = PaintingStyle.stroke;
       // Navel
-      canvas.drawCircle(Offset(cx, waistY - 10), 3, detail);
-      if (!isMale) {
-        // Chest curves for female
-        canvas.drawArc(Rect.fromCenter(center: Offset(cx - 15, shoulderY + 25), width: 22, height: 16), 0.3, 2.5, false, detail);
-        canvas.drawArc(Rect.fromCenter(center: Offset(cx + 15, shoulderY + 25), width: 22, height: 16), 0.3, 2.5, false, detail);
+      canvas.drawCircle(Offset(cx, waistY + 5), 2.5, detailPaint);
+      // Abs line
+      canvas.drawLine(Offset(cx, chestY + 10), Offset(cx, waistY - 5), Paint()..color = baseColor.shade200..strokeWidth = 0.8);
+      if (isMale) {
+        // Pectoral
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx - shoulderW * 0.35, chestY + 5), width: shoulderW * 0.55, height: h * 0.035), 0.2, 2.5, false, detailPaint);
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx + shoulderW * 0.35, chestY + 5), width: shoulderW * 0.55, height: h * 0.035), 0.4, 2.5, false, detailPaint);
       } else {
-        // Pectoral lines for male
-        canvas.drawArc(Rect.fromCenter(center: Offset(cx - 18, shoulderY + 18), width: 28, height: 10), 0.2, 2.6, false, detail);
-        canvas.drawArc(Rect.fromCenter(center: Offset(cx + 18, shoulderY + 18), width: 28, height: 10), 0.2, 2.6, false, detail);
+        // Chest
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx - shoulderW * 0.3, chestY + 8), width: shoulderW * 0.45, height: h * 0.045), 0.3, 2.5, false, detailPaint);
+        canvas.drawArc(Rect.fromCenter(center: Offset(cx + shoulderW * 0.3, chestY + 8), width: shoulderW * 0.45, height: h * 0.045), 0.3, 2.5, false, detailPaint);
       }
+      // Knee caps
+      canvas.drawOval(Rect.fromCenter(center: Offset(cx - w * 0.13, kneeY + 3), width: 10, height: 8), detailPaint);
+      canvas.drawOval(Rect.fromCenter(center: Offset(cx + w * 0.13, kneeY + 3), width: 10, height: 8), detailPaint);
     }
   }
 
