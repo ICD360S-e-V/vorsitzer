@@ -117,6 +117,22 @@ class _DeoTabState extends State<DeoTab> {
             Row(children: [Icon(Icons.shopping_cart, size: 12, color: Colors.grey.shade500), const SizedBox(width: 4),
               Text(p['bezugsquelle'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500))]),
           ],
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+              const SizedBox(width: 6),
+              Expanded(child: Text.rich(TextSpan(style: TextStyle(fontSize: 10, color: Colors.blue.shade800, height: 1.4), children: [
+                const TextSpan(text: 'Bewertung basiert auf 2 Kriterien: '),
+                TextSpan(text: 'Öko-Test', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                const TextSpan(text: ' (Inhaltsstoffe, Schadstoffe, Deklaration) + '),
+                TextSpan(text: 'Kundenfeedback', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                const TextSpan(text: ' (Wirksamkeit, Geruch, Hautverträglichkeit, Langzeitschutz).'),
+              ]))),
+            ]),
+          ),
         ])),
       ]),
     );
