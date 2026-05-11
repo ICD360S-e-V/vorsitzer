@@ -254,7 +254,9 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     ];
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Gesundheits-Check (10 Kriterien)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      Text('Gesundheits-Check (Gewicht ↔ Größe ↔ Alter ↔ Geschlecht)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      const SizedBox(height: 4),
+      Text('Bewertung basiert auf dem Verhältnis: ${kg.toStringAsFixed(0)} kg bei ${cm} cm, ${age} Jahre, ${isMale ? "männlich" : "weiblich"}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
       const SizedBox(height: 8),
       ...criteria.map((c) {
         final status = c['status'] as String;
