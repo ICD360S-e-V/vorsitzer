@@ -25,6 +25,7 @@ import 'vertraege_content.dart';
 import 'empfehlung.dart';
 import 'reparatur.dart';
 import 'reziprozitaet.dart';
+import 'gesundheits_profil.dart';
 import '../utils/file_picker_helper.dart';
 
 class UserDetailsDialog extends StatefulWidget {
@@ -129,7 +130,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 19, vsync: this);
+    _tabController = TabController(length: 20, vsync: this);
     _nameController.text = widget.user.name;
     _emailController.text = widget.user.email;
     _selectedRole = widget.user.role;
@@ -683,6 +684,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Tab(icon: Icon(Icons.thumb_up), text: 'Empfehlung'),
                   Tab(icon: Icon(Icons.build), text: 'Reparatur'),
                   Tab(icon: Icon(Icons.balance), text: 'Reziprozität'),
+                  Tab(icon: Icon(Icons.favorite), text: 'Gesundheit'),
                 ],
               ),
             ),
@@ -733,6 +735,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   ReziprozitaetContent(
                     apiService: widget.apiService,
                     userId: widget.user.id,
+                  ),
+                  GesundheitsProfilTab(
+                    apiService: widget.apiService,
+                    userId: widget.user.id,
+                    vorname: widget.user.vorname ?? '',
+                    nachname: widget.user.nachname ?? '',
+                    geschlecht: widget.user.geschlecht ?? 'M',
+                    geburtsdatum: widget.user.geburtsdatum ?? '',
                   ),
                 ],
               ),

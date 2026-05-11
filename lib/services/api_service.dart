@@ -4585,6 +4585,17 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getGesundheitsProfil(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/gesundheits_profil.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveGesundheitsProfil(int userId, Map<String, dynamic> data) async {
+    data['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gesundheits_profil.php'), headers: _headers, body: jsonEncode(data)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> deoAction(Map<String, dynamic> data) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/deo_manage.php'),
