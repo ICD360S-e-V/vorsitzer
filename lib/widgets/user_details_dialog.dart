@@ -724,6 +724,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   ),
                   EmpfehlungContent(
                     apiService: widget.apiService,
+                    userId: widget.user.id,
                   ),
                   ReparaturContent(
                     apiService: widget.apiService,
