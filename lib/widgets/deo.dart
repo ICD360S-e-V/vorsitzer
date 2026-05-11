@@ -129,7 +129,7 @@ class _DeoTabState extends State<DeoTab> {
                 TextSpan(text: 'Öko-Test', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
                 const TextSpan(text: ' (Inhaltsstoffe, Schadstoffe, Deklaration) + '),
                 TextSpan(text: 'Kundenfeedback', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-                const TextSpan(text: ' (Wirksamkeit, Geruch, Hautverträglichkeit, Langzeitschutz).'),
+                const TextSpan(text: ' (Wirksamkeit, Geruch, Hautverträglichkeit, Langzeitschutz) aus dm.de, Amazon.de, Rossmann, Codecheck, Stiftung Warentest & Testberichte.de.'),
               ]))),
             ]),
           ),
