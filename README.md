@@ -13,6 +13,8 @@ Pflegehilfsmitteln, Live-Chat und vielem mehr — auf allen Plattformen.
 [![Release](https://img.shields.io/github/v/release/ICD360S-e-V/vorsitzer?include_prereleases&sort=semver)](https://github.com/ICD360S-e-V/vorsitzer/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 
+[![Download APK](https://img.shields.io/badge/Download-Android%20APK-brightgreen?style=for-the-badge&logo=android&logoColor=white)](https://github.com/ICD360S-e-V/vorsitzer/releases/latest)
+
 </div>
 
 ---
