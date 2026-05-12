@@ -166,6 +166,7 @@ jobs:
   # ──────────────────────────────────────────────
   android-samsung:
     name: "📱 Samsung Galaxy Store"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: ubuntu-latest
     steps:
@@ -228,6 +229,7 @@ jobs:
   # ──────────────────────────────────────────────
   android-googleplay:
     name: "▶️ Google Play AAB"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: ubuntu-latest
     steps:
@@ -286,6 +288,7 @@ jobs:
   # ──────────────────────────────────────────────
   android-fdroid:
     name: "🔓 F-Droid APK"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: ubuntu-latest
     steps:
@@ -345,6 +348,7 @@ jobs:
   # ──────────────────────────────────────────────
   android-huawei:
     name: "📲 Huawei AppGallery"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: ubuntu-latest
     steps:
@@ -408,6 +412,7 @@ jobs:
   # ──────────────────────────────────────────────
   windows:
     name: "🪟 Windows"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: windows-latest
     steps:
@@ -442,6 +447,7 @@ jobs:
   # ──────────────────────────────────────────────
   linux:
     name: "🐧 Linux"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: ubuntu-latest
     steps:
@@ -493,6 +499,7 @@ jobs:
   # ──────────────────────────────────────────────
   macos:
     name: "🍎 macOS"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: macos-latest
     env:
@@ -603,6 +610,7 @@ jobs:
   # ──────────────────────────────────────────────
   ios:
     name: "📱 iOS IPA"
+    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: macos-latest
     env:
@@ -702,14 +710,6 @@ jobs:
     needs:
       - version
       - android-universal
-      - android-samsung
-      - android-googleplay
-      - android-fdroid
-      - android-huawei
-      - windows
-      - linux
-      - macos
-      - ios
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
