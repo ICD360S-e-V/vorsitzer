@@ -3009,7 +3009,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Stage-specific content
-                if (stufe == 1) _buildStufe1Content(user),
+                if (stufe == 1) _buildStufe1Content(user, status),
                 if (stufe == 2) _buildStufe2Content(user),
                 if (stufe == 3) _buildStufe3Content(user),
                 if (stufe == 4) _buildStufe4Content(user),
@@ -3082,14 +3082,22 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     );
   }
 
-  Widget _buildStufe1Content(User user) {
+  Widget _buildStufe1Content(User user, String status) {
+    final isLocked = status == 'geprueft';
     return Column(
       children: [
-        _stufe1EditableRow('Vorname', _stufe1VornameController),
-        _stufe1EditableRow('Nachname', _stufe1NachnameController),
-        _stufe1DateRow('Geburtsdatum', _stufe1GeburtsdatumController),
+        if (isLocked) Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+          child: Row(children: [Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 6),
+            Text('Daten geprüft — schreibgeschützt', style: TextStyle(fontSize: 11, color: Colors.green.shade700))]),
+        ),
+        _stufe1EditableRow('Vorname', _stufe1VornameController, readOnly: isLocked),
+        _stufe1EditableRow('Nachname', _stufe1NachnameController, readOnly: isLocked),
+        _stufe1DateRow('Geburtsdatum', _stufe1GeburtsdatumController, readOnly: isLocked),
         if (_stufe1GeburtsdatumController.text.isNotEmpty) _buildAlterRow(_stufe1GeburtsdatumController.text),
-        _stufe1EditableRow('Geburtsort', _stufe1GeburtsortController),
+        _stufe1EditableRow('Geburtsort', _stufe1GeburtsortController, readOnly: isLocked),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
@@ -3214,13 +3222,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ],
           ),
         ),
-        _stufe1EditableRow('Strasse', _stufe1StrasseController),
-        _stufe1EditableRow('Hausnummer', _stufe1HausnummerController),
-        _stufe1EditableRow('PLZ', _stufe1PlzController),
-        _stufe1EditableRow('Ort', _stufe1OrtController),
-        _stufe1EditableRow('Telefonnummer', _stufe1TelefonController),
+        _stufe1EditableRow('Strasse', _stufe1StrasseController, readOnly: isLocked),
+        _stufe1EditableRow('Hausnummer', _stufe1HausnummerController, readOnly: isLocked),
+        _stufe1EditableRow('PLZ', _stufe1PlzController, readOnly: isLocked),
+        _stufe1EditableRow('Ort', _stufe1OrtController, readOnly: isLocked),
+        _stufe1PhoneRow('Telefonnummer', _stufe1TelefonController, readOnly: isLocked),
         const SizedBox(height: 12),
-        Align(
+        if (!isLocked) Align(
           alignment: Alignment.centerRight,
           child: ElevatedButton.icon(
             onPressed: _isSavingStufe1 ? null : _saveStufe1Data,
@@ -3238,7 +3246,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     );
   }
 
-  Widget _stufe1DateRow(String label, TextEditingController controller) {
+  Widget _stufe1DateRow(String label, TextEditingController controller, {bool readOnly = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -3268,7 +3276,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                   suffixIcon: const Icon(Icons.calendar_today, size: 16),
                 ),
-                onTap: () async {
+                onTap: readOnly ? null : () async {
                   DateTime? initial;
                   try {
                     final parts = controller.text.split('.');
@@ -3336,7 +3344,32 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
   }
 
-  Widget _stufe1EditableRow(String label, TextEditingController controller, {String? hint}) {
+  Widget _stufe1PhoneRow(String label, TextEditingController controller, {bool readOnly = false}) {
+    final phone = controller.text.trim();
+    final hasPhone = phone.isNotEmpty;
+    final cleanPhone = phone.replaceAll(' ', '').replaceAll('/', '').replaceAll('-', '');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        Icon(hasPhone ? Icons.check_circle_outline : Icons.cancel_outlined, size: 16, color: hasPhone ? Colors.green : Colors.red.shade300),
+        const SizedBox(width: 8),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        if (readOnly && hasPhone) ...[
+          Expanded(child: Text(phone, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+          IconButton(icon: Icon(Icons.phone, size: 18, color: Colors.green.shade700), tooltip: 'Anrufen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: () => launchUrl(Uri.parse('tel:$cleanPhone'))),
+          IconButton(icon: Icon(Icons.chat, size: 18, color: Colors.green.shade600), tooltip: 'WhatsApp', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: () => launchUrl(Uri.parse('https://wa.me/${cleanPhone.startsWith('+') ? cleanPhone.substring(1) : (cleanPhone.startsWith('0') ? '49${cleanPhone.substring(1)}' : cleanPhone)}'))),
+        ] else ...[
+          Expanded(child: SizedBox(height: 32, child: TextField(controller: controller, readOnly: readOnly, style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(hintText: label, hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)), filled: readOnly, fillColor: readOnly ? Colors.grey.shade100 : null)))),
+        ],
+      ]),
+    );
+  }
+
+  Widget _stufe1EditableRow(String label, TextEditingController controller, {String? hint, bool readOnly = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -3356,11 +3389,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               height: 32,
               child: TextField(
                 controller: controller,
+                readOnly: readOnly,
                 style: const TextStyle(fontSize: 13),
                 decoration: InputDecoration(
                   hintText: hint ?? label,
                   hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  filled: readOnly,
+                  fillColor: readOnly ? Colors.grey.shade100 : null,
                   isDense: true,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                 ),
