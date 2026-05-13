@@ -499,7 +499,6 @@ jobs:
   # ──────────────────────────────────────────────
   macos:
     name: "🍎 macOS"
-    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: macos-latest
     env:
@@ -710,6 +709,7 @@ jobs:
     needs:
       - version
       - android-universal
+      - macos
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
@@ -756,9 +756,9 @@ jobs:
 
       - name: Organize artifacts with fixed filenames
         run: |
-          mkdir -p deploy/android
-          # Android Universal APK (only active platform)
+          mkdir -p deploy/android deploy/macos
           cp artifacts/android-universal-apk/*.apk deploy/android/vorsitzer.apk || true
+          find artifacts -type f -name "*.dmg" -exec cp {} deploy/macos/vorsitzer.dmg \; || true
           echo "=== Deploy tree ==="
           find deploy -type f -exec ls -lh {} \;
 
@@ -776,11 +776,11 @@ jobs:
           REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
           SSH_BASE="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
 
-          ssh $SSH_BASE -p "$PORT" "$REMOTE" "mkdir -p '$BASE'/android"
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "mkdir -p '$BASE'/{android,macos}"
 
           # Backup current → _stable, then overwrite with new release.
           # Fixed filenames mean only 1 current + 1 stable per file — no accumulation.
-          for plat in android; do
+          for plat in android macos; do
             if [ -n "$(ls -A deploy/$plat/ 2>/dev/null)" ]; then
               echo "==> Backing up + uploading $plat ..."
               for f in deploy/$plat/*; do
