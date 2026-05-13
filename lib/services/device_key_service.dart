@@ -63,33 +63,40 @@ class DeviceKeyService {
     _logger.info('Device credentials set from activation code', tag: 'DEVICE');
   }
 
-  /// Read from storage with SharedPreferences fallback for macOS
+  /// Read from storage with SharedPreferences fallback
   Future<String?> _readFromStorage(String key) async {
     if (_useSharedPrefsFallback) {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(key);
     }
     try {
-      return await _secureStorage.read(key: key);
-    } catch (e) {
-      // On macOS without code signing, keychain access fails
-      if (Platform.isMacOS && e.toString().contains('-34018')) {
-        _logger.warning('Secure storage failed, using SharedPreferences fallback', tag: 'DEVICE');
-        _useSharedPrefsFallback = true;
-        final prefs = await SharedPreferences.getInstance();
-        return prefs.getString(key);
+      final value = await _secureStorage.read(key: key);
+      if (value != null) return value;
+      // SecureStorage empty — try SharedPreferences backup
+      final prefs = await SharedPreferences.getInstance();
+      final backup = prefs.getString(key);
+      if (backup != null) {
+        _logger.info('Recovered $key from SharedPreferences backup', tag: 'DEVICE');
+        // Re-save to secure storage
+        try { await _secureStorage.write(key: key, value: backup); } catch (_) {}
       }
-      rethrow;
+      return backup;
+    } catch (e) {
+      // SecureStorage failed (signing change, keychain error, etc.)
+      _logger.warning('Secure storage read failed for $key: $e — trying SharedPreferences', tag: 'DEVICE');
+      _useSharedPrefsFallback = true;
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(key);
     }
   }
 
-  /// Write to storage with SharedPreferences fallback for macOS
+  /// Write to storage — always writes to both SecureStorage + SharedPreferences backup
   Future<void> _writeToStorage(String key, String value) async {
-    if (_useSharedPrefsFallback) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(key, value);
-      return;
-    }
+    // Always save to SharedPreferences as backup (survives signing changes)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, value);
+
+    if (_useSharedPrefsFallback) return;
     try {
       await _secureStorage.write(key: key, value: value);
     } catch (e) {
