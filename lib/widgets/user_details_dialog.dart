@@ -3347,7 +3347,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Widget _stufe1PhoneRow(String label, TextEditingController controller, {bool readOnly = false}) {
     final phone = controller.text.trim();
     final hasPhone = phone.isNotEmpty;
-    final cleanPhone = phone.replaceAll(' ', '').replaceAll('/', '').replaceAll('-', '');
+    var cleanPhone = phone.replaceAll(' ', '').replaceAll('/', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '');
+    // Normalize: 0731... → +49731..., 0049... → +49...
+    if (cleanPhone.startsWith('00')) cleanPhone = '+${cleanPhone.substring(2)}';
+    if (cleanPhone.startsWith('0')) cleanPhone = '+49${cleanPhone.substring(1)}';
+    if (!cleanPhone.startsWith('+')) cleanPhone = '+$cleanPhone';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [
@@ -3356,10 +3360,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
         if (readOnly && hasPhone) ...[
           Expanded(child: Text(phone, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-          IconButton(icon: Icon(Icons.phone, size: 18, color: Colors.green.shade700), tooltip: 'Anrufen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          IconButton(icon: Icon(Icons.phone, size: 18, color: Colors.green.shade700), tooltip: 'Anrufen: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             onPressed: () => launchUrl(Uri.parse('tel:$cleanPhone'))),
-          IconButton(icon: Icon(Icons.chat, size: 18, color: Colors.green.shade600), tooltip: 'WhatsApp', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: () => launchUrl(Uri.parse('https://wa.me/${cleanPhone.startsWith('+') ? cleanPhone.substring(1) : (cleanPhone.startsWith('0') ? '49${cleanPhone.substring(1)}' : cleanPhone)}'))),
+          IconButton(icon: Icon(Icons.chat, size: 18, color: Colors.green.shade600), tooltip: 'WhatsApp: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: () => launchUrl(Uri.parse('https://wa.me/${cleanPhone.replaceAll('+', '')}'))),
         ] else ...[
           Expanded(child: SizedBox(height: 32, child: TextField(controller: controller, readOnly: readOnly, style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(hintText: label, hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
