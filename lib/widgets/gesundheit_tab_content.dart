@@ -13,6 +13,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:pdfrx/pdfrx.dart' as pdfrx;
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
@@ -2514,13 +2515,25 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   }
 
   Widget _arztInfoChip(IconData icon, String text) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Colors.teal.shade600),
-        const SizedBox(width: 4),
-        Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-      ],
+    String? linkUri;
+    if (icon == Icons.phone && text.isNotEmpty) {
+      linkUri = 'tel:${text.replaceAll(' ', '').replaceAll('/', '')}';
+    } else if (icon == Icons.email && text.isNotEmpty) {
+      linkUri = 'mailto:$text';
+    } else if (icon == Icons.language && text.isNotEmpty) {
+      linkUri = text.startsWith('http') ? text : 'https://$text';
+    }
+    final hasLink = linkUri != null;
+    return GestureDetector(
+      onTap: hasLink ? () => launchUrl(Uri.parse(linkUri!)) : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: hasLink ? Colors.teal.shade700 : Colors.teal.shade600),
+          const SizedBox(width: 4),
+          Text(text, style: TextStyle(fontSize: 12, color: hasLink ? Colors.teal.shade700 : Colors.grey.shade700, decoration: hasLink ? TextDecoration.underline : null)),
+        ],
+      ),
     );
   }
 
