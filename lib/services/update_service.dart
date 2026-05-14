@@ -118,7 +118,7 @@ class UpdateService {
   /// Get platform-specific filename for the installer
   String _getInstallerFilename() {
     if (Platform.isWindows) {
-      return 'icd360sev_vorsitzer_setup.exe';
+      return 'icd360sev_vorsitzer_update.zip';
     } else if (Platform.isMacOS) {
       return 'icd360sev_vorsitzer.dmg';
     } else if (Platform.isLinux) {
@@ -178,12 +178,29 @@ class UpdateService {
     _log.info('Launching installer: $installerPath (${PlatformService.platformName})', tag: 'UPDATE');
 
     if (Platform.isWindows) {
-      // Windows: Inno Setup silent installer
-      final args = silent
-          ? ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART']
-          : <String>[];
-      await Process.start(installerPath, args, mode: ProcessStartMode.detached);
-      exit(0);
+      // Windows: Extract ZIP update and replace app files
+      _log.info('Windows update: extracting ZIP and replacing files', tag: 'UPDATE');
+      try {
+        final appDir = File(Platform.resolvedExecutable).parent.path;
+        final tempExtract = '${Directory.systemTemp.path}\\vorsitzer_update_${DateTime.now().millisecondsSinceEpoch}';
+        // Use PowerShell to extract, copy files, and relaunch
+        final script = '''
+Start-Sleep -Seconds 1
+Expand-Archive -Path "$installerPath" -DestinationPath "$tempExtract" -Force
+\\\$source = Get-ChildItem "$tempExtract" -Directory | Select-Object -First 1
+if (\\\$source) { \\\$src = \\\$source.FullName } else { \\\$src = "$tempExtract" }
+Copy-Item -Path "\\\$src\\*" -Destination "$appDir" -Recurse -Force
+Remove-Item -Path "$tempExtract" -Recurse -Force
+Remove-Item -Path "$installerPath" -Force
+Start-Process "$appDir\\vorsitzer.exe"
+''';
+        final scriptPath = '${Directory.systemTemp.path}\\vorsitzer_update.ps1';
+        await File(scriptPath).writeAsString(script);
+        await Process.start('powershell', ['-ExecutionPolicy', 'Bypass', '-File', scriptPath], mode: ProcessStartMode.detached);
+        exit(0);
+      } catch (e) {
+        _log.error('Windows update failed: $e', tag: 'UPDATE');
+      }
 
     } else if (Platform.isMacOS) {
       // macOS: Mount DMG, copy .app to /Applications, unmount, relaunch
