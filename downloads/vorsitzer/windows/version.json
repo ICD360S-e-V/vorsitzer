@@ -1,0 +1,12 @@
+{
+    "version": "1.0.0",
+    "build_number": 1,
+    "download_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/icd360sev_vorsitzer_setup.exe",
+    "fallback_url": "https://icd360sev.icd360s.de/downloads/vorsitzer/windows/icd360sev_vorsitzer_setup_stable.exe",
+    "fallback_version": "1.0.0",
+    "changelog": "Version 1.0.0\n\n- Initiale Version für Vorsitzer Portal\n- Nur für Vorsitzer zugänglich\n- Mitgliederverwaltung\n- Terminverwaltung\n- Ticketverwaltung\n- Vereinverwaltung",
+    "min_version": null,
+    "force_update": false,
+    "release_date": "2026-01-23",
+    "file_size": "42 MB"
+}
