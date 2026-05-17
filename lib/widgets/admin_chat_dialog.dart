@@ -28,12 +28,17 @@ class AdminChatDialog extends StatefulWidget {
   final String mitgliedernummer;
   final String userName;
   final CallOfferEvent? pendingCall;
+  // When set, the dialog auto-selects this conversation after the initial
+  // conversation list loads — used by the floating chat bubbles on the
+  // dashboard to jump straight into a member's chat.
+  final int? initialConversationId;
 
   const AdminChatDialog({
     super.key,
     required this.mitgliedernummer,
     required this.userName,
     this.pendingCall,
+    this.initialConversationId,
   });
 
   @override
@@ -306,6 +311,16 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         });
         // Sync muted conversations with ChatService for notification suppression
         _chatService.syncMutedConversations(_conversations);
+        // Auto-select the conversation that opened this dialog (chat bubble tap)
+        if (widget.initialConversationId != null && _selectedConversation == null) {
+          final target = _conversations.firstWhere(
+            (c) => _parseConvId(c['id']) == widget.initialConversationId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (target.isNotEmpty && mounted) {
+            _selectConversation(target);
+          }
+        }
       }
     } catch (e) {
       if (mounted && !silent) {

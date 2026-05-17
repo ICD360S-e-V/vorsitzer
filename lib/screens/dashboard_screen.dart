@@ -24,6 +24,7 @@ import '../widgets/eastern.dart';
 import '../models/user.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/admin_chat_dialog.dart';
+import '../widgets/chat_bubble_overlay.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/incoming_call_dialog.dart';
 import '../widgets/responsive_layout.dart';
@@ -125,6 +126,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   // Background conversation IDs for receiving messages
   List<int> _backgroundConversationIds = [];
+
+  // Floating chat bubbles: unread messages grouped per conversation.
+  // Populated by the messageStream listener; cleared when the user opens
+  // that conversation in the admin chat dialog.
+  final Map<int, ChatBubbleEntry> _chatBubbles = {};
 
   // Ticket management
   final _ticketService = TicketService();
@@ -247,12 +253,30 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   void _setupMessageListener() {
     // Listen for new messages at dashboard level for badge updates
     _messageSubscription = _chatService.messageStream.listen((message) {
-      if (mounted) {
-        setState(() {
-          _unreadChatCount++;
-        });
-        _log.info('New message received, unread count: $_unreadChatCount', tag: 'DASH');
+      if (!mounted) return;
+      // Skip our own messages — don't bubble our own outbound sends.
+      if (message.senderName == widget.userName) return;
+      // Skip if the admin chat dialog is already open — user is reading there.
+      if (_isAdminChatOpen) {
+        setState(() => _unreadChatCount++);
+        return;
       }
+      setState(() {
+        _unreadChatCount++;
+        final existing = _chatBubbles[message.conversationId];
+        _chatBubbles[message.conversationId] = ChatBubbleEntry(
+          conversationId: message.conversationId,
+          senderName: message.senderName,
+          unreadCount: (existing?.unreadCount ?? 0) + 1,
+          lastMessagePreview: message.message.length > 80
+              ? '${message.message.substring(0, 80)}…'
+              : message.message,
+        );
+      });
+      _log.info(
+        'New message from ${message.senderName} (conv ${message.conversationId}), unread total: $_unreadChatCount',
+        tag: 'DASH',
+      );
     });
 
     // Listen for incoming calls at dashboard level
@@ -1249,11 +1273,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _showAdminChatDialogInternal(_pendingCall);
   }
 
-  void _showAdminChatDialogInternal(CallOfferEvent? pendingCall) {
-    // Clear unread count when opening chat
+  /// Open the admin chat with a specific conversation auto-selected (used by
+  /// the floating chat bubbles on the dashboard).
+  void _showAdminChatForConversation(int conversationId) {
+    _showAdminChatDialogInternal(null, initialConversationId: conversationId);
+  }
+
+  void _showAdminChatDialogInternal(CallOfferEvent? pendingCall, {int? initialConversationId}) {
+    // Clear unread count + bubbles when opening chat
     setState(() {
       _unreadChatCount = 0;
       _isAdminChatOpen = true;
+      _chatBubbles.clear();
     });
     // Also clear tray unread count
     TrayService().clearUnread();
@@ -1264,6 +1295,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         mitgliedernummer: widget.currentMitgliedernummer,
         userName: widget.userName,
         pendingCall: pendingCall,
+        initialConversationId: initialConversationId,
       ),
     ).then((_) {
       // Mark dialog as closed
@@ -1491,23 +1523,34 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ),
             )
           : null,
-      // Desktop: Sidebar + content, Mobile: Just content
-      body: SeasonalBackground(
-        child: isMobile
-          ? _buildMainContent()
-          : Row(
-              children: [
-                DashboardSidebar(
-                  userName: widget.userName,
-                  mitgliedernummer: widget.currentMitgliedernummer,
-                  selectedMenuIndex: _selectedMenuIndex,
-                  onMenuSelected: (index) => setState(() => _selectedMenuIndex = index),
+      // Desktop: Sidebar + content, Mobile: Just content + floating chat bubbles
+      body: Stack(
+        children: [
+          SeasonalBackground(
+            child: isMobile
+              ? _buildMainContent()
+              : Row(
+                  children: [
+                    DashboardSidebar(
+                      userName: widget.userName,
+                      mitgliedernummer: widget.currentMitgliedernummer,
+                      selectedMenuIndex: _selectedMenuIndex,
+                      onMenuSelected: (index) => setState(() => _selectedMenuIndex = index),
+                    ),
+                    Expanded(
+                      child: _buildMainContent(),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: _buildMainContent(),
-                ),
-              ],
-            ),
+          ),
+          // Floating chat bubbles (Messenger-style) for unread conversations.
+          // Tap → opens admin chat with that conversation auto-selected.
+          ChatBubbleOverlay(
+            entries: _chatBubbles.values.toList(),
+            onBubbleTap: _showAdminChatForConversation,
+            onDismiss: () => setState(() => _chatBubbles.clear()),
+          ),
+        ],
       ),
       // Mobile: Bottom navigation bar for quick access
       bottomNavigationBar: isMobile
