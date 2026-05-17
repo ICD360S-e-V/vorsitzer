@@ -118,11 +118,13 @@ class _FirmaTabState extends State<_FirmaTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_selected == null) return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+    if (_selected == null) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(Icons.train, size: 64, color: Colors.grey.shade300), const SizedBox(height: 16),
       Text('Keine Firma ausgewählt', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)), const SizedBox(height: 16),
       ElevatedButton.icon(onPressed: _openSearch, icon: const Icon(Icons.search), label: const Text('Firma suchen'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)),
     ]));
+    }
     final s = _selected!;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [Text('Zuständige Firma', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800)), const Spacer(),
@@ -316,7 +318,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
         Row(children: [ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang', onSelected: (_) => setDlg(() => richtung = 'eingang')), const SizedBox(width: 8),
           ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', onSelected: (_) => setDlg(() => richtung = 'ausgang'))]),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(value: methode, decoration: InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(initialValue: methode, decoration: InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: const [DropdownMenuItem(value: 'E-Mail', child: Text('E-Mail')), DropdownMenuItem(value: 'Brief', child: Text('Brief')), DropdownMenuItem(value: 'Telefon', child: Text('Telefon')), DropdownMenuItem(value: 'Online', child: Text('Online'))],
           onChanged: (v) => setDlg(() => methode = v ?? methode)),
         const SizedBox(height: 10),
@@ -513,7 +515,7 @@ class _DetailsEditTabState extends State<_DetailsEditTab> {
       Row(children: [
         Expanded(child: _f('Preis €/Monat', _preisC, icon: Icons.euro)),
         const SizedBox(width: 8),
-        Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(value: _zahlungsart, decoration: InputDecoration(labelText: 'Zahlungsart', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+        Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(initialValue: _zahlungsart, decoration: InputDecoration(labelText: 'Zahlungsart', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
           items: const [DropdownMenuItem(value: 'Lastschrift', child: Text('Lastschrift', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'Überweisung', child: Text('Überweisung', style: TextStyle(fontSize: 13)))],
           onChanged: _editing ? (v) => setState(() => _zahlungsart = v ?? _zahlungsart) : null))),
       ]),
@@ -524,7 +526,7 @@ class _DetailsEditTabState extends State<_DetailsEditTab> {
         const SizedBox(width: 8),
         Expanded(child: _f('Gültig bis', _bisC, icon: Icons.event, isDate: true)),
       ]),
-      Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(value: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+      Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(initialValue: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
         items: const [DropdownMenuItem(value: 'aktiv', child: Text('Aktiv', style: TextStyle(fontSize: 13, color: Colors.green))), DropdownMenuItem(value: 'gekündigt', child: Text('Gekündigt', style: TextStyle(fontSize: 13, color: Colors.red)))],
         onChanged: _editing ? (v) => setState(() => _status = v ?? _status) : null)),
       _f('Notiz', _notizC, icon: Icons.notes),
@@ -615,14 +617,14 @@ class _StammdatenTabState extends State<_StammdatenTab> {
       const SizedBox(height: 8),
       Row(children: [
         SizedBox(width: 100, child: DropdownButtonFormField<String>(
-          value: _karteMonat.isEmpty ? null : _karteMonat,
+          initialValue: _karteMonat.isEmpty ? null : _karteMonat,
           decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
           items: List.generate(12, (i) => DropdownMenuItem(value: (i + 1).toString().padLeft(2, '0'), child: Text((i + 1).toString().padLeft(2, '0'), style: const TextStyle(fontSize: 13)))),
           onChanged: _editing ? (v) => setState(() => _karteMonat = v ?? '') : null,
         )),
         const SizedBox(width: 12),
         SizedBox(width: 110, child: DropdownButtonFormField<String>(
-          value: _karteJahr.isEmpty ? null : _karteJahr,
+          initialValue: _karteJahr.isEmpty ? null : _karteJahr,
           decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
           items: List.generate(10, (i) => DropdownMenuItem(value: (2025 + i).toString(), child: Text((2025 + i).toString(), style: const TextStyle(fontSize: 13)))),
           onChanged: _editing ? (v) => setState(() => _karteJahr = v ?? '') : null,
@@ -952,10 +954,15 @@ class _ZahlungTabState extends State<_ZahlungTab> {
                     const PopupMenuItem(value: 'ticket', child: Text('Ticket erstellen', style: TextStyle(fontSize: 12))),
                   ],
                   onSelected: (val) {
-                    if (val == 'bezahlt') _setStatus(z, 'bezahlt');
-                    else if (val == 'offen') _setStatus(z, 'offen');
-                    else if (val == 'nicht_bezahlt') _setStatus(z, 'nicht_bezahlt');
-                    else if (val == 'ticket') _createTicketForMonth(monat);
+                    if (val == 'bezahlt') {
+                      _setStatus(z, 'bezahlt');
+                    } else if (val == 'offen') {
+                      _setStatus(z, 'offen');
+                    } else if (val == 'nicht_bezahlt') {
+                      _setStatus(z, 'nicht_bezahlt');
+                    } else if (val == 'ticket') {
+                      _createTicketForMonth(monat);
+                    }
                   },
                 ),
               ]),

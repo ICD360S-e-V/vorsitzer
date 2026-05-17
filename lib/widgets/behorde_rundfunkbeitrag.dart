@@ -644,15 +644,18 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Befreiungsgrund *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
         const SizedBox(height: 4),
-        ..._befreiungsgruende.map((g) => RadioListTile<String>(
-          value: g.key, groupValue: befreiungsgrund, dense: true, contentPadding: EdgeInsets.zero,
-          title: Row(children: [
-            Icon(g.icon, size: 16, color: g.key.startsWith('ermaessigung') ? Colors.orange.shade700 : Colors.indigo.shade600), const SizedBox(width: 8),
-            Expanded(child: Text(g.label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-          ]),
-          subtitle: Text(g.beschreibung, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        RadioGroup<String>(
+          groupValue: befreiungsgrund,
           onChanged: (v) => setD(() => befreiungsgrund = v ?? ''),
-        )),
+          child: Column(mainAxisSize: MainAxisSize.min, children: _befreiungsgruende.map((g) => RadioListTile<String>(
+            value: g.key, dense: true, contentPadding: EdgeInsets.zero,
+            title: Row(children: [
+              Icon(g.icon, size: 16, color: g.key.startsWith('ermaessigung') ? Colors.orange.shade700 : Colors.indigo.shade600), const SizedBox(width: 8),
+              Expanded(child: Text(g.label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+            ]),
+            subtitle: Text(g.beschreibung, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          )).toList()),
+        ),
         const SizedBox(height: 8),
         TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Antragsdatum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, datumC); setD(() {}); }),
         const SizedBox(height: 8),
@@ -848,7 +851,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
   Widget _dropdownFieldAuto(Map<String, dynamic> map, String key, String label, IconData icon, List<String> options) {
     final current = map[key]?.toString() ?? '';
     return Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(
-      value: options.contains(current) ? current : null,
+      initialValue: options.contains(current) ? current : null,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
       items: options.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 13)))).toList(),
       onChanged: (v) { setState(() => map[key] = v ?? ''); _autoSave(); },
@@ -972,7 +975,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       title: const Text('Antrag bearbeiten'),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(value: befreiungsgrund.isEmpty ? null : befreiungsgrund,
+        DropdownButtonFormField<String>(initialValue: befreiungsgrund.isEmpty ? null : befreiungsgrund,
           decoration: const InputDecoration(labelText: 'Befreiungsgrund', isDense: true, border: OutlineInputBorder()),
           items: widget.befreiungsgruende.map((g) => DropdownMenuItem(value: g.key, child: Text(g.label, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setD(() => befreiungsgrund = v ?? '')),
@@ -980,7 +983,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         TextField(controller: datumC, readOnly: true, decoration: const InputDecoration(labelText: 'Antragsdatum', isDense: true, prefixIcon: Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder()),
           onTap: () async { await pickDate(ctx2, datumC); setD(() {}); }),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(value: methode.isEmpty ? null : methode,
+        DropdownButtonFormField<String>(initialValue: methode.isEmpty ? null : methode,
           decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()),
           items: const [DropdownMenuItem(value: 'online', child: Text('Online')), DropdownMenuItem(value: 'email', child: Text('E-Mail')), DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')), DropdownMenuItem(value: 'postalisch', child: Text('Postalisch'))],
           onChanged: (v) => setD(() => methode = v ?? '')),
