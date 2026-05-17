@@ -80,7 +80,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
                   final dir = await getTemporaryDirectory();
                   final file = File('${dir.path}/${a['datei_name']}');
                   await file.writeAsBytes(resp.bodyBytes);
-                  if (mounted) await FileViewerDialog.show(context, file.path, a['datei_name']?.toString() ?? '');
+                  if (context.mounted) await FileViewerDialog.show(context, file.path, a['datei_name']?.toString() ?? '');
                 }
               } catch (_) {}
             }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 14, color: Colors.indigo.shade600))),
