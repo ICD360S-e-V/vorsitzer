@@ -404,19 +404,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       : '$unreadCount ungelesene Nachrichten: $msgPreview',
                   conversationId: id,
                 );
-
-                // Populate floating chat bubble for this conversation
-                _chatBubbles[id] = ChatBubbleEntry(
-                  conversationId: id,
-                  senderName: memberName,
-                  unreadCount: unreadCount,
-                  lastMessagePreview: msgPreview,
-                );
               }
             }
           }
         }
-        if (mounted && (totalUnread > 0 || _chatBubbles.isNotEmpty)) {
+        if (totalUnread > 0 && mounted) {
           setState(() {
             _unreadChatCount = totalUnread;
           });
@@ -1290,23 +1282,41 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   /// Open the inline mini chat popup for a conversation (chat bubble tap).
-  /// Removes that conversation's bubble from the right-side stack, since the
-  /// popup is now the live reader for it.
+  /// Bubble stays in the right-side stack — only the unread badge is cleared,
+  /// so the user can still reach this member quickly after reading.
   void _openPopupForConversation(int conversationId) {
     final bubble = _chatBubbles[conversationId];
     setState(() {
       _openPopupConvId = conversationId;
       _openPopupName = bubble?.senderName ?? 'Mitglied';
-      _chatBubbles.remove(conversationId);
+      if (bubble != null && bubble.unreadCount > 0) {
+        _chatBubbles[conversationId] = ChatBubbleEntry(
+          conversationId: bubble.conversationId,
+          senderName: bubble.senderName,
+          unreadCount: 0,
+          lastMessagePreview: bubble.lastMessagePreview,
+        );
+      }
     });
   }
 
   void _showAdminChatDialogInternal(CallOfferEvent? pendingCall, {int? initialConversationId}) {
-    // Clear unread count + bubbles when opening chat
+    // Clear unread count when opening chat. Bubbles stay (user closes them
+    // explicitly with the × on each bubble); just zero their unread badges.
     setState(() {
       _unreadChatCount = 0;
       _isAdminChatOpen = true;
-      _chatBubbles.clear();
+      for (final convId in _chatBubbles.keys.toList()) {
+        final b = _chatBubbles[convId]!;
+        if (b.unreadCount > 0) {
+          _chatBubbles[convId] = ChatBubbleEntry(
+            conversationId: b.conversationId,
+            senderName: b.senderName,
+            unreadCount: 0,
+            lastMessagePreview: b.lastMessagePreview,
+          );
+        }
+      }
     });
     // Also clear tray unread count
     TrayService().clearUnread();
@@ -1570,6 +1580,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ChatBubbleOverlay(
             entries: _chatBubbles.values.toList(),
             onBubbleTap: _openPopupForConversation,
+            onBubbleClose: (convId) => setState(() => _chatBubbles.remove(convId)),
             onDismiss: () => setState(() => _chatBubbles.clear()),
           ),
           // Inline mini chat popup — visible when a bubble is expanded.
