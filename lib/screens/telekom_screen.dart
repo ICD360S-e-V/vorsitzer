@@ -269,8 +269,11 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
               trailing: PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
                 onSelected: (action) {
-                  if (action == 'edit') _showVertragDialog(v);
-                  else if (action == 'delete') _deleteVertrag(v);
+                  if (action == 'edit') {
+                    _showVertragDialog(v);
+                  } else if (action == 'delete') {
+                    _deleteVertrag(v);
+                  }
                 },
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Bearbeiten')])),
@@ -567,7 +570,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
             String typ = 'Störung';
             await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(title: const Text('Neuer Vorfall'),
               content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
-                DropdownButtonFormField<String>(value: typ, decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+                DropdownButtonFormField<String>(initialValue: typ, decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
                   items: ['Störung', 'Reklamation', 'Tarifwechsel', 'Kündigung', 'Vertragsverlängerung', 'Sonstiges'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                   onChanged: (v) => setD(() => typ = v!)), const SizedBox(height: 10),
                 TextField(controller: titelC, decoration: const InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 10),

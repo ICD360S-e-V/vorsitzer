@@ -1384,7 +1384,9 @@ class _VereinTabState extends State<_VereinTab> {
 
   Future<void> _saveSelectedVerein(Map<String, dynamic>? v) async {
     final data = <String, dynamic>{};
-    if (v != null) { for (final e in v.entries) data[e.key.toString()] = e.value?.toString() ?? ''; }
+    if (v != null) { for (final e in v.entries) {
+      data[e.key.toString()] = e.value?.toString() ?? '';
+    } }
     else { data['name'] = ''; data['typ'] = ''; data['strasse'] = ''; data['plz_ort'] = ''; data['telefon'] = ''; data['email'] = ''; data['oeffnungszeiten'] = ''; }
     await widget.apiService.saveVereinData(widget.userId, data);
   }

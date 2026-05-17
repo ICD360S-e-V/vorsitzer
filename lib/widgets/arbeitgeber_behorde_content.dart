@@ -38,7 +38,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   List<Map<String, dynamic>> _arbeitgeberFromDB = [];
   bool _dbLoaded = false;
   List<Map<String, dynamic>> _berufsbezeichnungen = [];
-  String _selectedArbeitgeberId = '';
+  final String _selectedArbeitgeberId = '';
   late TabController _mainTabC;
 
   @override
@@ -2227,6 +2227,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   @override
   void dispose() { _mainTabC.dispose(); super.dispose(); }
 
+  @override
   Widget build(BuildContext context) {
     if (!_dbLoaded) {
       return const Center(child: CircularProgressIndicator());
@@ -3971,7 +3972,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setV) => AlertDialog(
         title: const Text('Neuer Vorfall', style: TextStyle(fontSize: 15)),
         content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          DropdownButtonFormField<String>(value: typ, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          DropdownButtonFormField<String>(initialValue: typ, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: typLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (v) => setV(() => typ = v ?? typ)),
           const SizedBox(height: 10),
           TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -3979,7 +3980,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; }),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(value: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (v) => setV(() => status = v ?? status)),
           const SizedBox(height: 10),
           TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
