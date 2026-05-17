@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,6 +42,9 @@ class BehordeVersorgungsamtContent extends StatefulWidget {
 
 class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtContent> {
   static const type = 'versorgungsamt';
+
+  // Wertmarke flip state (front/back)
+  bool _wm2Back = false;
 
   // Sachbearbeiter
   String _sbAnrede = '';
@@ -1710,7 +1712,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
 
   Widget _buildAusweisTab(Map<String, dynamic> data) {
     final merkzeichenDefs = [('g', 'G'), ('ag', 'aG'), ('b', 'B'), ('h', 'H'), ('rf', 'RF'), ('bl', 'Bl'), ('gl', 'Gl'), ('tbl', 'TBl')];
-    final merkzeichenFull = [('g', 'G – Erhebliche Gehbehinderung'), ('ag', 'aG – Außergewöhnliche Gehbehinderung'), ('b', 'B – Begleitperson erforderlich'), ('h', 'H – Hilflos'), ('rf', 'RF – Rundfunkbeitragsermäßigung'), ('bl', 'Bl – Blind'), ('gl', 'Gl – Gehörlos'), ('tbl', 'TBl – Taubblind')];
     final allMz = merkzeichenDefs.where((m) => data['merkzeichen_${m.$1}'] == true || data['merkzeichen_${m.$1}'] == 'true').map((m) => m.$2).toList();
     final activeMz = allMz.where((m) => m != 'B').toList();
     final user = widget.user;
@@ -1860,10 +1861,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           final azRaw = aktenzeichen;
           String azFmt = '';
           if (azRaw.isNotEmpty) { final d = azRaw.replaceAll(RegExp(r'[^0-9]'), ''); azFmt = d.length >= 8 ? '${d.substring(0, 2)}/${d.substring(2, 5)} ${d.substring(5, 8)}' : azRaw; }
-          return StatefulBuilder(builder: (_, setWm) {
-            bool wmBack = false;
-            return GestureDetector(onTap: () => setWm(() => wmBack = !wmBack),
-              child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !wmBack
+          return GestureDetector(onTap: () => setState(() => _wm2Back = !_wm2Back),
+              child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !_wm2Back
                 ? Container(key: const ValueKey('wm2_front'), width: double.infinity, height: 200, clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: const Color(0xFFF5F0EB),
                       border: Border.all(color: Colors.grey.shade400),
@@ -1902,20 +1901,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))]),
                   child: Center(child: Text('Rückseite', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)))),
             ));
-          });
         }),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text('Alle Daten werden automatisch aus den Tabs Amt, GdB und Mitgliederprofil übernommen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
       ]));
     });
-  }
-
-  Widget _cardRow(String label, String value) {
-    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
-      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-      Expanded(child: Text(value.isNotEmpty ? value : '—', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: value.isNotEmpty ? Colors.green.shade900 : Colors.grey.shade400))),
-    ]));
   }
 
   // ============ TAB 5: GDB ============
@@ -2017,48 +2008,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           )),
         ]),
       ]),
-    );
-  }
-
-  void _showGdbHistoryDialog(Map<String, dynamic> data) {
-    int gdbSel = 0;
-    final datumC = TextEditingController();
-    final notizC = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) => AlertDialog(
-        title: const Text('GdB-Eintrag hinzufügen'),
-        content: SizedBox(
-          width: 400,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            DropdownButtonFormField<int>(
-              value: gdbSel,
-              decoration: const InputDecoration(labelText: 'GdB *', border: OutlineInputBorder(), isDense: true),
-              items: _gdbOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 12)))).toList(),
-              onChanged: (v) => setD(() => gdbSel = v ?? 0),
-            ),
-            const SizedBox(height: 12),
-            _datePicker(ctx, datumC, 'Datum *', () => setD(() {})),
-            const SizedBox(height: 12),
-            TextField(controller: notizC, decoration: const InputDecoration(labelText: 'Notiz', border: OutlineInputBorder(), isDense: true)),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-          FilledButton(
-            onPressed: () {
-              if (datumC.text.isEmpty) return;
-              final historie = List<Map<String, dynamic>>.from(data['gdb_historie'] ?? []);
-              historie.add({'gdb': gdbSel, 'datum': datumC.text, 'notiz': notizC.text});
-              historie.sort((a, b) => (b['datum'] ?? '').toString().compareTo((a['datum'] ?? '').toString()));
-              setState(() => data['gdb_historie'] = historie);
-              widget.saveData(type, data);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Speichern'),
-          ),
-        ],
-      )),
     );
   }
 
@@ -2256,8 +2205,6 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   }
 
   Widget _buildDetails(Map<String, dynamic> a) {
-    final bescheidDatum = a['bescheid_datum']?.toString() ?? '';
-    final bescheidErhalten = a['bescheid_erhalten']?.toString() ?? '';
     final aid = widget.antragId;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
@@ -2546,17 +2493,6 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         visualDensity: VisualDensity.compact,
       )).toList())),
     ]));
-  }
-
-  DateTime _addMonths(DateTime d, int months) {
-    var y = d.year; var m = d.month + months;
-    while (m > 12) { y++; m -= 12; }
-    var day = d.day;
-    final maxDay = DateTime(y, m + 1, 0).day;
-    if (day > maxDay) day = maxDay;
-    var result = DateTime(y, m, day);
-    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) result = result.add(const Duration(days: 1));
-    return result;
   }
 
   Widget _datePickerRow(IconData icon, String label, String value, Function(String) onPicked) {
@@ -3021,21 +2957,6 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         ]),
       ),
     ]));
-  }
-
-  Widget _tlItem(IconData icon, String title, String date, Color color, bool hasLine, {String? subtitle}) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Column(children: [
-        Container(width: 32, height: 32, decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle, border: Border.all(color: color, width: 2)),
-          child: Icon(icon, size: 16, color: color)),
-        if (hasLine) Container(width: 2, height: 28, color: Colors.grey.shade300),
-      ]),
-      const SizedBox(width: 12),
-      Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Expanded(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color))), Text(date, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))]),
-        if (subtitle != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
-      ]))),
-    ]);
   }
 
   Widget _lawRow(String p, String t) {

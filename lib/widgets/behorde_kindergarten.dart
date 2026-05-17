@@ -14,7 +14,7 @@ class BehordeKindergartenContent extends StatefulWidget {
 
 class _State extends State<BehordeKindergartenContent> with TickerProviderStateMixin {
   late final TabController _tabCtrl;
-  bool _loaded = false, _loading = false, _saving = false;
+  bool _loaded = false, _loading = false;
   Map<String, dynamic> _data = {};
   List<Map<String, dynamic>> _kinder = [];
 
@@ -512,12 +512,11 @@ class _KindDetailState extends State<_KindDetail> {
 
   void _addTermin() {
     final datumC = TextEditingController(); final uhrzeitC = TextEditingController(); final typC = TextEditingController(); final notizC = TextEditingController();
-    DateTime? pickedDate;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Neuer Termin', style: TextStyle(fontSize: 14)),
       content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) { pickedDate = p; datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; } }))),
+          suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) { datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; } }))),
         const SizedBox(height: 8),
         TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit (z.B. 09:00)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 8),

@@ -265,7 +265,6 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
 
   static const _statusMap = _ReparaturContentState._statusMap;
   static const _uebergabeMap = _ReparaturContentState._uebergabeMap;
-  static const _geraetTypen = _ReparaturContentState._geraetTypen;
 
   @override
   void initState() {

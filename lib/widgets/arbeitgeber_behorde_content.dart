@@ -2284,7 +2284,6 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
     final dbAg = ag['arbeitgeber_db_id'] != null ? widget.dbArbeitgeberListe.cast<Map<String, dynamic>?>().firstWhere((d) => d?['id'].toString() == ag['arbeitgeber_db_id'].toString(), orElse: () => null) : null;
     final firma = ag['firma']?.toString() ?? dbAg?['firma_name']?.toString() ?? '';
     final branche = dbAg?['branche']?.toString() ?? '';
-    final hauptOrt = dbAg?['hauptzentrale_ort']?.toString() ?? '';
     final telefon = dbAg?['telefon']?.toString() ?? dbAg?['hauptzentrale_telefon']?.toString() ?? '';
     final email = dbAg?['email']?.toString() ?? dbAg?['hauptzentrale_email']?.toString() ?? '';
     final website = dbAg?['website']?.toString() ?? '';
@@ -2345,7 +2344,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   subtitle: Text('${s['branche'] ?? ''} · ${s['hauptzentrale_ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final result = await _saveArbeitgeberToDB({
+                    await _saveArbeitgeberToDB({
                       'firma': s['firma_name'], 'position': '', 'ort': s['hauptzentrale_ort'] ?? '',
                       'aktuell': true, 'art': art, 'arbeitgeber_db_id': s['id'],
                       'von_monat': DateTime.now().month.toString().padLeft(2, '0'), 'von_jahr': DateTime.now().year.toString(),

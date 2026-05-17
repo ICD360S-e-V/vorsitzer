@@ -79,7 +79,10 @@ class _FirmaTabState extends State<_FirmaTab> {
         widget.apiService.searchDticketFirmen('').then((res) {
           if (res['success'] == true) all = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
           filtered = List.from(all); setDlg(() => loading = false);
-        }).catchError((_) => setDlg(() => loading = false));
+        }).catchError((Object _) {
+          setDlg(() => loading = false);
+          return null;
+        });
       }
       void filter(String q) { if (q.isEmpty) { setDlg(() => filtered = List.from(all)); return; }
         final l = q.toLowerCase(); setDlg(() => filtered = all.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(l) || (s['ort']?.toString() ?? '').toLowerCase().contains(l)).toList()); }
@@ -275,7 +278,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) { final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final kId = int.tryParse(k['id'].toString()) ?? 0;
+        : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) { final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
             return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: InkWell(
               onTap: () => _openKorrDetail(k),
               child: ListTile(dense: true,
@@ -674,7 +677,6 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
   String _gueltigJahr = '';
   String _vorname = '';
   String _nachname = '';
-  bool _saving = false;
 
   @override
   void initState() {
@@ -692,18 +694,6 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
 
   @override
   void dispose() { _kundennrC.dispose(); _codeC.dispose(); super.dispose(); }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    await widget.apiService.dticketAction(widget.userId, {'action': 'save_vertrag', 'vertrag': {
-      ...widget.vertrag,
-      'chipkarte_vorname': _vorname, 'chipkarte_nachname': _nachname,
-      'chipkarte_gueltig_monat': _gueltigMonat, 'chipkarte_gueltig_jahr': _gueltigJahr,
-      'chipkarte_code': _codeC.text.trim(), 'abo_nr': _kundennrC.text.trim(),
-    }});
-    await widget.onReload();
-    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Chipkarte gespeichert'), backgroundColor: Colors.green.shade600)); }
-  }
 
   String _firmaName() => widget.firmaData['stammdaten.selected_firma_name']?.toString() ?? '';
   String _firmaAdresse() { final s = widget.firmaData['stammdaten.selected_firma_strasse']?.toString() ?? ''; final o = widget.firmaData['stammdaten.selected_firma_ort']?.toString() ?? ''; return '$s, $o'.trim(); }

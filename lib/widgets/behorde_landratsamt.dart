@@ -26,7 +26,6 @@ class BehordeLandratsamtContent extends StatefulWidget {
 }
 
 class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
-  static const type = 'landratsamt';
   Map<String, Map<String, dynamic>> _dbData = {};
   bool _loaded = false;
   bool _saving = false;

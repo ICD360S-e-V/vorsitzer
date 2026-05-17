@@ -20,7 +20,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   late final TabController _tab;
   bool _loaded = false;
   Map<String, dynamic> _data = {};
-  List<Map<String, dynamic>> _servers = [], _vertraege = [], _korr = [], _verlauf = [];
+  List<Map<String, dynamic>> _korr = [];
 
   @override
   void initState() { super.initState(); _tab = TabController(length: 7, vsync: this); _load(); }
@@ -34,10 +34,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
       if (r['success'] == true && mounted) {
         setState(() {
           _data = Map<String, dynamic>.from(r['data'] ?? {});
-          _servers = (r['servers'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          _vertraege = (r['vertraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
           _korr = (r['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          _verlauf = (r['verlauf'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
           _loaded = true;
         });
         debugPrint('[ServDiscount] _korr.length=${_korr.length}');
@@ -207,7 +204,6 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
-            final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
             const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online/Ticket', 'persoenlich': 'Persönlich'};
             return InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showDetail(k),
               child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),

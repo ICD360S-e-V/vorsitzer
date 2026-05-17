@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:otp/otp.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -47,7 +46,6 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
   String _korrTab = 'eingang'; // 'eingang' | 'ausgang'
   List<Map<String, dynamic>> _korrEingang = [];
   List<Map<String, dynamic>> _korrAusgang = [];
-  bool _korrLoading = false;
   final Set<int> _korrExpanded = <int>{};
 
   // Aufgaben
