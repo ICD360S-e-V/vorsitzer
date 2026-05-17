@@ -1429,7 +1429,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                   SwitchListTile(
                     title: const Text('Termin onorat (wahrgenommen)', style: TextStyle(fontSize: 13)),
                     value: onorat, dense: true, contentPadding: EdgeInsets.zero,
-                    activeColor: Colors.green,
+                    activeThumbColor: Colors.green,
                     onChanged: (v) => setDlg(() => onorat = v),
                   ),
                   if (onorat) ...[
