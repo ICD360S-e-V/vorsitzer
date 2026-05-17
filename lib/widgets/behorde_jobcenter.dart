@@ -108,7 +108,10 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
           if (res['success'] == true) all = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
           filtered = List.from(all);
           setDlg(() => loading = false);
-        }).catchError((_) => setDlg(() => loading = false));
+        }).catchError((Object _) {
+          setDlg(() => loading = false);
+          return null;
+        });
       }
       void filterList(String q) {
         if (q.isEmpty) { setDlg(() => filtered = List.from(all)); return; }

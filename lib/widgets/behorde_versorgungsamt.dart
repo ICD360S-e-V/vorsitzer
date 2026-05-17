@@ -44,6 +44,9 @@ class BehordeVersorgungsamtContent extends StatefulWidget {
 class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtContent> {
   static const type = 'versorgungsamt';
 
+  // Wertmarke flip state (front/back)
+  bool _wm2Back = false;
+
   // Sachbearbeiter
   String _sbAnrede = '';
   late TextEditingController _sbNameC;
@@ -1860,10 +1863,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           final azRaw = aktenzeichen;
           String azFmt = '';
           if (azRaw.isNotEmpty) { final d = azRaw.replaceAll(RegExp(r'[^0-9]'), ''); azFmt = d.length >= 8 ? '${d.substring(0, 2)}/${d.substring(2, 5)} ${d.substring(5, 8)}' : azRaw; }
-          return StatefulBuilder(builder: (_, setWm) {
-            bool wmBack = false;
-            return GestureDetector(onTap: () => setWm(() => wmBack = !wmBack),
-              child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !wmBack
+          return GestureDetector(onTap: () => setState(() => _wm2Back = !_wm2Back),
+              child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !_wm2Back
                 ? Container(key: const ValueKey('wm2_front'), width: double.infinity, height: 200, clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: const Color(0xFFF5F0EB),
                       border: Border.all(color: Colors.grey.shade400),
@@ -1902,7 +1903,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))]),
                   child: Center(child: Text('Rückseite', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)))),
             ));
-          });
         }),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
