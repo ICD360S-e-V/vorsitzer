@@ -1375,6 +1375,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
                           final nextYear = befreiungJahrInt < now.year ? now.year : now.year + 1;
                           final novFirst = DateTime(befreiungJahrInt, 11, 1);
                           final firstMonday = novFirst.weekday == DateTime.monday
@@ -1394,22 +1395,20 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                             scheduledDate: scheduledStr,
                           );
 
-                          if (context.mounted) {
-                            if (result.containsKey('ticket')) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Erinnerungsticket für Befreiungsausweis $nextYear erstellt (geplant: ${firstMonday.day.toString().padLeft(2, '0')}.${firstMonday.month.toString().padLeft(2, '0')}.${firstMonday.year})'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(result['error'] ?? 'Fehler beim Erstellen des Tickets'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
+                          if (result.containsKey('ticket')) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Erinnerungsticket für Befreiungsausweis $nextYear erstellt (geplant: ${firstMonday.day.toString().padLeft(2, '0')}.${firstMonday.month.toString().padLeft(2, '0')}.${firstMonday.year})'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } else {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(result['error'] ?? 'Fehler beim Erstellen des Tickets'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
                           }
                         },
                         icon: const Icon(Icons.assignment_add, size: 16),

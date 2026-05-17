@@ -1288,7 +1288,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                 'klage_status': currentStatus, 'klage_notiz': notizC.text.trim(), 'klage_verlauf': klageVerlauf,
               });
               _load(); widget.onChanged();
-              if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600));
+              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600));
             },
             icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
