@@ -25,6 +25,7 @@ import '../models/user.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/admin_chat_dialog.dart';
 import '../widgets/chat_bubble_overlay.dart';
+import '../widgets/chat_bubble_popup.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/incoming_call_dialog.dart';
 import '../widgets/responsive_layout.dart';
@@ -131,6 +132,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Populated by the messageStream listener; cleared when the user opens
   // that conversation in the admin chat dialog.
   final Map<int, ChatBubbleEntry> _chatBubbles = {};
+
+  // Currently-open mini chat popup. Null when no bubble is expanded.
+  int? _openPopupConvId;
+  String? _openPopupName;
 
   // Ticket management
   final _ticketService = TicketService();
@@ -1273,10 +1278,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _showAdminChatDialogInternal(_pendingCall);
   }
 
-  /// Open the admin chat with a specific conversation auto-selected (used by
-  /// the floating chat bubbles on the dashboard).
+  /// Open the admin chat with a specific conversation auto-selected.
   void _showAdminChatForConversation(int conversationId) {
     _showAdminChatDialogInternal(null, initialConversationId: conversationId);
+  }
+
+  /// Open the inline mini chat popup for a conversation (chat bubble tap).
+  /// Removes that conversation's bubble from the right-side stack, since the
+  /// popup is now the live reader for it.
+  void _openPopupForConversation(int conversationId) {
+    final bubble = _chatBubbles[conversationId];
+    setState(() {
+      _openPopupConvId = conversationId;
+      _openPopupName = bubble?.senderName ?? 'Mitglied';
+      _chatBubbles.remove(conversationId);
+    });
   }
 
   void _showAdminChatDialogInternal(CallOfferEvent? pendingCall, {int? initialConversationId}) {
@@ -1544,12 +1560,37 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
           ),
           // Floating chat bubbles (Messenger-style) for unread conversations.
-          // Tap → opens admin chat with that conversation auto-selected.
+          // Tap → opens an inline mini chat popup pinned bottom-right.
           ChatBubbleOverlay(
             entries: _chatBubbles.values.toList(),
-            onBubbleTap: _showAdminChatForConversation,
+            onBubbleTap: _openPopupForConversation,
             onDismiss: () => setState(() => _chatBubbles.clear()),
           ),
+          // Inline mini chat popup — visible when a bubble is expanded.
+          if (_openPopupConvId != null)
+            Positioned(
+              right: 20,
+              bottom: 20,
+              child: ChatBubblePopup(
+                key: ValueKey('chat-popup-$_openPopupConvId'),
+                conversationId: _openPopupConvId!,
+                memberName: _openPopupName ?? 'Mitglied',
+                currentMitgliedernummer: widget.currentMitgliedernummer,
+                currentUserName: widget.userName,
+                onClose: () => setState(() {
+                  _openPopupConvId = null;
+                  _openPopupName = null;
+                }),
+                onOpenFullChat: () {
+                  final id = _openPopupConvId!;
+                  setState(() {
+                    _openPopupConvId = null;
+                    _openPopupName = null;
+                  });
+                  _showAdminChatForConversation(id);
+                },
+              ),
+            ),
         ],
       ),
       // Mobile: Bottom navigation bar for quick access
