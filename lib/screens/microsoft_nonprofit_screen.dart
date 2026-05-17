@@ -1530,15 +1530,18 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
       ),
     );
     if (ok != true) return;
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
     final result = await widget.apiService.deletePlatformKorrespondenz(id);
     if (!mounted) return;
     if (result['success'] == true) {
       await _loadKorrespondenz();
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      messenger.showSnackBar(
         const SnackBar(content: Text('Geloescht'), backgroundColor: Colors.green),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Fehler: ${result['message']}'), backgroundColor: Colors.red),
       );
     }

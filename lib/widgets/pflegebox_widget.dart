@@ -1090,6 +1090,7 @@ class _LieferungenTabState extends State<_LieferungenTab> {
                     if (!ctx.mounted) return;
                     if (res['success'] == true) {
                       Navigator.pop(ctx);
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lieferschein hochgeladen'), backgroundColor: Colors.green));
                       _load();
                     } else {
