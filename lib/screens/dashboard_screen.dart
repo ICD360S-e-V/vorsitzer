@@ -404,11 +404,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       : '$unreadCount ungelesene Nachrichten: $msgPreview',
                   conversationId: id,
                 );
+
+                _chatBubbles[id] = ChatBubbleEntry(
+                  conversationId: id,
+                  senderName: memberName,
+                  unreadCount: unreadCount,
+                  lastMessagePreview: msgPreview,
+                );
               }
             }
           }
         }
-        if (totalUnread > 0 && mounted) {
+        if (mounted && (totalUnread > 0 || _chatBubbles.isNotEmpty)) {
           setState(() {
             _unreadChatCount = totalUnread;
           });
