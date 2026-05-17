@@ -79,7 +79,10 @@ class _FirmaTabState extends State<_FirmaTab> {
         widget.apiService.searchDticketFirmen('').then((res) {
           if (res['success'] == true) all = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
           filtered = List.from(all); setDlg(() => loading = false);
-        }).catchError((_) => setDlg(() => loading = false));
+        }).catchError((Object _) {
+          setDlg(() => loading = false);
+          return null;
+        });
       }
       void filter(String q) { if (q.isEmpty) { setDlg(() => filtered = List.from(all)); return; }
         final l = q.toLowerCase(); setDlg(() => filtered = all.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(l) || (s['ort']?.toString() ?? '').toLowerCase().contains(l)).toList()); }
