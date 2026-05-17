@@ -17,8 +17,8 @@ final _log = LoggerService();
 class UpdateService {
   // Protected API endpoint (requires Device Key)
   static const String versionUrl = 'https://icd360sev.icd360s.de/api/version_vorsitzer.php';
-  static const String currentVersion = '4.8.0';
-  static const int currentBuildNumber = 585;
+  static const String currentVersion = '4.8.1';
+  static const int currentBuildNumber = 586;
   // ✅ SECURITY FIX: Removed hardcoded API key (extractable via reverse engineering)
   // All requests now use dynamic Device Key only
 
@@ -181,18 +181,61 @@ class UpdateService {
       // Windows: Extract ZIP update and replace app files
       _log.info('Windows update: extracting ZIP and replacing files', tag: 'UPDATE');
       try {
-        final appDir = File(Platform.resolvedExecutable).parent.path;
+        final exePath = Platform.resolvedExecutable;
+        final appDir = File(exePath).parent.path;
+        final exeName = exePath.split(Platform.pathSeparator).last;
+        final appPid = pid;
         final tempExtract = '${Directory.systemTemp.path}\\vorsitzer_update_${DateTime.now().millisecondsSinceEpoch}';
-        // Use PowerShell to extract, copy files, and relaunch
+        final logPath = '${Directory.systemTemp.path}\\vorsitzer_update.log';
+        // PowerShell updater: waits for app exit, extracts ZIP, copies files
+        // from the correct root (auto-detects if archive is wrapped in a subdir
+        // or has the .exe at the top level), then relaunches by exe name.
         final script = '''
-Start-Sleep -Seconds 1
-Expand-Archive -Path "$installerPath" -DestinationPath "$tempExtract" -Force
-\\\$source = Get-ChildItem "$tempExtract" -Directory | Select-Object -First 1
-if (\\\$source) { \\\$src = \\\$source.FullName } else { \\\$src = "$tempExtract" }
-Copy-Item -Path "\\\$src\\*" -Destination "$appDir" -Recurse -Force
-Remove-Item -Path "$tempExtract" -Recurse -Force
-Remove-Item -Path "$installerPath" -Force
-Start-Process "$appDir\\vorsitzer.exe"
+\$ErrorActionPreference = "Continue"
+Start-Transcript -Path "$logPath" -Force | Out-Null
+
+\$proc = Get-Process -Id $appPid -ErrorAction SilentlyContinue
+if (\$proc) {
+  Write-Host "Waiting for PID $appPid to exit..."
+  try { \$proc | Wait-Process -Timeout 30 -ErrorAction Stop } catch { Write-Host "Wait timed out: \$_" }
+}
+Start-Sleep -Seconds 2
+
+Write-Host "Extracting $installerPath -> $tempExtract"
+try {
+  Expand-Archive -Path "$installerPath" -DestinationPath "$tempExtract" -Force -ErrorAction Stop
+} catch {
+  Write-Host "Extract failed: \$_"
+  Stop-Transcript | Out-Null
+  exit 1
+}
+
+\$rootExe = Get-ChildItem -Path "$tempExtract" -Filter "*.exe" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+if (\$rootExe) {
+  \$src = "$tempExtract"
+} else {
+  \$subDir = Get-ChildItem -Path "$tempExtract" -Directory -ErrorAction SilentlyContinue | Where-Object { Get-ChildItem -Path \$_.FullName -Filter "*.exe" -File -ErrorAction SilentlyContinue } | Select-Object -First 1
+  if (\$subDir) { \$src = \$subDir.FullName } else { \$src = "$tempExtract" }
+}
+Write-Host "Source: \$src"
+Write-Host "Target: $appDir"
+
+try {
+  Copy-Item -Path "\$src\\*" -Destination "$appDir" -Recurse -Force -ErrorAction Stop
+  Write-Host "Files copied successfully"
+} catch {
+  Write-Host "Copy failed: \$_"
+  Stop-Transcript | Out-Null
+  exit 1
+}
+
+Remove-Item -Path "$tempExtract" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$installerPath" -Force -ErrorAction SilentlyContinue
+
+Write-Host "Relaunching: $appDir\\$exeName"
+Start-Process "$appDir\\$exeName"
+
+Stop-Transcript | Out-Null
 ''';
         final scriptPath = '${Directory.systemTemp.path}\\vorsitzer_update.ps1';
         await File(scriptPath).writeAsString(script);
