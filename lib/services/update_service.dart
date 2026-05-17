@@ -239,7 +239,22 @@ Stop-Transcript | Out-Null
 ''';
         final scriptPath = '${Directory.systemTemp.path}\\vorsitzer_update.ps1';
         await File(scriptPath).writeAsString(script);
-        await Process.start('powershell', ['-ExecutionPolicy', 'Bypass', '-File', scriptPath], mode: ProcessStartMode.detached);
+        // Use `cmd /c start` so PowerShell breaks away from this process's
+        // Windows job object. Dart's ProcessStartMode.detached alone leaves
+        // the child in the parent's job; when this Dart process calls exit(0)
+        // a moment later, the OS terminates everything in the job — including
+        // the PowerShell updater — before it gets to `Start-Transcript`.
+        // `start` uses CREATE_BREAKAWAY_FROM_JOB so the spawned PS survives.
+        // See: https://github.com/dart-lang/sdk/issues/49234
+        await Process.start(
+          'cmd',
+          ['/c', 'start', '/B', '"vorsitzer-updater"', 'powershell',
+           '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+           '-File', scriptPath],
+          mode: ProcessStartMode.detached,
+        );
+        // Give the cmd→start→PS chain a moment to fully spawn before we die.
+        await Future.delayed(const Duration(milliseconds: 500));
         exit(0);
       } catch (e) {
         _log.error('Windows update failed: $e', tag: 'UPDATE');
