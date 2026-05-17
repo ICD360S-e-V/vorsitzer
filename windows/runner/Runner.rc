@@ -92,9 +92,9 @@ BEGIN
             VALUE "CompanyName", "ICD360S e.V." "\0"
             VALUE "FileDescription", "ICD360S e.V." "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "ICD360S_eV" "\0"
+            VALUE "InternalName", "icd360sev_vorsitzer" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 ICD360S e.V. All rights reserved." "\0"
-            VALUE "OriginalFilename", "ICD360S_eV.exe" "\0"
+            VALUE "OriginalFilename", "icd360sev_vorsitzer.exe" "\0"
             VALUE "ProductName", "ICD360S e.V." "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
