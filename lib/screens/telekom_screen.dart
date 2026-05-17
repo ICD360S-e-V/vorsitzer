@@ -17,7 +17,6 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
   Map<String, dynamic> _firmaData = {};
   List<Map<String, dynamic>> _vertraege = [];
   bool _isLoading = true;
-  bool _firmaEditing = false;
 
   @override
   void initState() {
@@ -128,7 +127,6 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
     final email = d['stammdaten.email'] ?? '';
 
     return StatefulBuilder(builder: (context, setLocalState) {
-      bool editing = false;
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.badge, size: 20, color: Colors.pink.shade700),
@@ -238,11 +236,6 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
       );
     }));
     searchC.dispose();
-  }
-
-  Widget _field(String label, TextEditingController c, IconData icon) {
-    return Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))));
   }
 
   Widget _infoCard(String label, String value) {
@@ -613,9 +606,6 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
           setDlgState(() { verlauf = List<Map<String, dynamic>>.from(res['verlauf'] ?? []); loading = false; });
         });
       }
-
-      final statusLabel = status == 'erledigt' ? 'Erledigt' : status == 'in_bearbeitung' ? 'In Bearbeitung' : status == 'beantragt' ? 'Beantragt' : 'Offen';
-      final statusColor = status == 'erledigt' ? Colors.green : status == 'in_bearbeitung' ? Colors.blue : status == 'beantragt' ? Colors.purple : Colors.orange;
 
       return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

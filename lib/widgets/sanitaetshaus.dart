@@ -538,7 +538,6 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) {
             final k = _korr[i];
             final isEin = k['richtung'] == 'eingang';
-            final kId = int.tryParse(k['id'].toString()) ?? 0;
             return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: InkWell(
               onTap: () => _openKorrDetail(k),
               child: Column(mainAxisSize: MainAxisSize.min, children: [

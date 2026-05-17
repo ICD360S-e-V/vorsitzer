@@ -38,7 +38,6 @@ class BehordeSozialamtContent extends StatefulWidget {
 }
 
 class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
-  static const type = 'sozialamt';
   Map<String, Map<String, dynamic>> _dbData = {};
   List<Map<String, dynamic>> _antraege = [];
   List<Map<String, dynamic>> _bewilligungen = [];

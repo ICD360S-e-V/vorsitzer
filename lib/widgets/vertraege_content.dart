@@ -1365,7 +1365,6 @@ class _VereinTab extends StatefulWidget {
 class _VereinTabState extends State<_VereinTab> {
   Map<String, dynamic>? _selectedVerein;
   List<Map<String, dynamic>> _localVertraege = [];
-  bool _vereinLoaded = false;
 
   @override
   void initState() { super.initState(); _localVertraege = List.from(widget.vertraege); _loadSelectedVerein(); }
@@ -1380,7 +1379,7 @@ class _VereinTabState extends State<_VereinTab> {
         _selectedVerein = Map<String, dynamic>.from(r['data']);
       }
     } catch (_) {}
-    if (mounted) setState(() => _vereinLoaded = true);
+    if (mounted) setState(() {});
   }
 
   Future<void> _saveSelectedVerein(Map<String, dynamic>? v) async {
@@ -1700,7 +1699,6 @@ class _VereinKorrTabState extends State<_VereinKorrTab> {
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
-            final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
             const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich'};
             return InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showKorrDetail(k),
               child: Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -43,7 +42,6 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
   List<Map<String, dynamic>> _antraege = [];
   List<Map<String, dynamic>> _korrespondenz = [];
   bool _loaded = false;
-  bool _saving = false;
   bool _behoerdeEditing = false;
   Timer? _autoSaveTimer;
 
@@ -84,9 +82,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
   Future<void> _save() async {
     if (widget.apiService == null || widget.userId == null) return;
     _b('beitrag')['beitragsnummer'] = _getBeitragsnummer();
-    setState(() => _saving = true);
     await widget.apiService!.saveRundfunkbeitragData(widget.userId!, _dbData);
-    if (mounted) setState(() => _saving = false);
   }
 
   void _autoSave() {
@@ -841,14 +837,6 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     );
   }
 
-  Widget _field(Map<String, dynamic> map, String key, String label, IconData icon, {String hint = '', int maxLines = 1}) {
-    return Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(
-      controller: TextEditingController(text: map[key]?.toString() ?? ''), maxLines: maxLines, onChanged: (v) => map[key] = v,
-      decoration: InputDecoration(labelText: label, hintText: hint, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-      style: const TextStyle(fontSize: 13),
-    ));
-  }
-
   Widget _fieldAuto(Map<String, dynamic> map, String key, String label, IconData icon, {String hint = '', int maxLines = 1}) {
     return Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(
       controller: TextEditingController(text: map[key]?.toString() ?? ''), maxLines: maxLines, onChanged: (v) { map[key] = v; _autoSave(); },
@@ -867,24 +855,6 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     ));
   }
 
-  Widget _dropdownField(Map<String, dynamic> map, String key, String label, IconData icon, List<String> options) {
-    final current = map[key]?.toString() ?? '';
-    return Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(
-      value: options.contains(current) ? current : null,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-      items: options.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 13)))).toList(),
-      onChanged: (v) => setState(() => map[key] = v ?? ''),
-    ));
-  }
-
-  Widget _saveBtn() {
-    return Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-      onPressed: _saving ? null : _save,
-      icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
-      label: const Text('Speichern'),
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-    ));
-  }
 }
 
 // ═══════════════════════════════════════════════════════

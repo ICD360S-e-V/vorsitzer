@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/file_picker_helper.dart';
 
 /// Chat input area with attachment button and send button
 /// 🆕 URGENT NOTIFICATIONS (2026-02-11): Added urgent checkbox for admins

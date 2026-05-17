@@ -321,27 +321,6 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     );
   }
 
-  Widget _buildBmiCard(double bmi) {
-    String kategorie;
-    MaterialColor color;
-    if (bmi < 18.5) { kategorie = 'Untergewicht'; color = Colors.blue; }
-    else if (bmi < 25) { kategorie = 'Normalgewicht'; color = Colors.green; }
-    else if (bmi < 30) { kategorie = 'Übergewicht'; color = Colors.orange; }
-    else { kategorie = 'Adipositas'; color = Colors.red; }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
-      child: Row(children: [
-        Icon(Icons.monitor_weight, size: 20, color: color.shade700),
-        const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('BMI: ${bmi.toStringAsFixed(1)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800)),
-          Text(kategorie, style: TextStyle(fontSize: 11, color: color.shade700)),
-        ]),
-      ]),
-    );
-  }
 }
 
 // Realistic body silhouette painter
