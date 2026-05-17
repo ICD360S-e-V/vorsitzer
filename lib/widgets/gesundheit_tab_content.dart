@@ -4820,7 +4820,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         DateTime? naechst;
         if (letztes.isNotEmpty && intervall > 0) { final l = DateTime.tryParse(letztes); if (l != null) naechst = DateTime(l.year, l.month + intervall, l.day); }
         final overdue = naechst != null && heute.isAfter(naechst);
-        final rest = naechst != null ? naechst.difference(heute).inDays : null;
         final berechtigt = alter != null && alter >= s.abAlter;
         final ticketKey = 'vorsorge_${s.key}_ticket_sent';
         final ageTicketKey = 'vorsorge_${s.key}_age_ticket_sent';
@@ -14201,8 +14200,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
   // ===== ÄRZTLICHE ATTESTE =====
   Widget _buildAttesteTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
-    final atteste = data['atteste'] is List ? List<Map<String, dynamic>>.from((data['atteste'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
-
     void addOrEdit({Map<String, dynamic>? existing, int? editIndex}) {
       final titelC = TextEditingController(text: existing?['titel']?.toString() ?? '');
       final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
@@ -14338,9 +14335,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
   // ===== HÄRTEFALL (Zahnersatz) =====
   Widget _buildHartefallTab(String type, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
-    final antraege = data['haertefall'] is List
-        ? List<Map<String, dynamic>>.from((data['haertefall'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
-        : <Map<String, dynamic>>[];
 
     const statusList = ['Offen', 'Eingereicht', 'Bewilligt', 'Gleitend bewilligt', 'Abgelehnt'];
     final statusColors = <String, MaterialColor>{

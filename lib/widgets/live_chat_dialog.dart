@@ -1119,8 +1119,6 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> msg, bool isOwn) {
-    final senderRole = msg['sender_role'] ?? 'vorsitzer';
-    final isAdmin = ['vorsitzer', 'schatzmeister', 'kassierer'].contains(senderRole);
     final attachments = msg['attachments'] as List? ?? [];
     final messageText = msg['message'] ?? '';
 

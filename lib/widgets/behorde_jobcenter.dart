@@ -84,7 +84,6 @@ class _JobcenterStammdatenTab extends StatefulWidget {
 
 class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
   Map<String, dynamic>? _selected;
-  bool _saving = false;
 
   @override
   void initState() {
@@ -143,7 +142,7 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
   }
 
   Future<void> _selectAndSave(Map<String, dynamic> s) async {
-    setState(() { _selected = s; _saving = true; });
+    setState(() { _selected = s; });
     await widget.onSave({
       'stammdaten.selected_amt_name': s['name']?.toString() ?? '',
       'stammdaten.selected_amt_adresse': s['strasse']?.toString() ?? '',
@@ -154,7 +153,7 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
       'stammdaten.selected_amt_website': s['website']?.toString() ?? '',
       'stammdaten.selected_amt_oeffnungszeiten': s['oeffnungszeiten']?.toString() ?? '',
     });
-    if (mounted) setState(() => _saving = false);
+    if (mounted) setState(() {});
   }
 
   Widget _infoRow(IconData icon, String label, String value) {
@@ -799,7 +798,6 @@ class _AntragKorrTabState extends State<_AntragKorrTab> {
         : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) {
             final k = _korr[i];
             final isEin = k['richtung'] == 'eingang';
-            final kId = int.tryParse(k['id'].toString()) ?? 0;
             return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: InkWell(
               onTap: () => _openDetail(k),
               borderRadius: BorderRadius.circular(8),

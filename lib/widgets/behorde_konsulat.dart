@@ -299,7 +299,7 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
         Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
         Expanded(child: Text(v['titel']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (sc as MaterialColor).shade100, borderRadius: BorderRadius.circular(6)),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(6)),
           child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
         PopupMenuButton<String>(icon: const Icon(Icons.more_vert, size: 18), itemBuilder: (_) => _konsulatStatusMap.entries.map((e) =>
           PopupMenuItem(value: e.key, child: Text(e.value.$1, style: const TextStyle(fontSize: 12)))).toList(),
@@ -362,8 +362,8 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
       if (v['status'] != null) Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
         Icon(Icons.flag, size: 14, color: Colors.indigo.shade600), const SizedBox(width: 8),
         Text('Status: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (_konsulatStatusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade100, borderRadius: BorderRadius.circular(4)),
-          child: Text(_konsulatStatusMap[v['status']]?.$1 ?? v['status'].toString(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (_konsulatStatusMap[v['status']]?.$2 as MaterialColor? ?? Colors.blue).shade800))),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (_konsulatStatusMap[v['status']]?.$2 ?? Colors.blue).shade100, borderRadius: BorderRadius.circular(4)),
+          child: Text(_konsulatStatusMap[v['status']]?.$1 ?? v['status'].toString(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (_konsulatStatusMap[v['status']]?.$2 ?? Colors.blue).shade800))),
       ])),
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 10),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),

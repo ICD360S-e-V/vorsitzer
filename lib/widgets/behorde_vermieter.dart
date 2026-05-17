@@ -79,7 +79,6 @@ class _VermieterStammdatenTab extends StatefulWidget {
 }
 class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
   Map<String, dynamic>? _selected;
-  bool _saving = false;
 
   @override
   void initState() {
@@ -156,7 +155,7 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
   }
 
   Future<void> _selectAndSave(Map<String, dynamic> s) async {
-    setState(() { _selected = s; _saving = true; });
+    setState(() { _selected = s; });
     await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': {
       'stammdaten.selected_name': s['name']?.toString() ?? '',
       'stammdaten.selected_strasse': s['strasse']?.toString() ?? '',
@@ -168,18 +167,18 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
       'stammdaten.selected_typ': s['typ']?.toString() ?? '',
       'stammdaten.selected_notiz': s['notiz']?.toString() ?? '',
     }});
-    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Vermieter gespeichert'), backgroundColor: Colors.green.shade600)); }
+    if (mounted) { setState(() {}); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Vermieter gespeichert'), backgroundColor: Colors.green.shade600)); }
     widget.onSaved?.call();
   }
 
   Future<void> _clear() async {
-    setState(() { _selected = null; _saving = true; });
+    setState(() { _selected = null; });
     await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': {
       'stammdaten.selected_name': '', 'stammdaten.selected_strasse': '', 'stammdaten.selected_plz': '',
       'stammdaten.selected_ort': '', 'stammdaten.selected_telefon': '', 'stammdaten.selected_email': '',
       'stammdaten.selected_website': '', 'stammdaten.selected_typ': '', 'stammdaten.selected_notiz': '',
     }});
-    if (mounted) setState(() => _saving = false);
+    if (mounted) setState(() {});
   }
 
   @override

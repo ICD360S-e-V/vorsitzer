@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'screens/login_screen.dart';
 import 'screens/login_with_code_screen.dart';
 import 'services/api_service.dart';
 import 'services/notification_service.dart';

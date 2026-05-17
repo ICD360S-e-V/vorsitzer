@@ -179,46 +179,6 @@ class ApiService {
     };
   }
 
-  /// POST request with automatic token refresh on 401
-  Future<http.Response> _authPost(String endpoint, {Map<String, dynamic>? body, Duration timeout = const Duration(seconds: 15)}) async {
-    var response = await _client.post(
-      Uri.parse('$baseUrl/$endpoint'),
-      headers: _headers,
-      body: body != null ? jsonEncode(body) : null,
-    ).timeout(timeout);
-
-    if (response.statusCode == 401 && _refreshToken != null) {
-      final refreshed = await _refreshAccessToken();
-      if (refreshed) {
-        response = await _client.post(
-          Uri.parse('$baseUrl/$endpoint'),
-          headers: _headers,
-          body: body != null ? jsonEncode(body) : null,
-        ).timeout(timeout);
-      }
-    }
-    return response;
-  }
-
-  /// GET request with automatic token refresh on 401
-  Future<http.Response> _authGet(String endpoint, {Duration timeout = const Duration(seconds: 15)}) async {
-    var response = await _client.get(
-      Uri.parse('$baseUrl/$endpoint'),
-      headers: _headers,
-    ).timeout(timeout);
-
-    if (response.statusCode == 401 && _refreshToken != null) {
-      final refreshed = await _refreshAccessToken();
-      if (refreshed) {
-        response = await _client.get(
-          Uri.parse('$baseUrl/$endpoint'),
-          headers: _headers,
-        ).timeout(timeout);
-      }
-    }
-    return response;
-  }
-
   // Login (Vorsitzer Portal - Admin roles only)
   Future<Map<String, dynamic>> login(String mitgliedernummer, String password) async {
     final deviceKey = _deviceKeyService.deviceKey;
