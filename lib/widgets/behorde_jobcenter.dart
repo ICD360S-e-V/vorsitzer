@@ -481,16 +481,6 @@ class _AntragDetailsTabState extends State<_AntragDetailsTab> {
       onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }));
   }
 
-  Widget _section(IconData icon, String title, Color color, List<Widget> children) {
-    return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withValues(alpha: 0.2))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(icon, size: 18, color: color), const SizedBox(width: 6), Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color))]),
-        const SizedBox(height: 8),
-        ...children,
-      ]));
-  }
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
