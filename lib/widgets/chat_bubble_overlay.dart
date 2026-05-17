@@ -21,12 +21,14 @@ class ChatBubbleEntry {
 class ChatBubbleOverlay extends StatelessWidget {
   final List<ChatBubbleEntry> entries;
   final ValueChanged<int> onBubbleTap;
+  final ValueChanged<int>? onBubbleClose;
   final VoidCallback? onDismiss;
 
   const ChatBubbleOverlay({
     super.key,
     required this.entries,
     required this.onBubbleTap,
+    this.onBubbleClose,
     this.onDismiss,
   });
 
@@ -42,7 +44,11 @@ class ChatBubbleOverlay extends StatelessWidget {
           for (final e in entries.take(8))
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _ChatBubble(entry: e, onTap: () => onBubbleTap(e.conversationId)),
+              child: _ChatBubble(
+                entry: e,
+                onTap: () => onBubbleTap(e.conversationId),
+                onClose: onBubbleClose != null ? () => onBubbleClose!(e.conversationId) : null,
+              ),
             ),
           if (entries.length > 8)
             Padding(
@@ -90,8 +96,9 @@ class ChatBubbleOverlay extends StatelessWidget {
 class _ChatBubble extends StatelessWidget {
   final ChatBubbleEntry entry;
   final VoidCallback onTap;
+  final VoidCallback? onClose;
 
-  const _ChatBubble({required this.entry, required this.onTap});
+  const _ChatBubble({required this.entry, required this.onTap, this.onClose});
 
   @override
   Widget build(BuildContext context) {
@@ -101,67 +108,112 @@ class _ChatBubble extends StatelessWidget {
     final tooltip = entry.lastMessagePreview != null && entry.lastMessagePreview!.isNotEmpty
         ? '${entry.senderName}\n${entry.lastMessagePreview}'
         : entry.senderName;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: _colorForName(entry.senderName),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  initial,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+    return SizedBox(
+      width: 64,
+      height: 64,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Tooltip(
+              message: tooltip,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onTap,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _colorForName(entry.senderName),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          initial,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (entry.unreadCount > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade600,
+                              shape: BoxShape.rectangle,
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              entry.unreadCount > 99 ? '99+' : '${entry.unreadCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
-              if (entry.unreadCount > 0)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade600,
-                      shape: BoxShape.rectangle,
-                      borderRadius: BorderRadius.circular(11),
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      entry.unreadCount > 99 ? '99+' : '${entry.unreadCount}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (onClose != null)
+            Positioned(
+              left: 0,
+              top: 0,
+              child: Tooltip(
+                message: 'Bubble ausblenden',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onClose,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade800,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 3,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
                       ),
+                      child: const Icon(Icons.close, size: 12, color: Colors.white),
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
     );
   }
