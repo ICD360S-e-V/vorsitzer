@@ -48,8 +48,6 @@ import 'archiv_screen.dart';
 import 'dienste_screen.dart';
 import 'routinenaufgaben_screen.dart';
 import 'einstellungen_screen.dart';
-import 'server_screen.dart';
-import 'client_screen.dart';
 
 final _log = LoggerService();
 

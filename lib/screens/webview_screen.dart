@@ -11,7 +11,6 @@ import '../utils/file_picker_helper.dart';
 // Platform-specific imports
 import 'package:webview_flutter/webview_flutter.dart' as mobile_webview;
 import 'package:webview_flutter_android/webview_flutter_android.dart' as android_webview;
-import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart' as wk_webview;
 
 // Windows-specific WebView (conditional)
 import 'package:webview_windows/webview_windows.dart' as windows_webview;

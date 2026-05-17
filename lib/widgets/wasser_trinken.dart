@@ -17,24 +17,6 @@ class _WasserTrinkenTabState extends State<WasserTrinkenTab> with TickerProvider
   @override
   void dispose() { _tabC.dispose(); super.dispose(); }
 
-  Widget _infoCard(IconData icon, String title, MaterialColor color, List<String> points) {
-    return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, size: 20, color: color.shade700),
-          const SizedBox(width: 8),
-          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
-        ]),
-        const SizedBox(height: 6),
-        ...points.map((p) => Padding(padding: const EdgeInsets.only(bottom: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.only(top: 4), child: Icon(Icons.circle, size: 5, color: color.shade400)),
-          const SizedBox(width: 6),
-          Expanded(child: Text(p, style: TextStyle(fontSize: 11, color: Colors.grey.shade800, height: 1.3))),
-        ]))),
-      ]),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(children: [

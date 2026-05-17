@@ -70,7 +70,6 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   Timer? _networkPollTimer;
   String? _memberConnectionType;
   int? _memberLatencyMs;
-  String? _memberNetworkQuality;
   int? _memberBatteryLevel;
   String? _memberBatteryState;
 
@@ -348,7 +347,6 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         _safeSetState(() {
           _memberConnectionType = result['connection_type']?.toString();
           _memberLatencyMs = int.tryParse(result['latency_ms']?.toString() ?? '');
-          _memberNetworkQuality = result['network_quality']?.toString();
           _memberBatteryLevel = int.tryParse(result['battery_level']?.toString() ?? '');
           _memberBatteryState = result['battery_state']?.toString();
           // Cache per member for list display
@@ -361,111 +359,6 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         });
       }
     } catch (_) {}
-  }
-
-  Widget _buildNetworkStatusBar() {
-    final type = _memberConnectionType;
-    final latency = _memberLatencyMs;
-    final quality = _memberNetworkQuality;
-
-    if (type == null && latency == null && quality == null) return const SizedBox.shrink();
-
-    // Determine icon, color, label
-    IconData icon;
-    Color color;
-    String label;
-    String qualityLabel;
-
-    if (type == null || type.isEmpty || type == 'none') {
-      icon = Icons.signal_cellular_off;
-      color = Colors.grey;
-      label = 'Kein Netz';
-      qualityLabel = 'Offline';
-    } else {
-      icon = type.toLowerCase().contains('wifi') ? Icons.wifi : Icons.signal_cellular_alt;
-      final typeLabel = type.toLowerCase().contains('wifi') ? 'WiFi' : 'Mobile';
-
-      if (quality == 'good' || (latency != null && latency < 100)) {
-        color = Colors.green;
-        qualityLabel = 'Gut';
-      } else if (quality == 'medium' || (latency != null && latency < 300)) {
-        color = Colors.orange;
-        qualityLabel = 'Mittel';
-      } else {
-        color = Colors.red;
-        qualityLabel = 'Schlecht';
-      }
-      label = typeLabel;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        border: Border(top: BorderSide(color: color.withValues(alpha: 0.3))),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-          if (latency != null) ...[
-            const SizedBox(width: 6),
-            Text('|', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-            const SizedBox(width: 6),
-            Text('${latency}ms', style: TextStyle(fontSize: 11, color: color)),
-          ],
-          const SizedBox(width: 6),
-          Text('|', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-          const SizedBox(width: 6),
-          Text(
-            quality == 'good' ? '✅' : (quality == 'medium' ? '⚠️' : (type == null || type.isEmpty || type == 'none' ? '📵' : '❌')),
-            style: const TextStyle(fontSize: 12),
-          ),
-          const SizedBox(width: 4),
-          Text(qualityLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color)),
-          // Battery info
-          if (_memberBatteryLevel != null && _memberBatteryLevel! >= 0) ...[
-            const SizedBox(width: 8),
-            Text('|', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-            const SizedBox(width: 6),
-            Icon(
-              _memberBatteryState == 'charging' || _memberBatteryState == 'full'
-                  ? Icons.battery_charging_full
-                  : _memberBatteryLevel! <= 15
-                      ? Icons.battery_alert
-                      : _memberBatteryLevel! <= 50
-                          ? Icons.battery_3_bar
-                          : Icons.battery_full,
-              size: 14,
-              color: _memberBatteryLevel! <= 15
-                  ? Colors.red
-                  : _memberBatteryLevel! <= 30
-                      ? Colors.orange
-                      : Colors.green,
-            ),
-            const SizedBox(width: 3),
-            Text(
-              '$_memberBatteryLevel%',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _memberBatteryLevel! <= 15
-                    ? Colors.red
-                    : _memberBatteryLevel! <= 30
-                        ? Colors.orange
-                        : Colors.green,
-              ),
-            ),
-            if (_memberBatteryState == 'charging') ...[
-              const SizedBox(width: 2),
-              const Text('⚡', style: TextStyle(fontSize: 10)),
-            ],
-          ],
-        ],
-      ),
-    );
   }
 
   Future<void> _confirmDeleteConversation(Map<String, dynamic> conv) async {
