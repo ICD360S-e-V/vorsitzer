@@ -4,7 +4,7 @@ project(icd360sev LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "ICD360S_eV")
+set(BINARY_NAME "icd360sev_vorsitzer")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
