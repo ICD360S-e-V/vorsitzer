@@ -258,7 +258,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _messageSubscription = _chatService.messageStream.listen((message) {
       if (!mounted) return;
       // Skip our own messages — don't bubble our own outbound sends.
-      if (message.senderName == widget.userName) return;
+      // Match ChatService.isOwnMessage logic: prefer senderId because
+      // widget.userName can be empty when the dashboard mounts before the
+      // WebSocket handshake stores the user name.
+      final myId = _chatService.currentUserId;
+      final isOwnMessage = (myId != null && message.senderId == myId) ||
+          (widget.userName.isNotEmpty && message.senderName == widget.userName);
+      if (isOwnMessage) return;
       // Skip if the admin chat dialog is already open — user is reading there.
       if (_isAdminChatOpen) {
         setState(() => _unreadChatCount++);
