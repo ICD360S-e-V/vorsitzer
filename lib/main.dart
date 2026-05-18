@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -78,6 +79,18 @@ void main(List<String> args) async {
     }
     FlutterError.presentError(details);
   };
+
+  // Workaround for Flutter Windows keyboard desync with non-US layouts
+  // (e.g. German QWERTZ): after AltGr combos or Win+Space layout switches,
+  // the hardware-keyboard state in Flutter drifts from the OS, causing keys
+  // (most reported: Y/Z on QWERTZ) to be dropped or remapped. The async
+  // FlutterError handler above only catches the assertion variant; this
+  // periodic re-sync bounds the silent-drop variant to <2 seconds.
+  if (Platform.isWindows) {
+    Timer.periodic(const Duration(seconds: 2), (_) {
+      HardwareKeyboard.instance.syncKeyboardState();
+    });
+  }
 
   // Start app IMMEDIATELY (no black screen), init services in background
   runApp(const VorsitzerApp());
