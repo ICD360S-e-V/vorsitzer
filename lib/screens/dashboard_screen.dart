@@ -265,11 +265,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final isOwnMessage = (myId != null && message.senderId == myId) ||
           (widget.userName.isNotEmpty && message.senderName == widget.userName);
       if (isOwnMessage) return;
-      // Skip if the admin chat dialog is already open — user is reading there.
-      if (_isAdminChatOpen) {
-        setState(() => _unreadChatCount++);
-        return;
-      }
+      // Skip if the admin chat dialog is already open — user is actively
+      // reading there. Bumping the badge would leave it stuck > 0 after
+      // the user closes the dialog ("dialog says 0 unread, icon says unread").
+      if (_isAdminChatOpen) return;
       setState(() {
         _unreadChatCount++;
         final existing = _chatBubbles[message.conversationId];
@@ -1343,11 +1342,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         initialConversationId: initialConversationId,
       ),
     ).then((_) {
-      // Mark dialog as closed
+      // Mark dialog as closed and re-zero the unread counter — any messages
+      // that arrived while the dialog was open were read in-place and must
+      // not leave the badge stuck > 0.
       setState(() {
         _isAdminChatOpen = false;
         _pendingCall = null;
+        _unreadChatCount = 0;
       });
+      TrayService().clearUnread();
       // Re-join all conversations after dialog closes to keep receiving messages
       for (final convId in _backgroundConversationIds) {
         _chatService.joinConversation(convId);
