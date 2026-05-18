@@ -2038,6 +2038,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return _users.where((u) => u.role == 'kassierer' || u.role == 'kassenprufer').toList();
       case 5: // Gründungsmitglieder
         return _users.where((u) => u.role == 'mitgliedergrunder').toList();
+      case 6: // Neu — newly registered, regardless of role
+        return _users.where((u) => u.isNeu).toList();
+      case 7: // Nicht verifiziert — identity not yet confirmed (30-day window)
+        return _users.where((u) => u.isNichtVerifiziert).toList();
+      case 8: // Gekündigt — covers all three cancellation statuses, regardless of role
+        return _users.where((u) => u.isGekuendigt).toList();
       default:
         return _users;
     }
@@ -2067,7 +2073,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
 
     return DefaultTabController(
-      length: 6,
+      length: 9,
       child: Column(
         children: [
           UserStatsBar(
@@ -2138,6 +2144,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 _buildMitgliederTab('Vorstand', _users.where((u) => isVorstandRole(u.role)).length, Icons.admin_panel_settings),
                 _buildMitgliederTab('Kassierer', _users.where((u) => u.role == 'kassierer' || u.role == 'kassenprufer').length, Icons.account_balance_wallet),
                 _buildMitgliederTab('Gründungsmitglieder', _users.where((u) => u.role == 'mitgliedergrunder').length, Icons.star),
+                _buildMitgliederTab('Neu', _users.where((u) => u.isNeu).length, Icons.fiber_new),
+                _buildMitgliederTab('Nicht verifiziert', _users.where((u) => u.isNichtVerifiziert).length, Icons.help_outline),
+                _buildMitgliederTab('Gekündigt', _users.where((u) => u.isGekuendigt).length, Icons.person_off),
               ],
             ),
           ),
