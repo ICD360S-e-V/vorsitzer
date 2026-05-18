@@ -35,7 +35,6 @@ import 'terminverwaltung_screen.dart';
 import '../widgets/profile_dialog.dart';
 import '../widgets/user_details_dialog.dart';
 import '../widgets/dashboard_sidebar.dart';
-import '../widgets/dashboard_stats.dart';
 import '../widgets/user_data_table.dart';
 import '../widgets/confirm_dialogs.dart';
 import '../utils/role_helpers.dart';
@@ -2076,13 +2075,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       length: 9,
       child: Column(
         children: [
-          UserStatsBar(
-            totalUsers: _dashboardRevealed ? _users.length : 0,
-            activeUsers: _dashboardRevealed ? _users.where((u) => u.isActive).length : 0,
-            newUsers: _dashboardRevealed ? _users.where((u) => u.isNeu).length : 0,
-            suspendedUsers: _dashboardRevealed ? _users.where((u) => u.isSuspended).length : 0,
-            gekuendigtUsers: _dashboardRevealed ? _users.where((u) => u.isGekuendigt).length : 0,
-          ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
