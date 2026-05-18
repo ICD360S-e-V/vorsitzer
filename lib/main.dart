@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'screens/login_with_code_screen.dart';
 import 'services/api_service.dart';
 import 'services/notification_service.dart';
@@ -18,6 +19,14 @@ import 'package:windows_single_instance/windows_single_instance.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Route just_audio through media_kit (libmpv) on Windows/Linux so HTTP MP3
+  // radio streams actually produce sound. Must run before any AudioPlayer is
+  // constructed (RadioService creates one at field-init time).
+  if (Platform.isWindows || Platform.isLinux) {
+    JustAudioMediaKit.title = 'Vorsitzer Portal';
+    JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
+  }
 
   // ============================================================
   // DESKTOP-ONLY INITIALIZATION
