@@ -10,6 +10,8 @@ import '../services/heartbeat_service.dart';
 import '../services/tray_service.dart';
 import '../services/ticket_service.dart';
 import '../services/ticket_notification_service.dart';
+import '../services/termin_service.dart';
+import '../services/routine_service.dart';
 import '../services/notification_service.dart';
 import '../services/weather_service.dart';
 import '../services/transit_service.dart';
@@ -22,6 +24,7 @@ import '../widgets/login_approval_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/eastern.dart';
 import '../models/user.dart';
+import '../models/member_activity.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/admin_chat_dialog.dart';
 import '../widgets/chat_bubble_overlay.dart';
@@ -140,6 +143,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   TicketStats? _ticketStats;
   bool _isLoadingTickets = false;
   String _ticketFilter = 'all'; // all, open, in_progress, closed
+
+  // Per-member "Diese Woche" activity indicators (Termin / Ticket / Routine)
+  final _terminService = TerminService();
+  final _routineService = RoutineService();
+  Map<String, MemberActivity> _memberActivity = {};
 
   // Weekly time tracking
   WeeklyTimeSummary? _weeklyTime;
@@ -1058,6 +1066,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         setState(() {
           _users = usersList.map((u) => User.fromJson(u)).toList();
         });
+        // Kick off activity-indicator fetch in background. Do NOT await — the
+        // user list should appear immediately; the green dots fill in when ready.
+        _loadMemberActivity();
       } else {
         setState(() {
           _errorMessage = result['message'] ?? 'Fehler beim Laden der Benutzer';
@@ -1072,6 +1083,87 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _isLoading = false;
       });
     }
+  }
+
+  /// Computes per-member activity flags for the current calendar week
+  /// (Monday 00:00 → Sunday 23:59). Three bulk fetches:
+  ///   1. Tickets via `getAdminTickets` → group by `memberNummer`,
+  ///      keep only tickets whose createdAt or scheduledDate falls inside the week
+  ///   2. Routine executions via `getExecutions(startDate, endDate)` → group by `userId`,
+  ///      map userId → mitgliedernummer via the already-loaded `_users` list
+  ///   3. Termine: parallel `getAllTermine(from, to, participantId: u.id)` per user
+  ///      because the list endpoint doesn't expose participant identities directly.
+  ///      Acceptable cost — under 50 members in practice, runs concurrently.
+  Future<void> _loadMemberActivity() async {
+    if (_users.isEmpty) return;
+    final now = DateTime.now();
+    final weekStart = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1)); // Monday 00:00
+    final weekEnd = weekStart.add(const Duration(days: 7)); // next Monday 00:00 (exclusive)
+
+    // Tickets: 1 bulk call, then filter client-side.
+    final ticketSet = <String>{};
+    try {
+      final adminTickets = await _ticketService.getAdminTickets(widget.currentMitgliedernummer);
+      if (adminTickets != null) {
+        for (final t in adminTickets.tickets) {
+          final created = t.createdAt;
+          final scheduled = t.scheduledDate;
+          final inWeek = (created.isAfter(weekStart) && created.isBefore(weekEnd)) ||
+              (scheduled != null && scheduled.isAfter(weekStart) && scheduled.isBefore(weekEnd));
+          final mn = t.memberNummer;
+          if (inWeek && mn != null && mn.isNotEmpty) {
+            ticketSet.add(mn);
+          }
+        }
+      }
+    } catch (_) {/* leave ticketSet empty on failure */}
+
+    // Routine executions: 1 bulk call, then map userId → mitgliedernummer.
+    final routineSet = <String>{};
+    try {
+      final userIdToMgnum = <int, String>{
+        for (final u in _users) u.id: u.mitgliedernummer,
+      };
+      final fromStr = weekStart.toIso8601String().substring(0, 10);
+      final toStr = weekEnd.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
+      final result = await _routineService.getExecutions(startDate: fromStr, endDate: toStr);
+      for (final e in result.executions) {
+        final uid = e.userId;
+        if (uid == null) continue;
+        final mgnum = userIdToMgnum[uid];
+        if (mgnum != null) routineSet.add(mgnum);
+      }
+    } catch (_) {/* leave routineSet empty */}
+
+    // Termine: parallel per-user calls.
+    final terminSet = <String>{};
+    try {
+      final futures = _users.map((u) async {
+        try {
+          final raw = await _terminService.getAllTermine(
+            from: weekStart,
+            to: weekEnd,
+            participantId: u.id,
+          );
+          final list = raw['termine'] as List?;
+          if (list != null && list.isNotEmpty) terminSet.add(u.mitgliedernummer);
+        } catch (_) {/* per-user failure: skip */}
+      });
+      await Future.wait(futures);
+    } catch (_) {/* batch failure */}
+
+    if (!mounted) return;
+    setState(() {
+      _memberActivity = {
+        for (final u in _users)
+          u.mitgliedernummer: MemberActivity(
+            hasTermin: terminSet.contains(u.mitgliedernummer),
+            hasTicket: ticketSet.contains(u.mitgliedernummer),
+            hasRoutine: routineSet.contains(u.mitgliedernummer),
+          ),
+      };
+    });
   }
 
   Future<void> _loadTickets({String? filter}) async {
@@ -2191,6 +2283,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             onUserTap: _showUserDetailsDialog,
                             onStatusChange: _updateUserStatus,
                             onDelete: _deleteUser,
+                            memberActivity: _memberActivity,
                           );
                   },
                 );
