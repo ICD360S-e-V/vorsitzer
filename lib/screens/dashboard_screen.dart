@@ -2027,8 +2027,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     switch (tabIndex) {
       case 0: // Alle
         return _users;
-      case 1: // Mitglieder
-        return _users.where((u) => u.role == 'mitglied' || u.role == 'ehrenmitglied' || u.role == 'foerdermitglied').toList();
+      case 1: // Mitglieder — only currently-membered statuses: active, neu, passiv
+        return _users.where((u) =>
+          (u.role == 'mitglied' || u.role == 'ehrenmitglied' || u.role == 'foerdermitglied') &&
+          (u.isActive || u.isNeu || u.isPassiv)
+        ).toList();
       case 2: // Ehrenamtlich
         return _users.where((u) => u.role == 'ehrenamtlich').toList();
       case 3: // Vorstand
@@ -2133,7 +2136,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               tabAlignment: TabAlignment.start,
               tabs: [
                 _buildMitgliederTab('Alle', _users.length, Icons.groups),
-                _buildMitgliederTab('Mitglieder', _users.where((u) => u.role == 'mitglied' || u.role == 'ehrenmitglied' || u.role == 'foerdermitglied').length, Icons.person),
+                _buildMitgliederTab('Mitglieder', _users.where((u) =>
+                  (u.role == 'mitglied' || u.role == 'ehrenmitglied' || u.role == 'foerdermitglied') &&
+                  (u.isActive || u.isNeu || u.isPassiv)
+                ).length, Icons.person),
                 _buildMitgliederTab('Ehrenamtlich', _users.where((u) => u.role == 'ehrenamtlich').length, Icons.volunteer_activism),
                 _buildMitgliederTab('Vorstand', _users.where((u) => isVorstandRole(u.role)).length, Icons.admin_panel_settings),
                 _buildMitgliederTab('Kassierer', _users.where((u) => u.role == 'kassierer' || u.role == 'kassenprufer').length, Icons.account_balance_wallet),
