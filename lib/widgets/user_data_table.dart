@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
+import '../models/member_activity.dart';
 import '../utils/role_helpers.dart';
 
 /// Data table displaying all users with actions
@@ -9,6 +10,7 @@ class UserDataTable extends StatelessWidget {
   final Function(User) onUserTap;
   final Function(User, String) onStatusChange;
   final Function(User) onDelete;
+  final Map<String, MemberActivity> memberActivity;
 
   const UserDataTable({
     super.key,
@@ -17,6 +19,7 @@ class UserDataTable extends StatelessWidget {
     required this.onUserTap,
     required this.onStatusChange,
     required this.onDelete,
+    this.memberActivity = const {},
   });
 
   @override
@@ -42,6 +45,7 @@ class UserDataTable extends StatelessWidget {
               DataColumn(label: Text('Email')),
               DataColumn(label: Text('Status')),
               DataColumn(label: Text('Registriert')),
+              DataColumn(label: Text('Diese Woche')),
               DataColumn(label: Text('Aktionen')),
             ],
             rows: users.map((user) => _buildUserRow(user)).toList(),
@@ -67,8 +71,36 @@ class UserDataTable extends StatelessWidget {
         DataCell(Text(user.email)),
         DataCell(_buildStatusBadge(user.status)),
         DataCell(Text(_formatDate(user.createdAt))),
+        DataCell(_buildWeekIndicators(memberActivity[user.mitgliedernummer] ?? MemberActivity.empty)),
         DataCell(_buildActions(user, isCurrentUser)),
       ],
+    );
+  }
+
+  Widget _buildWeekIndicators(MemberActivity activity) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      _indicator(Icons.event, 'Termin diese Woche', activity.hasTermin),
+      const SizedBox(width: 4),
+      _indicator(Icons.confirmation_number, 'Ticket diese Woche', activity.hasTicket),
+      const SizedBox(width: 4),
+      _indicator(Icons.repeat, 'Routine-Aufgabe diese Woche', activity.hasRoutine),
+    ]);
+  }
+
+  Widget _indicator(IconData icon, String tooltip, bool active) {
+    final color = active ? Colors.green.shade600 : Colors.grey.shade300;
+    return Tooltip(
+      message: active ? tooltip : '$tooltip — keine',
+      child: Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: color, width: 1.2),
+        ),
+        child: Icon(icon, size: 13, color: color),
+      ),
     );
   }
 
