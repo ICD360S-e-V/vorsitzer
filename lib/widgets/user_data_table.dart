@@ -11,6 +11,8 @@ class UserDataTable extends StatelessWidget {
   final Function(User, String) onStatusChange;
   final Function(User) onDelete;
   final Map<String, MemberActivity> memberActivity;
+  /// Called when the per-row Notfall button is clicked. Null disables the button.
+  final void Function(User)? onNotfall;
 
   const UserDataTable({
     super.key,
@@ -20,6 +22,7 @@ class UserDataTable extends StatelessWidget {
     required this.onStatusChange,
     required this.onDelete,
     this.memberActivity = const {},
+    this.onNotfall,
   });
 
   @override
@@ -71,19 +74,21 @@ class UserDataTable extends StatelessWidget {
         DataCell(Text(user.email)),
         DataCell(_buildStatusBadge(user.status)),
         DataCell(Text(_formatDate(user.createdAt))),
-        DataCell(_buildWeekIndicators(memberActivity[user.mitgliedernummer] ?? MemberActivity.empty)),
+        DataCell(_buildWeekIndicators(user, memberActivity[user.mitgliedernummer] ?? MemberActivity.empty)),
         DataCell(_buildActions(user, isCurrentUser)),
       ],
     );
   }
 
-  Widget _buildWeekIndicators(MemberActivity activity) {
+  Widget _buildWeekIndicators(User user, MemberActivity activity) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       _indicator(Icons.event, 'Termin diese Woche', activity.hasTermin),
       const SizedBox(width: 4),
       _indicator(Icons.confirmation_number, 'Ticket diese Woche', activity.hasTicket),
       const SizedBox(width: 4),
       _indicator(Icons.repeat, 'Routine-Aufgabe diese Woche', activity.hasRoutine),
+      const SizedBox(width: 6),
+      _notfallButton(user, activity.hasNotfall),
     ]);
   }
 
@@ -100,6 +105,35 @@ class UserDataTable extends StatelessWidget {
           border: Border.all(color: color, width: 1.2),
         ),
         child: Icon(icon, size: 13, color: color),
+      ),
+    );
+  }
+
+  Widget _notfallButton(User user, bool hasActive) {
+    final color = hasActive ? Colors.red.shade700 : Colors.green.shade600;
+    final tooltip = hasActive
+        ? 'Aktueller Notfall offen — klicken zum Dokumentieren'
+        : 'Kein offener Notfall — klicken um zu dokumentieren';
+    final disabled = onNotfall == null;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: disabled ? null : () => onNotfall!(user),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: color, width: 1.4),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.warning_amber, size: 13, color: color),
+            const SizedBox(width: 3),
+            Text('Notfall',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+          ]),
+        ),
       ),
     );
   }

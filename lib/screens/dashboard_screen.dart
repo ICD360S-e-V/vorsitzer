@@ -1101,23 +1101,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         .subtract(Duration(days: now.weekday - 1)); // Monday 00:00
     final weekEnd = weekStart.add(const Duration(days: 7)); // next Monday 00:00 (exclusive)
 
-    // Tickets: 1 bulk call, then filter client-side.
+    // Tickets: 1 bulk call, then filter client-side for two views:
+    //   - inWeek tickets → Ticket indicator (this-week activity)
+    //   - open urgent tickets → Notfall flag (status independent of date)
     final ticketSet = <String>{};
+    final notfallSet = <String>{};
     try {
       final adminTickets = await _ticketService.getAdminTickets(widget.currentMitgliedernummer);
       if (adminTickets != null) {
         for (final t in adminTickets.tickets) {
+          final mn = t.memberNummer;
+          if (mn == null || mn.isEmpty) continue;
           final created = t.createdAt;
           final scheduled = t.scheduledDate;
           final inWeek = (created.isAfter(weekStart) && created.isBefore(weekEnd)) ||
               (scheduled != null && scheduled.isAfter(weekStart) && scheduled.isBefore(weekEnd));
-          final mn = t.memberNummer;
-          if (inWeek && mn != null && mn.isNotEmpty) {
-            ticketSet.add(mn);
-          }
+          if (inWeek) ticketSet.add(mn);
+          final isOpen = t.status != 'closed' && t.status != 'resolved';
+          if (t.priority == 'urgent' && isOpen) notfallSet.add(mn);
         }
       }
-    } catch (_) {/* leave ticketSet empty on failure */}
+    } catch (_) {/* leave sets empty on failure */}
 
     // Routine executions: 1 bulk call, then map userId → mitgliedernummer.
     final routineSet = <String>{};
@@ -1161,9 +1165,83 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             hasTermin: terminSet.contains(u.mitgliedernummer),
             hasTicket: ticketSet.contains(u.mitgliedernummer),
             hasRoutine: routineSet.contains(u.mitgliedernummer),
+            hasNotfall: notfallSet.contains(u.mitgliedernummer),
           ),
       };
     });
+  }
+
+  /// Opens the Notfall-dokumentieren dialog for [user]. Submitting creates
+  /// a Ticket with `priority: 'urgent'`, which is what the per-row Notfall
+  /// button reads back to render its red/green state on the next reload.
+  Future<void> _showNotfallDialog(User user) async {
+    final textC = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          Icon(Icons.warning_amber, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('Notfall dokumentieren')),
+        ]),
+        content: SizedBox(
+          width: 460,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Mitglied: ${user.name} (${user.mitgliedernummer})',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: textC,
+              autofocus: true,
+              minLines: 4,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                labelText: 'Beschreibung des Notfalls *',
+                hintText: 'Was ist passiert? Welche Maßnahmen wurden ergriffen?',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.save),
+            label: const Text('Speichern'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+            onPressed: () {
+              final text = textC.text.trim();
+              if (text.isEmpty) return;
+              Navigator.pop(ctx, text);
+            },
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result.isEmpty || !mounted) return;
+
+    final created = await _ticketService.createTicket(
+      mitgliedernummer: user.mitgliedernummer,
+      subject: 'Notfall: ${user.name}',
+      message: result,
+      priority: 'urgent',
+    );
+
+    if (!mounted) return;
+    if (created.containsKey('error')) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Notfall konnte nicht gespeichert werden: ${created['error']}'),
+        backgroundColor: Colors.red,
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Notfall für ${user.name} gespeichert'),
+        backgroundColor: Colors.green,
+      ));
+      // Refresh activity strip so the Notfall button turns red.
+      await _loadMemberActivity();
+    }
   }
 
   Future<void> _loadTickets({String? filter}) async {
@@ -2284,6 +2362,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             onStatusChange: _updateUserStatus,
                             onDelete: _deleteUser,
                             memberActivity: _memberActivity,
+                            onNotfall: _showNotfallDialog,
                           );
                   },
                 );
