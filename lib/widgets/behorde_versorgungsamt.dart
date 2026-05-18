@@ -906,7 +906,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                         decoration: BoxDecoration(border: Border.all(color: Colors.black45)),
                         child: Column(children: [
                           Padding(padding: const EdgeInsets.fromLTRB(8, 2, 8, 0), child: Text('GdB', style: TextStyle(fontSize: 9, color: Colors.black54))),
-                          Container(width: 56, height: 34,
+                          SizedBox(width: 56, height: 34,
                             child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)))),
                         ])),
                     ]),
@@ -1007,7 +1007,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             Text('Aktueller GdB', style: TextStyle(fontSize: 12, color: Colors.indigo.shade700, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
-              value: _gdbAktuell,
+              initialValue: _gdbAktuell,
               decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
               items: _gdbOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 12)))).toList(),
               onChanged: (v) {
@@ -1429,7 +1429,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                   SwitchListTile(
                     title: const Text('Termin onorat (wahrgenommen)', style: TextStyle(fontSize: 13)),
                     value: onorat, dense: true, contentPadding: EdgeInsets.zero,
-                    activeColor: Colors.green,
+                    activeThumbColor: Colors.green,
                     onChanged: (v) => setDlg(() => onorat = v),
                   ),
                   if (onorat) ...[

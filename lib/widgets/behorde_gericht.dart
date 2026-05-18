@@ -289,7 +289,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
       title: Text(isEdit ? 'Vorfall bearbeiten' : 'Neuer Vorfall', style: TextStyle(color: color.shade700)),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         DropdownButtonFormField<String>(
-          value: antragTypen.contains(titelC.text) ? titelC.text : null,
+          initialValue: antragTypen.contains(titelC.text) ? titelC.text : null,
           decoration: InputDecoration(labelText: 'Art *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: antragTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
           onChanged: (v) => setD(() => titelC.text = v ?? ''),
@@ -723,7 +723,9 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
 
   DateTime _addDays(DateTime d, int days) {
     var result = d.add(Duration(days: days));
-    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) result = result.add(const Duration(days: 1));
+    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) {
+      result = result.add(const Duration(days: 1));
+    }
     return result;
   }
 
@@ -734,7 +736,9 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final maxDay = DateTime(y, m + 1, 0).day;
     if (day > maxDay) day = maxDay;
     var result = DateTime(y, m, day);
-    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) result = result.add(const Duration(days: 1));
+    while (result.weekday == DateTime.saturday || result.weekday == DateTime.sunday) {
+      result = result.add(const Duration(days: 1));
+    }
     return result;
   }
 

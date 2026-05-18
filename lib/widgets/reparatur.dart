@@ -182,7 +182,7 @@ class _ReparaturContentState extends State<ReparaturContent> {
             width: 500,
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                DropdownButtonFormField<String>(value: geraet, decoration: const InputDecoration(labelText: 'Gerät *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.devices)),
+                DropdownButtonFormField<String>(initialValue: geraet, decoration: const InputDecoration(labelText: 'Gerät *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.devices)),
                   items: _geraetTypen.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(), onChanged: (val) => setDlgState(() => geraet = val!)),
                 const SizedBox(height: 12),
                 Row(children: [
@@ -200,11 +200,11 @@ class _ReparaturContentState extends State<ReparaturContent> {
                     onPressed: () async { final d = await showDatePicker(context: context, initialDate: eingangsdatum, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365))); if (d != null) setDlgState(() => eingangsdatum = d); },
                     icon: const Icon(Icons.calendar_today), label: Text('Eingang: ${DateFormat('dd.MM.yyyy').format(eingangsdatum)}'))),
                   const SizedBox(width: 12),
-                  Expanded(child: DropdownButtonFormField<String>(value: uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
+                  Expanded(child: DropdownButtonFormField<String>(initialValue: uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
                     items: _uebergabeMap.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(), onChanged: (val) => setDlgState(() => uebergabe = val!))),
                 ]),
                 const SizedBox(height: 12),
-                SwitchListTile(value: kostenlos, onChanged: (val) => setDlgState(() => kostenlos = val), title: const Text('Kostenlos'), activeColor: Colors.green, contentPadding: EdgeInsets.zero),
+                SwitchListTile(value: kostenlos, onChanged: (val) => setDlgState(() => kostenlos = val), title: const Text('Kostenlos'), activeThumbColor: Colors.green, contentPadding: EdgeInsets.zero),
               ]),
             ),
           ),
@@ -286,7 +286,9 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
     final result = await widget.apiService.reparaturAction(widget.userId, 'verlauf_list', {'vorfall_id': id});
     if (mounted && result['success'] == true) {
       setState(() { _verlauf = List<Map<String, dynamic>>.from(result['verlauf'] ?? []); _isLoadingVerlauf = false; });
-    } else if (mounted) setState(() => _isLoadingVerlauf = false);
+    } else if (mounted) {
+      setState(() => _isLoadingVerlauf = false);
+    }
   }
 
   Future<void> _loadKorr() async {
@@ -294,7 +296,9 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
     final result = await widget.apiService.reparaturAction(widget.userId, 'korr_list', {'vorfall_id': id});
     if (mounted && result['success'] == true) {
       setState(() { _korr = List<Map<String, dynamic>>.from(result['korrespondenz'] ?? []); _isLoadingKorr = false; });
-    } else if (mounted) setState(() => _isLoadingKorr = false);
+    } else if (mounted) {
+      setState(() => _isLoadingKorr = false);
+    }
   }
 
   @override
@@ -530,7 +534,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
                   onPressed: () async { final d = await showDatePicker(context: context, initialDate: datum, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365))); if (d != null) setDlgState(() => datum = d); },
                   icon: const Icon(Icons.calendar_today), label: Text(DateFormat('dd.MM.yyyy').format(datum)))),
                 const SizedBox(width: 12),
-                Expanded(child: DropdownButtonFormField<String>(value: typ, decoration: const InputDecoration(labelText: 'Typ', border: OutlineInputBorder()),
+                Expanded(child: DropdownButtonFormField<String>(initialValue: typ, decoration: const InputDecoration(labelText: 'Typ', border: OutlineInputBorder()),
                   items: const [DropdownMenuItem(value: 'eingehend', child: Text('Eingehend')), DropdownMenuItem(value: 'ausgehend', child: Text('Ausgehend'))],
                   onChanged: (val) => setDlgState(() => typ = val!))),
               ]),
@@ -643,12 +647,12 @@ class _DetailsEditFormState extends State<_DetailsEditForm> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(children: [
-        DropdownButtonFormField<String>(value: _status, decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+        DropdownButtonFormField<String>(initialValue: _status, decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
           items: _ReparaturContentState._statusMap.entries.map((e) => DropdownMenuItem(value: e.key,
             child: Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: e.value.$2, shape: BoxShape.circle)), const SizedBox(width: 8), Text(e.value.$1)]))).toList(),
           onChanged: (val) => setState(() => _status = val!)),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(value: _geraet, decoration: const InputDecoration(labelText: 'Gerät', border: OutlineInputBorder()),
+        DropdownButtonFormField<String>(initialValue: _geraet, decoration: const InputDecoration(labelText: 'Gerät', border: OutlineInputBorder()),
           items: _ReparaturContentState._geraetTypen.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(), onChanged: (val) => setState(() => _geraet = val!)),
         const SizedBox(height: 12),
         Row(children: [
@@ -666,7 +670,7 @@ class _DetailsEditFormState extends State<_DetailsEditForm> {
             onPressed: () async { final d = await showDatePicker(context: context, initialDate: _eingangsdatum, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365))); if (d != null) setState(() => _eingangsdatum = d); },
             icon: const Icon(Icons.calendar_today), label: Text('Eingang: ${DateFormat('dd.MM.yyyy').format(_eingangsdatum)}'))),
           const SizedBox(width: 12),
-          Expanded(child: DropdownButtonFormField<String>(value: _uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
+          Expanded(child: DropdownButtonFormField<String>(initialValue: _uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
             items: _ReparaturContentState._uebergabeMap.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(), onChanged: (val) => setState(() => _uebergabe = val!))),
         ]),
         const SizedBox(height: 12),
@@ -680,7 +684,7 @@ class _DetailsEditFormState extends State<_DetailsEditForm> {
             icon: const Icon(Icons.inventory), label: Text(_abgeholtDatum != null ? 'Abgeholt: ${DateFormat('dd.MM.yyyy').format(_abgeholtDatum!)}' : 'Abholdatum'))),
         ]),
         const SizedBox(height: 12),
-        SwitchListTile(value: _kostenlos, onChanged: (val) => setState(() => _kostenlos = val), title: const Text('Kostenlos'), activeColor: Colors.green, contentPadding: EdgeInsets.zero),
+        SwitchListTile(value: _kostenlos, onChanged: (val) => setState(() => _kostenlos = val), title: const Text('Kostenlos'), activeThumbColor: Colors.green, contentPadding: EdgeInsets.zero),
         if (!_kostenlos) ...[const SizedBox(height: 12), TextField(controller: _kostenCtrl, decoration: const InputDecoration(labelText: 'Kosten (€)', border: OutlineInputBorder()))],
         const SizedBox(height: 12),
         TextField(controller: _notizenCtrl, decoration: const InputDecoration(labelText: 'Notizen', border: OutlineInputBorder()), maxLines: 2),

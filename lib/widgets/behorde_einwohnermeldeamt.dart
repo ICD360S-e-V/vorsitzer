@@ -88,9 +88,13 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     setState(() => _saving = true);
     try {
       final mapped = <String, dynamic>{};
-      for (final e in fields.entries) mapped['stammdaten.${e.key}'] = e.value?.toString() ?? '';
+      for (final e in fields.entries) {
+        mapped['stammdaten.${e.key}'] = e.value?.toString() ?? '';
+      }
       await widget.apiService.saveBuergeramtData(widget.userId, mapped);
-      for (final e in fields.entries) _data[e.key] = e.value;
+      for (final e in fields.entries) {
+        _data[e.key] = e.value;
+      }
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
@@ -195,7 +199,7 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 14))]),
       content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(isExpanded: true, value: typ.isEmpty ? null : typ,
+        DropdownButtonFormField<String>(isExpanded: true, initialValue: typ.isEmpty ? null : typ,
           decoration: InputDecoration(labelText: 'Dienstleistung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _vorfallTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
           onChanged: (v) => setDlg(() { typ = v ?? ''; if (titelC.text.isEmpty) titelC.text = typ; })),

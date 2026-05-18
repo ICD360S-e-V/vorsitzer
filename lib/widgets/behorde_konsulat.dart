@@ -116,9 +116,13 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
             });
             if (selected != null) {
               final m = <String, dynamic>{};
-              for (final e in selected.entries) m['stammdaten.${e.key}'] = e.value;
+              for (final e in selected.entries) {
+                m['stammdaten.${e.key}'] = e.value;
+              }
               await widget.apiService.saveKonsulatData(widget.userId, m);
-              for (final e in selected.entries) _data[e.key] = e.value;
+              for (final e in selected.entries) {
+                _data[e.key] = e.value;
+              }
               if (mounted) setState(() {});
             }
           }),
@@ -192,7 +196,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 14))]),
       content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(isExpanded: true, value: typ.isEmpty ? null : typ,
+        DropdownButtonFormField<String>(isExpanded: true, initialValue: typ.isEmpty ? null : typ,
           decoration: InputDecoration(labelText: 'Dienstleistung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _vorfallTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
           onChanged: (v) => setDlg(() { typ = v ?? ''; if (titelC.text.isEmpty) titelC.text = typ; })),

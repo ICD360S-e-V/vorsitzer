@@ -17,7 +17,7 @@ class _GitHubScreenState extends State<GitHubScreen> {
   bool _webhookActive = false;
   String _org = '';
   List<Map<String, dynamic>> _repos = [];
-  Map<int, List<Map<String, dynamic>>> _runs = {};
+  final Map<int, List<Map<String, dynamic>>> _runs = {};
   final _tokenController = TextEditingController();
   final _orgController = TextEditingController();
 
