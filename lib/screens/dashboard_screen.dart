@@ -1308,7 +1308,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           lastMessagePreview: bubble.lastMessagePreview,
         );
       }
+      // The popup is a read surface — clear the dashboard badge so the
+      // icon doesn't stay marked unread after the user has opened the chat.
+      _unreadChatCount = 0;
     });
+    // And the tray badge, which has its own counter incremented by
+    // NotificationService.showChatMessage when the dialog isn't open.
+    TrayService().clearUnread();
   }
 
   void _showAdminChatDialogInternal(CallOfferEvent? pendingCall, {int? initialConversationId}) {
