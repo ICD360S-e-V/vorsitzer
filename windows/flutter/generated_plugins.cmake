@@ -8,6 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_secure_storage_windows
   flutter_webrtc
   geolocator_windows
+  just_audio_windows
   printing
   screen_retriever_windows
   tray_manager
