@@ -90,7 +90,7 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "ICD360S e.V." "\0"
-            VALUE "FileDescription", "ICD360S Vorsitzer" "\0"
+            VALUE "FileDescription", "ICD360S e.V - Vorsitzer" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "icd360sev_vorsitzer" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 ICD360S e.V. All rights reserved." "\0"
