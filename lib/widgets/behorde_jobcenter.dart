@@ -1,10 +1,8 @@
-import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 
 class BehordeJobcenterContent extends StatefulWidget {
@@ -600,11 +598,12 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
     try {
       final resp = await widget.apiService.downloadAntragDokument(doc['id'] as int);
       if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
-      final dir = await getTemporaryDirectory();
-      final name = (doc['filename']?.toString() ?? 'dokument');
-      final file = io.File('${dir.path}/$name');
-      await file.writeAsBytes(resp.bodyBytes);
-      await OpenFilex.open(file.path);
+      if (!mounted) return;
+      final name = doc['filename']?.toString() ?? 'dokument';
+      final shown = await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
+      if (!shown && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Format nicht unterstützt: $name')));
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $e')));
     }
