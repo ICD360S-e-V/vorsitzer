@@ -1,5 +1,10 @@
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 
 class BehordeJobcenterContent extends StatefulWidget {
@@ -523,37 +528,156 @@ class _AntragBescheidTab extends StatefulWidget {
   @override
   State<_AntragBescheidTab> createState() => _AntragBescheidTabState();
 }
-class _AntragBescheidTabState extends State<_AntragBescheidTab> {
-  late TextEditingController _bescheidVonC, _bescheidBisC, _bescheidBetragC, _regelsatzC, _kduC, _heizkostenC, _mehrbedarfC, _mehrbedarfGrundC;
+class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKeepAliveClientMixin {
+  late TextEditingController _bescheidVonC, _bescheidBisC, _bescheidBetragC, _regelsatzC, _kduC, _nebenkostenC, _heizkostenC, _mehrbedarfC, _mehrbedarfGrundC;
   bool _saving = false;
+  List<Map<String, dynamic>> _docs = [];
+  bool _docsLoading = false, _uploading = false;
+  @override
+  bool get wantKeepAlive => true;
   @override
   void initState() { super.initState(); final a = widget.antrag;
     _bescheidVonC = TextEditingController(text: a['bescheid_von']?.toString() ?? ''); _bescheidBisC = TextEditingController(text: a['bescheid_bis']?.toString() ?? '');
-    _bescheidBetragC = TextEditingController(text: a['bescheid_betrag']?.toString() ?? ''); _regelsatzC = TextEditingController(text: a['regelsatz']?.toString() ?? '');
-    _kduC = TextEditingController(text: a['kdu']?.toString() ?? ''); _heizkostenC = TextEditingController(text: a['heizkosten']?.toString() ?? '');
-    _mehrbedarfC = TextEditingController(text: a['mehrbedarf']?.toString() ?? ''); _mehrbedarfGrundC = TextEditingController(text: a['mehrbedarf_grund']?.toString() ?? ''); }
+    _bescheidBetragC = TextEditingController(text: a['bescheid_betrag']?.toString() ?? '');
+    // Bürgergeld Regelbedarfsstufe 1 = 563 € (SGB II, BMAS Fortschreibung 2026 — Nullrunde).
+    final rs = a['regelsatz']?.toString() ?? '';
+    _regelsatzC = TextEditingController(text: rs.isEmpty ? '563' : rs);
+    _kduC = TextEditingController(text: a['kdu']?.toString() ?? '');
+    _nebenkostenC = TextEditingController(text: a['nebenkosten']?.toString() ?? '');
+    _heizkostenC = TextEditingController(text: a['heizkosten']?.toString() ?? '');
+    _mehrbedarfC = TextEditingController(text: a['mehrbedarf']?.toString() ?? ''); _mehrbedarfGrundC = TextEditingController(text: a['mehrbedarf_grund']?.toString() ?? '');
+    _loadDocs();
+  }
   @override
-  void dispose() { _bescheidVonC.dispose(); _bescheidBisC.dispose(); _bescheidBetragC.dispose(); _regelsatzC.dispose(); _kduC.dispose(); _heizkostenC.dispose(); _mehrbedarfC.dispose(); _mehrbedarfGrundC.dispose(); super.dispose(); }
+  void dispose() { _bescheidVonC.dispose(); _bescheidBisC.dispose(); _bescheidBetragC.dispose(); _regelsatzC.dispose(); _kduC.dispose(); _nebenkostenC.dispose(); _heizkostenC.dispose(); _mehrbedarfC.dispose(); _mehrbedarfGrundC.dispose(); super.dispose(); }
   Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13)));
   Widget _dateField(String label, TextEditingController c) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, readOnly: true, decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13), onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }));
   Future<void> _save() async {
     setState(() => _saving = true);
-    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, 'bescheid_von': _bescheidVonC.text, 'bescheid_bis': _bescheidBisC.text, 'bescheid_betrag': _bescheidBetragC.text, 'regelsatz': _regelsatzC.text, 'kdu': _kduC.text, 'heizkosten': _heizkostenC.text, 'mehrbedarf': _mehrbedarfC.text, 'mehrbedarf_grund': _mehrbedarfGrundC.text}});
+    final payload = {'bescheid_von': _bescheidVonC.text, 'bescheid_bis': _bescheidBisC.text, 'bescheid_betrag': _bescheidBetragC.text, 'regelsatz': _regelsatzC.text, 'kdu': _kduC.text, 'nebenkosten': _nebenkostenC.text, 'heizkosten': _heizkostenC.text, 'mehrbedarf': _mehrbedarfC.text, 'mehrbedarf_grund': _mehrbedarfGrundC.text};
+    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, ...payload}});
+    widget.antrag.addAll(payload); // keep modal's antrag in sync so re-init shows saved values
     await widget.onReload();
     if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
+
+  String get _antragId => widget.antrag['id']?.toString() ?? '';
+
+  Future<void> _loadDocs() async {
+    if (_antragId.isEmpty) return;
+    setState(() => _docsLoading = true);
+    final r = await widget.apiService.getAntragDokumente(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId);
+    if (!mounted) return;
+    final list = (r['data']?['dokumente'] ?? r['dokumente'] ?? []) as List;
+    setState(() {
+      _docs = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _docsLoading = false;
+    });
+  }
+
+  Future<void> _uploadDoc() async {
+    if (_antragId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Antrag speichern')));
+      return;
+    }
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    setState(() => _uploading = true);
+    int ok = 0; String? lastErr;
+    for (final f in result.files.where((f) => f.path != null)) {
+      try {
+        final res = await widget.apiService.uploadAntragDokument(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId, filePath: f.path!, fileName: f.name);
+        if (res['success'] == true) { ok++; } else { lastErr = res['message']?.toString() ?? 'Upload fehlgeschlagen'; }
+      } catch (e) { lastErr = e.toString(); }
+    }
+    if (!mounted) return;
+    setState(() => _uploading = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lastErr == null ? '$ok Datei(en) hochgeladen' : 'Fehler: $lastErr'), backgroundColor: lastErr == null ? Colors.green.shade600 : Colors.red.shade600));
+    await _loadDocs();
+  }
+
+  Future<void> _viewDoc(Map<String, dynamic> doc) async {
+    try {
+      final resp = await widget.apiService.downloadAntragDokument(doc['id'] as int);
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      final dir = await getTemporaryDirectory();
+      final name = (doc['filename']?.toString() ?? 'dokument');
+      final file = io.File('${dir.path}/$name');
+      await file.writeAsBytes(resp.bodyBytes);
+      await OpenFilex.open(file.path);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $e')));
+    }
+  }
+
+  Future<void> _deleteDoc(Map<String, dynamic> doc) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Dokument löschen?', style: TextStyle(fontSize: 15)),
+      content: Text(doc['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Löschen')),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteAntragDokument(doc['id'] as int);
+    await _loadDocs();
+  }
+
+  String _fmtSize(dynamic bytes) {
+    final n = bytes is int ? bytes : int.tryParse(bytes?.toString() ?? '0') ?? 0;
+    if (n < 1024) return '$n B';
+    if (n < 1024 * 1024) return '${(n / 1024).toStringAsFixed(1)} KB';
+    return '${(n / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Bewilligungsbescheid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
       const SizedBox(height: 12),
         Row(children: [Expanded(child: _dateField('Von', _bescheidVonC)), const SizedBox(width: 8), Expanded(child: _dateField('Bis', _bescheidBisC))]),
         Row(children: [Expanded(child: _field('Gesamtbetrag €/Mo', _bescheidBetragC, icon: Icons.euro)), const SizedBox(width: 8), Expanded(child: _field('Regelsatz €', _regelsatzC, icon: Icons.account_balance_wallet))]),
-        Row(children: [Expanded(child: _field('KdU Miete €', _kduC, icon: Icons.home)), const SizedBox(width: 8), Expanded(child: _field('Heizkosten €', _heizkostenC, icon: Icons.local_fire_department))]),
-        Row(children: [Expanded(child: _field('Mehrbedarf €', _mehrbedarfC, icon: Icons.add_circle)), const SizedBox(width: 8), Expanded(child: _field('Mehrbedarf Grund', _mehrbedarfGrundC, icon: Icons.info))]),
+        Row(children: [Expanded(child: _field('KdU Miete €', _kduC, icon: Icons.home)), const SizedBox(width: 8), Expanded(child: _field('Nebenkosten €', _nebenkostenC, icon: Icons.receipt_long))]),
+        Row(children: [Expanded(child: _field('Heizkosten €', _heizkostenC, icon: Icons.local_fire_department)), const SizedBox(width: 8), Expanded(child: _field('Mehrbedarf €', _mehrbedarfC, icon: Icons.add_circle))]),
+        _field('Mehrbedarf Grund', _mehrbedarfGrundC, icon: Icons.info),
       Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(onPressed: _saving ? null : _save,
         icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
         label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white))),
+      const Divider(height: 24),
+      Row(children: [
+        Icon(Icons.folder_open, size: 18, color: Colors.green.shade700),
+        const SizedBox(width: 6),
+        Text('Bescheid-Dokumente${_docs.isEmpty ? '' : ' (${_docs.length})'}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(
+          onPressed: _uploading ? null : _uploadDoc,
+          icon: _uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
+          label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+        ),
+      ]),
+      const SizedBox(height: 6),
+      if (_docsLoading)
+        const Padding(padding: EdgeInsets.all(8), child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))))
+      else if (_docs.isEmpty)
+        Padding(padding: const EdgeInsets.all(8), child: Text('Keine Dokumente hochgeladen', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)))
+      else
+        ..._docs.map((d) => Card(
+          margin: const EdgeInsets.only(bottom: 4),
+          child: ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            leading: Icon((d['mime_type']?.toString().contains('pdf') ?? false) ? Icons.picture_as_pdf : Icons.image, size: 20, color: Colors.green.shade700),
+            title: Text(d['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+            subtitle: Text('${_fmtSize(d['file_size'])} · ${d['uploaded_at']?.toString().substring(0, 16) ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.blue.shade700), tooltip: 'Öffnen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d)),
+              IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _deleteDoc(d)),
+            ]),
+          ),
+        )),
     ]));
   }
 }
