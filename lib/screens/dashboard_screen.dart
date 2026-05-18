@@ -2039,9 +2039,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return _users.where((u) => u.role == 'mitgliedergrunder').toList();
       case 6: // Neu — newly registered, regardless of role
         return _users.where((u) => u.isNeu).toList();
-      case 7: // Nicht verifiziert — identity not yet confirmed (30-day window)
+      case 7: // Pasiv — pays Beitrag but doesn't actively participate
+        return _users.where((u) => u.isPassiv).toList();
+      case 8: // Nicht verifiziert — identity not yet confirmed (30-day window)
         return _users.where((u) => u.isNichtVerifiziert).toList();
-      case 8: // Gekündigt — covers all three cancellation statuses, regardless of role
+      case 9: // Gekündigt — covers all three cancellation statuses, regardless of role
         return _users.where((u) => u.isGekuendigt).toList();
       default:
         return _users;
@@ -2072,7 +2074,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
 
     return DefaultTabController(
-      length: 9,
+      length: 10,
       child: Column(
         children: [
           Container(
@@ -2137,6 +2139,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 _buildMitgliederTab('Kassierer', _users.where((u) => u.role == 'kassierer' || u.role == 'kassenprufer').length, Icons.account_balance_wallet),
                 _buildMitgliederTab('Gründungsmitglieder', _users.where((u) => u.role == 'mitgliedergrunder').length, Icons.star),
                 _buildMitgliederTab('Neu', _users.where((u) => u.isNeu).length, Icons.fiber_new),
+                _buildMitgliederTab('Pasiv', _users.where((u) => u.isPassiv).length, Icons.pause_circle_outline),
                 _buildMitgliederTab('Nicht verifiziert', _users.where((u) => u.isNichtVerifiziert).length, Icons.help_outline),
                 _buildMitgliederTab('Gekündigt', _users.where((u) => u.isGekuendigt).length, Icons.person_off),
               ],
