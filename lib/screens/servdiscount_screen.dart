@@ -546,7 +546,9 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
     _totpTimer?.cancel();
     _totpSecretC.removeListener(_onSecretChanged);
     _urlC.dispose(); _userC.dispose(); _passC.dispose(); _totpSecretC.dispose();
-    for (final c in _recoveryCs) c.dispose();
+    for (final c in _recoveryCs) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -810,7 +812,7 @@ class _ServdiscountRechnungTabState extends State<_ServdiscountRechnungTab> {
         const SizedBox(height: 10),
         TextField(controller: betragC, decoration: InputDecoration(labelText: 'Betrag (€)', prefixIcon: const Icon(Icons.euro, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(value: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.$1, style: TextStyle(fontSize: 13, color: e.value.$2)))).toList(),
           onChanged: (v) => setDlg(() => status = v ?? status)),
         const SizedBox(height: 10),

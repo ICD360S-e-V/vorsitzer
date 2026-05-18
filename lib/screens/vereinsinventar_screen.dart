@@ -223,7 +223,7 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 TextField(controller: bezeichnungCtrl, autofocus: true, decoration: const InputDecoration(labelText: 'Bezeichnung *', border: OutlineInputBorder())),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(value: _kategorien.contains(kategorie) ? kategorie : 'Sonstiges',
+                DropdownButtonFormField<String>(initialValue: _kategorien.contains(kategorie) ? kategorie : 'Sonstiges',
                   decoration: const InputDecoration(labelText: 'Kategorie', border: OutlineInputBorder()),
                   items: _kategorien.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
                   onChanged: (val) => setDlgState(() => kategorie = val!)),
@@ -291,8 +291,11 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
         builder: (context, setDlgState) {
           if (loadingVerlauf) {
             _apiService.inventarAction('verlauf', {'id': id}).then((r) {
-              if (r['success'] == true) setDlgState(() { verlauf = List<Map<String, dynamic>>.from(r['verlauf'] ?? []); loadingVerlauf = false; });
-              else setDlgState(() => loadingVerlauf = false);
+              if (r['success'] == true) {
+                setDlgState(() { verlauf = List<Map<String, dynamic>>.from(r['verlauf'] ?? []); loadingVerlauf = false; });
+              } else {
+                setDlgState(() => loadingVerlauf = false);
+              }
             });
           }
 

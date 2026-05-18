@@ -154,12 +154,19 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     final mapped = <String, dynamic>{};
     for (final e in fields.entries) {
       String bereich = 'stammdaten';
-      if (['arbeitssuchend_datum','arbeitslos_datum','letzter_arbeitstag','kuendigungsart'].contains(e.key)) bereich = 'arbeitsmeldung';
-      else if (['bescheid_von','bescheid_bis','leistungssatz_betrag','leistungssatz_typ','bemessungsentgelt','anspruchsdauer','restanspruch'].contains(e.key)) bereich = 'bescheid';
-      else if (e.key.startsWith('sperrzeit') || e.key == 'has_sperrzeit') bereich = 'sperrzeit';
-      else if (e.key.startsWith('egv') || e.key == 'has_egv') bereich = 'egv';
-      else if (e.key.startsWith('bgs') || e.key == 'has_bgs') bereich = 'bildungsgutschein';
-      else if (['has_online_account','online_email','has_passkey','passkey_access'].contains(e.key)) bereich = 'online';
+      if (['arbeitssuchend_datum','arbeitslos_datum','letzter_arbeitstag','kuendigungsart'].contains(e.key)) {
+        bereich = 'arbeitsmeldung';
+      } else if (['bescheid_von','bescheid_bis','leistungssatz_betrag','leistungssatz_typ','bemessungsentgelt','anspruchsdauer','restanspruch'].contains(e.key)) {
+        bereich = 'bescheid';
+      } else if (e.key.startsWith('sperrzeit') || e.key == 'has_sperrzeit') {
+        bereich = 'sperrzeit';
+      } else if (e.key.startsWith('egv') || e.key == 'has_egv') {
+        bereich = 'egv';
+      } else if (e.key.startsWith('bgs') || e.key == 'has_bgs') {
+        bereich = 'bildungsgutschein';
+      } else if (['has_online_account','online_email','has_passkey','passkey_access'].contains(e.key)) {
+        bereich = 'online';
+      }
       final val = e.value is bool ? (e.value ? 'true' : 'false') : e.value?.toString() ?? '';
       mapped['$bereich.${e.key}'] = val;
     }

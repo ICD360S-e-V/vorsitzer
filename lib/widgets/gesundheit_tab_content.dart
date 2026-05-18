@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
@@ -12311,7 +12310,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   ValueListenableBuilder<String>(
                     valueListenable: kategorie,
                     builder: (_, kat, __) => DropdownButtonFormField<String>(
-                      value: kategorien.contains(kat) ? kat : 'Befundbericht',
+                      initialValue: kategorien.contains(kat) ? kat : 'Befundbericht',
                       decoration: InputDecoration(
                         labelText: 'Kategorie',
                         prefixIcon: const Icon(Icons.category),
@@ -12713,7 +12712,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
         final grenzen = {1: '1.582,00', 2: '2.175,25', 3: '2.570,75', 4: '2.966,25'};
         final hh = int.tryParse(haushaltC.text) ?? 1;
-        final grenze = hh <= 4 ? grenzen[hh]! : '${(2175.25 + (hh - 2) * 395.50).toStringAsFixed(2).replaceAll('.', ',')}';
+        final grenze = hh <= 4 ? grenzen[hh]! : (2175.25 + (hh - 2) * 395.50).toStringAsFixed(2).replaceAll('.', ',');
 
         return AlertDialog(
           title: Row(children: [
@@ -13200,7 +13199,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.receipt, size: 18, color: Colors.brown.shade700), const SizedBox(width: 8), const Text('Neue Rechnung', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(value: grund, decoration: InputDecoration(labelText: 'Grund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(initialValue: grund, decoration: InputDecoration(labelText: 'Grund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _gruende.map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => grund = v ?? grund)),
         const SizedBox(height: 10),
