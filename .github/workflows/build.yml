@@ -775,16 +775,42 @@ jobs:
       - version
       - release
     runs-on: ubuntu-latest
+    # Global serialization across all tag deploys. Builds + GitHub Releases
+    # stay parallel (one per tag, preserving release history); only this final
+    # SCP+JSON step is queued. cancel-in-progress means a newer tag arriving
+    # while an older deploy is in-flight will kill the older one — exactly
+    # what we want when 4 PRs merge in rapid succession.
+    concurrency:
+      group: deploy-vorsitzer-prod
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           fetch-depth: 0
 
+      # Belt-and-suspenders against the rare case where GH Actions evicts a
+      # newer queued run and lets the older one survive: explicitly skip if
+      # any newer tag already exists.
+      - name: Guard — abort if a newer tag exists
+        id: guard
+        run: |
+          git fetch --tags --force --quiet
+          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          if [ "$LATEST" != "${GITHUB_REF_NAME}" ]; then
+            echo "::warning::Newer tag $LATEST exists on remote; skipping deploy of ${GITHUB_REF_NAME}"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag ${GITHUB_REF_NAME} is the newest; proceeding"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        if: steps.guard.outputs.skip != 'true'
         with:
           path: artifacts
 
       - name: Organize artifacts with fixed filenames
+        if: steps.guard.outputs.skip != 'true'
         run: |
           mkdir -p deploy/android deploy/windows
           cp artifacts/android-universal-apk/*.apk deploy/android/vorsitzer.apk || true
@@ -793,33 +819,45 @@ jobs:
           find deploy -type f -exec ls -lh {} \;
 
       - name: Setup SSH
+        if: steps.guard.outputs.skip != 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.DEPLOY_PORT }} -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Upload to server
+      - name: Upload to server (atomic via temp-name + rename)
+        if: steps.guard.outputs.skip != 'true'
         run: |
           BASE="${{ secrets.DEPLOY_PATH }}"
           PORT="${{ secrets.DEPLOY_PORT }}"
           REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
           SSH_BASE="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          RUN="${GITHUB_RUN_ID}"
 
           ssh $SSH_BASE -p "$PORT" "$REMOTE" "mkdir -p '$BASE'/{android,windows}"
 
-          # Backup current → _stable, then overwrite with new release.
-          # Fixed filenames mean only 1 current + 1 stable per file — no accumulation.
+          # Per-file flow (now race-safe):
+          #   1. If a current file exists on the server, copy it to _stable as the
+          #      fallback for in-app rollback.
+          #   2. SCP the new artifact to a unique temp name (one per workflow run).
+          #   3. Atomically replace the live filename with `mv -f` (rename(2) is
+          #      atomic on the same filesystem — clients never see a half-written
+          #      ZIP or APK).
+          # Combined with the global concurrency lock above, this means the
+          # last-completed deploy wins on BOTH the ZIP and the JSON.
           for plat in android windows; do
             if [ -n "$(ls -A deploy/$plat/ 2>/dev/null)" ]; then
-              echo "==> Backing up + uploading $plat ..."
+              echo "==> Uploading $plat (run $RUN) ..."
               for f in deploy/$plat/*; do
                 fname=$(basename "$f")
                 ext="${fname##*.}"
                 base="${fname%.*}"
+                tmp="$BASE/$plat/.${fname}.tmp.$RUN"
                 ssh $SSH_BASE -p "$PORT" "$REMOTE" \
                   "[ -f '$BASE/$plat/$fname' ] && cp '$BASE/$plat/$fname' '$BASE/$plat/${base}_stable.${ext}' || true"
-                scp $SSH_BASE -P "$PORT" "$f" "$REMOTE:$BASE/$plat/$fname"
+                scp $SSH_BASE -P "$PORT" "$f" "$REMOTE:$tmp"
+                ssh $SSH_BASE -p "$PORT" "$REMOTE" "mv -f '$tmp' '$BASE/$plat/$fname'"
               done
             fi
           done
@@ -828,8 +866,11 @@ jobs:
 
           # Remove old versioned files (vorsitzer-X.Y.Z-*) left from before the overwrite migration
           ssh $SSH_BASE -p "$PORT" "$REMOTE" "find '$BASE' -name 'vorsitzer-[0-9]*' -type f -delete 2>/dev/null; echo 'Legacy versioned files cleaned'"
+          # Cleanup any orphaned .tmp.* files from cancelled runs older than 1h
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "find '$BASE' -name '*.tmp.*' -type f -mmin +60 -delete 2>/dev/null; echo 'Stale tmp files cleaned'"
 
       - name: Update version_vorsitzer.json on server
+        if: steps.guard.outputs.skip != 'true'
         run: |
           VERSION="${{ needs.version.outputs.version_name }}"
           BUILD="${{ needs.version.outputs.build_number }}"
@@ -887,6 +928,7 @@ jobs:
 
       - name: Generate changelog from git commits
         id: changelog
+        if: steps.guard.outputs.skip != 'true'
         run: |
           # Extract meaningful commit messages between the previous tag and current tag.
           # Skip chore/bump/merge commits. Each remaining commit = one changelog bullet.
@@ -910,6 +952,7 @@ jobs:
           cat /tmp/changelog_entries.txt
 
       - name: Update changelog_vorsitzer.json on server (auto from git commits)
+        if: steps.guard.outputs.skip != 'true'
         run: |
           VERSION="${{ needs.version.outputs.version_name }}"
           PORT="${{ secrets.DEPLOY_PORT }}"
