@@ -160,7 +160,7 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
           ],
           decoration: InputDecoration(
             labelText: 'Mitgliedernummer',
-            hintText: 'z. B. V27655',
+            hintText: 'z. B. V12345',
             prefixIcon: const Icon(Icons.badge),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),

@@ -31,7 +31,7 @@ class NtfyService {
   bool _running = false;
 
   /// Start listening for ntfy notifications.
-  /// [mitgliedernummer] - e.g. "V00001" (will be lowercased)
+  /// [mitgliedernummer] - e.g. "V12345" (will be lowercased)
   /// [jwtToken] - JWT token for fetching ntfy auth token from server
   void start(String mitgliedernummer, {String? jwtToken}) {
     if (_running && _mitgliedernummer == mitgliedernummer.toLowerCase()) return;
