@@ -153,6 +153,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -212,6 +213,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --split-per-abi \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -275,6 +277,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -334,6 +337,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --dart-define=STORE=fdroid \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -394,6 +398,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --dart-define=STORE=huawei \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
@@ -435,7 +440,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows
-        run: flutter build windows --release --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} --dart-define=TURN_USER=${{ secrets.TURN_USER }} --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} --build-name=${{ needs.version.outputs.version_name }} --build-number=${{ needs.version.outputs.build_number }}
+        run: flutter build windows --release --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} --dart-define=TURN_USER=${{ secrets.TURN_USER }} --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --build-name=${{ needs.version.outputs.version_name }} --build-number=${{ needs.version.outputs.build_number }}
 
       - name: Create ZIP archive
         shell: pwsh
@@ -498,6 +503,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -586,6 +592,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
@@ -685,6 +692,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }} \
             --export-options-plist=ios/ExportOptions.plist
@@ -698,6 +706,7 @@ jobs:
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --no-codesign \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}

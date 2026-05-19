@@ -9,36 +9,62 @@ import 'logger_service.dart';
 
 final _log = LoggerService();
 
-// ─── AES-256 Encryption ──────────────────────────────────────────────
-// Client-side encryption: data is encrypted BEFORE sending to server.
-// Server stores only ciphertext. Only this app can decrypt.
+// ─── AES-256 Encryption (dual-key, rotation in progress) ────────────
+// Client-side encryption: data is encrypted BEFORE sending to server. Server
+// stores only ciphertext. Two keys coexist during the rotation window:
+//   V1 (legacy, compromised — leaked publicly in git history): kept ONLY to
+//       decrypt rows that have not yet been migrated server-side. Will be
+//       removed in a follow-up PR after the one-shot migration script
+//       re-encrypts every routines/routine_executions row with V2.
+//   V2 (active): injected at build time via --dart-define=ROUTINE_AES_KEY_V2
+//       from the GitHub Secret of the same name. Never hardcoded.
+// Wire format:
+//   V1: Base64(IV[16] + ciphertext)
+//   V2: "v2:" + Base64(IV[16] + ciphertext)
+// The "v2:" literal prefix makes version detection unambiguous when reading.
 
 class _RoutineCrypto {
-  // SECURITY NOTE: encryption key should ideally be server-side config
-  // AES-256 key (32 bytes hex) — only exists in the app binary
-  static final _key = enc.Key.fromBase16('52307574316e336e4175666734623321494344333630532d323032365f4b6579');
-  static final _encrypter = enc.Encrypter(enc.AES(_key, mode: enc.AESMode.cbc, padding: 'PKCS7'));
+  static final _keyV1 = enc.Key.fromBase16('52307574316e336e4175666734623321494344333630532d323032365f4b6579'); // gitleaks:allow legacy, removed after migration
+  static final _encV1 = enc.Encrypter(enc.AES(_keyV1, mode: enc.AESMode.cbc, padding: 'PKCS7'));
 
-  /// Encrypt a plaintext string → Base64(IV + ciphertext)
+  static const _v2Hex = String.fromEnvironment('ROUTINE_AES_KEY_V2');
+  static final enc.Encrypter? _encV2 = _v2Hex.isEmpty
+      ? null
+      : enc.Encrypter(enc.AES(enc.Key.fromBase16(_v2Hex), mode: enc.AESMode.cbc, padding: 'PKCS7'));
+
+  static const String _v2Prefix = 'v2:';
+
+  /// Encrypt plaintext. Uses V2 when --dart-define provided the key (CI/release
+  /// builds always do); falls back to V1 for local dev builds without the flag,
+  /// so `flutter run` from a fresh clone still works.
   static String encrypt(String plaintext) {
     final iv = enc.IV.fromSecureRandom(16);
-    final encrypted = _encrypter.encrypt(plaintext, iv: iv);
-    // Prepend IV (16 bytes) to ciphertext for decryption
-    final combined = iv.bytes + encrypted.bytes;
-    return base64Encode(combined);
+    if (_encV2 != null) {
+      final encrypted = _encV2!.encrypt(plaintext, iv: iv);
+      return _v2Prefix + base64Encode(iv.bytes + encrypted.bytes);
+    }
+    final encrypted = _encV1.encrypt(plaintext, iv: iv);
+    return base64Encode(iv.bytes + encrypted.bytes);
   }
 
-  /// Decrypt Base64(IV + ciphertext) → plaintext
-  static String decrypt(String cipherBase64) {
+  /// Decrypt. Routes by the "v2:" prefix; absence means V1 (legacy data).
+  /// Returns the input unchanged on any failure (handles plaintext rows from
+  /// before encryption was rolled out, and V2 ciphertext on a build without V2).
+  static String decrypt(String ciphertext) {
     try {
-      final combined = base64Decode(cipherBase64);
-      if (combined.length < 17) return cipherBase64; // Not encrypted
+      if (ciphertext.startsWith(_v2Prefix)) {
+        if (_encV2 == null) return ciphertext;
+        final combined = base64Decode(ciphertext.substring(_v2Prefix.length));
+        if (combined.length < 17) return ciphertext;
+        final iv = enc.IV(combined.sublist(0, 16));
+        return _encV2!.decrypt(enc.Encrypted(combined.sublist(16)), iv: iv);
+      }
+      final combined = base64Decode(ciphertext);
+      if (combined.length < 17) return ciphertext;
       final iv = enc.IV(combined.sublist(0, 16));
-      final cipherBytes = combined.sublist(16);
-      return _encrypter.decrypt(enc.Encrypted(cipherBytes), iv: iv);
+      return _encV1.decrypt(enc.Encrypted(combined.sublist(16)), iv: iv);
     } catch (_) {
-      // If decryption fails, return as-is (legacy unencrypted data)
-      return cipherBase64;
+      return ciphertext;
     }
   }
 
