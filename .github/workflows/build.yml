@@ -419,6 +419,10 @@ jobs:
     name: "🪟 Windows"
     needs: version
     runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write       # mint OIDC token for Sigstore signing of attestation
+      attestations: write   # write the attestation to the repo's attestation log
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -445,6 +449,16 @@ jobs:
         with:
           name: windows-zip
           path: build/${{ env.APP_NAME }}-*-windows-x64.zip
+
+      # SLSA build provenance: signs the ZIP with Sigstore + records the build
+      # context in the repo's attestation log. End users can verify the ZIP they
+      # downloaded was produced by this exact workflow with:
+      #   gh attestation verify vorsitzer-windows-x64.zip --repo ICD360S-e-V/vorsitzer
+      # Defends against the "user downloaded a tampered installer" scenario.
+      - name: Attest Windows ZIP build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3
+        with:
+          subject-path: 'build/${{ env.APP_NAME }}-*-windows-x64.zip'
 
   # ──────────────────────────────────────────────
   # 6b. Linux (tar.gz)

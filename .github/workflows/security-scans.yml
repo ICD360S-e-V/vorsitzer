@@ -1,0 +1,82 @@
+name: Security Scans
+
+# Pure read-only scanners. Separated from build.yml so a scanner failure
+# never blocks a release tag from publishing — release pipeline cares about
+# building artifacts, this one cares about reporting risk.
+#
+# - osv-scanner:        per-push pubspec.lock CVE scan, results to Security tab
+# - dependency-review:  on PR, blocks merge if a PR introduces a new vulnerable dep
+# - trufflehog:         nightly full-history secret scan (defense in depth on top
+#                       of the local gitleaks pre-commit hook + GitHub push
+#                       protection — catches secrets that slipped past both)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * *'  # daily 03:17 UTC — off-peak to avoid Actions queue
+  workflow_dispatch:
+
+# Default everything to read-only; individual jobs opt in to writes they need.
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scans-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── pubspec.lock CVE scan ──────────────────────────────────────────────
+  # Called as a reusable workflow (not an action) — that's the only supported
+  # invocation pattern for google/osv-scanner-action. The reusable workflow
+  # handles its own checkout, scan, SARIF generation, and upload to the
+  # Security tab. We only pass arguments + the fail-on-vuln override.
+  osv-scanner:
+    name: "🔎 OSV-Scanner (pubspec.lock)"
+    permissions:
+      actions: read
+      contents: read
+      security-events: write   # upload SARIF to the Security tab
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@40a8940a65eab1544a6af759e43d936201a131a2  # v2.0.3
+    with:
+      scan-args: |-
+        --lockfile=pubspec.lock
+      # Don't fail the job on vulns — just report. Failing here would block
+      # every PR until the upstream Dart/Flutter package ships a fix, which
+      # we don't control.
+      fail-on-vuln: false
+
+  # ─── PR-gating: block PRs that add a new vulnerable dep ────────────────
+  dependency-review:
+    name: "🔎 Dependency Review"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # comment summary on the PR
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+
+  # ─── Nightly full-history secret scan ──────────────────────────────────
+  trufflehog-history:
+    name: "🔎 TruffleHog (full history)"
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0   # all history — that's the point
+      # Minimal invocation: no base/head/path → trufflehog scans the entire
+      # repo + history. --only-verified avoids the false-positive flood of
+      # high-entropy strings that happen to look like keys.
+      - uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab  # v3.95.3
+        with:
+          extra_args: --only-verified
