@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:otp/otp.dart';
 import '../services/api_service.dart';
 
 class GitHubScreen extends StatefulWidget {
@@ -131,9 +134,35 @@ class _GitHubScreenState extends State<GitHubScreen> {
           ]),
           const SizedBox(height: 16),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : !_tokenConfigured ? _buildTokenSetup() : _buildRepoList(),
+            child: DefaultTabController(
+              length: 2,
+              child: Column(children: [
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                  ),
+                  child: TabBar(
+                    labelColor: Colors.grey.shade800,
+                    unselectedLabelColor: Colors.grey.shade500,
+                    indicatorColor: Colors.grey.shade800,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.play_circle_outline, size: 18), text: 'Runner'),
+                      Tab(icon: Icon(Icons.account_circle_outlined, size: 18), text: 'Konto Online'),
+                    ],
+                  ),
+                ),
+                Expanded(child: TabBarView(children: [
+                  // Tab 1: Runner — existing token-setup / repo-list flow.
+                  _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : !_tokenConfigured ? _buildTokenSetup() : _buildRepoList(),
+                  // Tab 2: Konto Online — email/password/TOTP, server-side
+                  // encrypted at rest with the same ev()/dv() helpers the rest
+                  // of /api/vereinverwaltung/*.php uses.
+                  _KontoOnlineTab(apiService: widget.apiService),
+                ])),
+              ]),
+            ),
           ),
         ],
       ),
@@ -960,5 +989,279 @@ class _RunDetailDialogState extends State<_RunDetailDialog> {
     } catch (_) {
       return '';
     }
+  }
+}
+
+// ===== KONTO ONLINE TAB =====
+// Stores GitHub account email / password / TOTP shared secret encrypted at rest
+// (server side, AES-256-CBC via /api/vereinverwaltung/github_manage.php ev()/dv()).
+// Live-renders the current 6-digit TOTP code from the secret using RFC 6238 via
+// the otp package, refreshing every second so the user can read off the code
+// when GitHub asks for 2FA without leaving the app.
+class _KontoOnlineTab extends StatefulWidget {
+  final ApiService apiService;
+  const _KontoOnlineTab({required this.apiService});
+
+  @override
+  State<_KontoOnlineTab> createState() => _KontoOnlineTabState();
+}
+
+class _KontoOnlineTabState extends State<_KontoOnlineTab> {
+  final _emailC = TextEditingController();
+  final _passwordC = TextEditingController();
+  final _totpSecretC = TextEditingController();
+  bool _loading = true;
+  bool _saving = false;
+  bool _showPassword = false;
+  bool _showSecret = false;
+  Timer? _ticker;
+  String _currentCode = '';
+  int _secondsRemaining = 30;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _refreshTotp());
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _emailC.dispose();
+    _passwordC.dispose();
+    _totpSecretC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await widget.apiService.githubAction({'action': 'get_konto'});
+      if (res['success'] == true && mounted) {
+        _emailC.text = res['email']?.toString() ?? '';
+        _passwordC.text = res['password']?.toString() ?? '';
+        _totpSecretC.text = res['totp_secret']?.toString() ?? '';
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() => _loading = false);
+      _refreshTotp();
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final res = await widget.apiService.githubAction({
+        'action': 'save_konto',
+        'email': _emailC.text.trim(),
+        'password': _passwordC.text,
+        'totp_secret': _totpSecretC.text.trim().replaceAll(' ', '').toUpperCase(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message']?.toString() ?? (res['success'] == true ? 'Gespeichert' : 'Fehler')),
+          backgroundColor: res['success'] == true ? Colors.green.shade600 : Colors.red.shade600,
+          duration: const Duration(seconds: 2),
+        ));
+        _refreshTotp();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  void _refreshTotp() {
+    final secret = _totpSecretC.text.trim().replaceAll(' ', '').toUpperCase();
+    if (secret.isEmpty) {
+      if (mounted && (_currentCode.isNotEmpty || _secondsRemaining != 30)) {
+        setState(() { _currentCode = ''; _secondsRemaining = 30; });
+      }
+      return;
+    }
+    try {
+      final code = OTP.generateTOTPCodeString(
+        secret,
+        DateTime.now().millisecondsSinceEpoch,
+        length: 6,
+        interval: 30,
+        algorithm: Algorithm.SHA1,
+        isGoogle: true,
+      );
+      final remaining = 30 - (DateTime.now().millisecondsSinceEpoch ~/ 1000) % 30;
+      if (mounted) setState(() { _currentCode = code; _secondsRemaining = remaining; });
+    } catch (_) {
+      if (mounted) setState(() { _currentCode = ''; _secondsRemaining = 30; });
+    }
+  }
+
+  void _copyCode() {
+    if (_currentCode.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: _currentCode));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Code kopiert'),
+      duration: Duration(seconds: 1),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+      child: Center(
+        child: Container(
+          width: 540,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+            boxShadow: [BoxShadow(color: Colors.grey.shade100, blurRadius: 8)],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.lock_outline, size: 22, color: Colors.grey.shade700),
+              const SizedBox(width: 8),
+              Text('Konto Online', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+              const Spacer(),
+              Tooltip(
+                message: 'Server-seitig AES-256 verschlüsselt; nie im Klartext gespeichert',
+                child: Icon(Icons.shield, size: 18, color: Colors.green.shade600),
+              ),
+            ]),
+            const SizedBox(height: 16),
+
+            // ── Credentials ────────────────────────────────────────────
+            TextField(
+              controller: _emailC,
+              decoration: InputDecoration(
+                labelText: 'E-Mail',
+                isDense: true,
+                prefixIcon: const Icon(Icons.mail_outline, size: 18),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _passwordC,
+              obscureText: !_showPassword,
+              decoration: InputDecoration(
+                labelText: 'Passwort',
+                isDense: true,
+                prefixIcon: const Icon(Icons.password, size: 18),
+                suffixIcon: IconButton(
+                  icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility, size: 18),
+                  tooltip: _showPassword ? 'Verbergen' : 'Anzeigen',
+                  onPressed: () => setState(() => _showPassword = !_showPassword),
+                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+
+            // ── 2FA TOTP ──────────────────────────────────────────────
+            const SizedBox(height: 18),
+            Row(children: [
+              Icon(Icons.phone_android, size: 18, color: Colors.grey.shade700),
+              const SizedBox(width: 8),
+              Text('2FA Token', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+              const Spacer(),
+              Text('Base32 secret aus GitHub 2FA-Setup', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _totpSecretC,
+              obscureText: !_showSecret,
+              onChanged: (_) => _refreshTotp(),
+              decoration: InputDecoration(
+                labelText: 'TOTP Secret (Base32)',
+                hintText: 'JBSWY3DPEHPK3PXP',
+                isDense: true,
+                prefixIcon: const Icon(Icons.vpn_key, size: 18),
+                suffixIcon: IconButton(
+                  icon: Icon(_showSecret ? Icons.visibility_off : Icons.visibility, size: 18),
+                  onPressed: () => setState(() => _showSecret = !_showSecret),
+                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+
+            // ── Live TOTP code display ─────────────────────────────────
+            const SizedBox(height: 14),
+            if (_currentCode.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200, style: BorderStyle.solid),
+                ),
+                child: Row(children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.grey.shade500),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    'TOTP Secret eingeben, um den 6-stelligen Code zu generieren',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  )),
+                ]),
+              )
+            else
+              InkWell(
+                onTap: _copyCode,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [Colors.indigo.shade50, Colors.blue.shade50]),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.indigo.shade200),
+                  ),
+                  child: Row(children: [
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Aktueller Code', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text(
+                        _currentCode.replaceAllMapped(RegExp(r'(\d{3})(\d{3})'), (m) => '${m[1]} ${m[2]}'),
+                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.indigo.shade800, letterSpacing: 4, fontFamily: 'monospace'),
+                      ),
+                    ]),
+                    const Spacer(),
+                    Column(children: [
+                      SizedBox(
+                        width: 38, height: 38,
+                        child: Stack(alignment: Alignment.center, children: [
+                          CircularProgressIndicator(
+                            value: _secondsRemaining / 30.0,
+                            strokeWidth: 3,
+                            color: _secondsRemaining <= 5 ? Colors.red.shade400 : Colors.indigo.shade400,
+                            backgroundColor: Colors.grey.shade200,
+                          ),
+                          Text('${_secondsRemaining}s', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        ]),
+                      ),
+                      const SizedBox(height: 4),
+                      Icon(Icons.content_copy, size: 14, color: Colors.indigo.shade500),
+                    ]),
+                  ]),
+                ),
+              ),
+
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.save, size: 18),
+                label: const Text('Speichern'),
+                style: FilledButton.styleFrom(backgroundColor: Colors.grey.shade800),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 }
