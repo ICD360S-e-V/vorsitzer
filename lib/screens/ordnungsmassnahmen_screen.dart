@@ -243,12 +243,12 @@ class VerwarnungPdfGenerator {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  // Briefkopf
+                  // Briefkopf — Vereinsregister address only; the responsible
+                  // person is identified by role (1. Vorsitzender) in the
+                  // signature block below, so no personal "c/o" line here.
                   pw.Text('ICD360S e.V.',
                       style: pw.TextStyle(
                           fontSize: 18, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('c/o Ionuț-Claudiu Duinea',
-                      style: const pw.TextStyle(fontSize: 10)),
                   pw.Text('Elsa-Brändström-Str. 13, 89231 Neu-Ulm',
                       style: const pw.TextStyle(fontSize: 10)),
                   pw.SizedBox(height: 6),
@@ -443,7 +443,7 @@ class VerwarnungPdfGenerator {
                     ),
                     padding: const pw.EdgeInsets.only(top: 4),
                     child: pw.Text(
-                        'Ionuț-Claudiu Duinea\n1. Vorsitzender, ICD360S e.V.',
+                        '1. Vorsitzender\nICD360S e.V.',
                         style: const pw.TextStyle(fontSize: 9)),
                   ),
                   pw.SizedBox(height: 30),
