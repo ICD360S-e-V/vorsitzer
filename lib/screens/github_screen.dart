@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otp/otp.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
 
 class GitHubScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -1010,6 +1013,8 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
   final _emailC = TextEditingController();
   final _passwordC = TextEditingController();
   final _totpSecretC = TextEditingController();
+  String _recoveryCodes = ''; // raw content of the uploaded .txt; never shown unless user clicks "Anzeigen"
+  String? _recoveryFileName;  // best-effort label for the uploaded file
   bool _loading = true;
   bool _saving = false;
   bool _showPassword = false;
@@ -1041,6 +1046,7 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
         _emailC.text = res['email']?.toString() ?? '';
         _passwordC.text = res['password']?.toString() ?? '';
         _totpSecretC.text = res['totp_secret']?.toString() ?? '';
+        _recoveryCodes = res['recovery_codes']?.toString() ?? '';
       }
     } catch (_) {}
     if (mounted) {
@@ -1057,6 +1063,7 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
         'email': _emailC.text.trim(),
         'password': _passwordC.text,
         'totp_secret': _totpSecretC.text.trim().replaceAll(' ', '').toUpperCase(),
+        'recovery_codes': _recoveryCodes,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1247,6 +1254,68 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                 ),
               ),
 
+            // ── Recovery Codes ────────────────────────────────────────
+            // Upload a .txt with the GitHub 2FA recovery codes (the 16 backup
+            // codes GitHub shows once when you enable 2FA). Stored encrypted
+            // server-side. Click "Anzeigen" to view read-only in a dialog —
+            // never displayed inline so they don't sit on the main panel.
+            const SizedBox(height: 22),
+            Row(children: [
+              Icon(Icons.policy_outlined, size: 18, color: Colors.grey.shade700),
+              const SizedBox(width: 8),
+              Text('Recovery Codes', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+              const Spacer(),
+              Text('Backup für verlorenes 2FA', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+            const SizedBox(height: 8),
+            if (_recoveryCodes.isEmpty)
+              OutlinedButton.icon(
+                onPressed: _uploadRecoveryCodes,
+                icon: const Icon(Icons.upload_file, size: 18),
+                label: const Text('.txt-Datei hochladen'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey.shade800,
+                  side: BorderSide(color: Colors.grey.shade400),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(children: [
+                  Icon(Icons.check_circle, size: 18, color: Colors.green.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _recoveryFileName != null
+                            ? 'Recovery Codes hochgeladen: ${_recoveryFileName!}'
+                            : 'Recovery Codes hochgeladen',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800),
+                      ),
+                      Text('${_recoveryCodes.length} Zeichen verschlüsselt am Server', style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
+                    ],
+                  )),
+                  TextButton.icon(
+                    onPressed: _viewRecoveryCodes,
+                    icon: const Icon(Icons.visibility, size: 16),
+                    label: const Text('Anzeigen', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(foregroundColor: Colors.green.shade800),
+                  ),
+                  TextButton.icon(
+                    onPressed: _uploadRecoveryCodes,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Ersetzen', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(foregroundColor: Colors.indigo.shade700),
+                  ),
+                ]),
+              ),
+
             const SizedBox(height: 20),
             Align(
               alignment: Alignment.centerRight,
@@ -1259,6 +1328,104 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                 style: FilledButton.styleFrom(backgroundColor: Colors.grey.shade800),
               ),
             ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadRecoveryCodes() async {
+    final result = await FilePickerHelper.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['txt'],
+      allowMultiple: false,
+      dialogTitle: 'Recovery Codes (.txt)',
+    );
+    if (result == null || result.files.isEmpty) return;
+    final picked = result.files.first;
+    try {
+      String content;
+      if (picked.path != null) {
+        content = await File(picked.path!).readAsString();
+      } else if (picked.bytes != null) {
+        content = String.fromCharCodes(picked.bytes!);
+      } else {
+        throw const FormatException('Datei konnte nicht gelesen werden');
+      }
+      // Cap to the column size (2048 base64 chars after encryption ≈ ~1400 plaintext bytes).
+      // Recovery codes from GitHub are ~200 bytes total, so we have huge margin; just guard.
+      if (content.length > 1400) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Datei zu groß (${content.length} Zeichen, max 1400)'),
+            backgroundColor: Colors.red.shade600,
+          ));
+        }
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _recoveryCodes = content;
+        _recoveryFileName = picked.name;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Recovery Codes geladen — auf "Speichern" klicken, um sie verschlüsselt zu speichern'),
+        duration: Duration(seconds: 3),
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Fehler beim Lesen: $e'),
+          backgroundColor: Colors.red.shade600,
+        ));
+      }
+    }
+  }
+
+  void _viewRecoveryCodes() {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                border: Border(bottom: BorderSide(color: Colors.amber.shade300)),
+              ),
+              child: Row(children: [
+                Icon(Icons.lock_open, size: 20, color: Colors.amber.shade800),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Recovery Codes — read-only',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
+                )),
+                IconButton(
+                  icon: const Icon(Icons.content_copy, size: 18),
+                  tooltip: 'Alle kopieren',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: _recoveryCodes));
+                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                      content: Text('In die Zwischenablage kopiert'),
+                      duration: Duration(seconds: 1),
+                    ));
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ]),
+            ),
+            Expanded(child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: SelectableText(
+                _recoveryCodes,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 14, height: 1.6),
+              ),
+            )),
           ]),
         ),
       ),
