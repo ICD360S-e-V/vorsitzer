@@ -246,7 +246,7 @@ const allRoles = [
 
 /// ✅ SECURITY FIX (2026-02-10): Input sanitization to prevent SQL injection
 /// Sanitizes Mitgliedernummer by allowing only alphanumeric characters
-/// Valid formats: V00001, S00001, K00001, MG00001, SV00001, etc.
+/// Valid formats: V12345, S12345, K12345, MG12345, SV12345, etc.
 String sanitizeMitgliedernummer(String input) {
   // Remove all non-alphanumeric characters
   final sanitized = input.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
