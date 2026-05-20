@@ -811,6 +811,32 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     ],
                   ),
                   const SizedBox(height: 2),
+                  if (termin.forKindBadge(widget.currentMitgliedernummer) != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.pink.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.pink.shade200),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.child_care, size: compact ? 8 : 10, color: Colors.pink.shade700),
+                            const SizedBox(width: 2),
+                            Flexible(
+                              child: Text(
+                                termin.forKindBadge(widget.currentMitgliedernummer)!,
+                                style: TextStyle(fontSize: compact ? 8 : 9, color: Colors.pink.shade800, fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   Text(
                     termin.title,
                     style: TextStyle(

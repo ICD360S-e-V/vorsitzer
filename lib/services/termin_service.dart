@@ -35,6 +35,15 @@ class Termin {
   final String? myReschedulingReason;
   final DateTime? myRespondedAt;
 
+  // Participant identity (când server-ul agregă termine + ale copiilor)
+  // Dacă participantUserId != self.id, termin-ul aparține unui copil al
+  // user-ului curent — badge se afișează în calendar.
+  final int? participantUserId;
+  final String? participantVorname;
+  final String? participantNachname;
+  final String? participantMitgliedernummer;
+  final String? participantRole;
+
   Termin({
     required this.id,
     required this.title,
@@ -59,6 +68,11 @@ class Termin {
     this.myResponse,
     this.myReschedulingReason,
     this.myRespondedAt,
+    this.participantUserId,
+    this.participantVorname,
+    this.participantNachname,
+    this.participantMitgliedernummer,
+    this.participantRole,
   });
 
   factory Termin.fromJson(Map<String, dynamic> json) {
@@ -113,8 +127,32 @@ class Termin {
       myReschedulingReason: json['rescheduling_reason'],
       myRespondedAt:
           json['responded_at'] != null ? DateTime.parse(json['responded_at']) : null,
+      participantUserId: json['participant_user_id'] == null
+          ? null
+          : (json['participant_user_id'] is int
+              ? json['participant_user_id'] as int
+              : int.tryParse(json['participant_user_id'].toString())),
+      participantVorname: json['participant_vorname'],
+      participantNachname: json['participant_nachname'],
+      participantMitgliedernummer: json['participant_mitgliedernummer'],
+      participantRole: json['participant_role'],
     );
   }
+
+  /// Returns the display name for the family member this termin belongs to,
+  /// when [selfMitgliedernummer] is the logged-in user. Returns null if this
+  /// termin is the user's own (no badge needed).
+  String? forKindBadge(String selfMitgliedernummer) {
+    if (participantMitgliedernummer == null) return null;
+    if (participantMitgliedernummer == selfMitgliedernummer) return null;
+    final composed = [participantVorname ?? '', participantNachname ?? '']
+        .where((p) => p.isNotEmpty).join(' ').trim();
+    if (composed.isNotEmpty) return composed;
+    return participantMitgliedernummer!;
+  }
+
+  /// Whether this termin belongs to a managed child (jugendmitglied role).
+  bool get isKindTermin => participantRole == 'jugendmitglied';
 
   String get categoryDisplay {
     switch (category) {
