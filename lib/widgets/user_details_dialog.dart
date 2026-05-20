@@ -52,10 +52,6 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   List<Map<String, dynamic>> _sessions = [];
   List<Map<String, dynamic>> _devices = [];
 
-  // Familie (Vormund + Kinder)
-  Map<String, dynamic>? _vormundInfo;
-  List<Map<String, dynamic>> _kinder = [];
-
   // Verwarnungen
   final _verwarnungService = VerwarnungService();
   List<Verwarnung> _verwarnungen = [];
@@ -134,7 +130,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 21, vsync: this);
+    _tabController = TabController(length: 20, vsync: this);
     _nameController.text = widget.user.name;
     _emailController.text = widget.user.email;
     _selectedRole = widget.user.role;
@@ -270,10 +266,6 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         setState(() {
           _sessions = List<Map<String, dynamic>>.from(result['sessions'] ?? []);
           _devices = List<Map<String, dynamic>>.from(result['devices'] ?? []);
-          _vormundInfo = result['vormund'] is Map
-              ? Map<String, dynamic>.from(result['vormund'] as Map)
-              : null;
-          _kinder = List<Map<String, dynamic>>.from(result['kinder'] ?? []);
           _isLoading = false;
         });
       } else {
@@ -674,7 +666,6 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 isScrollable: true,
                 tabs: const [
                   Tab(icon: Icon(Icons.account_circle), text: 'Konto'),
-                  Tab(icon: Icon(Icons.family_restroom), text: 'Familie'),
                   Tab(icon: Icon(Icons.devices), text: 'Geräte'),
                   Tab(icon: Icon(Icons.vpn_key), text: 'Aktivierung'),
                   Tab(icon: Icon(Icons.warning_amber), text: 'Verwarnungen'),
@@ -703,7 +694,6 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 controller: _tabController,
                 children: [
                   _buildKontoTab(),
-                  _buildFamilieTab(),
                   MitgliederDeviceWidget(
                     sessions: _sessions,
                     devices: _devices,
@@ -759,204 +749,6 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildFamilieTab() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // === If this user is a child: show parent (Vormund) card ===
-          if (_vormundInfo != null) ...[
-            Row(children: [
-              Icon(Icons.supervisor_account, color: Colors.indigo.shade700, size: 22),
-              const SizedBox(width: 8),
-              Text('Vormund (Eltern-Konto)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-            ]),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.indigo.shade200),
-              ),
-              child: Row(children: [
-                CircleAvatar(
-                  backgroundColor: Colors.indigo.shade100,
-                  child: Icon(Icons.person, color: Colors.indigo.shade700),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(_vormundDisplayName(_vormundInfo!), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    Text(_vormundInfo!['mitgliedernummer']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                  ]),
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.open_in_new, size: 16),
-                  label: const Text('Profil öffnen', style: TextStyle(fontSize: 12)),
-                  onPressed: () => _openProfileById(_vormundInfo!['id']),
-                ),
-              ]),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          // === Children section (always visible — empty state if none) ===
-          Row(children: [
-            Icon(Icons.child_care, color: Colors.pink.shade400, size: 22),
-            const SizedBox(width: 8),
-            Text('Verwaltete Kinder (${_kinder.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
-            const Spacer(),
-            FilledButton.icon(
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Neues Kind anlegen', style: TextStyle(fontSize: 12)),
-              style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade400, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
-              onPressed: _showAddKindDialog,
-            ),
-          ]),
-          const SizedBox(height: 12),
-          if (_kinder.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
-              ),
-              child: Column(children: [
-                Icon(Icons.family_restroom, size: 48, color: Colors.grey.shade300),
-                const SizedBox(height: 8),
-                Text('Keine Kinder zugeordnet', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                const SizedBox(height: 4),
-                Text('Klick "Neues Kind anlegen" um ein Jugendmitglied unter diesem Konto zu verwalten.',
-                  textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-              ]),
-            )
-          else
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: _kinder.map(_buildKindCard).toList(),
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _vormundDisplayName(Map<String, dynamic> v) {
-    final parts = [v['vorname']?.toString() ?? '', v['nachname']?.toString() ?? ''].where((p) => p.isNotEmpty);
-    final composed = parts.join(' ').trim();
-    return composed.isNotEmpty ? composed : (v['name']?.toString() ?? 'Unbekannt');
-  }
-
-  Widget _buildKindCard(Map<String, dynamic> kind) {
-    final age = calculateAge(kind['geburtsdatum']?.toString());
-    final role = kind['role']?.toString() ?? 'jugendmitglied';
-    final status = kind['status']?.toString() ?? '';
-    final mnr = kind['mitgliedernummer']?.toString() ?? '';
-    final displayName = _vormundDisplayName(kind);
-    return Container(
-      width: 280,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.pink.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.pink.shade200),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          CircleAvatar(
-            backgroundColor: Colors.pink.shade100,
-            radius: 18,
-            child: Icon(Icons.child_care, color: Colors.pink.shade700, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-              Row(children: [
-                Text(mnr, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-                if (age != null) ...[
-                  const SizedBox(width: 6),
-                  Text('· $age J.', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-                ],
-              ]),
-            ]),
-          ),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: getRoleColor(role).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-            child: Text(getRoleText(role), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: getRoleColor(role))),
-          ),
-          const SizedBox(width: 6),
-          if (status.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: getStatusColor(status).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-              child: Text(getStatusText(status), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: getStatusColor(status))),
-            ),
-        ]),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            icon: const Icon(Icons.open_in_new, size: 14),
-            label: const Text('Profil öffnen', style: TextStyle(fontSize: 11)),
-            style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600, padding: const EdgeInsets.symmetric(vertical: 6), minimumSize: Size.zero),
-            onPressed: () => _openProfileById(kind['id']),
-          ),
-        ),
-      ]),
-    );
-  }
-
-  Future<void> _openProfileById(dynamic idRaw) async {
-    final targetId = idRaw is int ? idRaw : int.tryParse(idRaw?.toString() ?? '');
-    if (targetId == null) return;
-    try {
-      final res = await widget.apiService.getUserDetails(targetId);
-      if (!mounted) return;
-      if (res['success'] != true || res['user'] == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profil nicht ladbar: ${res['message'] ?? 'unbekannt'}'), backgroundColor: Colors.red),
-        );
-        return;
-      }
-      final target = User.fromJson(Map<String, dynamic>.from(res['user']));
-      showDialog(
-        context: context,
-        builder: (_) => UserDetailsDialog(
-          user: target,
-          apiService: widget.apiService,
-          onUpdated: widget.onUpdated,
-          adminMitgliedernummer: widget.adminMitgliedernummer,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  void _showAddKindDialog() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Anlage von Kindern folgt in der nächsten Version. Aktuell: Konto manuell als jugendmitglied anlegen + vormund_user_id setzen.'),
-        duration: Duration(seconds: 4),
       ),
     );
   }
