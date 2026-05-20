@@ -1,8 +1,10 @@
 // Validation + rendering tests for NeuesKindDialog (form to create a
 // jugendmitglied account under a vormund). The actual save-flow integration
-// (API call -> server) is verified manually in app since ApiService is a
-// singleton with a private constructor that's hard to stub. Validation
-// is the part most prone to silent regression, so we cover it here.
+// (API call -> server) is verified manually since ApiService is a singleton
+// with a private constructor that's hard to stub.
+//
+// Children are managed-only accounts: email + password are NOT collected in
+// the UI — the server auto-generates internal placeholders.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,7 +32,6 @@ Future<void> _pumpDialog(WidgetTester tester) async {
 
 void main() {
   setUpAll(() {
-    // shared_preferences uses a method channel even in tests — stub it.
     TestWidgetsFlutterBinding.ensureInitialized();
     const channel = MethodChannel('plugins.flutter.io/shared_preferences');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -38,17 +39,22 @@ void main() {
   });
 
   group('NeuesKindDialog rendering', () {
-    testWidgets('all 5 form fields + info banner are visible', (tester) async {
+    testWidgets('only 3 form fields (Vorname/Nachname/Geburtsdatum) + info banner', (tester) async {
       await _pumpDialog(tester);
 
       expect(find.byKey(const Key('kind-vorname')), findsOneWidget);
       expect(find.byKey(const Key('kind-nachname')), findsOneWidget);
       expect(find.byKey(const Key('kind-geburtsdatum')), findsOneWidget);
-      expect(find.byKey(const Key('kind-email')), findsOneWidget);
-      expect(find.byKey(const Key('kind-password')), findsOneWidget);
-      expect(find.textContaining('Mitgliedernummer wird automatisch'), findsOneWidget);
 
-      // Action buttons present
+      // Email + password fields are GONE (auto-generated server-side)
+      expect(find.byKey(const Key('kind-email')), findsNothing,
+          reason: 'children have no own email — auto-generated internal placeholder');
+      expect(find.byKey(const Key('kind-password')), findsNothing,
+          reason: 'children have no login — server auto-generates random password');
+
+      expect(find.textContaining('Mitgliedernummer'), findsOneWidget);
+      expect(find.textContaining('verwaltet'), findsOneWidget, reason: 'info banner explains managed-only nature');
+
       expect(find.text('Abbrechen'), findsOneWidget);
       expect(find.text('Anlegen'), findsOneWidget);
     });
@@ -87,19 +93,18 @@ void main() {
   });
 
   group('NeuesKindDialog validation', () {
-    testWidgets('empty submit shows error for Vorname/Nachname/Email/Password', (tester) async {
+    testWidgets('empty submit shows errors only for Vorname + Nachname', (tester) async {
       await _pumpDialog(tester);
 
       await tester.tap(find.text('Anlegen'));
       await tester.pumpAndSettle();
 
-      // Validation messages appear
-      expect(find.text('mindestens 2 Zeichen'), findsNWidgets(2), reason: 'Vorname + Nachname');
-      expect(find.text('erforderlich'), findsOneWidget, reason: 'Email required');
-      expect(find.text('mindestens 6 Zeichen'), findsOneWidget, reason: 'Password too short');
+      // Only Vorname + Nachname have validators now
+      expect(find.text('mindestens 2 Zeichen'), findsNWidgets(2));
 
-      // Form validation prevents save — no API call attempted (no snackbar visible)
-      expect(find.byType(SnackBar), findsNothing);
+      // No email/password validation messages anymore
+      expect(find.text('erforderlich'), findsNothing);
+      expect(find.text('mindestens 6 Zeichen'), findsNothing);
     });
 
     testWidgets('1-char Vorname rejected', (tester) async {
@@ -107,35 +112,20 @@ void main() {
       await tester.enterText(find.byKey(const Key('kind-vorname')), 'A');
       await tester.tap(find.text('Anlegen'));
       await tester.pumpAndSettle();
-      // 2 occurrences: Vorname (we wrote 'A' = too short) + Nachname (empty = too short)
-      expect(find.text('mindestens 2 Zeichen'), findsNWidgets(2));
+      expect(find.text('mindestens 2 Zeichen'), findsNWidgets(2),
+          reason: 'Vorname (1 char) + Nachname (empty) both fail');
     });
 
-    testWidgets('valid name+nachname+email but missing geburtsdatum -> Snackbar', (tester) async {
+    testWidgets('valid name+nachname but missing geburtsdatum -> Snackbar', (tester) async {
       await _pumpDialog(tester);
       await tester.enterText(find.byKey(const Key('kind-vorname')), 'Anna');
       await tester.enterText(find.byKey(const Key('kind-nachname')), 'Mueller');
-      await tester.enterText(find.byKey(const Key('kind-email')), 'anna@familie.de');
-      await tester.enterText(find.byKey(const Key('kind-password')), 'parola123');
-      // Geburtsdatum left empty
+      // Geburtsdatum still required (left empty)
 
       await tester.tap(find.text('Anlegen'));
-      await tester.pump(); // surface snackbar
+      await tester.pump();
 
-      expect(find.textContaining('Geburtsdatum'), findsWidgets, reason: 'snackbar mentions Geburtsdatum');
-    });
-
-    testWidgets('invalid email format rejected', (tester) async {
-      await _pumpDialog(tester);
-      await tester.enterText(find.byKey(const Key('kind-vorname')), 'Anna');
-      await tester.enterText(find.byKey(const Key('kind-nachname')), 'Mueller');
-      await tester.enterText(find.byKey(const Key('kind-email')), 'not-an-email');
-      await tester.enterText(find.byKey(const Key('kind-password')), 'parola123');
-
-      await tester.tap(find.text('Anlegen'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('ungültige E-Mail'), findsOneWidget);
+      expect(find.textContaining('Geburtsdatum'), findsWidgets);
     });
   });
 }
