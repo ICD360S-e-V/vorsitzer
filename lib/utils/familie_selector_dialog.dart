@@ -231,8 +231,6 @@ class _NeuesKindDialogState extends State<NeuesKindDialog> {
   final _formKey = GlobalKey<FormState>();
   final _vornameC = TextEditingController();
   final _nachnameC = TextEditingController();
-  final _emailC = TextEditingController();
-  final _passwordC = TextEditingController();
   DateTime? _geburtsdatum;
   bool _saving = false;
 
@@ -240,8 +238,6 @@ class _NeuesKindDialogState extends State<NeuesKindDialog> {
   void dispose() {
     _vornameC.dispose();
     _nachnameC.dispose();
-    _emailC.dispose();
-    _passwordC.dispose();
     super.dispose();
   }
 
@@ -262,10 +258,10 @@ class _NeuesKindDialogState extends State<NeuesKindDialog> {
       final vorname = _vornameC.text.trim();
       final nachname = _nachnameC.text.trim();
       final fullName = '$vorname $nachname'.trim();
+      // Email + password are auto-generated server-side for jugendmitglied —
+      // child has no login; parent manages everything.
       final res = await widget.apiService.adminRegisterMember(
         name: fullName,
-        email: _emailC.text.trim(),
-        password: _passwordC.text,
         role: 'jugendmitglied',
         vormundUserId: widget.vormundUserId,
         geburtsdatum: _formatDate(_geburtsdatum!),
@@ -343,26 +339,6 @@ class _NeuesKindDialogState extends State<NeuesKindDialog> {
                     child: Text(_geburtsdatum == null ? 'auswählen...' : _formatDate(_geburtsdatum!), style: TextStyle(color: _geburtsdatum == null ? Colors.grey.shade600 : Colors.black)),
                   ),
                 ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  key: const Key('kind-email'),
-                  controller: _emailC,
-                  decoration: const InputDecoration(labelText: 'E-Mail (z. B. kind@familie.de)', isDense: true, border: OutlineInputBorder()),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'erforderlich';
-                    if (!v.contains('@') || !v.contains('.')) return 'ungültige E-Mail';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  key: const Key('kind-password'),
-                  controller: _passwordC,
-                  decoration: const InputDecoration(labelText: 'Initialer Passwort (mind. 6 Zeichen)', isDense: true, border: OutlineInputBorder()),
-                  obscureText: true,
-                  validator: (v) => (v == null || v.length < 6) ? 'mindestens 6 Zeichen' : null,
-                ),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -370,8 +346,11 @@ class _NeuesKindDialogState extends State<NeuesKindDialog> {
                   child: Row(children: [
                     Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
                     const SizedBox(width: 6),
-                    Expanded(child: Text('Mitgliedernummer wird automatisch (J + 5 Ziffern) generiert.',
-                        style: TextStyle(fontSize: 11, color: Colors.blue.shade900))),
+                    Expanded(child: Text(
+                      'Mitgliedernummer (J + 5 Ziffern) wird automatisch generiert. '
+                      'Das Konto ist verwaltet — kein Login durch das Kind moeglich.',
+                      style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+                    )),
                   ]),
                 ),
               ],
