@@ -555,6 +555,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   const Tab(icon: Icon(Icons.description, size: 16), text: 'Berichte'),
                   const Tab(icon: Icon(Icons.verified, size: 16), text: 'Ärztl. Attest'),
                   const Tab(icon: Icon(Icons.receipt, size: 16), text: 'Rechnung'),
+                  const Tab(icon: Icon(Icons.medical_information, size: 16), text: 'Medikamente Plan'),
                   if (isZahnarzt) const Tab(icon: Icon(Icons.gavel, size: 16), text: 'Härtefall'),
                 ],
               ),
@@ -844,7 +845,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     // ===== TAB 12: RECHNUNG =====
                     _buildRechnungTab(type),
 
-                    // ===== TAB 13: HÄRTEFALL (nur Zahnarzt) =====
+                    // ===== TAB 13: MEDIKAMENTE PLAN (uploaded document) =====
+                    _buildMedikamentenPlanDocTab(type, arztTitle),
+
+                    // ===== TAB 14: HÄRTEFALL (nur Zahnarzt) =====
                     if (isZahnarzt) _buildHartefallTab(type, data, saveAll, setLocalState),
                   ],
                 ),
@@ -12675,6 +12679,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     return _GesundheitRechnungTab(apiService: widget.apiService, userId: widget.user.id, arztType: type);
   }
 
+  Widget _buildMedikamentenPlanDocTab(String type, String arztTitle) {
+    return _GesundheitMedikamentenPlanTab(
+      apiService: widget.apiService,
+      userId: widget.user.id,
+      arztType: type,
+      arztTitle: arztTitle,
+    );
+  }
+
   // ===== HÄRTEFALL (Zahnersatz) =====
   Widget _buildHartefallTab(String type, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
 
@@ -13443,5 +13456,271 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       const SizedBox(height: 16),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid),
     ])));
+  }
+}
+
+// ===== GESUNDHEIT MEDIKAMENTEN PLAN TAB =====
+class _GesundheitMedikamentenPlanTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String arztType;
+  final String arztTitle;
+  const _GesundheitMedikamentenPlanTab({
+    required this.apiService,
+    required this.userId,
+    required this.arztType,
+    required this.arztTitle,
+  });
+  @override
+  State<_GesundheitMedikamentenPlanTab> createState() => _GesundheitMedikamentenPlanTabState();
+}
+
+class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenPlanTab> {
+  static const String _docType = 'gesundheit_medikamentenplan';
+  List<Map<String, dynamic>> _docs = [];
+  bool _loading = true;
+  bool _uploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await widget.apiService.listGesundheitDocs(
+        userId: widget.userId,
+        gesundheitType: _docType,
+        analyseId: widget.arztType,
+      );
+      if (res['success'] == true && res['documents'] is List) {
+        _docs = List<Map<String, dynamic>>.from(
+          (res['documents'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+        );
+        _docs.sort((a, b) {
+          final ai = a['id'] is int ? a['id'] as int : int.tryParse('${a['id']}') ?? 0;
+          final bi = b['id'] is int ? b['id'] as int : int.tryParse('${b['id']}') ?? 0;
+          return bi.compareTo(ai);
+        });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _upload() async {
+    final picked = await FilePickerHelper.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    final f = picked.files.first;
+    if (f.path == null) return;
+    if (!mounted) return;
+    setState(() => _uploading = true);
+    try {
+      await widget.apiService.uploadGesundheitDoc(
+        userId: widget.userId,
+        gesundheitType: _docType,
+        analyseId: widget.arztType,
+        filePath: f.path!,
+        fileName: f.name,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Medikamenten-Plan hochgeladen'), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload fehlgeschlagen: $e'), backgroundColor: Colors.red),
+      );
+    }
+    if (!mounted) return;
+    setState(() => _uploading = false);
+    await _load();
+  }
+
+  Future<void> _view(int docId, String fileName) async {
+    final bytes = await widget.apiService.downloadGesundheitDoc(docId);
+    if (!mounted || bytes == null) return;
+    showDialog(
+      context: context,
+      builder: (_) => FileViewerDialog(
+        fileBytes: Uint8List.fromList(bytes),
+        fileName: fileName,
+      ),
+    );
+  }
+
+  Future<void> _delete(int docId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Löschen?', style: TextStyle(fontSize: 15)),
+        content: const Text('Dieser Medikamenten-Plan wird unwiderruflich gelöscht.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await widget.apiService.deleteGesundheitDoc(docId);
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final hasCurrent = _docs.isNotEmpty;
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(children: [
+          Icon(Icons.medical_information, color: Colors.teal.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Medikamenten-Plan (${widget.arztTitle})',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.teal.shade800),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: _uploading ? null : _upload,
+            icon: _uploading
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.upload_file, size: 14),
+            label: Text(hasCurrent ? 'Neue Version' : 'Hochladen', style: const TextStyle(fontSize: 11)),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.teal.shade600,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: Size.zero,
+            ),
+          ),
+        ]),
+      ),
+      Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blue.shade200),
+        ),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Der aktuelle bundeseinheitliche Medikationsplan (BMP). Lade hier die neueste Fassung hoch — frühere Versionen bleiben als Verlauf erhalten.',
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+            ),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 8),
+      Expanded(
+        child: _docs.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.medical_information, size: 48, color: Colors.grey.shade300),
+                    const SizedBox(height: 8),
+                    Text('Kein Medikamenten-Plan vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+                    const SizedBox(height: 4),
+                    Text('Lade einen Plan hoch (PDF oder Bild, max. 20 MB)', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _docs.length,
+                itemBuilder: (_, i) {
+                  final d = _docs[i];
+                  final docId = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}') ?? 0;
+                  final name = d['filename']?.toString() ?? 'datei';
+                  final size = d['file_size'] is int ? d['file_size'] as int : int.tryParse('${d['file_size']}') ?? 0;
+                  final sizeKb = size > 0 ? '${(size / 1024).toStringAsFixed(0)} KB' : '';
+                  final uploaded = d['uploaded_at']?.toString() ?? d['created_at']?.toString() ?? '';
+                  final isCurrent = i == 0;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    color: isCurrent ? Colors.teal.shade50 : null,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: isCurrent ? Colors.teal.shade300 : Colors.grey.shade200),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => _view(docId, name),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(children: [
+                          CircleAvatar(
+                            backgroundColor: isCurrent ? Colors.teal.shade100 : Colors.grey.shade100,
+                            child: Icon(
+                              name.toLowerCase().endsWith('.pdf') ? Icons.picture_as_pdf : Icons.image,
+                              color: isCurrent ? Colors.teal.shade700 : Colors.grey.shade600,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  Flexible(
+                                    child: Text(
+                                      name,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (isCurrent) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.teal.shade600,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text('Aktuell', style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ]),
+                                const SizedBox(height: 2),
+                                Text(
+                                  [if (uploaded.isNotEmpty) uploaded, if (sizeKb.isNotEmpty) sizeKb].join(' · '),
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.visibility, size: 18, color: Colors.teal.shade700),
+                            tooltip: 'Anzeigen',
+                            onPressed: () => _view(docId, name),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                            tooltip: 'Löschen',
+                            onPressed: () => _delete(docId),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
   }
 }
