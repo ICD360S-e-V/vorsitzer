@@ -36,6 +36,7 @@ Future<void> _pumpSelector(
   Map<String, dynamic>? vormund,
   required List<Map<String, dynamic>> kinder,
   void Function(User)? onSelected,
+  VoidCallback? onAddKind,
 }) async {
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
@@ -44,6 +45,7 @@ Future<void> _pumpSelector(
         vormund: vormund,
         kinder: kinder,
         onProfileSelected: onSelected ?? (_) {},
+        onAddKind: onAddKind,
       ),
     ),
   ));
@@ -155,6 +157,46 @@ void main() {
       // Age "10 J." should appear (or "9 J." right before birthday — accept both)
       final ageFinder = find.textContaining(RegExp(r'· (9|10) J\.'));
       expect(ageFinder, findsOneWidget);
+    });
+
+    testWidgets('member without family still sees self entry + add-kind button', (tester) async {
+      final maria = _makeUser(id: 1, mnr: 'V12345', role: 'vorsitzer', vorname: 'Maria', nachname: 'Mueller');
+      bool addClicked = false;
+
+      await _pumpSelector(
+        tester,
+        activeUser: maria,
+        vormund: null,
+        kinder: [],
+        onAddKind: () => addClicked = true,
+      );
+
+      // Self entry IS visible even with no family
+      expect(find.text('Maria Mueller'), findsOneWidget);
+      expect(find.text('V12345'), findsOneWidget);
+
+      // Add-kind button visible
+      expect(find.byKey(const Key('add-kind-tile')), findsOneWidget);
+      expect(find.text('Neues Kind hinzufuegen'), findsOneWidget);
+
+      // Tap add-kind -> callback fires
+      await tester.tap(find.byKey(const Key('add-kind-tile')));
+      await tester.pump();
+      expect(addClicked, isTrue);
+    });
+
+    testWidgets('add-kind button is hidden when onAddKind is null', (tester) async {
+      final maria = _makeUser(id: 1, mnr: 'V12345', role: 'vorsitzer', vorname: 'Maria', nachname: 'Mueller');
+
+      await _pumpSelector(
+        tester,
+        activeUser: maria,
+        vormund: null,
+        kinder: [],
+        // onAddKind intentionally not provided
+      );
+
+      expect(find.byKey(const Key('add-kind-tile')), findsNothing);
     });
 
     testWidgets('shows close button and dismisses', (tester) async {
