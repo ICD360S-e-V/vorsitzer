@@ -8258,9 +8258,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       widget.apiService.listGesundheitDocs(userId: widget.user.id, gesundheitType: type, analyseId: berichtId).then((result) {
         if (mounted) {
           setState(() {
-            _berichtDocs[key] = List<Map<String, dynamic>>.from(result['dokumente'] ?? []);
+            _berichtDocs[key] = List<Map<String, dynamic>>.from(result['documents'] ?? []);
             _berichtDocsLoading[key] = false;
           });
+          try { setBerichtState(() {}); } catch (_) {}
         }
       });
     }
