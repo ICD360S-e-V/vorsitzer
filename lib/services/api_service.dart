@@ -421,10 +421,12 @@ class ApiService {
   }
 
   // Admin register new member (status: neu)
+  // For role=jugendmitglied the server auto-generates internal placeholder
+  // email + password (no login possible) when those fields are omitted.
   Future<Map<String, dynamic>> adminRegisterMember({
     required String name,
-    required String email,
-    required String password,
+    String? email,
+    String? password,
     String role = 'mitglied',
     int? vormundUserId,
     String? geburtsdatum,
@@ -433,10 +435,10 @@ class ApiService {
   }) async {
     final body = <String, dynamic>{
       'name': name,
-      'email': email,
-      'password': password,
       'role': role,
     };
+    if (email != null && email.isNotEmpty) body['email'] = email;
+    if (password != null && password.isNotEmpty) body['password'] = password;
     if (vormundUserId != null) body['vormund_user_id'] = vormundUserId;
     if (geburtsdatum != null && geburtsdatum.isNotEmpty) body['geburtsdatum'] = geburtsdatum;
     if (vorname != null && vorname.isNotEmpty) body['vorname'] = vorname;
