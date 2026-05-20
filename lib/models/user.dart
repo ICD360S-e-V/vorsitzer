@@ -30,6 +30,7 @@ class User {
   final int? zahlungstag;
   final DateTime? deactivatedAt;
   final String? deactivationReason;
+  final int? vormundUserId;
 
   User({
     required this.id,
@@ -63,6 +64,7 @@ class User {
     this.zahlungstag,
     this.deactivatedAt,
     this.deactivationReason,
+    this.vormundUserId,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -106,6 +108,11 @@ class User {
           ? DateTime.tryParse(json['deactivated_at'])
           : null,
       deactivationReason: json['deactivation_reason'],
+      vormundUserId: json['vormund_user_id'] == null
+          ? null
+          : (json['vormund_user_id'] is int
+              ? json['vormund_user_id'] as int
+              : int.tryParse(json['vormund_user_id'].toString())),
     );
   }
 
@@ -155,6 +162,7 @@ class User {
       'zahlungstag': zahlungstag,
       'deactivated_at': deactivatedAt?.toIso8601String(),
       'deactivation_reason': deactivationReason,
+      'vormund_user_id': vormundUserId,
     };
   }
 
@@ -190,6 +198,7 @@ class User {
     int? zahlungstag,
     DateTime? deactivatedAt,
     String? deactivationReason,
+    int? vormundUserId,
   }) {
     return User(
       id: id ?? this.id,
@@ -223,6 +232,7 @@ class User {
       zahlungstag: zahlungstag ?? this.zahlungstag,
       deactivatedAt: deactivatedAt ?? this.deactivatedAt,
       deactivationReason: deactivationReason ?? this.deactivationReason,
+      vormundUserId: vormundUserId ?? this.vormundUserId,
     );
   }
 }
