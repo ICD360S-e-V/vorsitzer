@@ -8252,121 +8252,129 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
   Widget _buildBerichtDokumente(String type, String berichtId, StateSetter setBerichtState) {
     final key = '${type}_$berichtId';
-    // Lazy load docs
-    if (!_berichtDocs.containsKey(key) && _berichtDocsLoading[key] != true) {
-      _berichtDocsLoading[key] = true;
-      widget.apiService.listGesundheitDocs(userId: widget.user.id, gesundheitType: type, analyseId: berichtId).then((result) {
-        if (mounted) {
-          setState(() {
-            _berichtDocs[key] = List<Map<String, dynamic>>.from(result['documents'] ?? []);
-            _berichtDocsLoading[key] = false;
-          });
+    // StatefulBuilder gives this subtree its OWN setState, so when the widget
+    // is hosted inside a Dialog (separate Overlay tree) the load-completion
+    // callback can still rebuild it. Parent setState is also called so other
+    // callers see cache updates.
+    return StatefulBuilder(builder: (ctxLocal, setStateLocal) {
+      // Lazy load docs
+      if (!_berichtDocs.containsKey(key) && _berichtDocsLoading[key] != true) {
+        _berichtDocsLoading[key] = true;
+        widget.apiService.listGesundheitDocs(userId: widget.user.id, gesundheitType: type, analyseId: berichtId).then((result) {
+          _berichtDocs[key] = List<Map<String, dynamic>>.from(result['documents'] ?? []);
+          _berichtDocsLoading[key] = false;
+          if (mounted) setState(() {});
+          try { setStateLocal(() {}); } catch (_) {}
           try { setBerichtState(() {}); } catch (_) {}
-        }
-      });
-    }
-    final docs = _berichtDocs[key] ?? [];
-    final isLoading = _berichtDocsLoading[key] == true;
+        });
+      }
+      final docs = _berichtDocs[key] ?? [];
+      final isLoading = _berichtDocsLoading[key] == true;
 
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(Icons.attach_file, size: 14, color: Colors.indigo.shade600),
-            const SizedBox(width: 4),
-            Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade600)),
-            const Spacer(),
-            InkWell(
-              onTap: () async {
-                try {
-                  final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
-                  if (result == null || result.files.isEmpty || !mounted) return;
-                  for (final f in result.files.where((f) => f.path != null)) {
-                    final res = await widget.apiService.uploadGesundheitDoc(
-                      userId: widget.user.id,
-                      gesundheitType: type,
-                      analyseId: berichtId,
-                      filePath: f.path!,
-                      fileName: f.name,
-                    );
-                    debugPrint('[DOC-UPLOAD] $type/$berichtId: ${f.name} => ${res['success']}');
-                  }
-                } catch (e) {
-                  debugPrint('[DOC-UPLOAD] error: $e');
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload-Fehler: $e'), backgroundColor: Colors.red));
-                }
-                _berichtDocs.remove(key);
-                _berichtDocsLoading.remove(key);
-                if (mounted) setState(() {});
-                setBerichtState(() {});
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.upload_file, size: 12, color: Colors.indigo.shade600),
-                  const SizedBox(width: 4),
-                  Text('Hochladen', style: TextStyle(fontSize: 10, color: Colors.indigo.shade600, fontWeight: FontWeight.bold)),
-                ]),
-              ),
-            ),
-          ]),
-          if (isLoading)
-            const Padding(padding: EdgeInsets.all(8), child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))))
-          else if (docs.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            ...docs.map((doc) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: InkWell(
+      void rebuildAll() {
+        if (mounted) setState(() {});
+        try { setStateLocal(() {}); } catch (_) {}
+        try { setBerichtState(() {}); } catch (_) {}
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.attach_file, size: 14, color: Colors.indigo.shade600),
+              const SizedBox(width: 4),
+              Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade600)),
+              const Spacer(),
+              InkWell(
                 onTap: () async {
                   try {
-                    final response = await widget.apiService.downloadGesundheitDokument(doc['id'] is int ? doc['id'] : int.parse(doc['id'].toString()));
-                    if (response.statusCode == 200) {
-                      final dir = await getTemporaryDirectory();
-                      final file = File('${dir.path}/${doc['original_name'] ?? 'dokument'}');
-                      await file.writeAsBytes(response.bodyBytes);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${doc['original_name']} heruntergeladen'), backgroundColor: Colors.green));
-                      }
+                    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+                    if (result == null || result.files.isEmpty || !mounted) return;
+                    for (final f in result.files.where((f) => f.path != null)) {
+                      final res = await widget.apiService.uploadGesundheitDoc(
+                        userId: widget.user.id,
+                        gesundheitType: type,
+                        analyseId: berichtId,
+                        filePath: f.path!,
+                        fileName: f.name,
+                      );
+                      debugPrint('[DOC-UPLOAD] $type/$berichtId: ${f.name} => ${res['success']}');
                     }
-                  } catch (_) {}
+                  } catch (e) {
+                    debugPrint('[DOC-UPLOAD] error: $e');
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload-Fehler: $e'), backgroundColor: Colors.red));
+                  }
+                  _berichtDocs.remove(key);
+                  _berichtDocsLoading.remove(key);
+                  rebuildAll();
                 },
-                child: Row(children: [
-                  Icon(
-                    (doc['original_name']?.toString() ?? '').endsWith('.pdf') ? Icons.picture_as_pdf : Icons.insert_drive_file,
-                    size: 14,
-                    color: (doc['original_name']?.toString() ?? '').endsWith('.pdf') ? Colors.red.shade400 : Colors.blue.shade400,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(doc['original_name']?.toString() ?? 'Dokument', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
-                  Text(doc['created_at']?.toString().substring(0, 10) ?? '', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () async {
-                      try {
-                        await widget.apiService.deleteGesundheitDokument(doc['id'] is int ? doc['id'] : int.parse(doc['id'].toString()));
-                        _berichtDocs.remove(key);
-                        _berichtDocsLoading.remove(key);
-                        if (mounted) setState(() {});
-                        setBerichtState(() {});
-                      } catch (_) {}
-                    },
-                    child: Icon(Icons.close, size: 12, color: Colors.red.shade300),
-                  ),
-                ]),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.upload_file, size: 12, color: Colors.indigo.shade600),
+                    const SizedBox(width: 4),
+                    Text('Hochladen', style: TextStyle(fontSize: 10, color: Colors.indigo.shade600, fontWeight: FontWeight.bold)),
+                  ]),
+                ),
               ),
-            )),
+            ]),
+            if (isLoading)
+              const Padding(padding: EdgeInsets.all(8), child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))))
+            else if (docs.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              ...docs.map((doc) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: InkWell(
+                  onTap: () async {
+                    try {
+                      final response = await widget.apiService.downloadGesundheitDokument(doc['id'] is int ? doc['id'] : int.parse(doc['id'].toString()));
+                      if (response.statusCode == 200) {
+                        final dir = await getTemporaryDirectory();
+                        final file = File('${dir.path}/${doc['original_name'] ?? 'dokument'}');
+                        await file.writeAsBytes(response.bodyBytes);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${doc['original_name']} heruntergeladen'), backgroundColor: Colors.green));
+                        }
+                      }
+                    } catch (_) {}
+                  },
+                  child: Row(children: [
+                    Icon(
+                      (doc['original_name']?.toString() ?? '').endsWith('.pdf') ? Icons.picture_as_pdf : Icons.insert_drive_file,
+                      size: 14,
+                      color: (doc['original_name']?.toString() ?? '').endsWith('.pdf') ? Colors.red.shade400 : Colors.blue.shade400,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(doc['original_name']?.toString() ?? 'Dokument', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+                    Text(doc['created_at']?.toString().substring(0, 10) ?? '', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () async {
+                        try {
+                          await widget.apiService.deleteGesundheitDokument(doc['id'] is int ? doc['id'] : int.parse(doc['id'].toString()));
+                          _berichtDocs.remove(key);
+                          _berichtDocsLoading.remove(key);
+                          rebuildAll();
+                        } catch (_) {}
+                      },
+                      child: Icon(Icons.close, size: 12, color: Colors.red.shade300),
+                    ),
+                  ]),
+                ),
+              )),
+            ],
           ],
-        ],
-      ),
-    );
+        ),
+      );
+    });
   }
 
   Widget _buildArztMedikamenteTab(String type, String arztTitle) {
