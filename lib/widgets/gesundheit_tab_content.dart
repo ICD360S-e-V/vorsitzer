@@ -8330,46 +8330,49 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               const Padding(padding: EdgeInsets.all(8), child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))))
             else if (docs.isNotEmpty) ...[
               const SizedBox(height: 6),
-              ...docs.map((doc) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: InkWell(
-                  onTap: () async {
-                    try {
-                      final response = await widget.apiService.downloadGesundheitDokument(doc['id'] is int ? doc['id'] : int.parse(doc['id'].toString()));
-                      if (response.statusCode == 200) {
-                        final dir = await getTemporaryDirectory();
-                        final file = File('${dir.path}/${doc['original_name'] ?? 'dokument'}');
-                        await file.writeAsBytes(response.bodyBytes);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${doc['original_name']} heruntergeladen'), backgroundColor: Colors.green));
+              ...docs.map((doc) {
+                final docId = doc['id'] is int ? doc['id'] as int : int.parse(doc['id'].toString());
+                final docName = (doc['filename'] ?? doc['original_name'] ?? 'Dokument').toString();
+                final isPdf = docName.toLowerCase().endsWith('.pdf');
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: InkWell(
+                    onTap: () async {
+                      try {
+                        final response = await widget.apiService.downloadGesundheitDokument(docId);
+                        if (response.statusCode == 200 && mounted) {
+                          await FileViewerDialog.showFromBytes(context, response.bodyBytes, docName);
                         }
+                      } catch (e) {
+                        debugPrint('[DOC-VIEW] error: $e');
+                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Anzeige-Fehler: $e'), backgroundColor: Colors.red));
                       }
-                    } catch (_) {}
-                  },
-                  child: Row(children: [
-                    Icon(
-                      (doc['original_name']?.toString() ?? '').endsWith('.pdf') ? Icons.picture_as_pdf : Icons.insert_drive_file,
-                      size: 14,
-                      color: (doc['original_name']?.toString() ?? '').endsWith('.pdf') ? Colors.red.shade400 : Colors.blue.shade400,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(doc['original_name']?.toString() ?? 'Dokument', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
-                    Text(doc['created_at']?.toString().substring(0, 10) ?? '', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
-                    const SizedBox(width: 4),
-                    InkWell(
-                      onTap: () async {
-                        try {
-                          await widget.apiService.deleteGesundheitDokument(doc['id'] is int ? doc['id'] : int.parse(doc['id'].toString()));
-                          _berichtDocs.remove(key);
-                          _berichtDocsLoading.remove(key);
-                          rebuildAll();
-                        } catch (_) {}
-                      },
-                      child: Icon(Icons.close, size: 12, color: Colors.red.shade300),
-                    ),
-                  ]),
-                ),
-              )),
+                    },
+                    child: Row(children: [
+                      Icon(
+                        isPdf ? Icons.picture_as_pdf : Icons.insert_drive_file,
+                        size: 14,
+                        color: isPdf ? Colors.red.shade400 : Colors.blue.shade400,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(docName, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+                      Text(doc['created_at']?.toString().substring(0, 10) ?? '', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                      const SizedBox(width: 4),
+                      InkWell(
+                        onTap: () async {
+                          try {
+                            await widget.apiService.deleteGesundheitDokument(docId);
+                            _berichtDocs.remove(key);
+                            _berichtDocsLoading.remove(key);
+                            rebuildAll();
+                          } catch (_) {}
+                        },
+                        child: Icon(Icons.close, size: 12, color: Colors.red.shade300),
+                      ),
+                    ]),
+                  ),
+                );
+              }),
             ],
           ],
         ),
