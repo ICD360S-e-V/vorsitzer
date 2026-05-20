@@ -36,7 +36,7 @@ import '../widgets/moon.dart';
 import 'login_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../widgets/profile_dialog.dart';
-import '../widgets/user_details_dialog.dart';
+import '../utils/familie_selector_dialog.dart';
 import '../widgets/dashboard_sidebar.dart';
 import '../widgets/user_data_table.dart';
 import '../widgets/confirm_dialogs.dart';
@@ -1357,17 +1357,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   void _showUserDetailsDialog(User user) {
-    showDialog(
+    openMitgliedProfile(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => UserDetailsDialog(
-        user: user,
-        apiService: _apiService,
-        adminMitgliedernummer: widget.currentMitgliedernummer,
-        onUpdated: () {
-          _loadUsers(); // Reload user list after update
-        },
-      ),
+      apiService: _apiService,
+      user: user,
+      adminMitgliedernummer: widget.currentMitgliedernummer,
+      onUpdated: () {
+        _loadUsers(); // Reload user list after update
+      },
     );
   }
 
