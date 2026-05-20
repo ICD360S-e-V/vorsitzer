@@ -1526,6 +1526,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       'bescheid_datum': a['bescheid_datum'] ?? '', 'bescheid_erhalten': a['bescheid_erhalten'] ?? '',
       'widerspruch_datum': a['widerspruch_datum'] ?? '', 'widerspruch_methode': a['widerspruch_methode'] ?? '',
       'widerspruch_vorbereitet': a['widerspruch_vorbereitet'] ?? '', 'widerspruch_geliefert': a['widerspruch_geliefert'] ?? '', 'widerspruch_lieferung_methode': a['widerspruch_lieferung_methode'] ?? '',
+      'widerspruch_eingang_bestaetigt_datum': a['widerspruch_eingang_bestaetigt_datum'] ?? '', 'widerspruch_eingang_bestaetigt_methode': a['widerspruch_eingang_bestaetigt_methode'] ?? '',
       'akteneinsicht_datum': a['akteneinsicht_datum'] ?? '', 'akteneinsicht_methode': a['akteneinsicht_methode'] ?? '',
       'akteneinsicht_erhalten': a['akteneinsicht_erhalten'] ?? '', 'akteneinsicht_erhalten_methode': a['akteneinsicht_erhalten_methode'] ?? '',
       'eingangsbestaetigung_datum': a['eingangsbestaetigung_datum'] ?? '', 'eingangsbestaetigung_erhalten': a['eingangsbestaetigung_erhalten'] ?? '',
@@ -1994,6 +1995,23 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         await _saveAntragField(a, 'widerspruch_lieferung_methode', m);
       }),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6),
+
+      const SizedBox(height: 12),
+      Text('Eingang finaler Widerspruch an Behörde', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+      const SizedBox(height: 4),
+      Text('Bestätigung der Behörde, dass der finale Widerspruch (nach Akteneinsicht, mit Begründung) eingegangen ist.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      const SizedBox(height: 8),
+      _datePickerRow(Icons.mark_email_read, 'Eingang bestätigt am', a['widerspruch_eingang_bestaetigt_datum']?.toString() ?? '', (date) async {
+        a['widerspruch_eingang_bestaetigt_datum'] = date;
+        await _saveAntragField(a, 'widerspruch_eingang_bestaetigt_datum', date);
+      }),
+      const SizedBox(height: 6),
+      _methodeRow('Bestätigt per', a['widerspruch_eingang_bestaetigt_methode']?.toString() ?? '', (m) async {
+        a['widerspruch_eingang_bestaetigt_methode'] = m;
+        await _saveAntragField(a, 'widerspruch_eingang_bestaetigt_methode', m);
+      }),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_eingang_bestaetigt_$aid', korrespondenzId: 7),
 
       const SizedBox(height: 16),
       // Rechtsgrundlage
