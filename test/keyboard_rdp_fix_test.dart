@@ -1,145 +1,148 @@
-// Tests for KeyboardRdpFix — the workaround that clears the phantom Ctrl
-// state under Windows RDP when AltGr (PhysicalKeyboardKey.altRight) is
-// pressed/released.
+// Tests for KeyboardRdpFix — the workaround that clears the phantom
+// Ctrl state under Windows RDP when AltGr (PhysicalKeyboardKey.altRight)
+// is pressed/released.
 //
-// We can't observe the actual call to HardwareKeyboard.syncKeyboardState
-// (it's a platform-channel call that returns void), but we can check
-// that the handler:
-//   1. fires the sync ONLY for AltRight events (not other keys)
-//   2. fires for both down and up events on AltRight
-//   3. is idempotent — calling install() twice doesn't double-register
+// Strategy: drive the real HardwareKeyboard via handleKeyEvent and
+// then assert on HardwareKeyboard.instance.isControlPressed AFTER the
+// sequence. If the phantom Ctrl was correctly cleared, isControlPressed
+// returns false. If the fix is broken, isControlPressed stays true.
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/utils/keyboard_rdp_fix.dart';
 
 void main() {
-  // HardwareKeyboard.instance requires a binding — init once for the suite.
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
     KeyboardRdpFix.resetForTest();
-    // Reset HardwareKeyboard pressed-state too, so leaked state from a
-    // previous test doesn't fire "key already pressed" assertions.
     HardwareKeyboard.instance.clearState();
   });
 
   group('KeyboardRdpFix install', () {
-    test('install() registers a handler on HardwareKeyboard.instance', () {
-      KeyboardRdpFix.install();
-      // No exception means the handler accepted registration. We verify
-      // it actually responds to events in the next group of tests.
-      expect(true, isTrue);
-    });
-
-    test('install() is idempotent — second call is a no-op', () {
+    test('install() is idempotent', () {
       KeyboardRdpFix.install();
       KeyboardRdpFix.install();
-      // Trigger one AltRight event and assert _syncCount only increments
-      // once (would be 2 if we had registered twice).
-      KeyboardRdpFix.resetForTest();
-      KeyboardRdpFix.install();
-
-      _dispatchAltRightDown();
-      expect(KeyboardRdpFix.syncCount, 1);
+      // Run a phantom sequence — should result in exactly 1 injection,
+      // not 2 (proving handler isn't registered twice).
+      _phantomSequence();
+      // Wait for microtask
+      return Future<void>.delayed(Duration.zero).then((_) {
+        expect(KeyboardRdpFix.injectedCount, 1);
+      });
     });
   });
 
-  group('KeyboardRdpFix event handling', () {
-    test('AltRight DOWN triggers a sync', () {
+  group('Phantom Ctrl detection + injection', () {
+    test('phantom CtrlLeft+AltRight sequence clears Ctrl state on AltRight up', () async {
       KeyboardRdpFix.install();
-      _dispatchAltRightDown();
-      expect(KeyboardRdpFix.syncCount, 1);
+      _phantomSequence();
+
+      // Microtask must run to let the injection happen
+      await Future<void>.delayed(Duration.zero);
+
+      // The synthetic CtrlLeft up should have removed it from _pressedKeys
+      expect(HardwareKeyboard.instance.isControlPressed, isFalse,
+          reason: 'phantom Ctrl must be cleared after AltGr up');
+      expect(KeyboardRdpFix.injectedCount, 1);
     });
 
-    test('AltRight UP triggers a sync', () {
+    test('Real Ctrl+letter (user-held Ctrl) is NOT cleared by AltRight up', () async {
       KeyboardRdpFix.install();
-      // Realistic precondition: AltRight must be down before it can come up.
+
+      // User explicitly presses CtrlLeft (no AltRight following within window)
+      _dispatchCtrlLeftDown();
+      // Wait beyond phantom window
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      // Then user presses AltRight — this is NOT a phantom, real CtrlLeft is held
       _dispatchAltRightDown();
-      final beforeUp = KeyboardRdpFix.syncCount;
       _dispatchAltRightUp();
-      expect(KeyboardRdpFix.syncCount, beforeUp + 1);
+      await Future<void>.delayed(Duration.zero);
+
+      // CtrlLeft is still really held — fix must NOT inject anything
+      expect(HardwareKeyboard.instance.isControlPressed, isTrue,
+          reason: 'real user-held Ctrl must remain pressed');
+      expect(KeyboardRdpFix.injectedCount, 0);
     });
 
-    test('AltLeft DOES NOT trigger a sync (only right-alt is buggy)', () {
-      KeyboardRdpFix.install();
-      _dispatchAltLeftDown();
-      expect(KeyboardRdpFix.syncCount, 0);
-    });
-
-    test('Letter key Z does NOT trigger a sync', () {
-      KeyboardRdpFix.install();
-      _dispatchKeyZDown();
-      expect(KeyboardRdpFix.syncCount, 0);
-    });
-
-    test('Realistic AltGr+Z sequence: 2 syncs (down + up of AltRight, Z ignored)', () {
+    test('AltRight alone (no preceding Ctrl) does nothing', () async {
       KeyboardRdpFix.install();
       _dispatchAltRightDown();
-      _dispatchKeyZDown();
-      _dispatchKeyZUp();
       _dispatchAltRightUp();
-      // 2 syncs total: one per AltRight event
-      expect(KeyboardRdpFix.syncCount, 2);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(KeyboardRdpFix.injectedCount, 0);
+      expect(HardwareKeyboard.instance.isControlPressed, isFalse);
+    });
+
+    test('CtrlLeft up before AltRight up cancels phantom flag', () async {
+      KeyboardRdpFix.install();
+      // Phantom-looking sequence
+      _dispatchCtrlLeftDown();
+      _dispatchAltRightDown();
+      // But user actually released Ctrl normally before releasing AltRight
+      _dispatchCtrlLeftUp();
+      _dispatchAltRightUp();
+      await Future<void>.delayed(Duration.zero);
+
+      // No injection (real Ctrl was already up; no phantom to clear)
+      expect(KeyboardRdpFix.injectedCount, 0);
+      expect(HardwareKeyboard.instance.isControlPressed, isFalse);
+    });
+
+    test('AltLeft does NOT trigger fix (only right-Alt is buggy)', () async {
+      KeyboardRdpFix.install();
+      _dispatchCtrlLeftDown();
+      // AltLeft instead of AltRight
+      HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft,
+        timeStamp: const Duration(milliseconds: 1),
+      ));
+      HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft,
+        timeStamp: const Duration(milliseconds: 2),
+      ));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(KeyboardRdpFix.injectedCount, 0);
     });
   });
 }
 
 // ----- helpers ---------------------------------------------------------------
 
-void _dispatchAltRightDown() => _dispatch(KeyDownEvent(
-  physicalKey: PhysicalKeyboardKey.altRight,
-  logicalKey: LogicalKeyboardKey.altRight,
+void _phantomSequence() {
+  // Reproduces the exact Win32 sequence under AltGr:
+  //   1. Phantom CtrlLeft down (instantaneous, <2ms before AltRight)
+  //   2. Real AltRight down
+  //   3. Real AltRight up — phantom CtrlLeft up is NEVER sent by Win32
+  _dispatchCtrlLeftDown();
+  _dispatchAltRightDown();
+  _dispatchAltRightUp();
+}
+
+void _dispatchCtrlLeftDown() => HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+  physicalKey: PhysicalKeyboardKey.controlLeft,
+  logicalKey: LogicalKeyboardKey.controlLeft,
   timeStamp: const Duration(milliseconds: 1),
 ));
 
-void _dispatchAltRightUp() => _dispatch(KeyUpEvent(
-  physicalKey: PhysicalKeyboardKey.altRight,
-  logicalKey: LogicalKeyboardKey.altRight,
+void _dispatchCtrlLeftUp() => HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+  physicalKey: PhysicalKeyboardKey.controlLeft,
+  logicalKey: LogicalKeyboardKey.controlLeft,
   timeStamp: const Duration(milliseconds: 2),
 ));
 
-void _dispatchAltLeftDown() => _dispatch(KeyDownEvent(
-  physicalKey: PhysicalKeyboardKey.altLeft,
-  logicalKey: LogicalKeyboardKey.altLeft,
-  timeStamp: const Duration(milliseconds: 1),
-));
-
-void _dispatchKeyZDown() => _dispatch(KeyDownEvent(
-  physicalKey: PhysicalKeyboardKey.keyZ,
-  logicalKey: LogicalKeyboardKey.keyZ,
-  character: 'z',
+void _dispatchAltRightDown() => HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+  physicalKey: PhysicalKeyboardKey.altRight,
+  logicalKey: LogicalKeyboardKey.altRight,
   timeStamp: const Duration(milliseconds: 3),
 ));
 
-void _dispatchKeyZUp() => _dispatch(KeyUpEvent(
-  physicalKey: PhysicalKeyboardKey.keyZ,
-  logicalKey: LogicalKeyboardKey.keyZ,
+void _dispatchAltRightUp() => HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+  physicalKey: PhysicalKeyboardKey.altRight,
+  logicalKey: LogicalKeyboardKey.altRight,
   timeStamp: const Duration(milliseconds: 4),
 ));
-
-void _dispatch(KeyEvent event) {
-  // Pump our handler chain directly. We don't use ServicesBinding's
-  // dispatch because that requires a TestWidgetsFlutterBinding and
-  // would also reconcile platform state — we just want to verify our
-  // observer fires.
-  //
-  // The handler lives in a private list on HardwareKeyboard.instance,
-  // but the public addHandler stored a closure that we can invoke
-  // by re-dispatching the same KeyEvent through handleKeyEvent if
-  // it were public. Since it isn't, we call our handler via the
-  // public KeyEventManager-like surface: HardwareKeyboard.instance
-  // exposes no event-injection API outside of test bindings.
-  //
-  // For unit testing without spinning a binding, we expose the
-  // handler indirectly through addHandler with a probe. Easiest:
-  // call the registered handlers manually.
-  //
-  // ServicesBinding initialises HardwareKeyboard lazily when a
-  // binding is created. For a pure-Dart unit test we hand the
-  // event to ALL handlers via the public API HardwareKeyboard
-  // doesn't provide — so instead we use addHandler with a probe.
-  TestWidgetsFlutterBinding.ensureInitialized();
-  // ignore: invalid_use_of_visible_for_testing_member
-  HardwareKeyboard.instance.handleKeyEvent(event);
-}

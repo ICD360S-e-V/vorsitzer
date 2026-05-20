@@ -6,41 +6,62 @@ import '../services/logger_service.dart';
 ///
 ///   1. User presses AltGr (PhysicalKeyboardKey.altRight).
 ///   2. Win32 dispatches a phantom `CtrlLeft down` immediately before
-///      the real `AltRight down`.
+///      the real `AltRight down` (<2ms apart in practice).
 ///   3. User releases AltGr. The engine emits `AltRight up` — but NOT
 ///      the phantom `CtrlLeft up`.
-///   4. The engine now thinks Ctrl is held. Next time the user types
-///      Z / Y / X / C / V those keystrokes are interpreted as
-///      Ctrl+shortcuts (undo, redo, cut, copy, paste) and the printable
-///      character is swallowed.
+///   4. The engine's `_pressedKeys` map now still contains `CtrlLeft`,
+///      so the next time the user types Z / Y / X / C / V, those
+///      keystrokes are interpreted as Ctrl+shortcuts (undo / redo /
+///      cut / copy / paste) and the printable character is swallowed.
 ///
 /// RDP makes step 3 happen more often because the RDP client re-injects
 /// modifier state on focus events and the up-event for the phantom
-/// gets lost in flight.
+/// can get lost in flight.
 ///
 /// Upstream tracking: flutter/flutter #154069, #177822, #87400, #78005.
-/// Engine PR #27266 fixed a related case but was undone by PR #179136
-/// in the 3.41 line.
+/// Engine PR #27266 fixed a related case; PR #179097 was a follow-up but
+/// was reverted by PR #179136 in the 3.41 line — Flutter 3.41.x still
+/// ships the bug.
 ///
-/// **What this fix does:** on every key event that involves the right
-/// Alt key, queues a `HardwareKeyboard.syncKeyboardState()` call. That
-/// method asks the OS which keys are *physically* held and reconciles
-/// the engine's pressed-set, so the phantom Ctrl is cleared
-/// automatically. The sync is cheap (one IPC + diff) and idempotent.
+/// **What this fix does:**
+///   1. Track the timestamp of every `CtrlLeft down`.
+///   2. When `AltRight down` arrives, if `CtrlLeft down` happened within
+///      the last 10ms it must be the phantom — set a flag.
+///   3. When `AltRight up` arrives and the flag is set, inject a
+///      synthetic `KeyUpEvent` for CtrlLeft via the public
+///      `HardwareKeyboard.handleKeyEvent` API. The engine processes it
+///      exactly as if Win32 had finally sent the missing up event:
+///      `_pressedKeys.remove(CtrlLeft)`. Phantom cleared.
+///   4. The flag is cleared so a *real* CtrlLeft hold (followed later
+///      by AltGr) is not affected.
 ///
 /// Install once at app startup with `KeyboardRdpFix.install()`.
 class KeyboardRdpFix {
   static bool _installed = false;
-  static int _syncCount = 0;
 
-  /// Number of times the keyboard state has been sync'd. Exposed for
-  /// tests; not meant for production callers.
+  /// Maximum gap between a phantom `CtrlLeft down` and the following
+  /// `AltRight down`. Empirically <2ms; 10ms is a generous safety
+  /// margin without enclosing realistic Ctrl-then-AltGr user input
+  /// (a human can't press two distinct keys in under ~50ms).
+  static const Duration _phantomWindow = Duration(milliseconds: 10);
+
+  static DateTime? _lastCtrlLeftDown;
+  static bool _phantomActive = false;
+  static int _injectedCount = 0;
+
+  /// Number of synthetic CtrlLeft up events injected since install.
+  /// Exposed for tests; not meant for production callers.
   @visibleForTesting
-  static int get syncCount => _syncCount;
+  static int get injectedCount => _injectedCount;
+
+  @visibleForTesting
+  static bool get phantomActive => _phantomActive;
 
   @visibleForTesting
   static void resetForTest() {
-    _syncCount = 0;
+    _injectedCount = 0;
+    _lastCtrlLeftDown = null;
+    _phantomActive = false;
     if (_installed) {
       HardwareKeyboard.instance.removeHandler(_onKeyEvent);
       _installed = false;
@@ -57,27 +78,53 @@ class KeyboardRdpFix {
   }
 
   static bool _onKeyEvent(KeyEvent event) {
-    // We only care about the right Alt key — that's the one that
-    // triggers the phantom Ctrl behaviour. Catching both down AND up
-    // covers the case where a user holds AltGr across focus changes
-    // (common under RDP) and the up-event arrives "stale".
-    if (event.physicalKey == PhysicalKeyboardKey.altRight) {
-      _syncCount++;
-      // Schedule the sync after this event is fully processed by other
-      // handlers — clearing state mid-dispatch can confuse listeners.
-      Future.microtask(_syncSafely);
-    }
-    // Never claim the event; we just observe.
-    return false;
-  }
+    final phys = event.physicalKey;
+    final now = DateTime.now();
 
-  static Future<void> _syncSafely() async {
-    try {
-      await HardwareKeyboard.instance.syncKeyboardState();
-    } catch (e) {
-      // syncKeyboardState may throw on platforms that don't support it
-      // (web, mobile). Swallow — this fix is Windows-only.
-      LoggerService().debug('KeyboardRdpFix: syncKeyboardState skipped ($e)', tag: 'KEYBOARD');
+    if (phys == PhysicalKeyboardKey.controlLeft) {
+      if (event is KeyDownEvent) {
+        _lastCtrlLeftDown = now;
+      } else if (event is KeyUpEvent) {
+        // Real CtrlLeft was released — no longer a candidate phantom.
+        _lastCtrlLeftDown = null;
+        _phantomActive = false;
+      }
+      return false;
     }
+
+    if (phys == PhysicalKeyboardKey.altRight) {
+      if (event is KeyDownEvent) {
+        // Phantom semantics: CtrlLeft down arrived <10ms ago.
+        if (_lastCtrlLeftDown != null &&
+            now.difference(_lastCtrlLeftDown!) <= _phantomWindow) {
+          _phantomActive = true;
+        }
+      } else if (event is KeyUpEvent) {
+        if (_phantomActive && HardwareKeyboard.instance.isControlPressed) {
+          _phantomActive = false;
+          _lastCtrlLeftDown = null;
+          // Inject synthetic CtrlLeft up to clear the phantom from the
+          // engine's pressed-keys map. Public API, processed identically
+          // to a real Win32 KeyUp.
+          Future.microtask(() {
+            try {
+              HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+                physicalKey: PhysicalKeyboardKey.controlLeft,
+                logicalKey: LogicalKeyboardKey.controlLeft,
+                timeStamp: Duration(milliseconds: now.millisecondsSinceEpoch),
+              ));
+              _injectedCount++;
+            } catch (e) {
+              // _assertEventIsRegular may throw if Ctrl was already
+              // released by the time the microtask runs; that means
+              // the phantom is already gone, no harm done.
+              LoggerService().debug('KeyboardRdpFix: synthetic CtrlLeft up skipped ($e)', tag: 'KEYBOARD');
+            }
+          });
+        }
+      }
+    }
+
+    return false;
   }
 }
