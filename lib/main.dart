@@ -9,6 +9,7 @@ import 'services/notification_service.dart';
 import 'services/logger_service.dart';
 import 'services/startup_service.dart';
 import 'services/platform_service.dart';
+import 'utils/keyboard_rdp_fix.dart';
 
 // Desktop-only packages (compile on all platforms, but only used on desktop)
 import 'package:window_manager/window_manager.dart';
@@ -19,6 +20,12 @@ import 'package:windows_single_instance/windows_single_instance.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Pre-empt the AltGr-phantom-Ctrl bug that drops Z/Y/X/C/V keystrokes
+  // under Windows RDP. Must install before any widget receives input.
+  if (Platform.isWindows) {
+    KeyboardRdpFix.install();
+  }
 
   // Route just_audio through media_kit (libmpv) on Windows/Linux so HTTP MP3
   // radio streams actually produce sound. Must run before any AudioPlayer is
