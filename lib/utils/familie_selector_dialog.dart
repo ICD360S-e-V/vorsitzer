@@ -40,11 +40,8 @@ Future<void> openMitgliedProfile({
 
   if (!context.mounted) return;
 
-  if (vormund == null && kinder.isEmpty) {
-    _openDetailsDirectly(context, apiService, user, adminMitgliedernummer, onUpdated);
-    return;
-  }
-
+  // Selectorul apare INTOTDEAUNA — chiar daca nu sunt kinder, vrem ca user-ul
+  // sa vada Konto-ul activ + butonul + pentru a adauga un copil.
   await showDialog<void>(
     context: context,
     builder: (selCtx) => FamilieSelectorDialog(
@@ -55,6 +52,17 @@ Future<void> openMitgliedProfile({
         Navigator.of(selCtx).pop();
         if (context.mounted) {
           _openDetailsDirectly(context, apiService, targetUser, adminMitgliedernummer, onUpdated);
+        }
+      },
+      onAddKind: () {
+        Navigator.of(selCtx).pop();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('"Neues Kind anlegen" — Backend-Wiring folgt im naechsten PR. Aktuell: manuell ueber DB.'),
+              duration: Duration(seconds: 4),
+            ),
+          );
         }
       },
     ),
@@ -87,6 +95,7 @@ class FamilieSelectorDialog extends StatelessWidget {
   final Map<String, dynamic>? vormund;
   final List<Map<String, dynamic>> kinder;
   final void Function(User target) onProfileSelected;
+  final VoidCallback? onAddKind;
 
   const FamilieSelectorDialog({
     super.key,
@@ -94,6 +103,7 @@ class FamilieSelectorDialog extends StatelessWidget {
     required this.vormund,
     required this.kinder,
     required this.onProfileSelected,
+    this.onAddKind,
   });
 
   @override
@@ -123,11 +133,34 @@ class FamilieSelectorDialog extends StatelessWidget {
       contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
       content: SizedBox(
         width: 420,
-        child: ListView.separated(
-          shrinkWrap: true,
-          itemCount: entries.length,
-          separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
-          itemBuilder: (_, i) => _buildEntryTile(context, entries[i]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+                itemBuilder: (_, i) => _buildEntryTile(context, entries[i]),
+              ),
+            ),
+            if (onAddKind != null) ...[
+              Divider(height: 1, color: Colors.grey.shade300),
+              ListTile(
+                key: const Key('add-kind-tile'),
+                leading: CircleAvatar(
+                  backgroundColor: Colors.pink.shade50,
+                  child: Icon(Icons.add, color: Colors.pink.shade700, size: 22),
+                ),
+                title: Text('Neues Kind hinzufuegen',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.pink.shade700)),
+                subtitle: Text('Jugendmitglied unter diesem Vormund-Konto anlegen',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                trailing: Icon(Icons.add_circle_outline, size: 20, color: Colors.pink.shade400),
+                onTap: onAddKind,
+              ),
+            ],
+          ],
         ),
       ),
     );
