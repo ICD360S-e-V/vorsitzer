@@ -54,15 +54,26 @@ Future<void> openMitgliedProfile({
           _openDetailsDirectly(context, apiService, targetUser, adminMitgliedernummer, onUpdated);
         }
       },
-      onAddKind: () {
+      onAddKind: () async {
         Navigator.of(selCtx).pop();
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('"Neues Kind anlegen" — Backend-Wiring folgt im naechsten PR. Aktuell: manuell ueber DB.'),
-              duration: Duration(seconds: 4),
-            ),
+        if (!context.mounted) return;
+        final created = await showDialog<bool>(
+          context: context,
+          builder: (_) => NeuesKindDialog(
+            apiService: apiService,
+            vormundUserId: user.id,
+          ),
+        );
+        if (created == true && context.mounted) {
+          // Re-trigger the selector with refreshed data
+          openMitgliedProfile(
+            context: context,
+            apiService: apiService,
+            user: user,
+            adminMitgliedernummer: adminMitgliedernummer,
+            onUpdated: onUpdated,
           );
+          onUpdated();
         }
       },
     ),
@@ -198,6 +209,190 @@ class FamilieSelectorDialog extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right, size: 20),
       onTap: () => onProfileSelected(e.toUser(fallback: activeUser)),
+    );
+  }
+}
+
+/// Form-dialog pentru creare cont copil (jugendmitglied) sub un vormund.
+/// Returneaza `true` daca user-ul a fost creat cu succes.
+class NeuesKindDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int vormundUserId;
+  const NeuesKindDialog({
+    super.key,
+    required this.apiService,
+    required this.vormundUserId,
+  });
+  @override
+  State<NeuesKindDialog> createState() => _NeuesKindDialogState();
+}
+
+class _NeuesKindDialogState extends State<NeuesKindDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _vornameC = TextEditingController();
+  final _nachnameC = TextEditingController();
+  final _emailC = TextEditingController();
+  final _passwordC = TextEditingController();
+  DateTime? _geburtsdatum;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _vornameC.dispose();
+    _nachnameC.dispose();
+    _emailC.dispose();
+    _passwordC.dispose();
+    super.dispose();
+  }
+
+  String _formatDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_geburtsdatum == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte Geburtsdatum wählen'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final vorname = _vornameC.text.trim();
+      final nachname = _nachnameC.text.trim();
+      final fullName = '$vorname $nachname'.trim();
+      final res = await widget.apiService.adminRegisterMember(
+        name: fullName,
+        email: _emailC.text.trim(),
+        password: _passwordC.text,
+        role: 'jugendmitglied',
+        vormundUserId: widget.vormundUserId,
+        geburtsdatum: _formatDate(_geburtsdatum!),
+        vorname: vorname,
+        nachname: nachname,
+      );
+
+      if (!mounted) return;
+      if (res['success'] == true) {
+        final mnr = res['user']?['mitgliedernummer']?.toString() ?? '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kind angelegt: $fullName ($mnr)'), backgroundColor: Colors.green),
+        );
+        Navigator.of(context).pop(true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['message']?.toString() ?? 'Anlage fehlgeschlagen'), backgroundColor: Colors.red),
+        );
+        setState(() => _saving = false);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+      );
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(children: [
+        Icon(Icons.child_care, color: Colors.pink.shade700, size: 22),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Neues Kind anlegen', style: TextStyle(fontSize: 16))),
+      ]),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  key: const Key('kind-vorname'),
+                  controller: _vornameC,
+                  decoration: const InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.trim().length < 2) ? 'mindestens 2 Zeichen' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('kind-nachname'),
+                  controller: _nachnameC,
+                  decoration: const InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.trim().length < 2) ? 'mindestens 2 Zeichen' : null,
+                ),
+                const SizedBox(height: 10),
+                InkWell(
+                  key: const Key('kind-geburtsdatum'),
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime(now.year - 10, now.month, now.day),
+                      firstDate: DateTime(now.year - 30),
+                      lastDate: now,
+                      locale: const Locale('de'),
+                    );
+                    if (picked != null) setState(() => _geburtsdatum = picked);
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Geburtsdatum', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18)),
+                    child: Text(_geburtsdatum == null ? 'auswählen...' : _formatDate(_geburtsdatum!), style: TextStyle(color: _geburtsdatum == null ? Colors.grey.shade600 : Colors.black)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('kind-email'),
+                  controller: _emailC,
+                  decoration: const InputDecoration(labelText: 'E-Mail (z. B. kind@familie.de)', isDense: true, border: OutlineInputBorder()),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'erforderlich';
+                    if (!v.contains('@') || !v.contains('.')) return 'ungültige E-Mail';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('kind-password'),
+                  controller: _passwordC,
+                  decoration: const InputDecoration(labelText: 'Initialer Passwort (mind. 6 Zeichen)', isDense: true, border: OutlineInputBorder()),
+                  obscureText: true,
+                  validator: (v) => (v == null || v.length < 6) ? 'mindestens 6 Zeichen' : null,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: Row(children: [
+                    Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Mitgliedernummer wird automatisch (J + 5 Ziffern) generiert.',
+                        style: TextStyle(fontSize: 11, color: Colors.blue.shade900))),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.save, size: 16),
+          label: Text(_saving ? 'Speichert...' : 'Anlegen'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600),
+        ),
+      ],
     );
   }
 }

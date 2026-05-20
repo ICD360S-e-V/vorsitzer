@@ -426,16 +426,26 @@ class ApiService {
     required String email,
     required String password,
     String role = 'mitglied',
+    int? vormundUserId,
+    String? geburtsdatum,
+    String? vorname,
+    String? nachname,
   }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'email': email,
+      'password': password,
+      'role': role,
+    };
+    if (vormundUserId != null) body['vormund_user_id'] = vormundUserId;
+    if (geburtsdatum != null && geburtsdatum.isNotEmpty) body['geburtsdatum'] = geburtsdatum;
+    if (vorname != null && vorname.isNotEmpty) body['vorname'] = vorname;
+    if (nachname != null && nachname.isNotEmpty) body['nachname'] = nachname;
+
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/admin_register.php'),
       headers: _headers,
-      body: jsonEncode({
-        'name': name,
-        'email': email,
-        'password': password,
-        'role': role,
-      }),
+      body: jsonEncode(body),
     ).timeout(const Duration(seconds: 15));
 
     try {
