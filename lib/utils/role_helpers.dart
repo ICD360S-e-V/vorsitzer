@@ -24,6 +24,7 @@ import 'package:flutter/material.dart';
 ///   - mitgliedergrunder  = Gründungsmitglied
 ///   - ehrenmitglied      = Ehrenmitglied
 ///   - foerdermitglied    = Fördermitglied
+///   - jugendmitglied     = Jugendmitglied (verwaltetes Konto unter einem Vormund)
 /// ============================================================
 
 /// Returns the display text for a user role
@@ -53,6 +54,8 @@ String getRoleText(String role) {
       return 'Ehrenmitglied';
     case 'foerdermitglied':
       return 'Fördermitglied';
+    case 'jugendmitglied':
+      return 'Jugendmitglied';
     default:
       return role;
   }
@@ -87,6 +90,8 @@ Color getRoleColor(String role) {
       return Colors.amber;
     case 'foerdermitglied':
       return Colors.lime.shade700;
+    case 'jugendmitglied':
+      return Colors.pink.shade400;
     default:
       return Colors.blue; // mitglied
   }
@@ -198,6 +203,8 @@ String getRolePrefix(String role) {
       return 'EM';
     case 'foerdermitglied':
       return 'FM';
+    case 'jugendmitglied':
+      return 'J';
     default:
       return 'M'; // mitglied
   }
@@ -231,6 +238,7 @@ bool isVorstandRole(String role) {
 /// All available roles for dropdowns
 const allRoles = [
   {'value': 'mitglied', 'label': 'Mitglied'},
+  {'value': 'jugendmitglied', 'label': 'Jugendmitglied'},
   {'value': 'vorsitzer', 'label': 'Vorsitzender'},
   {'value': 'stellvertreter', 'label': 'Stellvertreter'},
   {'value': 'schatzmeister', 'label': 'Schatzmeister'},
@@ -243,6 +251,28 @@ const allRoles = [
   {'value': 'ehrenmitglied', 'label': 'Ehrenmitglied'},
   {'value': 'foerdermitglied', 'label': 'Fördermitglied'},
 ];
+
+/// Checks if a role is a Jugendmitglied (managed account under vormund)
+bool isJugendmitglied(String role) => role == 'jugendmitglied';
+
+/// Calculates age in years from a birth date string (YYYY-MM-DD or ISO).
+/// Returns null if input is empty or unparseable.
+int? calculateAge(String? geburtsdatum) {
+  if (geburtsdatum == null || geburtsdatum.trim().isEmpty) return null;
+  final dt = DateTime.tryParse(geburtsdatum.trim());
+  if (dt == null) return null;
+  final now = DateTime.now();
+  var age = now.year - dt.year;
+  if (now.month < dt.month || (now.month == dt.month && now.day < dt.day)) age--;
+  return age < 0 ? null : age;
+}
+
+/// True if a person is a minor (under 18) based on their geburtsdatum.
+/// Returns false if no valid birth date (cannot determine).
+bool isMinor(String? geburtsdatum) {
+  final age = calculateAge(geburtsdatum);
+  return age != null && age < 18;
+}
 
 /// ✅ SECURITY FIX (2026-02-10): Input sanitization to prevent SQL injection
 /// Sanitizes Mitgliedernummer by allowing only alphanumeric characters
@@ -257,7 +287,7 @@ String sanitizeMitgliedernummer(String input) {
   // Check if it matches valid patterns:
   // - V/S/K/MG/SV/SF/B/KP/E/EM/FM/M + 5 digits (role prefixes)
   // - 10000-99999 (5-digit numbers for legacy accounts)
-  final validPattern = RegExp(r'^(V|SV|S|SF|K|KP|MG|B|E|EM|FM|M)\d{5}$|^\d{5}$');
+  final validPattern = RegExp(r'^(V|SV|S|SF|K|KP|MG|B|E|EM|FM|J|M)\d{5}$|^\d{5}$');
 
   if (validPattern.hasMatch(sanitized)) {
     return sanitized;
@@ -272,7 +302,7 @@ bool isValidMitgliedernummer(String mitgliedernummer) {
   final sanitized = sanitizeMitgliedernummer(mitgliedernummer);
 
   // Must match: role prefix + 5 digits, or legacy 5-digit number
-  final validPattern = RegExp(r'^(V|SV|S|SF|K|KP|MG|B|E|EM|FM|M)\d{5}$|^[1-9]\d{4}$');
+  final validPattern = RegExp(r'^(V|SV|S|SF|K|KP|MG|B|E|EM|FM|J|M)\d{5}$|^[1-9]\d{4}$');
 
   return validPattern.hasMatch(sanitized);
 }
