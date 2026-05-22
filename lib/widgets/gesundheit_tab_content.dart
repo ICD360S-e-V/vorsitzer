@@ -6891,8 +6891,30 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: () {
+                            // Parse user.geburtsdatum into day/month/year for go2doc auto-fill
+                            String gebTag = '', gebMonat = '', gebJahr = '';
+                            final geb = widget.user.geburtsdatum;
+                            if (geb != null) {
+                              final parts = geb.toString().split(RegExp(r'[-./]'));
+                              if (parts.length == 3) {
+                                if (parts[0].length == 4) { gebJahr = parts[0]; gebMonat = parts[1]; gebTag = parts[2]; }
+                                else { gebTag = parts[0]; gebMonat = parts[1]; gebJahr = parts[2]; }
+                              }
+                            }
                             Navigator.push(context, MaterialPageRoute(
-                              builder: (_) => WebViewScreen(title: 'Online Terminanfrage - $arztName', url: onlineUrl),
+                              builder: (_) => WebViewScreen(
+                                title: 'Online Terminanfrage - $arztName',
+                                url: onlineUrl,
+                                go2docAutoFill: {
+                                  'vorname': widget.user.vorname ?? '',
+                                  'nachname': widget.user.nachname ?? '',
+                                  'geb_tag': gebTag,
+                                  'geb_monat': gebMonat,
+                                  'geb_jahr': gebJahr,
+                                  'email': 'icd@icd360s.de',
+                                  'versicherung': 'gesetzlich',
+                                },
+                              ),
                             ));
                           },
                           icon: Icon(Icons.language, size: 16, color: Colors.blue.shade700),
