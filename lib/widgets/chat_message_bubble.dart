@@ -430,41 +430,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     }
   }
 
-  /// Minimal tombstone bubble shown after the server NULLs the message body.
-  /// Audit-friendly: keeps timestamp + double-blue-tick so the sender still
-  /// sees "I sent this and it was read at HH:MM", without the content.
-  Widget _buildGhostBubble() {
-    final readAt = widget.message['read_at'] ?? widget.message['deleted_at'];
-    return Align(
-      alignment: widget.isOwn ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300, width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_delete_outlined, size: 14, color: Colors.grey.shade500),
-            const SizedBox(width: 6),
-            Text(
-              'Gelesen · ${_formatTime(readAt)}',
-              style: TextStyle(
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Icon(Icons.done_all, size: 12, color: Colors.lightBlue.shade300),
-          ],
-        ),
-      ),
-    );
-  }
+  /// Snapchat-strict: once the server NULLs the body, the bubble vanishes
+  /// completely. No tombstone, no timestamp, no trace — the conversation just
+  /// shrinks. The 5-minute countdown bar (visible during the read-window) is
+  /// the only signal the sender ever gets.
+  Widget _buildGhostBubble() => const SizedBox.shrink();
 
   Widget _buildReadReceipt(String status) {
     switch (status) {

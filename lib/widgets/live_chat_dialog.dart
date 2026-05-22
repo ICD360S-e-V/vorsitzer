@@ -1217,41 +1217,8 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
       }
     }
 
-    if (isGhost) {
-      return Align(
-        alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: EdgeInsets.only(
-            bottom: 8,
-            left: isOwn ? 50 : 0,
-            right: isOwn ? 0 : 50,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300, width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.auto_delete_outlined, size: 14, color: Colors.grey.shade500),
-              const SizedBox(width: 6),
-              Text(
-                'Gelesen · ${_formatTime(msg['read_at'] ?? msg['deleted_at'])}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Icon(Icons.done_all, size: 12, color: Colors.lightBlue.shade300),
-            ],
-          ),
-        ),
-      );
-    }
+    // Snapchat-strict: ghost bubble vanishes entirely after the 5-min TTL.
+    if (isGhost) return const SizedBox.shrink();
 
     return Align(
       alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
