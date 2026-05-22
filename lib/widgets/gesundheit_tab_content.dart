@@ -13275,10 +13275,12 @@ class _RechnungDetailModal extends StatefulWidget {
 class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   List<Map<String, dynamic>> _korr = [];
   bool _loadingK = true;
+  List<Map<String, dynamic>> _inkassoBuero = [];
+  bool _loadingInkassoBuero = true;
   int get _rid => widget.rechnung['id'] is int ? widget.rechnung['id'] as int : int.tryParse(widget.rechnung['id'].toString()) ?? 0;
 
   @override
-  void initState() { super.initState(); _loadKorr(); }
+  void initState() { super.initState(); _loadKorr(); _loadInkassoBuero(); }
 
   Future<void> _loadKorr() async {
     try {
@@ -13288,12 +13290,23 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     if (mounted) setState(() => _loadingK = false);
   }
 
+  Future<void> _loadInkassoBuero() async {
+    try {
+      final res = await widget.apiService.gesundheitRechnungAction({'action': 'list_inkasso_buero'});
+      if (res['success'] == true && res['buero'] is List) _inkassoBuero = List<Map<String, dynamic>>.from((res['buero'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+    } catch (_) {}
+    if (mounted) setState(() => _loadingInkassoBuero = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final r = widget.rechnung;
     final st = r['status']?.toString() ?? 'offen';
-    final stColor = st == 'bezahlt' ? Colors.green : (st == 'widerspruch' ? Colors.purple : (st == 'storniert' ? Colors.grey : Colors.orange));
-    return DefaultTabController(length: 3, child: Column(children: [
+    final stColor = st == 'bezahlt' ? Colors.green
+        : (st == 'widerspruch' ? Colors.purple
+        : (st == 'inkasso' ? Colors.red
+        : (st == 'storniert' ? Colors.grey : Colors.orange)));
+    return DefaultTabController(length: 4, child: Column(children: [
       Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: stColor.shade50),
         child: Row(children: [
           Icon(Icons.receipt, size: 22, color: stColor.shade700), const SizedBox(width: 10),
@@ -13309,12 +13322,13 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.brown.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.brown.shade700, tabs: const [
+      TabBar(labelColor: Colors.brown.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.brown.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
         Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
         Tab(icon: Icon(Icons.gavel, size: 16), text: 'Widerspruch'),
+        Tab(icon: Icon(Icons.business_center, size: 16), text: 'Inkasso'),
       ]),
-      Expanded(child: TabBarView(children: [_buildDetails(), _buildKorr(), _buildWiderspruch()])),
+      Expanded(child: TabBarView(children: [_buildDetails(), _buildKorr(), _buildWiderspruch(), _buildInkasso()])),
     ]));
   }
 
@@ -13467,6 +13481,115 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600)),
       const SizedBox(height: 16),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid),
+    ])));
+  }
+
+  Widget _buildInkasso() {
+    final r = widget.rechnung;
+    final iDatum = r['inkasso_datum']?.toString() ?? '';
+    final iBueroId = r['inkasso_buero_id'];
+    final iAkten = r['inkasso_aktenzeichen']?.toString() ?? '';
+    final iBetrag = r['inkasso_betrag']?.toString() ?? '';
+    final iNotiz = r['inkasso_notiz']?.toString() ?? '';
+    final hasI = iDatum.isNotEmpty;
+
+    Map<String, dynamic>? selectedBuero;
+    if (iBueroId != null) {
+      final id = iBueroId is int ? iBueroId : int.tryParse(iBueroId.toString());
+      if (id != null) {
+        for (final b in _inkassoBuero) {
+          if (b['id'] == id) { selectedBuero = b; break; }
+        }
+      }
+    }
+
+    if (hasI) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(Icons.business_center, size: 18, color: Colors.red.shade700), const SizedBox(width: 8),
+          Text('An Inkasso übergeben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800))]),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _row(Icons.calendar_today, 'Datum', iDatum),
+            if (selectedBuero != null) ...[
+              _row(Icons.business, 'Inkasso-Büro', selectedBuero['firmenname']?.toString() ?? ''),
+              if ((selectedBuero['strasse']?.toString() ?? '').isNotEmpty || (selectedBuero['plz_ort']?.toString() ?? '').isNotEmpty)
+                _row(Icons.location_on, 'Adresse', '${selectedBuero['strasse'] ?? ''}, ${selectedBuero['plz_ort'] ?? ''}'),
+              if ((selectedBuero['telefon']?.toString() ?? '').isNotEmpty) _row(Icons.phone, 'Telefon', selectedBuero['telefon'].toString()),
+              if ((selectedBuero['email']?.toString() ?? '').isNotEmpty) _row(Icons.email, 'E-Mail', selectedBuero['email'].toString()),
+              if ((selectedBuero['website']?.toString() ?? '').isNotEmpty) _row(Icons.language, 'Website', selectedBuero['website'].toString()),
+            ],
+            if (iAkten.isNotEmpty) _row(Icons.tag, 'Aktenzeichen', iAkten),
+            if (iBetrag.isNotEmpty) _row(Icons.euro, 'Forderung', '$iBetrag €'),
+            if (iNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(iNotiz, style: const TextStyle(fontSize: 13))],
+          ])),
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid),
+      ]));
+    }
+
+    final datumC = TextEditingController();
+    final aktenC = TextEditingController();
+    final betragC = TextEditingController();
+    final notizC = TextEditingController();
+    int? bueroId;
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Forderung an Inkasso übergeben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+      const SizedBox(height: 12),
+      TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Übergabe am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+      const SizedBox(height: 10),
+      _loadingInkassoBuero
+          ? const LinearProgressIndicator(minHeight: 2)
+          : InputDecorator(
+              decoration: InputDecoration(labelText: 'Inkasso-Büro', isDense: true, prefixIcon: const Icon(Icons.business, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: bueroId,
+                  isExpanded: true,
+                  items: _inkassoBuero.map((b) => DropdownMenuItem<int>(
+                    value: b['id'] as int,
+                    child: Text('${b['firmenname']} · ${b['plz_ort'] ?? ''}', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                  )).toList(),
+                  onChanged: (v) => setLocal(() => bueroId = v),
+                ),
+              ),
+            ),
+      const SizedBox(height: 10),
+      TextField(controller: aktenC, decoration: InputDecoration(labelText: 'Aktenzeichen', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Forderung (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 16),
+      FilledButton.icon(onPressed: () async {
+        if (datumC.text.isEmpty || bueroId == null) {
+          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum und Inkasso-Büro sind erforderlich'), backgroundColor: Colors.orange));
+          return;
+        }
+        await widget.apiService.gesundheitRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+          'data': {...widget.rechnung,
+            'inkasso_datum': datumC.text,
+            'inkasso_buero_id': bueroId,
+            'inkasso_aktenzeichen': aktenC.text.trim(),
+            'inkasso_betrag': betragC.text.trim(),
+            'inkasso_notiz': notizC.text.trim(),
+            'status': 'inkasso'}});
+        widget.onSaved();
+        if (ctx.mounted) {
+          widget.rechnung['inkasso_datum'] = datumC.text;
+          widget.rechnung['inkasso_buero_id'] = bueroId;
+          widget.rechnung['inkasso_aktenzeichen'] = aktenC.text.trim();
+          widget.rechnung['inkasso_betrag'] = betragC.text.trim();
+          widget.rechnung['inkasso_notiz'] = notizC.text.trim();
+          widget.rechnung['status'] = 'inkasso';
+          setState(() {});
+          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Inkasso gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
+        }
+      }, icon: const Icon(Icons.business_center, size: 16), label: const Text('An Inkasso übergeben', style: TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600)),
+      const SizedBox(height: 16),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid),
     ])));
   }
 }

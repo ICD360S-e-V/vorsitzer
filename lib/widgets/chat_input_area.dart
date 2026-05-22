@@ -9,6 +9,7 @@ class ChatInputArea extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onPickFiles;
   final VoidCallback? onFocus;
+  final ValueChanged<String>? onChanged;
   final String hintText;
 
   // 🆕 URGENT support (only visible for admins)
@@ -24,6 +25,7 @@ class ChatInputArea extends StatelessWidget {
     required this.onSend,
     required this.onPickFiles,
     this.onFocus,
+    this.onChanged,
     this.hintText = 'Nachricht eingeben...',
     this.isUrgent,
     this.onUrgentChanged,
@@ -53,6 +55,7 @@ class ChatInputArea extends StatelessWidget {
               controller: controller,
               onSubmitted: (_) => onSend(),
               onTap: onFocus,
+              onChanged: onChanged,
               decoration: InputDecoration(
                 hintText: hintText,
                 border: OutlineInputBorder(

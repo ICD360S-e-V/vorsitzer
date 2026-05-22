@@ -86,6 +86,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   String? _typingUser;
   Timer? _typingTimer;
   Timer? _refreshTimer;
+  Timer? _markReadDebounce;
+  Timer? _countdownTimer;
 
   // Voice call state - most WebRTC state now managed by VoiceCallService
   Timer? _callDurationTimer;
@@ -106,6 +108,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   StreamSubscription? _callEndedSubscription;
   StreamSubscription? _iceCandidateSubscription;
   StreamSubscription? _readReceiptSubscription;
+  StreamSubscription? _messageExpiredSubscription;
   StreamSubscription? _callStateSubscription;
   StreamSubscription? _onlineUsersSubscription;
   StreamSubscription? _remoteStreamSubscription;
@@ -271,6 +274,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _networkPollTimer?.cancel();
     _typingTimer?.cancel();
     _refreshTimer?.cancel();
+    _markReadDebounce?.cancel();
+    _countdownTimer?.cancel();
     _callDurationTimer?.cancel();
     _messageSubscription?.cancel();
     _typingSubscription?.cancel();
@@ -282,6 +287,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _callEndedSubscription?.cancel();
     _iceCandidateSubscription?.cancel();
     _readReceiptSubscription?.cancel();
+    _messageExpiredSubscription?.cancel();
     _callStateSubscription?.cancel();
     _onlineUsersSubscription?.cancel();
     _remoteStreamSubscription?.cancel();
@@ -444,6 +450,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           _isLoadingMessages = false;
         });
         _scrollToBottom();
+        _ensureCountdownTimer();
 
         if (_isConnected && mounted) {
           _chatService.joinConversation(_parseConvId(conversation['id']));
@@ -618,7 +625,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       }
     });
 
-    // Read receipt listener
+    // Read receipt listener — also captures expires_at per message so the
+    // sender's countdown bar can stay in lock-step with the recipient's.
     _readReceiptSubscription = _chatService.readReceiptStream.listen((event) {
       if (!mounted) return;
       if (_selectedConversation != null &&
@@ -629,10 +637,33 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             if (msgIndex >= 0) {
               _messages[msgIndex]['status'] = event.status;
               if (event.status == 'read') {
-                _messages[msgIndex]['read_at'] = event.timestamp.toIso8601String();
+                _messages[msgIndex]['read_at'] ??= event.timestamp.toIso8601String();
+                final expIso = event.expires[msgId.toString()];
+                if (expIso != null) _messages[msgIndex]['expires_at'] = expIso;
               } else if (event.status == 'delivered') {
                 _messages[msgIndex]['delivered_at'] = event.timestamp.toIso8601String();
               }
+            }
+          }
+        });
+        _ensureCountdownTimer();
+      }
+    });
+
+    // Message-expired listener: server has NULLed message body after 5-min TTL.
+    // Blank the content + stamp deleted_at locally so the bubble renders as ghost.
+    _messageExpiredSubscription = _chatService.messageExpiredStream.listen((event) {
+      if (!mounted) return;
+      if (_selectedConversation != null &&
+          _parseConvId(_selectedConversation!['id']) == event.conversationId) {
+        _safeSetState(() {
+          for (final msgId in event.messageIds) {
+            final msgIndex = _messages.indexWhere((m) => m['id'] == msgId);
+            if (msgIndex >= 0) {
+              _messages[msgIndex]['message'] = null;
+              _messages[msgIndex]['original_message'] = null;
+              _messages[msgIndex]['attachments'] = [];
+              _messages[msgIndex]['deleted_at'] = event.timestamp.toIso8601String();
             }
           }
         });
@@ -1251,15 +1282,28 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     );
   }
 
-  /// Mark all unread messages as read when user focuses on input
+  /// Typing-as-read trigger: invoked from ChatInputArea.onChanged after the
+  /// recipient has sustained ≥2 chars for 500ms. Marks unread non-own messages
+  /// as read, which arms the server-side 5-minute expire timer.
+  void _onInputChanged(String text) {
+    if (text.trim().length < 2) return;
+    _markReadDebounce?.cancel();
+    _markReadDebounce = Timer(const Duration(milliseconds: 500), _markMessagesAsRead);
+  }
+
+  /// Mark all delivered (non-own, not-yet-read) messages as read. Server stamps
+  /// expires_at = NOW + 5 MINUTE and returns it; we mirror that locally so the
+  /// countdown bar starts immediately.
   Future<void> _markMessagesAsRead() async {
     if (_selectedConversation == null) return;
 
     final convId = _parseConvId(_selectedConversation!['id']);
 
-    // Find unread messages from others
     final unreadIds = _messages
-        .where((m) => m['is_own'] != true && m['status'] != 'read')
+        .where((m) =>
+            m['is_own'] != true &&
+            m['status'] != 'read' &&
+            m['deleted_at'] == null)
         .map((m) => m['id'] as int)
         .toList();
 
@@ -1274,17 +1318,27 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       );
 
       if (result['success'] == true && mounted) {
-        // Update local state
+        final returned = (result['messages'] ?? result['data']?['messages']) as List?;
         _safeSetState(() {
           for (var msg in _messages) {
             if (unreadIds.contains(msg['id'])) {
               msg['status'] = 'read';
               msg['is_read'] = true;
+              msg['read_at'] ??= DateTime.now().toIso8601String();
+              if (returned != null) {
+                final hit = returned.firstWhere(
+                  (m) => m is Map && m['id'] == msg['id'],
+                  orElse: () => null,
+                );
+                if (hit is Map && hit['expires_at'] != null) {
+                  msg['expires_at'] = hit['expires_at'];
+                }
+              }
             }
           }
         });
+        _ensureCountdownTimer();
 
-        // Broadcast via WebSocket
         if (_isConnected) {
           _chatService.sendReadReceipt(convId, unreadIds, 'read');
         }
@@ -1292,6 +1346,33 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     } catch (e) {
       debugPrint('AdminChat: Mark read error: $e');
     }
+  }
+
+  /// Run a 1Hz repaint while any bubble is in the read+pending-expire window.
+  /// Tick auto-stops once every expiring bubble has either expired or been
+  /// purged, so we don't burn CPU on idle conversations.
+  void _ensureCountdownTimer() {
+    if (_countdownTimer != null && _countdownTimer!.isActive) return;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted || _isDisposed) {
+        t.cancel();
+        return;
+      }
+      final now = DateTime.now();
+      final anyPending = _messages.any((m) {
+        if (m['deleted_at'] != null) return false;
+        final exp = m['expires_at'];
+        if (exp == null) return false;
+        final dt = DateTime.tryParse(exp.toString());
+        return dt != null && dt.isAfter(now);
+      });
+      if (!anyPending) {
+        t.cancel();
+        _countdownTimer = null;
+        return;
+      }
+      _safeSetState(() {});
+    });
   }
 
   // ==================== Chat Methods ====================
@@ -2875,7 +2956,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             isUploading: _isUploading,
             onSend: _sendMessage,
             onPickFiles: _pickFiles,
-            onFocus: _markMessagesAsRead,
+            onChanged: _onInputChanged,
             hintText: 'Antwort eingeben...',
             // 🆕 URGENT checkbox for admin
             showUrgentCheckbox: true,

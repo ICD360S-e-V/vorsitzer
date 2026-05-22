@@ -109,11 +109,36 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
 
   @override
   Widget build(BuildContext context) {
+    // Ghost: server has NULLed content after the 5-min read TTL.
+    // Render a minimal "[Citit · HH:MM ✓✓]" tombstone — no lock, no reveal.
+    final rawMessage = widget.message['message'];
+    final isGhost = widget.message['deleted_at'] != null ||
+        (rawMessage == null && widget.message['is_read'] == true);
+    if (isGhost) {
+      return _buildGhostBubble();
+    }
+
     final attachments = List<Map<String, dynamic>>.from(widget.message['attachments'] ?? []);
     final status = widget.message['status'] ?? 'sent';
-    final messageText = widget.message['message'] ?? '';
+    final messageText = rawMessage ?? '';
     final hasTextMessage = messageText.toString().isNotEmpty &&
                            !messageText.toString().startsWith('[');
+
+    // Countdown bar: status=read + expires_at set + not yet expired
+    double? expireProgress;
+    if (status == 'read' && widget.message['expires_at'] != null) {
+      final exp = DateTime.tryParse(widget.message['expires_at'].toString());
+      final readAtStr = widget.message['read_at'];
+      final readAt = readAtStr != null ? DateTime.tryParse(readAtStr.toString()) : null;
+      if (exp != null) {
+        final base = readAt ?? exp.subtract(const Duration(minutes: 5));
+        final total = exp.difference(base).inMilliseconds;
+        if (total > 0) {
+          final elapsed = DateTime.now().difference(base).inMilliseconds;
+          expireProgress = (elapsed / total).clamp(0.0, 1.0);
+        }
+      }
+    }
 
     // URGENT message support
     final isUrgent = widget.message['is_urgent'] == true || widget.message['is_urgent'] == 1;
@@ -263,6 +288,22 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       )),
                   ],
 
+                  // Countdown bar: fills as expires_at approaches (5 min after read)
+                  if (expireProgress != null) ...[
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: expireProgress,
+                        minHeight: 3,
+                        backgroundColor: (widget.isOwn ? Colors.white : Colors.grey.shade300).withValues(alpha: 0.35),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          widget.isOwn ? Colors.white70 : Colors.lightBlue.shade300,
+                        ),
+                      ),
+                    ),
+                  ],
+
                   // Time and read receipt
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -387,6 +428,42 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         ),
       );
     }
+  }
+
+  /// Minimal tombstone bubble shown after the server NULLs the message body.
+  /// Audit-friendly: keeps timestamp + double-blue-tick so the sender still
+  /// sees "I sent this and it was read at HH:MM", without the content.
+  Widget _buildGhostBubble() {
+    final readAt = widget.message['read_at'] ?? widget.message['deleted_at'];
+    return Align(
+      alignment: widget.isOwn ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300, width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.auto_delete_outlined, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Text(
+              'Gelesen · ${_formatTime(readAt)}',
+              style: TextStyle(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.done_all, size: 12, color: Colors.lightBlue.shade300),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildReadReceipt(String status) {

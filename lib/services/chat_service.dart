@@ -44,6 +44,9 @@ class ChatService {
   // Stream controller for read receipts
   final _readReceiptController = StreamController<ReadReceiptEvent>.broadcast();
 
+  // Stream controller for message expiry (delete-on-read)
+  final _messageExpiredController = StreamController<MessageExpiredEvent>.broadcast();
+
   // Stream controller for new device login notifications
   final _newDeviceLoginController = StreamController<NewDeviceLoginEvent>.broadcast();
 
@@ -85,6 +88,9 @@ class ChatService {
 
   // Public stream - Read Receipts
   Stream<ReadReceiptEvent> get readReceiptStream => _readReceiptController.stream;
+
+  // Public stream - Message Expired (5-min TTL after read; server NULLed content)
+  Stream<MessageExpiredEvent> get messageExpiredStream => _messageExpiredController.stream;
 
   // Public stream - New Device Login
   Stream<NewDeviceLoginEvent> get newDeviceLoginStream => _newDeviceLoginController.stream;
@@ -601,6 +607,10 @@ class ChatService {
           _readReceiptController.add(ReadReceiptEvent.fromJson(json));
           break;
 
+        case 'message_expired':
+          _messageExpiredController.add(MessageExpiredEvent.fromJson(json));
+          break;
+
         case 'error':
           _errorController.add(json['error'] ?? 'Unknown error');
           break;
@@ -633,6 +643,7 @@ class ChatService {
     _callBusyController.close();
     _loginApprovalController.close();
     _readReceiptController.close();
+    _messageExpiredController.close();
     _onlineUsersController.close();
     _newDeviceLoginController.close();
     _ticketNotificationController.close();
@@ -767,6 +778,9 @@ class ReadReceiptEvent {
   final String status; // 'delivered' or 'read'
   final String? readBy;
   final DateTime timestamp;
+  /// Map of message_id (as string) -> expires_at ISO string, for countdown sync.
+  /// Server populates this when status='read'; null/empty otherwise.
+  final Map<String, String?> expires;
 
   ReadReceiptEvent({
     required this.conversationId,
@@ -774,14 +788,45 @@ class ReadReceiptEvent {
     required this.status,
     this.readBy,
     required this.timestamp,
+    this.expires = const {},
   });
 
   factory ReadReceiptEvent.fromJson(Map<String, dynamic> json) {
+    final raw = json['expires'];
+    final Map<String, String?> exp = {};
+    if (raw is Map) {
+      raw.forEach((k, v) {
+        exp[k.toString()] = v?.toString();
+      });
+    }
     return ReadReceiptEvent(
       conversationId: json['conversation_id'] ?? 0,
       messageIds: List<int>.from(json['message_ids'] ?? []),
       status: json['status'] ?? 'delivered',
       readBy: json['read_by'],
+      timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
+      expires: exp,
+    );
+  }
+}
+
+/// Message-expired event: server has NULLed the content of these messages after
+/// the 5-minute read-TTL. Clients should fade them out and render the ghost bubble.
+class MessageExpiredEvent {
+  final int conversationId;
+  final List<int> messageIds;
+  final DateTime timestamp;
+
+  MessageExpiredEvent({
+    required this.conversationId,
+    required this.messageIds,
+    required this.timestamp,
+  });
+
+  factory MessageExpiredEvent.fromJson(Map<String, dynamic> json) {
+    return MessageExpiredEvent(
+      conversationId: json['conversation_id'] ?? 0,
+      messageIds: List<int>.from(json['message_ids'] ?? []),
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
     );
   }
