@@ -12,6 +12,7 @@ import 'vr_bank_screen.dart';
 import 'gls_bank_screen.dart';
 import 'paypal_screen.dart';
 import 'github_screen.dart';
+import 'simplefax_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
 import 'vereinsinventar_screen.dart';
 import 'telekom_screen.dart';
@@ -206,6 +207,11 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       );
     } else if (_vereinSubview == 'github') {
       return GitHubScreen(
+        onBack: () => setState(() => _vereinSubview = 'partner'),
+        apiService: widget.apiService,
+      );
+    } else if (_vereinSubview == 'simplefax') {
+      return SimpleFaxScreen(
         onBack: () => setState(() => _vereinSubview = 'partner'),
         apiService: widget.apiService,
       );
@@ -448,7 +454,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
             children: [
               Expanded(child: _buildGitHubCard()),
               const SizedBox(width: 16),
-              const Expanded(child: SizedBox()),
+              Expanded(child: _buildSimpleFaxCard()),
               const SizedBox(width: 16),
               const Expanded(child: SizedBox()),
               const SizedBox(width: 16),
@@ -467,6 +473,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       color: Colors.grey.shade800,
       subtitle: 'Repositories, Actions, Workflows',
       onTap: () => setState(() => _vereinSubview = 'github'),
+    );
+  }
+
+  Widget _buildSimpleFaxCard() {
+    return _buildClickableCard(
+      icon: Icons.fax,
+      title: 'SimpleFax',
+      color: Colors.orange.shade700,
+      subtitle: 'Online-Fax, simple-fax.de',
+      onTap: () => setState(() => _vereinSubview = 'simplefax'),
     );
   }
 
