@@ -241,7 +241,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final gebDatumSlash = (gebTag.isNotEmpty && gebMonat.isNotEmpty && gebJahr.isNotEmpty)
         ? '${gebMonat.padLeft(2, '0')}/${gebTag.padLeft(2, '0')}/$gebJahr'
         : '';
-    final email = (d['email'] ?? 'icd@icd360s.de').replaceAll("'", "\\'");
+    final email = (d['email'] ?? '').toString().replaceAll("'", "\\'");
     final versicherung = d['versicherung'] ?? 'gesetzlich';
 
     final js = '''

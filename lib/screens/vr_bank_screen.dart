@@ -1,9 +1,42 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
-class VrBankScreen extends StatelessWidget {
+class VrBankScreen extends StatefulWidget {
   final VoidCallback onBack;
+  final ApiService apiService;
 
-  const VrBankScreen({super.key, required this.onBack});
+  const VrBankScreen({super.key, required this.onBack, required this.apiService});
+
+  @override
+  State<VrBankScreen> createState() => _VrBankScreenState();
+}
+
+class _VrBankScreenState extends State<VrBankScreen> {
+  Map<String, dynamic> _bank = {};
+  bool _loading = true;
+
+  static const _bankType = 'vr';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await widget.apiService.bankAction({'action': 'get', 'bank_type': _bankType});
+      if (res['success'] == true && res['data'] is Map) {
+        _bank = Map<String, dynamic>.from(res['data'] as Map);
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  String _v(String key) {
+    final s = _bank[key]?.toString() ?? '';
+    return s.isEmpty ? '—' : s;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +50,7 @@ class VrBankScreen extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: onBack,
+                onPressed: widget.onBack,
                 tooltip: 'Zurück zu Banken',
               ),
               const SizedBox(width: 8),
@@ -28,6 +61,20 @@ class VrBankScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.lock, size: 12, color: Colors.orange.shade700),
+                  const SizedBox(width: 4),
+                  Text('AES-256', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+                ]),
+              ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -49,7 +96,9 @@ class VrBankScreen extends StatelessWidget {
           const SizedBox(height: 24),
           // Content - 2x2 grid
           Expanded(
-            child: SingleChildScrollView(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
               child: Column(
                 children: [
                   // Row 1: Kontoinformationen + Karten
@@ -87,20 +136,108 @@ class VrBankScreen extends StatelessWidget {
       icon: Icons.account_balance_wallet,
       title: 'Kontoinformationen',
       color: Colors.blue,
+      trailing: IconButton(
+        icon: Icon(Icons.edit, size: 18, color: Colors.blue.shade700),
+        tooltip: 'Bearbeiten',
+        onPressed: _showEditDialog,
+      ),
       child: Column(
         children: [
-          _infoRow(Icons.business, 'Kontoinhaber', 'ICD360S e.V.'),
-          _infoRow(Icons.tag, 'IBAN', 'DE89 3704 0044 0532 0130 00'),
-          _infoRow(Icons.code, 'BIC / SWIFT', 'COBADEFFXXX'),
-          _infoRow(Icons.numbers, 'Kontonummer', '0532013000'),
-          _infoRow(Icons.pin, 'Bankleitzahl (BLZ)', '370 400 44'),
+          _infoRow(Icons.business, 'Kontoinhaber', _v('kontoinhaber')),
+          _infoRow(Icons.tag, 'IBAN', _v('iban')),
+          _infoRow(Icons.code, 'BIC / SWIFT', _v('bic')),
+          _infoRow(Icons.numbers, 'Kontonummer', _v('kontonummer')),
+          _infoRow(Icons.pin, 'Bankleitzahl (BLZ)', _v('blz')),
           const Divider(height: 24),
-          _infoRow(Icons.category, 'Kontotyp', 'Vereinskonto (Geschäftsgirokonto)'),
-          _infoRow(Icons.style, 'Kontomodell', 'VR-Giro Vereine'),
-          _infoRow(Icons.location_on, 'Filiale', 'VR Bank Memmingen eG'),
-          _infoRow(Icons.calendar_today, 'Eröffnet am', '—'),
-          _infoRow(Icons.verified_user, 'Kontostand', '—'),
+          _infoRow(Icons.category, 'Kontotyp', _v('kontotyp')),
+          _infoRow(Icons.style, 'Kontomodell', _v('kontomodell')),
+          _infoRow(Icons.location_on, 'Filiale', _v('filiale')),
+          _infoRow(Icons.calendar_today, 'Eröffnet am', _v('eroeffnet_am')),
         ],
+      ),
+    );
+  }
+
+  void _showEditDialog() {
+    final kontoinhaber = TextEditingController(text: _bank['kontoinhaber']?.toString() ?? '');
+    final iban = TextEditingController(text: _bank['iban']?.toString() ?? '');
+    final bic = TextEditingController(text: _bank['bic']?.toString() ?? '');
+    final kontonummer = TextEditingController(text: _bank['kontonummer']?.toString() ?? '');
+    final blz = TextEditingController(text: _bank['blz']?.toString() ?? '');
+    final filiale = TextEditingController(text: _bank['filiale']?.toString() ?? '');
+    final kontotyp = TextEditingController(text: _bank['kontotyp']?.toString() ?? '');
+    final kontomodell = TextEditingController(text: _bank['kontomodell']?.toString() ?? '');
+    final eroeffnetAm = TextEditingController(text: _bank['eroeffnet_am']?.toString() ?? '');
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.edit, size: 20, color: Colors.blue.shade700),
+        const SizedBox(width: 8),
+        const Text('Kontoinformationen bearbeiten', style: TextStyle(fontSize: 16)),
+      ]),
+      content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _field(kontoinhaber, 'Kontoinhaber', Icons.business),
+        const SizedBox(height: 10),
+        _field(iban, 'IBAN', Icons.tag),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _field(bic, 'BIC / SWIFT', Icons.code)),
+          const SizedBox(width: 10),
+          SizedBox(width: 180, child: _field(blz, 'BLZ', Icons.pin)),
+        ]),
+        const SizedBox(height: 10),
+        _field(kontonummer, 'Kontonummer', Icons.numbers),
+        const SizedBox(height: 10),
+        _field(filiale, 'Filiale', Icons.location_on),
+        const SizedBox(height: 10),
+        _field(kontotyp, 'Kontotyp', Icons.category),
+        const SizedBox(height: 10),
+        _field(kontomodell, 'Kontomodell', Icons.style),
+        const SizedBox(height: 10),
+        _field(eroeffnetAm, 'Eröffnet am', Icons.calendar_today),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton.icon(
+          onPressed: () async {
+            final res = await widget.apiService.bankAction({
+              'action': 'save', 'bank_type': _bankType,
+              'kontoinhaber': kontoinhaber.text.trim(),
+              'iban': iban.text.trim(),
+              'bic': bic.text.trim(),
+              'kontonummer': kontonummer.text.trim(),
+              'blz': blz.text.trim(),
+              'filiale': filiale.text.trim(),
+              'kontotyp': kontotyp.text.trim(),
+              'kontomodell': kontomodell.text.trim(),
+              'eroeffnet_am': eroeffnetAm.text.trim(),
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(res['success'] == true ? 'Verschlüsselt gespeichert' : (res['message']?.toString() ?? 'Fehler')),
+                backgroundColor: res['success'] == true ? Colors.green : Colors.red,
+                duration: const Duration(seconds: 1),
+              ));
+            }
+            _load();
+          },
+          icon: const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade700),
+        ),
+      ],
+    ));
+  }
+
+  Widget _field(TextEditingController c, String label, IconData icon) {
+    return TextField(
+      controller: c,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 18),
+        isDense: true,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -302,6 +439,7 @@ class VrBankScreen extends StatelessWidget {
     required String title,
     required Color color,
     required Widget child,
+    Widget? trailing,
   }) {
     return Card(
       elevation: 2,
@@ -327,14 +465,15 @@ class VrBankScreen extends StatelessWidget {
                   child: Icon(icon, color: color, size: 24),
                 ),
                 const SizedBox(width: 12),
-                Text(
+                Expanded(child: Text(
                   title,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
-                ),
+                )),
+                if (trailing != null) trailing,
               ],
             ),
           ),

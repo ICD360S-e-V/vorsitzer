@@ -195,6 +195,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
     } else if (_vereinSubview == 'volksbank') {
       return VrBankScreen(
         onBack: () => setState(() => _vereinSubview = 'banken'),
+        apiService: widget.apiService,
       );
     } else if (_vereinSubview == 'gls') {
       return GlsBankScreen(

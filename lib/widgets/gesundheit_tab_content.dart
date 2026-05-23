@@ -6911,7 +6911,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                   'geb_tag': gebTag,
                                   'geb_monat': gebMonat,
                                   'geb_jahr': gebJahr,
-                                  'email': 'icd@icd360s.de',
+                                  'email': widget.user.email,
                                   'versicherung': 'gesetzlich',
                                 },
                               ),
@@ -7991,7 +7991,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                           'geb_tag': gebTag,
                                           'geb_monat': gebMonat,
                                           'geb_jahr': gebJahr,
-                                          'email': 'icd@icd360s.de',
+                                          'email': widget.user.email,
                                           'versicherung': 'gesetzlich',
                                         },
                                       );
