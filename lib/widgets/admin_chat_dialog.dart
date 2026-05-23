@@ -2144,6 +2144,22 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                                 catIcon = Icons.medication;
                                 catColor = Colors.red;
                                 break;
+                              case 'greeting_morning':
+                                catIcon = Icons.wb_sunny;
+                                catColor = Colors.amber;
+                                break;
+                              case 'greeting_noon':
+                                catIcon = Icons.wb_sunny_outlined;
+                                catColor = Colors.orange;
+                                break;
+                              case 'greeting_evening':
+                                catIcon = Icons.brightness_3;
+                                catColor = Colors.deepPurple;
+                                break;
+                              case 'greeting_night':
+                                catIcon = Icons.bedtime;
+                                catColor = Colors.indigo;
+                                break;
                               default:
                                 catIcon = Icons.restaurant;
                                 catColor = Colors.teal;
@@ -2248,6 +2264,10 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     Set<int> selectedDays = {1, 2, 3, 4, 5, 6, 7};
 
     final categories = [
+      {'value': 'greeting_morning', 'label': 'Bună dim. (08)', 'icon': Icons.wb_sunny},
+      {'value': 'greeting_noon', 'label': 'Bună ziua (14)', 'icon': Icons.wb_sunny_outlined},
+      {'value': 'greeting_evening', 'label': 'Bună seara (20)', 'icon': Icons.brightness_3},
+      {'value': 'greeting_night', 'label': 'Noapte bună (23)', 'icon': Icons.bedtime},
       {'value': 'fruehstueck', 'label': 'Frühstück', 'icon': Icons.free_breakfast},
       {'value': 'mittagessen', 'label': 'Mittagessen', 'icon': Icons.lunch_dining},
       {'value': 'abendessen', 'label': 'Abendessen', 'icon': Icons.dinner_dining},
@@ -2375,6 +2395,10 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     Set<int> selectedDays = daysStr.split(',').map((d) => int.tryParse(d.trim()) ?? 0).where((d) => d > 0).toSet();
 
     final categories = [
+      {'value': 'greeting_morning', 'label': 'Bună dim. (08)', 'icon': Icons.wb_sunny},
+      {'value': 'greeting_noon', 'label': 'Bună ziua (14)', 'icon': Icons.wb_sunny_outlined},
+      {'value': 'greeting_evening', 'label': 'Bună seara (20)', 'icon': Icons.brightness_3},
+      {'value': 'greeting_night', 'label': 'Noapte bună (23)', 'icon': Icons.bedtime},
       {'value': 'fruehstueck', 'label': 'Frühstück', 'icon': Icons.free_breakfast},
       {'value': 'mittagessen', 'label': 'Mittagessen', 'icon': Icons.lunch_dining},
       {'value': 'abendessen', 'label': 'Abendessen', 'icon': Icons.dinner_dining},
@@ -2564,6 +2588,22 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                               case 'medikament':
                                 catIcon = Icons.medication;
                                 catColor = Colors.red;
+                                break;
+                              case 'greeting_morning':
+                                catIcon = Icons.wb_sunny;
+                                catColor = Colors.amber;
+                                break;
+                              case 'greeting_noon':
+                                catIcon = Icons.wb_sunny_outlined;
+                                catColor = Colors.orange;
+                                break;
+                              case 'greeting_evening':
+                                catIcon = Icons.brightness_3;
+                                catColor = Colors.deepPurple;
+                                break;
+                              case 'greeting_night':
+                                catIcon = Icons.bedtime;
+                                catColor = Colors.indigo;
                                 break;
                               default:
                                 catIcon = Icons.restaurant;
