@@ -382,6 +382,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
   // ===== TAB 2: PINNWAND =====
   String get _faxNummerRaw => _data['fax_nummer']?.toString() ?? '';
+  String get _kundennummer => _data['kundennummer']?.toString() ?? '';
   String get _faxNummer {
     final raw = _faxNummerRaw;
     if (raw.length < 6) return raw;
@@ -442,6 +443,36 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             ),
           ]),
         ),
+        if (_kundennummer.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blueGrey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.blueGrey.shade200),
+            ),
+            child: Row(children: [
+              Icon(Icons.badge, size: 24, color: Colors.blueGrey.shade700),
+              const SizedBox(width: 12),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Kundennummer', style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade700)),
+                const SizedBox(height: 2),
+                Text(_kundennummer, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade900, fontFamily: 'monospace', letterSpacing: 1.2)),
+              ]),
+              const Spacer(),
+              IconButton(
+                icon: Icon(Icons.copy, size: 18, color: Colors.blueGrey.shade400),
+                tooltip: 'Kopieren',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _kundennummer));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kundennummer kopiert'), duration: Duration(seconds: 1)));
+                },
+              ),
+            ]),
+          ),
+        ],
       ]),
     );
   }
@@ -494,57 +525,222 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     );
   }
 
+  final Map<String, List<Map<String, dynamic>>> _faxe = {'eingang': [], 'ausgang': [], 'archiv': []};
+
+  Future<void> _loadFaxe(String typ) async {
+    final res = await widget.apiService.simplefaxAction({'action': 'list_faxe', 'typ': typ});
+    if (mounted && res['success'] == true && res['faxe'] is List) {
+      setState(() {
+        _faxe[typ] = List<Map<String, dynamic>>.from((res['faxe'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+      });
+    }
+  }
+
   Widget _buildFaxTable(String typ) {
-    final List<Map<String, dynamic>> rows = const [];
-    return Column(children: [
-      Container(
-        color: Colors.orange.shade50,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(children: [
-          _faxCol('ID', 50),
-          _faxCol('Datum', 90),
-          _faxCol('Uhrzeit', 70),
-          _faxCol('Absender', 130),
-          _faxColExpanded('Inhalt'),
-          _faxCol('Status', 90),
-          _faxCol('Aktionen', 90),
-        ]),
+    final rows = _faxe[typ] ?? [];
+    if (rows.isEmpty) _loadFaxe(typ);
+    final empfaengerLabel = typ == 'eingang' ? 'Absender' : 'Empfänger';
+    return Stack(children: [
+      Column(children: [
+        Container(
+          color: Colors.orange.shade50,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(children: [
+            _faxCol('Fax-ID', 90),
+            _faxCol('Datum', 90),
+            _faxCol('Uhrzeit', 70),
+            _faxColExpanded(empfaengerLabel),
+            _faxCol('Seiten', 50),
+            _faxCol('Status', 70),
+            _faxCol('Aktionen', 80),
+          ]),
+        ),
+        Expanded(child: rows.isEmpty
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(typ == 'eingang' ? Icons.inbox : (typ == 'ausgang' ? Icons.send : Icons.archive), size: 40, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text(typ == 'eingang' ? 'Keine eingehenden Faxe' : (typ == 'ausgang' ? 'Keine ausgehenden Faxe' : 'Archiv leer'),
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+            ]))
+          : ListView.separated(
+              itemCount: rows.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+              itemBuilder: (_, i) {
+                final r = rows[i];
+                final datum = r['datum']?.toString() ?? '';
+                final datumDe = datum.length >= 10 ? '${datum.substring(8,10)}.${datum.substring(5,7)}.${datum.substring(0,4)}' : datum;
+                final uhr = (r['uhrzeit']?.toString() ?? '').padRight(5).substring(0, 5);
+                return InkWell(
+                  onTap: () => _showFaxDetailDialog(r, typ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(children: [
+                      SizedBox(width: 90, child: Text('#${r['fax_id'] ?? ''}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900, fontFamily: 'monospace'), overflow: TextOverflow.ellipsis)),
+                      _faxCell(datumDe, 90),
+                      _faxCell(uhr, 70),
+                      Expanded(child: Text(r['empfaenger']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontFamily: 'monospace'), overflow: TextOverflow.ellipsis)),
+                      _faxCell('${r['seiten'] ?? 1}', 50),
+                      SizedBox(width: 70, child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: (r['status']?.toString() == 'OK' ? Colors.green : Colors.grey).shade100, borderRadius: BorderRadius.circular(4)),
+                        child: Text(r['status']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (r['status']?.toString() == 'OK' ? Colors.green : Colors.grey).shade800), textAlign: TextAlign.center),
+                      )),
+                      SizedBox(width: 80, child: Row(children: [
+                        IconButton(icon: Icon(Icons.visibility, size: 16, color: Colors.blue.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          tooltip: 'Anzeigen', onPressed: () => _showFaxDetailDialog(r, typ)),
+                        IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          tooltip: 'Löschen', onPressed: () async {
+                            await widget.apiService.simplefaxAction({'action': 'delete_fax', 'id': r['id']});
+                            _loadFaxe(typ);
+                          }),
+                      ])),
+                    ]),
+                  ),
+                );
+              },
+            )),
+      ]),
+      Positioned(
+        right: 16, bottom: 16,
+        child: FloatingActionButton.small(
+          heroTag: 'add_fax_$typ',
+          onPressed: () => _showFaxAddDialog(typ),
+          backgroundColor: Colors.orange.shade700,
+          tooltip: typ == 'eingang' ? 'Neues eingehendes Fax' : (typ == 'ausgang' ? 'Neues ausgehendes Fax' : 'Neues Archiv-Fax'),
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
       ),
-      Expanded(child: rows.isEmpty
-        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(typ == 'eingang' ? Icons.inbox : (typ == 'ausgang' ? Icons.send : Icons.archive), size: 40, color: Colors.grey.shade300),
-            const SizedBox(height: 8),
-            Text(typ == 'eingang' ? 'Keine eingehenden Faxe' : (typ == 'ausgang' ? 'Keine ausgehenden Faxe' : 'Archiv leer'),
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-          ]))
-        : ListView.separated(
-            itemCount: rows.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
-            itemBuilder: (_, i) {
-              final r = rows[i];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(children: [
-                  _faxCell(r['id']?.toString() ?? '', 50),
-                  _faxCell(r['datum']?.toString() ?? '', 90),
-                  _faxCell(r['uhrzeit']?.toString() ?? '', 70),
-                  _faxCell(r['absender']?.toString() ?? '', 130),
-                  Expanded(child: Text(r['inhalt']?.toString() ?? '', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
-                  _faxCell(r['status']?.toString() ?? '', 90),
-                  SizedBox(width: 90, child: Row(children: [
-                    IconButton(icon: const Icon(Icons.visibility, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () {}),
-                    IconButton(icon: const Icon(Icons.download, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () {}),
-                  ])),
-                ]),
-              );
-            },
-          )),
     ]);
   }
 
   Widget _faxCol(String label, double w) => SizedBox(width: w, child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900)));
   Widget _faxColExpanded(String label) => Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900)));
   Widget _faxCell(String txt, double w) => SizedBox(width: w, child: Text(txt, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
+
+  void _showFaxDetailDialog(Map<String, dynamic> r, String typ) {
+    final datum = r['datum']?.toString() ?? '';
+    final datumDe = datum.length >= 10 ? '${datum.substring(8,10)}.${datum.substring(5,7)}.${datum.substring(0,4)}' : datum;
+    final faxId = r['id'] is int ? r['id'] as int : int.tryParse(r['id']?.toString() ?? '') ?? 0;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.fax, color: Colors.orange.shade700, size: 22),
+        const SizedBox(width: 8),
+        Expanded(child: Text('FAX #${r['fax_id'] ?? ''}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade900, fontFamily: 'monospace'))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: (r['status']?.toString() == 'OK' ? Colors.green : Colors.grey).shade100, borderRadius: BorderRadius.circular(6)),
+          child: Text(r['status']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: (r['status']?.toString() == 'OK' ? Colors.green : Colors.grey).shade800)),
+        ),
+      ]),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        _faxDetailRow(Icons.calendar_today, 'Datum', '$datumDe ${(r['uhrzeit']?.toString() ?? '').substring(0, (r['uhrzeit']?.toString().length ?? 0).clamp(0, 5))}'),
+        _faxDetailRow(typ == 'eingang' ? Icons.phone_callback : Icons.phone_forwarded, typ == 'eingang' ? 'Absender' : 'Empfänger', r['empfaenger']?.toString() ?? ''),
+        _faxDetailRow(Icons.description, 'Seiten', '${r['seiten'] ?? 1}'),
+        _faxDetailRow(Icons.label_outline, 'Typ', typ == 'eingang' ? 'Posteingang' : (typ == 'ausgang' ? 'Postausgang' : 'Archiv')),
+        const SizedBox(height: 16),
+        Divider(color: Colors.grey.shade200),
+        const SizedBox(height: 8),
+        Row(children: [
+          Icon(Icons.picture_as_pdf, size: 16, color: Colors.red.shade700),
+          const SizedBox(width: 6),
+          Text('Sendebericht & Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        ]),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            modul: 'simplefax_fax',
+            korrespondenzId: faxId,
+          ),
+        ),
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
+  }
+
+  Widget _faxDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(children: [
+        Icon(icon, size: 16, color: Colors.orange.shade600),
+        const SizedBox(width: 10),
+        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: 'monospace'))),
+      ]),
+    );
+  }
+
+  void _showFaxAddDialog(String typ) {
+    final faxIdC = TextEditingController();
+    final empfaengerC = TextEditingController();
+    final seitenC = TextEditingController(text: '1');
+    final statusC = TextEditingController(text: 'OK');
+    DateTime selectedDate = DateTime.now();
+    TimeOfDay selectedTime = TimeOfDay.now();
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.add_circle, color: Colors.orange.shade700, size: 20),
+        const SizedBox(width: 8),
+        Text('Neues Fax — ${typ == 'eingang' ? 'Posteingang' : (typ == 'ausgang' ? 'Postausgang' : 'Archiv')}', style: const TextStyle(fontSize: 15)),
+      ]),
+      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _kontaktField(faxIdC, 'Fax-ID (z.B. 16728811)', Icons.tag, kbd: TextInputType.number),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: OutlinedButton.icon(
+            icon: const Icon(Icons.calendar_today, size: 16),
+            label: Text('${selectedDate.day.toString().padLeft(2, '0')}.${selectedDate.month.toString().padLeft(2, '0')}.${selectedDate.year}'),
+            onPressed: () async {
+              final picked = await showDatePicker(context: ctx, initialDate: selectedDate, firstDate: DateTime(2020), lastDate: DateTime(2030));
+              if (picked != null) setDlg(() => selectedDate = picked);
+            },
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: OutlinedButton.icon(
+            icon: const Icon(Icons.access_time, size: 16),
+            label: Text('${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}'),
+            onPressed: () async {
+              final picked = await showTimePicker(context: ctx, initialTime: selectedTime);
+              if (picked != null) setDlg(() => selectedTime = picked);
+            },
+          )),
+        ]),
+        const SizedBox(height: 10),
+        _kontaktField(empfaengerC, typ == 'eingang' ? 'Absender (Fax-Nummer)' : 'Empfänger (Fax-Nummer)', Icons.fax, kbd: TextInputType.phone),
+        const SizedBox(height: 10),
+        Row(children: [
+          SizedBox(width: 110, child: _kontaktField(seitenC, 'Seiten', Icons.description, kbd: TextInputType.number)),
+          const SizedBox(width: 10),
+          Expanded(child: _kontaktField(statusC, 'Status', Icons.check_circle_outline)),
+        ]),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton.icon(
+          onPressed: () async {
+            final datum = '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+            final uhr = '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}:00';
+            await widget.apiService.simplefaxAction({
+              'action': 'save_fax',
+              'fax': {
+                'fax_id': faxIdC.text.trim(), 'typ': typ, 'datum': datum, 'uhrzeit': uhr,
+                'seiten': int.tryParse(seitenC.text.trim()) ?? 1,
+                'empfaenger': empfaengerC.text.trim(), 'status': statusC.text.trim(),
+              },
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
+            _loadFaxe(typ);
+          },
+          icon: const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
+        ),
+      ],
+    )));
+  }
 
   // ===== TAB 4: ADRESSBUCH =====
   final List<Map<String, dynamic>> _kontakte = [];
@@ -1984,6 +2180,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     final festnetz = TextEditingController(text: _data['festnetz']?.toString() ?? '');
     final mobil = TextEditingController(text: _data['mobil']?.toString() ?? '');
     final faxNum = TextEditingController(text: _data['fax_nummer']?.toString() ?? '');
+    final kundennr = TextEditingController(text: _data['kundennummer']?.toString() ?? '');
 
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
@@ -2014,6 +2211,8 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         _sectionLabel(Icons.contact_phone, 'Kontakt'),
         _kontaktField(faxNum, 'Faxnummer (SimpleFax)', Icons.fax, kbd: TextInputType.phone),
         const SizedBox(height: 10),
+        _kontaktField(kundennr, 'Kundennummer (SimpleFax)', Icons.badge, kbd: TextInputType.number),
+        const SizedBox(height: 10),
         _kontaktField(festnetz, 'Festnetz', Icons.phone, kbd: TextInputType.phone),
         const SizedBox(height: 10),
         _kontaktField(mobil, 'Mobil', Icons.smartphone, kbd: TextInputType.phone),
@@ -2034,6 +2233,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
               'festnetz': festnetz.text.trim(),
               'mobil': mobil.text.trim(),
               'fax_nummer': faxNum.text.trim(),
+              'kundennummer': kundennr.text.trim(),
             });
             if (ctx.mounted) Navigator.pop(ctx);
             if (mounted) {
