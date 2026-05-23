@@ -31,12 +31,6 @@ regex = '''SecureDB\d{4}'''
 tags = ["historical", "vorsitzer"]
 
 [[rules]]
-id = "vorsitzer-known-leaked-aes-routine"
-description = "Previously leaked AES key for routines — never reintroduce"
-regex = '''***REMOVED_AES_KEY_V1_HEX***'''
-tags = ["historical", "vorsitzer"]
-
-[[rules]]
 id = "ssh-runnable-command"
 description = "ssh command with -i <key> -p <port> root@host pattern (copy-pasteable attack target)"
 regex = '''ssh\s+-i\s+\S+\s+-p\s+\d+\s+\w+@\S+\.\S+'''
