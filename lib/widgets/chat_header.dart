@@ -14,6 +14,7 @@ class ConversationHeader extends StatelessWidget {
   final VoidCallback? onAufgabenTap;
   final int aufgabenTotal;
   final int aufgabenOffen;
+  final bool hasActiveScheduled;
 
   const ConversationHeader({
     super.key,
@@ -29,6 +30,7 @@ class ConversationHeader extends StatelessWidget {
     this.onAufgabenTap,
     this.aufgabenTotal = 0,
     this.aufgabenOffen = 0,
+    this.hasActiveScheduled = false,
   });
 
   @override
@@ -97,9 +99,14 @@ class ConversationHeader extends StatelessWidget {
           // Scheduled messages settings
           if (isOpen && onScheduledSettings != null)
             IconButton(
-              icon: Icon(Icons.schedule_send, color: Colors.amber.shade300),
+              icon: Icon(
+                Icons.schedule_send,
+                color: hasActiveScheduled ? Colors.greenAccent.shade400 : Colors.amber.shade300,
+              ),
               onPressed: onScheduledSettings,
-              tooltip: 'Automatische Nachrichten',
+              tooltip: hasActiveScheduled
+                  ? 'Automatische Nachrichten (aktiv)'
+                  : 'Automatische Nachrichten',
             ),
           // Mute toggle button
           if (isOpen)

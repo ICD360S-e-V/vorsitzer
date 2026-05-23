@@ -79,6 +79,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   // Aufgaben counts per conversation
   int _aufgabenTotal = 0;
   int _aufgabenOffen = 0;
+  bool _hasActiveScheduled = false;
 
   bool _isConnected = false;
   bool _isSending = false;
@@ -457,6 +458,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         }
 
         _loadAufgabenCount(_parseConvId(conversation['id']));
+        _loadScheduledStatus(_parseConvId(conversation['id']));
       }
     } catch (e) {
       if (mounted) {
@@ -473,6 +475,18 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         _aufgabenOffen = result['offen'] ?? 0;
       });
     }
+  }
+
+  Future<void> _loadScheduledStatus(int conversationId) async {
+    final result = await _apiService.getConversationScheduled(conversationId);
+    if (!mounted) return;
+    bool anyEnabled = false;
+    if (result['success'] == true && result['data'] is List) {
+      for (final m in (result['data'] as List)) {
+        if (m is Map && m['is_enabled'] == true) { anyEnabled = true; break; }
+      }
+    }
+    _safeSetState(() => _hasActiveScheduled = anyEnabled);
   }
 
   Future<void> _connectWebSocket() async {
@@ -2969,11 +2983,17 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           onCall: _startCall,
           onClose: _closeConversation,
           onMuteToggle: _showMuteOptions,
-          onScheduledSettings: () => _showConversationScheduledDialog(_selectedConversation!),
+          onScheduledSettings: () async {
+            await _showConversationScheduledDialog(_selectedConversation!);
+            if (_selectedConversation != null) {
+              _loadScheduledStatus(_parseConvId(_selectedConversation!['id']));
+            }
+          },
           onInfoTap: () => _showMemberInfoDialog(_selectedConversation!),
           onAufgabenTap: () => _showAufgabenDialog(_parseConvId(_selectedConversation!['id'])),
           aufgabenTotal: _aufgabenTotal,
           aufgabenOffen: _aufgabenOffen,
+          hasActiveScheduled: _hasActiveScheduled,
         ),
         const SizedBox(height: 8),
 
