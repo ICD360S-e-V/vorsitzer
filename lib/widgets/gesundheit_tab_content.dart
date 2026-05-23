@@ -12916,70 +12916,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               final artKey = a['art']?.toString() ?? 'zahnersatz';
               return Card(margin: const EdgeInsets.only(bottom: 8), child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () {
-                  showDialog(context: context, builder: (detCtx) => AlertDialog(
-                    title: Row(children: [
-                      Icon(Icons.gavel, size: 20, color: color.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('Härtefall — ${artLabels[artKey] ?? artKey}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
-                      IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade500), tooltip: 'Bearbeiten', onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
-                    ]),
-                    content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                      Row(children: [
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-                          child: Text(st, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
-                        const Spacer(),
-                        if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Antrag vom ${a['datum']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                      ]),
-                      const SizedBox(height: 12),
-                      if ((a['zahnarzt']?.toString() ?? '').isNotEmpty) ...[
-                        _buildHartefallDetailRow(Icons.person, 'Zahnarzt', a['zahnarzt'].toString()),
-                      ],
-                      if ((a['hkp_nr']?.toString() ?? '').isNotEmpty) ...[
-                        _buildHartefallDetailRow(Icons.description, 'Heil- und Kostenplan', a['hkp_nr'].toString()),
-                      ],
-                      if ((a['krankenkasse']?.toString() ?? '').isNotEmpty) ...[
-                        _buildHartefallDetailRow(Icons.health_and_safety, 'Krankenkasse', a['krankenkasse'].toString()),
-                      ],
-                      const SizedBox(height: 8),
-                      Divider(color: Colors.grey.shade200),
-                      const SizedBox(height: 8),
-                      Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        if ((a['einkommen']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Bruttoeinkommen', '${a['einkommen']} €/Monat', Colors.blue)),
-                        if ((a['haushaltsgroesse']?.toString() ?? '').isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(child: _buildHartefallInfoBox('Haushaltsgröße', '${a['haushaltsgroesse']} Person(en)', Colors.purple)),
-                        ],
-                      ]),
-                      const SizedBox(height: 8),
-                      Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        if ((a['gesamtkosten']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Gesamtkosten', '${a['gesamtkosten']} €', Colors.red)),
-                        if ((a['festzuschuss']?.toString() ?? '').isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(child: _buildHartefallInfoBox('Festzuschuss', '${a['festzuschuss']} €', Colors.green)),
-                        ],
-                        if ((a['eigenanteil']?.toString() ?? '').isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(child: _buildHartefallInfoBox('Eigenanteil', '${a['eigenanteil']} €', Colors.orange)),
-                        ],
-                      ]),
-                      if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Text('Notiz / Begründung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-                        const SizedBox(height: 4),
-                        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-                          child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
-                      ],
-                      const SizedBox(height: 16),
-                      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_haertefall_$type', korrespondenzId: i),
-                    ]))),
-                    actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
-                  ));
-                },
+                onTap: () => _showHartefallDetailModal(a, i, color, artKey, artLabels, st, type, data, saveAll, setLocal, addOrEdit),
                 child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
                   CircleAvatar(backgroundColor: color.shade100, child: Icon(artIcons[artKey] ?? Icons.gavel, color: color.shade700, size: 20)),
                   const SizedBox(width: 12),
@@ -13006,6 +12943,297 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             })),
       ]);
     });
+  }
+
+  static const _hfKorrKatLabels = {'email': 'E-Mail', 'fax': 'Fax', 'online': 'Online', 'telefonisch': 'Telefonisch'};
+  static const _hfKorrKatIcons = {'email': Icons.email, 'fax': Icons.fax, 'online': Icons.language, 'telefonisch': Icons.phone};
+  static const _hfKorrMitLabels = {'krankenkasse': 'Krankenkasse', 'praxis': 'Zahnarztpraxis'};
+  static const _hfKorrMitIcons = {'krankenkasse': Icons.health_and_safety, 'praxis': Icons.medical_services};
+
+  void _showHartefallDetailModal(Map<String, dynamic> a, int i, MaterialColor color, String artKey, Map<String, String> artLabels, String st, String type, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, void Function({Map<String, dynamic>? existing, int? editIndex}) addOrEdit) {
+    showDialog(context: context, builder: (detCtx) => StatefulBuilder(builder: (detCtx2, setModal) {
+      final korr = a['korrespondenz'] is List
+          ? List<Map<String, dynamic>>.from((a['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+          : <Map<String, dynamic>>[];
+      return AlertDialog(
+        title: Row(children: [
+          Icon(Icons.gavel, size: 20, color: color.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Härtefall — ${artLabels[artKey] ?? artKey}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
+          IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade500), tooltip: 'Bearbeiten',
+            onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
+        ]),
+        content: SizedBox(width: 560, height: 560, child: DefaultTabController(
+          length: 2,
+          child: Column(children: [
+            Container(
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+              child: TabBar(
+                labelColor: color.shade800,
+                unselectedLabelColor: Colors.grey.shade500,
+                indicatorColor: color.shade800,
+                tabs: [
+                  const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+                  Tab(icon: const Icon(Icons.mail, size: 16), text: 'Korrespondenz (${korr.length})'),
+                ],
+              ),
+            ),
+            Expanded(child: TabBarView(children: [
+              _buildHartefallDetailsView(a, st, type, color, i),
+              _buildHartefallKorrespondenzView(a, i, color, korr, data, saveAll, setLocal, setModal),
+            ])),
+          ]),
+        )),
+        actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
+      );
+    }));
+  }
+
+  Widget _buildHartefallDetailsView(Map<String, dynamic> a, String st, String type, MaterialColor color, int i) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
+            child: Text(st, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
+          const Spacer(),
+          if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Antrag vom ${a['datum']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ]),
+        const SizedBox(height: 12),
+        if ((a['zahnarzt']?.toString() ?? '').isNotEmpty) _buildHartefallDetailRow(Icons.person, 'Zahnarzt', a['zahnarzt'].toString()),
+        if ((a['hkp_nr']?.toString() ?? '').isNotEmpty) _buildHartefallDetailRow(Icons.description, 'Heil- und Kostenplan', a['hkp_nr'].toString()),
+        if ((a['krankenkasse']?.toString() ?? '').isNotEmpty) _buildHartefallDetailRow(Icons.health_and_safety, 'Krankenkasse', a['krankenkasse'].toString()),
+        const SizedBox(height: 8),
+        Divider(color: Colors.grey.shade200),
+        const SizedBox(height: 8),
+        Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 6),
+        Row(children: [
+          if ((a['einkommen']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Bruttoeinkommen', '${a['einkommen']} €/Monat', Colors.blue)),
+          if ((a['haushaltsgroesse']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Expanded(child: _buildHartefallInfoBox('Haushaltsgröße', '${a['haushaltsgroesse']} Person(en)', Colors.purple)),
+          ],
+        ]),
+        const SizedBox(height: 8),
+        Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 6),
+        Row(children: [
+          if ((a['gesamtkosten']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Gesamtkosten', '${a['gesamtkosten']} €', Colors.red)),
+          if ((a['festzuschuss']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Expanded(child: _buildHartefallInfoBox('Festzuschuss', '${a['festzuschuss']} €', Colors.green)),
+          ],
+          if ((a['eigenanteil']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Expanded(child: _buildHartefallInfoBox('Eigenanteil', '${a['eigenanteil']} €', Colors.orange)),
+          ],
+        ]),
+        if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Notiz / Begründung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
+        ],
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_haertefall_$type', korrespondenzId: i),
+      ]),
+    );
+  }
+
+  Widget _buildHartefallKorrespondenzView(Map<String, dynamic> a, int i, MaterialColor color, List<Map<String, dynamic>> korr, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, StateSetter setModal) {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(8), child: Row(children: [
+        Icon(Icons.mail, size: 16, color: color.shade700),
+        const SizedBox(width: 6),
+        Text('Korrespondenz mit Krankenkasse & Praxis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800)),
+        const Spacer(),
+        FilledButton.icon(
+          onPressed: () => _addHartefallKorr(a, i, data, saveAll, setLocal, setModal),
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: color.shade700, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+        ),
+      ])),
+      Expanded(child: korr.isEmpty
+        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.mail_outline, size: 40, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text('Keine Korrespondenz vorhanden', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+          ]))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: korr.length, itemBuilder: (_, ki) {
+            final k = korr[ki];
+            final isEin = k['richtung'] == 'eingehend';
+            final mit = k['mit']?.toString() ?? 'krankenkasse';
+            final kat = k['kategorie']?.toString() ?? 'email';
+            final dirColor = isEin ? Colors.blue : Colors.green;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 6),
+              child: ListTile(
+                dense: true,
+                leading: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: dirColor.shade100,
+                  child: Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 16, color: dirColor.shade700),
+                ),
+                title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                subtitle: Row(children: [
+                  Icon(_hfKorrMitIcons[mit] ?? Icons.business, size: 10, color: Colors.grey.shade600),
+                  const SizedBox(width: 3),
+                  Text(_hfKorrMitLabels[mit] ?? mit, style: const TextStyle(fontSize: 10)),
+                  const SizedBox(width: 8),
+                  Text('• ${k['datum'] ?? ''}', style: const TextStyle(fontSize: 10)),
+                  const SizedBox(width: 6),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: dirColor.shade50, borderRadius: BorderRadius.circular(4)),
+                    child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 9, color: dirColor.shade800, fontWeight: FontWeight.bold))),
+                  const SizedBox(width: 4),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+                    child: Text(_hfKorrKatLabels[kat] ?? kat, style: TextStyle(fontSize: 9, color: Colors.grey.shade700))),
+                ]),
+                trailing: IconButton(
+                  icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: () {
+                    final list = List<Map<String, dynamic>>.from(korr)..removeAt(ki);
+                    a['korrespondenz'] = list;
+                    final outer = List<dynamic>.from(data['haertefall'] as List);
+                    outer[i] = a;
+                    data['haertefall'] = outer;
+                    saveAll();
+                    setModal(() {});
+                    setLocal(() {});
+                  },
+                ),
+                onTap: () => _showHartefallKorrDetail(k),
+              ),
+            );
+          })),
+    ]);
+  }
+
+  void _addHartefallKorr(Map<String, dynamic> a, int i, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, StateSetter setModal) {
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    String richtung = 'ausgehend';
+    String mit = 'krankenkasse';
+    String kategorie = 'email';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.mail, size: 18, color: Colors.indigo.shade700),
+        const SizedBox(width: 8),
+        const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15)),
+      ]),
+      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Mit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Row(children: _hfKorrMitLabels.entries.map((e) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            avatar: Icon(_hfKorrMitIcons[e.key], size: 14),
+            label: Text(e.value, style: const TextStyle(fontSize: 12)),
+            selected: mit == e.key,
+            selectedColor: Colors.indigo.shade100,
+            onSelected: (_) => setDlg(() => mit = e.key),
+          ),
+        )).toList()),
+        const SizedBox(height: 10),
+        Text('Richtung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Row(children: [
+          ChoiceChip(label: const Text('Ausgang', style: TextStyle(fontSize: 12)), avatar: const Icon(Icons.call_made, size: 14),
+            selected: richtung == 'ausgehend', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('Eingang', style: TextStyle(fontSize: 12)), avatar: const Icon(Icons.call_received, size: 14),
+            selected: richtung == 'eingehend', selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'eingehend')),
+        ]),
+        const SizedBox(height: 10),
+        Text('Kategorie', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 6, children: _hfKorrKatLabels.entries.map((e) => ChoiceChip(
+          avatar: Icon(_hfKorrKatIcons[e.key], size: 14),
+          label: Text(e.value, style: const TextStyle(fontSize: 12)),
+          selected: kategorie == e.key,
+          selectedColor: Colors.indigo.shade100,
+          onSelected: (_) => setDlg(() => kategorie = e.key),
+        )).toList()),
+        const SizedBox(height: 12),
+        TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () {
+          final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+          final newKorr = {
+            'betreff': betreffC.text.trim(),
+            'notiz': notizC.text.trim(),
+            'datum': today,
+            'richtung': richtung,
+            'mit': mit,
+            'kategorie': kategorie,
+          };
+          final existing = a['korrespondenz'] is List
+              ? List<Map<String, dynamic>>.from((a['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+              : <Map<String, dynamic>>[];
+          existing.insert(0, newKorr);
+          a['korrespondenz'] = existing;
+          final outer = List<dynamic>.from(data['haertefall'] as List);
+          outer[i] = a;
+          data['haertefall'] = outer;
+          saveAll();
+          Navigator.pop(ctx);
+          setModal(() {});
+          setLocal(() {});
+        }, child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  void _showHartefallKorrDetail(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingehend';
+    final dirColor = isEin ? Colors.blue : Colors.green;
+    final kat = k['kategorie']?.toString() ?? 'email';
+    final mit = k['mit']?.toString() ?? 'krankenkasse';
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 18, color: dirColor.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: dirColor.shade800))),
+      ]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: dirColor.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: dirColor.shade800))),
+          const SizedBox(width: 6),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(_hfKorrMitIcons[mit] ?? Icons.business, size: 12, color: Colors.grey.shade700),
+              const SizedBox(width: 3),
+              Text(_hfKorrMitLabels[mit] ?? mit, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            ])),
+          const SizedBox(width: 6),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 12, color: Colors.grey.shade700),
+              const SizedBox(width: 3),
+              Text(_hfKorrKatLabels[kat] ?? kat, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            ])),
+          const Spacer(),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ]),
+        if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+        ],
+      ]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
   }
 
   Widget _buildHartefallDetailRow(IconData icon, String label, String value) {
