@@ -12980,7 +12980,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             ),
             Expanded(child: TabBarView(children: [
               _buildHartefallDetailsView(a, st, type, color, i),
-              _buildHartefallKorrespondenzView(a, i, color, korr, data, saveAll, setLocal, setModal),
+              _buildHartefallKorrespondenzView(a, i, color, korr, data, saveAll, setLocal, setModal, type),
             ])),
           ]),
         )),
@@ -13042,7 +13042,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
-  Widget _buildHartefallKorrespondenzView(Map<String, dynamic> a, int i, MaterialColor color, List<Map<String, dynamic>> korr, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, StateSetter setModal) {
+  Widget _buildHartefallKorrespondenzView(Map<String, dynamic> a, int i, MaterialColor color, List<Map<String, dynamic>> korr, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, StateSetter setModal, String type) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
         Icon(Icons.mail, size: 16, color: color.shade700),
@@ -13108,7 +13108,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     setLocal(() {});
                   },
                 ),
-                onTap: () => _showHartefallKorrDetail(k),
+                onTap: () => _showHartefallKorrDetail(k, type),
               ),
             );
           })),
@@ -13170,6 +13170,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         FilledButton(onPressed: () {
           final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
           final newKorr = {
+            'id': DateTime.now().millisecondsSinceEpoch,
             'betreff': betreffC.text.trim(),
             'notiz': notizC.text.trim(),
             'datum': today,
@@ -13194,18 +13195,19 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     )));
   }
 
-  void _showHartefallKorrDetail(Map<String, dynamic> k) {
+  void _showHartefallKorrDetail(Map<String, dynamic> k, String type) {
     final isEin = k['richtung'] == 'eingehend';
     final dirColor = isEin ? Colors.blue : Colors.green;
     final kat = k['kategorie']?.toString() ?? 'email';
     final mit = k['mit']?.toString() ?? 'krankenkasse';
+    final korrId = k['id'] is int ? k['id'] as int : int.tryParse(k['id']?.toString() ?? '') ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
         Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 18, color: dirColor.shade700),
         const SizedBox(width: 8),
         Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: dirColor.shade800))),
       ]),
-      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: dirColor.shade100, borderRadius: BorderRadius.circular(8)),
             child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: dirColor.shade800))),
@@ -13231,6 +13233,16 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
         ],
+        const SizedBox(height: 16),
+        Divider(color: Colors.grey.shade200),
+        const SizedBox(height: 8),
+        Row(children: [
+          Icon(Icons.attach_file, size: 14, color: Colors.grey.shade700),
+          const SizedBox(width: 6),
+          Text('Anhänge zu dieser Korrespondenz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        ]),
+        const SizedBox(height: 8),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gesundheit_haertefall_${type}_korr', korrespondenzId: korrId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
