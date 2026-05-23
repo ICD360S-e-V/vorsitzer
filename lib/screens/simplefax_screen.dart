@@ -21,6 +21,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
   List<Map<String, dynamic>> _rechnungen = [];
   List<Map<String, dynamic>> _mail2fax = [];
   Map<String, dynamic> _notifySettings = {};
+  Map<String, dynamic> _verifizierung = {};
   bool _editing = false;
   bool _showPassword = false;
 
@@ -90,6 +91,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       if (nRes['success'] == true && nRes['notify_settings'] is Map) {
         _notifySettings = Map<String, dynamic>.from(nRes['notify_settings'] as Map);
       }
+      final vRes = await widget.apiService.simplefaxAction({'action': 'get_verifizierung'});
+      if (vRes['success'] == true && vRes['verifizierung'] is Map) {
+        _verifizierung = Map<String, dynamic>.from(vRes['verifizierung'] as Map);
+      }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
@@ -147,7 +152,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : DefaultTabController(
-                    length: 7,
+                    length: 8,
                     child: Column(children: [
                       TabBar(
                         isScrollable: true,
@@ -162,6 +167,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                           Tab(icon: Icon(Icons.euro, size: 16), text: 'Preise'),
                           Tab(icon: Icon(Icons.manage_accounts, size: 16), text: 'Kontoeinstellungen'),
                           Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
+                          Tab(icon: Icon(Icons.verified_user, size: 16), text: 'Verifizierung'),
                         ],
                       ),
                       Expanded(child: TabBarView(children: [
@@ -172,6 +178,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                         _buildPreiseTab(),
                         _buildKontoeinstellungenTab(),
                         _buildKorrespondenzTab(),
+                        _buildVerifizierungTab(),
                       ])),
                     ]),
                   ),
@@ -918,6 +925,231 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900)),
       ]),
     );
+  }
+
+  // ===== TAB 8: VERIFIZIERUNG =====
+  static const Map<String, Map<String, dynamic>> _verifStatusMap = {
+    'nicht_verifiziert': {'label': 'Nicht verifiziert', 'color': Colors.grey, 'icon': Icons.help_outline},
+    'in_pruefung': {'label': 'In Prüfung', 'color': Colors.orange, 'icon': Icons.hourglass_top},
+    'verifiziert': {'label': 'Verifiziert', 'color': Colors.green, 'icon': Icons.verified},
+    'abgelehnt': {'label': 'Abgelehnt', 'color': Colors.red, 'icon': Icons.cancel},
+  };
+
+  static const Map<String, Map<String, dynamic>> _verifMethodeMap = {
+    'handelsregister': {'label': 'Handelsregister-Auszug (Verein/Firma)', 'icon': Icons.business, 'hint': 'Für Vereine: Vereinsregister-Auszug (VR-Nummer)'},
+    'adressnachweis': {'label': 'Adressnachweis (Privatperson)', 'icon': Icons.home, 'hint': 'Meldebescheinigung, Mietvertrag, etc.'},
+    'ausweis': {'label': 'Personalausweis / Reisepass', 'icon': Icons.badge, 'hint': 'Vorder- und Rückseite'},
+    'sonstiges': {'label': 'Sonstiges Dokument', 'icon': Icons.description, 'hint': 'Andere offizielle Nachweise'},
+  };
+
+  Widget _buildVerifizierungTab() {
+    final statusKey = _verifizierung['status']?.toString() ?? 'nicht_verifiziert';
+    final status = _verifStatusMap[statusKey] ?? _verifStatusMap['nicht_verifiziert']!;
+    final methodeKey = _verifizierung['methode']?.toString() ?? 'handelsregister';
+    final methode = _verifMethodeMap[methodeKey] ?? _verifMethodeMap['handelsregister']!;
+    final datum = _verifizierung['datum']?.toString() ?? '';
+    final notiz = _verifizierung['notiz']?.toString() ?? '';
+    final statusColor = status['color'] as MaterialColor;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.verified_user, color: Colors.orange.shade700, size: 22),
+          const SizedBox(width: 8),
+          Text('Konto-Verifizierung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.lock, size: 10, color: Colors.orange.shade700),
+              const SizedBox(width: 3),
+              Text('AES-256', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+            ]),
+          ),
+          const Spacer(),
+          OutlinedButton.icon(
+            onPressed: _showVerifizierungDialog,
+            icon: const Icon(Icons.edit, size: 14),
+            label: const Text('Bearbeiten', style: TextStyle(fontSize: 12)),
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.orange.shade700, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Text('Status der Konto-Verifizierung bei SimpleFax', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const SizedBox(height: 20),
+
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [statusColor.shade500, statusColor.shade700], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [BoxShadow(color: statusColor.shade100, blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Row(children: [
+            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
+              child: Icon(status['icon'] as IconData, size: 32, color: Colors.white)),
+            const SizedBox(width: 16),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Verifizierungsstatus', style: TextStyle(color: Colors.white, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(status['label'] as String, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              if (datum.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Eingereicht am: $datum', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12)),
+              ],
+            ])),
+          ]),
+        ),
+
+        const SizedBox(height: 20),
+        Text('Verifizierungsmethode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+          child: Row(children: [
+            Icon(methode['icon'] as IconData, color: Colors.blue.shade700, size: 24),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(methode['label'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+              const SizedBox(height: 2),
+              Text(methode['hint'] as String, style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
+            ])),
+          ]),
+        ),
+
+        if (notiz.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Notiz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(notiz, style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.shade200)),
+          child: Row(children: [
+            Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Hinweis für Vereine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              const SizedBox(height: 2),
+              Text(
+                'ICD360S e.V. wird als Verein verifiziert. Lade hier den aktuellen Vereinsregister-Auszug (Handelsregister äquivalent) hoch — VR-Nummer + Bestätigung des Vorstands.',
+                style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+              ),
+            ])),
+          ]),
+        ),
+
+        const SizedBox(height: 20),
+        Row(children: [
+          Icon(Icons.attach_file, size: 18, color: Colors.orange.shade700),
+          const SizedBox(width: 6),
+          Text('Verifizierungsdokumente', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        ]),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
+          child: KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            modul: 'simplefax_verifizierung',
+            korrespondenzId: 1,
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showVerifizierungDialog() {
+    String statusSel = _verifizierung['status']?.toString().isNotEmpty == true
+        ? _verifizierung['status'].toString()
+        : 'nicht_verifiziert';
+    String methodeSel = _verifizierung['methode']?.toString().isNotEmpty == true
+        ? _verifizierung['methode'].toString()
+        : 'handelsregister';
+    final datumC = TextEditingController(text: _verifizierung['datum']?.toString() ?? '');
+    final notizC = TextEditingController(text: _verifizierung['notiz']?.toString() ?? '');
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.edit, size: 20, color: Colors.orange.shade700),
+        const SizedBox(width: 8),
+        const Text('Verifizierung bearbeiten', style: TextStyle(fontSize: 16)),
+      ]),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, runSpacing: 6, children: _verifStatusMap.entries.map((e) {
+          final c = e.value['color'] as MaterialColor;
+          return ChoiceChip(
+            avatar: Icon(e.value['icon'] as IconData, size: 14, color: c.shade700),
+            label: Text(e.value['label'] as String, style: const TextStyle(fontSize: 11)),
+            selected: statusSel == e.key,
+            selectedColor: c.shade100,
+            onSelected: (_) => setDlg(() => statusSel = e.key),
+          );
+        }).toList()),
+        const SizedBox(height: 14),
+        Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 6),
+        Column(children: _verifMethodeMap.entries.map((e) => RadioListTile<String>(
+          dense: true,
+          value: e.key,
+          groupValue: methodeSel,
+          onChanged: (v) => setDlg(() => methodeSel = v!),
+          title: Row(children: [
+            Icon(e.value['icon'] as IconData, size: 14, color: Colors.blue.shade700),
+            const SizedBox(width: 6),
+            Text(e.value['label'] as String, style: const TextStyle(fontSize: 12)),
+          ]),
+          subtitle: Text(e.value['hint'] as String, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          contentPadding: EdgeInsets.zero,
+        )).toList()),
+        const SizedBox(height: 10),
+        TextField(controller: datumC,
+          decoration: InputDecoration(labelText: 'Eingereicht am (TT.MM.JJJJ)', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 3,
+          decoration: InputDecoration(labelText: 'Notiz', hintText: 'Bemerkungen zur Verifizierung...', isDense: true, prefixIcon: const Icon(Icons.note, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton.icon(
+          onPressed: () async {
+            final res = await widget.apiService.simplefaxAction({
+              'action': 'save_verifizierung',
+              'status': statusSel,
+              'methode': methodeSel,
+              'datum': datumC.text.trim(),
+              'notiz': notizC.text.trim(),
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(res['success'] == true ? 'Gespeichert' : (res['message']?.toString() ?? 'Fehler')),
+                backgroundColor: res['success'] == true ? Colors.green : Colors.red,
+                duration: const Duration(seconds: 1),
+              ));
+            }
+            _load();
+          },
+          icon: const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
+        ),
+      ],
+    )));
   }
 
   // ===== TAB 6: KONTOEINSTELLUNGEN =====
