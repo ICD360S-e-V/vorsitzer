@@ -81,9 +81,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
           setState(() {
             _currentUrl = url;
           });
-          // Angular SPA routes change the URL without firing navigationCompleted.
-          // Re-kick the go2doc filler so newly-mounted form inputs get filled.
-          _tryGo2DocAutoFill();
         }
       });
 
@@ -223,12 +220,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _autoFillDone = false;
   int _autoFillAttempts = 0;
 
+  bool _go2docInjected = false;
 
-  /// Inject Go2Doc patient form auto-fill. Safe to call repeatedly — the JS
-  /// installs itself once per window via `window.__icdGo2DocFiller`; subsequent
-  /// calls just `kick()` to re-fill any newly appeared inputs.
+  /// Inject Go2Doc patient form auto-fill (stage 3: Vorname, Nachname, Geburtsdatum, Email, Versicherung, Einwilligung)
   Future<void> _tryGo2DocAutoFill() async {
-    if (widget.go2docAutoFill == null || widget.go2docAutoFill!.isEmpty) return;
+    if (_go2docInjected || widget.go2docAutoFill == null || widget.go2docAutoFill!.isEmpty) return;
     final d = widget.go2docAutoFill!;
     final vorname = (d['vorname'] ?? '').replaceAll("'", "\\'");
     final nachname = (d['nachname'] ?? '').replaceAll("'", "\\'");
@@ -248,46 +244,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final email = (d['email'] ?? 'icd@icd360s.de').replaceAll("'", "\\'");
     final versicherung = d['versicherung'] ?? 'gesetzlich';
 
-    // Persistent self-installing filler: injects ONCE, then watches the DOM
-    // forever via MutationObserver (handles Angular SPA route changes where
-    // the form appears after the user clicks "Termin vereinbaren") and also
-    // polls every second for up to 5 minutes as a fallback.
     final js = '''
 (function() {
-  if (window.__icdGo2DocFiller) { window.__icdGo2DocFiller.kick(); return 'already-installed'; }
-
-  var d = {
-    vorname: '$vorname',
-    nachname: '$nachname',
-    gebTag: '$gebTag',
-    gebMonat: '$gebMonat',
-    gebJahr: '$gebJahr',
-    gebISO: '$gebDatumISO',
-    gebDE: '$gebDatumDE',
-    gebSlash: '$gebDatumSlash',
-    email: '$email',
-    versicherung: '$versicherung'
-  };
-
   function setVal(el, val) {
     if (!el) return false;
-    try {
-      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-      if (setter) setter.call(el, val);
-      else el.value = val;
-      el.dispatchEvent(new Event('input', {bubbles: true}));
-      el.dispatchEvent(new Event('change', {bubbles: true}));
-      el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-      el.dispatchEvent(new Event('blur', {bubbles: true}));
-      return true;
-    } catch(e) { return false; }
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    if (setter) setter.call(el, val);
+    else el.value = val;
+    el.dispatchEvent(new Event('input', {bubbles: true}));
+    el.dispatchEvent(new Event('change', {bubbles: true}));
+    return true;
   }
   function setSelect(el, val) {
     if (!el) return false;
-    var v = (val || '').toLowerCase();
     for (var i = 0; i < el.options.length; i++) {
-      var opt = el.options[i];
-      if ((opt.value || '').toLowerCase() == v || (opt.text || '').toLowerCase().indexOf(v) >= 0) {
+      if (el.options[i].value == val || el.options[i].text.toLowerCase().indexOf(val.toLowerCase()) >= 0) {
         el.selectedIndex = i;
         el.dispatchEvent(new Event('change', {bubbles: true}));
         return true;
@@ -295,134 +266,87 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
     return false;
   }
-  function labelFor(el) {
-    if (!el.id) return '';
-    var l = document.querySelector('label[for="' + el.id + '"]');
-    return l ? (l.textContent || '').toLowerCase() : '';
+
+  var inputs = document.querySelectorAll('input, select, textarea');
+  var filled = 0;
+  for (var el of inputs) {
+    var ph = (el.placeholder || '').toLowerCase();
+    var nm = (el.name || '').toLowerCase();
+    var id = (el.id || '').toLowerCase();
+    var lbl = '';
+    if (el.id) { var l = document.querySelector('label[for="' + el.id + '"]'); if (l) lbl = l.textContent.toLowerCase(); }
+
+    if (ph.indexOf('vorname') >= 0 || nm.indexOf('vorname') >= 0 || nm.indexOf('firstname') >= 0 || lbl.indexOf('vorname') >= 0 || id.indexOf('vorname') >= 0 || id.indexOf('firstname') >= 0) {
+      if (setVal(el, '$vorname')) filled++;
+    } else if (ph.indexOf('nachname') >= 0 || nm.indexOf('nachname') >= 0 || nm.indexOf('lastname') >= 0 || nm.indexOf('surname') >= 0 || lbl.indexOf('nachname') >= 0 || id.indexOf('nachname') >= 0 || id.indexOf('lastname') >= 0) {
+      if (setVal(el, '$nachname')) filled++;
+    } else if (lbl.indexOf('geburtsdatum') >= 0 || lbl.indexOf('birthdate') >= 0 || ph.indexOf('geburtsdatum') >= 0 || ph.indexOf('tt.mm') >= 0 || nm.indexOf('birthdate') >= 0 || nm.indexOf('geburt') >= 0 || id.indexOf('birthdate') >= 0 || id.indexOf('geburt') >= 0) {
+      if ('$gebDatumISO') {
+        if (el.type === 'date') { if (setVal(el, '$gebDatumISO')) filled++; }
+        else { if (setVal(el, '$gebDatumDE') || setVal(el, '$gebDatumSlash') || setVal(el, '$gebDatumISO')) filled++; }
+        // Also try setting Angular ngModel directly
+        try {
+          var ngEl = window.ng && window.ng.getComponent ? window.ng.getComponent(el) : null;
+          if (!ngEl) { var scope = angular && angular.element && angular.element(el).scope(); if (scope) { scope.Birthdate = '$gebDatumDE'; scope.\$apply(); filled++; } }
+        } catch(e2) {}
+      }
+    } else if (ph.indexOf('e-mail') >= 0 || ph.indexOf('email') >= 0 || nm.indexOf('email') >= 0 || el.type === 'email' || lbl.indexOf('email') >= 0 || lbl.indexOf('e-mail') >= 0) {
+      if (setVal(el, '$email')) filled++;
+    } else if (el.tagName === 'SELECT' && (nm.indexOf('versicher') >= 0 || id.indexOf('versicher') >= 0 || lbl.indexOf('versicher') >= 0 || lbl.indexOf('kranken') >= 0 || lbl.indexOf('kassenart') >= 0)) {
+      if (setSelect(el, '$versicherung')) filled++;
+    }
   }
 
-  function tryFill() {
-    var inputs = document.querySelectorAll('input, select, textarea');
-    var filled = 0;
-    for (var el of inputs) {
-      if (el.dataset.__icdFilled === '1') continue;        // skip already filled
-      var ph = (el.placeholder || '').toLowerCase();
-      var nm = (el.name || '').toLowerCase();
-      var id = (el.id || '').toLowerCase();
-      var lbl = labelFor(el);
-      var hay = ph + ' ' + nm + ' ' + id + ' ' + lbl;
-      var didFill = false;
-
-      if (/vorname|firstname|first.name/.test(hay) && d.vorname) {
-        didFill = setVal(el, d.vorname);
-      } else if (/nachname|lastname|surname|last.name|family.name/.test(hay) && d.nachname) {
-        didFill = setVal(el, d.nachname);
-      } else if (el.tagName === 'SELECT' && /\\btag\\b/.test(hay) && d.gebTag) {
-        // Split day-of-month dropdown (common in German medical forms)
-        didFill = setSelect(el, d.gebTag);
-      } else if (el.tagName === 'SELECT' && /\\bmonat\\b/.test(hay) && d.gebMonat) {
-        didFill = setSelect(el, d.gebMonat);
-      } else if (el.tagName === 'SELECT' && /\\bjahr\\b/.test(hay) && d.gebJahr) {
-        didFill = setSelect(el, d.gebJahr);
-      } else if (/geburtsdatum|geburtstag|birth.?date|geburt|dob/.test(hay) && d.gebISO) {
-        if (el.type === 'date') didFill = setVal(el, d.gebISO);
-        else didFill = setVal(el, d.gebDE) || setVal(el, d.gebSlash) || setVal(el, d.gebISO);
-      } else if ((el.type === 'email' || /e.?mail/.test(hay)) && d.email) {
-        didFill = setVal(el, d.email);
-      } else if (el.tagName === 'SELECT' && /versicher|kranken|kassenart|insurance/.test(hay) && d.versicherung) {
-        didFill = setSelect(el, d.versicherung);
-      } else if (/(^| )name( |\$)/.test(hay) && d.nachname && !el.value) {
-        // Fallback: very generic input named just "name" (no firstname/vorname/email markers)
-        // Only fire if the field is empty to avoid clobbering separate firstname inputs
-        didFill = setVal(el, d.nachname);
-      }
-
-      if (didFill) { el.dataset.__icdFilled = '1'; filled++; }
-    }
-
-    // Fallback: hunt Geburtsdatum by scanning labels in Angular forms
-    if (d.gebDE) {
-      var labels = document.querySelectorAll('label');
-      for (var lb of labels) {
-        var t = (lb.textContent || '').trim().toLowerCase();
-        if (t.indexOf('geburtsdatum') >= 0 || t.indexOf('geburtstag') >= 0) {
-          var container = lb.closest('.form-group') || lb.closest('div') || lb.parentElement;
-          if (container) {
-            var inp = container.querySelector('input');
-            if (inp && !inp.value && inp.dataset.__icdFilled !== '1') {
-              var v = inp.type === 'date' ? d.gebISO : d.gebDE;
-              if (setVal(inp, v)) { inp.dataset.__icdFilled = '1'; filled++; }
-            }
+  // Fallback: find Geburtsdatum by scanning labels directly (Go2Doc Angular)
+  if ('$gebDatumDE') {
+    var labels = document.querySelectorAll('label');
+    for (var lb of labels) {
+      if (lb.textContent.trim().toLowerCase().indexOf('geburtsdatum') >= 0) {
+        var container = lb.closest('.form-group') || lb.closest('div') || lb.parentElement;
+        if (container) {
+          var inp = container.querySelector('input');
+          if (inp && !inp.value) {
+            var dateVal = inp.type === 'date' ? '$gebDatumISO' : '$gebDatumDE';
+            if (setVal(inp, dateVal)) filled++;
           }
         }
       }
     }
+  }
 
-    // Auto-check Einwilligung / Datenschutz / Go2Doc consent
-    var checkboxes = document.querySelectorAll('input[type="checkbox"]');
-    for (var cb of checkboxes) {
-      if (cb.dataset.__icdFilled === '1') continue;
-      var parent = cb.closest('label') || cb.parentElement;
-      var txt = parent ? (parent.textContent || '').toLowerCase() : '';
-      if (/willige ein|einwillig|datenschutz|go2doc|akzeptier/.test(txt)) {
-        if (!cb.checked) { cb.click(); cb.dataset.__icdFilled = '1'; filled++; }
-      }
+  // Auto-check consent checkbox
+  var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  for (var cb of checkboxes) {
+    var parent = cb.closest('label') || cb.parentElement;
+    var txt = parent ? parent.textContent.toLowerCase() : '';
+    if (txt.indexOf('willige ein') >= 0 || txt.indexOf('einwillig') >= 0 || txt.indexOf('datenschutz') >= 0 || txt.indexOf('go2doc') >= 0) {
+      if (!cb.checked) { cb.click(); filled++; }
     }
-
-    return filled;
   }
 
-  var totalFilled = 0;
-  var pollCount = 0;
-  var pollMax = 300; // 5 minutes of 1-second polls
-
-  function kick() {
-    var n = tryFill();
-    totalFilled += n;
-    if (n > 0) { try { console.log('[ICD-Autofill] +' + n + ' fields (total: ' + totalFilled + ')'); } catch(e) {} }
-  }
-
-  // 1) Run now (form may already be on the page).
-  kick();
-
-  // 2) Watch DOM mutations — fires immediately when Angular swaps the route
-  //    (Termin vereinbaren button → patient form), no page reload needed.
-  try {
-    var observer = new MutationObserver(function(mutations) {
-      // Cheap throttle: only kick if at least one mutation actually added nodes
-      var dirty = false;
-      for (var m of mutations) {
-        if (m.addedNodes && m.addedNodes.length > 0) { dirty = true; break; }
-      }
-      if (dirty) kick();
-    });
-    observer.observe(document.documentElement, {childList: true, subtree: true});
-  } catch(e) {}
-
-  // 3) Fallback poll — slow heartbeat for cases where MutationObserver misses
-  //    (e.g., inputs get a new attribute but no node-add).
-  var pollTimer = setInterval(function() {
-    pollCount++;
-    kick();
-    if (pollCount >= pollMax) clearInterval(pollTimer);
-  }, 1000);
-
-  window.__icdGo2DocFiller = { kick: kick, totalFilled: function() { return totalFilled; } };
-  return 'installed';
+  return filled;
 })();
 ''';
 
-    // Inject the JS. It's safe to call repeatedly — the JS guards on
-    // `window.__icdGo2DocFiller` and just `kick()`s on re-installation calls.
-    try {
-      if (_mobileController != null) {
-        await _mobileController!.runJavaScriptReturningResult(js);
-      } else if (_windowsController != null) {
-        await _windowsController!.executeScript(js);
+    // Retry up to 10 times (Angular SPA loads fields dynamically)
+    for (int attempt = 0; attempt < 10; attempt++) {
+      await Future.delayed(Duration(milliseconds: attempt < 3 ? 1000 : 2000));
+      try {
+        dynamic result;
+        if (_mobileController != null) {
+          result = await _mobileController!.runJavaScriptReturningResult(js);
+        } else if (_windowsController != null) {
+          result = await _windowsController!.executeScript(js);
+        }
+        final filled = int.tryParse(result?.toString() ?? '0') ?? 0;
+        if (filled > 0) {
+          debugPrint('[WebView] Go2Doc auto-fill: $filled fields filled (attempt ${attempt + 1})');
+          _go2docInjected = true;
+          return;
+        }
+      } catch (e) {
+        debugPrint('[WebView] Go2Doc auto-fill attempt ${attempt + 1} error: $e');
       }
-      debugPrint('[WebView] Go2Doc filler installed (self-polling + MutationObserver)');
-    } catch (e) {
-      debugPrint('[WebView] Go2Doc filler install error: $e');
     }
   }
 
