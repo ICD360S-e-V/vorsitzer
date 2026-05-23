@@ -259,6 +259,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
   var d = {
     vorname: '$vorname',
     nachname: '$nachname',
+    gebTag: '$gebTag',
+    gebMonat: '$gebMonat',
+    gebJahr: '$gebJahr',
     gebISO: '$gebDatumISO',
     gebDE: '$gebDatumDE',
     gebSlash: '$gebDatumSlash',
@@ -314,6 +317,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
         didFill = setVal(el, d.vorname);
       } else if (/nachname|lastname|surname|last.name|family.name/.test(hay) && d.nachname) {
         didFill = setVal(el, d.nachname);
+      } else if (el.tagName === 'SELECT' && /\\btag\\b/.test(hay) && d.gebTag) {
+        // Split day-of-month dropdown (common in German medical forms)
+        didFill = setSelect(el, d.gebTag);
+      } else if (el.tagName === 'SELECT' && /\\bmonat\\b/.test(hay) && d.gebMonat) {
+        didFill = setSelect(el, d.gebMonat);
+      } else if (el.tagName === 'SELECT' && /\\bjahr\\b/.test(hay) && d.gebJahr) {
+        didFill = setSelect(el, d.gebJahr);
       } else if (/geburtsdatum|geburtstag|birth.?date|geburt|dob/.test(hay) && d.gebISO) {
         if (el.type === 'date') didFill = setVal(el, d.gebISO);
         else didFill = setVal(el, d.gebDE) || setVal(el, d.gebSlash) || setVal(el, d.gebISO);
@@ -321,6 +331,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
         didFill = setVal(el, d.email);
       } else if (el.tagName === 'SELECT' && /versicher|kranken|kassenart|insurance/.test(hay) && d.versicherung) {
         didFill = setSelect(el, d.versicherung);
+      } else if (/(^| )name( |\$)/.test(hay) && d.nachname && !el.value) {
+        // Fallback: very generic input named just "name" (no firstname/vorname/email markers)
+        // Only fire if the field is empty to avoid clobbering separate firstname inputs
+        didFill = setVal(el, d.nachname);
       }
 
       if (didFill) { el.dataset.__icdFilled = '1'; filled++; }
