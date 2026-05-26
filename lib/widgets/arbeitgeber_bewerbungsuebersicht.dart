@@ -386,74 +386,255 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
   // ─── DETAILS TAB ───
   Widget _detailsTab(Map<String, dynamic> ag, String notes, Future<void> Function(String) onNotesSave) {
     final notesC = TextEditingController(text: notes);
-    Widget infoRow(IconData icon, String label, String? value) {
-      if (value == null || value.isEmpty) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: Colors.deepPurple.shade400),
-          const SizedBox(width: 8),
-          SizedBox(width: 130, child: Text('$label:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-          Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-        ]),
-      );
-    }
 
+    final firmaName = ag['firma_name']?.toString() ?? '';
+    final firmaKurz = ag['firma_kurz']?.toString() ?? '';
+    final branche = ag['branche']?.toString() ?? '';
+    final rechtsform = ag['rechtsform']?.toString() ?? '';
+    final website = ag['website']?.toString() ?? '';
+    final geschaeftsfuehrer = ag['geschaeftsfuehrer']?.toString() ?? '';
+    final ansprechpartner = ag['ansprechpartner_name']?.toString() ?? '';
+    final registergericht = ag['registergericht']?.toString() ?? '';
+    final registernummer = ag['registernummer']?.toString() ?? '';
+    final steuernummer = ag['steuernummer']?.toString() ?? '';
+    final ustId = ag['ust_id']?.toString() ?? '';
+
+    final initial = firmaName.isNotEmpty ? firmaName.substring(0, 1).toUpperCase() : '?';
+
+    // Hauptzentrale
     final hStrasse = ag['hauptzentrale_strasse']?.toString() ?? '';
     final hPlz = ag['hauptzentrale_plz']?.toString() ?? '';
     final hOrt = ag['hauptzentrale_ort']?.toString() ?? '';
     final hLand = ag['hauptzentrale_land']?.toString() ?? '';
-    final hzAddress = [hStrasse, [hPlz, hOrt].where((e) => e.isNotEmpty).join(' '), hLand].where((e) => e.isNotEmpty).join(', ');
+    final hTel = ag['hauptzentrale_telefon']?.toString() ?? ag['telefon']?.toString() ?? '';
+    final hFax = ag['hauptzentrale_fax']?.toString() ?? ag['fax']?.toString() ?? '';
+    final hEmail = ag['hauptzentrale_email']?.toString() ?? ag['email']?.toString() ?? '';
+    final hOeffnung = ag['hauptzentrale_oeffnungszeiten']?.toString() ?? '';
 
+    // Niederlassung
     final nStrasse = ag['niederlassung_strasse']?.toString() ?? '';
     final nPlz = ag['niederlassung_plz']?.toString() ?? '';
     final nOrt = ag['niederlassung_ort']?.toString() ?? '';
-    final nAddress = [nStrasse, [nPlz, nOrt].where((e) => e.isNotEmpty).join(' ')].where((e) => e.isNotEmpty).join(', ');
+    final nTel = ag['niederlassung_telefon']?.toString() ?? '';
+    final nFax = ag['niederlassung_fax']?.toString() ?? '';
+    final nEmail = ag['niederlassung_email']?.toString() ?? '';
+    final nOeffnung = ag['niederlassung_oeffnungszeiten']?.toString() ?? '';
+    final hasNL = nStrasse.isNotEmpty || nOrt.isNotEmpty || nTel.isNotEmpty || nEmail.isNotEmpty;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Arbeitgeber details
+        // ─── HERO HEADER ───
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Arbeitgeber-Informationen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-            const SizedBox(height: 8),
-            infoRow(Icons.business, 'Firma', ag['firma_name']?.toString()),
-            infoRow(Icons.label, 'Kurz', ag['firma_kurz']?.toString()),
-            infoRow(Icons.gavel, 'Rechtsform', ag['rechtsform']?.toString()),
-            infoRow(Icons.category, 'Branche', ag['branche']?.toString()),
-            if (hzAddress.isNotEmpty) infoRow(Icons.home_work, 'Hauptzentrale', hzAddress),
-            infoRow(Icons.phone, 'HZ Telefon', ag['hauptzentrale_telefon']?.toString()),
-            infoRow(Icons.email, 'HZ E-Mail', ag['hauptzentrale_email']?.toString()),
-            if (nAddress.isNotEmpty) infoRow(Icons.location_on, 'Niederlassung', nAddress),
-            infoRow(Icons.phone_forwarded, 'NL Telefon', ag['niederlassung_telefon']?.toString()),
-            infoRow(Icons.alternate_email, 'NL E-Mail', ag['niederlassung_email']?.toString()),
-            infoRow(Icons.public, 'Website', ag['website']?.toString()),
-            infoRow(Icons.person, 'Geschäftsführer', ag['geschaeftsfuehrer']?.toString()),
-            infoRow(Icons.contact_phone, 'Ansprechpartner', ag['ansprechpartner_name']?.toString()),
-            infoRow(Icons.account_balance, 'Registergericht', ag['registergericht']?.toString()),
-            infoRow(Icons.confirmation_number, 'HR-Nummer', ag['registernummer']?.toString()),
-            infoRow(Icons.receipt_long, 'Steuernummer', ag['steuernummer']?.toString()),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.deepPurple.shade100, Colors.indigo.shade50],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.deepPurple.shade200),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            // Logo placeholder
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade700]),
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.deepPurple.shade300, blurRadius: 8, offset: const Offset(0, 3))],
+              ),
+              child: Center(
+                child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SelectableText(firmaName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900, height: 1.1)),
+              if (firmaKurz.isNotEmpty && firmaKurz != firmaName) ...[
+                const SizedBox(height: 2),
+                Text(firmaKurz, style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade600, fontStyle: FontStyle.italic)),
+              ],
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                if (rechtsform.isNotEmpty) _miniPill(Icons.gavel, rechtsform, Colors.indigo),
+                if (branche.isNotEmpty) _miniPill(Icons.category, branche, Colors.teal),
+              ]),
+              if (website.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  Icon(Icons.public, size: 14, color: Colors.blue.shade700),
+                  const SizedBox(width: 4),
+                  Expanded(child: SelectableText(website, style: TextStyle(fontSize: 12, color: Colors.blue.shade700, decoration: TextDecoration.underline))),
+                ]),
+              ],
+            ])),
           ]),
         ),
         const SizedBox(height: 16),
-        Text('Allgemeine Notizen zur Bewerbung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
+
+        // ─── KONTAKT GRID (Telefon, Fax, E-Mail) ───
+        Text('Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        const SizedBox(height: 8),
+        Row(children: [
+          if (hTel.isNotEmpty || nTel.isNotEmpty)
+            Expanded(child: _contactCard(Icons.phone, 'Telefon', nTel.isNotEmpty ? nTel : hTel, nTel.isNotEmpty ? hTel : '', Colors.green)),
+          if ((hTel.isNotEmpty || nTel.isNotEmpty) && (hFax.isNotEmpty || nFax.isNotEmpty)) const SizedBox(width: 10),
+          if (hFax.isNotEmpty || nFax.isNotEmpty)
+            Expanded(child: _contactCard(Icons.fax, 'Fax', nFax.isNotEmpty ? nFax : hFax, nFax.isNotEmpty ? hFax : '', Colors.deepPurple)),
+        ]),
+        if ((hTel.isNotEmpty || nTel.isNotEmpty || hFax.isNotEmpty || nFax.isNotEmpty) && (hEmail.isNotEmpty || nEmail.isNotEmpty))
+          const SizedBox(height: 10),
+        if (hEmail.isNotEmpty || nEmail.isNotEmpty)
+          _contactCard(Icons.email, 'E-Mail', nEmail.isNotEmpty ? nEmail : hEmail, nEmail.isNotEmpty ? hEmail : '', Colors.blue, fullWidth: true),
+        const SizedBox(height: 16),
+
+        // ─── HAUPTSITZ ADDRESS ───
+        if (hStrasse.isNotEmpty || hOrt.isNotEmpty) ...[
+          _addressBlock('Hauptsitz', Icons.home_work, hStrasse, hPlz, hOrt, hLand, hOeffnung, Colors.indigo),
+          const SizedBox(height: 10),
+        ],
+
+        // ─── NIEDERLASSUNG BIBERACH ───
+        if (hasNL) ...[
+          _addressBlock('Niederlassung Biberach', Icons.location_on, nStrasse, nPlz, nOrt, '', nOeffnung, Colors.deepPurple),
+          const SizedBox(height: 10),
+        ],
+
+        // ─── RECHTLICHE DATEN ───
+        if (geschaeftsfuehrer.isNotEmpty || ansprechpartner.isNotEmpty || registergericht.isNotEmpty || registernummer.isNotEmpty || steuernummer.isNotEmpty || ustId.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text('Rechtliche & Geschäftsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (geschaeftsfuehrer.isNotEmpty) _legalRow(Icons.person, 'Geschäftsführer', geschaeftsfuehrer),
+              if (ansprechpartner.isNotEmpty) _legalRow(Icons.contact_phone, 'Ansprechpartner', ansprechpartner),
+              if (registergericht.isNotEmpty) _legalRow(Icons.account_balance, 'Registergericht', registergericht),
+              if (registernummer.isNotEmpty) _legalRow(Icons.confirmation_number, 'HR-Nummer', registernummer),
+              if (steuernummer.isNotEmpty) _legalRow(Icons.receipt_long, 'Steuernummer / CUI', steuernummer),
+              if (ustId.isNotEmpty) _legalRow(Icons.euro, 'USt-IdNr.', ustId),
+            ]),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ─── NOTIZEN ───
+        Row(children: [
+          Icon(Icons.sticky_note_2, size: 16, color: Colors.amber.shade700),
+          const SizedBox(width: 6),
+          Text('Allgemeine Notizen zur Bewerbung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        ]),
+        const SizedBox(height: 6),
         TextField(
           controller: notesC,
           maxLines: 4,
           decoration: InputDecoration(
-            hintText: 'Z.B. Stellenausschreibung, Ansprechpartner-Notizen...',
+            hintText: 'Z.B. Stellenausschreibung, Ansprechpartner-Notizen, Gehaltsvorstellung...',
             isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: true,
+            fillColor: Colors.amber.shade50,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.amber.shade300)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.amber.shade200)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
           style: const TextStyle(fontSize: 13),
           onChanged: onNotesSave,
         ),
+      ]),
+    );
+  }
+
+  Widget _miniPill(IconData icon, String text, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.shade200)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 11, color: color.shade700),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 220),
+          child: Text(text, style: TextStyle(fontSize: 10, color: color.shade800, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+        ),
+      ]),
+    );
+  }
+
+  Widget _contactCard(IconData icon, String label, String primary, String secondary, MaterialColor color, {bool fullWidth = false}) {
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [color.shade50, Colors.white]),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.shade200),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: color.shade100, shape: BoxShape.circle),
+          child: Icon(icon, size: 18, color: color.shade800),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: TextStyle(fontSize: 10, color: color.shade600, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          SelectableText(primary, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900)),
+          if (secondary.isNotEmpty && secondary != primary) Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: SelectableText(secondary, style: TextStyle(fontSize: 11, color: color.shade500)),
+          ),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _addressBlock(String title, IconData titleIcon, String strasse, String plz, String ort, String land, String oeffnung, MaterialColor color) {
+    final addrLines = <String>[];
+    if (strasse.isNotEmpty) addrLines.add(strasse);
+    final plzOrt = [plz, ort].where((e) => e.isNotEmpty).join(' ');
+    if (plzOrt.isNotEmpty) addrLines.add(plzOrt);
+    if (land.isNotEmpty) addrLines.add(land);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(titleIcon, size: 16, color: color.shade700),
+          const SizedBox(width: 6),
+          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800)),
+        ]),
+        const SizedBox(height: 6),
+        ...addrLines.map((line) => Padding(
+          padding: const EdgeInsets.only(left: 22, bottom: 1),
+          child: SelectableText(line, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)),
+        )),
+        if (oeffnung.isNotEmpty) Padding(
+          padding: const EdgeInsets.only(left: 22, top: 4),
+          child: Row(children: [
+            Icon(Icons.schedule, size: 12, color: color.shade500),
+            const SizedBox(width: 4),
+            Expanded(child: Text(oeffnung, style: TextStyle(fontSize: 11, color: color.shade700, fontStyle: FontStyle.italic))),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _legalRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        SizedBox(width: 140, child: Text('$label:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+        Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
       ]),
     );
   }
