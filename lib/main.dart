@@ -31,8 +31,15 @@ void main(List<String> args) async {
   // radio streams actually produce sound. Must run before any AudioPlayer is
   // constructed (RadioService creates one at field-init time).
   if (Platform.isWindows || Platform.isLinux) {
-    JustAudioMediaKit.title = 'Vorsitzer Portal';
-    JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
+    try {
+      JustAudioMediaKit.title = 'Vorsitzer Portal';
+      JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
+    } catch (e, st) {
+      // libmpv may be missing inside Flatpak sandbox until bundled as a module.
+      // Don't crash the whole app — live radio is non-essential.
+      // ignore: avoid_print
+      print('JustAudioMediaKit init failed (live radio disabled): $e\n$st');
+    }
   }
 
   // ============================================================
@@ -67,8 +74,15 @@ void main(List<String> args) async {
       await windowManager.focus();
     });
 
-    // Initialize system tray (desktop only)
-    await TrayService().initialize();
+    // Initialize system tray (desktop only).
+    // libayatana-appindicator may be missing inside Flatpak sandbox until
+    // bundled as a module — guard so we don't crash if tray init fails.
+    try {
+      await TrayService().initialize();
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('TrayService init failed (system tray disabled): $e\n$st');
+    }
   }
 
   // Fix Flutter keyboard desync bug on desktop
