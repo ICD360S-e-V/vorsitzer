@@ -547,7 +547,7 @@ jobs:
         run: chmod +x flatpak/bundle/icd360sev_vorsitzer
 
       - name: Build Flatpak
-        uses: flathub-infra/flatpak-github-actions/flatpak-builder@b6c92176b7f578aedea2cb91021ad8c356fa9479  # v6.5
+        uses: flatpak/flatpak-github-actions/flatpak-builder@401fe28a8384095fc1531b9d320b292f0ee45adb  # v6.7
         with:
           bundle: vorsitzer-${{ needs.version.outputs.version_name }}.flatpak
           manifest-path: flatpak/de.icd360s.Vorsitzer.yml
