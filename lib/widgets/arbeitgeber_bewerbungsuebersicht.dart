@@ -309,9 +309,9 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fehler beim Laden'), backgroundColor: Colors.red));
       return;
     }
-    final dataField = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : <String, dynamic>{};
-    final arbeitgeber = dataField['arbeitgeber'] is Map ? Map<String, dynamic>.from(dataField['arbeitgeber'] as Map) : <String, dynamic>{};
-    final inner = dataField['data'] is Map ? Map<String, dynamic>.from(dataField['data'] as Map) : <String, dynamic>{};
+    // PHP jsonResponse uses array_merge — fields are at ROOT level, not nested under 'data'
+    final arbeitgeber = res['arbeitgeber'] is Map ? Map<String, dynamic>.from(res['arbeitgeber'] as Map) : <String, dynamic>{};
+    final inner = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : <String, dynamic>{};
 
     List<Map<String, dynamic>> statusJournal = List<Map<String, dynamic>>.from(
       (inner['status_journal'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
