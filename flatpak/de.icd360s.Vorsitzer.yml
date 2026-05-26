@@ -45,6 +45,14 @@ cleanup:
   - '*.a'
 
 modules:
+  # System tray support (tray_manager Flutter plugin needs libayatana-appindicator)
+  # Pulls in libdbusmenu + ayatana-ido + libayatana-indicator as transitive deps.
+  # Hashes maintained by Flathub — clone shared-modules in CI before build.
+  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
+
+  # Secret storage (flutter_secure_storage needs libsecret on Linux)
+  - shared-modules/libsecret/libsecret.json
+
   - name: vorsitzer
     buildsystem: simple
     build-commands:
