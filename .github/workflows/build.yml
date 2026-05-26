@@ -113,6 +113,7 @@ jobs:
   # ──────────────────────────────────────────────
   android-universal:
     name: "🤖 Android Universal APK"
+    if: false  # PAUSED — only Linux active
     needs: version
     runs-on: ubuntu-latest
     steps:
@@ -422,6 +423,7 @@ jobs:
   # ──────────────────────────────────────────────
   windows:
     name: "🪟 Windows"
+    if: false  # PAUSED — only Linux active
     needs: version
     runs-on: windows-latest
     permissions:
@@ -470,7 +472,6 @@ jobs:
   # ──────────────────────────────────────────────
   linux:
     name: "🐧 Linux"
-    if: false  # PAUSED — only Android Universal active
     needs: version
     runs-on: ubuntu-latest
     steps:
