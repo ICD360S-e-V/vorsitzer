@@ -737,8 +737,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - version
-      - android-universal
-      - windows
+      - linux
     runs-on: ubuntu-latest
     permissions:
       contents: write   # softprops/action-gh-release creates a Release object on the tag
@@ -813,9 +812,10 @@ jobs:
       - name: Organize artifacts with fixed filenames
         if: steps.guard.outputs.skip != 'true'
         run: |
-          mkdir -p deploy/android deploy/windows
+          mkdir -p deploy/android deploy/windows deploy/linux
           cp artifacts/android-universal-apk/*.apk deploy/android/vorsitzer.apk || true
           find artifacts -type f -name "*.zip" -path "*windows*" -exec cp {} deploy/windows/vorsitzer-windows.zip \; || true
+          find artifacts -type f -name "*.tar.gz" -path "*linux*" -exec cp {} deploy/linux/vorsitzer-linux.tar.gz \; || true
           echo "=== Deploy tree ==="
           find deploy -type f -exec ls -lh {} \;
 
@@ -836,7 +836,7 @@ jobs:
           SSH_BASE="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           RUN="${GITHUB_RUN_ID}"
 
-          ssh $SSH_BASE -p "$PORT" "$REMOTE" "mkdir -p '$BASE'/{android,windows}"
+          ssh $SSH_BASE -p "$PORT" "$REMOTE" "mkdir -p '$BASE'/{android,windows,linux}"
 
           # Per-file flow (now race-safe):
           #   1. If a current file exists on the server, copy it to _stable as the
@@ -847,7 +847,7 @@ jobs:
           #      ZIP or APK).
           # Combined with the global concurrency lock above, this means the
           # last-completed deploy wins on BOTH the ZIP and the JSON.
-          for plat in android windows; do
+          for plat in android windows linux; do
             if [ -n "$(ls -A deploy/$plat/ 2>/dev/null)" ]; then
               echo "==> Uploading $plat (run $RUN) ..."
               for f in deploy/$plat/*; do
