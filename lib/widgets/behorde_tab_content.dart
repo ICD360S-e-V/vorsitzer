@@ -331,7 +331,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'finanzamt', 'icon': Icons.account_balance_wallet, 'label': 'Finanzamt'},
     {'type': 'gericht', 'icon': Icons.gavel, 'label': 'Gericht'},
     {'type': 'krankenkasse', 'icon': Icons.local_hospital, 'label': 'Krankenkasse'},
-    {'type': 'rentenversicherung', 'icon': Icons.elderly, 'label': 'Rentenversicherung'},
+    {'type': 'rentenversicherung', 'icon': Icons.elderly, 'label': 'Rente'},
     {'type': 'auslaenderbehoerde', 'icon': Icons.public, 'label': 'Ausl\u00E4nderbeh\u00F6rde'},
     {'type': 'familienkasse', 'icon': Icons.child_care, 'label': 'Familienkasse'},
     {'type': 'jugendamt', 'icon': Icons.family_restroom, 'label': 'Jugendamt'},
@@ -487,6 +487,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   loadData: (t) => _loadBehoerdeData(t),
                   saveData: (t, d) => _saveBehoerdeData(t, d),
                   dienststelleBuilder: (t, c) => _buildDienststelleField(t, c),
+                  antraegeBuilder: ({required behoerdeType, required antraege, required artItems, required statusItems, required onChanged, required context}) => _buildAntraegeSection(behoerdeType: behoerdeType, antraege: antraege, artItems: artItems, statusItems: statusItems, onChanged: onChanged, context: context),
                 ),
                 BehordeAuslaenderbehoerdeContent(
                   getData: (t) => _behoerdeData[t] ?? {},
@@ -1420,6 +1421,22 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         'erstantrag': 'Erstantrag ALG I',
         'weiterbewilligung': 'Weiterbewilligungsantrag',
         'wiederholung': 'Wiederholungsantrag',
+      };
+      return map[art] ?? art;
+    } else if (behoerdeType == 'rentenversicherung') {
+      const map = {
+        'altersrente': 'Altersrentenantrag',
+        'emr_voll': 'Erwerbsminderungsrente (voll)',
+        'emr_teil': 'Erwerbsminderungsrente (teilweise)',
+        'witwen_gross': 'Grosse Witwen-/Witwerrente',
+        'witwen_klein': 'Kleine Witwen-/Witwerrente',
+        'halbwaisen': 'Halbwaisenrente',
+        'vollwaisen': 'Vollwaisenrente',
+        'kontenklaerung': 'Kontenklaerung',
+        'reha': 'Reha-Antrag',
+        'ueberpruefung': 'Ueberpruefungsantrag (§44 SGB X)',
+        'widerspruch': 'Widerspruch',
+        'klage': 'Klage',
       };
       return map[art] ?? art;
     } else {

@@ -12,6 +12,7 @@ import '../models/user.dart';
 import 'file_viewer_dialog.dart';
 import 'lebenslauf.dart';
 import '../utils/file_picker_helper.dart';
+import 'arbeitgeber_bewerbungsuebersicht.dart';
 
 class ArbeitgeberBehoerdeContent extends StatefulWidget {
   final User user;
@@ -44,7 +45,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   @override
   void initState() {
     super.initState();
-    _mainTabC = TabController(length: 2, vsync: this);
+    _mainTabC = TabController(length: 3, vsync: this);
     _loadHausarztData();
     _loadArbeitgeberFromDB();
     _loadBerufsbezeichnungen();
@@ -2236,10 +2237,16 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       TabBar(controller: _mainTabC, labelColor: Colors.indigo.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo, tabs: const [
         Tab(text: 'Zuständiger Arbeitgeber'),
         Tab(text: 'Stellen'),
+        Tab(text: 'Bewerbungsübersicht'),
       ]),
       Expanded(child: TabBarView(controller: _mainTabC, children: [
         _buildZustaendigerTab(),
         _buildStellenTab(),
+        ArbeitgeberBewerbungsuebersichtContent(
+          apiService: widget.apiService,
+          userId: widget.user.id,
+          dbArbeitgeberListe: widget.dbArbeitgeberListe,
+        ),
       ])),
     ]);
   }

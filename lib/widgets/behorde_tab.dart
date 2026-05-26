@@ -329,7 +329,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'finanzamt', 'icon': Icons.account_balance_wallet, 'label': 'Finanzamt'},
     {'type': 'gericht', 'icon': Icons.gavel, 'label': 'Gericht'},
     {'type': 'krankenkasse', 'icon': Icons.local_hospital, 'label': 'Krankenkasse'},
-    {'type': 'rentenversicherung', 'icon': Icons.elderly, 'label': 'Rentenversicherung'},
+    {'type': 'rentenversicherung', 'icon': Icons.elderly, 'label': 'Rente'},
     {'type': 'auslaenderbehoerde', 'icon': Icons.public, 'label': 'Ausl\u00E4nderbeh\u00F6rde'},
     {'type': 'familienkasse', 'icon': Icons.child_care, 'label': 'Familienkasse'},
     {'type': 'jugendamt', 'icon': Icons.family_restroom, 'label': 'Jugendamt'},

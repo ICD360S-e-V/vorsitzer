@@ -3669,6 +3669,25 @@ class ApiService {
     return await _client.get(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
   }
 
+  // ========== BEWERBUNGSÜBERSICHT (encrypted in DB) ==========
+
+  Future<Map<String, dynamic>> listBewerbungen(int userId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_list.php'), headers: _headers, body: jsonEncode({'user_id': userId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> getBewerbung(int userId, int arbeitgeberId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_get.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'arbeitgeber_id': arbeitgeberId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveBewerbung(int userId, int arbeitgeberId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_save.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'arbeitgeber_id': arbeitgeberId, 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteBewerbung(int userId, int arbeitgeberId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_delete.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'arbeitgeber_id': arbeitgeberId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== VERSORGUNGSAMT DATA (dedicated DB) ==========
 
   Future<Map<String, dynamic>> getVersorgungsamtData(int userId) async {

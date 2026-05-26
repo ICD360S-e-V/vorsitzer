@@ -7,6 +7,14 @@ class BehordeRentenversicherungContent extends StatefulWidget {
   final void Function(String type) loadData;
   final void Function(String type, Map<String, dynamic> data) saveData;
   final Widget Function(String type, TextEditingController controller) dienststelleBuilder;
+  final Widget Function({
+    required String behoerdeType,
+    required List<Map<String, dynamic>> antraege,
+    required List<DropdownMenuItem<String>> artItems,
+    required List<DropdownMenuItem<String>> statusItems,
+    required void Function(List<Map<String, dynamic>>) onChanged,
+    required BuildContext context,
+  }) antraegeBuilder;
 
   const BehordeRentenversicherungContent({
     super.key,
@@ -16,34 +24,43 @@ class BehordeRentenversicherungContent extends StatefulWidget {
     required this.loadData,
     required this.saveData,
     required this.dienststelleBuilder,
+    required this.antraegeBuilder,
   });
 
   @override
   State<BehordeRentenversicherungContent> createState() => _State();
 }
 
-class _State extends State<BehordeRentenversicherungContent> {
+class _State extends State<BehordeRentenversicherungContent> with TickerProviderStateMixin {
   static const type = 'rentenversicherung';
 
-  static String _formatEurDouble(double amount) {
-    final parts = amount.toStringAsFixed(2).split('.');
-    return '${parts[0]},${parts[1]} EUR';
-  }
+  late final TabController _tabCtrl;
+  bool _initialized = false;
+
+  // Tab 1 — Zuständige Behörde
+  late final TextEditingController _dienststelleC;
+  late final TextEditingController _traegerC;
+
+  // Tab 3 — Stammdaten
+  late final TextEditingController _rvnrC;
+  late final TextEditingController _entgeltpunkteC;
+  late final TextEditingController _zugangsfaktorC;
+  late final TextEditingController _notizenC;
+  String _rentenart = '';
+  bool _hatKinder = true;
+
+  // Antrage data
+  List<Map<String, dynamic>> _antraege = [];
 
   static const Map<int, Map<String, double>> _rentenwertTabelle = {
     2020: {'west': 34.19, 'ost': 33.23},
-    2021: {'west': 34.19, 'ost': 33.47}, // Nullrunde West
+    2021: {'west': 34.19, 'ost': 33.47},
     2022: {'west': 36.02, 'ost': 35.52},
-    2023: {'west': 37.60, 'ost': 37.60}, // Angleichung
-    2024: {'west': 39.32, 'ost': 39.32}, // Vollstaendig angeglichen
+    2023: {'west': 37.60, 'ost': 37.60},
+    2024: {'west': 39.32, 'ost': 39.32},
     2025: {'west': 40.79, 'ost': 40.79},
-    2026: {'west': 41.83, 'ost': 41.83}, // Prognose Rentenanpassung 2026
+    2026: {'west': 41.83, 'ost': 41.83},
   };
-
-  static double _getRentenwert(int year) {
-    final entry = _rentenwertTabelle[year] ?? _rentenwertTabelle.values.last;
-    return entry['west']!; // Seit 2023 angeglichen
-  }
 
   static const Map<String, double> _rentenartFaktoren = {
     'altersrente': 1.0,
@@ -55,11 +72,125 @@ class _State extends State<BehordeRentenversicherungContent> {
     'vollwaisenrente': 0.20,
   };
 
-  static const double _kvBeitragRentner = 7.3; // halber allgemeiner Beitragssatz
-  static const double _kvZusatzbeitrag = 2.5; // durchschnittlicher Zusatzbeitrag 2026
-  static const double _pvBeitragRentner = 1.8; // Pflegeversicherung (mit Kindern)
-  static const double _pvBeitragKinderlos = 2.3; // Pflegeversicherung (kinderlos ab 23)
+  static const Map<String, String> _rentenartLabels = {
+    '': 'Nicht ausgewaehlt',
+    'altersrente': 'Altersrente (Regelaltersrente)',
+    'volle_erwerbsminderung': 'Volle Erwerbsminderungsrente',
+    'teilweise_erwerbsminderung': 'Teilweise Erwerbsminderungsrente',
+    'grosse_witwenrente': 'Grosse Witwen-/Witwerrente',
+    'kleine_witwenrente': 'Kleine Witwen-/Witwerrente',
+    'halbwaisenrente': 'Halbwaisenrente',
+    'vollwaisenrente': 'Vollwaisenrente',
+  };
 
+  static const double _kvBeitragRentner = 7.3;
+  static const double _kvZusatzbeitrag = 2.5;
+  static const double _pvBeitragRentner = 1.8;
+  static const double _pvBeitragKinderlos = 2.3;
+
+  static const List<({String key, String label})> _antragArten = [
+    (key: 'altersrente', label: 'Altersrentenantrag'),
+    (key: 'emr_voll', label: 'Erwerbsminderungsrente (voll)'),
+    (key: 'emr_teil', label: 'Erwerbsminderungsrente (teilweise)'),
+    (key: 'witwen_gross', label: 'Grosse Witwen-/Witwerrente'),
+    (key: 'witwen_klein', label: 'Kleine Witwen-/Witwerrente'),
+    (key: 'halbwaisen', label: 'Halbwaisenrente'),
+    (key: 'vollwaisen', label: 'Vollwaisenrente'),
+    (key: 'kontenklaerung', label: 'Kontenklaerung'),
+    (key: 'reha', label: 'Reha-Antrag'),
+    (key: 'ueberpruefung', label: 'Ueberpruefungsantrag (§44 SGB X)'),
+    (key: 'widerspruch', label: 'Widerspruch'),
+    (key: 'klage', label: 'Klage'),
+  ];
+
+  static const List<({String key, String label})> _antragStati = [
+    (key: 'eingereicht', label: 'Eingereicht'),
+    (key: 'in_bearbeitung', label: 'In Bearbeitung'),
+    (key: 'bewilligt', label: 'Bewilligt'),
+    (key: 'teilweise_bewilligt', label: 'Teilweise bewilligt'),
+    (key: 'abgelehnt', label: 'Abgelehnt'),
+    (key: 'widerspruch', label: 'Widerspruch'),
+    (key: 'klage', label: 'Klage'),
+    (key: 'zurueckgezogen', label: 'Zurueckgezogen'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 3, vsync: this);
+    _dienststelleC = TextEditingController();
+    _traegerC = TextEditingController();
+    _rvnrC = TextEditingController();
+    _entgeltpunkteC = TextEditingController();
+    _zugangsfaktorC = TextEditingController(text: '1,0');
+    _notizenC = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    _dienststelleC.dispose();
+    _traegerC.dispose();
+    _rvnrC.dispose();
+    _entgeltpunkteC.dispose();
+    _zugangsfaktorC.dispose();
+    _notizenC.dispose();
+    super.dispose();
+  }
+
+  void _hydrate(Map<String, dynamic> data) {
+    if (_initialized) return;
+    _dienststelleC.text = data['dienststelle']?.toString() ?? '';
+    _traegerC.text = data['traeger']?.toString() ?? '';
+    _rvnrC.text = (data['rentennummer'] ?? data['sozialversicherungsnummer'] ?? data['versicherungsnummer'] ?? '').toString();
+    _entgeltpunkteC.text = data['entgeltpunkte']?.toString() ?? '';
+    _zugangsfaktorC.text = data['zugangsfaktor']?.toString() ?? '1,0';
+    _notizenC.text = data['notizen']?.toString() ?? '';
+    _rentenart = data['rentenart']?.toString() ?? '';
+    _hatKinder = (data['hat_kinder'] ?? 'ja') == 'ja';
+    final rawAnt = data['antraege'];
+    if (rawAnt is List) {
+      _antraege = rawAnt.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    _initialized = true;
+  }
+
+  Map<String, dynamic> _collect() => {
+        'dienststelle': _dienststelleC.text.trim(),
+        'traeger': _traegerC.text.trim(),
+        'rentennummer': _rvnrC.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ''),
+        'rentenart': _rentenart,
+        'entgeltpunkte': _entgeltpunkteC.text.trim(),
+        'zugangsfaktor': _zugangsfaktorC.text.trim(),
+        'hat_kinder': _hatKinder ? 'ja' : 'nein',
+        'notizen': _notizenC.text.trim(),
+        'antraege': _antraege,
+      };
+
+  void _save() => widget.saveData(type, _collect());
+
+  // RVNR validator: 12 chars, format AA TTMMJJ B SSS (Bereich + Geburtsdatum + Initiale + Seriennr)
+  String? _validateRvnr() {
+    final clean = _rvnrC.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+    if (clean.isEmpty) return null;
+    final m = RegExp(r'^(\d{2})(\d{2})(\d{2})(\d{2})([A-Z])(\d{3})$').firstMatch(clean);
+    if (m == null) return 'Ungueltiges Format. Erwartet: AA TTMMJJ B SSS (12 Zeichen)';
+    final day = int.parse(m.group(2)!);
+    final month = int.parse(m.group(3)!);
+    if (day < 1 || day > 31) return 'Geburtstag (Stellen 3-4) ungueltig';
+    if (month < 1 || month > 12) return 'Geburtsmonat (Stellen 5-6) ungueltig';
+    return null;
+  }
+
+  String _formatEur(double amount) {
+    final parts = amount.toStringAsFixed(2).split('.');
+    return '${parts[0]},${parts[1]} EUR';
+  }
+
+  double _getRentenwert(int year) {
+    final entry = _rentenwertTabelle[year] ?? _rentenwertTabelle.values.last;
+    return entry['west']!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,166 +201,269 @@ class _State extends State<BehordeRentenversicherungContent> {
     if (widget.isLoading(type)) {
       return const Center(child: CircularProgressIndicator());
     }
-    final dienststelleController = TextEditingController(text: data['dienststelle'] ?? '');
-    final svNummerController = TextEditingController(text: data['sozialversicherungsnummer'] ?? '');
-    final rentenversicherungstraegerController = TextEditingController(text: data['traeger'] ?? '');
-    final entgeltpunkteController = TextEditingController(text: data['entgeltpunkte'] ?? '');
-    final zugangsfaktorController = TextEditingController(text: data['zugangsfaktor'] ?? '1,0');
-    final notizenController = TextEditingController(text: data['notizen'] ?? '');
-    String rentenart = data['rentenart'] ?? '';
-    bool hatKinder = (data['hat_kinder'] ?? 'ja') == 'ja';
+    _hydrate(data);
 
-    final rentenarten = {
-      '': 'Nicht ausgewaehlt',
-      'altersrente': 'Altersrente (Regelaltersrente)',
-      'volle_erwerbsminderung': 'Volle Erwerbsminderungsrente',
-      'teilweise_erwerbsminderung': 'Teilweise Erwerbsminderungsrente',
-      'grosse_witwenrente': 'Grosse Witwen-/Witwerrente',
-      'kleine_witwenrente': 'Kleine Witwen-/Witwerrente',
-      'halbwaisenrente': 'Halbwaisenrente',
-      'vollwaisenrente': 'Vollwaisenrente',
-    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ─── HEADER ───
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(
+            children: [
+              Icon(Icons.elderly, color: Colors.deepPurple.shade700, size: 24),
+              const SizedBox(width: 8),
+              const Text('Rente', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.lock, size: 10, color: Colors.green.shade700),
+                  const SizedBox(width: 3),
+                  Text('AES-256', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+              const Spacer(),
+              ElevatedButton.icon(
+                onPressed: widget.isSaving(type) ? null : _save,
+                icon: widget.isSaving(type)
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.save, size: 16),
+                label: const Text('Speichern', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
 
+        // ─── TABBAR ───
+        TabBar(
+          controller: _tabCtrl,
+          labelColor: Colors.deepPurple.shade700,
+          unselectedLabelColor: Colors.grey.shade600,
+          indicatorColor: Colors.deepPurple,
+          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          tabs: const [
+            Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Zustaendige Behoerde'),
+            Tab(icon: Icon(Icons.assignment, size: 18), text: 'Antraege'),
+            Tab(icon: Icon(Icons.badge, size: 18), text: 'Stammdaten'),
+          ],
+        ),
+
+        // ─── TAB BODIES ───
+        Expanded(
+          child: TabBarView(
+            controller: _tabCtrl,
+            children: [
+              _buildBehoerdeTab(),
+              _buildAntraegeTab(),
+              _buildStammdatenTab(context),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //   TAB 1: Zustaendige Behoerde
+  // ═══════════════════════════════════════════════════════
+  Widget _buildBehoerdeTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.deepPurple.shade200),
+            ),
+            child: Row(children: [
+              Icon(Icons.info_outline, color: Colors.deepPurple.shade700, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Traeger und Dienststelle der Deutschen Rentenversicherung, die fuer diese Person zustaendig ist.',
+                  style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade800),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
+
+          Text('Rentenversicherungstraeger', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _traegerC,
+            decoration: InputDecoration(
+              hintText: 'z.B. Deutsche Rentenversicherung Bund / Baden-Wuerttemberg',
+              prefixIcon: const Icon(Icons.account_balance, size: 20),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Bund, Knappschaft-Bahn-See oder eine der 14 Regionaltraeger.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(height: 20),
+
+          Text('Dienststelle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          widget.dienststelleBuilder(type, _dienststelleC),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //   TAB 2: Antraege
+  // ═══════════════════════════════════════════════════════
+  Widget _buildAntraegeTab() {
+    final artItems = _antragArten
+        .map((a) => DropdownMenuItem<String>(value: a.key, child: Text(a.label, style: const TextStyle(fontSize: 13))))
+        .toList();
+    final statusItems = _antragStati
+        .map((s) => DropdownMenuItem<String>(value: s.key, child: Text(s.label, style: const TextStyle(fontSize: 13))))
+        .toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: widget.antraegeBuilder(
+        behoerdeType: type,
+        antraege: _antraege,
+        artItems: artItems,
+        statusItems: statusItems,
+        onChanged: (updated) {
+          setState(() => _antraege = updated);
+          _save();
+        },
+        context: context,
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //   TAB 3: Stammdaten
+  // ═══════════════════════════════════════════════════════
+  Widget _buildStammdatenTab(BuildContext context) {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         final currentYear = DateTime.now().year;
         final rentenwert = _getRentenwert(currentYear);
-        final rentenartFaktor = _rentenartFaktoren[rentenart] ?? 1.0;
-
-        // Parse Entgeltpunkte
-        final epText = entgeltpunkteController.text.trim().replaceAll(',', '.');
-        final entgeltpunkte = double.tryParse(epText) ?? 0;
-
-        // Parse Zugangsfaktor
-        final zfText = zugangsfaktorController.text.trim().replaceAll(',', '.');
-        final zugangsfaktor = double.tryParse(zfText) ?? 1.0;
-
-        // Brutto-Rente = EP × Zugangsfaktor × Rentenwert × Rentenartfaktor
-        final bruttoRente = entgeltpunkte * zugangsfaktor * rentenwert * rentenartFaktor;
-
-        // Netto-Rente: KV (7.3% + Zusatzbeitrag halber) + PV
-        final kvAbzug = bruttoRente * (_kvBeitragRentner + _kvZusatzbeitrag / 2) / 100;
-        final pvSatz = hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos;
-        final pvAbzug = bruttoRente * pvSatz / 100;
-        final nettoRente = bruttoRente - kvAbzug - pvAbzug;
+        final faktor = _rentenartFaktoren[_rentenart] ?? 1.0;
+        final ep = double.tryParse(_entgeltpunkteC.text.trim().replaceAll(',', '.')) ?? 0;
+        final zf = double.tryParse(_zugangsfaktorC.text.trim().replaceAll(',', '.')) ?? 1.0;
+        final brutto = ep * zf * rentenwert * faktor;
+        final kvAbzug = brutto * (_kvBeitragRentner + _kvZusatzbeitrag / 2) / 100;
+        final pvSatz = _hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos;
+        final pvAbzug = brutto * pvSatz / 100;
+        final netto = brutto - kvAbzug - pvAbzug;
+        final rvnrError = _validateRvnr();
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── RENTENWERT INFO CARD ──
+              // ─── RENTENNUMMER ───
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.deepPurple.shade50, Colors.deepPurple.shade100],
+                    colors: [Colors.indigo.shade50, Colors.deepPurple.shade50],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.deepPurple.shade300),
+                  border: Border.all(color: Colors.deepPurple.shade200),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.euro, color: Colors.deepPurple.shade700, size: 22),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Aktueller Rentenwert $currentYear',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple.shade700,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _formatEurDouble(rentenwert),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ),
-                      ],
-                    ),
+                    Row(children: [
+                      Icon(Icons.badge, color: Colors.deepPurple.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Text('Deutsche Rentennummer (RVNR)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                    ]),
                     const SizedBox(height: 8),
-                    Text(
-                      'Wert eines Entgeltpunktes pro Monat. West und Ost seit 01.07.2024 angeglichen.',
-                      style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade600, fontStyle: FontStyle.italic),
+                    TextField(
+                      controller: _rvnrC,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        hintText: 'z.B. 15 070649 C 103',
+                        prefixIcon: const Icon(Icons.badge, size: 20),
+                        suffixIcon: rvnrError == null && _rvnrC.text.trim().isNotEmpty
+                            ? Icon(Icons.check_circle, color: Colors.green.shade600, size: 20)
+                            : null,
+                        isDense: true,
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        errorText: rvnrError,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
+                      onChanged: (_) => setLocalState(() {}),
                     ),
-                    const SizedBox(height: 12),
-                    // Verlauf
-                    Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: EdgeInsets.zero,
-                        title: Text(
-                          'Rentenwert-Verlauf anzeigen',
-                          style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade700, fontWeight: FontWeight.w500),
-                        ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.deepPurple.shade100),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ..._rentenwertTabelle.entries.toList().reversed.map((entry) {
-                            final isCurrent = entry.key == currentYear;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: 50,
-                                    child: Text(
-                                      '${entry.key}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                        color: isCurrent ? Colors.deepPurple.shade800 : Colors.grey.shade700,
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Container(
-                                      height: 20,
-                                      alignment: Alignment.centerLeft,
-                                      child: FractionallySizedBox(
-                                        widthFactor: entry.value['west']! / (_rentenwertTabelle.values.last['west']! * 1.1),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: isCurrent ? Colors.deepPurple.shade400 : Colors.deepPurple.shade200,
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SizedBox(
-                                    width: 80,
-                                    child: Text(
-                                      _formatEurDouble(entry.value['west']!),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                        color: isCurrent ? Colors.deepPurple.shade800 : Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ),
-                                  if (entry.value['west'] != entry.value['ost'])
-                                    Text(
-                                      '(Ost: ${_formatEurDouble(entry.value['ost']!)})',
-                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                                    ),
-                                ],
-                              ),
-                            );
-                          }),
+                          Text('Aufbau (12 Zeichen):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
                           const SizedBox(height: 4),
-                          Text(
-                            'Anpassung jaehrlich zum 01.07. durch Bundesregierung.',
-                            style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                          _formatRow('AA', 'Bereichsnummer des Rentenversicherungstraegers'),
+                          _formatRow('TT', 'Geburtstag (01-31)'),
+                          _formatRow('MM', 'Geburtsmonat (01-12)'),
+                          _formatRow('JJ', 'Geburtsjahr (2-stellig)'),
+                          _formatRow('B', 'Anfangsbuchstabe des Geburtsnamens (A-Z)'),
+                          _formatRow('SS', 'Seriennummer (00-49 = m / 50-99 = w/d)'),
+                          _formatRow('P', 'Pruefziffer'),
+                          const SizedBox(height: 8),
+                          Text('Wichtige Bereichsnummern:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                          const SizedBox(height: 3),
+                          _bereichRow('02', 'DRV Bund'),
+                          _bereichRow('09', 'DRV Mitteldeutschland'),
+                          _bereichRow('10', 'DRV Braunschweig-Hannover'),
+                          _bereichRow('11', 'DRV Westfalen'),
+                          _bereichRow('12', 'DRV Hessen'),
+                          _bereichRow('13', 'DRV Rheinland'),
+                          _bereichRow('14/15', 'DRV Bayern Sued'),
+                          _bereichRow('16', 'DRV Rheinland-Pfalz'),
+                          _bereichRow('17', 'DRV Saarland'),
+                          _bereichRow('18', 'DRV Ober-/Mittelfranken'),
+                          _bereichRow('19/26', 'DRV Nord'),
+                          _bereichRow('20', 'DRV Unterfranken'),
+                          _bereichRow('21', 'DRV Schwaben'),
+                          _bereichRow('23/24', 'DRV Baden-Wuerttemberg'),
+                          _bereichRow('25', 'DRV Berlin-Brandenburg'),
+                          _bereichRow('28', 'DRV Oldenburg-Bremen'),
+                          _bereichRow('38/39', 'DRV Knappschaft-Bahn-See'),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4)),
+                            child: Text(
+                              'Beispiel: 15 070649 C 103 = DRV Bayern Sued, geb. 07.06.1949, Name beginnt mit C, maennlich, Pruefziffer 3.',
+                              style: TextStyle(fontSize: 11, color: Colors.brown.shade700, fontStyle: FontStyle.italic),
+                            ),
                           ),
                         ],
                       ),
@@ -239,324 +473,188 @@ class _State extends State<BehordeRentenversicherungContent> {
               ),
               const SizedBox(height: 20),
 
-              // ── STAMMDATEN ──
-              widget.dienststelleBuilder(type, dienststelleController),
-              Text('Sozialversicherungsnummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: svNummerController,
-                decoration: InputDecoration(
-                  hintText: '12-stellig, z.B. 12 150865 A 123',
-                  prefixIcon: const Icon(Icons.badge, size: 20),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 4),
-              Text('Auf dem Sozialversicherungsausweis', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
-              const SizedBox(height: 16),
-
-              // Rentenversicherungsträger
-              Text('Rentenversicherungstraeger', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: rentenversicherungstraegerController,
-                decoration: InputDecoration(
-                  hintText: 'z.B. Deutsche Rentenversicherung Bund',
-                  prefixIcon: const Icon(Icons.account_balance, size: 20),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-
-              // ── RENTENART & BERECHNUNG ──
+              // ─── RENTENWERT ───
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.orange.shade50, Colors.orange.shade100],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: Colors.deepPurple.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade300),
+                  border: Border.all(color: Colors.deepPurple.shade200),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.calculate, color: Colors.orange.shade700, size: 22),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Rentenberechnung',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Brutto-Rente = Entgeltpunkte x Zugangsfaktor x Rentenwert x Rentenartfaktor',
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade600, fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Rentenart
-                    Text('Rentenart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: rentenarten.containsKey(rentenart) ? rentenart : '',
-                          isExpanded: true,
-                          style: const TextStyle(fontSize: 14, color: Colors.black87),
-                          items: rentenarten.entries.map((e) {
-                            final faktor = _rentenartFaktoren[e.key];
-                            return DropdownMenuItem<String>(
-                              value: e.key,
-                              child: Text(
-                                faktor != null ? '${e.value} (Faktor: ${faktor.toStringAsFixed(2)})' : e.value,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (v) => setLocalState(() => rentenart = v ?? ''),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Entgeltpunkte
-                    Text('Entgeltpunkte (EP)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: entgeltpunkteController,
-                      decoration: InputDecoration(
-                        hintText: 'z.B. 35,5 (aus Renteninformation)',
-                        prefixIcon: const Icon(Icons.star, size: 20),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setLocalState(() {}),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '1 EP = 1 Jahr Durchschnittsverdienst. Steht auf der jaehrlichen Renteninformation.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Zugangsfaktor
-                    Text('Zugangsfaktor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: zugangsfaktorController,
-                      decoration: InputDecoration(
-                        hintText: '1,0 (Standard)',
-                        prefixIcon: const Icon(Icons.tune, size: 20),
-                        isDense: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setLocalState(() {}),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '1,0 = Regelaltersgrenze. Fruehverrentung: -0,003 pro Monat (z.B. 0,892 bei 3 Jahre frueher).',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Kinder (fuer PV-Berechnung)
-                    Row(
-                      children: [
-                        Text('Kinder vorhanden?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                        const SizedBox(width: 12),
-                        ChoiceChip(
-                          label: const Text('Ja', style: TextStyle(fontSize: 12)),
-                          selected: hatKinder,
-                          onSelected: (v) => setLocalState(() => hatKinder = true),
-                          selectedColor: Colors.green.shade200,
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Nein', style: TextStyle(fontSize: 12)),
-                          selected: !hatKinder,
-                          onSelected: (v) => setLocalState(() => hatKinder = false),
-                          selectedColor: Colors.orange.shade200,
-                        ),
-                        const Spacer(),
-                        Text(
-                          'PV: ${hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos}%',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── ERGEBNIS ──
-                    if (entgeltpunkte > 0 && rentenart.isNotEmpty) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.orange.shade300),
-                          boxShadow: [BoxShadow(color: Colors.orange.shade100, blurRadius: 6, offset: const Offset(0, 2))],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Rentenberechnung ($currentYear)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-                            const SizedBox(height: 10),
-                            // Formula display
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${entgeltpunkte.toStringAsFixed(2)} EP  x  ${zugangsfaktor.toStringAsFixed(3)}  x  ${_formatEurDouble(rentenwert)}  x  ${rentenartFaktor.toStringAsFixed(2)}',
-                                style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: Colors.grey.shade800),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Brutto
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Brutto-Rente (monatlich):', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-                                Text(
-                                  _formatEurDouble(bruttoRente),
-                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 16),
-                            // Abzuege
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('KV-Beitrag (${(_kvBeitragRentner + _kvZusatzbeitrag / 2).toStringAsFixed(2)}%):', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                                Text('- ${_formatEurDouble(kvAbzug)}', style: TextStyle(fontSize: 12, color: Colors.red.shade600)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('PV-Beitrag (${pvSatz.toStringAsFixed(1)}%${hatKinder ? '' : ' kinderlos'}):', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                                Text('- ${_formatEurDouble(pvAbzug)}', style: TextStyle(fontSize: 12, color: Colors.red.shade600)),
-                              ],
-                            ),
-                            const Divider(height: 16),
-                            // Netto
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Netto-Rente (ca.):', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.shade100,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.green.shade400),
-                                  ),
-                                  child: Text(
-                                    _formatEurDouble(nettoRente),
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // Jaehrlich
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Brutto jaehrlich:', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                                Text(_formatEurDouble(bruttoRente * 12), style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
-                              ],
-                            ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Netto jaehrlich (ca.):', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                                Text(_formatEurDouble(nettoRente * 12), style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w500)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Hinweis: Netto-Berechnung ohne Einkommensteuer. Steuerpflicht haengt vom Gesamteinkommen und Rentenfreibetrag ab.',
-                              style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                child: Row(children: [
+                  Icon(Icons.euro, color: Colors.deepPurple.shade700, size: 22),
+                  const SizedBox(width: 8),
+                  Text('Aktueller Rentenwert $currentYear:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.deepPurple.shade700, borderRadius: BorderRadius.circular(20)),
+                    child: Text(_formatEur(rentenwert), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
+                ]),
               ),
               const SizedBox(height: 20),
 
-              // Info: Rentenarten erklaert
+              // ─── RENTENART ───
+              Text('Rentenart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 4),
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
-                        const SizedBox(width: 6),
-                        Text('Rentenarten im Ueberblick', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _rentenInfoRow(Icons.elderly, 'Altersrente', 'Ab Regelaltersgrenze (67 J.), Faktor 1,0', Colors.deepPurple),
-                    _rentenInfoRow(Icons.accessible, 'Volle Erwerbsminderung', 'Weniger als 3 Std./Tag arbeitsfaehig, Faktor 1,0', Colors.red),
-                    _rentenInfoRow(Icons.accessibility_new, 'Teilw. Erwerbsminderung', '3-6 Std./Tag arbeitsfaehig, Faktor 0,5', Colors.orange),
-                    _rentenInfoRow(Icons.favorite, 'Grosse Witwenrente', 'Ab 47 J. oder erwerbsgemindert, Faktor 0,55', Colors.pink),
-                    _rentenInfoRow(Icons.favorite_border, 'Kleine Witwenrente', 'Unter 47 J., max. 2 Jahre, Faktor 0,25', Colors.pink),
-                    _rentenInfoRow(Icons.child_care, 'Halbwaisenrente', 'Ein Elternteil verstorben, Faktor 0,10', Colors.teal),
-                    _rentenInfoRow(Icons.child_friendly, 'Vollwaisenrente', 'Beide Elternteile verstorben, Faktor 0,20', Colors.teal),
-                  ],
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8), color: Colors.white),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _rentenartLabels.containsKey(_rentenart) ? _rentenart : '',
+                    isExpanded: true,
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    items: _rentenartLabels.entries.map((e) {
+                      final f = _rentenartFaktoren[e.key];
+                      return DropdownMenuItem<String>(
+                        value: e.key,
+                        child: Text(f != null ? '${e.value} (Faktor: ${f.toStringAsFixed(2)})' : e.value, style: const TextStyle(fontSize: 13)),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setLocalState(() => _rentenart = v ?? ''),
+                  ),
                 ),
               ),
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Entgeltpunkte (EP)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        const SizedBox(height: 4),
+                        TextField(
+                          controller: _entgeltpunkteC,
+                          decoration: InputDecoration(
+                            hintText: 'z.B. 35,5',
+                            prefixIcon: const Icon(Icons.star, size: 18),
+                            isDense: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                          style: const TextStyle(fontSize: 14),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (_) => setLocalState(() {}),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Zugangsfaktor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        const SizedBox(height: 4),
+                        TextField(
+                          controller: _zugangsfaktorC,
+                          decoration: InputDecoration(
+                            hintText: '1,0 (Standard)',
+                            prefixIcon: const Icon(Icons.tune, size: 18),
+                            isDense: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                          style: const TextStyle(fontSize: 14),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (_) => setLocalState(() {}),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              Row(children: [
+                Text('Kinder vorhanden?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                const SizedBox(width: 12),
+                ChoiceChip(
+                  label: const Text('Ja', style: TextStyle(fontSize: 12)),
+                  selected: _hatKinder,
+                  onSelected: (_) => setLocalState(() => _hatKinder = true),
+                  selectedColor: Colors.green.shade200,
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Nein', style: TextStyle(fontSize: 12)),
+                  selected: !_hatKinder,
+                  onSelected: (_) => setLocalState(() => _hatKinder = false),
+                  selectedColor: Colors.orange.shade200,
+                ),
+                const Spacer(),
+                Text('PV: ${(_hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos).toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ]),
               const SizedBox(height: 16),
 
-              // Notizen
+              // ─── BERECHNUNG ───
+              if (ep > 0 && _rentenart.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade300),
+                    boxShadow: [BoxShadow(color: Colors.orange.shade100, blurRadius: 6, offset: const Offset(0, 2))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Icon(Icons.calculate, color: Colors.orange.shade700, size: 18),
+                        const SizedBox(width: 6),
+                        Text('Rentenberechnung ($currentYear)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                      ]),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)),
+                        child: Text(
+                          '${ep.toStringAsFixed(2)} EP x ${zf.toStringAsFixed(3)} x ${_formatEur(rentenwert)} x ${faktor.toStringAsFixed(2)}',
+                          style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.grey.shade800),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('Brutto-Rente (monatlich):', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                        Text(_formatEur(brutto), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                      ]),
+                      const Divider(height: 14),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('KV-Beitrag (${(_kvBeitragRentner + _kvZusatzbeitrag / 2).toStringAsFixed(2)}%):', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('- ${_formatEur(kvAbzug)}', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                      ]),
+                      const SizedBox(height: 3),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('PV-Beitrag (${pvSatz.toStringAsFixed(1)}%${_hatKinder ? '' : ' kinderlos'}):', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('- ${_formatEur(pvAbzug)}', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                      ]),
+                      const Divider(height: 14),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('Netto-Rente (ca.):', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade400)),
+                          child: Text(_formatEur(netto), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 20),
+
               Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
               const SizedBox(height: 4),
               TextField(
-                controller: notizenController,
+                controller: _notizenC,
                 maxLines: 3,
                 decoration: InputDecoration(
                   hintText: 'Zusaetzliche Informationen...',
@@ -567,29 +665,6 @@ class _State extends State<BehordeRentenversicherungContent> {
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 24),
-
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: widget.isSaving(type) == true ? null : () {
-                    widget.saveData(type, {
-                      'dienststelle': dienststelleController.text.trim(),
-                      'sozialversicherungsnummer': svNummerController.text.trim(),
-                      'traeger': rentenversicherungstraegerController.text.trim(),
-                      'rentenart': rentenart,
-                      'entgeltpunkte': entgeltpunkteController.text.trim(),
-                      'zugangsfaktor': zugangsfaktorController.text.trim(),
-                      'hat_kinder': hatKinder ? 'ja' : 'nein',
-                      'notizen': notizenController.text.trim(),
-                    });
-                  },
-                  icon: widget.isSaving(type) == true
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.save, size: 18),
-                  label: const Text('Speichern'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                ),
-              ),
             ],
           ),
         );
@@ -597,27 +672,35 @@ class _State extends State<BehordeRentenversicherungContent> {
     );
   }
 
-  Widget _rentenInfoRow(IconData icon, String title, String desc, MaterialColor color) {
+  Widget _formatRow(String code, String desc) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: color.shade400),
-          const SizedBox(width: 6),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(text: '$title: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
-                  TextSpan(text: desc, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(color: Colors.deepPurple.shade100, borderRadius: BorderRadius.circular(3)),
+          child: Text(code, style: TextStyle(fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800), textAlign: TextAlign.center),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      ]),
     );
   }
 
+  Widget _bereichRow(String code, String traeger) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 1),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3), border: Border.all(color: Colors.indigo.shade200)),
+          child: Text(code, style: TextStyle(fontSize: 9, fontFamily: 'monospace', fontWeight: FontWeight.bold, color: Colors.indigo.shade800), textAlign: TextAlign.center),
+        ),
+        const SizedBox(width: 6),
+        Expanded(child: Text(traeger, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+      ]),
+    );
+  }
 }
