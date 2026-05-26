@@ -519,6 +519,45 @@ jobs:
           name: linux-targz
           path: ${{ env.APP_NAME }}-*-linux-x64.tar.gz
 
+      - name: Upload raw bundle for Flatpak job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: linux-bundle
+          path: build/linux/x64/release/bundle/
+
+  # ──────────────────────────────────────────────
+  # 6c. Flatpak (.flatpak single-file bundle for Fedora Kinoite / Flathub-style)
+  # ──────────────────────────────────────────────
+  flatpak:
+    name: "📦 Flatpak"
+    needs: [version, linux]
+    runs-on: ubuntu-latest
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          name: linux-bundle
+          path: flatpak/bundle
+
+      - name: Make binary executable
+        run: chmod +x flatpak/bundle/icd360sev_vorsitzer
+
+      - name: Build Flatpak
+        uses: flathub-infra/flatpak-github-actions/flatpak-builder@b6c92176b7f578aedea2cb91021ad8c356fa9479  # v6.5
+        with:
+          bundle: vorsitzer-${{ needs.version.outputs.version_name }}.flatpak
+          manifest-path: flatpak/de.icd360s.Vorsitzer.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: linux-flatpak
+          path: vorsitzer-*.flatpak
+
   # ──────────────────────────────────────────────
   # 7. macOS (DMG)
   # ──────────────────────────────────────────────
@@ -738,6 +777,7 @@ jobs:
     needs:
       - version
       - linux
+      - flatpak
     runs-on: ubuntu-latest
     permissions:
       contents: write   # softprops/action-gh-release creates a Release object on the tag
@@ -762,6 +802,7 @@ jobs:
             artifacts/**/*.aab
             artifacts/**/*.zip
             artifacts/**/*.tar.gz
+            artifacts/**/*.flatpak
             artifacts/**/*.dmg
             artifacts/**/*.ipa
 
@@ -816,6 +857,7 @@ jobs:
           cp artifacts/android-universal-apk/*.apk deploy/android/vorsitzer.apk || true
           find artifacts -type f -name "*.zip" -path "*windows*" -exec cp {} deploy/windows/vorsitzer-windows.zip \; || true
           find artifacts -type f -name "*.tar.gz" -path "*linux*" -exec cp {} deploy/linux/vorsitzer-linux.tar.gz \; || true
+          find artifacts -type f -name "*.flatpak" -exec cp {} deploy/linux/vorsitzer.flatpak \; || true
           echo "=== Deploy tree ==="
           find deploy -type f -exec ls -lh {} \;
 

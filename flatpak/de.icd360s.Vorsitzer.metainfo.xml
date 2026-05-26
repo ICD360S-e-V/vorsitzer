@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>de.icd360s.Vorsitzer</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <name>Vorsitzer Portal</name>
+  <summary>ICD360S e.V. Vorsitzer Portal</summary>
+  <description>
+    <p>
+      Internes Verwaltungsportal für Vorsitzer der ICD360S e.V.
+      Mitgliederverwaltung, Behördenkommunikation, Bewerbungsübersicht,
+      Live-Chat und integrierte Tools.
+    </p>
+  </description>
+  <launchable type="desktop-id">de.icd360s.Vorsitzer.desktop</launchable>
+  <url type="homepage">https://icd360sev.icd360s.de/</url>
+  <developer id="de.icd360s">
+    <name>ICD360S e.V.</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="6.1.4" date="2026-05-26">
+      <description>
+        <p>Erste Flatpak-Version für Fedora Kinoite KDE.</p>
+      </description>
+    </release>
+  </releases>
+</component>

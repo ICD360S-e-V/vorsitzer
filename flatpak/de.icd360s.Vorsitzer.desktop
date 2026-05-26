@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Vorsitzer Portal
+GenericName=ICD360S Portal
+Comment=ICD360S e.V. Vorsitzer Portal
+Exec=icd360sev_vorsitzer
+Icon=de.icd360s.Vorsitzer
+Terminal=false
+Type=Application
+Categories=Office;Network;
+StartupWMClass=icd360sev_vorsitzer
+StartupNotify=true
+Keywords=ICD360S;Vorsitzer;Portal;Mitgliederverwaltung;
