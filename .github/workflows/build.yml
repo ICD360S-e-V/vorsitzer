@@ -508,17 +508,6 @@ jobs:
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
-      - name: Package tar.gz
-        run: |
-          VERSION="${{ needs.version.outputs.version_name }}"
-          cd build/linux/x64/release/bundle
-          tar -czf "../../../../../${{ env.APP_NAME }}-${VERSION}-linux-x64.tar.gz" .
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          name: linux-targz
-          path: ${{ env.APP_NAME }}-*-linux-x64.tar.gz
-
       - name: Upload raw bundle for Flatpak job
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
@@ -804,7 +793,6 @@ jobs:
             artifacts/**/*.apk
             artifacts/**/*.aab
             artifacts/**/*.zip
-            artifacts/**/*.tar.gz
             artifacts/**/*.flatpak
             artifacts/**/*.dmg
             artifacts/**/*.ipa
@@ -859,7 +847,6 @@ jobs:
           mkdir -p deploy/android deploy/windows deploy/linux
           cp artifacts/android-universal-apk/*.apk deploy/android/vorsitzer.apk || true
           find artifacts -type f -name "*.zip" -path "*windows*" -exec cp {} deploy/windows/vorsitzer-windows.zip \; || true
-          find artifacts -type f -name "*.tar.gz" -path "*linux*" -exec cp {} deploy/linux/vorsitzer-linux.tar.gz \; || true
           find artifacts -type f -name "*.flatpak" -exec cp {} deploy/linux/vorsitzer.flatpak \; || true
           echo "=== Deploy tree ==="
           find deploy -type f -exec ls -lh {} \;
@@ -944,7 +931,7 @@ jobs:
               "file_size": "32 MB",
               "download_url_android": "https://icd360sev.icd360s.de/downloads/vorsitzer/android/vorsitzer.apk",
               "download_url_macos": "https://icd360sev.icd360s.de/downloads/vorsitzer/macos/vorsitzer.dmg",
-              "download_url_linux": "https://icd360sev.icd360s.de/downloads/vorsitzer/linux/vorsitzer-linux.tar.gz",
+              "download_url_linux": "https://icd360sev.icd360s.de/downloads/vorsitzer/linux/vorsitzer.flatpak",
               "download_url_ios": "https://icd360sev.icd360s.de/downloads/vorsitzer/ios/vorsitzer.ipa"
           }
           JSON
