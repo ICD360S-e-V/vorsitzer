@@ -308,10 +308,13 @@ class NotificationService {
 
     // Nur benachrichtigen wenn Chat-Dialog NICHT geöffnet ist
     if (!_isChatDialogOpen) {
-      // Native notification on all platforms
+      // Personalize title+body per sender so KDE Plasma's notification
+      // server doesn't classify them as duplicates and throttle them with
+      // org.freedesktop.Notifications.Error.ExcessNotificationGeneration.
+      final bodyPreview = message.length > 80 ? '${message.substring(0, 77)}...' : message;
       await show(
-        title: 'Neue Nachricht im Live-Chat',
-        body: 'Sie haben eine neue Nachricht erhalten.',
+        title: '$senderName: neue Nachricht',
+        body: bodyPreview.isNotEmpty ? bodyPreview : 'Sie haben eine neue Nachricht erhalten.',
         payload: 'chat:$conversationId',
       );
 

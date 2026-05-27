@@ -36,6 +36,16 @@ class UpdateService {
 
   /// Check if an update is available (protected endpoint - requires Device Key)
   Future<UpdateInfo?> checkForUpdate() async {
+    // Linux is shipped exclusively as Flatpak. Updates are handled by the
+    // Flatpak runtime (remote add + `flatpak update`), not by this in-app
+    // installer — the in-app path would download a .flatpak file expecting
+    // an AppImage and crash-loop. Skip the check entirely on Linux until a
+    // proper Flatpak remote is configured.
+    if (Platform.isLinux) {
+      _log.info('Skipping in-app update check on Linux (Flatpak-managed)', tag: 'UPDATE');
+      return null;
+    }
+
     try {
       final deviceKey = _deviceKeyService.deviceKey;
 
