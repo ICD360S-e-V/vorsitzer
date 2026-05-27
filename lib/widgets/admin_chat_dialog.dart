@@ -459,6 +459,25 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
         _loadAufgabenCount(_parseConvId(conversation['id']));
         _loadScheduledStatus(_parseConvId(conversation['id']));
+
+        // Auto-mark as read on open. Previously this only triggered when the
+        // admin typed ≥2 chars (WhatsApp-style typing-receipt) — but if the
+        // admin only READ the messages without replying, the unread counter
+        // kept growing forever. Treat opening the conversation as confirmation
+        // that the admin has seen the messages.
+        _markReadDebounce?.cancel();
+        _markReadDebounce = Timer(const Duration(milliseconds: 300), _markMessagesAsRead);
+
+        // Optimistically zero the sidebar unread badge so the UI matches
+        // immediately; the server-side update is in flight via _markMessagesAsRead.
+        _safeSetState(() {
+          final convIdStr = conversation['id'].toString();
+          for (final c in _conversations) {
+            if (c['id'].toString() == convIdStr) {
+              c['unread_count'] = 0;
+            }
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
