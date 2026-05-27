@@ -538,6 +538,30 @@ jobs:
       - name: Clone Flathub shared-modules
         run: git clone --depth 1 --branch master https://github.com/flathub/shared-modules.git flatpak/shared-modules
 
+      - name: Inject current version into AppStream metainfo
+        run: |
+          VERSION="${{ needs.version.outputs.version_name }}"
+          DATE=$(date -u +%Y-%m-%d)
+          # Replace the entire <releases>...</releases> block with a single fresh entry
+          python3 - <<PYEOF
+          import re
+          path = 'flatpak/de.icd360s.Vorsitzer.metainfo.xml'
+          with open(path, 'r', encoding='utf-8') as f:
+              content = f.read()
+          new_releases = f'''  <releases>
+            <release version="$VERSION" date="$DATE">
+              <description>
+                <p>Version $VERSION — neueste Aktualisierung.</p>
+              </description>
+            </release>
+          </releases>'''
+          content = re.sub(r'  <releases>.*?</releases>', new_releases, content, flags=re.DOTALL)
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(content)
+          print(f'Injected version=$VERSION date=$DATE into metainfo.xml')
+          PYEOF
+          cat flatpak/de.icd360s.Vorsitzer.metainfo.xml
+
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@401fe28a8384095fc1531b9d320b292f0ee45adb  # v6.7
         with:
