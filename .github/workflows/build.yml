@@ -569,10 +569,39 @@ jobs:
           manifest-path: flatpak/de.icd360s.Vorsitzer.yml
           cache-key: flatpak-builder-${{ github.sha }}
 
+      # ── OSTree repo for auto-update via `flatpak update` ──
+      - name: Update repo metadata + generate static deltas
+        run: |
+          # The flatpak-builder action leaves the OSTree repo at ./repo
+          flatpak build-update-repo --generate-static-deltas --prune --prune-depth=3 \
+            --title="ICD360S Internal Apps" repo
+          ls -la repo/
+
+      - name: Generate .flatpakrepo descriptor
+        run: |
+          cat > icd360s.flatpakrepo <<'EOF'
+          [Flatpak Repo]
+          Title=ICD360S Internal Apps
+          Url=https://icd360sev.icd360s.de/flatpak/repo/
+          Homepage=https://icd360sev.icd360s.de/
+          Comment=Vorsitzer Portal Auto-Update Repository
+          Description=Self-hosted Flatpak repository for ICD360S e.V. internal applications.
+          NoDeps=true
+          EOF
+          cat icd360s.flatpakrepo
+
+      - name: Tar OSTree repo + descriptor for deploy job
+        run: tar -czf flatpak-repo.tar.gz repo/ icd360s.flatpakrepo
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: linux-flatpak
           path: vorsitzer-*.flatpak
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: linux-flatpak-repo
+          path: flatpak-repo.tar.gz
 
   # ──────────────────────────────────────────────
   # 7. macOS (DMG)
@@ -868,10 +897,16 @@ jobs:
       - name: Organize artifacts with fixed filenames
         if: steps.guard.outputs.skip != 'true'
         run: |
-          mkdir -p deploy/android deploy/windows deploy/linux
+          mkdir -p deploy/android deploy/windows deploy/linux deploy/flatpak
           cp artifacts/android-universal-apk/*.apk deploy/android/vorsitzer.apk || true
           find artifacts -type f -name "*.zip" -path "*windows*" -exec cp {} deploy/windows/vorsitzer-windows.zip \; || true
           find artifacts -type f -name "*.flatpak" -exec cp {} deploy/linux/vorsitzer.flatpak \; || true
+          # Extract OSTree repo (auto-update via `flatpak update`)
+          if [ -f artifacts/linux-flatpak-repo/flatpak-repo.tar.gz ]; then
+            tar -xzf artifacts/linux-flatpak-repo/flatpak-repo.tar.gz -C deploy/flatpak/
+            echo "=== Flatpak repo tree ==="
+            find deploy/flatpak -maxdepth 3 -type d
+          fi
           echo "=== Deploy tree ==="
           find deploy -type f -exec ls -lh {} \;
 
@@ -882,6 +917,47 @@ jobs:
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.DEPLOY_PORT }} -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync Flatpak OSTree repo (for auto-update)
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          REMOTE="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          SSH_BASE="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          REPO_BASE="/var/www/icd360sev.icd360s.de/flatpak"
+
+          if [ -d deploy/flatpak/repo ]; then
+            ssh $SSH_BASE -p "$PORT" "$REMOTE" "mkdir -p '$REPO_BASE/repo'"
+
+            # Recommended order to avoid clients seeing a half-updated repo:
+            # 1. Upload objects + deltas (data clients will reference)
+            # 2. Upload refs (small, idempotent)
+            # 3. Upload summary last (this is what clients fetch to discover updates)
+            rsync -av --no-perms --no-owner --no-group \
+              --exclude='summary*' \
+              -e "ssh $SSH_BASE -p $PORT" \
+              deploy/flatpak/repo/ "$REMOTE:$REPO_BASE/repo/"
+
+            # Summary files last
+            for f in deploy/flatpak/repo/summary*; do
+              [ -e "$f" ] && scp $SSH_BASE -P "$PORT" "$f" "$REMOTE:$REPO_BASE/repo/" || true
+            done
+
+            # Prune objects no longer referenced by any commit (best-effort)
+            rsync -av --no-perms --no-owner --no-group --delete \
+              --exclude='summary*' \
+              -e "ssh $SSH_BASE -p $PORT" \
+              deploy/flatpak/repo/ "$REMOTE:$REPO_BASE/repo/"
+
+            # Descriptor + ownership
+            scp $SSH_BASE -P "$PORT" deploy/flatpak/icd360s.flatpakrepo "$REMOTE:$REPO_BASE/icd360s.flatpakrepo"
+            ssh $SSH_BASE -p "$PORT" "$REMOTE" "chown -R nginx:nginx '$REPO_BASE'"
+
+            echo "Flatpak repo synced. User commands:"
+            echo "  flatpak remote-add --user --if-not-exists --no-gpg-verify icd360s https://icd360sev.icd360s.de/flatpak/icd360s.flatpakrepo"
+            echo "  flatpak install --user icd360s de.icd360s.Vorsitzer"
+            echo "  flatpak update --user"
+          fi
 
       - name: Upload to server (atomic via temp-name + rename)
         if: steps.guard.outputs.skip != 'true'
