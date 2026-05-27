@@ -152,6 +152,10 @@ class DeviceKeyService {
     }
   }
 
+  /// Public: compute the hardware-derived device_id. Used by login flow to
+  /// attempt server-side recovery before falling back to activation code.
+  Future<String> getOrGenerateDeviceId() => _generateDeviceId();
+
   /// Generează un device ID unic bazat pe informații hardware (cross-platform)
   Future<String> _generateDeviceId() async {
     try {

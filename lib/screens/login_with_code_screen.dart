@@ -51,37 +51,66 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
       final mgnum = prefs.getString('mitgliedernummer') ?? '';
       final autoLogin = prefs.getBool('auto_login') ?? false;
 
+      // ─── Path A: local creds present → instant auto-login ───
       if (storedKey != null && storedKey.isNotEmpty && mgnum.isNotEmpty && autoLogin) {
         _log.info('Device key found in storage ($mgnum) — auto-login', tag: 'AUTH');
-
-        // 1. Inject device_key into singleton (in-memory + SP)
-        final storedId = prefs.getString('device_id') ?? '';
-        if (storedId.isNotEmpty) {
-          await _deviceKeyService.setActivatedCredentials(storedKey, storedId);
-        }
-
-        // 2. Fully initialize ApiService (loads JWT tokens, confirms device key)
-        //    so Dashboard services find everything ready on first frame.
-        await _apiService.initialize();
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DashboardScreen(
-              userName: '',
-              currentMitgliedernummer: mgnum,
-              currentEmail: '',
-              currentRole: 'vorsitzer',
-            ),
-          ),
-        );
+        await _completeAutoLogin(storedKey, prefs.getString('device_id') ?? '', mgnum, prefs);
         return;
       }
+
+      // ─── Path B: no local creds → try server-side recovery by device_id ───
+      // Triggered after `flatpak uninstall --delete-data` or moving to a fresh
+      // install where SharedPreferences is wiped but the hardware fingerprint
+      // (machine_id, MachineGuid, etc.) is unchanged. Saves the user from
+      // re-entering an activation code.
+      try {
+        final deviceId = await _deviceKeyService.getOrGenerateDeviceId();
+        final recovery = await _apiService.recoverDeviceKey(deviceId);
+        if (recovery['success'] == true && (recovery['device_key'] as String?)?.isNotEmpty == true) {
+          final dk = recovery['device_key'] as String;
+          final mn = (recovery['mitgliedernummer'] as String?) ?? '';
+          _log.info('Device recovered by fingerprint ($mn) — skipping activation code', tag: 'AUTH');
+          await prefs.setString('device_key', dk);
+          await prefs.setString('device_id', deviceId);
+          await prefs.setString('mitgliedernummer', mn);
+          await prefs.setBool('auto_login', true);
+          await _completeAutoLogin(dk, deviceId, mn, prefs);
+          return;
+        }
+        _log.debug('No device recovery match — falling back to activation code flow', tag: 'AUTH');
+      } catch (e) {
+        _log.warning('Device recovery error (will require activation code): $e', tag: 'AUTH');
+      }
+
+      // ─── Path C: fall through to manual mitgliedernummer + code UI ───
+      if (mounted) {
+        setState(() => _checkingAutoLogin = false);
+      }
     } catch (e) {
-      _log.warning('Auto-login check failed: $e', tag: 'AUTH');
+      _log.error('checkExistingActivation failed: $e', tag: 'AUTH');
+      if (mounted) setState(() => _checkingAutoLogin = false);
     }
-    if (mounted) setState(() => _checkingAutoLogin = false);
+  }
+
+  /// Shared completion path: inject credentials into singleton, init API,
+  /// route to Dashboard.
+  Future<void> _completeAutoLogin(String key, String devId, String mgnum, SharedPreferences prefs) async {
+    if (devId.isNotEmpty) {
+      await _deviceKeyService.setActivatedCredentials(key, devId);
+    }
+    await _apiService.initialize();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DashboardScreen(
+          userName: '',
+          currentMitgliedernummer: mgnum,
+          currentEmail: '',
+          currentRole: 'vorsitzer',
+        ),
+      ),
+    );
   }
 
   @override

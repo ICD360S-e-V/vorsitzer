@@ -3294,6 +3294,28 @@ class ApiService {
     }
   }
 
+  /// Try to recover an existing device_key from the server by sending the
+  /// hardware-derived device_id. Used when SharedPreferences was wiped
+  /// (e.g. `flatpak uninstall --delete-data`) but the hardware fingerprint
+  /// is unchanged — saves the user from re-entering an activation code.
+  /// Returns {success, device_key, mitgliedernummer, role, ...} on hit, else 404.
+  Future<Map<String, dynamic>> recoverDeviceKey(String deviceId) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/auth/recover_device_key.php'),
+        headers: _headers,
+        body: jsonEncode({'device_id': deviceId}),
+      ).timeout(const Duration(seconds: 10));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Server error (${response.statusCode})'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Recovery failed: $e'};
+    }
+  }
+
   /// Admin (vorsitzer role only): generate a one-time 16-char activation code
   /// for the given member. The raw code is returned ONLY here — it cannot be
   /// recovered later. TTL is in hours (max 168 = 7 days).
