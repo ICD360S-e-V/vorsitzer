@@ -663,20 +663,11 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                                                 )
                                               : ListView(
                                                   padding: const EdgeInsets.all(4),
-                                                  children: [
-                                                    _buildTimeSlot(currentDay, 8, dayTermine),
-                                                    _buildTimeSlot(currentDay, 9, dayTermine),
-                                                    _buildTimeSlot(currentDay, 10, dayTermine),
-                                                    _buildTimeSlot(currentDay, 11, dayTermine),
-                                                    _buildTimeSlot(currentDay, 12, dayTermine),
-                                                    _buildTimeSlot(currentDay, 13, dayTermine),
-                                                    _buildTimeSlot(currentDay, 14, dayTermine),
-                                                    _buildTimeSlot(currentDay, 15, dayTermine),
-                                                    _buildTimeSlot(currentDay, 16, dayTermine),
-                                                    _buildTimeSlot(currentDay, 17, dayTermine),
-                                                    _buildTimeSlot(currentDay, 18, dayTermine),
-                                                    _buildTimeSlot(currentDay, 19, dayTermine),
-                                                  ],
+                                                  children: List.generate(48, (i) {
+                                                    final hour = 8 + (i ~/ 4);
+                                                    final minute = (i % 4) * 15;
+                                                    return _buildQuarterSlot(currentDay, hour, minute, dayTermine);
+                                                  }),
                                                 ),
                                         ),
                                       ],
@@ -697,64 +688,28 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     );
   }
 
-  /// Check if a time slot is in the past
-  bool _isSlotPassed(DateTime date, int hour) {
-    final now = DateTime.now();
-    final slotDateTime = DateTime(date.year, date.month, date.day, hour);
+  /// 15-minute slot cell. Each hour has 4 of these (:00, :15, :30, :45).
+  /// Color: red = brauchtMich (needs me), yellow = does not need me.
+  /// A 30-min appointment spans 2 cells; details shown only on start cell;
+  /// click opens EditTerminDialog.
+  Widget _buildQuarterSlot(DateTime day, int hour, int minute, List<Termin> dayTermine) {
+    final slotStart = DateTime(day.year, day.month, day.day, hour, minute);
+    final slotEnd = slotStart.add(const Duration(minutes: 15));
 
-    // If the slot date+time is before now, it's passed
-    return slotDateTime.isBefore(now);
-  }
-
-  /// Build a cell for past time slots with diagonal stripes
-  Widget _buildPastSlotCell(int hour) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade400),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(5),
-        child: CustomPaint(
-          painter: _DiagonalStripesPainter(),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-            child: Text(
-              '$hour:00',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade500,
-                fontWeight: FontWeight.w500,
-                decoration: TextDecoration.lineThrough,
-                decorationColor: Colors.grey.shade500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimeSlot(DateTime day, int hour, List<Termin> dayTermine) {
-    final slotStart = DateTime(day.year, day.month, day.day, hour);
-    final slotEnd = DateTime(day.year, day.month, day.day, hour + 1);
-
-    // Find ALL termine that cover this hour slot
     final termine = dayTermine.where((t) {
       return t.terminDate.isBefore(slotEnd) && t.terminEndTime.isAfter(slotStart);
     }).toList();
 
-    final isPast = _isSlotPassed(day, hour);
+    final isPast = slotStart.isBefore(DateTime.now());
+    final timeLabel = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+    final isQuarterStart = minute == 0;
 
-    // If there are termine covering this slot, show them
     if (termine.isNotEmpty) {
       Widget buildSingleTerminCard(Termin termin, {bool compact = false}) {
-        final isStartSlot = termin.terminDate.hour == hour;
+        // The start cell is the one whose time range contains termin.terminDate
+        final isStartSlot = !termin.terminDate.isBefore(slotStart) && termin.terminDate.isBefore(slotEnd);
         final durationHours = '${DateFormat('HH:mm').format(termin.terminDate)} - ${DateFormat('HH:mm').format(termin.terminEndTime)}';
-        final displayColor = termin.brauchtMich ? Colors.red.shade700 : termin.categoryColor;
+        final displayColor = termin.brauchtMich ? Colors.red.shade700 : Colors.amber.shade700;
 
         return GestureDetector(
           onTap: () async {
@@ -901,25 +856,46 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       );
     }
 
-    // Empty slot - show past styling if passed
-    if (isPast) {
-      return _buildPastSlotCell(hour);
-    }
+    // Empty slot
+    final bgColor = isPast ? Colors.grey.shade200 : Colors.grey.shade50;
+    final borderColor = isPast ? Colors.grey.shade400 : Colors.grey.shade300;
+    // Continuous top border for :15/:30/:45 → visually grouped with :00 of the same hour
+    final borderRadius = isQuarterStart
+        ? const BorderRadius.vertical(top: Radius.circular(6))
+        : (minute == 45 ? const BorderRadius.vertical(bottom: Radius.circular(6)) : BorderRadius.zero);
 
-    // Future empty slot
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+    final cell = Container(
+      margin: EdgeInsets.only(bottom: minute == 45 ? 4 : 0),
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 6),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade300),
+        color: bgColor,
+        borderRadius: borderRadius,
+        border: Border(
+          left: BorderSide(color: borderColor),
+          right: BorderSide(color: borderColor),
+          top: BorderSide(color: borderColor, width: isQuarterStart ? 1 : 0.3),
+          bottom: BorderSide(color: borderColor, width: minute == 45 ? 1 : 0),
+        ),
       ),
       child: Text(
-        '$hour:00',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
+        timeLabel,
+        style: TextStyle(
+          fontSize: isQuarterStart ? 11 : 9,
+          color: Colors.grey.shade500,
+          fontWeight: isQuarterStart ? FontWeight.w500 : FontWeight.w400,
+          decoration: isPast ? TextDecoration.lineThrough : null,
+          decorationColor: Colors.grey.shade500,
+        ),
         textAlign: TextAlign.center,
       ),
     );
+
+    if (isPast) {
+      return ClipRRect(
+        borderRadius: borderRadius,
+        child: CustomPaint(painter: _DiagonalStripesPainter(), child: cell),
+      );
+    }
+    return cell;
   }
 }

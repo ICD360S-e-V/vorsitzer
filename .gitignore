@@ -33,6 +33,7 @@ windows/flutter/ephemeral/
 
 # Backup files
 *.bak
+*.bak.*
 *.bak2
 *.bak3
 *.bak4
