@@ -397,5 +397,5 @@ try {
 } catch (Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     error_log('vollmacht_create error: ' . $e->getMessage());
-    jsonResponse(false, [], 'Server error: ' . $e->getMessage());
+    jsonResponse(false, [], 'Server error');
 }
