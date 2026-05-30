@@ -415,266 +415,70 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            // Weekly Calendar Grid
+            // Weekly Calendar Grid — hours on the LEFT, days × 4 quarters on top.
             Expanded(
               child: _isLoadingTermine
                   ? const Center(child: CircularProgressIndicator())
                   : Card(
                       child: Column(
                         children: [
-                          // Week days header
-                          Container(
-                            color: Colors.grey.shade100,
-                            child: Row(
-                              children: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
-                                  .map((day) => Expanded(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                          decoration: BoxDecoration(
-                                            border: Border(right: BorderSide(color: Colors.grey.shade300)),
-                                          ),
-                                          child: Text(
-                                            day,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                          ),
-                                        ),
-                                      ))
-                                  .toList(),
-                            ),
-                          ),
-                          // Week days grid
+                          // Two-row header: day name + (:00 :15 :30 :45) subcolumns
+                          _buildCalendarHeader(),
+                          // Body: one row per hour, with hour label + 7 days × 4 quarter cells
                           Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: List.generate(7, (dayIndex) {
-                                final currentDay = _currentWeekStart.add(Duration(days: dayIndex));
-                                final isToday = currentDay.year == DateTime.now().year &&
-                                    currentDay.month == DateTime.now().month &&
-                                    currentDay.day == DateTime.now().day;
-                                final isWeekend = dayIndex >= 5;
-
-                                final dayTermine = _termine.where((t) {
-                                  return t.terminDate.year == currentDay.year &&
-                                      t.terminDate.month == currentDay.month &&
-                                      t.terminDate.day == currentDay.day;
-                                }).toList();
-
-                                final isUrlaub = _urlaub.any((u) {
-                                  final start = DateTime.parse(u['start_date']);
-                                  final end = DateTime.parse(u['end_date']);
-                                  final dayOnly = DateTime(currentDay.year, currentDay.month, currentDay.day);
-                                  // Check if day is within range (inclusive)
-                                  return dayOnly.compareTo(start) >= 0 && dayOnly.compareTo(end) <= 0;
-                                });
-
-                                final dayStr = DateFormat('yyyy-MM-dd').format(currentDay);
-                                final feiertag = holidays[dayStr];
-                                final isFeiertag = feiertag != null;
-
-                                return Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: isFeiertag
-                                          ? Colors.indigo.shade50
-                                          : isUrlaub
-                                              ? Colors.red.shade50
-                                              : (isWeekend ? Colors.grey.shade50 : Colors.white),
-                                      border: Border(
-                                        right: BorderSide(color: Colors.grey.shade300),
-                                        top: BorderSide(color: Colors.grey.shade300),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: isFeiertag
-                                                ? Colors.indigo.shade100
-                                                : isUrlaub
-                                                    ? Colors.red.shade100
-                                                    : (isToday ? Colors.blue.shade100 : null),
-                                            border: isFeiertag
-                                                ? Border.all(color: Colors.indigo.shade700, width: 2)
-                                                : isUrlaub
-                                                    ? Border.all(color: Colors.red.shade700, width: 2)
-                                                    : (isToday ? Border.all(color: Colors.blue.shade700, width: 2) : null),
-                                          ),
-                                          child: Text(
-                                            DateFormat('dd').format(currentDay),
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: (isToday || isUrlaub || isFeiertag) ? FontWeight.bold : FontWeight.normal,
-                                              color: isFeiertag
-                                                  ? Colors.indigo.shade900
-                                                  : isUrlaub
-                                                      ? Colors.red.shade900
-                                                      : (isToday ? Colors.blue.shade900 : Colors.black),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: isFeiertag
-                                              ? Center(
-                                                  child: Column(
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    children: [
-                                                      Icon(Icons.flag, color: Colors.indigo.shade700, size: 32),
-                                                      const SizedBox(height: 8),
-                                                      Text(
-                                                        'Feiertag',
-                                                        style: TextStyle(
-                                                          color: Colors.indigo.shade700,
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        feiertag,
-                                                        style: TextStyle(
-                                                          color: Colors.indigo.shade500,
-                                                          fontSize: 10,
-                                                        ),
-                                                        textAlign: TextAlign.center,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                )
-                                              : isUrlaub
-                                              ? GestureDetector(
-                                                  onTap: () async {
-                                                    final dayOnly = DateTime(currentDay.year, currentDay.month, currentDay.day);
-                                                    final urlaubPeriod = _urlaub.firstWhere((u) {
-                                                      final start = DateTime.parse(u['start_date']);
-                                                      final end = DateTime.parse(u['end_date']);
-                                                      return dayOnly.compareTo(start) >= 0 && dayOnly.compareTo(end) <= 0;
-                                                    });
-
-                                                    final start = DateTime.parse(urlaubPeriod['start_date']);
-                                                    final end = DateTime.parse(urlaubPeriod['end_date']);
-                                                    final isFirstDay = dayOnly.compareTo(start) == 0;
-                                                    final isLastDay = dayOnly.compareTo(end) == 0;
-                                                    final isSingleDay = start.compareTo(end) == 0;
-                                                    final messenger = ScaffoldMessenger.of(context);
-
-                                                    final action = await showDialog<String>(
-                                                      context: context,
-                                                      builder: (ctx) => AlertDialog(
-                                                        title: Text('Urlaub: ${DateFormat('dd.MM.yyyy').format(dayOnly)}'),
-                                                        content: Column(
-                                                          mainAxisSize: MainAxisSize.min,
-                                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                                          children: [
-                                                            Text('${urlaubPeriod['beschreibung']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                                            const SizedBox(height: 8),
-                                                            Text('Periode: ${DateFormat('dd.MM.yyyy').format(start)} - ${DateFormat('dd.MM.yyyy').format(end)}'),
-                                                            const Divider(height: 24),
-                                                            const Text('Was möchten Sie tun?', style: TextStyle(fontWeight: FontWeight.bold)),
-                                                          ],
-                                                        ),
-                                                        actions: [
-                                                          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-                                                          if (isSingleDay)
-                                                            ElevatedButton(
-                                                              onPressed: () => Navigator.pop(ctx, 'delete'),
-                                                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                                              child: const Text('Löschen'),
-                                                            )
-                                                          else ...[
-                                                            if (isFirstDay)
-                                                              ElevatedButton(
-                                                                onPressed: () => Navigator.pop(ctx, 'remove_first'),
-                                                                child: const Text('Erste Tag entfernen'),
-                                                              ),
-                                                            if (isLastDay)
-                                                              ElevatedButton(
-                                                                onPressed: () => Navigator.pop(ctx, 'remove_last'),
-                                                                child: const Text('Letzte Tag entfernen'),
-                                                              ),
-                                                            if (!isFirstDay && !isLastDay)
-                                                              const Text('Mittlere Tag - bitte gesamte Periode löschen', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                                            ElevatedButton(
-                                                              onPressed: () => Navigator.pop(ctx, 'delete'),
-                                                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                                              child: const Text('Gesamte Periode löschen'),
-                                                            ),
-                                                          ],
-                                                        ],
-                                                      ),
-                                                    );
-
-                                                    if (action == 'remove_first') {
-                                                      final newStart = start.add(const Duration(days: 1));
-                                                      final res = await _terminService.updateUrlaub(
-                                                        urlaubId: urlaubPeriod['id'],
-                                                        startDate: newStart,
-                                                        endDate: end,
-                                                      );
-                                                      if (res['success'] == true) {
-                                                        _loadTermine();
-                                                        messenger.showSnackBar(const SnackBar(content: Text('Tag entfernt'), backgroundColor: Colors.green));
-                                                      }
-                                                    } else if (action == 'remove_last') {
-                                                      final newEnd = end.subtract(const Duration(days: 1));
-                                                      final res = await _terminService.updateUrlaub(
-                                                        urlaubId: urlaubPeriod['id'],
-                                                        startDate: start,
-                                                        endDate: newEnd,
-                                                      );
-                                                      if (res['success'] == true) {
-                                                        _loadTermine();
-                                                        messenger.showSnackBar(const SnackBar(content: Text('Tag entfernt'), backgroundColor: Colors.green));
-                                                      }
-                                                    } else if (action == 'delete') {
-                                                      final res = await _terminService.deleteUrlaub(urlaubPeriod['id']);
-                                                      if (res['success'] == true) {
-                                                        _loadTermine();
-                                                        messenger.showSnackBar(const SnackBar(content: Text('Urlaub gelöscht'), backgroundColor: Colors.green));
-                                                      }
-                                                    }
-                                                  },
-                                                  child: Center(
-                                                    child: Column(
-                                                      mainAxisAlignment: MainAxisAlignment.center,
-                                                      children: [
-                                                        Icon(Icons.beach_access, color: Colors.red.shade700, size: 32),
-                                                        const SizedBox(height: 8),
-                                                        Text(
-                                                          'Urlaub',
-                                                          style: TextStyle(
-                                                            color: Colors.red.shade700,
-                                                            fontWeight: FontWeight.bold,
-                                                            fontSize: 14,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 4),
-                                                        Text(
-                                                          '(Click)',
-                                                          style: TextStyle(
-                                                            color: Colors.red.shade400,
-                                                            fontSize: 10,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                )
-                                              : ListView(
-                                                  padding: const EdgeInsets.all(4),
-                                                  children: List.generate(48, (i) {
-                                                    final hour = 8 + (i ~/ 4);
-                                                    final minute = (i % 4) * 15;
-                                                    return _buildQuarterSlot(currentDay, hour, minute, dayTermine);
-                                                  }),
+                            child: ListView.builder(
+                              itemCount: 12,
+                              itemBuilder: (ctx, hourIdx) {
+                                final hour = 8 + hourIdx;
+                                return SizedBox(
+                                  height: 56,
+                                  child: Row(
+                                    children: [
+                                      _buildHourLabel(hour),
+                                      ...List.generate(7, (dayIdx) {
+                                        final day = _currentWeekStart.add(Duration(days: dayIdx));
+                                        final dayTermine = _termine.where((t) =>
+                                            t.terminDate.year == day.year &&
+                                            t.terminDate.month == day.month &&
+                                            t.terminDate.day == day.day).toList();
+                                        final dayStr = DateFormat('yyyy-MM-dd').format(day);
+                                        final feiertag = holidays[dayStr];
+                                        final urlaubPeriod = _urlaub.firstWhere(
+                                          (u) {
+                                            final start = DateTime.parse(u['start_date']);
+                                            final end = DateTime.parse(u['end_date']);
+                                            final dayOnly = DateTime(day.year, day.month, day.day);
+                                            return dayOnly.compareTo(start) >= 0 && dayOnly.compareTo(end) <= 0;
+                                          },
+                                          orElse: () => <String, dynamic>{},
+                                        );
+                                        final isWeekend = dayIdx >= 5;
+                                        return Expanded(
+                                          flex: 4,
+                                          child: Row(
+                                            children: List.generate(4, (qIdx) {
+                                              final minute = qIdx * 15;
+                                              final isLastQuarterOfDay = qIdx == 3;
+                                              return Expanded(
+                                                child: _buildQuarterSlot(
+                                                  day,
+                                                  hour,
+                                                  minute,
+                                                  dayTermine,
+                                                  feiertagName: feiertag,
+                                                  urlaubPeriod: urlaubPeriod.isEmpty ? null : urlaubPeriod,
+                                                  isWeekend: isWeekend,
+                                                  isLastQuarterOfDay: isLastQuarterOfDay,
                                                 ),
-                                        ),
-                                      ],
-                                    ),
+                                              );
+                                            }),
+                                          ),
+                                        );
+                                      }),
+                                    ],
                                   ),
                                 );
-                              }),
+                              },
                             ),
                           ),
                         ],
@@ -688,214 +492,301 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     );
   }
 
-  /// 15-minute slot cell. Each hour has 4 of these (:00, :15, :30, :45).
-  /// Color: red = brauchtMich (needs me), yellow = does not need me.
-  /// A 30-min appointment spans 2 cells; details shown only on start cell;
-  /// click opens EditTerminDialog.
-  Widget _buildQuarterSlot(DateTime day, int hour, int minute, List<Termin> dayTermine) {
+  /// Top header of the grid: day names (Mo/Di/Mi/…) plus a row of :00 :15 :30 :45
+  /// subcolumns under each day. Aligned with `_buildHourLabel` on the left.
+  Widget _buildCalendarHeader() {
+    const dayShort = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    return Container(
+      color: Colors.grey.shade100,
+      child: Row(
+        children: [
+          // Spacer over the hour column
+          Container(
+            width: 44,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              border: Border(right: BorderSide(color: Colors.grey.shade300)),
+            ),
+            alignment: Alignment.center,
+            child: Text('Uhr', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+          ...List.generate(7, (dayIdx) {
+            final day = _currentWeekStart.add(Duration(days: dayIdx));
+            final isToday = day.year == DateTime.now().year && day.month == DateTime.now().month && day.day == DateTime.now().day;
+            final dayStr = DateFormat('yyyy-MM-dd').format(day);
+            final isFeiertag = holidays[dayStr] != null;
+            final isUrlaub = _urlaub.any((u) {
+              final start = DateTime.parse(u['start_date']);
+              final end = DateTime.parse(u['end_date']);
+              final dayOnly = DateTime(day.year, day.month, day.day);
+              return dayOnly.compareTo(start) >= 0 && dayOnly.compareTo(end) <= 0;
+            });
+            final headerBg = isFeiertag
+                ? Colors.indigo.shade100
+                : isUrlaub
+                    ? Colors.red.shade100
+                    : (isToday ? Colors.blue.shade100 : null);
+            return Expanded(
+              flex: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: headerBg,
+                  border: Border(right: BorderSide(color: Colors.grey.shade300)),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: [
+                    Text(
+                      '${dayShort[dayIdx]} ${DateFormat('dd.MM').format(day)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: isFeiertag
+                            ? Colors.indigo.shade900
+                            : isUrlaub
+                                ? Colors.red.shade900
+                                : (isToday ? Colors.blue.shade900 : Colors.black87),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: const [
+                        Expanded(child: Text(':00', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
+                        Expanded(child: Text(':15', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
+                        Expanded(child: Text(':30', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
+                        Expanded(child: Text(':45', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Hour label on the left of each row (8, 9, …, 19).
+  Widget _buildHourLabel(int hour) {
+    return Container(
+      width: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(
+          right: BorderSide(color: Colors.grey.shade300),
+          top: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Text(
+        '$hour',
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      ),
+    );
+  }
+
+  /// Single 15-min cell in the grid. The cell is the intersection of a day and
+  /// a quarter-of-an-hour. Color: red = brauchtMich, yellow = does not need me.
+  /// A 30-min appointment spans 2 consecutive cells; details (title + duration)
+  /// only appear on the start cell; continuation cells render colored background.
+  /// Click opens EditTerminDialog (or Urlaub dialog for vacation cells).
+  Widget _buildQuarterSlot(
+    DateTime day,
+    int hour,
+    int minute,
+    List<Termin> dayTermine, {
+    String? feiertagName,
+    Map<String, dynamic>? urlaubPeriod,
+    bool isWeekend = false,
+    bool isLastQuarterOfDay = false,
+  }) {
     final slotStart = DateTime(day.year, day.month, day.day, hour, minute);
     final slotEnd = slotStart.add(const Duration(minutes: 15));
+    final isPast = slotStart.isBefore(DateTime.now());
+    final rightBorder = BorderSide(
+      color: Colors.grey.shade300,
+      width: isLastQuarterOfDay ? 1.2 : 0.4,
+    );
+    final cellBorder = Border(
+      right: rightBorder,
+      top: BorderSide(color: Colors.grey.shade300, width: 0.6),
+    );
 
+    // Feiertag — show indigo background; click does nothing (informational)
+    if (feiertagName != null) {
+      return Tooltip(
+        message: 'Feiertag: $feiertagName',
+        child: Container(
+          decoration: BoxDecoration(color: Colors.indigo.shade50, border: cellBorder),
+          child: (hour == 12 && minute == 0)
+              ? Center(child: Icon(Icons.flag, size: 14, color: Colors.indigo.shade400))
+              : null,
+        ),
+      );
+    }
+
+    // Urlaub — red background; click opens the urlaub dialog
+    if (urlaubPeriod != null) {
+      return GestureDetector(
+        onTap: () => _showUrlaubEditDialog(urlaubPeriod, DateTime(day.year, day.month, day.day)),
+        child: Container(
+          decoration: BoxDecoration(color: Colors.red.shade50, border: cellBorder),
+          child: (hour == 12 && minute == 0)
+              ? Center(child: Icon(Icons.beach_access, size: 14, color: Colors.red.shade400))
+              : null,
+        ),
+      );
+    }
+
+    // Appointments covering this slot
     final termine = dayTermine.where((t) {
       return t.terminDate.isBefore(slotEnd) && t.terminEndTime.isAfter(slotStart);
     }).toList();
 
-    final isPast = slotStart.isBefore(DateTime.now());
-    final timeLabel = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-    final isQuarterStart = minute == 0;
-
     if (termine.isNotEmpty) {
-      Widget buildSingleTerminCard(Termin termin, {bool compact = false}) {
-        // The start cell is the one whose time range contains termin.terminDate
-        final isStartSlot = !termin.terminDate.isBefore(slotStart) && termin.terminDate.isBefore(slotEnd);
-        final durationHours = '${DateFormat('HH:mm').format(termin.terminDate)} - ${DateFormat('HH:mm').format(termin.terminEndTime)}';
-        final displayColor = termin.brauchtMich ? Colors.red.shade700 : Colors.amber.shade700;
+      // For overlapping termine: show the most prominent (brauchtMich wins).
+      termine.sort((a, b) => (b.brauchtMich ? 1 : 0) - (a.brauchtMich ? 1 : 0));
+      final termin = termine.first;
+      final isStartSlot = !termin.terminDate.isBefore(slotStart) && termin.terminDate.isBefore(slotEnd);
+      final color = termin.brauchtMich ? Colors.red : Colors.amber;
+      final shade = isPast ? color.shade200 : color.shade400;
 
-        return GestureDetector(
-          onTap: () async {
-            await showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (ctx) => EditTerminDialog(
-                termin: termin,
-                terminService: _terminService,
-                users: _users,
-                tickets: _tickets,
-                onTerminUpdated: _loadTermine,
-                currentMitgliedernummer: widget.currentMitgliedernummer,
-              ),
-            );
-          },
-          child: Container(
-            padding: EdgeInsets.all(compact ? 4 : 8),
-            decoration: BoxDecoration(
-              color: isPast
-                  ? Colors.grey.shade200
-                  : displayColor.withValues(alpha: isStartSlot ? 0.2 : 0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: isPast
-                    ? Colors.grey.shade400
-                    : displayColor.withValues(alpha: termin.brauchtMich ? 0.7 : 0.4),
-                width: termin.brauchtMich && !isPast ? 2 : 1,
-              ),
+      return GestureDetector(
+        onTap: () async {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => EditTerminDialog(
+              termin: termin,
+              terminService: _terminService,
+              users: _users,
+              tickets: _tickets,
+              onTerminUpdated: _loadTermine,
+              currentMitgliedernummer: widget.currentMitgliedernummer,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isStartSlot) ...[
-                  Row(
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(color: shade, border: cellBorder),
+          padding: const EdgeInsets.all(2),
+          child: isStartSlot
+              ? Tooltip(
+                  message: '${DateFormat('HH:mm').format(termin.terminDate)}–${DateFormat('HH:mm').format(termin.terminEndTime)}\n${termin.title}',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (termin.brauchtMich && !isPast)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Icon(Icons.person_pin_circle, size: compact ? 12 : 14, color: Colors.red.shade700),
-                        ),
-                      Expanded(
-                        child: Text(
-                          durationHours,
-                          style: TextStyle(
-                            fontSize: compact ? 10 : 12,
-                            fontWeight: FontWeight.bold,
-                            color: isPast ? Colors.grey.shade500 : displayColor,
-                            decoration: isPast ? TextDecoration.lineThrough : null,
-                            decorationColor: Colors.grey.shade500,
-                          ),
-                        ),
+                      Text(
+                        DateFormat('HH:mm').format(termin.terminDate),
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  if (termin.forKindBadge(widget.currentMitgliedernummer) != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.pink.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.pink.shade200),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.child_care, size: compact ? 8 : 10, color: Colors.pink.shade700),
-                            const SizedBox(width: 2),
-                            Flexible(
-                              child: Text(
-                                termin.forKindBadge(widget.currentMitgliedernummer)!,
-                                style: TextStyle(fontSize: compact ? 8 : 9, color: Colors.pink.shade800, fontWeight: FontWeight.w600),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  Text(
-                    termin.title,
-                    style: TextStyle(
-                      fontSize: compact ? 9 : 11,
-                      fontWeight: FontWeight.w600,
-                      color: isPast ? Colors.grey.shade500 : null,
-                      decoration: isPast ? TextDecoration.lineThrough : null,
-                      decorationColor: Colors.grey.shade500,
-                    ),
-                    maxLines: compact ? 1 : 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (!compact && termin.totalParticipants != null)
-                    Text(
-                      '${termin.confirmedCount}/${termin.totalParticipants}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                ] else ...[
-                  Row(
-                    children: [
-                      Icon(Icons.more_vert, size: 12, color: isPast ? Colors.grey.shade400 : displayColor.withValues(alpha: 0.6)),
-                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           termin.title,
-                          style: TextStyle(fontSize: compact ? 9 : 10, color: isPast ? Colors.grey.shade400 : Colors.grey.shade600, fontStyle: FontStyle.italic),
-                          maxLines: 1,
+                          style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ],
-            ),
-          ),
-        );
-      }
-
-      // Single termin: full width
-      if (termine.length == 1) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: buildSingleTerminCard(termine.first),
-        );
-      }
-
-      // Multiple termine: split side by side
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(
-          children: termine.map((t) => Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(right: t == termine.last ? 0 : 2),
-              child: buildSingleTerminCard(t, compact: true),
-            ),
-          )).toList(),
+                )
+              : null,
         ),
       );
     }
 
     // Empty slot
-    final bgColor = isPast ? Colors.grey.shade200 : Colors.grey.shade50;
-    final borderColor = isPast ? Colors.grey.shade400 : Colors.grey.shade300;
-    // Continuous top border for :15/:30/:45 → visually grouped with :00 of the same hour
-    final borderRadius = isQuarterStart
-        ? const BorderRadius.vertical(top: Radius.circular(6))
-        : (minute == 45 ? const BorderRadius.vertical(bottom: Radius.circular(6)) : BorderRadius.zero);
+    final bgColor = isWeekend ? Colors.grey.shade100 : Colors.white;
+    final cell = Container(decoration: BoxDecoration(color: bgColor, border: cellBorder));
+    if (isPast) {
+      return ClipRect(child: CustomPaint(painter: _DiagonalStripesPainter(), child: cell));
+    }
+    return cell;
+  }
 
-    final cell = Container(
-      margin: EdgeInsets.only(bottom: minute == 45 ? 4 : 0),
-      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: borderRadius,
-        border: Border(
-          left: BorderSide(color: borderColor),
-          right: BorderSide(color: borderColor),
-          top: BorderSide(color: borderColor, width: isQuarterStart ? 1 : 0.3),
-          bottom: BorderSide(color: borderColor, width: minute == 45 ? 1 : 0),
+  /// Show the urlaub editing dialog (remove first/last day, delete period).
+  Future<void> _showUrlaubEditDialog(Map<String, dynamic> urlaubPeriod, DateTime dayOnly) async {
+    final start = DateTime.parse(urlaubPeriod['start_date']);
+    final end = DateTime.parse(urlaubPeriod['end_date']);
+    final isFirstDay = dayOnly.compareTo(start) == 0;
+    final isLastDay = dayOnly.compareTo(end) == 0;
+    final isSingleDay = start.compareTo(end) == 0;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Urlaub: ${DateFormat('dd.MM.yyyy').format(dayOnly)}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${urlaubPeriod['beschreibung']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Periode: ${DateFormat('dd.MM.yyyy').format(start)} - ${DateFormat('dd.MM.yyyy').format(end)}'),
+            const Divider(height: 24),
+            const Text('Was möchten Sie tun?', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
         ),
-      ),
-      child: Text(
-        timeLabel,
-        style: TextStyle(
-          fontSize: isQuarterStart ? 11 : 9,
-          color: Colors.grey.shade500,
-          fontWeight: isQuarterStart ? FontWeight.w500 : FontWeight.w400,
-          decoration: isPast ? TextDecoration.lineThrough : null,
-          decorationColor: Colors.grey.shade500,
-        ),
-        textAlign: TextAlign.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          if (isSingleDay)
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, 'delete'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Löschen'),
+            )
+          else ...[
+            if (isFirstDay)
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'remove_first'),
+                child: const Text('Erste Tag entfernen'),
+              ),
+            if (isLastDay)
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'remove_last'),
+                child: const Text('Letzte Tag entfernen'),
+              ),
+            if (!isFirstDay && !isLastDay)
+              const Text('Mittlere Tag - bitte gesamte Periode löschen', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, 'delete'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Gesamte Periode löschen'),
+            ),
+          ],
+        ],
       ),
     );
 
-    if (isPast) {
-      return ClipRRect(
-        borderRadius: borderRadius,
-        child: CustomPaint(painter: _DiagonalStripesPainter(), child: cell),
+    if (action == 'remove_first') {
+      final res = await _terminService.updateUrlaub(
+        urlaubId: urlaubPeriod['id'],
+        startDate: start.add(const Duration(days: 1)),
+        endDate: end,
       );
+      if (res['success'] == true) {
+        _loadTermine();
+        messenger.showSnackBar(const SnackBar(content: Text('Tag entfernt'), backgroundColor: Colors.green));
+      }
+    } else if (action == 'remove_last') {
+      final res = await _terminService.updateUrlaub(
+        urlaubId: urlaubPeriod['id'],
+        startDate: start,
+        endDate: end.subtract(const Duration(days: 1)),
+      );
+      if (res['success'] == true) {
+        _loadTermine();
+        messenger.showSnackBar(const SnackBar(content: Text('Tag entfernt'), backgroundColor: Colors.green));
+      }
+    } else if (action == 'delete') {
+      final res = await _terminService.deleteUrlaub(urlaubPeriod['id']);
+      if (res['success'] == true) {
+        _loadTermine();
+        messenger.showSnackBar(const SnackBar(content: Text('Urlaub gelöscht'), backgroundColor: Colors.green));
+      }
     }
-    return cell;
   }
 }
