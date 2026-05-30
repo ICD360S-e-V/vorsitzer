@@ -423,7 +423,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                       child: Column(
                         children: [
                           // Two-row header: day name + (:00 :15 :30 :45) subcolumns
-                          _buildCalendarHeader(),
+                          _buildCalendarHeader(holidays),
                           // Body: one row per hour, with hour label + 7 days × 4 quarter cells
                           Expanded(
                             child: ListView.builder(
@@ -494,7 +494,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
 
   /// Top header of the grid: day names (Mo/Di/Mi/…) plus a row of :00 :15 :30 :45
   /// subcolumns under each day. Aligned with `_buildHourLabel` on the left.
-  Widget _buildCalendarHeader() {
+  Widget _buildCalendarHeader(Map<String, String> holidays) {
     const dayShort = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     return Container(
       color: Colors.grey.shade100,
