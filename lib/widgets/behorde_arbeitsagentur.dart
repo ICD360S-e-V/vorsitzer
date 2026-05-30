@@ -2223,12 +2223,19 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _kv('Mitglied', '${user['vorname'] ?? ''} ${user['nachname'] ?? ''} — geb. ${user['geburtsdatum'] ?? '?'} in ${user['geburtsort'] ?? '?'}'),
-            _kv('Anschrift', '${user['strasse'] ?? ''} ${user['hausnummer'] ?? ''}, ${user['plz'] ?? ''} ${user['ort'] ?? ''}'),
-            _kv('Vorsitzender', '${vorsitzer['vorname'] ?? ''} ${vorsitzer['nachname'] ?? ''}'),
-            _kv('Verein', '${verein['vereinsname'] ?? ''} — VR ${verein['registernummer'] ?? ''} (${verein['registergericht'] ?? ''})'),
-          ]),
+          child: Builder(builder: (_) {
+            final ub = (_previewData?['user_behoerde'] as Map?) ?? const {};
+            final knr = (ub['kundennummer'] ?? '').toString();
+            final dst = (ub['dienststelle'] ?? '').toString();
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _kv('Mitglied', '${user['vorname'] ?? ''} ${user['nachname'] ?? ''} — geb. ${user['geburtsdatum'] ?? '?'} in ${user['geburtsort'] ?? '?'}'),
+              _kv('Anschrift', '${user['strasse'] ?? ''} ${user['hausnummer'] ?? ''}, ${user['plz'] ?? ''} ${user['ort'] ?? ''}'),
+              _kv('Kundennummer BA', knr.isEmpty ? '?' : knr),
+              _kv('Zust. Agentur', dst.isEmpty ? '?' : dst),
+              _kv('Vorsitzender', '${vorsitzer['vorname'] ?? ''} ${vorsitzer['nachname'] ?? ''}'),
+              _kv('Verein', '${verein['vereinsname'] ?? ''} — VR ${verein['registernummer'] ?? ''} (${verein['registergericht'] ?? ''})'),
+            ]);
+          }),
         ),
         if (missing.isNotEmpty) Padding(
           padding: const EdgeInsets.only(top: 8),
