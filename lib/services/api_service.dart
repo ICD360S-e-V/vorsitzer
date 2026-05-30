@@ -5119,6 +5119,10 @@ class ApiService {
 
   String vollmachtPdfUrl(int id) => '$baseUrl/admin/vollmacht_pdf.php?id=$id';
 
+  Future<http.Response> downloadVollmachtPdf(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/vollmacht_pdf.php?id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   Future<Map<String, dynamic>> deleteArbeitsagenturAntrag(int userId, int id) async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_antrag', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }

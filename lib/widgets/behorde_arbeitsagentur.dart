@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -2153,11 +2152,17 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     if (res['success'] == true) _loadAll();
   }
 
-  Future<void> _openPdf(int id) async {
-    final url = widget.apiService.vollmachtPdfUrl(id);
-    Clipboard.setData(ClipboardData(text: url));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF-URL in Zwischenablage: $url')));
+  Future<void> _openPdf(int id, String filename) async {
+    try {
+      final response = await widget.apiService.downloadVollmachtPdf(id);
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        if (mounted) FileViewerDialog.showFromBytes(context, response.bodyBytes, filename);
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${response.statusCode})'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
   }
 
   @override
@@ -2304,20 +2309,23 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
         final color = switch (status) {
           'active' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, 'expired' => Colors.grey, _ => Colors.grey,
         };
+        final filename = (v['pdf_filename'] ?? 'vollmacht_${v['id']}.pdf').toString();
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
-            leading: Icon(Icons.description, color: color),
+            leading: Icon(Icons.picture_as_pdf, color: color),
             title: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Erstellt: ${v['generated_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
               Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11)),
               if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+              const SizedBox(height: 2),
+              const Text('Tippen zum Öffnen', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
             ]),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.open_in_new, size: 18), tooltip: 'PDF-URL kopieren', onPressed: () => _openPdf(v['id'])),
-              if (status != 'revoked') IconButton(icon: const Icon(Icons.cancel, size: 18, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(v['id'])),
-            ]),
+            trailing: status != 'revoked'
+                ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(v['id']))
+                : null,
+            onTap: () => _openPdf(v['id'], filename),
           ),
         );
       },
