@@ -35,7 +35,7 @@ try {
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row || empty($row['pdf_filename'])) jsonResponse(false, [], 'Not found');
 
-    $absPath = __DIR__ . '/../../../uploads/vollmachten/' . $row['pdf_filename'];
+    $absPath = __DIR__ . '/../../uploads/vollmachten/' . $row['pdf_filename'];
     if (!is_file($absPath) || !is_readable($absPath)) {
         jsonResponse(false, [], 'PDF file missing on disk');
     }

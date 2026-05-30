@@ -364,7 +364,9 @@ try {
     ));
 
     // ── Save PDF ────────────────────────────────────────────────────────
-    $storageDir = __DIR__ . '/../../../uploads/vollmachten';
+    // Storage at /var/www/icd360sev.icd360s.de/uploads/vollmachten
+    // (api/admin/ → ../.. → site root → uploads/vollmachten)
+    $storageDir = __DIR__ . '/../../uploads/vollmachten';
     if (!is_dir($storageDir)) mkdir($storageDir, 0750, true);
     $filename = sprintf('vollmacht_%s_user%d_%s.pdf', $behoerde, $userId, date('Ymd_His'));
     $absPath = $storageDir . '/' . $filename;
