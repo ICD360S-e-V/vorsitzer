@@ -5096,6 +5096,29 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  // === VOLLMACHT (procură) ===
+  Future<Map<String, dynamic>> getVollmachtData(int userId, String behoerde) async {
+    final response = await _client.get(Uri.parse('$baseUrl/admin/vollmacht_data.php?user_id=$userId&behoerde=$behoerde'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> createVollmacht(Map<String, dynamic> payload) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/vollmacht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> listVollmachten(int userId, String behoerde) async {
+    final response = await _client.get(Uri.parse('$baseUrl/admin/vollmacht_list.php?user_id=$userId&behoerde=$behoerde'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> revokeVollmacht(int id, {String reason = ''}) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/vollmacht_revoke.php'), headers: _headers, body: jsonEncode({'id': id, 'reason': reason})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  String vollmachtPdfUrl(int id) => '$baseUrl/admin/vollmacht_pdf.php?id=$id';
+
   Future<Map<String, dynamic>> deleteArbeitsagenturAntrag(int userId, int id) async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_antrag', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }

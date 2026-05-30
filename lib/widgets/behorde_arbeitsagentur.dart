@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -91,6 +92,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     (Icons.medical_services, 'Med.Gutachten'),
     (Icons.event, 'Termine'),
     (Icons.email, 'Korrespondenz'),
+    (Icons.assignment_ind, 'Vollmacht'),
   ];
 
   @override
@@ -242,6 +244,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           _cTab(Icons.medical_services, 'Med.Gutachten', _dbBegutachtungen.isNotEmpty),
           _cTab(Icons.event, 'Termine', _dbTermine.isNotEmpty),
           _cTab(Icons.email, 'Korrespondenz', false),
+          _cTab(Icons.assignment_ind, 'Vollmacht', false),
         ]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [
         _buildBAATab(),
@@ -257,6 +260,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         _buildBegutachtungTab(),
         _buildTermineTab(),
         SingleChildScrollView(padding: const EdgeInsets.all(16), child: _AAKorrespondenzSection(apiService: widget.apiService, userId: widget.userId)),
+        _AAVollmachtSection(apiService: widget.apiService, userId: widget.userId),
       ])),
     ]);
   }
@@ -2030,5 +2034,308 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
             ]));
         }),
     ]));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  VOLLMACHT section — generate, store and revoke procuri Arbeitsagentur
+// ═════════════════════════════════════════════════════════════════════════
+
+class _AAVollmachtSection extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _AAVollmachtSection({required this.apiService, required this.userId});
+
+  @override
+  State<_AAVollmachtSection> createState() => _AAVollmachtSectionState();
+}
+
+class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTickerProviderStateMixin {
+  late TabController _subTab;
+  Map<String, dynamic>? _previewData;
+  List<Map<String, dynamic>> _vollmachten = [];
+  bool _loading = true;
+  bool _generating = false;
+
+  // Options state (default: all enabled)
+  final Map<String, bool> _umfang = {
+    'antraege': true, 'bescheide': true, 'widerspruch': true, 'klage': true,
+    'akteneinsicht': true, 'termine': true, 'egv': true, 'erklaerungen': true, 'online': true,
+  };
+  final Map<String, bool> _digital = {
+    'konto_zugriff': true, 'antraege_online': true, 'postfach': true, 'veraenderungen': true,
+  };
+  final Map<String, bool> _zugang = {
+    'verein_to_member': true, 'member_to_verein': true,
+  };
+  DateTime _validFrom = DateTime.now();
+  DateTime? _validUntil;
+
+  @override
+  void initState() {
+    super.initState();
+    _subTab = TabController(length: 2, vsync: this);
+    _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _subTab.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAll() async {
+    setState(() => _loading = true);
+    final dataRes = await widget.apiService.getVollmachtData(widget.userId, 'arbeitsagentur');
+    final listRes = await widget.apiService.listVollmachten(widget.userId, 'arbeitsagentur');
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (dataRes['success'] == true) _previewData = Map<String, dynamic>.from(dataRes['data'] ?? {});
+      if (listRes['success'] == true) {
+        _vollmachten = List<Map<String, dynamic>>.from(listRes['data']?['vollmachten'] ?? []);
+      }
+    });
+  }
+
+  Future<void> _generate() async {
+    setState(() => _generating = true);
+    final res = await widget.apiService.createVollmacht({
+      'user_id': widget.userId,
+      'behoerde': 'arbeitsagentur',
+      'valid_from': _validFrom.toIso8601String().substring(0, 10),
+      'valid_until': _validUntil?.toIso8601String().substring(0, 10),
+      'options': {'umfang': _umfang, 'digital': _digital, 'zugang': _zugang},
+    });
+    if (!mounted) return;
+    setState(() => _generating = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Vollmacht erstellt (ID ${res['data']?['id']})' : (res['message'] ?? 'Fehler')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) _loadAll();
+  }
+
+  Future<void> _revoke(int id) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vollmacht widerrufen'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Diese Vollmacht wird als widerrufen markiert. Die Zugangsdaten zum BA-Konto muss das Mitglied eigenverantwortlich ändern.', style: TextStyle(fontSize: 13)),
+          const SizedBox(height: 12),
+          TextField(controller: reasonCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'Grund (optional)', border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Widerrufen')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final res = await widget.apiService.revokeVollmacht(id, reason: reasonCtrl.text.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(res['success'] == true ? 'Vollmacht widerrufen' : (res['message'] ?? 'Fehler')),
+      backgroundColor: res['success'] == true ? Colors.orange : Colors.red,
+    ));
+    if (res['success'] == true) _loadAll();
+  }
+
+  Future<void> _openPdf(int id) async {
+    final url = widget.apiService.vollmachtPdfUrl(id);
+    Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF-URL in Zwischenablage: $url')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final user = _previewData?['user'] as Map<String, dynamic>? ?? {};
+    final vorsitzer = _previewData?['vorsitzer'] as Map<String, dynamic>? ?? {};
+    final verein = _previewData?['verein'] as Map<String, dynamic>? ?? {};
+
+    return Column(children: [
+      TabBar(
+        controller: _subTab,
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        tabs: const [
+          Tab(icon: Icon(Icons.add_circle, size: 16), text: 'Generation'),
+          Tab(icon: Icon(Icons.history, size: 16), text: 'Historie'),
+        ],
+      ),
+      Expanded(child: TabBarView(controller: _subTab, children: [
+        _buildGenerationTab(user, vorsitzer, verein),
+        _buildHistorieTab(),
+      ])),
+    ]);
+  }
+
+  Widget _buildGenerationTab(Map<String, dynamic> user, Map<String, dynamic> vorsitzer, Map<String, dynamic> verein) {
+    final missing = <String>[];
+    if ((user['vorname'] ?? '').toString().isEmpty || (user['nachname'] ?? '').toString().isEmpty) missing.add('Name (Stufe 1)');
+    if ((user['geburtsdatum'] ?? '').toString().isEmpty) missing.add('Geburtsdatum');
+    if ((user['strasse'] ?? '').toString().isEmpty || (user['plz'] ?? '').toString().isEmpty) missing.add('Anschrift');
+    if ((vorsitzer['vorname'] ?? '').toString().isEmpty) missing.add('Vorsitzender');
+    if ((verein['vereinsname'] ?? '').toString().isEmpty) missing.add('Vereinsdaten');
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Vollmacht — Arbeitsagentur', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 4),
+        const Text('§ 13 SGB X i.V.m. § 38 SGB III — generiert nach den unten gewählten Optionen.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 12),
+
+        // Preview header — partile auto-completate din DB
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _kv('Mitglied', '${user['vorname'] ?? ''} ${user['nachname'] ?? ''} — geb. ${user['geburtsdatum'] ?? '?'} in ${user['geburtsort'] ?? '?'}'),
+            _kv('Anschrift', '${user['strasse'] ?? ''} ${user['hausnummer'] ?? ''}, ${user['plz'] ?? ''} ${user['ort'] ?? ''}'),
+            _kv('Vorsitzender', '${vorsitzer['vorname'] ?? ''} ${vorsitzer['nachname'] ?? ''}'),
+            _kv('Verein', '${verein['vereinsname'] ?? ''} — VR ${verein['registernummer'] ?? ''} (${verein['registergericht'] ?? ''})'),
+          ]),
+        ),
+        if (missing.isNotEmpty) Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.red.shade50, border: Border.all(color: Colors.red.shade300)),
+            child: Row(children: [
+              Icon(Icons.warning, color: Colors.red.shade700, size: 18),
+              const SizedBox(width: 6),
+              Expanded(child: Text('Fehlende Pflichtdaten in Verifizierung Stufe 1: ${missing.join(", ")}', style: TextStyle(fontSize: 12, color: Colors.red.shade900))),
+            ]),
+          ),
+        ),
+
+        const SizedBox(height: 18),
+        _sectionTitle(Icons.checklist, 'Umfang der Vollmacht'),
+        ..._buildCheckboxes(_umfang, const {
+          'antraege': 'Anträge stellen, ändern, zurücknehmen (ALG I, Bildungsgutschein, Reha, EGL)',
+          'bescheide': 'Bescheide und sämtliche Korrespondenz empfangen',
+          'widerspruch': 'Unterstützung bei Widersprüchen (Hilfestellung, kein RDG)',
+          'klage': 'Unterstützung bei Klage vor Sozialgericht (§ 73 SGG, keine anwaltliche Vertretung)',
+          'akteneinsicht': 'Akteneinsicht und Auskünfte',
+          'termine': 'Teilnahme an Beratungs- / Vermittlungsgesprächen',
+          'egv': 'Eingliederungsvereinbarung (EGV) abschließen / ändern / aufheben',
+          'erklaerungen': 'Erklärungen zur Arbeitssuche, Verfügbarkeit, Mitwirkung',
+          'online': 'Nutzung der Online-Angebote der BA',
+        }),
+
+        const SizedBox(height: 14),
+        _sectionTitle(Icons.cloud, 'Digitale Vertretung (Online-Handeln)'),
+        ..._buildCheckboxes(_digital, const {
+          'konto_zugriff': 'Online-Zugriff auf das BA-Kundenkonto',
+          'antraege_online': 'Online-Anträge stellen / ändern / zurücknehmen',
+          'postfach': 'Postfachnachrichten lesen / senden',
+          'veraenderungen': 'Veränderungsmeldungen online',
+        }),
+
+        const SizedBox(height: 14),
+        _sectionTitle(Icons.swap_horiz, 'Wechselseitige Zugangsgewährung'),
+        ..._buildCheckboxes(_zugang, const {
+          'verein_to_member': 'Verein → Mitglied: voller Zugang zur Vorsitzer-Plattform (E-Mail + Passwort + 2FA / KeyAccess)',
+          'member_to_verein': 'Mitglied → Verein: voller Zugang zum BA-Kundenkonto (Login-Daten oder eVollmacht)',
+        }),
+
+        const SizedBox(height: 14),
+        _sectionTitle(Icons.event, 'Gültigkeit'),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Row(children: [
+          Expanded(child: ListTile(
+            dense: true,
+            title: const Text('Gültig ab', style: TextStyle(fontSize: 12)),
+            subtitle: Text(DateFormat('dd.MM.yyyy').format(_validFrom), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            trailing: const Icon(Icons.calendar_today, size: 16),
+            onTap: () async {
+              final d = await showDatePicker(context: context, initialDate: _validFrom, firstDate: DateTime(2020), lastDate: DateTime(2099));
+              if (d != null) setState(() => _validFrom = d);
+            },
+          )),
+          Expanded(child: ListTile(
+            dense: true,
+            title: const Text('Gültig bis (optional)', style: TextStyle(fontSize: 12)),
+            subtitle: Text(_validUntil != null ? DateFormat('dd.MM.yyyy').format(_validUntil!) : 'auf Widerruf', style: const TextStyle(fontSize: 13)),
+            trailing: _validUntil != null
+                ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _validUntil = null))
+                : const Icon(Icons.calendar_today, size: 16),
+            onTap: () async {
+              final d = await showDatePicker(context: context, initialDate: _validUntil ?? _validFrom.add(const Duration(days: 365)), firstDate: _validFrom, lastDate: DateTime(2099));
+              if (d != null) setState(() => _validUntil = d);
+            },
+          )),
+        ])),
+
+        const SizedBox(height: 20),
+        Center(child: ElevatedButton.icon(
+          icon: _generating ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.picture_as_pdf),
+          label: Text(_generating ? 'Generiere…' : 'PDF generieren & speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+          onPressed: (_generating || missing.isNotEmpty) ? null : _generate,
+        )),
+      ]),
+    );
+  }
+
+  Widget _buildHistorieTab() {
+    if (_vollmachten.isEmpty) {
+      return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Noch keine Vollmacht generiert.', style: TextStyle(color: Colors.grey))));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: _vollmachten.length,
+      itemBuilder: (_, i) {
+        final v = _vollmachten[i];
+        final status = (v['status'] ?? '').toString();
+        final color = switch (status) {
+          'active' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, 'expired' => Colors.grey, _ => Colors.grey,
+        };
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: Icon(Icons.description, color: color),
+            title: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Erstellt: ${v['generated_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
+              Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11)),
+              if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+            ]),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: const Icon(Icons.open_in_new, size: 18), tooltip: 'PDF-URL kopieren', onPressed: () => _openPdf(v['id'])),
+              if (status != 'revoked') IconButton(icon: const Icon(Icons.cancel, size: 18, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(v['id'])),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 1), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    SizedBox(width: 90, child: Text(k, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+    Expanded(child: Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+  ]));
+
+  Widget _sectionTitle(IconData icon, String label) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Icon(icon, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+    ]),
+  );
+
+  List<Widget> _buildCheckboxes(Map<String, bool> state, Map<String, String> labels) {
+    return labels.entries.map((e) => CheckboxListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      controlAffinity: ListTileControlAffinity.leading,
+      title: Text(e.value, style: const TextStyle(fontSize: 12)),
+      value: state[e.key] ?? false,
+      onChanged: (v) => setState(() => state[e.key] = v ?? false),
+    )).toList();
   }
 }
