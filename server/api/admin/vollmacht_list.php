@@ -29,6 +29,10 @@ try {
                mv.generated_at, mv.valid_from, mv.valid_until,
                mv.status, mv.revoked_at, mv.revoked_reason,
                mv.options_json, mv.pdf_filename, mv.pdf_sha256, mv.signed_at,
+               mv.signature_member_filename, mv.signature_member_uploaded_at,
+               mv.signature_vorstand_filename, mv.signature_vorstand_uploaded_at,
+               mv.submitted_at, mv.submitted_method, mv.submitted_reference,
+               mv.submitted_receipt_filename, mv.submitted_notes,
                mv.created_at, mv.created_by,
                u.vorname AS user_vorname, u.nachname AS user_nachname,
                v.vorname AS vorsitzer_vorname, v.nachname AS vorsitzer_nachname

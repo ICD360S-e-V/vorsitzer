@@ -5119,8 +5119,56 @@ class ApiService {
 
   String vollmachtPdfUrl(int id) => '$baseUrl/admin/vollmacht_pdf.php?id=$id';
 
-  Future<http.Response> downloadVollmachtPdf(int id) async {
-    return await _client.get(Uri.parse('$baseUrl/admin/vollmacht_pdf.php?id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  Future<http.Response> downloadVollmachtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/vollmacht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  /// Upload a signed PDF/JPG/PNG for a Vollmacht.
+  /// signer: 'member' | 'vorstand' | 'receipt'
+  Future<Map<String, dynamic>> uploadVollmachtSignature({
+    required int vollmachtId,
+    required String signer,
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/vollmacht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['signer'] = signer;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final streamed = await _client.send(req).timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> deleteVollmachtSignature({required int vollmachtId, required String signer}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vollmacht_signature_upload.php'),
+      headers: _headers,
+      body: jsonEncode({'vollmacht_id': vollmachtId, 'signer': signer, 'delete': true}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> submitVollmacht({
+    required int vollmachtId,
+    String? submittedAt,
+    String? method,
+    String reference = '',
+    String notes = '',
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vollmacht_submit.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'vollmacht_id': vollmachtId,
+        'submitted_at': submittedAt,
+        'method': method,
+        'reference': reference,
+        'notes': notes,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
   Future<Map<String, dynamic>> deleteArbeitsagenturAntrag(int userId, int id) async {
