@@ -2091,9 +2091,18 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (dataRes['success'] == true) _previewData = Map<String, dynamic>.from(dataRes['data'] ?? {});
+      // jsonResponse() in PHP spreads data into the root via array_merge,
+      // so user/vorsitzer/verein/vollmachten are top-level fields, not under 'data'.
+      if (dataRes['success'] == true) {
+        _previewData = {
+          'user':          Map<String, dynamic>.from(dataRes['user']          ?? {}),
+          'user_behoerde': Map<String, dynamic>.from(dataRes['user_behoerde'] ?? {}),
+          'vorsitzer':     Map<String, dynamic>.from(dataRes['vorsitzer']     ?? {}),
+          'verein':        Map<String, dynamic>.from(dataRes['verein']        ?? {}),
+        };
+      }
       if (listRes['success'] == true) {
-        _vollmachten = List<Map<String, dynamic>>.from(listRes['data']?['vollmachten'] ?? []);
+        _vollmachten = List<Map<String, dynamic>>.from(listRes['vollmachten'] ?? []);
       }
     });
   }
@@ -2111,7 +2120,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     setState(() => _generating = false);
     final ok = res['success'] == true;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Vollmacht erstellt (ID ${res['data']?['id']})' : (res['message'] ?? 'Fehler')),
+      content: Text(ok ? 'Vollmacht erstellt (ID ${res['id']})' : (res['message'] ?? 'Fehler')),
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
     if (ok) _loadAll();
