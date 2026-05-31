@@ -72,7 +72,7 @@ if ($userId <= 0) jsonResponse(false, [], 'user_id required');
 $bh = $behoerde === 'jobcenter'
     ? [
         'title'          => 'zur Vertretung vor dem Jobcenter',
-        'legal_subtitle' => 'gem. § 13 Abs. 1 SGB X i.V.m. § 38 SGB II',
+        'legal_subtitle' => 'gem. § 13 Abs. 1 SGB X i.V.m. § 38 SGB II und § 7 RDG',
         'behoerde_long'  => 'Jobcenter',
         'behoerde_short' => 'Jobcenter',
         'agentur_label'  => 'Zustaendiges Jobcenter:',
@@ -95,7 +95,7 @@ $bh = $behoerde === 'jobcenter'
       ]
     : [
         'title'          => 'zur Vertretung vor der Agentur fuer Arbeit',
-        'legal_subtitle' => 'gem. § 13 Abs. 1 SGB X i.V.m. § 38 SGB III',
+        'legal_subtitle' => 'gem. § 13 Abs. 1 SGB X i.V.m. § 38 SGB III und § 7 RDG',
         'behoerde_long'  => 'Agentur fuer Arbeit (Bundesagentur fuer Arbeit)',
         'behoerde_short' => 'Agentur fuer Arbeit',
         'agentur_label'  => 'Zustaendige Agentur:',
@@ -252,8 +252,8 @@ try {
     $items = [
         'antraege'      => $bh['antrag_text'],
         'bescheide'     => 'Empfang von Bescheiden, Mitteilungen und saemtlicher Korrespondenz',
-        'widerspruch'   => 'Unterstuetzung beim Verfassen und Einreichen von Widerspruechen (Hilfestellung, keine Rechtsdienstleistung i.S.d. RDG)',
-        'klage'         => 'Unterstuetzung bei Klage vor dem Sozialgericht nach § 73 Abs. 2 Satz 2 Nr. 9 SGG (keine anwaltliche Vertretung)',
+        'widerspruch'   => 'Administrative Hilfestellung bei Widerspruechen — Fristwahrung, formgerechte Einreichung, Weiterleitung der Korrespondenz. KEINE juristische Beratung — fuer die inhaltliche Widerspruchsbegruendung wird das Mitglied an einen Rechtsanwalt fuer Sozialrecht verwiesen.',
+        'klage'         => 'Hinweis auf die Klagemoeglichkeit vor dem Sozialgericht und administrative Weiterleitung. KEINE Vertretung im Klageverfahren — fuer Klagen wird das Mitglied stets an einen Rechtsanwalt fuer Sozialrecht weitergeleitet.',
         'akteneinsicht' => 'Akteneinsicht und Erhalt von Auskuenften',
         'termine'       => 'Teilnahme an Beratungs- und Vermittlungsgespraechen',
         'egv'           => $bh['egv_text'],
@@ -272,6 +272,21 @@ try {
     $pdf->MultiCell(0, 4, p($bh['other_hint']));
     $pdf->Ln(0.5);
     $pdf->MultiCell(0, 4, p($bh['money_hint']));
+    $pdf->Ln(0.5);
+    $pdf->MultiCell(0, 4, p(
+        'Hinweis 3 (RDG-Compliance): Der Verein leistet ausschliesslich administrative Hilfestellung ' .
+        'im Rahmen seiner satzungsmaessigen Zwecksetzung gem. § 7 RDG. Bei allen rechtlich-inhaltlichen ' .
+        'Fragen (Widerspruchsbegruendung, Klage-Vertretung, juristische Beratung im Einzelfall) wird ' .
+        'das Mitglied stets an einen Rechtsanwalt fuer Sozialrecht weitergeleitet. Der Verein nimmt ' .
+        'KEINE Rechtsdienstleistung i.S.d. § 2 RDG vor und beraet nicht rechtlich.'
+    ));
+    $pdf->Ln(0.5);
+    $pdf->MultiCell(0, 4, p(
+        'Hinweis 4 (Form der Einreichung): Diese Vollmacht ist zur Vorlage als Original (per Post oder ' .
+        'persoenlich) oder ueber das Online-Portal vorgesehen. Eine ausschliessliche Uebermittlung per ' .
+        'Telefax ist gem. BSG-Urteil v. 23.09.2025 (Az. B 4 AS 10/24 R) als Nachweis der ' .
+        'Bevollmaechtigung nicht stets ausreichend.'
+    ));
 
     // ── Digitale Vertretung ─────────────────────────────────────────────
     $pdf->AddPage();
