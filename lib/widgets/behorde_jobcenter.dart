@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
@@ -22,7 +23,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _load();
   }
 
@@ -61,12 +62,14 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['stammdaten.selected_amt_name'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Zuständiges Jobcenter')])),
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _antraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Antrag')])),
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['stammdaten.kundennummer'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Stammdaten')])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.assignment_ind, size: 14, color: Colors.red), const SizedBox(width: 5), const Text('Vollmacht')])),
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['vermittler.name'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Arbeitsvermittler')])),
       ]),
       Expanded(child: TabBarView(controller: _tabController, children: [
         _JobcenterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
         _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load),
         _JobcenterStammdatenFieldsTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
+        _JCVollmachtSection(apiService: widget.apiService, userId: widget.userId),
         _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
       ])),
     ]);
@@ -1454,5 +1457,678 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
       padding: const EdgeInsets.all(16),
       child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: _kId),
     );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  VOLLMACHT section — Jobcenter (SGB II / Grundsicherung).
+//  Clone of _AAVollmachtSection (Arbeitsagentur), adapted for Jobcenter.
+//  Backend endpoints are shared (parameter behoerde=jobcenter).
+// ═════════════════════════════════════════════════════════════════════════
+
+class _JCVollmachtSection extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _JCVollmachtSection({required this.apiService, required this.userId});
+
+  @override
+  State<_JCVollmachtSection> createState() => _JCVollmachtSectionState();
+}
+
+class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTickerProviderStateMixin {
+  late TabController _subTab;
+  Map<String, dynamic>? _previewData;
+  List<Map<String, dynamic>> _vollmachten = [];
+  bool _loading = true;
+  bool _generating = false;
+
+  // Manager state
+  int? _managerId;
+  DateTime? _submitDate;
+  String? _submitMethod;
+  final _refCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+  bool _savingSubmit = false;
+  bool _uploadingMember = false;
+  bool _uploadingVorstand = false;
+  bool _uploadingReceipt = false;
+
+  // Options state (default: all enabled)
+  final Map<String, bool> _umfang = {
+    'antraege': true, 'bescheide': true, 'widerspruch': true, 'klage': true,
+    'akteneinsicht': true, 'termine': true, 'egv': true, 'erklaerungen': true, 'online': true,
+  };
+  final Map<String, bool> _digital = {
+    'konto_zugriff': true, 'antraege_online': true, 'postfach': true, 'veraenderungen': true,
+  };
+  final Map<String, bool> _zugang = {
+    'verein_to_member': true, 'member_to_verein': true,
+  };
+  DateTime _validFrom = DateTime.now();
+  DateTime? _validUntil;
+
+  @override
+  void initState() {
+    super.initState();
+    _subTab = TabController(length: 3, vsync: this);
+    _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _subTab.dispose();
+    _refCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAll() async {
+    setState(() => _loading = true);
+    final dataRes = await widget.apiService.getVollmachtData(widget.userId, 'jobcenter');
+    final listRes = await widget.apiService.listVollmachten(widget.userId, 'jobcenter');
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      // jsonResponse() in PHP spreads data into the root via array_merge,
+      // so user/vorsitzer/verein/vollmachten are top-level fields, not under 'data'.
+      if (dataRes['success'] == true) {
+        _previewData = {
+          'user':          Map<String, dynamic>.from(dataRes['user']          ?? {}),
+          'user_behoerde': Map<String, dynamic>.from(dataRes['user_behoerde'] ?? {}),
+          'vorsitzer':     Map<String, dynamic>.from(dataRes['vorsitzer']     ?? {}),
+          'verein':        Map<String, dynamic>.from(dataRes['verein']        ?? {}),
+        };
+      }
+      if (listRes['success'] == true) {
+        _vollmachten = List<Map<String, dynamic>>.from(listRes['vollmachten'] ?? []);
+      }
+    });
+  }
+
+  Future<void> _generate() async {
+    setState(() => _generating = true);
+    final res = await widget.apiService.createVollmacht({
+      'user_id': widget.userId,
+      'behoerde': 'jobcenter',
+      'valid_from': _validFrom.toIso8601String().substring(0, 10),
+      'valid_until': _validUntil?.toIso8601String().substring(0, 10),
+      'options': {'umfang': _umfang, 'digital': _digital, 'zugang': _zugang},
+    });
+    if (!mounted) return;
+    setState(() => _generating = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Vollmacht erstellt (ID ${res['id']})' : (res['message'] ?? 'Fehler')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) _loadAll();
+  }
+
+  Future<void> _revoke(int id) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vollmacht widerrufen'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Diese Vollmacht wird als widerrufen markiert. Die Zugangsdaten zum BA-Konto muss das Mitglied eigenverantwortlich ändern.', style: TextStyle(fontSize: 13)),
+          const SizedBox(height: 12),
+          TextField(controller: reasonCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'Grund (optional)', border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Widerrufen')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final res = await widget.apiService.revokeVollmacht(id, reason: reasonCtrl.text.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(res['success'] == true ? 'Vollmacht widerrufen' : (res['message'] ?? 'Fehler')),
+      backgroundColor: res['success'] == true ? Colors.orange : Colors.red,
+    ));
+    if (res['success'] == true) _loadAll();
+  }
+
+  Future<void> _openPdf(int id, String filename, {String type = 'pdf'}) async {
+    try {
+      final response = await widget.apiService.downloadVollmachtPdf(id, type: type);
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        if (mounted) FileViewerDialog.showFromBytes(context, response.bodyBytes, filename);
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${response.statusCode})'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final user = _previewData?['user'] as Map<String, dynamic>? ?? {};
+    final vorsitzer = _previewData?['vorsitzer'] as Map<String, dynamic>? ?? {};
+    final verein = _previewData?['verein'] as Map<String, dynamic>? ?? {};
+
+    return Column(children: [
+      TabBar(
+        controller: _subTab,
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        tabs: const [
+          Tab(icon: Icon(Icons.add_circle, size: 16), text: 'Generation'),
+          Tab(icon: Icon(Icons.history, size: 16), text: 'Historie'),
+          Tab(icon: Icon(Icons.manage_accounts, size: 16), text: 'Manager'),
+        ],
+      ),
+      Expanded(child: TabBarView(controller: _subTab, children: [
+        _buildGenerationTab(user, vorsitzer, verein),
+        _buildHistorieTab(),
+        _buildManagerTab(user, vorsitzer),
+      ])),
+    ]);
+  }
+
+  Widget _buildGenerationTab(Map<String, dynamic> user, Map<String, dynamic> vorsitzer, Map<String, dynamic> verein) {
+    final missing = <String>[];
+    if ((user['vorname'] ?? '').toString().isEmpty || (user['nachname'] ?? '').toString().isEmpty) missing.add('Name (Stufe 1)');
+    if ((user['geburtsdatum'] ?? '').toString().isEmpty) missing.add('Geburtsdatum');
+    if ((user['strasse'] ?? '').toString().isEmpty || (user['plz'] ?? '').toString().isEmpty) missing.add('Anschrift');
+    if ((vorsitzer['vorname'] ?? '').toString().isEmpty) missing.add('Vorsitzender');
+    if ((verein['vereinsname'] ?? '').toString().isEmpty) missing.add('Vereinsdaten');
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Vollmacht — Jobcenter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        const SizedBox(height: 4),
+        const Text('§ 13 SGB X i.V.m. § 38 SGB II — generiert nach den unten gewählten Optionen.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 12),
+
+        // Preview header — partile auto-completate din DB
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade200)),
+          child: Builder(builder: (_) {
+            final ub = (_previewData?['user_behoerde'] as Map?) ?? const {};
+            final knr = (ub['kundennummer'] ?? '').toString();
+            final dst = (ub['dienststelle'] ?? '').toString();
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _kv('Mitglied', '${user['vorname'] ?? ''} ${user['nachname'] ?? ''} — geb. ${user['geburtsdatum'] ?? '?'} in ${user['geburtsort'] ?? '?'}'),
+              _kv('Anschrift', '${user['strasse'] ?? ''} ${user['hausnummer'] ?? ''}, ${user['plz'] ?? ''} ${user['ort'] ?? ''}'),
+              _kv('Kundennummer BA', knr.isEmpty ? '?' : knr),
+              _kv('Zust. Agentur', dst.isEmpty ? '?' : dst),
+              _kv('Vorsitzender', '${vorsitzer['vorname'] ?? ''} ${vorsitzer['nachname'] ?? ''}'),
+              _kv('Verein', '${verein['vereinsname'] ?? ''} — VR ${verein['registernummer'] ?? ''} (${verein['registergericht'] ?? ''})'),
+            ]);
+          }),
+        ),
+        if (missing.isNotEmpty) Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.red.shade50, border: Border.all(color: Colors.red.shade300)),
+            child: Row(children: [
+              Icon(Icons.warning, color: Colors.red.shade700, size: 18),
+              const SizedBox(width: 6),
+              Expanded(child: Text('Fehlende Pflichtdaten in Verifizierung Stufe 1: ${missing.join(", ")}', style: TextStyle(fontSize: 12, color: Colors.red.shade900))),
+            ]),
+          ),
+        ),
+
+        const SizedBox(height: 18),
+        _sectionTitle(Icons.checklist, 'Umfang der Vollmacht'),
+        ..._buildCheckboxes(_umfang, const {
+          'antraege': 'Anträge stellen, ändern, zurücknehmen (ALG I, Bildungsgutschein, Reha, EGL)',
+          'bescheide': 'Bescheide und sämtliche Korrespondenz empfangen',
+          'widerspruch': 'Unterstützung bei Widersprüchen (Hilfestellung, kein RDG)',
+          'klage': 'Unterstützung bei Klage vor Sozialgericht (§ 73 SGG, keine anwaltliche Vertretung)',
+          'akteneinsicht': 'Akteneinsicht und Auskünfte',
+          'termine': 'Teilnahme an Beratungs- / Vermittlungsgesprächen',
+          'egv': 'Eingliederungsvereinbarung (EGV) abschließen / ändern / aufheben',
+          'erklaerungen': 'Erklärungen zur Arbeitssuche, Verfügbarkeit, Mitwirkung',
+          'online': 'Nutzung der Online-Angebote der BA',
+        }),
+
+        const SizedBox(height: 14),
+        _sectionTitle(Icons.cloud, 'Digitale Vertretung (Online-Handeln)'),
+        ..._buildCheckboxes(_digital, const {
+          'konto_zugriff': 'Online-Zugriff auf das BA-Kundenkonto',
+          'antraege_online': 'Online-Anträge stellen / ändern / zurücknehmen',
+          'postfach': 'Postfachnachrichten lesen / senden',
+          'veraenderungen': 'Veränderungsmeldungen online',
+        }),
+
+        const SizedBox(height: 14),
+        _sectionTitle(Icons.swap_horiz, 'Wechselseitige Zugangsgewährung'),
+        ..._buildCheckboxes(_zugang, const {
+          'verein_to_member': 'Verein → Mitglied: voller Zugang zur Vorsitzer-Plattform (E-Mail + Passwort + 2FA / KeyAccess)',
+          'member_to_verein': 'Mitglied → Verein: voller Zugang zum BA-Kundenkonto (Login-Daten oder eVollmacht)',
+        }),
+
+        const SizedBox(height: 14),
+        _sectionTitle(Icons.event, 'Gültigkeit'),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Row(children: [
+          Expanded(child: ListTile(
+            dense: true,
+            title: const Text('Gültig ab', style: TextStyle(fontSize: 12)),
+            subtitle: Text(DateFormat('dd.MM.yyyy').format(_validFrom), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            trailing: const Icon(Icons.calendar_today, size: 16),
+            onTap: () async {
+              final d = await showDatePicker(context: context, initialDate: _validFrom, firstDate: DateTime(2020), lastDate: DateTime(2099));
+              if (d != null) setState(() => _validFrom = d);
+            },
+          )),
+          Expanded(child: ListTile(
+            dense: true,
+            title: const Text('Gültig bis (optional)', style: TextStyle(fontSize: 12)),
+            subtitle: Text(_validUntil != null ? DateFormat('dd.MM.yyyy').format(_validUntil!) : 'auf Widerruf', style: const TextStyle(fontSize: 13)),
+            trailing: _validUntil != null
+                ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _validUntil = null))
+                : const Icon(Icons.calendar_today, size: 16),
+            onTap: () async {
+              final d = await showDatePicker(context: context, initialDate: _validUntil ?? _validFrom.add(const Duration(days: 365)), firstDate: _validFrom, lastDate: DateTime(2099));
+              if (d != null) setState(() => _validUntil = d);
+            },
+          )),
+        ])),
+
+        const SizedBox(height: 20),
+        Center(child: ElevatedButton.icon(
+          icon: _generating ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.picture_as_pdf),
+          label: Text(_generating ? 'Generiere…' : 'PDF generieren & speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+          onPressed: (_generating || missing.isNotEmpty) ? null : _generate,
+        )),
+      ]),
+    );
+  }
+
+  Widget _buildHistorieTab() {
+    if (_vollmachten.isEmpty) {
+      return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Noch keine Vollmacht generiert.', style: TextStyle(color: Colors.grey))));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: _vollmachten.length,
+      itemBuilder: (_, i) {
+        final v = _vollmachten[i];
+        final status = (v['status'] ?? '').toString();
+        final color = switch (status) {
+          'active' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, 'expired' => Colors.grey, _ => Colors.grey,
+        };
+        final filename = (v['pdf_filename'] ?? 'vollmacht_${v['id']}.pdf').toString();
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: Icon(Icons.picture_as_pdf, color: color),
+            title: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Erstellt: ${v['generated_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
+              Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11)),
+              if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+              const SizedBox(height: 2),
+              const Text('Tippen zum Öffnen', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+            ]),
+            trailing: status != 'revoked'
+                ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(v['id']))
+                : null,
+            onTap: () => _openPdf(v['id'], filename),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 1), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    SizedBox(width: 90, child: Text(k, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+    Expanded(child: Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+  ]));
+
+  Widget _sectionTitle(IconData icon, String label) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Icon(icon, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+    ]),
+  );
+
+  List<Widget> _buildCheckboxes(Map<String, bool> state, Map<String, String> labels) {
+    return labels.entries.map((e) => CheckboxListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      controlAffinity: ListTileControlAffinity.leading,
+      title: Text(e.value, style: const TextStyle(fontSize: 12)),
+      value: state[e.key] ?? false,
+      onChanged: (v) => setState(() => state[e.key] = v ?? false),
+    )).toList();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  Manager tab
+  // ═══════════════════════════════════════════════════════════════════
+
+  Map<String, dynamic>? _selectedManager() {
+    if (_vollmachten.isEmpty) return null;
+    final id = _managerId ?? (_vollmachten.first['id'] as int);
+    return _vollmachten.firstWhere((v) => v['id'] == id, orElse: () => _vollmachten.first);
+  }
+
+  Widget _buildManagerTab(Map<String, dynamic> user, Map<String, dynamic> vorsitzer) {
+    if (_vollmachten.isEmpty) {
+      return const Center(child: Padding(padding: EdgeInsets.all(24),
+        child: Text('Noch keine Vollmacht generiert. Bitte zuerst eine Vollmacht generieren.', style: TextStyle(color: Colors.grey), textAlign: TextAlign.center)));
+    }
+    final v = _selectedManager()!;
+    // Sync local controllers / pickers with selected vollmacht — only on first build per selection
+    if (_managerId != v['id']) {
+      _managerId = v['id'] as int;
+      _submitDate = (v['submitted_at'] != null && (v['submitted_at'] as String).isNotEmpty)
+          ? DateTime.tryParse(v['submitted_at']) : null;
+      _submitMethod = v['submitted_method'];
+      _refCtrl.text = (v['submitted_reference'] ?? '').toString();
+      _notesCtrl.text = (v['submitted_notes'] ?? '').toString();
+    }
+
+    final status = (v['status'] ?? '').toString();
+    final hasMemberSig = (v['signature_member_filename'] ?? '').toString().isNotEmpty;
+    final hasVorstandSig = (v['signature_vorstand_filename'] ?? '').toString().isNotEmpty;
+    final hasReceipt = (v['submitted_receipt_filename'] ?? '').toString().isNotEmpty;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // Selector
+        DropdownButtonFormField<int>(
+          initialValue: _managerId,
+          decoration: const InputDecoration(labelText: 'Aktive Vollmacht', isDense: true, border: OutlineInputBorder()),
+          items: _vollmachten.map((vv) {
+            return DropdownMenuItem<int>(
+              value: vv['id'] as int,
+              child: Text('#${vv['id']} — ${vv['valid_from']} — ${(vv['status'] ?? '').toString().toUpperCase()}', style: const TextStyle(fontSize: 13)),
+            );
+          }).toList(),
+          onChanged: (id) {
+            if (id == null) return;
+            setState(() {
+              _managerId = id;
+              final vv = _vollmachten.firstWhere((x) => x['id'] == id);
+              _submitDate = (vv['submitted_at'] != null && (vv['submitted_at'] as String).isNotEmpty)
+                  ? DateTime.tryParse(vv['submitted_at']) : null;
+              _submitMethod = vv['submitted_method'];
+              _refCtrl.text = (vv['submitted_reference'] ?? '').toString();
+              _notesCtrl.text = (vv['submitted_notes'] ?? '').toString();
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // STATUS
+        _managerBlock('Status der Vollmacht', Icons.info_outline, Column(children: [
+          _kv('Generiert', (v['generated_at'] ?? '').toString()),
+          _kv('Gültig ab', (v['valid_from'] ?? '').toString()),
+          _kv('Gültig bis', (v['valid_until'] ?? 'auf Widerruf').toString()),
+          Row(children: [
+            const SizedBox(width: 90, child: Text('Status', style: TextStyle(fontSize: 11, color: Colors.grey))),
+            _statusBadge(status),
+          ]),
+        ])),
+
+        const SizedBox(height: 12),
+
+        // UNTERSCHRIFTEN
+        _managerBlock('Unterschriften (eigenhändig)', Icons.draw, Column(children: [
+          Padding(padding: const EdgeInsets.only(bottom: 8),
+            child: Container(padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.amber.shade50, border: Border.all(color: Colors.amber.shade300)),
+              child: Row(children: [
+                Icon(Icons.info, color: Colors.amber.shade800, size: 18), const SizedBox(width: 6),
+                const Expanded(child: Text('Procedure: PDF ausdrucken → eigenhändig unterschreiben → einscannen → hier hochladen (PDF, JPG oder PNG, max 10 MB)', style: TextStyle(fontSize: 11))),
+              ]))),
+          Row(children: [
+            Expanded(child: _signatureCard(
+              label: 'Vollmachtgeber (Mitglied)',
+              name: '${user['vorname'] ?? ''} ${user['nachname'] ?? ''}',
+              has: hasMemberSig,
+              uploadedAt: v['signature_member_uploaded_at'],
+              uploading: _uploadingMember,
+              vollmachtId: v['id'],
+              signer: 'member',
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: _signatureCard(
+              label: '1. Vorsitzender',
+              name: '${vorsitzer['vorname'] ?? ''} ${vorsitzer['nachname'] ?? ''}',
+              has: hasVorstandSig,
+              uploadedAt: v['signature_vorstand_uploaded_at'],
+              uploading: _uploadingVorstand,
+              vollmachtId: v['id'],
+              signer: 'vorstand',
+            )),
+          ]),
+        ])),
+
+        const SizedBox(height: 12),
+
+        // EINREICHUNG
+        _managerBlock('Einreichung bei der Agentur für Arbeit', Icons.send, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Eingereicht am', style: TextStyle(fontSize: 12)),
+            subtitle: Text(_submitDate != null ? DateFormat('dd.MM.yyyy').format(_submitDate!) : '— noch nicht eingereicht —', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (_submitDate != null) IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () => setState(() => _submitDate = null)),
+              IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () async {
+                final d = await showDatePicker(context: context, initialDate: _submitDate ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099));
+                if (d != null) setState(() => _submitDate = d);
+              }),
+            ]),
+          ),
+          const Divider(height: 8),
+          const Padding(padding: EdgeInsets.only(top: 4, bottom: 4), child: Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+          ..._methodOptions(),
+          const SizedBox(height: 8),
+          TextField(controller: _refCtrl, decoration: const InputDecoration(labelText: 'Aktenzeichen / Sendungsnummer (optional)', isDense: true, border: OutlineInputBorder()), style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          // Receipt upload
+          Row(children: [
+            Icon(hasReceipt ? Icons.check_circle : Icons.attach_file, size: 18, color: hasReceipt ? Colors.green : Colors.grey),
+            const SizedBox(width: 6),
+            Expanded(child: Text(hasReceipt ? 'Empfangsbeleg vorhanden' : 'Empfangsbeleg (optional)', style: const TextStyle(fontSize: 12))),
+            if (_uploadingReceipt) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            else TextButton.icon(icon: const Icon(Icons.upload_file, size: 16), label: const Text('Upload', style: TextStyle(fontSize: 11)), onPressed: () => _pickAndUpload(v['id'], 'receipt')),
+            if (hasReceipt) IconButton(icon: const Icon(Icons.visibility, size: 18), onPressed: () => _openPdf(v['id'], 'empfangsbeleg.pdf', type: 'receipt')),
+          ]),
+          const SizedBox(height: 8),
+          TextField(controller: _notesCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'Notizen (optional)', isDense: true, border: OutlineInputBorder()), style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            ElevatedButton.icon(
+              icon: _savingSubmit ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
+              label: const Text('Speichern'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+              onPressed: _savingSubmit ? null : () => _saveSubmission(v['id']),
+            ),
+          ]),
+        ])),
+
+        const SizedBox(height: 12),
+
+        // LIFECYCLE TIMELINE
+        _managerBlock('Zusammenfassung', Icons.timeline, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _timelineRow(true,  'Generiert',     v['generated_at']),
+          _timelineRow(hasMemberSig,   'Mitglied-Unterschrift',  v['signature_member_uploaded_at']),
+          _timelineRow(hasVorstandSig, 'Vorstand-Unterschrift',  v['signature_vorstand_uploaded_at']),
+          _timelineRow(_submitDate != null, 'Eingereicht', _submitDate != null ? DateFormat('yyyy-MM-dd').format(_submitDate!) : null),
+          _timelineRow(status == 'aktiv', 'Aktiv', null),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _managerBlock(String title, IconData icon, Widget child) => Card(
+    margin: EdgeInsets.zero,
+    elevation: 1,
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 6),
+          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        ]),
+        const Divider(height: 12),
+        child,
+      ]),
+    ),
+  );
+
+  Widget _statusBadge(String status) {
+    final (color, label) = switch (status) {
+      'draft'                  => (Colors.blue,    'DRAFT'),
+      'wartet_unterschriften'  => (Colors.orange,  'WARTET AUF UNTERSCHRIFTEN'),
+      'unterzeichnet'          => (Colors.lightGreen, 'UNTERZEICHNET'),
+      'eingereicht'            => (Colors.green,   'EINGEREICHT'),
+      'aktiv'                  => (Colors.green,   'AKTIV'),
+      'revoked'                => (Colors.red,     'WIDERRUFEN'),
+      'expired'                => (Colors.grey,    'ABGELAUFEN'),
+      _                        => (Colors.grey,    status.toUpperCase()),
+    };
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: color)),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)));
+  }
+
+  Widget _signatureCard({required String label, required String name, required bool has, required dynamic uploadedAt,
+                         required bool uploading, required int vollmachtId, required String signer}) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: has ? Colors.green.shade50 : Colors.grey.shade50,
+        border: Border.all(color: has ? Colors.green.shade400 : Colors.grey.shade400),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(has ? Icons.check_circle : Icons.pending, size: 16, color: has ? Colors.green : Colors.orange),
+          const SizedBox(width: 4),
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+        ]),
+        Text(name, style: const TextStyle(fontSize: 10), overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 6),
+        if (has) ...[
+          Text('Hochgeladen: $uploadedAt', style: const TextStyle(fontSize: 9, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.visibility, size: 14), label: const Text('Ansehen', style: TextStyle(fontSize: 10)),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4)),
+              onPressed: () => _openPdf(vollmachtId, '${signer}_signature.pdf', type: 'signature_$signer'))),
+            const SizedBox(width: 4),
+            IconButton(icon: const Icon(Icons.delete, size: 16, color: Colors.red), tooltip: 'Entfernen',
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28), padding: EdgeInsets.zero,
+              onPressed: () => _deleteSignature(vollmachtId, signer)),
+          ]),
+        ] else ...[
+          if (uploading) const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
+          else SizedBox(width: double.infinity, child: ElevatedButton.icon(
+            icon: const Icon(Icons.upload_file, size: 14),
+            label: const Text('Datei hochladen', style: TextStyle(fontSize: 10)),
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 6)),
+            onPressed: () => _pickAndUpload(vollmachtId, signer),
+          )),
+        ],
+      ]),
+    );
+  }
+
+  List<Widget> _methodOptions() {
+    const opts = [('online', Icons.cloud, 'Online (eVollmacht / BA-Portal)'),
+                  ('fax', Icons.print, 'Fax'),
+                  ('persoenlich', Icons.person, 'Persönlich vor Ort'),
+                  ('post', Icons.local_post_office, 'Post')];
+    return opts.map((o) => RadioListTile<String>(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      value: o.$1,
+      groupValue: _submitMethod,
+      title: Row(children: [Icon(o.$2, size: 16, color: Colors.indigo.shade600), const SizedBox(width: 6), Text(o.$3, style: const TextStyle(fontSize: 12))]),
+      onChanged: (v) => setState(() => _submitMethod = v),
+    )).toList();
+  }
+
+  Widget _timelineRow(bool done, String label, dynamic when) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(children: [
+      Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, size: 16, color: done ? Colors.green : Colors.grey),
+      const SizedBox(width: 6),
+      SizedBox(width: 170, child: Text(label, style: TextStyle(fontSize: 12, fontWeight: done ? FontWeight.w600 : FontWeight.normal))),
+      Expanded(child: Text(when?.toString() ?? '—', style: TextStyle(fontSize: 11, color: done ? Colors.black87 : Colors.grey))),
+    ]),
+  );
+
+  Future<void> _pickAndUpload(int vollmachtId, String signer) async {
+    final result = await FilePickerHelper.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || result.files.single.bytes == null) return;
+    final f = result.files.single;
+    setState(() {
+      if (signer == 'member') _uploadingMember = true;
+      else if (signer == 'vorstand') _uploadingVorstand = true;
+      else if (signer == 'receipt') _uploadingReceipt = true;
+    });
+    final res = await widget.apiService.uploadVollmachtSignature(
+      vollmachtId: vollmachtId, signer: signer, bytes: f.bytes!, filename: f.name,
+    );
+    if (!mounted) return;
+    setState(() {
+      _uploadingMember = false; _uploadingVorstand = false; _uploadingReceipt = false;
+    });
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Hochgeladen' : (res['message'] ?? 'Fehler')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) _loadAll();
+  }
+
+  Future<void> _deleteSignature(int vollmachtId, String signer) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Unterschrift entfernen?'),
+      content: const Text('Die hochgeladene Datei wird gelöscht.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Entfernen')),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.deleteVollmachtSignature(vollmachtId: vollmachtId, signer: signer);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(res['success'] == true ? 'Gelöscht' : (res['message'] ?? 'Fehler')),
+      backgroundColor: res['success'] == true ? Colors.orange : Colors.red,
+    ));
+    if (res['success'] == true) _loadAll();
+  }
+
+  Future<void> _saveSubmission(int vollmachtId) async {
+    setState(() => _savingSubmit = true);
+    final res = await widget.apiService.submitVollmacht(
+      vollmachtId: vollmachtId,
+      submittedAt: _submitDate != null ? DateFormat('yyyy-MM-dd').format(_submitDate!) : null,
+      method: _submitMethod,
+      reference: _refCtrl.text.trim(),
+      notes: _notesCtrl.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() => _savingSubmit = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Eingereicht-Status gespeichert' : (res['message'] ?? 'Fehler')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) _loadAll();
   }
 }

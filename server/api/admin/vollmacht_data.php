@@ -43,7 +43,7 @@ requireAdminRole();
 
 $userId = (int)($_GET['user_id'] ?? 0);
 $behoerde = $_GET['behoerde'] ?? 'arbeitsagentur';
-$allowedBehoerden = ['arbeitsagentur']; // expand later for jobcenter etc.
+$allowedBehoerden = ['arbeitsagentur', 'jobcenter'];
 if (!in_array($behoerde, $allowedBehoerden, true)) {
     jsonResponse(false, [], 'Unsupported behoerde');
 }
@@ -82,17 +82,31 @@ try {
                   ->fetch(PDO::FETCH_ASSOC);
     if (!$verein) jsonResponse(false, [], 'Verein not configured');
 
-    // 4. Behoerde-specific data — for arbeitsagentur, fetch dienststelle + kundennummer
-    $userBehoerde = ['dienststelle' => '', 'kundennummer' => ''];
+    // 4. Behoerde-specific data
+    //   - arbeitsagentur: kundennummer + dienststelle (from arbeitsagentur_data)
+    //   - jobcenter:      kundennummer + bg_nummer + selected_amt_name
+    //                     (from jobcenter_data, bereich='stammdaten')
+    $userBehoerde = ['dienststelle' => '', 'kundennummer' => '', 'bg_nummer' => ''];
     if ($behoerde === 'arbeitsagentur') {
         $stmt = $pdo->prepare("
-            SELECT feld_name, feld_wert
-            FROM arbeitsagentur_data
+            SELECT feld_name, feld_wert FROM arbeitsagentur_data
             WHERE user_id = ? AND feld_name IN ('dienststelle', 'kundennummer')
         ");
         $stmt->execute([$userId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $userBehoerde[$row['feld_name']] = dv($row['feld_wert']);
+        }
+    } elseif ($behoerde === 'jobcenter') {
+        $stmt = $pdo->prepare("
+            SELECT feld_name, feld_wert FROM jobcenter_data
+            WHERE user_id = ? AND bereich = 'stammdaten'
+              AND feld_name IN ('kundennummer', 'bg_nummer', 'selected_amt_name')
+        ");
+        $stmt->execute([$userId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if ($row['feld_name'] === 'kundennummer')      $userBehoerde['kundennummer'] = dv($row['feld_wert']);
+            if ($row['feld_name'] === 'bg_nummer')         $userBehoerde['bg_nummer']    = dv($row['feld_wert']);
+            if ($row['feld_name'] === 'selected_amt_name') $userBehoerde['dienststelle'] = dv($row['feld_wert']);
         }
     }
 

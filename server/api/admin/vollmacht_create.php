@@ -61,9 +61,58 @@ $behoerde  = $input['behoerde'] ?? 'arbeitsagentur';
 $validFrom = $input['valid_from'] ?? date('Y-m-d');
 $validUntil= $input['valid_until'] ?? null;
 $options   = $input['options'] ?? [];
-$allowed   = ['arbeitsagentur'];
+$allowed   = ['arbeitsagentur', 'jobcenter'];
 if (!in_array($behoerde, $allowed, true)) jsonResponse(false, [], 'Unsupported behoerde');
 if ($userId <= 0) jsonResponse(false, [], 'user_id required');
+
+// Per-behoerde labels and legal references for the PDF.
+// NOTE: As of 2026, "Bürgergeld" is being renamed back to
+// "Grundsicherung für Arbeitsuchende" (Sozialgesetzbuch-Novelle 2026).
+// The PDF uses the new terminology.
+$bh = $behoerde === 'jobcenter'
+    ? [
+        'title'          => 'zur Vertretung vor dem Jobcenter',
+        'legal_subtitle' => 'gem. § 13 Abs. 1 SGB X i.V.m. § 38 SGB II',
+        'behoerde_long'  => 'Jobcenter',
+        'behoerde_short' => 'Jobcenter',
+        'agentur_label'  => 'Zustaendiges Jobcenter:',
+        'umfang_intro'   => 'Der Vollmachtgeber bevollmaechtigt den Bevollmaechtigten, ihn ausschliesslich gegenueber dem Jobcenter in allen Angelegenheiten nach dem SGB II (Grundsicherung fuer Arbeitsuchende) zu vertreten. Dies umfasst:',
+        'antrag_text'    => 'Stellen, Aendern und Zuruecknehmen von Antraegen (Grundsicherung fuer Arbeitsuchende, Mehrbedarfe, einmalige Bedarfe, Bildungs- und Teilhabepaket, Erstausstattungen)',
+        'egv_text'       => 'Abschluss, Aenderung und Aufhebung von Eingliederungsvereinbarungen / Kooperationsplaenen (§ 15 SGB II)',
+        'extra_items'    => [
+            'sanktion' => 'Vertretung in Leistungsminderungs- / Sanktionsverfahren (§§ 31, 31a, 31b, 32 SGB II)',
+            'bg'       => 'Vertretung in Angelegenheiten der Bedarfsgemeinschaft soweit gesetzlich zulaessig',
+        ],
+        'erklaerungen_text' => 'Erklaerungen zur Mitwirkung, Arbeitssuche, Verfuegbarkeit und Vermoegens-/Einkommensverhaeltnissen',
+        'other_hint'     => 'Hinweis 1: Diese Vollmacht gilt NICHT fuer die Agentur fuer Arbeit (SGB III). Fuer Angelegenheiten der Agentur fuer Arbeit (insb. Arbeitslosengeld I) ist eine gesonderte Vollmacht erforderlich.',
+        'money_section'  => '§ 42 SGB II',
+        'money_hint'     => 'Hinweis 2: Diese Vollmacht umfasst KEINE Geldangelegenheiten. Saemtliche Leistungen des Jobcenters (insb. Grundsicherung) werden ausschliesslich auf das vom Vollmachtgeber benannte Bankkonto ueberwiesen (§ 42 SGB II). Der Bevollmaechtigte ist weder berechtigt noch verpflichtet, Geldbetraege in Empfang zu nehmen.',
+        'portal_text'    => 'Nutzung der digitalen Online-Angebote (jobcenter.digital, eVollmacht-Funktion)',
+        'portal_short'   => 'jobcenter.digital',
+        'sgb_for_post'   => 'des Jobcenters',
+        'sgb_for_post_short' => 'des Jobcenters',
+        'sgb_for_decisions'  => 'Jobcenter',
+      ]
+    : [
+        'title'          => 'zur Vertretung vor der Agentur fuer Arbeit',
+        'legal_subtitle' => 'gem. § 13 Abs. 1 SGB X i.V.m. § 38 SGB III',
+        'behoerde_long'  => 'Agentur fuer Arbeit (Bundesagentur fuer Arbeit)',
+        'behoerde_short' => 'Agentur fuer Arbeit',
+        'agentur_label'  => 'Zustaendige Agentur:',
+        'umfang_intro'   => 'Der Vollmachtgeber bevollmaechtigt den Bevollmaechtigten, ihn ausschliesslich gegenueber der Agentur fuer Arbeit (Bundesagentur fuer Arbeit) in allen Angelegenheiten nach dem SGB III zu vertreten. Dies umfasst:',
+        'antrag_text'    => 'Stellen, Aendern und Zuruecknehmen von Antraegen (Arbeitslosengeld I, Bildungsgutschein, Reha-Antraege, EGL)',
+        'egv_text'       => 'Abschluss, Aenderung und Aufhebung von Eingliederungsvereinbarungen (EGV)',
+        'extra_items'    => [],
+        'erklaerungen_text' => 'Erklaerungen zur Arbeitssuche, Verfuegbarkeit und Mitwirkung',
+        'other_hint'     => 'Hinweis 1: Diese Vollmacht gilt NICHT fuer das Jobcenter (SGB II). Fuer Angelegenheiten beim Jobcenter ist eine gesonderte Vollmacht erforderlich.',
+        'money_section'  => '§ 337 SGB III',
+        'money_hint'     => 'Hinweis 2: Diese Vollmacht umfasst KEINE Geldangelegenheiten. Saemtliche Leistungen der Agentur fuer Arbeit (insbesondere Arbeitslosengeld I) werden ausschliesslich auf das vom Vollmachtgeber benannte Bankkonto ueberwiesen (§ 337 SGB III). Der Bevollmaechtigte ist weder berechtigt noch verpflichtet, Geldbetraege in Empfang zu nehmen.',
+        'portal_text'    => 'Nutzung der Online-Angebote der BA (eVollmacht-Funktion)',
+        'portal_short'   => 'arbeitsagentur.de',
+        'sgb_for_post'   => 'der Agentur fuer Arbeit',
+        'sgb_for_post_short' => 'der Agentur fuer Arbeit',
+        'sgb_for_decisions'  => 'Agentur fuer Arbeit',
+      ];
 
 // Encode for the PDF (FPDF uses ISO-8859-1; convert UTF-8 to it lossily but
 // safely for German characters).
@@ -93,12 +142,21 @@ try {
 
     $dienststelle = '';
     $kundennummer = '';
+    $bgNummer     = ''; // jobcenter only
     if ($behoerde === 'arbeitsagentur') {
         $stmt = $pdo->prepare("SELECT feld_name, feld_wert FROM arbeitsagentur_data WHERE user_id=? AND feld_name IN ('dienststelle','kundennummer')");
         $stmt->execute([$userId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
             if ($r['feld_name'] === 'dienststelle') $dienststelle = dv($r['feld_wert']);
             if ($r['feld_name'] === 'kundennummer') $kundennummer = dv($r['feld_wert']);
+        }
+    } elseif ($behoerde === 'jobcenter') {
+        $stmt = $pdo->prepare("SELECT feld_name, feld_wert FROM jobcenter_data WHERE user_id=? AND bereich='stammdaten' AND feld_name IN ('kundennummer','bg_nummer','selected_amt_name')");
+        $stmt->execute([$userId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if ($r['feld_name'] === 'kundennummer')      $kundennummer = dv($r['feld_wert']);
+            if ($r['feld_name'] === 'bg_nummer')         $bgNummer     = dv($r['feld_wert']);
+            if ($r['feld_name'] === 'selected_amt_name') $dienststelle = dv($r['feld_wert']);
         }
     }
 
@@ -118,8 +176,8 @@ try {
     $pdf->SetFont('Helvetica', 'B', 16);
     $pdf->Cell(0, 8, p('VOLLMACHT'), 0, 1, 'C');
     $pdf->SetFont('Helvetica', '', 9);
-    $pdf->Cell(0, 5, p('gem. § 13 Abs. 1 SGB X i.V.m. § 38 SGB III'), 0, 1, 'C');
-    $pdf->Cell(0, 5, p('zur Vertretung vor der Agentur für Arbeit'), 0, 1, 'C');
+    $pdf->Cell(0, 5, p($bh['legal_subtitle']), 0, 1, 'C');
+    $pdf->Cell(0, 5, p($bh['title']), 0, 1, 'C');
     $pdf->Ln(4);
     $pdf->SetDrawColor(150, 150, 150);
     $pdf->Line(20, $pdf->GetY(), 190, $pdf->GetY());
@@ -149,8 +207,13 @@ try {
     $line('Geburtsort:', $user['geburtsort'] ?? '');
     $line('Anschrift:', trim(($user['strasse'] ?? '') . ' ' . ($user['hausnummer'] ?? '')));
     $line('', trim(($user['plz'] ?? '') . ' ' . ($user['ort'] ?? '')));
-    if ($kundennummer !== '') $line('Kundennummer BA:', $kundennummer);
-    if ($dienststelle !== '') $line('Zustaendige Agentur:', $dienststelle);
+    if ($behoerde === 'jobcenter') {
+        if ($kundennummer !== '') $line('Kundennummer JC:', $kundennummer);
+        if ($bgNummer     !== '') $line('BG-Nummer:',       $bgNummer);
+    } else {
+        if ($kundennummer !== '') $line('Kundennummer BA:', $kundennummer);
+    }
+    if ($dienststelle !== '') $line($bh['agentur_label'], $dienststelle);
 
     // ── Bevollmächtigter ────────────────────────────────────────────────
     $section('BEVOLLMAECHTIGTER (der Verein, vertreten durch den Vorstand)');
@@ -168,7 +231,7 @@ try {
     $pdf->SetFont('Helvetica', '', 9);
     $pdf->MultiCell(0, 5, p(
         'Saemtliche Bescheide, Mitteilungen, Aufforderungen, Termineinladungen und sonstige ' .
-        'Schreiben der Agentur fuer Arbeit sind ausschliesslich an die folgende Anschrift ' .
+        'Schreiben ' . $bh['sgb_for_post'] . ' sind ausschliesslich an die folgende Anschrift ' .
         'des Bevollmaechtigten zu senden:'
     ));
     $pdf->Ln(1);
@@ -184,50 +247,43 @@ try {
     // ── Umfang ──────────────────────────────────────────────────────────
     $section('UMFANG DER VOLLMACHT');
     $pdf->SetFont('Helvetica', '', 9);
-    $pdf->MultiCell(0, 5, p(
-        'Der Vollmachtgeber bevollmaechtigt den Bevollmaechtigten, ihn ausschliesslich gegenueber der ' .
-        'Agentur fuer Arbeit in allen Angelegenheiten nach dem SGB III zu vertreten. Dies umfasst:'
-    ));
+    $pdf->MultiCell(0, 5, p($bh['umfang_intro']));
     $pdf->Ln(1);
     $items = [
-        'antraege'      => 'Stellen, Aendern und Zuruecknehmen von Antraegen (ALG I, Bildungsgutschein, Reha-Antraege, EGL)',
+        'antraege'      => $bh['antrag_text'],
         'bescheide'     => 'Empfang von Bescheiden, Mitteilungen und saemtlicher Korrespondenz',
         'widerspruch'   => 'Unterstuetzung beim Verfassen und Einreichen von Widerspruechen (Hilfestellung, keine Rechtsdienstleistung i.S.d. RDG)',
         'klage'         => 'Unterstuetzung bei Klage vor dem Sozialgericht nach § 73 Abs. 2 Satz 2 Nr. 9 SGG (keine anwaltliche Vertretung)',
         'akteneinsicht' => 'Akteneinsicht und Erhalt von Auskuenften',
         'termine'       => 'Teilnahme an Beratungs- und Vermittlungsgespraechen',
-        'egv'           => 'Abschluss, Aenderung und Aufhebung von Eingliederungsvereinbarungen (EGV)',
-        'erklaerungen'  => 'Erklaerungen zur Arbeitssuche, Verfuegbarkeit und Mitwirkung',
-        'online'        => 'Nutzung der Online-Angebote der BA (eVollmacht-Funktion)',
+        'egv'           => $bh['egv_text'],
+        'erklaerungen'  => $bh['erklaerungen_text'],
+        'online'        => $bh['portal_text'],
     ];
     foreach ($items as $k => $label) {
         $pdf->MultiCell(0, 5, p('  ' . $bullet(!empty($umfang[$k]), $label)));
     }
+    // Extra jobcenter-specific items (sanktion, BG) — always enabled
+    foreach (($bh['extra_items'] ?? []) as $_k => $label) {
+        $pdf->MultiCell(0, 5, p('  [X] ' . $label));
+    }
     $pdf->Ln(1);
     $pdf->SetFont('Helvetica', 'I', 8);
-    $pdf->MultiCell(0, 4, p(
-        'Hinweis 1: Diese Vollmacht gilt NICHT fuer das Jobcenter (SGB II). Fuer Angelegenheiten beim ' .
-        'Jobcenter ist eine gesonderte Vollmacht erforderlich.'
-    ));
+    $pdf->MultiCell(0, 4, p($bh['other_hint']));
     $pdf->Ln(0.5);
-    $pdf->MultiCell(0, 4, p(
-        'Hinweis 2: Diese Vollmacht umfasst KEINE Geldangelegenheiten. Saemtliche Leistungen der Agentur ' .
-        'fuer Arbeit werden ausschliesslich auf das vom Vollmachtgeber benannte Bankkonto ueberwiesen ' .
-        '(§ 337 SGB III). Der Bevollmaechtigte ist weder berechtigt noch verpflichtet, Geldbetraege in ' .
-        'Empfang zu nehmen.'
-    ));
+    $pdf->MultiCell(0, 4, p($bh['money_hint']));
 
     // ── Digitale Vertretung ─────────────────────────────────────────────
     $pdf->AddPage();
     $section('DIGITALE VERTRETUNG / ONLINE-HANDELN');
     $pdf->SetFont('Helvetica', '', 9);
     $pdf->MultiCell(0, 5, p(
-        'eVollmacht gem. § 13 SGB X i.V.m. § 36a SGB I, "Vertretung online" der BA (Stand 2026). ' .
-        'Diese Vollmacht umfasst ausdruecklich die Berechtigung zum Online-Handeln im BA-Kundenkonto:'
+        'eVollmacht gem. § 13 SGB X i.V.m. § 36a SGB I, "Vertretung online" (Stand 2026). ' .
+        'Diese Vollmacht umfasst ausdruecklich die Berechtigung zum Online-Handeln im Portal ' . $bh['portal_short'] . ':'
     ));
     $pdf->Ln(1);
     $digItems = [
-        'konto_zugriff'    => 'Online-Zugriff auf das vollstaendige BA-Kundenkonto des Vollmachtgebers',
+        'konto_zugriff'    => 'Online-Zugriff auf das vollstaendige Kundenkonto des Vollmachtgebers (' . $bh['portal_short'] . ')',
         'antraege_online'  => 'Stellen, Aendern und Zuruecknehmen von Online-Antraegen',
         'postfach'         => 'Einsicht in Bescheide, Postfachnachrichten und Termineinladungen; Versand von Postfachnachrichten',
         'veraenderungen'   => 'Meldung von Veraenderungen (Adresse, Beschaeftigung, Krankheit etc.)',
@@ -237,9 +293,10 @@ try {
     }
     $pdf->Ln(1);
     $pdf->MultiCell(0, 5, p(
-        'Die Bundesagentur fuer Arbeit wird angewiesen, dem Bevollmaechtigten den vollen Online-' .
-        'Zugriff auf das BA-Konto zu gewaehren, sobald dieser sich im BA-Online-Portal authentifiziert ' .
-        'und diese Vollmacht hochlaedt.'
+        ($behoerde === 'jobcenter' ? 'Das Jobcenter' : 'Die Bundesagentur fuer Arbeit') .
+        ' wird angewiesen, dem Bevollmaechtigten den vollen Online-Zugriff auf das Kundenkonto ' .
+        'zu gewaehren, sobald dieser sich im Portal ' . $bh['portal_short'] .
+        ' authentifiziert und diese Vollmacht hochlaedt.'
     ));
 
     // ── Wechselseitige Zugangsgewährung ─────────────────────────────────
@@ -258,24 +315,25 @@ try {
     if (!empty($zugang['member_to_verein'])) {
         $pdf->MultiCell(0, 5, p(
             '[X] Das Mitglied gewaehrt dem Verein den vollstaendigen Online-Zugriff auf sein ' .
-            'BA-Kundenkonto bei der Agentur fuer Arbeit (ueber die offizielle Vertretung online-' .
-            'Funktion oder, falls technisch noch nicht freigeschaltet, durch Uebergabe der ' .
-            'Login-Daten).'
+            'Kundenkonto bei ' . $bh['sgb_for_post'] . ' (Portal ' . $bh['portal_short'] . ') — ueber die ' .
+            'offizielle Vertretung online-Funktion oder, falls technisch noch nicht freigeschaltet, ' .
+            'durch Uebergabe der Login-Daten.'
         ));
     } else {
-        $pdf->MultiCell(0, 5, p('[ ] Das Mitglied gewaehrt dem Verein Zugang zum BA-Kundenkonto.'));
+        $pdf->MultiCell(0, 5, p('[ ] Das Mitglied gewaehrt dem Verein Zugang zum Kundenkonto bei ' . $bh['sgb_for_post'] . '.'));
     }
 
     // ── Legitimationspflicht ────────────────────────────────────────────
     $section('LEGITIMATIONSPFLICHT (NUR BEI PERSOENLICHER VORSPRACHE)');
     $pdf->SetFont('Helvetica', '', 9);
+    $behoerdeShort = $bh['behoerde_short'];
     $pdf->MultiCell(0, 5, p(
         'Bei jeder physischen Vorsprache des Bevollmaechtigten ist die Identitaet durch Vorlage eines ' .
-        'gueltigen amtlichen Lichtbildausweises zu pruefen (Personalausweis oder Reisepass). Die ' .
-        'Agentur fuer Arbeit darf KEINE Auskunft erteilen, KEINE Akteneinsicht gewaehren und KEINE ' .
-        'Erklaerungen entgegennehmen, solange die Identitaet nicht verifiziert ist — auch dann nicht, ' .
-        'wenn die schriftliche Vollmacht im Original vorgelegt wird. Bei Fernkommunikation (Brief, ' .
-        'Fax, E-Mail, BA-Online-Portal) entfaellt diese Pflicht.'
+        'gueltigen amtlichen Lichtbildausweises zu pruefen (Personalausweis oder Reisepass). ' .
+        ($behoerde === 'jobcenter' ? 'Das ' : 'Die ') . $behoerdeShort . ' darf KEINE Auskunft erteilen, ' .
+        'KEINE Akteneinsicht gewaehren und KEINE Erklaerungen entgegennehmen, solange die Identitaet ' .
+        'nicht verifiziert ist — auch dann nicht, wenn die schriftliche Vollmacht im Original vorgelegt ' .
+        'wird. Bei Fernkommunikation (Brief, Fax, E-Mail, ' . $bh['portal_short'] . ') entfaellt diese Pflicht.'
     ));
     $pdf->Ln(1);
     $pdf->MultiCell(0, 5, p(
@@ -310,7 +368,7 @@ try {
     $pdf->SetFont('Helvetica', '', 9);
     $pdf->MultiCell(0, 5, p(
         'Diese Vollmacht — einschliesslich der wechselseitigen Zugangsgewaehrung — kann jederzeit ' .
-        'schriftlich gegenueber dem Bevollmaechtigten und der Agentur fuer Arbeit widerrufen werden, ' .
+        'schriftlich gegenueber dem Bevollmaechtigten und ' . $bh['sgb_for_post'] . ' widerrufen werden, ' .
         'ohne Angabe von Gruenden und ohne Wirkung auf bereits durchgefuehrte Handlungen.'
     ));
     $pdf->Ln(1);
@@ -325,18 +383,18 @@ try {
     $section('VERANTWORTUNG NACH WIDERRUF');
     $pdf->SetFont('Helvetica', '', 9);
     $pdf->MultiCell(0, 5, p(
-        'Der Verein verpflichtet sich, ALLE vom Mitglied erhaltenen Zugangsdaten zum BA-Kundenkonto ' .
-        'unverzueglich aus saemtlichen Vereinssystemen zu LOESCHEN und keinen weiteren Zugriff auf ' .
-        'das BA-Konto auszuueben.'
+        'Der Verein verpflichtet sich, ALLE vom Mitglied erhaltenen Zugangsdaten zum Kundenkonto bei ' .
+        $bh['sgb_for_post'] . ' unverzueglich aus saemtlichen Vereinssystemen zu LOESCHEN und keinen ' .
+        'weiteren Zugriff auf das Kundenkonto auszuueben.'
     ));
     $pdf->Ln(1);
     $pdf->MultiCell(0, 5, p(
-        'Das Mitglied traegt die ALLEINIGE Verantwortung fuer die Sicherung seines BA-Kundenkontos ' .
-        'nach Widerruf. Insbesondere obliegt es ausschliesslich dem Mitglied — als rechtmaessigem ' .
-        'Inhaber des Kontos — die folgenden Massnahmen eigenverantwortlich durchzufuehren: Aenderung ' .
-        'des Passworts, Neueinrichtung / Sperrung des 2FA-Schluessels, Beendigung aller Online-' .
-        'Sitzungen und ggf. Sperrung der "Vertretung online"-Funktion bei der BA. Diese Schritte ' .
-        'kann und darf der Verein nach Widerruf NICHT mehr durchfuehren.'
+        'Das Mitglied traegt die ALLEINIGE Verantwortung fuer die Sicherung seines Kundenkontos nach ' .
+        'Widerruf. Insbesondere obliegt es ausschliesslich dem Mitglied — als rechtmaessigem Inhaber ' .
+        'des Kontos — die folgenden Massnahmen eigenverantwortlich durchzufuehren: Aenderung des ' .
+        'Passworts, Neueinrichtung / Sperrung des 2FA-Schluessels, Beendigung aller Online-Sitzungen ' .
+        'und ggf. Sperrung der "Vertretung online"-Funktion. Diese Schritte kann und darf der Verein ' .
+        'nach Widerruf NICHT mehr durchfuehren.'
     ));
 
     // ── Signatures ──────────────────────────────────────────────────────
