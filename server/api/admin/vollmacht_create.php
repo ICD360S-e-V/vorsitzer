@@ -287,6 +287,26 @@ try {
         'Telefax ist gem. BSG-Urteil v. 23.09.2025 (Az. B 4 AS 10/24 R) als Nachweis der ' .
         'Bevollmaechtigung nicht stets ausreichend.'
     ));
+    $pdf->Ln(0.5);
+    $pdf->MultiCell(0, 4, p(
+        'Hinweis 5 (Uebersetzungshilfe): Der Verein bietet dem Mitglied kostenfreie und freiwillige ' .
+        'Uebersetzungs- bzw. muendliche Dolmetscherhilfe an, sofern das Mitglied die deutsche Sprache ' .
+        'eines Bescheides, Schreibens oder einer behoerdlichen Erklaerung nicht ausreichend versteht. ' .
+        'Diese Verstaendnishilfe ist Teil der vereinsmaessigen Taetigkeit nach § 7 RDG und wird ' .
+        'ausschliesslich unentgeltlich erbracht. Sie ersetzt keine beglaubigte Uebersetzung durch ' .
+        'einen vereidigten Uebersetzer; sie dient allein dem Verstaendnis des Mitglieds gegenueber ' .
+        'der Behoerde.'
+    ));
+    $pdf->Ln(0.5);
+    $pdf->MultiCell(0, 4, p(
+        'Hinweis 6 (Konkrete administrative Hilfestellung umfasst u.a.): Fristen ueberwachen und ' .
+        'einhalten | formgerechte Einreichung von Antraegen, Widerspruechen und Mitteilungen | ' .
+        'Korrespondenz aushaendigen und weiterleiten | Terminbegleitung als Beistand (nicht als ' .
+        'Sprecher) | Schreibhilfe beim Ausfuellen von Formularen | Verstaendnishilfe / Uebersetzung. ' .
+        'NICHT umfasst: juristische Pruefung, Auslegung von Bescheiden, Widerspruchsbegruendung, ' .
+        'rechtliche Beratung im Einzelfall — hierfuer erfolgt stets Weiterleitung an einen ' .
+        'Rechtsanwalt fuer Sozialrecht.'
+    ));
 
     // ── Digitale Vertretung ─────────────────────────────────────────────
     $pdf->AddPage();
@@ -386,6 +406,13 @@ try {
         'Schweigepflichtentbindung gem. § 35 SGB I und §§ 67 ff. SGB X. Datenverarbeitung durch den ' .
         'Verein nach Art. 6 Abs. 1 lit. e DSGVO sowie BDSG, ausschliesslich zur Erfuellung der ' .
         'bevollmaechtigten Aufgaben.'
+    ));
+    $pdf->Ln(1);
+    $pdf->MultiCell(0, 5, p(
+        'Sollten in den uebermittelten Sozialdaten besondere Kategorien personenbezogener Daten ' .
+        '(insbesondere Gesundheitsdaten) enthalten sein, willigt der Vollmachtgeber zugleich in deren ' .
+        'Verarbeitung durch den Verein gem. Art. 9 Abs. 2 lit. a DSGVO ausdruecklich ein. Diese ' .
+        'Einwilligung ist jederzeit widerrufbar (Art. 7 Abs. 3 DSGVO).'
     ));
 
     // ── Widerruf ────────────────────────────────────────────────────────
