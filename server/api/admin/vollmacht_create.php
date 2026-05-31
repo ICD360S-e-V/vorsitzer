@@ -298,6 +298,17 @@ try {
         'zu gewaehren, sobald dieser sich im Portal ' . $bh['portal_short'] .
         ' authentifiziert und diese Vollmacht hochlaedt.'
     ));
+    $pdf->Ln(1);
+    $pdf->SetFont('Helvetica', 'I', 8);
+    $pdf->MultiCell(0, 4, p(
+        'Hinweis: Die Funktion "Vertretung online" auf ' . $bh['portal_short'] . ' ist fuer Vereine ' .
+        'derzeit (Stand 2026) noch nicht freigeschaltet — Bundesagentur fuer Arbeit aktiviert diese ' .
+        'Funktion fuer Vereine, Rechtsanwaltskanzleien und Pflegepersonen zu einem spaeteren Zeitpunkt. ' .
+        'Diese Vollmacht ist als vorsorgliche Erklaerung der Befugnis fuer den Zeitpunkt der ' .
+        'Freischaltung enthalten. Bis dahin erfolgt die Vertretung offline (Brief, Fax, persoenliche ' .
+        'Vorsprache, E-Mail).'
+    ));
+    $pdf->SetFont('Helvetica', '', 9);
 
     // ── Wechselseitige Zugangsgewährung ─────────────────────────────────
     $section('WECHSELSEITIGE ZUGANGSGEWAEHRUNG');
