@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -546,6 +548,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                 Row(children: [Icon(Icons.key, size: 18, color: Colors.orange.shade700), const SizedBox(width: 8), Text('Passkey aktiviert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade700)), const Spacer(), Switch(value: hasPasskey, onChanged: (v) => setLocal(() => hasPasskey = v), activeThumbColor: Colors.orange)]),
                 if (hasPasskey) ...[const SizedBox(height: 12), _textField('Wer hat Zugang?', passkeyC, hint: 'Name / Rolle', icon: Icons.person_pin)],
               ])),
+            const SizedBox(height: 12),
+            // 2FA / TOTP Section — server-side encrypted (AES-256-GCM)
+            _AaTotp2FAWidget(apiService: widget.apiService, userId: widget.userId),
           ],
         ])),
       _saveBtn(() => _saveTab({'has_online_account': has, 'online_email': emailC.text.trim(), 'has_passkey': hasPasskey, 'passkey_access': passkeyC.text.trim()})),
@@ -2704,5 +2709,235 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
     if (ok) _loadAll();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 2FA / TOTP widget for arbeitsagentur.de Online-Konto
+// Secret stored encrypted (AES-256-GCM) server-side. Code generated server-side.
+// ═══════════════════════════════════════════════════════════════════
+
+class _AaTotp2FAWidget extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _AaTotp2FAWidget({required this.apiService, required this.userId});
+
+  @override
+  State<_AaTotp2FAWidget> createState() => _AaTotp2FAWidgetState();
+}
+
+class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
+  bool _loading = true;
+  bool _configured = false;
+  String? _label;
+  String? _currentCode;
+  int _secondsRemaining = 30;
+  int _period = 30;
+  Timer? _refreshTimer;
+  bool _showSecretInput = false;
+  final _secretCtrl = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _secretCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStatus() async {
+    setState(() => _loading = true);
+    final res = await widget.apiService.getArbeitsagenturTotpStatus(widget.userId);
+    if (!mounted) return;
+    final data = res['data'] as Map<String, dynamic>? ?? res;
+    final configured = data['configured'] == true;
+    setState(() {
+      _loading = false;
+      _configured = configured;
+      _label = data['label'] as String?;
+      _period = (data['period'] as int?) ?? 30;
+    });
+    if (configured) _startCodeRefresh();
+  }
+
+  Future<void> _fetchCode() async {
+    final res = await widget.apiService.getArbeitsagenturTotpCode(widget.userId);
+    if (!mounted) return;
+    if (res['success'] != true) return;
+    final data = res['data'] as Map<String, dynamic>? ?? res;
+    setState(() {
+      _currentCode = data['code'] as String?;
+      _secondsRemaining = (data['seconds_remaining'] as int?) ?? 30;
+      _period = (data['period'] as int?) ?? 30;
+    });
+  }
+
+  void _startCodeRefresh() {
+    _refreshTimer?.cancel();
+    _fetchCode();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _secondsRemaining = _secondsRemaining > 1 ? _secondsRemaining - 1 : _period;
+      });
+      // Re-fetch when window expires
+      if (_secondsRemaining == _period) _fetchCode();
+    });
+  }
+
+  Future<void> _saveSecret() async {
+    final raw = _secretCtrl.text.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+    if (raw.length < 16) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Geheimnis zu kurz (mind. 16 Zeichen Base32)'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    setState(() => _busy = true);
+    final res = await widget.apiService.saveArbeitsagenturTotp(widget.userId, raw);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? '2FA-Geheimnis gespeichert (verschlüsselt)' : (res['message'] ?? 'Fehler')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) {
+      _secretCtrl.clear();
+      setState(() => _showSecretInput = false);
+      await _loadStatus();
+    }
+  }
+
+  Future<void> _deleteSecret() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('2FA entfernen?'),
+        content: const Text('Das gespeicherte TOTP-Geheimnis wird gelöscht.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Entfernen', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    setState(() => _busy = true);
+    final res = await widget.apiService.deleteArbeitsagenturTotp(widget.userId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (res['success'] == true) {
+      _refreshTimer?.cancel();
+      setState(() {
+        _configured = false;
+        _currentCode = null;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+        child: const Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 12), Text('2FA Status laden...')]),
+      );
+    }
+
+    final progress = _secondsRemaining / _period;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.security, size: 18, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          Text('2FA / Authenticator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple.shade700)),
+          const Spacer(),
+          if (_configured) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
+              child: Text('Aktiv', style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+            ),
+            IconButton(icon: const Icon(Icons.delete_outline, size: 18), color: Colors.red.shade400, tooltip: '2FA entfernen', onPressed: _busy ? null : _deleteSecret),
+          ] else
+            TextButton.icon(
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Einrichten'),
+              onPressed: _busy ? null : () => setState(() => _showSecretInput = !_showSecretInput),
+            ),
+        ]),
+        if (_configured && _currentCode != null) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade300)),
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(
+                    _currentCode!.replaceAllMapped(RegExp(r'.{3}'), (m) => '${m[0]} ').trim(),
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, fontFamily: 'monospace', color: Colors.purple.shade900, letterSpacing: 3),
+                  ),
+                  Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    SizedBox(
+                      width: 32, height: 32,
+                      child: Stack(alignment: Alignment.center, children: [
+                        CircularProgressIndicator(value: progress, strokeWidth: 3, backgroundColor: Colors.grey.shade200, valueColor: AlwaysStoppedAnimation(progress < 0.25 ? Colors.red : Colors.purple)),
+                        Text('$_secondsRemaining', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 20),
+              tooltip: 'Code kopieren',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _currentCode!));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Code kopiert'), duration: Duration(seconds: 1)));
+              },
+            ),
+          ]),
+          if (_label != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_label!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+        ],
+        if (_showSecretInput && !_configured) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _secretCtrl,
+            decoration: InputDecoration(
+              labelText: 'Geheimer Schlüssel (Base32)',
+              hintText: 'JBSWY3DPEHPK3PXP...',
+              prefixIcon: const Icon(Icons.vpn_key),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              helperText: 'Aus Authenticator-App (16+ Zeichen, A-Z 2-7)',
+            ),
+            textCapitalization: TextCapitalization.characters,
+          ),
+          const SizedBox(height: 8),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            TextButton(onPressed: _busy ? null : () => setState(() { _showSecretInput = false; _secretCtrl.clear(); }), child: const Text('Abbrechen')),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+              label: const Text('Speichern (verschlüsselt)'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+              onPressed: _busy ? null : _saveSecret,
+            ),
+          ]),
+        ],
+      ]),
+    );
   }
 }

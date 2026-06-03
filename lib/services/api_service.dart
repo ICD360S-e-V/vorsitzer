@@ -5081,6 +5081,43 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  // ── Arbeitsagentur 2FA (TOTP) ─────────────────────────────────────
+  Future<Map<String, dynamic>> saveArbeitsagenturTotp(int userId, String secret, {int digits = 6, int period = 30, String algorithm = 'SHA1', String label = 'arbeitsagentur.de'}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/arbeitsagentur/2fa/save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'secret': secret, 'digits': digits, 'period': period, 'algorithm': algorithm, 'label': label}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> getArbeitsagenturTotpCode(int userId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/arbeitsagentur/2fa/get_code.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 10));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> deleteArbeitsagenturTotp(int userId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/arbeitsagentur/2fa/delete.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 10));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> getArbeitsagenturTotpStatus(int userId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/arbeitsagentur/2fa/status.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 10));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   Future<Map<String, dynamic>> saveArbeitsagenturMeldung(int userId, Map<String, dynamic> meldung) async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_meldung', 'meldung': meldung})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
