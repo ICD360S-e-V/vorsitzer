@@ -850,7 +850,13 @@ jobs:
   # ══════════════════════════════════════════════
   deploy:
     name: "📤 Deploy to Server"
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Disabled 2026-06-03: server moved behind internal Proxmox (10.10.10.5);
+    # GitHub-hosted runner can no longer reach SSH. Re-enable when a self-hosted
+    # runner runs inside the cluster, or restore by switching back to the public
+    # bastion. Build artifacts (APK / Linux / Windows / macOS / iOS) and the
+    # GitHub Release step still publish normally — only the SCP-to-server step
+    # is gated off.
+    if: false && startsWith(github.ref, 'refs/tags/v')
     needs:
       - version
       - release
