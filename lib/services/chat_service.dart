@@ -659,6 +659,8 @@ class ChatMessage {
   final String senderRole;
   final bool isAdmin;
   final String message;
+  final String? translatedMessage;
+  final String? sourceLanguage;
   final DateTime createdAt;
 
   ChatMessage({
@@ -669,18 +671,24 @@ class ChatMessage {
     required this.senderRole,
     required this.isAdmin,
     required this.message,
+    this.translatedMessage,
+    this.sourceLanguage,
     required this.createdAt,
   });
 
+  String get displayMessage => translatedMessage ?? message;
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
-      id: json['message_id'] ?? 0,
+      id: json['message_id'] ?? json['id'] ?? 0,
       conversationId: json['conversation_id'] ?? 0,
       senderId: json['sender_id'] ?? 0,
       senderName: json['sender_name'] ?? '',
       senderRole: json['sender_role'] ?? '',
       isAdmin: json['is_admin'] ?? false,
       message: json['message'] ?? '',
+      translatedMessage: json['translated_message'] as String?,
+      sourceLanguage: json['source_language'] as String?,
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
     );
   }

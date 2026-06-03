@@ -49,6 +49,10 @@ vps_icd360sev_icd360s.de.pub
 # any file matching the production host name (current SSH key lives at <root>/icd360sev.icd360s.de)
 *icd360sev.icd360s.de
 *icd360sev.icd360s.de.pub
+# new server SSH key (migration 2026-06-02)
+icd360sev_new_*
+# gateway SSH key (migration 2026-06-02)
+icd360sev_gateway_*
 id_rsa
 id_rsa.pub
 id_ed25519

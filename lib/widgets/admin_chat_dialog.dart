@@ -538,10 +538,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
         if (!mounted) return;
         final isOwn = message.senderId == _chatService.currentUserId || message.senderName == widget.userName;
+        final hasTranslation = message.translatedMessage != null && message.translatedMessage!.isNotEmpty;
         _safeSetState(() {
           _messages.add({
             'id': message.id,
-            'message': message.message,
+            'message': hasTranslation ? message.translatedMessage : message.message,
+            'original_message': hasTranslation ? message.message : null,
+            'is_translated': hasTranslation,
             'sender_id': message.senderId,
             'sender_name': message.senderName,
             'sender_role': message.senderRole,
@@ -551,8 +554,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         });
         if (mounted) _scrollToBottom();
 
-        // Fetch translated version from API for messages from other users
-        if (!isOwn && _selectedConversation != null) {
+        // Fallback: if WS did NOT include translation, poll API for translated version
+        if (!isOwn && !hasTranslation && _selectedConversation != null) {
           Future.delayed(const Duration(milliseconds: 500), () async {
             if (!mounted) return;
             try {
