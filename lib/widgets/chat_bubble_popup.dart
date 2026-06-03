@@ -88,11 +88,47 @@ class _ChatBubblePopupState extends State<ChatBubblePopup> {
           _loading = false;
         });
         _scrollToBottom();
+        // Auto-mark unread non-own messages as read — opening the bubble counts as "seen"
+        _markUnreadAsRead();
       } else {
         setState(() => _loading = false);
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _markUnreadAsRead() async {
+    final unreadIds = _messages
+        .where((m) =>
+            m['is_own'] != true &&
+            m['status'] != 'read' &&
+            m['is_read'] != true &&
+            m['deleted_at'] == null)
+        .map((m) => m['id'])
+        .whereType<int>()
+        .where((id) => id > 0)
+        .toList();
+    if (unreadIds.isEmpty) return;
+    try {
+      await _apiService.markMessagesRead(
+        conversationId: widget.conversationId,
+        mitgliedernummer: widget.currentMitgliedernummer,
+        status: 'read',
+        messageIds: unreadIds,
+      );
+      if (!mounted) return;
+      setState(() {
+        for (final m in _messages) {
+          if (unreadIds.contains(m['id'])) {
+            m['status'] = 'read';
+            m['is_read'] = true;
+            m['read_at'] ??= DateTime.now().toIso8601String();
+          }
+        }
+      });
+    } catch (_) {
+      // Silent — server is source of truth, will retry next open
     }
   }
 
