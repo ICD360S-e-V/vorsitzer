@@ -519,7 +519,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
     final kosten = double.tryParse(v['monatliche_kosten']?.toString() ?? '') ?? 0;
     final aktiv = v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1';
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -546,6 +546,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           ]),
         ),
         TabBar(
+          isScrollable: true,
           labelColor: Colors.indigo.shade700,
           indicatorColor: Colors.indigo.shade700,
           tabs: const [
@@ -554,6 +555,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
             Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
             Tab(icon: Icon(Icons.receipt, size: 18), text: 'Rechnung'),
             Tab(icon: Icon(Icons.cancel, size: 18), text: 'Kündigung'),
+            Tab(icon: Icon(Icons.gavel, size: 18), text: 'Inkasso'),
           ],
         ),
         Expanded(child: TabBarView(children: [
@@ -562,6 +564,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           _DokSubTabs(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
           _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'rechnung', label: 'Rechnungen'),
           _DokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'kuendigung', label: 'Kündigung'),
+          _InkassoTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
         ])),
       ]),
     );
@@ -1808,5 +1811,1053 @@ class _VereinKorrTabState extends State<_VereinKorrTab> {
         }, child: const Text('Speichern')),
       ],
     )));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// INKASSO TAB — 3 sub-tabs: Zuständige Inkasso | Stammdaten | Aktenzeichen
+// All free-form data stored server-side AES-256-GCM encrypted.
+// ═════════════════════════════════════════════════════════════════════
+
+class _InkassoTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  const _InkassoTab({required this.apiService, required this.vertragId});
+
+  @override
+  State<_InkassoTab> createState() => _InkassoTabState();
+}
+
+class _InkassoTabState extends State<_InkassoTab> {
+  Map<String, dynamic>? _inkassoRow;
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.getVertragInkasso(widget.vertragId);
+    if (!mounted) return;
+    final data = res['data'] as Map<String, dynamic>? ?? res;
+    final exists = data['exists'] == true;
+    setState(() {
+      _inkassoRow = exists ? (data['data'] as Map<String, dynamic>?) : null;
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+
+    return DefaultTabController(
+      length: 3,
+      child: Column(children: [
+        Container(
+          color: Colors.purple.shade50,
+          child: TabBar(
+            isScrollable: true,
+            labelColor: Colors.purple.shade700,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Colors.purple.shade700,
+            tabs: const [
+              Tab(icon: Icon(Icons.business_center, size: 16), text: 'Zuständige Inkasso'),
+              Tab(icon: Icon(Icons.fact_check, size: 16), text: 'Stammdaten'),
+              Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Aktenzeichen'),
+            ],
+          ),
+        ),
+        Expanded(child: TabBarView(children: [
+          _ZustaendigeInkassoSubTab(
+            apiService: widget.apiService,
+            vertragId: widget.vertragId,
+            current: _inkassoRow,
+            onSaved: _load,
+          ),
+          _StammdatenSubTab(
+            apiService: widget.apiService,
+            vertragId: widget.vertragId,
+            current: _inkassoRow,
+            onSaved: _load,
+          ),
+          _AktenzeichenSubTab(
+            apiService: widget.apiService,
+            vertragId: widget.vertragId,
+          ),
+        ])),
+      ]),
+    );
+  }
+}
+
+// ─── Sub-tab 1: Zuständige Inkasso (dropdown from inkasso_datenbank) ───
+
+class _ZustaendigeInkassoSubTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  final Map<String, dynamic>? current;
+  final VoidCallback onSaved;
+  const _ZustaendigeInkassoSubTab({required this.apiService, required this.vertragId, required this.current, required this.onSaved});
+
+  @override
+  State<_ZustaendigeInkassoSubTab> createState() => _ZustaendigeInkassoSubTabState();
+}
+
+class _ZustaendigeInkassoSubTabState extends State<_ZustaendigeInkassoSubTab> {
+  List<Map<String, dynamic>> _datenbank = [];
+  int? _selectedId;
+  bool _loaded = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedId = widget.current?['inkasso_id'] as int?;
+    _loadDatenbank();
+  }
+
+  Future<void> _loadDatenbank() async {
+    final res = await widget.apiService.listInkassoDatenbank();
+    if (!mounted) return;
+    final data = res['data'] as Map<String, dynamic>? ?? res;
+    setState(() {
+      _datenbank = List<Map<String, dynamic>>.from(data['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final cur = widget.current ?? <String, dynamic>{};
+    final res = await widget.apiService.saveVertragInkasso(widget.vertragId, {
+      'inkasso_id': _selectedId,
+      'status': cur['status'] ?? 'offen',
+      'eroeffnet_am': cur['eroeffnet_am'],
+      'abgeschlossen_am': cur['abgeschlossen_am'],
+      'ansprechpartner': cur['ansprechpartner'],
+      'telefon_durchwahl': cur['telefon_durchwahl'],
+      'email_ansprechpartner': cur['email_ansprechpartner'],
+      'ref_intern': cur['ref_intern'],
+      'gesamtforderung': cur['gesamtforderung'],
+      'notizen': cur['notizen'],
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Inkasso gespeichert' : (res['message'] ?? 'Fehler')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) widget.onSaved();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    final selected = _datenbank.firstWhere((e) => (e['id'] as int?) == _selectedId, orElse: () => <String, dynamic>{});
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Zuständige Inkasso-Firma', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int?>(
+          initialValue: _selectedId,
+          isExpanded: true,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            hintText: 'Inkasso-Firma auswählen…',
+            prefixIcon: const Icon(Icons.business_center),
+          ),
+          items: [
+            const DropdownMenuItem<int?>(value: null, child: Text('— keine —')),
+            ..._datenbank.map((e) => DropdownMenuItem<int?>(
+                  value: e['id'] as int?,
+                  child: Text(e['firmenname']?.toString() ?? '', overflow: TextOverflow.ellipsis),
+                )),
+          ],
+          onChanged: (v) => setState(() => _selectedId = v),
+        ),
+        if (selected.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if ((selected['firmenname'] ?? '').toString().isNotEmpty)
+                Text(selected['firmenname'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 6),
+              if ((selected['strasse'] ?? '').toString().isNotEmpty)
+                _infoRow(Icons.location_on, '${selected['strasse']}, ${selected['plz_ort'] ?? ''}'),
+              if ((selected['telefon'] ?? '').toString().isNotEmpty)
+                _infoRow(Icons.phone, selected['telefon'].toString()),
+              if ((selected['fax'] ?? '').toString().isNotEmpty)
+                _infoRow(Icons.fax, selected['fax'].toString()),
+              if ((selected['email'] ?? '').toString().isNotEmpty)
+                _infoRow(Icons.email, selected['email'].toString()),
+              if ((selected['website'] ?? '').toString().isNotEmpty)
+                _infoRow(Icons.language, selected['website'].toString()),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+            label: const Text('Speichern (verschlüsselt)'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(children: [
+          Icon(icon, size: 14, color: Colors.grey.shade600),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+        ]),
+      );
+}
+
+// ─── Sub-tab 2: Stammdaten (case-specific data, encrypted) ───────────
+
+class _StammdatenSubTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  final Map<String, dynamic>? current;
+  final VoidCallback onSaved;
+  const _StammdatenSubTab({required this.apiService, required this.vertragId, required this.current, required this.onSaved});
+
+  @override
+  State<_StammdatenSubTab> createState() => _StammdatenSubTabState();
+}
+
+class _StammdatenSubTabState extends State<_StammdatenSubTab> {
+  late final TextEditingController _ansprechC;
+  late final TextEditingController _telC;
+  late final TextEditingController _emailC;
+  late final TextEditingController _refC;
+  late final TextEditingController _forderungC;
+  late final TextEditingController _notizenC;
+  String _status = 'offen';
+  DateTime? _eroeffnet;
+  DateTime? _abgeschlossen;
+  bool _saving = false;
+
+  static const _statusOptions = [
+    ('offen', 'Offen', Colors.orange),
+    ('in_bearbeitung', 'In Bearbeitung', Colors.blue),
+    ('vergleich', 'Vergleich', Colors.teal),
+    ('ratenzahlung', 'Ratenzahlung', Colors.indigo),
+    ('widerspruch', 'Widerspruch', Colors.purple),
+    ('gerichtlich', 'Gerichtlich', Colors.red),
+    ('abgeschlossen', 'Abgeschlossen', Colors.green),
+    ('zurueckgewiesen', 'Zurückgewiesen', Colors.grey),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.current ?? <String, dynamic>{};
+    _ansprechC = TextEditingController(text: c['ansprechpartner']?.toString() ?? '');
+    _telC = TextEditingController(text: c['telefon_durchwahl']?.toString() ?? '');
+    _emailC = TextEditingController(text: c['email_ansprechpartner']?.toString() ?? '');
+    _refC = TextEditingController(text: c['ref_intern']?.toString() ?? '');
+    _forderungC = TextEditingController(text: c['gesamtforderung']?.toString() ?? '');
+    _notizenC = TextEditingController(text: c['notizen']?.toString() ?? '');
+    _status = c['status']?.toString() ?? 'offen';
+    _eroeffnet = DateTime.tryParse(c['eroeffnet_am']?.toString() ?? '');
+    _abgeschlossen = DateTime.tryParse(c['abgeschlossen_am']?.toString() ?? '');
+  }
+
+  @override
+  void dispose() {
+    _ansprechC.dispose(); _telC.dispose(); _emailC.dispose();
+    _refC.dispose(); _forderungC.dispose(); _notizenC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate(BuildContext ctx, DateTime? initial, ValueChanged<DateTime?> onPicked) async {
+    final d = await showDatePicker(
+      context: ctx,
+      initialDate: initial ?? DateTime.now(),
+      firstDate: DateTime(2010),
+      lastDate: DateTime(2050),
+    );
+    if (d != null) onPicked(d);
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final res = await widget.apiService.saveVertragInkasso(widget.vertragId, {
+      'inkasso_id': widget.current?['inkasso_id'],
+      'status': _status,
+      'eroeffnet_am': _eroeffnet?.toIso8601String().substring(0, 10),
+      'abgeschlossen_am': _abgeschlossen?.toIso8601String().substring(0, 10),
+      'ansprechpartner': _ansprechC.text.trim(),
+      'telefon_durchwahl': _telC.text.trim(),
+      'email_ansprechpartner': _emailC.text.trim(),
+      'ref_intern': _refC.text.trim(),
+      'gesamtforderung': _forderungC.text.trim(),
+      'notizen': _notizenC.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Stammdaten gespeichert (verschlüsselt)' : (res['message'] ?? 'Fehler')),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) widget.onSaved();
+  }
+
+  String _formatDate(DateTime? d) => d == null ? '—' : '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Status row
+        Row(children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _status,
+              decoration: const InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag), border: OutlineInputBorder(), isDense: true),
+              items: _statusOptions.map((s) => DropdownMenuItem(value: s.$1, child: Row(children: [
+                Container(width: 10, height: 10, decoration: BoxDecoration(color: s.$3, shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text(s.$2),
+              ]))).toList(),
+              onChanged: (v) => setState(() => _status = v ?? 'offen'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _forderungC,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Gesamtforderung (€)', prefixIcon: Icon(Icons.euro), border: OutlineInputBorder(), isDense: true),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: InkWell(
+            onTap: () => _pickDate(context, _eroeffnet, (d) => setState(() => _eroeffnet = d)),
+            child: InputDecorator(
+              decoration: const InputDecoration(labelText: 'Eröffnet am', prefixIcon: Icon(Icons.date_range), border: OutlineInputBorder(), isDense: true),
+              child: Text(_formatDate(_eroeffnet)),
+            ),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: InkWell(
+            onTap: () => _pickDate(context, _abgeschlossen, (d) => setState(() => _abgeschlossen = d)),
+            child: InputDecorator(
+              decoration: const InputDecoration(labelText: 'Abgeschlossen am', prefixIcon: Icon(Icons.event_available), border: OutlineInputBorder(), isDense: true),
+              child: Text(_formatDate(_abgeschlossen)),
+            ),
+          )),
+        ]),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _ansprechC,
+          decoration: const InputDecoration(labelText: 'Ansprechpartner', prefixIcon: Icon(Icons.person), border: OutlineInputBorder(), isDense: true),
+        ),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: TextField(
+            controller: _telC,
+            decoration: const InputDecoration(labelText: 'Telefon / Durchwahl', prefixIcon: Icon(Icons.phone), border: OutlineInputBorder(), isDense: true),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: TextField(
+            controller: _emailC,
+            decoration: const InputDecoration(labelText: 'E-Mail Ansprechpartner', prefixIcon: Icon(Icons.email), border: OutlineInputBorder(), isDense: true),
+          )),
+        ]),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _refC,
+          decoration: const InputDecoration(labelText: 'Interne Referenz', prefixIcon: Icon(Icons.tag), border: OutlineInputBorder(), isDense: true),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _notizenC,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Notizen', prefixIcon: Icon(Icons.note), border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+            label: const Text('Speichern (verschlüsselt)'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Sub-tab 3: Aktenzeichen (1:N, click → detail dialog) ───────────
+
+class _AktenzeichenSubTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  const _AktenzeichenSubTab({required this.apiService, required this.vertragId});
+
+  @override
+  State<_AktenzeichenSubTab> createState() => _AktenzeichenSubTabState();
+}
+
+class _AktenzeichenSubTabState extends State<_AktenzeichenSubTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listVertragInkassoAktenzeichen(widget.vertragId);
+    if (!mounted) return;
+    final data = res['data'] as Map<String, dynamic>? ?? res;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(data['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _addOrEdit({Map<String, dynamic>? existing}) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _AktenzeichenEditDialog(
+        apiService: widget.apiService,
+        vertragId: widget.vertragId,
+        existing: existing,
+      ),
+    );
+    if (saved == true) _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Aktenzeichen löschen?'),
+        content: const Text('Auch alle dazugehörigen Korrespondenzen werden entfernt.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.deleteVertragInkassoAktenzeichen(id);
+    _load();
+  }
+
+  void _openDetail(Map<String, dynamic> akz) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: SizedBox(
+          width: 720,
+          height: 600,
+          child: _AktenzeichenDetailDialog(
+            apiService: widget.apiService,
+            vertragId: widget.vertragId,
+            aktenzeichen: akz,
+            onChanged: _load,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String? s) {
+    switch (s) {
+      case 'offen': return Colors.orange;
+      case 'in_bearbeitung': return Colors.blue;
+      case 'vergleich': return Colors.teal;
+      case 'ratenzahlung': return Colors.indigo;
+      case 'widerspruch': return Colors.purple;
+      case 'gerichtlich': return Colors.red;
+      case 'abgeschlossen': return Colors.green;
+      case 'zurueckgewiesen': return Colors.grey;
+      default: return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Row(children: [
+          Icon(Icons.folder_open, size: 18, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          Text('${_items.length} Aktenzeichen', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+          const Spacer(),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neu'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+            onPressed: () => _addOrEdit(),
+          ),
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(
+        child: _items.isEmpty
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.folder_open, size: 48, color: Colors.grey.shade400),
+                const SizedBox(height: 8),
+                Text('Noch keine Aktenzeichen', style: TextStyle(color: Colors.grey.shade600)),
+              ]))
+            : ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: _items.length,
+                itemBuilder: (ctx, i) {
+                  final a = _items[i];
+                  final status = a['status']?.toString();
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(backgroundColor: _statusColor(status).withValues(alpha: 0.15), child: Icon(Icons.folder, color: _statusColor(status))),
+                      title: Text(a['aktenzeichen']?.toString() ?? '(ohne Aktenzeichen)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        if ((a['bezeichnung'] ?? '').toString().isNotEmpty) Text(a['bezeichnung'].toString()),
+                        Wrap(spacing: 8, children: [
+                          if (status != null) Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: _statusColor(status).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                            child: Text(status, style: TextStyle(fontSize: 10, color: _statusColor(status))),
+                          ),
+                          if ((a['forderung_brutto'] ?? '').toString().isNotEmpty)
+                            Text('${a['forderung_brutto']} €', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        ]),
+                      ]),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(icon: const Icon(Icons.edit_outlined, size: 18), onPressed: () => _addOrEdit(existing: a), tooltip: 'Bearbeiten'),
+                        IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), onPressed: () => _delete(a['id'] as int), tooltip: 'Löschen'),
+                      ]),
+                      onTap: () => _openDetail(a),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+}
+
+// ─── Edit dialog for adding/editing an Aktenzeichen ──────────────────
+
+class _AktenzeichenEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int vertragId;
+  final Map<String, dynamic>? existing;
+  const _AktenzeichenEditDialog({required this.apiService, required this.vertragId, this.existing});
+
+  @override
+  State<_AktenzeichenEditDialog> createState() => _AktenzeichenEditDialogState();
+}
+
+class _AktenzeichenEditDialogState extends State<_AktenzeichenEditDialog> {
+  late final TextEditingController _aktenC;
+  late final TextEditingController _bezC;
+  late final TextEditingController _forderungC;
+  late final TextEditingController _gezahltC;
+  late final TextEditingController _notizenC;
+  String _status = 'offen';
+  DateTime? _eroeffnet;
+  DateTime? _geschlossen;
+  DateTime? _frist;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? <String, dynamic>{};
+    _aktenC = TextEditingController(text: e['aktenzeichen']?.toString() ?? '');
+    _bezC = TextEditingController(text: e['bezeichnung']?.toString() ?? '');
+    _forderungC = TextEditingController(text: e['forderung_brutto']?.toString() ?? '');
+    _gezahltC = TextEditingController(text: e['gezahlt']?.toString() ?? '');
+    _notizenC = TextEditingController(text: e['notizen']?.toString() ?? '');
+    _status = e['status']?.toString() ?? 'offen';
+    _eroeffnet = DateTime.tryParse(e['eroeffnet_am']?.toString() ?? '');
+    _geschlossen = DateTime.tryParse(e['geschlossen_am']?.toString() ?? '');
+    _frist = DateTime.tryParse(e['naechste_frist']?.toString() ?? '');
+  }
+
+  @override
+  void dispose() {
+    _aktenC.dispose(); _bezC.dispose(); _forderungC.dispose();
+    _gezahltC.dispose(); _notizenC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate(DateTime? initial, ValueChanged<DateTime?> onPicked) async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: initial ?? DateTime.now(),
+      firstDate: DateTime(2010),
+      lastDate: DateTime(2050),
+    );
+    if (d != null) onPicked(d);
+  }
+
+  String _fmt(DateTime? d) => d == null ? '—' : '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  Future<void> _save() async {
+    if (_aktenC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aktenzeichen darf nicht leer sein')));
+      return;
+    }
+    setState(() => _saving = true);
+    final body = {
+      if (widget.existing != null) 'id': widget.existing!['id'],
+      'aktenzeichen': _aktenC.text.trim(),
+      'bezeichnung': _bezC.text.trim(),
+      'status': _status,
+      'eroeffnet_am': _eroeffnet?.toIso8601String().substring(0, 10),
+      'geschlossen_am': _geschlossen?.toIso8601String().substring(0, 10),
+      'naechste_frist': _frist?.toIso8601String().substring(0, 10),
+      'forderung_brutto': _forderungC.text.trim(),
+      'gezahlt': _gezahltC.text.trim(),
+      'notizen': _notizenC.text.trim(),
+    };
+    final res = await widget.apiService.saveVertragInkassoAktenzeichen(widget.vertragId, body);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    final ok = res['success'] == true;
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.existing == null ? 'Neues Aktenzeichen' : 'Aktenzeichen bearbeiten'),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: _aktenC, decoration: const InputDecoration(labelText: 'Aktenzeichen *', prefixIcon: Icon(Icons.tag), border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            TextField(controller: _bezC, decoration: const InputDecoration(labelText: 'Bezeichnung', prefixIcon: Icon(Icons.label), border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _status,
+              decoration: const InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag), border: OutlineInputBorder()),
+              items: _AktenzeichenEditDialogState._statusOptions.map((s) => DropdownMenuItem(value: s.$1, child: Text(s.$2))).toList(),
+              onChanged: (v) => setState(() => _status = v ?? 'offen'),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: TextField(controller: _forderungC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Forderung (€)', prefixIcon: Icon(Icons.euro), border: OutlineInputBorder()))),
+              const SizedBox(width: 8),
+              Expanded(child: TextField(controller: _gezahltC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Gezahlt (€)', prefixIcon: Icon(Icons.payments), border: OutlineInputBorder()))),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: InkWell(onTap: () => _pickDate(_eroeffnet, (d) => setState(() => _eroeffnet = d)),
+                child: InputDecorator(decoration: const InputDecoration(labelText: 'Eröffnet', prefixIcon: Icon(Icons.date_range), border: OutlineInputBorder()), child: Text(_fmt(_eroeffnet))))),
+              const SizedBox(width: 8),
+              Expanded(child: InkWell(onTap: () => _pickDate(_frist, (d) => setState(() => _frist = d)),
+                child: InputDecorator(decoration: const InputDecoration(labelText: 'Nächste Frist', prefixIcon: Icon(Icons.alarm), border: OutlineInputBorder()), child: Text(_fmt(_frist))))),
+            ]),
+            const SizedBox(height: 12),
+            TextField(controller: _notizenC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notizen', border: OutlineInputBorder())),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  static const _statusOptions = [
+    ('offen', 'Offen'),
+    ('in_bearbeitung', 'In Bearbeitung'),
+    ('vergleich', 'Vergleich'),
+    ('ratenzahlung', 'Ratenzahlung'),
+    ('widerspruch', 'Widerspruch'),
+    ('gerichtlich', 'Gerichtlich'),
+    ('abgeschlossen', 'Abgeschlossen'),
+    ('zurueckgewiesen', 'Zurückgewiesen'),
+  ];
+}
+
+// ─── Aktenzeichen detail dialog (Details + Korrespondenz tabs) ───────
+
+class _AktenzeichenDetailDialog extends StatelessWidget {
+  final ApiService apiService;
+  final int vertragId;
+  final Map<String, dynamic> aktenzeichen;
+  final VoidCallback onChanged;
+  const _AktenzeichenDetailDialog({required this.apiService, required this.vertragId, required this.aktenzeichen, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(color: Colors.purple.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+          child: Row(children: [
+            const Icon(Icons.folder, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(child: Text(
+              aktenzeichen['aktenzeichen']?.toString() ?? '',
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            )),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+          ]),
+        ),
+        TabBar(
+          labelColor: Colors.purple.shade700,
+          indicatorColor: Colors.purple.shade700,
+          tabs: const [
+            Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+            Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+          ],
+        ),
+        Expanded(child: TabBarView(children: [
+          _AktenzeichenDetailsView(aktenzeichen: aktenzeichen),
+          _AktenzeichenKorrTab(apiService: apiService, aktenzeichenId: aktenzeichen['id'] as int),
+        ])),
+      ]),
+    );
+  }
+}
+
+class _AktenzeichenDetailsView extends StatelessWidget {
+  final Map<String, dynamic> aktenzeichen;
+  const _AktenzeichenDetailsView({required this.aktenzeichen});
+
+  Widget _row(IconData icon, String label, String? value) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 18, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        SizedBox(width: 140, child: Text(label, style: TextStyle(color: Colors.grey.shade700, fontSize: 13))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = aktenzeichen;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _row(Icons.tag, 'Aktenzeichen', a['aktenzeichen']?.toString()),
+        _row(Icons.label, 'Bezeichnung', a['bezeichnung']?.toString()),
+        _row(Icons.flag, 'Status', a['status']?.toString()),
+        _row(Icons.euro, 'Forderung', a['forderung_brutto']?.toString() != null && (a['forderung_brutto'] ?? '').toString().isNotEmpty ? '${a['forderung_brutto']} €' : null),
+        _row(Icons.payments, 'Gezahlt', (a['gezahlt'] ?? '').toString().isNotEmpty ? '${a['gezahlt']} €' : null),
+        _row(Icons.date_range, 'Eröffnet', a['eroeffnet_am']?.toString()),
+        _row(Icons.event_available, 'Geschlossen', a['geschlossen_am']?.toString()),
+        _row(Icons.alarm, 'Nächste Frist', a['naechste_frist']?.toString()),
+        if ((a['notizen'] ?? '').toString().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Notizen', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+            child: Text(a['notizen'].toString()),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+class _AktenzeichenKorrTab extends StatefulWidget {
+  final ApiService apiService;
+  final int aktenzeichenId;
+  const _AktenzeichenKorrTab({required this.apiService, required this.aktenzeichenId});
+
+  @override
+  State<_AktenzeichenKorrTab> createState() => _AktenzeichenKorrTabState();
+}
+
+class _AktenzeichenKorrTabState extends State<_AktenzeichenKorrTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listVertragInkassoKorrespondenz(widget.aktenzeichenId);
+    if (!mounted) return;
+    final data = res['data'] as Map<String, dynamic>? ?? res;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(data['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _addOrEdit({Map<String, dynamic>? existing}) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _KorrEditDialog(apiService: widget.apiService, aktenzeichenId: widget.aktenzeichenId, existing: existing),
+    );
+    if (saved == true) _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Korrespondenz löschen?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.deleteVertragInkassoKorrespondenz(id);
+    _load();
+  }
+
+  IconData _mediumIcon(String? m) {
+    switch (m) {
+      case 'email': return Icons.email;
+      case 'brief': return Icons.markunread_mailbox;
+      case 'fax': return Icons.fax;
+      case 'telefon': return Icons.phone;
+      case 'online': return Icons.language;
+      case 'sms': return Icons.sms;
+      default: return Icons.notes;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Row(children: [
+          Icon(Icons.mail_outline, size: 18, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          Text('${_items.length} Einträge', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+          const Spacer(),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neu'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+            onPressed: () => _addOrEdit(),
+          ),
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(
+        child: _items.isEmpty
+            ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade600)))
+            : ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: _items.length,
+                itemBuilder: (ctx, i) {
+                  final k = _items[i];
+                  final eingehend = k['richtung'] == 'eingehend';
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: (eingehend ? Colors.blue : Colors.green).shade50,
+                        child: Icon(_mediumIcon(k['medium']?.toString()), color: eingehend ? Colors.blue : Colors.green, size: 18),
+                      ),
+                      title: Text(k['betreff']?.toString() ?? '(ohne Betreff)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Text(k['datum']?.toString() ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(color: (eingehend ? Colors.blue : Colors.green).shade50, borderRadius: BorderRadius.circular(4)),
+                            child: Text(eingehend ? 'eingehend' : 'ausgehend', style: TextStyle(fontSize: 10, color: eingehend ? Colors.blue : Colors.green)),
+                          ),
+                        ]),
+                        if ((k['text'] ?? '').toString().isNotEmpty)
+                          Padding(padding: const EdgeInsets.only(top: 4), child: Text(k['text'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
+                      ]),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _addOrEdit(existing: k)),
+                        IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(k['id'] as int)),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+}
+
+class _KorrEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int aktenzeichenId;
+  final Map<String, dynamic>? existing;
+  const _KorrEditDialog({required this.apiService, required this.aktenzeichenId, this.existing});
+
+  @override
+  State<_KorrEditDialog> createState() => _KorrEditDialogState();
+}
+
+class _KorrEditDialogState extends State<_KorrEditDialog> {
+  late final TextEditingController _betreffC;
+  late final TextEditingController _textC;
+  late final TextEditingController _anhangC;
+  late final TextEditingController _notizenC;
+  DateTime _datum = DateTime.now();
+  String _richtung = 'eingehend';
+  String _medium = 'email';
+  bool _erledigt = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? <String, dynamic>{};
+    _betreffC = TextEditingController(text: e['betreff']?.toString() ?? '');
+    _textC = TextEditingController(text: e['text']?.toString() ?? '');
+    _anhangC = TextEditingController(text: e['anhang_pfad']?.toString() ?? '');
+    _notizenC = TextEditingController(text: e['notizen']?.toString() ?? '');
+    final parsedDate = DateTime.tryParse(e['datum']?.toString() ?? '');
+    if (parsedDate != null) _datum = parsedDate;
+    _richtung = e['richtung']?.toString() ?? 'eingehend';
+    _medium = e['medium']?.toString() ?? 'email';
+    _erledigt = e['erledigt'] == 1 || e['erledigt'] == true;
+  }
+
+  @override
+  void dispose() {
+    _betreffC.dispose(); _textC.dispose(); _anhangC.dispose(); _notizenC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final body = {
+      if (widget.existing != null) 'id': widget.existing!['id'],
+      'datum': _datum.toIso8601String().substring(0, 10),
+      'richtung': _richtung,
+      'medium': _medium,
+      'erledigt': _erledigt ? 1 : 0,
+      'betreff': _betreffC.text.trim(),
+      'text': _textC.text.trim(),
+      'anhang_pfad': _anhangC.text.trim(),
+      'notizen': _notizenC.text.trim(),
+    };
+    final res = await widget.apiService.saveVertragInkassoKorrespondenz(widget.aktenzeichenId, body);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    final ok = res['success'] == true;
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.existing == null ? 'Neue Korrespondenz' : 'Korrespondenz bearbeiten'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Expanded(child: InkWell(
+              onTap: () async {
+                final d = await showDatePicker(context: context, initialDate: _datum, firstDate: DateTime(2010), lastDate: DateTime(2050));
+                if (d != null) setState(() => _datum = d);
+              },
+              child: InputDecorator(
+                decoration: const InputDecoration(labelText: 'Datum', prefixIcon: Icon(Icons.date_range), border: OutlineInputBorder()),
+                child: Text('${_datum.day.toString().padLeft(2, '0')}.${_datum.month.toString().padLeft(2, '0')}.${_datum.year}'),
+              ),
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: DropdownButtonFormField<String>(
+              initialValue: _richtung,
+              decoration: const InputDecoration(labelText: 'Richtung', border: OutlineInputBorder()),
+              items: const [
+                DropdownMenuItem(value: 'eingehend', child: Text('Eingehend')),
+                DropdownMenuItem(value: 'ausgehend', child: Text('Ausgehend')),
+              ],
+              onChanged: (v) => setState(() => _richtung = v ?? 'eingehend'),
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: DropdownButtonFormField<String>(
+              initialValue: _medium,
+              decoration: const InputDecoration(labelText: 'Medium', border: OutlineInputBorder()),
+              items: const [
+                DropdownMenuItem(value: 'email', child: Text('E-Mail')),
+                DropdownMenuItem(value: 'brief', child: Text('Brief')),
+                DropdownMenuItem(value: 'fax', child: Text('Fax')),
+                DropdownMenuItem(value: 'telefon', child: Text('Telefon')),
+                DropdownMenuItem(value: 'online', child: Text('Online')),
+                DropdownMenuItem(value: 'sms', child: Text('SMS')),
+                DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges')),
+              ],
+              onChanged: (v) => setState(() => _medium = v ?? 'email'),
+            )),
+          ]),
+          const SizedBox(height: 12),
+          TextField(controller: _betreffC, decoration: const InputDecoration(labelText: 'Betreff', prefixIcon: Icon(Icons.subject), border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: _textC, maxLines: 5, decoration: const InputDecoration(labelText: 'Text / Inhalt', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: _anhangC, decoration: const InputDecoration(labelText: 'Anhang (Pfad / URL)', prefixIcon: Icon(Icons.attach_file), border: OutlineInputBorder())),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            value: _erledigt,
+            onChanged: (v) => setState(() => _erledigt = v ?? false),
+            title: const Text('Erledigt'),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          const SizedBox(height: 4),
+          TextField(controller: _notizenC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notizen', border: OutlineInputBorder())),
+        ])),
+      ),
+      actions: [
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+        ),
+      ],
+    );
   }
 }

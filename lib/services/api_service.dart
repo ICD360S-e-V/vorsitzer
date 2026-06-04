@@ -3481,6 +3481,44 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ── Vertrag Inkasso (encrypted) ────────────────────────────────────
+  Future<Map<String, dynamic>> _vinkasso(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vertrag_inkasso_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> listInkassoDatenbank() => _vinkasso({'action': 'list_inkasso_datenbank'});
+
+  Future<Map<String, dynamic>> getVertragInkasso(int vertragId) => _vinkasso({'action': 'get_inkasso', 'vertrag_id': vertragId});
+
+  Future<Map<String, dynamic>> saveVertragInkasso(int vertragId, Map<String, dynamic> data) =>
+      _vinkasso({'action': 'save_inkasso', 'vertrag_id': vertragId, ...data});
+
+  Future<Map<String, dynamic>> deleteVertragInkasso(int vertragId) =>
+      _vinkasso({'action': 'delete_inkasso', 'vertrag_id': vertragId});
+
+  Future<Map<String, dynamic>> listVertragInkassoAktenzeichen(int vertragId) =>
+      _vinkasso({'action': 'list_aktenzeichen', 'vertrag_id': vertragId});
+
+  Future<Map<String, dynamic>> saveVertragInkassoAktenzeichen(int vertragId, Map<String, dynamic> data) =>
+      _vinkasso({'action': 'save_aktenzeichen', 'vertrag_id': vertragId, ...data});
+
+  Future<Map<String, dynamic>> deleteVertragInkassoAktenzeichen(int id) =>
+      _vinkasso({'action': 'delete_aktenzeichen', 'id': id});
+
+  Future<Map<String, dynamic>> listVertragInkassoKorrespondenz(int aktenzeichenId) =>
+      _vinkasso({'action': 'list_korrespondenz', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> saveVertragInkassoKorrespondenz(int aktenzeichenId, Map<String, dynamic> data) =>
+      _vinkasso({'action': 'save_korrespondenz', 'aktenzeichen_id': aktenzeichenId, ...data});
+
+  Future<Map<String, dynamic>> deleteVertragInkassoKorrespondenz(int id) =>
+      _vinkasso({'action': 'delete_korrespondenz', 'id': id});
+
   Future<http.Response> downloadVertragDokument(int id) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/vertraege_dok_download.php?id=$id'),
