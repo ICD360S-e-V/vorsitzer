@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 
-/// A single attachment item in a chat message
+/// A single attachment item in a chat message.
+///
+/// Tap on the body  → [onOpen]     (in-memory preview / OS open).
+/// Tap on the icon  → [onDownload] (Save As… via file_picker portal,
+///                                  works inside Flatpak sandbox).
 class ChatAttachmentItem extends StatelessWidget {
   final Map<String, dynamic> attachment;
   final bool isOwn;
   final Function(Map<String, dynamic>) onDownload;
+  final Function(Map<String, dynamic>)? onOpen;
 
   const ChatAttachmentItem({
     super.key,
     required this.attachment,
     required this.isOwn,
     required this.onDownload,
+    this.onOpen,
   });
 
   @override
@@ -22,7 +28,7 @@ class ChatAttachmentItem extends StatelessWidget {
     final (icon, iconColor) = _getIconForExtension(extension);
 
     return InkWell(
-      onTap: () => onDownload(attachment),
+      onTap: () => (onOpen ?? onDownload)(attachment),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
@@ -59,11 +65,18 @@ class ChatAttachmentItem extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.download,
-              size: 16,
-              color: isOwn ? Colors.white70 : Colors.grey.shade600,
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: () => onDownload(attachment),
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  Icons.download,
+                  size: 18,
+                  color: isOwn ? Colors.white : Colors.indigo.shade600,
+                ),
+              ),
             ),
           ],
         ),

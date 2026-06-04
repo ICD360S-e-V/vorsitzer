@@ -1080,40 +1080,86 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     }
   }
 
+  /// Fetch bytes for an attachment. Returns (bytes, fileName) or null on error.
+  Future<(Uint8List, String)?> _fetchAttachmentBytes(Map<String, dynamic> attachment) async {
+    final result = await _apiService.downloadChatAttachment(
+      attachmentId: attachment['id'],
+      mitgliedernummer: widget.mitgliedernummer,
+    );
+
+    if (result['success'] != true) {
+      _showError(result['message'] ?? 'Download fehlgeschlagen');
+      return null;
+    }
+
+    final fileName = result['filename']?.toString() ?? 'file';
+    Uint8List? bytes;
+    if (result['content'] != null) {
+      bytes = base64Decode(result['content']);
+    } else if (result['download_url'] != null) {
+      bytes = await _apiService.fetchBytesAuthenticated(result['download_url']);
+      if (bytes == null) {
+        _showError('Download fehlgeschlagen (Streaming-Endpoint nicht erreichbar)');
+        return null;
+      }
+    } else {
+      _showError('Server hat keine Datei zurückgegeben');
+      return null;
+    }
+    return (bytes, fileName);
+  }
+
+  /// Preview in-memory (image/PDF natively, other formats via temp-dir + OpenFilex).
+  Future<void> _previewAttachment(Map<String, dynamic> attachment) async {
+    try {
+      final got = await _fetchAttachmentBytes(attachment);
+      if (got == null) return;
+      await _openAttachmentBytes(got.$1, got.$2);
+    } catch (e) {
+      _showError('Vorschau Fehler: $e');
+    }
+  }
+
+  /// Real "Save As" — opens a system file picker (xdg-desktop-portal on
+  /// Flatpak, NSSavePanel on macOS, IFileSaveDialog on Windows). Writes the
+  /// bytes to the user-chosen path, which is fully outside the Flatpak
+  /// sandbox so it appears in ~/Downloads / the user's chosen folder.
   Future<void> _downloadAttachment(Map<String, dynamic> attachment) async {
     try {
-      final result = await _apiService.downloadChatAttachment(
-        attachmentId: attachment['id'],
-        mitgliedernummer: widget.mitgliedernummer,
-      );
-
-      if (result['success'] != true) {
-        _showError(result['message'] ?? 'Download fehlgeschlagen');
-        return;
-      }
-
-      final fileName = result['filename']?.toString() ?? 'file';
-
-      // Two server response shapes:
-      //   1. Inline base64 in `content` (small files, <= 5 MB)
-      //   2. `download_url` to chat/stream.php (large files)
-      Uint8List? bytes;
-      if (result['content'] != null) {
-        bytes = base64Decode(result['content']);
-      } else if (result['download_url'] != null) {
-        bytes = await _apiService.fetchBytesAuthenticated(result['download_url']);
-        if (bytes == null) {
-          _showError('Download fehlgeschlagen (Streaming-Endpoint nicht erreichbar)');
-          return;
-        }
-      } else {
-        _showError('Server hat keine Datei zurückgegeben');
-        return;
-      }
-
-      await _openAttachmentBytes(bytes, fileName);
+      final got = await _fetchAttachmentBytes(attachment);
+      if (got == null) return;
+      final (bytes, fileName) = got;
+      await _saveBytesViaPicker(bytes, fileName);
     } catch (e) {
       _showError('Download Fehler: $e');
+    }
+  }
+
+  /// Helper used by both attachment download and the image-viewer "Speichern"
+  /// button. Returns true on successful save, false if user cancelled.
+  Future<bool> _saveBytesViaPicker(Uint8List bytes, String fileName) async {
+    try {
+      final safeName = _sanitizeFilename(fileName);
+      final ext = safeName.split('.').last.toLowerCase();
+      final savedPath = await FilePickerHelper.saveFile(
+        dialogTitle: 'Datei speichern',
+        fileName: safeName,
+        type: FileType.custom,
+        allowedExtensions: ext.isEmpty || ext == safeName ? null : [ext],
+      );
+      if (savedPath == null) return false; // user cancelled
+      await File(savedPath).writeAsBytes(bytes, flush: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Gespeichert: $savedPath'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ));
+      }
+      return true;
+    } catch (e) {
+      _showError('Speichern fehlgeschlagen: $e');
+      return false;
     }
   }
 
@@ -1271,18 +1317,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                       const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.save_alt, size: 20, color: Colors.white70),
-                        tooltip: 'Speichern',
-                        // The Save button is the only path that touches disk: it
-                        // writes the bytes to the system temp dir and asks the OS
-                        // to open the saved copy (NSWorkspace / xdg-open / etc.).
-                        onPressed: () async {
-                          try {
-                            final filePath = await _writeBytesToWritableDir(bytes, fileName);
-                            await OpenFilex.open(filePath);
-                          } catch (e) {
-                            _showError('Speichern fehlgeschlagen: $e');
-                          }
-                        },
+                        tooltip: 'Speichern unter…',
+                        // Save via xdg-desktop-portal (Flatpak), NSSavePanel
+                        // (macOS), IFileSaveDialog (Windows) — user picks the
+                        // destination, file ends up OUTSIDE the sandbox and
+                        // is visible in ~/Downloads / their file manager.
+                        onPressed: () => _saveBytesViaPicker(bytes, fileName),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close, size: 20, color: Colors.white),
@@ -3079,6 +3119,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               message: msg,
               isOwn: isOwn,
               onDownloadAttachment: _downloadAttachment,
+              onOpenAttachment: _previewAttachment,
             );
           },
         )),

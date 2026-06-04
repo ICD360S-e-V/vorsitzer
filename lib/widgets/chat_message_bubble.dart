@@ -12,12 +12,14 @@ class ChatMessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
   final bool isOwn;
   final Function(Map<String, dynamic>) onDownloadAttachment;
+  final Function(Map<String, dynamic>)? onOpenAttachment;
 
   const ChatMessageBubble({
     super.key,
     required this.message,
     required this.isOwn,
     required this.onDownloadAttachment,
+    this.onOpenAttachment,
   });
 
   @override
@@ -285,6 +287,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         attachment: att,
                         isOwn: widget.isOwn,
                         onDownload: widget.onDownloadAttachment,
+                        onOpen: widget.onOpenAttachment,
                       )),
                   ],
 

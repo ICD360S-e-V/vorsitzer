@@ -854,6 +854,9 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     }
   }
 
+  /// Save attachment via xdg-desktop-portal (Flatpak), NSSavePanel (macOS),
+  /// IFileSaveDialog (Windows). User picks destination → bytes written there
+  /// → visible in their file manager (~/Downloads or wherever).
   Future<void> _downloadAttachment(Map<String, dynamic> attachment) async {
     try {
       final result = await _apiService.downloadChatAttachment(
@@ -861,20 +864,35 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         mitgliedernummer: widget.mitgliedernummer,
       );
 
-      if (result['success'] == true && mounted) {
-        final base64Data = result['data']['file_data'];
-        final filename = result['data']['filename'];
-
-        // Decode and save file
-        final bytes = base64Decode(base64Data);
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/$filename');
-        await file.writeAsBytes(bytes);
-
-        // Open file
-        await OpenFilex.open(file.path);
-      } else {
+      if (result['success'] != true || !mounted) {
         _showError(result['message'] ?? 'Fehler beim Herunterladen');
+        return;
+      }
+
+      final base64Data = result['data']?['file_data'] ?? result['content'];
+      final filename = (result['data']?['filename'] ?? result['filename'] ?? 'file').toString();
+      if (base64Data == null) {
+        _showError('Server hat keine Datei zurückgegeben');
+        return;
+      }
+      final bytes = base64Decode(base64Data as String);
+
+      final ext = filename.contains('.') ? filename.split('.').last.toLowerCase() : '';
+      final savedPath = await FilePickerHelper.saveFile(
+        dialogTitle: 'Datei speichern',
+        fileName: filename,
+        type: FileType.custom,
+        allowedExtensions: ext.isEmpty ? null : [ext],
+      );
+      if (savedPath == null) return; // user cancelled
+
+      await File(savedPath).writeAsBytes(bytes, flush: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Gespeichert: $savedPath'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ));
       }
     } catch (e) {
       _log.error('LiveChat: Download error: $e', tag: 'CHAT');
