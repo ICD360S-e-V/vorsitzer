@@ -283,6 +283,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
     'mehrbedarf': 'Antrag auf Mehrbedarf',
     'erstausstattung': 'Antrag auf Erstausstattung',
     'umzugskosten': 'Antrag auf Umzugskosten',
+    'betriebskosten_nachforderung': 'Antrag auf Übernahme einer Betriebskostennachforderung KdU (§ 22 Abs. 1 SGB II)',
     'but': 'Bildung und Teilhabe (BuT)',
     'ueberpruefung': 'Überprüfungsantrag (§44 SGB X)',
   };
