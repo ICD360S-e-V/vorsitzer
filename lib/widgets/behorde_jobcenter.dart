@@ -236,6 +236,7 @@ class _JobcenterAntragTab extends StatefulWidget {
 
 class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
   late List<Map<String, dynamic>> _antraege;
+  int? _yearFilter; // null = alle Jahre
 
   @override
   void initState() {
@@ -247,6 +248,32 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
   void didUpdateWidget(covariant _JobcenterAntragTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     _antraege = List.from(widget.antraege);
+  }
+
+  int? _antragYear(Map<String, dynamic> a) {
+    // Datum is "DD.MM.YYYY" format from the date picker
+    final datum = (a['datum'] ?? '').toString();
+    final m = RegExp(r'^\d{1,2}\.\d{1,2}\.(\d{4})$').firstMatch(datum);
+    if (m != null) return int.tryParse(m.group(1)!);
+    // Fallback: try bescheid_von year if no datum
+    final bv = (a['bescheid_von'] ?? '').toString();
+    final m2 = RegExp(r'^\d{1,2}\.\d{1,2}\.(\d{4})$').firstMatch(bv);
+    if (m2 != null) return int.tryParse(m2.group(1)!);
+    return null;
+  }
+
+  List<int> get _availableYears {
+    final years = <int>{};
+    for (final a in _antraege) {
+      final y = _antragYear(a);
+      if (y != null && y >= 2025) years.add(y);
+    }
+    return years.toList()..sort((a, b) => b.compareTo(a));
+  }
+
+  List<Map<String, dynamic>> get _filtered {
+    if (_yearFilter == null) return _antraege;
+    return _antraege.where((a) => _antragYear(a) == _yearFilter).toList();
   }
 
   static const _artLabels = {
@@ -339,26 +366,46 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
 
   @override
   Widget build(BuildContext context) {
+    final years = _availableYears;
+    final filtered = _filtered;
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
         Icon(Icons.description, color: Colors.red.shade700),
         const SizedBox(width: 8),
-        Text('Anträge (${_antraege.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800)),
+        Text('Anträge (${filtered.length}${_yearFilter != null ? '/${_antraege.length}' : ''})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800)),
+        const SizedBox(width: 12),
+        if (years.isNotEmpty) DropdownButton<int?>(
+          value: _yearFilter,
+          isDense: true,
+          hint: const Text('Jahr', style: TextStyle(fontSize: 12)),
+          underline: const SizedBox.shrink(),
+          icon: Icon(Icons.calendar_today, size: 14, color: Colors.red.shade700),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade800),
+          items: [
+            const DropdownMenuItem<int?>(value: null, child: Text('Alle Jahre', style: TextStyle(fontSize: 12))),
+            ...years.map((y) => DropdownMenuItem<int?>(value: y, child: Text('$y', style: const TextStyle(fontSize: 12)))),
+          ],
+          onChanged: (v) => setState(() => _yearFilter = v),
+        ),
         const Spacer(),
         ElevatedButton.icon(onPressed: _addAntrag, icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Antrag', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)),
       ])),
-      Expanded(child: _antraege.isEmpty
-        ? Center(child: Text('Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _antraege.length, itemBuilder: (ctx, i) {
-            final a = _antraege[i];
+      Expanded(child: filtered.isEmpty
+        ? Center(child: Text(_yearFilter != null ? 'Keine Anträge für $_yearFilter' : 'Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: filtered.length, itemBuilder: (ctx, i) {
+            final a = filtered[i];
             final art = a['art']?.toString() ?? '';
             final status = a['status']?.toString() ?? '';
             final color = _statusColors[status] ?? Colors.grey;
+            final yr = _antragYear(a);
             return Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(
               onTap: () => _openDetail(a),
               leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(Icons.description, color: color.shade700, size: 20)),
-              title: Text(_artLabels[art] ?? art, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              title: Row(children: [
+                Expanded(child: Text(_artLabels[art] ?? art, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                if (yr != null) Container(margin: const EdgeInsets.only(left: 6), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)), child: Text('$yr', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade700))),
+              ]),
               subtitle: Text('${a['datum'] ?? ''} · ${a['aktenzeichen'] ?? ''}', style: const TextStyle(fontSize: 11)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
@@ -534,6 +581,7 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
   bool _saving = false;
   List<Map<String, dynamic>> _docs = [];
   bool _docsLoading = false, _uploading = false;
+  Map<String, dynamic>? _wbaTicket;
   @override
   bool get wantKeepAlive => true;
   @override
@@ -547,6 +595,9 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
     _nebenkostenC = TextEditingController(text: a['nebenkosten']?.toString() ?? '');
     _heizkostenC = TextEditingController(text: a['heizkosten']?.toString() ?? '');
     _mehrbedarfC = TextEditingController(text: a['mehrbedarf']?.toString() ?? ''); _mehrbedarfGrundC = TextEditingController(text: a['mehrbedarf_grund']?.toString() ?? '');
+    // Hydrate WBA-ticket info from the antrag payload so the proof-card shows on first open, not only after save
+    final wba = a['wba_ticket'];
+    if (wba is Map) _wbaTicket = Map<String, dynamic>.from(wba);
     _loadDocs();
   }
   @override
@@ -556,10 +607,19 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
   Future<void> _save() async {
     setState(() => _saving = true);
     final payload = {'bescheid_von': _bescheidVonC.text, 'bescheid_bis': _bescheidBisC.text, 'bescheid_betrag': _bescheidBetragC.text, 'regelsatz': _regelsatzC.text, 'kdu': _kduC.text, 'nebenkosten': _nebenkostenC.text, 'heizkosten': _heizkostenC.text, 'mehrbedarf': _mehrbedarfC.text, 'mehrbedarf_grund': _mehrbedarfGrundC.text};
-    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, ...payload}});
+    final resp = await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, ...payload}});
     widget.antrag.addAll(payload); // keep modal's antrag in sync so re-init shows saved values
+    final wba = resp['wba_ticket'];
     await widget.onReload();
-    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+    if (mounted) {
+      setState(() { _saving = false; _wbaTicket = wba is Map ? Map<String, dynamic>.from(wba) : null; });
+      final hasWba = _wbaTicket != null;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(hasWba ? 'Gespeichert · WBA-Ticket #${_wbaTicket!['ticket_id']} automatisch erstellt' : 'Gespeichert'),
+        backgroundColor: hasWba ? Colors.indigo.shade700 : Colors.green.shade600,
+        duration: Duration(seconds: hasWba ? 4 : 2),
+      ));
+    }
   }
 
   String get _antragId => widget.antrag['id']?.toString() ?? '';
@@ -633,6 +693,15 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
     return '${(n / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  /// Formats a scheduled_date string "2026-10-31 09:00:00" to "31.10.2026 um 09:00"
+  String _formatWbaSchedule(String? raw) {
+    if (raw == null || raw.isEmpty) return '-';
+    try {
+      final dt = DateTime.parse(raw.replaceFirst(' ', 'T'));
+      return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year} um ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) { return raw; }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -647,6 +716,40 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
       Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(onPressed: _saving ? null : _save,
         icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
         label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white))),
+      if (_wbaTicket != null) ...[
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.indigo.shade300, width: 1.5),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.event_available, color: Colors.indigo.shade700, size: 22),
+              const SizedBox(width: 8),
+              Expanded(child: Text('WBA-Erinnerungsticket erstellt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo.shade800))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, size: 12, color: Colors.green.shade800), const SizedBox(width: 3), Text('Automatisch', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800))])),
+            ]),
+            const SizedBox(height: 8),
+            Text('Ticket #${_wbaTicket!['ticket_id']}', style: const TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(_wbaTicket!['subject']?.toString() ?? '', style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 6),
+            Row(children: [
+              Icon(Icons.calendar_today, size: 14, color: Colors.indigo.shade600),
+              const SizedBox(width: 4),
+              Text('Geplant für: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              Text(_formatWbaSchedule(_wbaTicket!['scheduled_date']?.toString()), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+              const Spacer(),
+              Text('Bewilligung bis ${_wbaTicket!['bescheid_bis']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            ]),
+            const SizedBox(height: 4),
+            Text('→ Wird in der Ticketverwaltung 2 Monate vor dem Bewilligungsende angezeigt, damit der Weiterbewilligungsantrag rechtzeitig eingereicht wird.', style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic)),
+          ]),
+        ),
+      ],
       const Divider(height: 24),
       Row(children: [
         Icon(Icons.folder_open, size: 18, color: Colors.green.shade700),

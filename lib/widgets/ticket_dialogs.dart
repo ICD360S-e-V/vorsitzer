@@ -576,15 +576,8 @@ class _AdminCreateTicketDialogState extends State<_AdminCreateTicketDialog> {
   String _priority = 'medium';
   bool _isSubmitting = false;
   User? _selectedMember;
-  DateTime _scheduledDate = _nextWeekday(DateTime.now());
+  DateTime _scheduledDate = DateTime.now();
   TimeOfDay _scheduledTime = const TimeOfDay(hour: 9, minute: 0);
-
-  /// Returns the date itself if Mon-Fri, otherwise next Monday
-  static DateTime _nextWeekday(DateTime d) {
-    if (d.weekday == DateTime.saturday) return d.add(const Duration(days: 2));
-    if (d.weekday == DateTime.sunday) return d.add(const Duration(days: 1));
-    return d;
-  }
   String _searchQuery = '';
 
   @override
@@ -615,7 +608,6 @@ class _AdminCreateTicketDialogState extends State<_AdminCreateTicketDialog> {
       firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('de', 'DE'),
-      selectableDayPredicate: (date) => date.weekday <= 5, // Mon-Fri only
     );
     if (picked != null) {
       setState(() => _scheduledDate = picked);

@@ -224,7 +224,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
   }
 
   Widget _buildWeeklyGrid() {
-    final dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
+    final dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
     return Card(
       elevation: 2,
       child: Column(
@@ -254,7 +254,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(5, (dayIndex) {
+              children: List.generate(7, (dayIndex) {
                 final currentDay = _currentWeekStart.add(Duration(days: dayIndex));
                 final dayTickets = _getTicketsForDay(currentDay);
                 final isToday = _isSameDay(currentDay, DateTime.now());
