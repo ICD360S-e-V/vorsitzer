@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../utils/brief_pdf_generator.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
@@ -439,10 +441,14 @@ class _AntragDetailModal extends StatefulWidget {
 class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProviderStateMixin {
   late TabController _tabC;
 
+  bool get _isBetriebskosten => widget.antrag['art']?.toString() == 'betriebskosten_nachforderung';
+
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 7, vsync: this);
+    // Betriebskosten-Nachforderung uses a reduced 5-tab modal with a PDF-Generator tab.
+    // All other Antrag types keep the full 7-tab layout (Bewilligungsbescheid, EGV, Sanktionen, Begutachtung).
+    _tabC = TabController(length: _isBetriebskosten ? 5 : 7, vsync: this);
   }
 
   @override
@@ -454,6 +460,40 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
   @override
   Widget build(BuildContext context) {
     final art = _JobcenterAntragTabState._artLabels[widget.antrag['art']] ?? widget.antrag['art']?.toString() ?? '';
+    final tabs = _isBetriebskosten
+        ? const [
+            Tab(text: 'Details'),
+            Tab(text: 'Korrespondenz'),
+            Tab(text: 'Terminen'),
+            Tab(text: 'Bescheid'),
+            Tab(text: 'Brief-Generator', icon: Icon(Icons.picture_as_pdf, size: 16)),
+          ]
+        : const [
+            Tab(text: 'Details'),
+            Tab(text: 'Korrespondenz'),
+            Tab(text: 'Terminen'),
+            Tab(text: 'Bewilligungsbescheid'),
+            Tab(text: 'EGV'),
+            Tab(text: 'Sanktionen'),
+            Tab(text: 'Begutachtung'),
+          ];
+    final views = _isBetriebskosten
+        ? [
+            _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+            _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+            _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _BetriebskostenBriefGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
+          ]
+        : [
+            _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+            _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+            _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _AntragBegutachtungTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+          ];
     return Column(children: [
       Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
         child: Row(children: [
@@ -462,24 +502,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
           Expanded(child: Text(art, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800), overflow: TextOverflow.ellipsis)),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ])),
-      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: const [
-        Tab(text: 'Details'),
-        Tab(text: 'Korrespondenz'),
-        Tab(text: 'Terminen'),
-        Tab(text: 'Bewilligungsbescheid'),
-        Tab(text: 'EGV'),
-        Tab(text: 'Sanktionen'),
-        Tab(text: 'Begutachtung'),
-      ]),
-      Expanded(child: TabBarView(controller: _tabC, children: [
-        _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-        _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
-        _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
-        _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-        _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-        _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-        _AntragBegutachtungTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-      ])),
+      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: tabs),
+      Expanded(child: TabBarView(controller: _tabC, children: views)),
     ]);
   }
 }
@@ -2265,5 +2289,428 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
     if (ok) _loadAll();
+  }
+}
+
+// ==================== BETRIEBSKOSTEN-NACHFORDERUNG: BRIEF-GENERATOR TAB ====================
+class _BetriebskostenBriefGeneratorTab extends StatefulWidget {
+  final Map<String, dynamic> antrag;
+  final ApiService apiService;
+  final int userId;
+  const _BetriebskostenBriefGeneratorTab({required this.antrag, required this.apiService, required this.userId});
+  @override
+  State<_BetriebskostenBriefGeneratorTab> createState() => _BetriebskostenBriefGeneratorTabState();
+}
+
+class _BetriebskostenBriefGeneratorTabState extends State<_BetriebskostenBriefGeneratorTab> {
+  bool _loading = true;
+  String? _loadError;
+
+  // Form controllers (editable, prefilled from various sources)
+  final _absVornameC = TextEditingController();
+  final _absNachnameC = TextEditingController();
+  final _absStrasseC = TextEditingController();
+  final _absHausnummerC = TextEditingController();
+  final _absPlzC = TextEditingController();
+  final _absOrtC = TextEditingController();
+  final _absTelC = TextEditingController();
+
+  final _jcDienststelleC = TextEditingController();
+  final _jcAnsprechC = TextEditingController();
+  final _jcStrasseC = TextEditingController();
+  final _jcHausnrC = TextEditingController();
+  final _jcPlzC = TextEditingController();
+  final _jcOrtC = TextEditingController();
+
+  final _kundennummerC = TextEditingController();
+  final _bgNummerC = TextEditingController();
+
+  final _wohnStrasseC = TextEditingController();
+  final _wohnHausnrC = TextEditingController();
+  final _wohnPlzC = TextEditingController();
+  final _wohnOrtC = TextEditingController();
+
+  final _zVonC = TextEditingController();
+  final _zBisC = TextEditingController();
+  final _betragC = TextEditingController();
+
+  final _ortC = TextEditingController();
+  final _datumC = TextEditingController();
+
+  List<Map<String, dynamic>> _mietvertraege = [];
+  int? _selectedMietvertragId;
+  List<Map<String, dynamic>> _nkaDocs = []; // for selected mietvertrag
+  int? _selectedJahr;
+  List<String> _anlagen = [];
+
+  bool _generating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _datumC.text = DateFormat('dd.MM.yyyy').format(DateTime.now());
+    _selectedJahr = DateTime.now().year - 1;
+    _loadAll();
+  }
+
+  @override
+  void dispose() {
+    for (final c in [
+      _absVornameC, _absNachnameC, _absStrasseC, _absHausnummerC, _absPlzC, _absOrtC, _absTelC,
+      _jcDienststelleC, _jcAnsprechC, _jcStrasseC, _jcHausnrC, _jcPlzC, _jcOrtC,
+      _kundennummerC, _bgNummerC,
+      _wohnStrasseC, _wohnHausnrC, _wohnPlzC, _wohnOrtC,
+      _zVonC, _zBisC, _betragC, _ortC, _datumC,
+    ]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _loadAll() async {
+    setState(() => _loading = true);
+    try {
+      // Parallel fetches
+      final uFuture = widget.apiService.getUserDetails(widget.userId);
+      final jFuture = widget.apiService.getJobcenterData(widget.userId);
+      final vFuture = widget.apiService.getVermieterData(widget.userId);
+      final results = await Future.wait([uFuture, jFuture, vFuture]);
+
+      // --- 1) User (member) details — top-left Absender ---
+      final u = (results[0]['user'] ?? results[0]['data'] ?? results[0]) as Map<String, dynamic>?;
+      if (u != null) {
+        _absVornameC.text = (u['vorname'] ?? '').toString();
+        _absNachnameC.text = (u['nachname'] ?? u['name'] ?? '').toString();
+        _absStrasseC.text = (u['strasse'] ?? '').toString();
+        _absHausnummerC.text = (u['hausnummer'] ?? '').toString();
+        _absPlzC.text = (u['plz'] ?? '').toString();
+        _absOrtC.text = (u['ort'] ?? '').toString();
+        _absTelC.text = (u['telefon'] ?? u['mobile'] ?? '').toString();
+        if (_ortC.text.isEmpty) _ortC.text = _absOrtC.text;
+      }
+
+      // --- 2) Jobcenter — Dienststelle + Adresse + Kundennummer/BG-Nr ---
+      final jcData = results[1]['data'] as Map<String, dynamic>?;
+      if (jcData != null) {
+        _jcDienststelleC.text = (jcData['stammdaten.dienststelle'] ?? '').toString();
+        _jcAnsprechC.text = (jcData['stammdaten.arbeitsvermittler'] ?? '').toString();
+        _kundennummerC.text = (jcData['stammdaten.kundennummer'] ?? '').toString();
+        _bgNummerC.text = (jcData['stammdaten.bg_nummer'] ?? '').toString();
+      }
+      // Lookup Jobcenter address from datenbank by Dienststelle name (best effort)
+      if (_jcDienststelleC.text.isNotEmpty) {
+        try {
+          final db = await widget.apiService.searchJobcenterDatenbank(_jcDienststelleC.text);
+          final results2 = (db['results'] as List? ?? []);
+          if (results2.isNotEmpty) {
+            final hit = results2.first as Map<String, dynamic>;
+            _jcStrasseC.text = (hit['strasse'] ?? '').toString();
+            _jcHausnrC.text = (hit['hausnummer'] ?? '').toString();
+            _jcPlzC.text = (hit['plz'] ?? '').toString();
+            _jcOrtC.text = (hit['ort'] ?? '').toString();
+          }
+        } catch (_) {/* non-fatal */}
+      }
+
+      // --- 3) Vermieter — Wohnung address (member's rented flat) ---
+      final mvs = (results[2]['mietvertraege'] as List? ?? []).cast<Map<String, dynamic>>();
+      _mietvertraege = mvs;
+      final activeMv = mvs.firstWhere((m) => (m['status'] ?? '') == 'aktiv', orElse: () => mvs.isNotEmpty ? mvs.first : <String, dynamic>{});
+      if (activeMv.isNotEmpty) {
+        _selectedMietvertragId = activeMv['id'] as int?;
+        _wohnStrasseC.text = (activeMv['strasse'] ?? '').toString();
+        _wohnHausnrC.text = (activeMv['hausnummer'] ?? '').toString();
+        _wohnPlzC.text = (activeMv['plz'] ?? '').toString();
+        _wohnOrtC.text = (activeMv['ort'] ?? '').toString();
+        await _loadNkaForMietvertrag(_selectedMietvertragId!);
+      }
+
+      setState(() { _loading = false; _loadError = null; });
+    } catch (e) {
+      setState(() { _loading = false; _loadError = e.toString(); });
+    }
+  }
+
+  Future<void> _loadNkaForMietvertrag(int mvId) async {
+    final r = await widget.apiService.listVermieterDokumente(userId: widget.userId, mietvertragId: mvId);
+    final list = ((r['dokumente'] as List?) ?? []).cast<Map<String, dynamic>>().where((d) => d['dokument_typ'] == 'nebenkostenabrechnung').toList();
+    setState(() => _nkaDocs = list);
+    _applyNkaForYear(_selectedJahr);
+  }
+
+  void _applyNkaForYear(int? jahr) {
+    if (jahr == null) return;
+    final matches = _nkaDocs.where((d) => d['jahr'] == jahr).toList();
+    if (matches.isEmpty) {
+      // Default to "01.01.<jahr> – 31.12.<jahr>" if nothing on file
+      _zVonC.text = '01.01.$jahr';
+      _zBisC.text = '31.12.$jahr';
+      _betragC.text = '';
+      _anlagen = [];
+    } else {
+      // Take the first matching NKA — prefer Nachzahlung over Guthaben if both present
+      final nz = matches.firstWhere((d) => d['nka_typ'] == 'nachzahlung', orElse: () => matches.first);
+      _zVonC.text = (nz['zeitraum_von'] ?? '01.01.$jahr').toString();
+      _zBisC.text = (nz['zeitraum_bis'] ?? '31.12.$jahr').toString();
+      _betragC.text = (nz['betrag'] ?? '').toString();
+      _anlagen = matches.map((d) => (d['filename'] ?? '').toString()).where((s) => s.isNotEmpty).toList();
+    }
+    setState(() {});
+  }
+
+  BetriebskostenBriefData _buildData() => BetriebskostenBriefData(
+    absVorname: _absVornameC.text,
+    absNachname: _absNachnameC.text,
+    absStrasse: _absStrasseC.text,
+    absHausnummer: _absHausnummerC.text,
+    absPlz: _absPlzC.text,
+    absOrt: _absOrtC.text,
+    absTelefon: _absTelC.text,
+    jcDienststelle: _jcDienststelleC.text,
+    jcAnsprechpartner: _jcAnsprechC.text,
+    jcStrasse: _jcStrasseC.text,
+    jcHausnummer: _jcHausnrC.text,
+    jcPlz: _jcPlzC.text,
+    jcOrt: _jcOrtC.text,
+    kundennummer: _kundennummerC.text,
+    bgNummer: _bgNummerC.text,
+    wohnungStrasse: _wohnStrasseC.text,
+    wohnungHausnummer: _wohnHausnrC.text,
+    wohnungPlz: _wohnPlzC.text,
+    wohnungOrt: _wohnOrtC.text,
+    abrechnungsjahr: '${_selectedJahr ?? ''}',
+    zeitraumVon: _zVonC.text,
+    zeitraumBis: _zBisC.text,
+    nachzahlungBetrag: _betragC.text,
+    anlagen: _anlagen.isEmpty ? ['Nebenkostenabrechnung ${_selectedJahr ?? ''}'] : _anlagen,
+    briefOrt: _ortC.text,
+    briefDatum: _datumC.text,
+  );
+
+  Future<void> _preview() async {
+    setState(() => _generating = true);
+    try {
+      final bytes = await generateBetriebskostenAntragPdf(_buildData());
+      if (!mounted) return;
+      await FileViewerDialog.showFromBytes(context, bytes, 'Antrag_Betriebskosten_${_selectedJahr ?? 'Vorschau'}.pdf');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF-Vorschau fehlgeschlagen: $e')));
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _saveAs() async {
+    setState(() => _generating = true);
+    try {
+      final bytes = await generateBetriebskostenAntragPdf(_buildData());
+      final filename = 'Antrag_Betriebskosten_KdU_${_absNachnameC.text}_${_selectedJahr ?? ''}.pdf';
+      final path = await FilePickerHelper.saveFile(
+        dialogTitle: 'Antrag-PDF speichern',
+        fileName: filename,
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (path == null) {
+        if (mounted) setState(() => _generating = false);
+        return;
+      }
+      await File(path).writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF gespeichert: $path'), backgroundColor: Colors.green.shade600));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $e')));
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Widget _field(String label, TextEditingController c, {IconData? icon, double width = 0}) {
+    final tf = TextField(
+      controller: c,
+      style: const TextStyle(fontSize: 12),
+      decoration: InputDecoration(
+        labelText: label, isDense: true,
+        prefixIcon: icon != null ? Icon(icon, size: 16) : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+    );
+    return width > 0 ? SizedBox(width: width, child: tf) : tf;
+  }
+
+  Widget _section(String title, IconData icon, Color color, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+        ]),
+        const SizedBox(height: 6),
+        ...children,
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loadError != null) return Center(child: Text('Fehler: $_loadError', style: const TextStyle(color: Colors.red)));
+
+    final years = List.generate(8, (i) => DateTime.now().year + 1 - i);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+          child: Row(children: [
+            Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              'Daten wurden aus Stufe-1-Verifizierung, Jobcenter-Stammdaten und Mietvertrag automatisch übernommen. Bei Bedarf anpassen, dann PDF generieren. Format: DIN 5008. Keine Unterschrift erforderlich (§ 9 SGB X).',
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+            )),
+          ]),
+        ),
+
+        _section('Absender (Mitglied)', Icons.person, Colors.deepPurple, [
+          Row(children: [
+            Expanded(child: _field('Vorname', _absVornameC, icon: Icons.person_outline)),
+            const SizedBox(width: 8),
+            Expanded(child: _field('Nachname', _absNachnameC, icon: Icons.person_outline)),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(flex: 3, child: _field('Straße', _absStrasseC, icon: Icons.location_on_outlined)),
+            const SizedBox(width: 8),
+            Expanded(child: _field('Nr.', _absHausnummerC)),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: _field('PLZ', _absPlzC)),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: _field('Ort', _absOrtC)),
+          ]),
+          const SizedBox(height: 6),
+          _field('Telefon (optional)', _absTelC, icon: Icons.phone),
+        ]),
+
+        _section('Empfänger (Jobcenter)', Icons.account_balance, Colors.indigo, [
+          _field('Dienststelle', _jcDienststelleC, icon: Icons.business),
+          const SizedBox(height: 6),
+          _field('Ansprechpartner / z. Hd.', _jcAnsprechC, icon: Icons.person_pin),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(flex: 3, child: _field('Straße', _jcStrasseC, icon: Icons.location_on_outlined)),
+            const SizedBox(width: 8),
+            Expanded(child: _field('Nr.', _jcHausnrC)),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: _field('PLZ', _jcPlzC)),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: _field('Ort', _jcOrtC)),
+          ]),
+        ]),
+
+        _section('Bezugsdaten', Icons.tag, Colors.teal, [
+          Row(children: [
+            Expanded(child: _field('Kundennummer', _kundennummerC, icon: Icons.badge)),
+            const SizedBox(width: 8),
+            Expanded(child: _field('BG-Nummer', _bgNummerC, icon: Icons.group)),
+          ]),
+        ]),
+
+        _section('Mietobjekt (Wohnung des Mitglieds)', Icons.home, Colors.brown, [
+          if (_mietvertraege.length > 1) ...[
+            DropdownButtonFormField<int>(
+              initialValue: _selectedMietvertragId,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: 'Mietvertrag wählen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              items: _mietvertraege.map((m) => DropdownMenuItem(value: m['id'] as int?, child: Text('${m['strasse'] ?? ''} ${m['hausnummer'] ?? ''}, ${m['ort'] ?? ''} — ${m['status'] ?? ''}', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) async {
+                if (v == null) return;
+                final mv = _mietvertraege.firstWhere((m) => m['id'] == v);
+                setState(() {
+                  _selectedMietvertragId = v;
+                  _wohnStrasseC.text = (mv['strasse'] ?? '').toString();
+                  _wohnHausnrC.text = (mv['hausnummer'] ?? '').toString();
+                  _wohnPlzC.text = (mv['plz'] ?? '').toString();
+                  _wohnOrtC.text = (mv['ort'] ?? '').toString();
+                });
+                await _loadNkaForMietvertrag(v);
+              },
+            ),
+            const SizedBox(height: 6),
+          ],
+          Row(children: [
+            Expanded(flex: 3, child: _field('Straße', _wohnStrasseC, icon: Icons.location_on_outlined)),
+            const SizedBox(width: 8),
+            Expanded(child: _field('Nr.', _wohnHausnrC)),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: _field('PLZ', _wohnPlzC)),
+            const SizedBox(width: 8),
+            Expanded(flex: 3, child: _field('Ort', _wohnOrtC)),
+          ]),
+        ]),
+
+        _section('Nebenkostenabrechnung', Icons.receipt_long, Colors.deepOrange, [
+          Row(children: [
+            Expanded(child: DropdownButtonFormField<int>(
+              initialValue: _selectedJahr,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: 'Abrechnungsjahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              items: years.map((y) => DropdownMenuItem(value: y, child: Text('$y', style: const TextStyle(fontSize: 12)))).toList(),
+              onChanged: (v) { setState(() => _selectedJahr = v); _applyNkaForYear(v); },
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: _field('Betrag (Nachzahlung €)', _betragC, icon: Icons.euro)),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: _field('Zeitraum von', _zVonC, icon: Icons.calendar_today)),
+            const SizedBox(width: 8),
+            Expanded(child: _field('Zeitraum bis', _zBisC, icon: Icons.calendar_today)),
+          ]),
+          if (_anlagen.isNotEmpty) Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.attach_file, size: 14, color: Colors.grey.shade600),
+              const SizedBox(width: 4),
+              Expanded(child: Text('Anlagen (autom.): ${_anlagen.join(', ')}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic), overflow: TextOverflow.ellipsis, maxLines: 2)),
+            ]),
+          ),
+        ]),
+
+        _section('Datum / Ort (Briefkopf)', Icons.event, Colors.grey, [
+          Row(children: [
+            Expanded(child: _field('Ort', _ortC)),
+            const SizedBox(width: 8),
+            Expanded(child: _field('Datum', _datumC)),
+          ]),
+        ]),
+
+        const SizedBox(height: 20),
+        Row(children: [
+          Expanded(child: OutlinedButton.icon(
+            onPressed: _generating ? null : _preview,
+            icon: _generating ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.visibility, size: 16),
+            label: const Text('Vorschau'),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: ElevatedButton.icon(
+            onPressed: _generating ? null : _saveAs,
+            icon: const Icon(Icons.picture_as_pdf, size: 16),
+            label: const Text('PDF speichern'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+          )),
+        ]),
+        const SizedBox(height: 10),
+      ]),
+    );
   }
 }
