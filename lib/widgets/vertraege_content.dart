@@ -28,6 +28,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
     ('strom', 'Strom', Icons.bolt, Colors.orange),
     ('gas', 'Gas', Icons.local_fire_department, Colors.deepOrange),
     ('verein', 'Verein', Icons.groups, Colors.indigo),
+    ('fax', 'Fax', Icons.fax, Colors.cyan),
     ('sonstige', 'Sonstige', Icons.receipt_long, Colors.grey),
   ];
 
