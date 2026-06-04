@@ -708,7 +708,7 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
       row('Nebenkosten', '${s('nebenkosten')} €', icon: Icons.receipt_long),
       row('Warmmiete', '${s('warmmiete')} €', icon: Icons.functions),
       row('Kaution', '${s('kaution')} €', icon: Icons.savings),
-      row('Fälligkeit', s('faelligkeit'), icon: Icons.event),
+      _zahltagRow(m),
       row('Zahlungsart', s('zahlungsart'), icon: Icons.payments),
       row('Mietbeginn', s('mietbeginn'), icon: Icons.event_available),
       row('Mietende', s('mietende'), icon: Icons.event_busy),
@@ -716,6 +716,65 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
       row('Status', s('status'), icon: Icons.flag),
       if (s('notiz').isNotEmpty) row('Notiz', s('notiz'), icon: Icons.notes),
     ]));
+  }
+
+  /// Inline-editable Zahltag row: dropdown 1..31, saves on selection.
+  Widget _zahltagRow(Map<String, dynamic> m) {
+    final current = (m['faelligkeit'] ?? '').toString();
+    final m1 = RegExp(r'(\d{1,2})').firstMatch(current);
+    final selected = m1 != null ? m1.group(1) : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Padding(padding: const EdgeInsets.only(right: 8), child: Icon(Icons.event, size: 16, color: Colors.grey.shade600)),
+        SizedBox(width: 140, child: Text('Zahltag', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: selected,
+            isExpanded: true,
+            isDense: true,
+            decoration: InputDecoration(
+              hintText: 'Tag im Monat wählen',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 12, color: Colors.black),
+            items: List.generate(31, (i) => (i + 1).toString())
+                .map((d) => DropdownMenuItem(value: d, child: Text('$d. des Monats', style: const TextStyle(fontSize: 12))))
+                .toList(),
+            onChanged: (v) async { if (v != null) await _saveZahltag(v); },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _saveZahltag(String day) async {
+    final newValue = '$day. des Monats';
+    final m = widget.mietvertrag;
+    // Optimistic update so the UI reflects the change immediately
+    setState(() => m['faelligkeit'] = newValue);
+    await widget.apiService.vermieterAction(widget.userId, {
+      'action': 'save_mietvertrag',
+      'mietvertrag': {
+        'id': m['id'],
+        'vertragsart': m['vertragsart'] ?? '', 'mietobjekt': m['mietobjekt'] ?? '',
+        'strasse': m['strasse'] ?? '', 'hausnummer': m['hausnummer'] ?? '',
+        'plz': m['plz'] ?? '', 'ort': m['ort'] ?? '',
+        'kaltmiete': m['kaltmiete'] ?? '', 'warmmiete': m['warmmiete'] ?? '', 'nebenkosten': m['nebenkosten'] ?? '',
+        'kaution': m['kaution'] ?? '', 'faelligkeit': newValue,
+        'zahlungsart': m['zahlungsart'] ?? '', 'mietbeginn': m['mietbeginn'] ?? '', 'mietende': m['mietende'] ?? '',
+        'kuendigungsfrist': m['kuendigungsfrist'] ?? '', 'status': m['status'] ?? '', 'notiz': m['notiz'] ?? '',
+      },
+    });
+    await widget.onReload();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Zahltag auf $newValue gesetzt'),
+      backgroundColor: Colors.green.shade600,
+      duration: const Duration(seconds: 2),
+    ));
   }
 }
 
