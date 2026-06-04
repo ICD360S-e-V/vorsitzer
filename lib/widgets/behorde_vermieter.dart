@@ -332,8 +332,29 @@ class _MietvertragTabState extends State<_MietvertragTab> {
           )),
         ]),
         const SizedBox(height: 8),
-        Row(children: [Expanded(child: TextField(controller: kautionC, decoration: InputDecoration(labelText: 'Kaution €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: faelligC, decoration: InputDecoration(labelText: 'Fälligkeit', hintText: 'z.B. 1. des Monats', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
+        Row(children: [
+          Expanded(child: TextField(controller: kautionC, decoration: InputDecoration(labelText: 'Kaution €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          const SizedBox(width: 8),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: (() {
+              final t = faelligC.text.trim();
+              if (t.isEmpty) return null;
+              final m = RegExp(r'(\d{1,2})').firstMatch(t);
+              return m != null ? m.group(1) : null;
+            })(),
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Zahltag (Miete fällig am)',
+              isDense: true,
+              prefixIcon: const Icon(Icons.event, size: 16),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            items: List.generate(31, (i) => (i + 1).toString())
+                .map((d) => DropdownMenuItem(value: d, child: Text('$d. des Monats', style: const TextStyle(fontSize: 12))))
+                .toList(),
+            onChanged: (v) => setDlg(() { if (v != null) faelligC.text = '$v. des Monats'; }),
+          )),
+        ]),
         const SizedBox(height: 8),
         Row(children: [Expanded(child: TextField(controller: beginnC, readOnly: true, decoration: InputDecoration(labelText: 'Mietbeginn', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) beginnC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; })),
@@ -865,7 +886,7 @@ class _NkaTab extends StatelessWidget {
     final betragC = TextEditingController();
     final notizC = TextEditingController();
     String typ = 'nachzahlung';
-    String? pickedPath; String? pickedName;
+    final picked = <PlatformFile>[];
 
     await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.receipt_long, size: 18, color: Colors.deepPurple.shade700), const SizedBox(width: 8), const Text('Neue Nebenkostenabrechnung', style: TextStyle(fontSize: 15))]),
@@ -915,32 +936,58 @@ class _NkaTab extends StatelessWidget {
         const SizedBox(height: 8),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () async {
-            final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp']);
-            if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
-              setDlg(() { pickedPath = r.files.first.path; pickedName = r.files.first.name; });
-            }
-          },
-          icon: Icon(pickedPath == null ? Icons.attach_file : Icons.check_circle, color: pickedPath == null ? null : Colors.green),
-          label: Text(pickedName ?? 'Datei auswählen (PDF/JPG)', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+        Row(children: [
+          Expanded(child: OutlinedButton.icon(
+            onPressed: () async {
+              final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp'], allowMultiple: true);
+              if (r != null && r.files.isNotEmpty) {
+                final keep = r.files.where((f) => f.path != null);
+                setDlg(() {
+                  final existingPaths = picked.map((p) => p.path).toSet();
+                  for (final f in keep) { if (!existingPaths.contains(f.path)) picked.add(f); }
+                });
+              }
+            },
+            icon: Icon(picked.isEmpty ? Icons.attach_file : Icons.add, color: picked.isEmpty ? null : Colors.green),
+            label: Text(picked.isEmpty ? 'Dateien auswählen (PDF/JPG, mehrere möglich)' : '${picked.length} Datei(en) ausgewählt — weitere hinzufügen', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+          )),
+        ]),
+        if (picked.isNotEmpty) Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: picked.asMap().entries.map((entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(children: [
+              Icon(Icons.insert_drive_file, size: 14, color: Colors.deepPurple.shade400),
+              const SizedBox(width: 4),
+              Expanded(child: Text(entry.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+              InkWell(
+                onTap: () => setDlg(() => picked.removeAt(entry.key)),
+                child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.close, size: 14, color: Colors.red.shade400)),
+              ),
+            ]),
+          )).toList()),
         ),
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        ElevatedButton(onPressed: pickedPath == null ? null : () async {
+        ElevatedButton(onPressed: picked.isEmpty ? null : () async {
           Navigator.pop(ctx);
-          final r = await apiService.uploadVermieterDokument(
-            userId: userId, mietvertragId: mietvertragId,
-            dokumentTyp: 'nebenkostenabrechnung', jahr: jahr,
-            rechnungsdatum: rdC.text, zeitraumVon: vonC.text, zeitraumBis: bisC.text,
-            faelligkeit: fC.text, nkaTyp: typ, betrag: betragC.text, notiz: notizC.text,
-            filePath: pickedPath!, fileName: pickedName!,
-          );
+          int ok = 0; String? lastErr;
+          for (final f in picked) {
+            if (f.path == null) continue;
+            final r = await apiService.uploadVermieterDokument(
+              userId: userId, mietvertragId: mietvertragId,
+              dokumentTyp: 'nebenkostenabrechnung', jahr: jahr,
+              rechnungsdatum: rdC.text, zeitraumVon: vonC.text, zeitraumBis: bisC.text,
+              faelligkeit: fC.text, nkaTyp: typ, betrag: betragC.text, notiz: notizC.text,
+              filePath: f.path!, fileName: f.name,
+            );
+            if (r['success'] == true) { ok++; } else { lastErr = r['message']?.toString() ?? 'Upload fehlgeschlagen'; }
+          }
           if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(r['success'] == true ? 'Nebenkostenabrechnung gespeichert' : (r['message']?.toString() ?? 'Fehler')),
-            backgroundColor: r['success'] == true ? Colors.green.shade700 : Colors.red.shade600,
+            content: Text(lastErr == null ? '$ok Nebenkostenabrechnung(en) gespeichert' : 'Fehler: $lastErr'),
+            backgroundColor: lastErr == null ? Colors.green.shade700 : Colors.red.shade600,
           ));
           await onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: const Text('Speichern')),
