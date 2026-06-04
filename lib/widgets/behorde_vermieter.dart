@@ -1109,76 +1109,146 @@ class _NkaTab extends StatelessWidget {
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: years.length, itemBuilder: (ctx, i) {
               final y = years[i];
               final items = grouped[y]!;
-              return Card(margin: const EdgeInsets.only(bottom: 8), child: ExpansionTile(
+              // All docs for the same Abrechnungsjahr belong to ONE NKA (a single
+              // Abrechnung often comes with multiple PDFs / pages / annexes).
+              // Show one card per year with the meta once and all files listed below.
+              return _NkaYearCard(
+                year: y,
+                docs: items,
                 initiallyExpanded: i == 0,
-                leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Text('$y', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800))),
-                title: Text('Abrechnungsjahr $y', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                subtitle: Text('${items.length} Dokument(e)', style: const TextStyle(fontSize: 11)),
-                children: items.map((d) => _NkaItemTile(doc: d, onView: () => _view(context, d), onDelete: () => _delete(context, d))).toList(),
-              ));
+                onView: (d) => _view(context, d),
+                onDelete: (d) => _delete(context, d),
+              );
             }),
       ),
     ]);
   }
 }
 
-class _NkaItemTile extends StatelessWidget {
-  final Map<String, dynamic> doc;
-  final VoidCallback onView;
-  final VoidCallback onDelete;
-  const _NkaItemTile({required this.doc, required this.onView, required this.onDelete});
+/// One NKA per Abrechnungsjahr — meta shown once, all attached files listed below.
+class _NkaYearCard extends StatelessWidget {
+  final int year;
+  final List<Map<String, dynamic>> docs;
+  final bool initiallyExpanded;
+  final void Function(Map<String, dynamic>) onView;
+  final void Function(Map<String, dynamic>) onDelete;
+  const _NkaYearCard({
+    required this.year,
+    required this.docs,
+    required this.initiallyExpanded,
+    required this.onView,
+    required this.onDelete,
+  });
+
+  /// Meta is taken from the first uploaded doc — they all share the same NKA
+  /// (rechnungsdatum / zeitraum / fälligkeit / betrag / typ / notiz are written
+  /// identically by the upload dialog for every file in the same submission).
+  /// We prefer a doc that actually has meta filled in over an empty one.
+  Map<String, dynamic> get _metaDoc {
+    final withMeta = docs.firstWhere(
+      (d) => (d['nka_typ'] ?? '').toString().isNotEmpty || (d['betrag'] ?? '').toString().isNotEmpty,
+      orElse: () => docs.first,
+    );
+    return withMeta;
+  }
+
+  String _fmtSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final typ = (doc['nka_typ'] ?? '').toString();
+    final meta = _metaDoc;
+    final typ = (meta['nka_typ'] ?? '').toString();
     final isNach = typ == 'nachzahlung';
     final typColor = typ.isEmpty ? Colors.grey : (isNach ? Colors.red : Colors.green);
-    final betrag = (doc['betrag'] ?? '').toString();
-    final faellig = (doc['faelligkeit'] ?? '').toString();
-    final rd = (doc['rechnungsdatum'] ?? '').toString();
-    final zv = (doc['zeitraum_von'] ?? '').toString();
-    final zb = (doc['zeitraum_bis'] ?? '').toString();
-    return Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.picture_as_pdf, size: 18, color: Colors.deepPurple.shade700),
-          const SizedBox(width: 6),
-          Expanded(child: Text(doc['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+    final betrag = (meta['betrag'] ?? '').toString();
+    final rd = (meta['rechnungsdatum'] ?? '').toString();
+    final zv = (meta['zeitraum_von'] ?? '').toString();
+    final zb = (meta['zeitraum_bis'] ?? '').toString();
+    final faellig = (meta['faelligkeit'] ?? '').toString();
+    final notiz = (meta['notiz'] ?? '').toString();
+
+    Widget metaRow(IconData icon, String label, String value) => Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 12, color: Colors.grey.shade600),
+        const SizedBox(width: 4),
+        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500))),
+      ]),
+    );
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
+        leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Text('$year', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800))),
+        title: Row(children: [
+          Expanded(child: Text('Abrechnungsjahr $year', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
           if (typ.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: typColor.shade100, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(isNach ? Icons.arrow_upward : Icons.arrow_downward, size: 11, color: typColor.shade800),
             const SizedBox(width: 2),
             Text(isNach ? 'Nachzahlung' : 'Guthaben', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: typColor.shade800)),
           ])),
         ]),
-        if (betrag.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Row(children: [
-          Icon(Icons.euro, size: 14, color: typColor.shade700),
-          const SizedBox(width: 4),
-          Text('$betrag €', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: typColor.shade900)),
-        ])),
-        if (rd.isNotEmpty || zv.isNotEmpty || zb.isNotEmpty || faellig.isNotEmpty) const SizedBox(height: 6),
-        if (rd.isNotEmpty) _metaRow(Icons.calendar_today, 'Rechnungsdatum', rd),
-        if (zv.isNotEmpty || zb.isNotEmpty) _metaRow(Icons.event, 'Zeitraum', '${zv.isEmpty ? '?' : zv} – ${zb.isEmpty ? '?' : zb}'),
-        if (faellig.isNotEmpty) _metaRow(Icons.schedule, 'Fällig bis', faellig),
-        if ((doc['notiz'] ?? '').toString().isNotEmpty) _metaRow(Icons.notes, 'Notiz', doc['notiz'].toString()),
-        const SizedBox(height: 4),
-        Row(children: [
-          const Spacer(),
-          TextButton.icon(onPressed: onView, icon: const Icon(Icons.visibility, size: 14), label: const Text('Öffnen', style: TextStyle(fontSize: 11))),
-          TextButton.icon(onPressed: onDelete, icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), label: Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red.shade400))),
+        subtitle: Row(children: [
+          if (betrag.isNotEmpty) ...[
+            Icon(Icons.euro, size: 12, color: typColor.shade700),
+            const SizedBox(width: 2),
+            Text('$betrag €', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: typColor.shade900)),
+            const SizedBox(width: 8),
+          ],
+          Icon(Icons.folder_open, size: 12, color: Colors.grey.shade600),
+          const SizedBox(width: 2),
+          Text('${docs.length} Datei(en)', style: const TextStyle(fontSize: 11)),
         ]),
-      ]),
-    ));
+        childrenPadding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        children: [
+          // Meta block (once per NKA)
+          if (rd.isNotEmpty || zv.isNotEmpty || zb.isNotEmpty || faellig.isNotEmpty || notiz.isNotEmpty) Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (rd.isNotEmpty) metaRow(Icons.calendar_today, 'Rechnungsdatum', rd),
+              if (zv.isNotEmpty || zb.isNotEmpty) metaRow(Icons.event, 'Zeitraum', '${zv.isEmpty ? '?' : zv} – ${zb.isEmpty ? '?' : zb}'),
+              if (faellig.isNotEmpty) metaRow(Icons.schedule, 'Fällig bis', faellig),
+              if (notiz.isNotEmpty) metaRow(Icons.notes, 'Notiz', notiz),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          // Files block
+          Row(children: [
+            Icon(Icons.attach_file, size: 14, color: Colors.grey.shade700),
+            const SizedBox(width: 4),
+            Text('Beigefügte Dateien:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          ]),
+          const SizedBox(height: 4),
+          ...docs.map((d) {
+            final mime = (d['mime_type'] ?? '').toString();
+            final filename = (d['filename'] ?? '').toString();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
+                child: Row(children: [
+                  Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, size: 16, color: Colors.deepPurple.shade700),
+                  const SizedBox(width: 6),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    Text(filename, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                    Text(_fmtSize(d['file_size'] as int), style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                  ])),
+                  IconButton(icon: Icon(Icons.visibility, size: 16, color: Colors.blue.shade700), tooltip: 'Öffnen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => onView(d)),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => onDelete(d)),
+                ]),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
-
-  Widget _metaRow(IconData icon, String label, String value) => Padding(
-    padding: const EdgeInsets.only(top: 2),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 12, color: Colors.grey.shade600),
-      const SizedBox(width: 4),
-      SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500))),
-    ]),
-  );
 }
