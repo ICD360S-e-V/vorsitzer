@@ -2387,27 +2387,39 @@ class _BetriebskostenBriefGeneratorTabState extends State<_BetriebskostenBriefGe
         if (_ortC.text.isEmpty) _ortC.text = _absOrtC.text;
       }
 
-      // --- 2) Jobcenter — Dienststelle + Adresse + Kundennummer/BG-Nr ---
+      // --- 2) Jobcenter — pulled from "Zuständige Jobcenter" the user already
+      //    picked in Behörde → Jobcenter (jobcenter_data.stammdaten.selected_amt_*).
+      //    That data already comes from jobcenter_datenbank, so no second lookup is needed.
       final jcData = results[1]['data'] as Map<String, dynamic>?;
       if (jcData != null) {
-        _jcDienststelleC.text = (jcData['stammdaten.dienststelle'] ?? '').toString();
+        _jcDienststelleC.text = (jcData['stammdaten.selected_amt_name'] ?? jcData['stammdaten.dienststelle'] ?? '').toString();
         _jcAnsprechC.text = (jcData['stammdaten.arbeitsvermittler'] ?? '').toString();
         _kundennummerC.text = (jcData['stammdaten.kundennummer'] ?? '').toString();
         _bgNummerC.text = (jcData['stammdaten.bg_nummer'] ?? '').toString();
-      }
-      // Lookup Jobcenter address from datenbank by Dienststelle name (best effort)
-      if (_jcDienststelleC.text.isNotEmpty) {
-        try {
-          final db = await widget.apiService.searchJobcenterDatenbank(_jcDienststelleC.text);
-          final results2 = (db['results'] as List? ?? []);
-          if (results2.isNotEmpty) {
-            final hit = results2.first as Map<String, dynamic>;
-            _jcStrasseC.text = (hit['strasse'] ?? '').toString();
-            _jcHausnrC.text = (hit['hausnummer'] ?? '').toString();
-            _jcPlzC.text = (hit['plz'] ?? '').toString();
-            _jcOrtC.text = (hit['ort'] ?? '').toString();
+
+        // selected_amt_adresse stores "Straße Hausnummer" — split off the trailing house number
+        final addr = (jcData['stammdaten.selected_amt_adresse'] ?? '').toString().trim();
+        if (addr.isNotEmpty) {
+          final m = RegExp(r'^(.*?)\s+(\d+\s*[a-zA-Z\-]*)\s*$').firstMatch(addr);
+          if (m != null) {
+            _jcStrasseC.text = m.group(1)!.trim();
+            _jcHausnrC.text = m.group(2)!.trim();
+          } else {
+            _jcStrasseC.text = addr;
           }
-        } catch (_) {/* non-fatal */}
+        }
+
+        // selected_amt_ort stores "PLZ Stadt"
+        final ortField = (jcData['stammdaten.selected_amt_ort'] ?? '').toString().trim();
+        if (ortField.isNotEmpty) {
+          final m = RegExp(r'^(\d{4,5})\s+(.+)$').firstMatch(ortField);
+          if (m != null) {
+            _jcPlzC.text = m.group(1)!;
+            _jcOrtC.text = m.group(2)!.trim();
+          } else {
+            _jcOrtC.text = ortField;
+          }
+        }
       }
 
       // --- 3) Vermieter — Wohnung address (member's rented flat) ---

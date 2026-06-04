@@ -118,7 +118,13 @@ Future<Uint8List> generateBetriebskostenAntragPdf(BetriebskostenBriefData d) asy
     alignment: pw.Alignment.topLeft,
     child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       pw.Text('An das', style: const pw.TextStyle(fontSize: bodyFontSize)),
-      pw.Text(d.jcDienststelle.isEmpty ? 'Jobcenter' : 'Jobcenter ${d.jcDienststelle}', style: const pw.TextStyle(fontSize: bodyFontSize)),
+      pw.Text(() {
+        final name = d.jcDienststelle.trim();
+        if (name.isEmpty) return 'Jobcenter';
+        // selected_amt_name already starts with "Jobcenter ..." for proper Behörden;
+        // only prepend when the field has just a city name (legacy "dienststelle" value).
+        return name.toLowerCase().startsWith('jobcenter') ? name : 'Jobcenter $name';
+      }(), style: const pw.TextStyle(fontSize: bodyFontSize)),
       if (d.jcAnsprechpartner.trim().isNotEmpty)
         pw.Text('z. Hd. ${d.jcAnsprechpartner}', style: const pw.TextStyle(fontSize: bodyFontSize)),
       pw.Text('${d.jcStrasse} ${d.jcHausnummer}'.trim(), style: const pw.TextStyle(fontSize: bodyFontSize)),
