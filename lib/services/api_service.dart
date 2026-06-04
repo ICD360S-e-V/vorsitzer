@@ -6481,6 +6481,66 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== VERMIETER MIETVERTRAG DOKUMENTE ==========
+
+  Future<Map<String, dynamic>> listVermieterDokumente({required int userId, required int mietvertragId}) async {
+    return vermieterAction(userId, {'action': 'list_dokumente', 'mietvertrag_id': mietvertragId});
+  }
+
+  Future<Map<String, dynamic>> deleteVermieterDokument({required int userId, required int dokumentId}) async {
+    return vermieterAction(userId, {'action': 'delete_dokument', 'dokument_id': dokumentId});
+  }
+
+  Future<Map<String, dynamic>> updateVermieterDokumentMeta({
+    required int userId, required int dokumentId, required Map<String, String> meta,
+  }) async {
+    return vermieterAction(userId, {'action': 'update_dokument_meta', 'dokument_id': dokumentId, 'meta': meta});
+  }
+
+  /// Upload a mietvertrag or nebenkostenabrechnung document.
+  /// For NKA, also pass jahr + (optional) rechnungsdatum / zeitraum_von / zeitraum_bis / faelligkeit / nka_typ / betrag / notiz.
+  Future<Map<String, dynamic>> uploadVermieterDokument({
+    required int userId,
+    required int mietvertragId,
+    required String dokumentTyp, // 'mietvertrag' | 'nebenkostenabrechnung'
+    int? jahr,
+    String? rechnungsdatum,
+    String? zeitraumVon,
+    String? zeitraumBis,
+    String? faelligkeit,
+    String? nkaTyp, // 'nachzahlung' | 'guthaben'
+    String? betrag,
+    String? notiz,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/vermieter_dokument_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['mietvertrag_id'] = mietvertragId.toString();
+    request.fields['dokument_typ'] = dokumentTyp;
+    if (jahr != null) request.fields['jahr'] = jahr.toString();
+    if (rechnungsdatum != null && rechnungsdatum.isNotEmpty) request.fields['rechnungsdatum'] = rechnungsdatum;
+    if (zeitraumVon != null && zeitraumVon.isNotEmpty) request.fields['zeitraum_von'] = zeitraumVon;
+    if (zeitraumBis != null && zeitraumBis.isNotEmpty) request.fields['zeitraum_bis'] = zeitraumBis;
+    if (faelligkeit != null && faelligkeit.isNotEmpty) request.fields['faelligkeit'] = faelligkeit;
+    if (nkaTyp != null && nkaTyp.isNotEmpty) request.fields['nka_typ'] = nkaTyp;
+    if (betrag != null && betrag.isNotEmpty) request.fields['betrag'] = betrag;
+    if (notiz != null && notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> downloadVermieterDokument({required int userId, required int dokumentId}) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/vermieter_dokument_download.php?user_id=$userId&dokument_id=$dokumentId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ========== EMPFEHLUNG PRODUKTE ==========
 
   Future<Map<String, dynamic>> getEmpfehlungProdukte(String kategorie) async {

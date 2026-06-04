@@ -1,5 +1,8 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
+import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 
 class BehordeVermieterContent extends StatefulWidget {
@@ -346,15 +349,41 @@ class _MietvertragTabState extends State<_MietvertragTab> {
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        ElevatedButton(onPressed: () async { Navigator.pop(ctx);
-          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_mietvertrag', 'mietvertrag': {
+        ElevatedButton(onPressed: () async {
+          final body = {
             if (isEdit) 'id': e['id'], 'vertragsart': vertragsart, 'mietobjekt': mietobjekt, 'strasse': strasseC.text, 'hausnummer': hausnrC.text,
             'plz': plzC.text, 'ort': ortC.text, 'kaltmiete': kaltC.text, 'warmmiete': warmC.text, 'nebenkosten': nkC.text,
             'kaution': kautionC.text, 'faelligkeit': faelligC.text, 'zahlungsart': zahlungsart, 'mietbeginn': beginnC.text,
             'mietende': endeC.text, 'kuendigungsfrist': kuendC.text, 'status': status, 'notiz': notizC.text,
-          }}); await widget.onReload();
+          };
+          final resp = await widget.apiService.vermieterAction(widget.userId, {'action': 'save_mietvertrag', 'mietvertrag': body});
+          await widget.onReload();
+          if (!mounted) return;
+          Navigator.pop(ctx);
+          final newId = resp['id'] is int ? resp['id'] as int : int.tryParse(resp['id']?.toString() ?? '');
+          if (newId != null && newId > 0) {
+            // Find updated mietvertrag from refreshed list and open detail modal
+            final fresh = widget.mietvertraege.firstWhere((mv) => (mv['id'] as int?) == newId, orElse: () => {...body, 'id': newId});
+            _openDetail(fresh);
+          }
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: Text(isEdit ? 'Speichern' : 'Hinzufügen'))],
     )));
+  }
+
+  void _openDetail(Map<String, dynamic> m) {
+    showDialog(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SizedBox(
+        width: 800, height: 620,
+        child: _MietvertragDetailModal(
+          mietvertrag: m,
+          apiService: widget.apiService,
+          userId: widget.userId,
+          onEditDetails: () { Navigator.pop(ctx); _add(m); },
+          onReload: widget.onReload,
+        ),
+      ),
+    ));
   }
 
   @override
@@ -374,7 +403,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
             final st = m['status']?.toString() ?? 'aktiv';
             final color = statusColors[st] ?? Colors.grey;
             return Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(
-              onTap: () => _add(m),
+              onTap: () => _openDetail(m),
               leading: CircleAvatar(backgroundColor: color.shade100, child: Icon(Icons.description, color: color.shade700, size: 20)),
               title: Text('${m['strasse'] ?? ''} ${m['hausnummer'] ?? ''}, ${m['plz'] ?? ''} ${m['ort'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('${m['kaltmiete'] ?? ''} € kalt · ${m['warmmiete'] ?? ''} € warm · ${m['vertragsart'] ?? ''}', style: const TextStyle(fontSize: 11)),
@@ -535,4 +564,515 @@ class _ZahlungenTabState extends State<_ZahlungenTab> {
           })),
     ]);
   }
+}
+
+// ==================== MIETVERTRAG DETAIL MODAL ====================
+// Three tabs: Details (read-only summary with "bearbeiten" button), Mietvertrag (upload contract),
+// Nebenkostenabrechnung (per-year, with rechnungsdatum / Abrechnungszeitraum / Fälligkeit / Nachzahlung-Guthaben + amount + file).
+
+class _MietvertragDetailModal extends StatefulWidget {
+  final Map<String, dynamic> mietvertrag;
+  final ApiService apiService;
+  final int userId;
+  final VoidCallback onEditDetails;
+  final Future<void> Function() onReload;
+  const _MietvertragDetailModal({
+    required this.mietvertrag,
+    required this.apiService,
+    required this.userId,
+    required this.onEditDetails,
+    required this.onReload,
+  });
+  @override
+  State<_MietvertragDetailModal> createState() => _MietvertragDetailModalState();
+}
+
+class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with TickerProviderStateMixin {
+  late TabController _tabC;
+  List<Map<String, dynamic>> _docs = [];
+  bool _loading = false;
+
+  @override
+  void initState() { super.initState(); _tabC = TabController(length: 3, vsync: this); _loadDocs(); }
+  @override
+  void dispose() { _tabC.dispose(); super.dispose(); }
+
+  int get _mvId => widget.mietvertrag['id'] is int ? widget.mietvertrag['id'] as int : int.tryParse(widget.mietvertrag['id']?.toString() ?? '') ?? 0;
+
+  Future<void> _loadDocs() async {
+    if (_mvId <= 0) return;
+    setState(() => _loading = true);
+    final r = await widget.apiService.listVermieterDokumente(userId: widget.userId, mietvertragId: _mvId);
+    if (!mounted) return;
+    final list = (r['dokumente'] ?? []) as List;
+    setState(() {
+      _docs = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _loading = false;
+    });
+  }
+
+  List<Map<String, dynamic>> get _mietvertragDocs => _docs.where((d) => d['dokument_typ'] == 'mietvertrag').toList();
+  List<Map<String, dynamic>> get _nkaDocs => _docs.where((d) => d['dokument_typ'] == 'nebenkostenabrechnung').toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.mietvertrag;
+    final adresse = '${m['strasse'] ?? ''} ${m['hausnummer'] ?? ''}, ${m['plz'] ?? ''} ${m['ort'] ?? ''}'.trim();
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
+        child: Row(children: [
+          Icon(Icons.home_work, color: Colors.deepPurple.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(adresse, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.deepPurple.shade800), overflow: TextOverflow.ellipsis)),
+          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(
+        controller: _tabC,
+        labelColor: Colors.deepPurple.shade800,
+        unselectedLabelColor: Colors.grey,
+        indicatorColor: Colors.deepPurple.shade700,
+        tabs: [
+          const Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 18)),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.description, size: 18), const SizedBox(width: 6), Text('Mietvertrag${_mietvertragDocs.isEmpty ? '' : ' (${_mietvertragDocs.length})'}')])),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.receipt_long, size: 18), const SizedBox(width: 6), Text('Nebenkostenabrechnung${_nkaDocs.isEmpty ? '' : ' (${_nkaDocs.length})'}')])),
+        ],
+      ),
+      Expanded(child: TabBarView(controller: _tabC, children: [
+        _detailsTab(m),
+        _DokumenteTab(
+          dokumentTyp: 'mietvertrag',
+          mietvertragId: _mvId,
+          userId: widget.userId,
+          apiService: widget.apiService,
+          docs: _mietvertragDocs,
+          loading: _loading,
+          onReload: _loadDocs,
+        ),
+        _NkaTab(
+          mietvertragId: _mvId,
+          userId: widget.userId,
+          apiService: widget.apiService,
+          docs: _nkaDocs,
+          loading: _loading,
+          onReload: _loadDocs,
+        ),
+      ])),
+    ]);
+  }
+
+  Widget _detailsTab(Map<String, dynamic> m) {
+    Widget row(String label, String value, {IconData? icon}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (icon != null) Padding(padding: const EdgeInsets.only(right: 8, top: 2), child: Icon(icon, size: 16, color: Colors.grey.shade600)),
+        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        Expanded(child: Text(value.isEmpty ? '–' : value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+      ]),
+    );
+    final s = (k) => (m[k] ?? '').toString();
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+        const Spacer(),
+        OutlinedButton.icon(onPressed: widget.onEditDetails, icon: const Icon(Icons.edit, size: 14), label: const Text('Bearbeiten', style: TextStyle(fontSize: 12))),
+      ]),
+      const Divider(),
+      row('Vertragsart', s('vertragsart'), icon: Icons.assignment),
+      row('Mietobjekt', s('mietobjekt'), icon: Icons.home),
+      row('Adresse', '${s('strasse')} ${s('hausnummer')}, ${s('plz')} ${s('ort')}', icon: Icons.location_on),
+      row('Kaltmiete', '${s('kaltmiete')} €', icon: Icons.euro),
+      row('Nebenkosten', '${s('nebenkosten')} €', icon: Icons.receipt_long),
+      row('Warmmiete', '${s('warmmiete')} €', icon: Icons.functions),
+      row('Kaution', '${s('kaution')} €', icon: Icons.savings),
+      row('Fälligkeit', s('faelligkeit'), icon: Icons.event),
+      row('Zahlungsart', s('zahlungsart'), icon: Icons.payments),
+      row('Mietbeginn', s('mietbeginn'), icon: Icons.event_available),
+      row('Mietende', s('mietende'), icon: Icons.event_busy),
+      row('Kündigungsfrist', s('kuendigungsfrist'), icon: Icons.timer),
+      row('Status', s('status'), icon: Icons.flag),
+      if (s('notiz').isNotEmpty) row('Notiz', s('notiz'), icon: Icons.notes),
+    ]));
+  }
+}
+
+// ==================== TAB: Mietvertrag-Dokumente (generic upload list) ====================
+class _DokumenteTab extends StatelessWidget {
+  final String dokumentTyp;
+  final int mietvertragId;
+  final int userId;
+  final ApiService apiService;
+  final List<Map<String, dynamic>> docs;
+  final bool loading;
+  final Future<void> Function() onReload;
+  const _DokumenteTab({
+    required this.dokumentTyp,
+    required this.mietvertragId,
+    required this.userId,
+    required this.apiService,
+    required this.docs,
+    required this.loading,
+    required this.onReload,
+  });
+
+  Future<void> _upload(BuildContext context) async {
+    if (mietvertragId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Mietvertrag speichern')));
+      return;
+    }
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    int ok = 0; String? lastErr;
+    for (final f in result.files.where((f) => f.path != null)) {
+      final r = await apiService.uploadVermieterDokument(
+        userId: userId, mietvertragId: mietvertragId,
+        dokumentTyp: dokumentTyp, filePath: f.path!, fileName: f.name,
+      );
+      if (r['success'] == true) { ok++; } else { lastErr = r['message']?.toString() ?? 'Upload fehlgeschlagen'; }
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(lastErr == null ? '$ok Datei(en) hochgeladen' : 'Fehler: $lastErr'),
+      backgroundColor: lastErr == null ? Colors.green.shade600 : Colors.red.shade600,
+    ));
+    await onReload();
+  }
+
+  Future<void> _view(BuildContext context, Map<String, dynamic> d) async {
+    try {
+      final resp = await apiService.downloadVermieterDokument(userId: userId, dokumentId: d['id'] as int);
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      if (!context.mounted) return;
+      final shown = await FileViewerDialog.showFromBytes(context, resp.bodyBytes, d['filename']?.toString() ?? 'dokument');
+      if (!shown && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Format nicht unterstützt: ${d['filename']}')));
+      }
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $e')));
+    }
+  }
+
+  Future<void> _delete(BuildContext context, Map<String, dynamic> d) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Dokument löschen?', style: TextStyle(fontSize: 15)),
+      content: Text(d['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Löschen')),
+      ],
+    ));
+    if (ok != true) return;
+    await apiService.deleteVermieterDokument(userId: userId, dokumentId: d['id'] as int);
+    await onReload();
+  }
+
+  String _fmtSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.folder_open, size: 20, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 8),
+        Text('Mietvertrag-Dokumente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.deepPurple.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(
+          onPressed: () => _upload(context),
+          icon: const Icon(Icons.upload_file, size: 16),
+          label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white),
+        ),
+      ])),
+      Expanded(child: loading
+        ? const Center(child: CircularProgressIndicator())
+        : docs.isEmpty
+          ? Center(child: Text('Noch keine Dokumente hochgeladen', style: TextStyle(color: Colors.grey.shade500, fontStyle: FontStyle.italic, fontSize: 12)))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: docs.length, itemBuilder: (ctx, i) {
+              final d = docs[i];
+              final mime = (d['mime_type'] ?? '').toString();
+              return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
+                dense: true, visualDensity: VisualDensity.compact,
+                leading: Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, color: Colors.deepPurple.shade700),
+                title: Text(d['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                subtitle: Text('${_fmtSize(d['file_size'] as int)} · ${(d['uploaded_at']?.toString() ?? '').substring(0, 16)}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.blue.shade700), tooltip: 'Öffnen', onPressed: () => _view(context, d)),
+                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(context, d)),
+                ]),
+              ));
+            }),
+      ),
+    ]);
+  }
+}
+
+// ==================== TAB: Nebenkostenabrechnung (year-grouped + meta fields) ====================
+class _NkaTab extends StatelessWidget {
+  final int mietvertragId;
+  final int userId;
+  final ApiService apiService;
+  final List<Map<String, dynamic>> docs;
+  final bool loading;
+  final Future<void> Function() onReload;
+  const _NkaTab({
+    required this.mietvertragId,
+    required this.userId,
+    required this.apiService,
+    required this.docs,
+    required this.loading,
+    required this.onReload,
+  });
+
+  /// Years available — explicitly 2025..2030 plus any year already in docs (extends to 2999 if needed).
+  List<int> get _selectableYears {
+    final now = DateTime.now().year;
+    final ys = <int>{};
+    for (int y = 2025; y <= now + 2; y++) ys.add(y);
+    for (final d in docs) { final j = d['jahr']; if (j is int) ys.add(j); }
+    return ys.toList()..sort((a, b) => b.compareTo(a));
+  }
+
+  /// Group docs by jahr (desc). Years with no docs are shown only if present in selectableYears via "+ Neue NKA".
+  Map<int, List<Map<String, dynamic>>> get _byYear {
+    final out = <int, List<Map<String, dynamic>>>{};
+    for (final d in docs) {
+      final j = d['jahr'] is int ? d['jahr'] as int : int.tryParse(d['jahr']?.toString() ?? '');
+      if (j == null) continue;
+      out.putIfAbsent(j, () => []).add(d);
+    }
+    return out;
+  }
+
+  Future<void> _addNkaDialog(BuildContext context) async {
+    if (mietvertragId <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Mietvertrag speichern')));
+      return;
+    }
+    final now = DateTime.now();
+    int jahr = now.year - 1; // NKA covers previous year by default
+    final rdC = TextEditingController(text: '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year}');
+    final vonC = TextEditingController(text: '01.01.${now.year - 1}');
+    final bisC = TextEditingController(text: '31.12.${now.year - 1}');
+    // Default Fälligkeit = today + 30 days
+    final due = now.add(const Duration(days: 30));
+    final fC = TextEditingController(text: '${due.day.toString().padLeft(2, '0')}.${due.month.toString().padLeft(2, '0')}.${due.year}');
+    final betragC = TextEditingController();
+    final notizC = TextEditingController();
+    String typ = 'nachzahlung';
+    String? pickedPath; String? pickedName;
+
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.receipt_long, size: 18, color: Colors.deepPurple.shade700), const SizedBox(width: 8), const Text('Neue Nebenkostenabrechnung', style: TextStyle(fontSize: 15))]),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Expanded(child: DropdownButtonFormField<int>(
+            initialValue: jahr,
+            decoration: InputDecoration(labelText: 'Abrechnungsjahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: List.generate(now.year + 2 - 2025 + 1, (i) => 2025 + i).reversed.map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              setDlg(() {
+                jahr = v;
+                vonC.text = '01.01.$jahr';
+                bisC.text = '31.12.$jahr';
+              });
+            },
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'nachzahlung', label: Text('Nachzahl.', style: TextStyle(fontSize: 11)), icon: Icon(Icons.arrow_upward, size: 14)),
+              ButtonSegment(value: 'guthaben', label: Text('Guthaben', style: TextStyle(fontSize: 11)), icon: Icon(Icons.arrow_downward, size: 14)),
+            ],
+            selected: {typ},
+            onSelectionChanged: (s) => setDlg(() => typ = s.first),
+          )),
+        ]),
+        const SizedBox(height: 10),
+        TextField(controller: rdC, readOnly: true, decoration: InputDecoration(labelText: 'Rechnungsdatum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de')); if (d != null) rdC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; }),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: TextField(controller: vonC, readOnly: true, decoration: InputDecoration(labelText: 'Zeitraum von', isDense: true, prefixIcon: const Icon(Icons.event, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime(jahr, 1, 1), firstDate: DateTime(2000), lastDate: DateTime(2099), locale: const Locale('de')); if (d != null) vonC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; })),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: bisC, readOnly: true, decoration: InputDecoration(labelText: 'Zeitraum bis', isDense: true, prefixIcon: const Icon(Icons.event, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime(jahr, 12, 31), firstDate: DateTime(2000), lastDate: DateTime(2099), locale: const Locale('de')); if (d != null) bisC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; })),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: TextField(controller: fC, readOnly: true, decoration: InputDecoration(labelText: 'Fälligkeit (Zahlungsfrist)', isDense: true, prefixIcon: const Icon(Icons.schedule, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: due, firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de')); if (d != null) fC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; })),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Betrag €', isDense: true, prefixIcon: const Icon(Icons.euro, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+        ]),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp']);
+            if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
+              setDlg(() { pickedPath = r.files.first.path; pickedName = r.files.first.name; });
+            }
+          },
+          icon: Icon(pickedPath == null ? Icons.attach_file : Icons.check_circle, color: pickedPath == null ? null : Colors.green),
+          label: Text(pickedName ?? 'Datei auswählen (PDF/JPG)', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+        ),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: pickedPath == null ? null : () async {
+          Navigator.pop(ctx);
+          final r = await apiService.uploadVermieterDokument(
+            userId: userId, mietvertragId: mietvertragId,
+            dokumentTyp: 'nebenkostenabrechnung', jahr: jahr,
+            rechnungsdatum: rdC.text, zeitraumVon: vonC.text, zeitraumBis: bisC.text,
+            faelligkeit: fC.text, nkaTyp: typ, betrag: betragC.text, notiz: notizC.text,
+            filePath: pickedPath!, fileName: pickedName!,
+          );
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(r['success'] == true ? 'Nebenkostenabrechnung gespeichert' : (r['message']?.toString() ?? 'Fehler')),
+            backgroundColor: r['success'] == true ? Colors.green.shade700 : Colors.red.shade600,
+          ));
+          await onReload();
+        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  Future<void> _view(BuildContext context, Map<String, dynamic> d) async {
+    try {
+      final resp = await apiService.downloadVermieterDokument(userId: userId, dokumentId: d['id'] as int);
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      if (!context.mounted) return;
+      await FileViewerDialog.showFromBytes(context, resp.bodyBytes, d['filename']?.toString() ?? 'dokument');
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $e')));
+    }
+  }
+
+  Future<void> _delete(BuildContext context, Map<String, dynamic> d) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('NKA löschen?', style: TextStyle(fontSize: 15)),
+      content: Text('Jahr ${d['jahr']} — ${d['filename']}', style: const TextStyle(fontSize: 12)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Löschen')),
+      ],
+    ));
+    if (ok != true) return;
+    await apiService.deleteVermieterDokument(userId: userId, dokumentId: d['id'] as int);
+    await onReload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final grouped = _byYear;
+    final years = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.receipt_long, size: 20, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 8),
+        Text('Nebenkostenabrechnung nach Jahr', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.deepPurple.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(
+          onPressed: () => _addNkaDialog(context),
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Neue NKA', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white),
+        ),
+      ])),
+      Expanded(child: loading
+        ? const Center(child: CircularProgressIndicator())
+        : years.isEmpty
+          ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text('Noch keine Nebenkostenabrechnungen', style: TextStyle(color: Colors.grey.shade500, fontStyle: FontStyle.italic, fontSize: 13)),
+              const SizedBox(height: 6),
+              Text('Beim Hinzufügen wählen Sie das Abrechnungsjahr,\nRechnungsdatum, Zeitraum, Fälligkeit, Betrag und Typ.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+            ])))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: years.length, itemBuilder: (ctx, i) {
+              final y = years[i];
+              final items = grouped[y]!;
+              return Card(margin: const EdgeInsets.only(bottom: 8), child: ExpansionTile(
+                initiallyExpanded: i == 0,
+                leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Text('$y', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800))),
+                title: Text('Abrechnungsjahr $y', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: Text('${items.length} Dokument(e)', style: const TextStyle(fontSize: 11)),
+                children: items.map((d) => _NkaItemTile(doc: d, onView: () => _view(context, d), onDelete: () => _delete(context, d))).toList(),
+              ));
+            }),
+      ),
+    ]);
+  }
+}
+
+class _NkaItemTile extends StatelessWidget {
+  final Map<String, dynamic> doc;
+  final VoidCallback onView;
+  final VoidCallback onDelete;
+  const _NkaItemTile({required this.doc, required this.onView, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final typ = (doc['nka_typ'] ?? '').toString();
+    final isNach = typ == 'nachzahlung';
+    final typColor = typ.isEmpty ? Colors.grey : (isNach ? Colors.red : Colors.green);
+    final betrag = (doc['betrag'] ?? '').toString();
+    final faellig = (doc['faelligkeit'] ?? '').toString();
+    final rd = (doc['rechnungsdatum'] ?? '').toString();
+    final zv = (doc['zeitraum_von'] ?? '').toString();
+    final zb = (doc['zeitraum_bis'] ?? '').toString();
+    return Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.picture_as_pdf, size: 18, color: Colors.deepPurple.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text(doc['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+          if (typ.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: typColor.shade100, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(isNach ? Icons.arrow_upward : Icons.arrow_downward, size: 11, color: typColor.shade800),
+            const SizedBox(width: 2),
+            Text(isNach ? 'Nachzahlung' : 'Guthaben', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: typColor.shade800)),
+          ])),
+        ]),
+        if (betrag.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Row(children: [
+          Icon(Icons.euro, size: 14, color: typColor.shade700),
+          const SizedBox(width: 4),
+          Text('$betrag €', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: typColor.shade900)),
+        ])),
+        if (rd.isNotEmpty || zv.isNotEmpty || zb.isNotEmpty || faellig.isNotEmpty) const SizedBox(height: 6),
+        if (rd.isNotEmpty) _metaRow(Icons.calendar_today, 'Rechnungsdatum', rd),
+        if (zv.isNotEmpty || zb.isNotEmpty) _metaRow(Icons.event, 'Zeitraum', '${zv.isEmpty ? '?' : zv} – ${zb.isEmpty ? '?' : zb}'),
+        if (faellig.isNotEmpty) _metaRow(Icons.schedule, 'Fällig bis', faellig),
+        if ((doc['notiz'] ?? '').toString().isNotEmpty) _metaRow(Icons.notes, 'Notiz', doc['notiz'].toString()),
+        const SizedBox(height: 4),
+        Row(children: [
+          const Spacer(),
+          TextButton.icon(onPressed: onView, icon: const Icon(Icons.visibility, size: 14), label: const Text('Öffnen', style: TextStyle(fontSize: 11))),
+          TextButton.icon(onPressed: onDelete, icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), label: Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red.shade400))),
+        ]),
+      ]),
+    ));
+  }
+
+  Widget _metaRow(IconData icon, String label, String value) => Padding(
+    padding: const EdgeInsets.only(top: 2),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 12, color: Colors.grey.shade600),
+      const SizedBox(width: 4),
+      SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500))),
+    ]),
+  );
 }
