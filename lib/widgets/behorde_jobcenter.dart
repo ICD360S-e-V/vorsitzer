@@ -582,6 +582,7 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
   List<Map<String, dynamic>> _docs = [];
   bool _docsLoading = false, _uploading = false;
   Map<String, dynamic>? _wbaTicket;
+  String? _wbaAction; // 'created' | 'existing' | 'updated' (only set after a save in this session)
   @override
   bool get wantKeepAlive => true;
   @override
@@ -608,18 +609,28 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
     setState(() => _saving = true);
     final payload = {'bescheid_von': _bescheidVonC.text, 'bescheid_bis': _bescheidBisC.text, 'bescheid_betrag': _bescheidBetragC.text, 'regelsatz': _regelsatzC.text, 'kdu': _kduC.text, 'nebenkosten': _nebenkostenC.text, 'heizkosten': _heizkostenC.text, 'mehrbedarf': _mehrbedarfC.text, 'mehrbedarf_grund': _mehrbedarfGrundC.text};
     final resp = await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, ...payload}});
-    widget.antrag.addAll(payload); // keep modal's antrag in sync so re-init shows saved values
+    widget.antrag.addAll(payload);
     final wba = resp['wba_ticket'];
+    final wbaAction = resp['wba_action']?.toString() ?? 'skipped';
     await widget.onReload();
-    if (mounted) {
-      setState(() { _saving = false; _wbaTicket = wba is Map ? Map<String, dynamic>.from(wba) : null; });
-      final hasWba = _wbaTicket != null;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(hasWba ? 'Gespeichert · WBA-Ticket #${_wbaTicket!['ticket_id']} automatisch erstellt' : 'Gespeichert'),
-        backgroundColor: hasWba ? Colors.indigo.shade700 : Colors.green.shade600,
-        duration: Duration(seconds: hasWba ? 4 : 2),
-      ));
-    }
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _wbaTicket = wba is Map ? Map<String, dynamic>.from(wba) : null;
+      _wbaAction = wbaAction;
+    });
+    final ticketId = _wbaTicket?['ticket_id'];
+    final (msg, color, secs) = switch (wbaAction) {
+      'created'  => ('Gespeichert · WBA-Ticket #$ticketId neu erstellt', Colors.indigo.shade700, 4),
+      'updated'  => ('Gespeichert · Bis-Datum geändert — neues WBA-Ticket #$ticketId angelegt, altes geschlossen', Colors.orange.shade700, 5),
+      'existing' => ('Gespeichert · WBA-Ticket #$ticketId ist bereits angelegt — kein Duplikat erstellt', Colors.teal.shade700, 4),
+      _          => ('Gespeichert', Colors.green.shade600, 2),
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: color,
+      duration: Duration(seconds: secs),
+    ));
   }
 
   String get _antragId => widget.antrag['id']?.toString() ?? '';
@@ -718,37 +729,50 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
         label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white))),
       if (_wbaTicket != null) ...[
         const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.indigo.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.indigo.shade300, width: 1.5),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.event_available, color: Colors.indigo.shade700, size: 22),
-              const SizedBox(width: 8),
-              Expanded(child: Text('WBA-Erinnerungsticket erstellt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo.shade800))),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, size: 12, color: Colors.green.shade800), const SizedBox(width: 3), Text('Automatisch', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800))])),
+        Builder(builder: (ctx) {
+          // Tint by action: existing=teal (no-op), created/load=indigo, updated=orange.
+          final (chipColor, chipText, chipIcon, cardColor, cardBorder, headline) = switch (_wbaAction) {
+            'updated'  => (Colors.orange.shade100, 'Aktualisiert',     Icons.swap_horiz,     Colors.orange.shade50, Colors.orange.shade300, 'WBA-Ticket aktualisiert'),
+            'existing' => (Colors.teal.shade100,   'Bereits angelegt', Icons.verified,       Colors.teal.shade50,   Colors.teal.shade300,   'WBA-Ticket ist bereits gesetzt'),
+            'created'  => (Colors.green.shade100,  'Neu erstellt',     Icons.check_circle,   Colors.indigo.shade50, Colors.indigo.shade300, 'WBA-Erinnerungsticket erstellt'),
+            _          => (Colors.blue.shade100,   'Aktiv',            Icons.event_note,     Colors.indigo.shade50, Colors.indigo.shade300, 'WBA-Erinnerungsticket geplant'),
+          };
+          final textColor = switch (_wbaAction) { 'updated' => Colors.orange.shade800, 'existing' => Colors.teal.shade800, _ => Colors.indigo.shade800 };
+          final iconColor = switch (_wbaAction) { 'updated' => Colors.orange.shade700, 'existing' => Colors.teal.shade700, _ => Colors.indigo.shade700 };
+          final subTextColor = switch (_wbaAction) { 'updated' => Colors.orange.shade700, 'existing' => Colors.teal.shade700, _ => Colors.indigo.shade600 };
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: cardBorder, width: 1.5)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.event_available, color: iconColor, size: 22),
+                const SizedBox(width: 8),
+                Expanded(child: Text(headline, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: chipColor, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(chipIcon, size: 12, color: textColor), const SizedBox(width: 3), Text(chipText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor))])),
+              ]),
+              const SizedBox(height: 8),
+              Text('Ticket #${_wbaTicket!['ticket_id']}', style: const TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(_wbaTicket!['subject']?.toString() ?? '', style: const TextStyle(fontSize: 12)),
+              const SizedBox(height: 6),
+              Row(children: [
+                Icon(Icons.calendar_today, size: 14, color: subTextColor),
+                const SizedBox(width: 4),
+                Text('Geplant für: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                Text(_formatWbaSchedule(_wbaTicket!['scheduled_date']?.toString()), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor)),
+                const Spacer(),
+                Text('Bewilligung bis ${_wbaTicket!['bescheid_bis']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ]),
+              const SizedBox(height: 4),
+              if (_wbaAction == 'existing')
+                Text('→ Es existiert bereits ein offenes WBA-Ticket für diesen Antrag mit demselben Bis-Datum. Es wurde KEIN Duplikat angelegt.', style: TextStyle(fontSize: 10, color: subTextColor, fontStyle: FontStyle.italic))
+              else if (_wbaAction == 'updated')
+                Text('→ Das Bis-Datum hat sich geändert. Das alte Ticket wurde geschlossen und ein neues mit dem aktualisierten Termin angelegt.', style: TextStyle(fontSize: 10, color: subTextColor, fontStyle: FontStyle.italic))
+              else
+                Text('→ Wird in der Ticketverwaltung 2 Monate vor dem Bewilligungsende angezeigt, damit der Weiterbewilligungsantrag rechtzeitig eingereicht wird.', style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic)),
             ]),
-            const SizedBox(height: 8),
-            Text('Ticket #${_wbaTicket!['ticket_id']}', style: const TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(_wbaTicket!['subject']?.toString() ?? '', style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 6),
-            Row(children: [
-              Icon(Icons.calendar_today, size: 14, color: Colors.indigo.shade600),
-              const SizedBox(width: 4),
-              Text('Geplant für: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-              Text(_formatWbaSchedule(_wbaTicket!['scheduled_date']?.toString()), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-              const Spacer(),
-              Text('Bewilligung bis ${_wbaTicket!['bescheid_bis']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-            ]),
-            const SizedBox(height: 4),
-            Text('→ Wird in der Ticketverwaltung 2 Monate vor dem Bewilligungsende angezeigt, damit der Weiterbewilligungsantrag rechtzeitig eingereicht wird.', style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic)),
-          ]),
-        ),
+          );
+        }),
       ],
       const Divider(height: 24),
       Row(children: [
