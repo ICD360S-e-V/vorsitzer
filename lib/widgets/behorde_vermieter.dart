@@ -294,9 +294,40 @@ class _MietvertragTabState extends State<_MietvertragTab> {
         Row(children: [SizedBox(width: 80, child: TextField(controller: plzC, decoration: InputDecoration(labelText: 'PLZ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
           const SizedBox(width: 8), Expanded(child: TextField(controller: ortC, decoration: InputDecoration(labelText: 'Ort', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
         const SizedBox(height: 8),
-        Row(children: [Expanded(child: TextField(controller: kaltC, decoration: InputDecoration(labelText: 'Kaltmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: warmC, decoration: InputDecoration(labelText: 'Warmmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          const SizedBox(width: 8), Expanded(child: TextField(controller: nkC, decoration: InputDecoration(labelText: 'Nebenkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
+        Row(children: [
+          Expanded(child: TextField(
+            controller: kaltC,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: 'Kaltmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: (_) {
+              final k = double.tryParse(kaltC.text.replaceAll(',', '.')) ?? 0;
+              final n = double.tryParse(nkC.text.replaceAll(',', '.')) ?? 0;
+              if (k > 0 || n > 0) warmC.text = (k + n).toStringAsFixed(2);
+            },
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(
+            controller: nkC,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: 'Nebenkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: (_) {
+              final k = double.tryParse(kaltC.text.replaceAll(',', '.')) ?? 0;
+              final n = double.tryParse(nkC.text.replaceAll(',', '.')) ?? 0;
+              if (k > 0 || n > 0) warmC.text = (k + n).toStringAsFixed(2);
+            },
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(
+            controller: warmC,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Warmmiete € (= Kalt + NK)',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixIcon: const Icon(Icons.functions, size: 16, color: Colors.grey),
+            ),
+          )),
+        ]),
         const SizedBox(height: 8),
         Row(children: [Expanded(child: TextField(controller: kautionC, decoration: InputDecoration(labelText: 'Kaution €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
           const SizedBox(width: 8), Expanded(child: TextField(controller: faelligC, decoration: InputDecoration(labelText: 'Fälligkeit', hintText: 'z.B. 1. des Monats', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
