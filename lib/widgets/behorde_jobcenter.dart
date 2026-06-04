@@ -283,7 +283,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
     'mehrbedarf': 'Antrag auf Mehrbedarf',
     'erstausstattung': 'Antrag auf Erstausstattung',
     'umzugskosten': 'Antrag auf Umzugskosten',
-    'betriebskosten_nachforderung': 'Antrag auf Übernahme einer Betriebskostennachforderung KdU (§ 22 Abs. 1 SGB II)',
+    'betriebskosten_nachforderung': 'Betriebskosten-Nachforderung KdU (§22 SGB II)',
     'but': 'Bildung und Teilhabe (BuT)',
     'ueberpruefung': 'Überprüfungsantrag (§44 SGB X)',
   };
@@ -321,9 +321,13 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.red.shade700), const SizedBox(width: 8), const Text('Neuer Antrag', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(initialValue: art, decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          initialValue: art, isExpanded: true,
+          decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          selectedItemBuilder: (ctx) => _artLabels.entries.map((e) => Align(alignment: Alignment.centerLeft, child: Text(e.value, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 1))).toList(),
           items: _artLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
-          onChanged: (v) => setDlg(() => art = v ?? art)),
+          onChanged: (v) => setDlg(() => art = v ?? art),
+        ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
@@ -540,7 +544,10 @@ class _AntragDetailsTabState extends State<_AntragDetailsTab> {
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Art & Status
       Row(children: [
-        Expanded(child: DropdownButtonFormField<String>(initialValue: _art, decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: _art, isExpanded: true,
+          decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          selectedItemBuilder: (ctx) => _JobcenterAntragTabState._artLabels.entries.map((e) => Align(alignment: Alignment.centerLeft, child: Text(e.value, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis, maxLines: 1))).toList(),
           items: _JobcenterAntragTabState._artLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 11)))).toList(),
           onChanged: (v) => setState(() => _art = v ?? _art))),
         const SizedBox(width: 8),
