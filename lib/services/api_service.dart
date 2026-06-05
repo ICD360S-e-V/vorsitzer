@@ -6481,6 +6481,70 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== HEILMITTEL RECHNUNGEN ==========
+
+  Future<Map<String, dynamic>> listHeilmittelRechnungen({required int userId, required String heilmittelUid}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/heilmittel_rechnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'list', 'user_id': userId, 'heilmittel_uid': heilmittelUid}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteHeilmittelRechnung({required int userId, required int rechnungId}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/heilmittel_rechnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'user_id': userId, 'rechnung_id': rechnungId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> updateHeilmittelRechnungMeta({required int userId, required int rechnungId, required Map<String, dynamic> meta}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/heilmittel_rechnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'update_meta', 'user_id': userId, 'rechnung_id': rechnungId, 'meta': meta}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadHeilmittelRechnung({
+    required int userId,
+    required String heilmittelUid,
+    required String filePath,
+    required String fileName,
+    String? betrag,
+    String? rechnungsdatum,
+    bool bezahlt = false,
+    String? bezahltAm,
+    String? zahlungsmethode,
+    String? notiz,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/heilmittel_rechnung_upload.php'));
+    request.headers.addAll(_headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['heilmittel_uid'] = heilmittelUid;
+    if (betrag != null && betrag.isNotEmpty) request.fields['betrag'] = betrag;
+    if (rechnungsdatum != null && rechnungsdatum.isNotEmpty) request.fields['rechnungsdatum'] = rechnungsdatum;
+    request.fields['bezahlt'] = bezahlt ? '1' : '0';
+    if (bezahltAm != null && bezahltAm.isNotEmpty) request.fields['bezahlt_am'] = bezahltAm;
+    if (zahlungsmethode != null && zahlungsmethode.isNotEmpty) request.fields['zahlungsmethode'] = zahlungsmethode;
+    if (notiz != null && notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid response'}; }
+  }
+
+  Future<http.Response> downloadHeilmittelRechnung({required int userId, required int rechnungId}) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/heilmittel_rechnung_download.php?user_id=$userId&rechnung_id=$rechnungId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ========== VERMIETER MIETVERTRAG DOKUMENTE ==========
 
   Future<Map<String, dynamic>> listVermieterDokumente({required int userId, required int mietvertragId}) async {

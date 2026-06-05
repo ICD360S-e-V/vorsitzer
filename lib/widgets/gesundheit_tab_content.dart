@@ -13,6 +13,7 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 import 'package:pdfrx/pdfrx.dart' as pdfrx;
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
@@ -203,7 +204,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 20, // 19 specialist tabs + Podologie
+      length: 19,
       child: Column(
         children: [
           TabBar(
@@ -229,7 +230,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               _gesundheitTabItem(Icons.science, 'Endokrinologie', isCompact),
               _gesundheitTabItem(Icons.monitor_heart, 'Diabetologie', isCompact),
               _gesundheitTabItem(Icons.healing, 'Wundzentrum', isCompact),
-              _gesundheitTabItem(Icons.directions_walk, 'Podologie', isCompact),
               _gesundheitTabItem(Icons.local_hospital, 'Krankenhaus', isCompact),
               _gesundheitTabItem(Icons.medical_services, 'Sanitätshaus', isCompact),
               _gesundheitTabItem(Icons.more_horiz, 'Sonstige', isCompact),
@@ -254,7 +254,6 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 _buildArztContent('gesundheit_endokrinologie', 'Endokrinologe', 'Endokrinologie / Hormonerkrankungen / Schilddrüse'),
                 _buildArztContent('gesundheit_diabetologie', 'Diabetologe', 'Diabetologie / Diabetes mellitus / Stoffwechsel'),
                 _buildArztContent('gesundheit_wundzentrum', 'Wundzentrum', 'Wundversorgung / Chronische Wunden'),
-                _buildArztContent('gesundheit_podologie', 'Podologie', 'Medizinische Fußpflege (Heilberuf, PodG)'),
                 _buildArztContent('gesundheit_krankenhaus', 'Krankenhaus', 'Klinik / Stationare Behandlung'),
                 SanitaetshausContent(apiService: widget.apiService, userId: widget.user.id),
                 _buildArztContent('gesundheit_sonstige', 'Sonstiger Arzt', 'Weitere Fachrichtung'),
@@ -10795,6 +10794,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       void doSave(Map<String, dynamic> entry, {bool fromStatus = false, StateSetter? setS}) {
         final base = existing != null ? Map<String, dynamic>.from(existing) : <String, dynamic>{};
         base.addAll(entry);
+        // Stable UID for linking external attachments (Rechnungen) regardless of list index.
+        if ((base['uid']?.toString() ?? '').isEmpty) {
+          base['uid'] = const Uuid().v4();
+        }
         final list = List<dynamic>.from(heilmittelList);
         if (editIndex != null && editIndex < list.length) { list[editIndex] = base; } else { list.insert(0, base); }
         data['heilmittel'] = list;
@@ -10802,6 +10805,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         setLocalState(() {});
         if (!fromStatus) Navigator.pop(context);
         if (setS != null) setS(() {});
+      }
+      // Ensure existing entries also get a uid the first time the dialog opens, so the Rechnung tab works for legacy items
+      if (existing != null && (existing['uid']?.toString() ?? '').isEmpty) {
+        existing['uid'] = const Uuid().v4();
+        // Persist back to the list immediately (no Navigator pop)
+        final list = List<dynamic>.from(heilmittelList);
+        if (editIndex != null && editIndex < list.length) { list[editIndex] = existing; }
+        data['heilmittel'] = list;
+        saveAll();
       }
 
       Widget buildForm(StateSetter setS, void Function(Map<String, dynamic>) onSave) {
@@ -11124,11 +11136,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               width: 620, height: 700,
               child: editMode
                 ? buildForm(setS2, (entry) { doSave(entry); Navigator.pop(dlgCtx); })
-                : DefaultTabController(length: 3, child: Column(children: [
-                    TabBar(labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: const [
+                : DefaultTabController(length: 4, child: Column(children: [
+                    TabBar(isScrollable: true, tabAlignment: TabAlignment.start, labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: const [
                       Tab(icon: Icon(Icons.healing, size: 16), text: 'Details'),
                       Tab(icon: Icon(Icons.track_changes, size: 16), text: 'Verlauf'),
                       Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+                      Tab(icon: Icon(Icons.receipt, size: 16), text: 'Rechnung'),
                     ]),
                     Expanded(child: TabBarView(children: [
                       // ── Details (read-only) ──
@@ -11990,6 +12003,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             }),
                         ]));
                       }),
+
+                      // ── Rechnung tab ──
+                      _HeilmittelRechnungTab(
+                        apiService: widget.apiService,
+                        userId: widget.user.id,
+                        heilmittelUid: (r['uid']?.toString() ?? ''),
+                      ),
                     ])),
                   ])),
             ),
@@ -14291,6 +14311,269 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
                   );
                 },
               ),
+      ),
+    ]);
+  }
+}
+
+// ==================== HEILMITTEL RECHNUNG TAB ====================
+class _HeilmittelRechnungTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String heilmittelUid;
+  const _HeilmittelRechnungTab({required this.apiService, required this.userId, required this.heilmittelUid});
+  @override
+  State<_HeilmittelRechnungTab> createState() => _HeilmittelRechnungTabState();
+}
+
+class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _rechnungen = [];
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (widget.heilmittelUid.isEmpty) { setState(() => _loading = false); return; }
+    setState(() => _loading = true);
+    final r = await widget.apiService.listHeilmittelRechnungen(userId: widget.userId, heilmittelUid: widget.heilmittelUid);
+    if (!mounted) return;
+    final list = ((r['rechnungen'] as List?) ?? []).cast<Map<String, dynamic>>();
+    setState(() { _rechnungen = list; _loading = false; });
+  }
+
+  Future<void> _uploadDialog() async {
+    if (widget.heilmittelUid.isEmpty) return;
+    final betragC = TextEditingController();
+    final rdC = TextEditingController(text: DateFormat('dd.MM.yyyy').format(DateTime.now()));
+    final bezahltAmC = TextEditingController();
+    final notizC = TextEditingController();
+    String zahlungsmethode = 'ueberweisung';
+    bool bezahlt = false;
+    PlatformFile? pickedFile;
+
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.receipt, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Rechnung hinzufügen', style: TextStyle(fontSize: 15))]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: rdC, readOnly: true, decoration: InputDecoration(labelText: 'Rechnungsdatum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de')); if (d != null) rdC.text = DateFormat('dd.MM.yyyy').format(d); }),
+        const SizedBox(height: 8),
+        TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Betrag €', isDense: true, prefixIcon: const Icon(Icons.euro, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: Text(bezahlt ? 'Bezahlt' : 'Noch nicht bezahlt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: bezahlt ? Colors.green.shade700 : Colors.orange.shade700)),
+          value: bezahlt,
+          activeThumbColor: Colors.green,
+          onChanged: (v) => setDlg(() {
+            bezahlt = v;
+            if (v && bezahltAmC.text.isEmpty) bezahltAmC.text = DateFormat('dd.MM.yyyy').format(DateTime.now());
+            if (!v) bezahltAmC.text = '';
+          }),
+        ),
+        if (bezahlt) ...[
+          const SizedBox(height: 6),
+          TextField(controller: bezahltAmC, readOnly: true, decoration: InputDecoration(labelText: 'Bezahlt am', isDense: true, prefixIcon: const Icon(Icons.event_available, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de')); if (d != null) bezahltAmC.text = DateFormat('dd.MM.yyyy').format(d); }),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: zahlungsmethode,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: 'Zahlungsmethode', isDense: true, prefixIcon: const Icon(Icons.payments, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: const [
+              DropdownMenuItem(value: 'ueberweisung', child: Text('Überweisung', style: TextStyle(fontSize: 12))),
+              DropdownMenuItem(value: 'lastschrift', child: Text('SEPA-Lastschrift', style: TextStyle(fontSize: 12))),
+              DropdownMenuItem(value: 'bar', child: Text('Bar', style: TextStyle(fontSize: 12))),
+              DropdownMenuItem(value: 'karte', child: Text('Karte (EC/Kredit)', style: TextStyle(fontSize: 12))),
+              DropdownMenuItem(value: 'krankenkasse', child: Text('Krankenkasse direkt', style: TextStyle(fontSize: 12))),
+            ],
+            onChanged: (v) => setDlg(() => zahlungsmethode = v ?? zahlungsmethode),
+          ),
+        ],
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp']);
+            if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
+              setDlg(() => pickedFile = r.files.first);
+            }
+          },
+          icon: Icon(pickedFile == null ? Icons.attach_file : Icons.check_circle, color: pickedFile == null ? null : Colors.green),
+          label: Text(pickedFile?.name ?? 'Datei auswählen (PDF/JPG)', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+        ),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: pickedFile == null ? null : () async {
+          Navigator.pop(ctx);
+          final res = await widget.apiService.uploadHeilmittelRechnung(
+            userId: widget.userId, heilmittelUid: widget.heilmittelUid,
+            filePath: pickedFile!.path!, fileName: pickedFile!.name,
+            betrag: betragC.text, rechnungsdatum: rdC.text,
+            bezahlt: bezahlt, bezahltAm: bezahltAmC.text,
+            zahlungsmethode: bezahlt ? zahlungsmethode : null, notiz: notizC.text,
+          );
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(res['success'] == true ? 'Rechnung hochgeladen' : (res['message']?.toString() ?? 'Fehler')),
+            backgroundColor: res['success'] == true ? Colors.green.shade700 : Colors.red.shade600,
+          ));
+          await _load();
+        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hochladen')),
+      ],
+    )));
+  }
+
+  Future<void> _togglePaid(Map<String, dynamic> r) async {
+    final newPaid = !(r['bezahlt'] == true);
+    final today = DateFormat('dd.MM.yyyy').format(DateTime.now());
+    await widget.apiService.updateHeilmittelRechnungMeta(
+      userId: widget.userId,
+      rechnungId: r['id'] as int,
+      meta: {
+        'betrag': r['betrag'] ?? '',
+        'rechnungsdatum': r['rechnungsdatum'] ?? '',
+        'bezahlt': newPaid,
+        'bezahlt_am': newPaid ? (r['bezahlt_am']?.toString().isNotEmpty == true ? r['bezahlt_am'] : today) : '',
+        'zahlungsmethode': r['zahlungsmethode'] ?? '',
+        'notiz': r['notiz'] ?? '',
+      },
+    );
+    await _load();
+  }
+
+  Future<void> _view(Map<String, dynamic> r) async {
+    try {
+      final resp = await widget.apiService.downloadHeilmittelRechnung(userId: widget.userId, rechnungId: r['id'] as int);
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      if (!mounted) return;
+      await FileViewerDialog.showFromBytes(context, resp.bodyBytes, r['filename']?.toString() ?? 'rechnung');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $e')));
+    }
+  }
+
+  Future<void> _delete(Map<String, dynamic> r) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Rechnung löschen?', style: TextStyle(fontSize: 15)),
+      content: Text(r['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Löschen')),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteHeilmittelRechnung(userId: widget.userId, rechnungId: r['id'] as int);
+    await _load();
+  }
+
+  String _fmtSize(int b) {
+    if (b < 1024) return '$b B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(1)} KB';
+    return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.heilmittelUid.isEmpty) {
+      return Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Bitte zuerst speichern, damit Rechnungen verknüpft werden können.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500))));
+    }
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.receipt, size: 20, color: Colors.teal.shade700),
+        const SizedBox(width: 8),
+        Text('Rechnungen${_rechnungen.isEmpty ? '' : ' (${_rechnungen.length})'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(
+          onPressed: _uploadDialog,
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Hinzufügen', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+        ),
+      ])),
+      Expanded(child: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : _rechnungen.isEmpty
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300),
+              const SizedBox(height: 6),
+              Text('Noch keine Rechnungen', style: TextStyle(color: Colors.grey.shade500, fontStyle: FontStyle.italic, fontSize: 12)),
+            ]))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _rechnungen.length, itemBuilder: (ctx, i) {
+              final r = _rechnungen[i];
+              final paid = r['bezahlt'] == true;
+              final mime = (r['mime_type'] ?? '').toString();
+              return Card(margin: const EdgeInsets.only(bottom: 6), child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, size: 20, color: Colors.teal.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(r['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: paid ? Colors.green.shade100 : Colors.orange.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(paid ? Icons.check_circle : Icons.schedule, size: 11, color: paid ? Colors.green.shade800 : Colors.orange.shade800),
+                        const SizedBox(width: 3),
+                        Text(paid ? 'Bezahlt' : 'Offen', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: paid ? Colors.green.shade800 : Colors.orange.shade800)),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    if ((r['betrag']?.toString() ?? '').isNotEmpty) ...[
+                      Icon(Icons.euro, size: 13, color: Colors.grey.shade700),
+                      const SizedBox(width: 2),
+                      Text('${r['betrag']} €', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 12),
+                    ],
+                    if ((r['rechnungsdatum']?.toString() ?? '').isNotEmpty) ...[
+                      Icon(Icons.calendar_today, size: 11, color: Colors.grey.shade600),
+                      const SizedBox(width: 2),
+                      Text(r['rechnungsdatum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      const SizedBox(width: 12),
+                    ],
+                    Text(_fmtSize(r['file_size'] as int), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                  ]),
+                  if (paid && (r['bezahlt_am']?.toString() ?? '').isNotEmpty) Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(children: [
+                      Icon(Icons.event_available, size: 11, color: Colors.green.shade700),
+                      const SizedBox(width: 4),
+                      Text('Bezahlt am ${r['bezahlt_am']}', style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+                      if ((r['zahlungsmethode']?.toString() ?? '').isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                          child: Text(r['zahlungsmethode'].toString(), style: TextStyle(fontSize: 9, color: Colors.green.shade800))),
+                      ],
+                    ]),
+                  ),
+                  if ((r['notiz']?.toString() ?? '').isNotEmpty) Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(r['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _togglePaid(r),
+                      icon: Icon(paid ? Icons.undo : Icons.check, size: 13, color: paid ? Colors.orange.shade700 : Colors.green.shade700),
+                      label: Text(paid ? 'Als offen markieren' : 'Als bezahlt markieren', style: TextStyle(fontSize: 11, color: paid ? Colors.orange.shade700 : Colors.green.shade700)),
+                      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, side: BorderSide(color: paid ? Colors.orange.shade300 : Colors.green.shade300)),
+                    ),
+                    const Spacer(),
+                    IconButton(icon: Icon(Icons.visibility, size: 16, color: Colors.blue.shade700), tooltip: 'Öffnen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _view(r)),
+                    IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(r)),
+                  ]),
+                ]),
+              ));
+            }),
       ),
     ]);
   }
