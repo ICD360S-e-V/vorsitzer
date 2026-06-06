@@ -6686,4 +6686,14 @@ class ApiService {
     ).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
+
+  // === JOBCENTER ARBEITSVERMITTLER (pool + per-user link + einladungen + termine) ===
+  Future<Map<String, dynamic>> jobcenterAvAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
 }

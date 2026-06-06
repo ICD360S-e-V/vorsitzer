@@ -2136,8 +2136,14 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     if (!mounted) return;
     setState(() => _generating = false);
     final ok = res['success'] == true;
+    final tLang = (res['translation_language'] ?? '').toString();
+    final msg = ok
+        ? (tLang.isNotEmpty
+            ? 'Vollmacht erstellt (ID ${res['id']}) — DE + Übersetzung ${tLang.toUpperCase()}'
+            : 'Vollmacht erstellt (ID ${res['id']}) — nur DE')
+        : (res['message'] ?? 'Fehler');
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Vollmacht erstellt (ID ${res['id']})' : (res['message'] ?? 'Fehler')),
+      content: Text(msg),
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
     if (ok) _loadAll();
@@ -2337,22 +2343,45 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
           'active' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, 'expired' => Colors.grey, _ => Colors.grey,
         };
         final filename = (v['pdf_filename'] ?? 'vollmacht_${v['id']}.pdf').toString();
+        final tLang = (v['translation_language'] ?? '').toString();
+        final tFile = (v['pdf_translation_filename'] ?? '').toString();
+        final hasTrans = tLang.isNotEmpty && tFile.isNotEmpty;
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: Icon(Icons.picture_as_pdf, color: color),
-            title: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Row(children: [
+              Expanded(child: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold))),
+              if (hasTrans) Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
+                child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              ),
+            ]),
             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Erstellt: ${v['generated_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
               Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11)),
               if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
-              const SizedBox(height: 2),
-              const Text('Tippen zum Öffnen', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+              const SizedBox(height: 4),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.picture_as_pdf, size: 14),
+                  label: const Text('DE (Original)', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _openPdf(v['id'], filename),
+                ),
+                if (hasTrans) OutlinedButton.icon(
+                  icon: const Icon(Icons.translate, size: 14),
+                  label: Text('Übersetzung ${tLang.toUpperCase()}', style: const TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap, foregroundColor: Colors.amber.shade900, side: BorderSide(color: Colors.amber.shade700)),
+                  onPressed: () => _openPdf(v['id'], tFile, type: 'translation'),
+                ),
+              ]),
             ]),
             trailing: status != 'revoked'
                 ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(v['id']))
                 : null,
-            onTap: () => _openPdf(v['id'], filename),
           ),
         );
       },

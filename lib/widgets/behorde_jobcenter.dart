@@ -1226,7 +1226,7 @@ class _JobcenterStammdatenFieldsTabState extends State<_JobcenterStammdatenField
   }
 }
 
-// ==================== TAB 4: Arbeitsvermittler (readonly) ====================
+// ==================== TAB 4: Arbeitsvermittler (multi-AV, pool per JC) ====================
 
 class _JobcenterArbeitsvermittlerTab extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -1238,51 +1238,323 @@ class _JobcenterArbeitsvermittlerTab extends StatefulWidget {
   State<_JobcenterArbeitsvermittlerTab> createState() => _JobcenterArbeitsvermittlerTabState();
 }
 class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermittlerTab> {
-  late TextEditingController _vornameC, _nameC, _telefonC, _emailC, _zimmerC;
-  bool _editing = false, _saving = false;
+  List<Map<String, dynamic>> _avList = [];
+  bool _loading = true;
+
+  String get _selectedJcName => (widget.data['stammdaten.selected_amt_name'] ?? '').toString().trim();
+  String get _selectedJcOrt  => (widget.data['stammdaten.selected_amt_ort']  ?? '').toString().trim();
+
   @override
-  void initState() {
-    super.initState();
-    _vornameC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_vorname'] ?? '');
-    _nameC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler'] ?? '');
-    _telefonC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_tel'] ?? '');
-    _emailC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_email'] ?? '');
-    _zimmerC = TextEditingController(text: widget.data['stammdaten.arbeitsvermittler_zimmer'] ?? '');
-  }
-  @override
-  void dispose() { _vornameC.dispose(); _nameC.dispose(); _telefonC.dispose(); _emailC.dispose(); _zimmerC.dispose(); super.dispose(); }
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    await widget.onSave({
-      'stammdaten.arbeitsvermittler_vorname': _vornameC.text.trim(), 'stammdaten.arbeitsvermittler': _nameC.text.trim(),
-      'stammdaten.arbeitsvermittler_tel': _telefonC.text.trim(), 'stammdaten.arbeitsvermittler_email': _emailC.text.trim(),
-      'stammdaten.arbeitsvermittler_zimmer': _zimmerC.text.trim(),
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_user_av', 'user_id': widget.userId});
+    if (!mounted) return;
+    setState(() {
+      _avList = List<Map<String, dynamic>>.from(res['av_list'] ?? []);
+      _loading = false;
     });
-    if (mounted) { setState(() { _saving = false; _editing = false; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
   }
-  Widget _f(String label, TextEditingController c, IconData icon) =>
-    Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: c, readOnly: !_editing, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)));
+
+  Future<void> _openAddDialog() async {
+    final addedId = await showDialog<int>(
+      context: context,
+      builder: (_) => _AddAvDialog(
+        apiService: widget.apiService,
+        userId: widget.userId,
+        jobcenterName: _selectedJcName,
+        jobcenterOrt: _selectedJcOrt,
+        existingPersonalIds: _avList.map((e) => e['personal_id'] as int).toSet(),
+      ),
+    );
+    if (addedId != null) _load();
+  }
+
+  Future<void> _openAvModal(Map<String, dynamic> av) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _AvDetailModal(apiService: widget.apiService, userId: widget.userId, userAv: av),
+    );
+    if (changed == true) _load();
+  }
+
+  Future<void> _unassign(int userAvId) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Arbeitsvermittler entfernen?'),
+      content: const Text('Die Zuordnung wird gelöscht. Termine und Einladungen bleiben in der Historie. Der Mitarbeiter bleibt im Pool des Jobcenters.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Entfernen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jobcenterAvAction({'action': 'unassign_user_av', 'user_av_id': userAvId});
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.support_agent, size: 22, color: Colors.teal.shade700),
-        const SizedBox(width: 8),
-        Text('Arbeitsvermittler / pAp', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-        const Spacer(),
-        TextButton.icon(icon: Icon(_editing ? Icons.lock : Icons.edit, size: 16), label: Text(_editing ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)), onPressed: () => setState(() => _editing = !_editing)),
-      ]),
-      const SizedBox(height: 16),
-      Row(children: [Expanded(child: _f('Vorname', _vornameC, Icons.person)), const SizedBox(width: 12), Expanded(child: _f('Nachname', _nameC, Icons.person))]),
-      _f('Telefon / Durchwahl', _telefonC, Icons.phone),
-      _f('E-Mail', _emailC, Icons.email),
-      _f('Zimmernummer', _zimmerC, Icons.meeting_room),
-      if (_editing) ...[const SizedBox(height: 8), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: _saving ? null : _save,
-        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)))],
-    ]));
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(color: Colors.teal.shade50, border: Border(bottom: BorderSide(color: Colors.teal.shade200))),
+        child: Row(children: [
+          Icon(Icons.support_agent, size: 20, color: Colors.teal.shade800),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Zuständige Arbeitsvermittler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+            if (_selectedJcName.isNotEmpty) Text('@ $_selectedJcName${_selectedJcOrt.isNotEmpty ? " — $_selectedJcOrt" : ""}', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
+          ])),
+          ElevatedButton.icon(
+            onPressed: _openAddDialog,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neuer Arbeitsvermittler', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+          ),
+        ]),
+      ),
+      Expanded(child: _avList.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.person_off, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text('Noch kein Arbeitsvermittler zugeordnet', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              if (_selectedJcName.isEmpty) Text('Erst Zuständiges Jobcenter setzen', style: TextStyle(fontSize: 11, color: Colors.orange.shade700))
+              else TextButton.icon(onPressed: _openAddDialog, icon: const Icon(Icons.add, size: 14), label: const Text('Hinzufügen', style: TextStyle(fontSize: 12))),
+            ]))
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: _avList.length,
+              itemBuilder: (_, i) {
+                final av = _avList[i];
+                final pos = av['position'] as int? ?? (i + 1);
+                final rolle = (av['rolle'] ?? 'sonstige').toString();
+                final termCount = av['termine_count'] as int? ?? 0;
+                final einlCount = av['einladungen_count'] as int? ?? 0;
+                final tel = (av['telefon'] ?? '').toString();
+                final email = (av['email'] ?? '').toString();
+                final zimmer = (av['zimmer'] ?? '').toString();
+                final jcCached = (av['jobcenter_name'] ?? '').toString();
+                final seit = (av['zustaendig_seit'] ?? '').toString();
+                final bis  = (av['zustaendig_bis']  ?? '').toString();
+                final aktiv = bis.isEmpty;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  elevation: 2,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () => _openAvModal(av),
+                    child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: BorderRadius.circular(10)),
+                          child: Text('$pos.', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
+                          child: Text(aktiv ? 'Aktiv' : 'Inaktiv', style: TextStyle(fontSize: 10, color: aktiv ? Colors.green.shade900 : Colors.grey.shade700)),
+                        ),
+                        IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), tooltip: 'Zuordnung entfernen', onPressed: () => _unassign(av['id'])),
+                      ]),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+                        child: Text(rolle, style: TextStyle(fontSize: 11, color: Colors.indigo.shade800, fontWeight: FontWeight.w600)),
+                      ),
+                      if (jcCached.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                        Icon(Icons.business, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4),
+                        Expanded(child: Text(jcCached, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+                      ])),
+                      if (tel.isNotEmpty || email.isNotEmpty || zimmer.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [
+                        if (tel.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.phone, size: 11), const SizedBox(width: 2), Text(tel, style: const TextStyle(fontSize: 11))]),
+                        if (email.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.email, size: 11), const SizedBox(width: 2), Text(email, style: const TextStyle(fontSize: 11))]),
+                        if (zimmer.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.meeting_room, size: 11), const SizedBox(width: 2), Text('Zi. $zimmer', style: const TextStyle(fontSize: 11))]),
+                      ])),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        Icon(Icons.mail_outline, size: 14, color: Colors.orange.shade700), const SizedBox(width: 3),
+                        Text('$einlCount Einladungen', style: const TextStyle(fontSize: 11)),
+                        const SizedBox(width: 12),
+                        Icon(Icons.event, size: 14, color: Colors.indigo.shade700), const SizedBox(width: 3),
+                        Text('$termCount Termine', style: const TextStyle(fontSize: 11)),
+                        const Spacer(),
+                        if (seit.isNotEmpty) Text('seit $seit', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      ]),
+                      const SizedBox(height: 4),
+                      const Text('Tippen zum Öffnen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+                    ])),
+                  ),
+                );
+              },
+            )),
+    ]);
   }
+}
+
+// ==================== Add AV dialog (pick from pool or create new) ====================
+
+class _AddAvDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String jobcenterName;
+  final String jobcenterOrt;
+  final Set<int> existingPersonalIds;
+  const _AddAvDialog({required this.apiService, required this.userId, required this.jobcenterName, required this.jobcenterOrt, required this.existingPersonalIds});
+  @override
+  State<_AddAvDialog> createState() => _AddAvDialogState();
+}
+
+class _AddAvDialogState extends State<_AddAvDialog> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  List<Map<String, dynamic>> _pool = [];
+  bool _loadingPool = true;
+
+  // New AV form
+  final _vornameC = TextEditingController();
+  final _nachnameC = TextEditingController();
+  final _telC = TextEditingController();
+  final _emC = TextEditingController();
+  final _ziC = TextEditingController();
+  String _rolle = 'pAp';
+  bool _saving = false;
+
+  static const _rollen = ['pAp', 'SB_Leistung', 'Fallmanager', 'SB_Reha', 'Berufsberater', 'Teamleiter', 'Eingangszone', 'sonstige'];
+
+  @override
+  void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _loadPool(); }
+  @override
+  void dispose() { _tab.dispose(); _vornameC.dispose(); _nachnameC.dispose(); _telC.dispose(); _emC.dispose(); _ziC.dispose(); super.dispose(); }
+
+  Future<void> _loadPool() async {
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_personal', 'jobcenter_name': widget.jobcenterName});
+    if (!mounted) return;
+    setState(() {
+      _pool = List<Map<String, dynamic>>.from(res['personal'] ?? []);
+      _loadingPool = false;
+    });
+  }
+
+  Future<void> _assign(int personalId) async {
+    setState(() => _saving = true);
+    final res = await widget.apiService.jobcenterAvAction({
+      'action': 'assign_user_av', 'user_id': widget.userId, 'personal_id': personalId,
+      'zustaendig_seit': DateTime.now().toIso8601String().substring(0, 10),
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) Navigator.pop(context, res['user_av_id'] as int?);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  Future<void> _createAndAssign() async {
+    if (_vornameC.text.trim().isEmpty && _nachnameC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name erforderlich'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _saving = true);
+    final createRes = await widget.apiService.jobcenterAvAction({
+      'action': 'create_personal',
+      'personal': {
+        'jobcenter_name': widget.jobcenterName,
+        'jobcenter_ort': widget.jobcenterOrt,
+        'vorname': _vornameC.text.trim(),
+        'nachname': _nachnameC.text.trim(),
+        'rolle': _rolle,
+        'telefon': _telC.text.trim(),
+        'email': _emC.text.trim(),
+        'zimmer': _ziC.text.trim(),
+      },
+    });
+    if (!mounted) return;
+    if (createRes['success'] != true) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(createRes['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+      return;
+    }
+    final personalId = createRes['id'] as int;
+    await _assign(personalId);
+  }
+
+  Widget _poolList() {
+    if (_loadingPool) return const Center(child: CircularProgressIndicator());
+    final filtered = _pool.where((p) => !widget.existingPersonalIds.contains(p['id'])).toList();
+    if (filtered.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.person_search, size: 48, color: Colors.grey.shade400),
+      const SizedBox(height: 12),
+      Text(widget.jobcenterName.isEmpty ? 'Bitte erst Jobcenter wählen' : 'Noch keine Mitarbeiter im Pool für ${widget.jobcenterName}', style: TextStyle(color: Colors.grey.shade600), textAlign: TextAlign.center),
+      const SizedBox(height: 8),
+      const Text('→ Tab "Neu anlegen" verwenden', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+    ])));
+    return ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
+      final p = filtered[i];
+      return ListTile(
+        dense: true,
+        leading: CircleAvatar(backgroundColor: Colors.teal.shade100, child: Text(((p['vorname'] ?? '?') as String).isNotEmpty ? (p['vorname'] as String)[0] : '?', style: TextStyle(color: Colors.teal.shade900, fontSize: 14))),
+        title: Text('${p['vorname'] ?? ''} ${p['nachname'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text('${p['rolle'] ?? ''}${p['zimmer'] != null && (p['zimmer'] as String).isNotEmpty ? " • Zi. ${p['zimmer']}" : ""}'),
+        trailing: ElevatedButton(
+          onPressed: _saving ? null : () => _assign(p['id']),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
+          child: const Text('Zuordnen', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    });
+  }
+
+  Widget _newForm() => SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
+    Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.amber.shade200)), child: Row(children: [
+      Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800), const SizedBox(width: 6),
+      Expanded(child: Text('Wird im Pool des Jobcenters ${widget.jobcenterName.isEmpty ? "(?)" : widget.jobcenterName} angelegt und allen Mitgliedern dort sichtbar.', style: const TextStyle(fontSize: 11))),
+    ])),
+    const SizedBox(height: 12),
+    Row(children: [
+      Expanded(child: TextField(controller: _vornameC, decoration: const InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder()))),
+      const SizedBox(width: 8),
+      Expanded(child: TextField(controller: _nachnameC, decoration: const InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder()))),
+    ]),
+    const SizedBox(height: 10),
+    DropdownButtonFormField<String>(
+      initialValue: _rolle,
+      decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
+      items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+      onChanged: (v) => setState(() => _rolle = v ?? 'sonstige'),
+    ),
+    const SizedBox(height: 10),
+    TextField(controller: _telC, decoration: const InputDecoration(labelText: 'Telefon / Durchwahl', isDense: true, border: OutlineInputBorder())),
+    const SizedBox(height: 10),
+    TextField(controller: _emC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder())),
+    const SizedBox(height: 10),
+    TextField(controller: _ziC, decoration: const InputDecoration(labelText: 'Zimmer', isDense: true, border: OutlineInputBorder())),
+    const SizedBox(height: 16),
+    Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+      onPressed: _saving ? null : _createAndAssign,
+      icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add, size: 16),
+      label: const Text('Anlegen + Zuordnen'),
+      style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+    )),
+  ]));
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.all(24),
+    child: SizedBox(width: 600, height: 520, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+        const Icon(Icons.person_add, color: Colors.white), const SizedBox(width: 8),
+        const Expanded(child: Text('Arbeitsvermittler hinzufügen', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+      ])),
+      TabBar(controller: _tab, labelColor: Colors.teal, tabs: const [Tab(icon: Icon(Icons.group, size: 18), text: 'Aus Pool wählen'), Tab(icon: Icon(Icons.person_add, size: 18), text: 'Neu anlegen')]),
+      Expanded(child: TabBarView(controller: _tab, children: [_poolList(), _newForm()])),
+    ])),
+  );
 }
 
 // ===== KORRESPONDENZ DETAIL MODAL (Details + Antwort) =====
@@ -1716,8 +1988,14 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
     if (!mounted) return;
     setState(() => _generating = false);
     final ok = res['success'] == true;
+    final tLang = (res['translation_language'] ?? '').toString();
+    final msg = ok
+        ? (tLang.isNotEmpty
+            ? 'Vollmacht erstellt (ID ${res['id']}) — DE + Übersetzung ${tLang.toUpperCase()}'
+            : 'Vollmacht erstellt (ID ${res['id']}) — nur DE')
+        : (res['message'] ?? 'Fehler');
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Vollmacht erstellt (ID ${res['id']})' : (res['message'] ?? 'Fehler')),
+      content: Text(msg),
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
     if (ok) _loadAll();
@@ -1917,22 +2195,45 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
           'active' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, 'expired' => Colors.grey, _ => Colors.grey,
         };
         final filename = (v['pdf_filename'] ?? 'vollmacht_${v['id']}.pdf').toString();
+        final tLang = (v['translation_language'] ?? '').toString();
+        final tFile = (v['pdf_translation_filename'] ?? '').toString();
+        final hasTrans = tLang.isNotEmpty && tFile.isNotEmpty;
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: Icon(Icons.picture_as_pdf, color: color),
-            title: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Row(children: [
+              Expanded(child: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold))),
+              if (hasTrans) Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
+                child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              ),
+            ]),
             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Erstellt: ${v['generated_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
               Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11)),
               if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
-              const SizedBox(height: 2),
-              const Text('Tippen zum Öffnen', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+              const SizedBox(height: 4),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.picture_as_pdf, size: 14),
+                  label: const Text('DE (Original)', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _openPdf(v['id'], filename),
+                ),
+                if (hasTrans) OutlinedButton.icon(
+                  icon: const Icon(Icons.translate, size: 14),
+                  label: Text('Übersetzung ${tLang.toUpperCase()}', style: const TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap, foregroundColor: Colors.amber.shade900, side: BorderSide(color: Colors.amber.shade700)),
+                  onPressed: () => _openPdf(v['id'], tFile, type: 'translation'),
+                ),
+              ]),
             ]),
             trailing: status != 'revoked'
                 ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(v['id']))
                 : null,
-            onTap: () => _openPdf(v['id'], filename),
           ),
         );
       },
@@ -2725,4 +3026,649 @@ class _BetriebskostenBriefGeneratorTabState extends State<_BetriebskostenBriefGe
       ]),
     );
   }
+}
+
+// ==================== AV Detail Modal (Details / Einladung / Termin) ====================
+
+class _AvDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final Map<String, dynamic> userAv;
+  const _AvDetailModal({required this.apiService, required this.userId, required this.userAv});
+  @override
+  State<_AvDetailModal> createState() => _AvDetailModalState();
+}
+
+class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  List<Map<String, dynamic>> _einladungen = [];
+  List<Map<String, dynamic>> _termine = [];
+  bool _loadingEinl = true, _loadingTerm = true;
+  bool _changed = false;
+
+  int get _userAvId => widget.userAv['id'] as int;
+  int get _personalId => widget.userAv['personal_id'] as int;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this);
+    _loadEinladungen();
+    _loadTermine();
+  }
+
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
+  Future<void> _loadEinladungen() async {
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_einladungen', 'user_av_id': _userAvId});
+    if (!mounted) return;
+    setState(() { _einladungen = List<Map<String, dynamic>>.from(res['einladungen'] ?? []); _loadingEinl = false; });
+  }
+
+  Future<void> _loadTermine() async {
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_termine', 'user_av_id': _userAvId});
+    if (!mounted) return;
+    setState(() { _termine = List<Map<String, dynamic>>.from(res['termine'] ?? []); _loadingTerm = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final av = widget.userAv;
+    final name = '${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim();
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: SizedBox(width: 720, height: 600, child: Column(children: [
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+          child: Row(children: [
+            const Icon(Icons.support_agent, color: Colors.white), const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              Text('${av['rolle'] ?? ""} @ ${av['jobcenter_name'] ?? "?"}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            ])),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
+          ])),
+        TabBar(controller: _tab, labelColor: Colors.teal, tabs: const [
+          Tab(icon: Icon(Icons.info, size: 18), text: 'Details'),
+          Tab(icon: Icon(Icons.mail, size: 18), text: 'Einladung'),
+          Tab(icon: Icon(Icons.event, size: 18), text: 'Termin'),
+        ]),
+        Expanded(child: TabBarView(controller: _tab, children: [
+          _AvDetailsTab(apiService: widget.apiService, personal: av, userAv: av, onChanged: () { _changed = true; }),
+          _AvEinladungenTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, loading: _loadingEinl, onChanged: () { _changed = true; _loadEinladungen(); }),
+          _AvTermineTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, termine: _termine, loading: _loadingTerm, onChanged: () { _changed = true; _loadTermine(); }),
+        ])),
+      ])),
+    );
+  }
+}
+
+class _AvDetailsTab extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> personal;
+  final Map<String, dynamic> userAv;
+  final VoidCallback onChanged;
+  const _AvDetailsTab({required this.apiService, required this.personal, required this.userAv, required this.onChanged});
+  @override State<_AvDetailsTab> createState() => _AvDetailsTabState();
+}
+class _AvDetailsTabState extends State<_AvDetailsTab> {
+  late TextEditingController _vornameC, _nachnameC, _telC, _emC, _ziC, _notizC, _seitC, _bisC, _linkNotizC;
+  late String _rolle;
+  bool _editing = false, _saving = false;
+  static const _rollen = ['pAp','SB_Leistung','Fallmanager','SB_Reha','Berufsberater','Teamleiter','Eingangszone','sonstige'];
+
+  @override
+  void initState() {
+    super.initState();
+    _vornameC  = TextEditingController(text: widget.personal['vorname']  ?? '');
+    _nachnameC = TextEditingController(text: widget.personal['nachname'] ?? '');
+    _telC      = TextEditingController(text: widget.personal['telefon'] ?? '');
+    _emC       = TextEditingController(text: widget.personal['email']   ?? '');
+    _ziC       = TextEditingController(text: widget.personal['zimmer']  ?? '');
+    _notizC    = TextEditingController(text: widget.personal['personal_notiz']  ?? widget.personal['notiz'] ?? '');
+    _seitC     = TextEditingController(text: widget.userAv['zustaendig_seit']  ?? '');
+    _bisC      = TextEditingController(text: widget.userAv['zustaendig_bis']   ?? '');
+    _linkNotizC= TextEditingController(text: widget.userAv['link_notiz'] ?? '');
+    _rolle = (widget.personal['rolle'] ?? 'sonstige').toString();
+  }
+
+  @override
+  void dispose() { _vornameC.dispose(); _nachnameC.dispose(); _telC.dispose(); _emC.dispose(); _ziC.dispose(); _notizC.dispose(); _seitC.dispose(); _bisC.dispose(); _linkNotizC.dispose(); super.dispose(); }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final personalRes = await widget.apiService.jobcenterAvAction({
+      'action': 'update_personal', 'personal_id': widget.personal['personal_id'],
+      'personal': {
+        'vorname': _vornameC.text.trim(), 'nachname': _nachnameC.text.trim(),
+        'rolle': _rolle, 'telefon': _telC.text.trim(), 'email': _emC.text.trim(),
+        'zimmer': _ziC.text.trim(), 'notiz': _notizC.text.trim(), 'aktiv': true,
+      },
+    });
+    await widget.apiService.jobcenterAvAction({
+      'action': 'update_user_av', 'user_av_id': widget.userAv['id'],
+      'position': widget.userAv['position'] ?? 1,
+      'zustaendig_seit': _seitC.text.trim().isEmpty ? null : _seitC.text.trim(),
+      'zustaendig_bis':  _bisC.text.trim().isEmpty  ? null : _bisC.text.trim(),
+      'notiz': _linkNotizC.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() { _saving = false; _editing = false; });
+    if (personalRes['success'] == true) {
+      widget.onChanged();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600));
+    }
+  }
+
+  Widget _f(String label, TextEditingController c, {IconData? icon}) => Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(
+    controller: c, readOnly: !_editing,
+    decoration: InputDecoration(labelText: label, prefixIcon: icon != null ? Icon(icon, size: 18) : null, isDense: true, border: const OutlineInputBorder(), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
+  ));
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Row(children: [
+      Expanded(child: Text('Stammdaten (Pool)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+      TextButton.icon(icon: Icon(_editing ? Icons.lock : Icons.edit, size: 14), label: Text(_editing ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)), onPressed: () => setState(() => _editing = !_editing)),
+    ]),
+    const SizedBox(height: 8),
+    Row(children: [Expanded(child: _f('Vorname', _vornameC, icon: Icons.person)), const SizedBox(width: 8), Expanded(child: _f('Nachname', _nachnameC, icon: Icons.person))]),
+    DropdownButtonFormField<String>(
+      initialValue: _rolle,
+      decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
+      items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+      onChanged: _editing ? (v) => setState(() => _rolle = v ?? 'sonstige') : null,
+    ),
+    const SizedBox(height: 10),
+    _f('Telefon / Durchwahl', _telC, icon: Icons.phone),
+    _f('E-Mail', _emC, icon: Icons.email),
+    _f('Zimmernummer', _ziC, icon: Icons.meeting_room),
+    _f('Notiz (Pool — für alle Mitglieder sichtbar)', _notizC, icon: Icons.note),
+    const Divider(height: 24),
+    Text('Zuordnung zu diesem Mitglied', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+    const SizedBox(height: 8),
+    Row(children: [Expanded(child: _f('Zuständig seit (YYYY-MM-DD)', _seitC, icon: Icons.calendar_today)), const SizedBox(width: 8), Expanded(child: _f('Zuständig bis (YYYY-MM-DD, leer=aktiv)', _bisC, icon: Icons.event_busy))]),
+    _f('Private Notiz (nur dieses Mitglied)', _linkNotizC, icon: Icons.note_alt),
+    if (_editing) ...[const SizedBox(height: 12), Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+      onPressed: _saving ? null : _save,
+      icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+      label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+    ))],
+  ]));
+}
+
+class _AvEinladungenTab extends StatelessWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final List<Map<String, dynamic>> einladungen;
+  final bool loading;
+  final VoidCallback onChanged;
+  const _AvEinladungenTab({required this.apiService, required this.userId, required this.userAvId, required this.einladungen, required this.loading, required this.onChanged});
+
+  Future<void> _openDialog(BuildContext context, [Map<String, dynamic>? existing]) async {
+    final changed = await showDialog<bool>(context: context, builder: (_) => _EinladungEditDialog(apiService: apiService, userId: userId, userAvId: userAvId, existing: existing));
+    if (changed == true) onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Row(children: [
+        Expanded(child: Text('${einladungen.length} Einladung(en) von diesem Arbeitsvermittler', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(onPressed: () => _openDialog(context), icon: const Icon(Icons.add, size: 14), label: const Text('Neue Einladung'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32))),
+      ])),
+      Expanded(child: einladungen.isEmpty
+          ? Center(child: Text('Keine Einladungen', style: TextStyle(color: Colors.grey.shade500)))
+          : ListView.builder(itemCount: einladungen.length, itemBuilder: (_, i) {
+              final e = einladungen[i];
+              final dt = (e['einladung_datum_termin'] ?? '').toString();
+              final ein = (e['einladung_eingegangen_am'] ?? '').toString();
+              final versandDt = (e['versand_datum'] ?? '').toString();
+              final fingiert = (e['zugang_fingiert_am'] ?? '').toString();
+              final methode = (e['versand_methode'] ?? 'post').toString();
+              final gap = e['frist_zwischen_eingang_und_termin'];
+              const methodIcon = {'post': Icons.local_post_office, 'email': Icons.email, 'fax': Icons.fax, 'online_portal': Icons.web, 'persoenlich': Icons.person, 'sonstige': Icons.help_outline};
+              return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: InkWell(
+                onTap: () => _openDialog(context, e),
+                child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(methodIcon[methode] ?? Icons.mail, size: 16, color: Colors.orange.shade700),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(dt.isNotEmpty ? 'Termin: $dt' : 'Termin: ?', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    if ((e['mit_meldepflicht'] ?? 1) == 1) Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)), child: const Text('⚠ Meldepflicht', style: TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold))),
+                  ]),
+                  const SizedBox(height: 4),
+                  if (versandDt.isNotEmpty || fingiert.isNotEmpty || ein.isNotEmpty) Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (versandDt.isNotEmpty) Row(children: [const Icon(Icons.send, size: 11, color: Colors.orange), const SizedBox(width: 3), Text('Versand: $versandDt', style: const TextStyle(fontSize: 10))]),
+                      if (fingiert.isNotEmpty) Row(children: [const Icon(Icons.gavel, size: 11, color: Colors.blue), const SizedBox(width: 3), Text('Zugangsfiktion: $fingiert (§ 37 SGB X)', style: const TextStyle(fontSize: 10, color: Colors.blue))]),
+                      if (ein.isNotEmpty) Row(children: [const Icon(Icons.mark_email_read, size: 11, color: Colors.green), const SizedBox(width: 3), Text('Eingegangen: $ein', style: const TextStyle(fontSize: 10, color: Colors.green))]),
+                      if (gap != null) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+                        Icon((gap as int) < 7 ? Icons.warning : Icons.check_circle, size: 11, color: gap < 7 ? Colors.red : Colors.green),
+                        const SizedBox(width: 3),
+                        Text(gap < 0 ? 'Termin vergangen ($gap Tage)' : gap < 7 ? 'Nur $gap Tage Frist (< 7 BSG-Min.)' : '$gap Tage Frist (OK)', style: TextStyle(fontSize: 10, color: gap < 7 ? Colors.red : Colors.green, fontWeight: FontWeight.bold)),
+                      ])),
+                    ]),
+                  ),
+                  if ((e['thema'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Thema: ${e['thema']}', style: const TextStyle(fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                ])),
+              ));
+            })),
+    ]);
+  }
+}
+
+class _EinladungEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final Map<String, dynamic>? existing;
+  const _EinladungEditDialog({required this.apiService, required this.userId, required this.userAvId, this.existing});
+  @override State<_EinladungEditDialog> createState() => _EinladungEditDialogState();
+}
+class _EinladungEditDialogState extends State<_EinladungEditDialog> {
+  late TextEditingController _versandC, _eingangC, _terminC, _themaC, _fristC, _notizC;
+  String _methode = 'post';
+  bool _meldepflicht = true, _saving = false;
+
+  static const _methoden = {
+    'post': 'Brief / Post (Zugangsfiktion +4 Tage)',
+    'email': 'E-Mail (Zugangsfiktion +4 Tage)',
+    'online_portal': 'jobcenter.digital Portal',
+    'fax': 'Fax (sofort)',
+    'persoenlich': 'Persönlich übergeben',
+    'sonstige': 'Sonstige',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? const {};
+    _versandC = TextEditingController(text: e['versand_datum']?.toString() ?? '');
+    _eingangC = TextEditingController(text: e['einladung_eingegangen_am']?.toString() ?? '');
+    _terminC  = TextEditingController(text: e['einladung_datum_termin']?.toString() ?? '');
+    _themaC   = TextEditingController(text: e['thema']?.toString() ?? '');
+    _fristC   = TextEditingController(text: e['frist_datum']?.toString() ?? '');
+    _notizC   = TextEditingController(text: e['notiz']?.toString() ?? '');
+    _meldepflicht = (e['mit_meldepflicht'] ?? 1) == 1;
+    _methode = (e['versand_methode'] ?? 'post').toString();
+  }
+  @override
+  void dispose() { _versandC.dispose(); _eingangC.dispose(); _terminC.dispose(); _themaC.dispose(); _fristC.dispose(); _notizC.dispose(); super.dispose(); }
+
+  /// Calculate Zugangsfiktion locally for preview (§ 37 Abs. 2 SGB X).
+  /// Post/Email/Portal: +4 Tage. Fax/Persoenlich: same day.
+  String? _calcFingiert() {
+    if (_versandC.text.trim().isEmpty) return null;
+    try {
+      final d = DateTime.parse(_versandC.text.trim());
+      if (_methode == 'fax' || _methode == 'persoenlich') return _versandC.text.trim();
+      return d.add(const Duration(days: 4)).toIso8601String().substring(0, 10);
+    } catch (_) { return null; }
+  }
+
+  int? _calcFristGap() {
+    if (_eingangC.text.trim().isEmpty || _terminC.text.trim().isEmpty) return null;
+    try {
+      final e = DateTime.parse(_eingangC.text.trim());
+      final t = DateTime.parse(_terminC.text.trim().substring(0, 10));
+      return t.difference(e).inDays;
+    } catch (_) { return null; }
+  }
+
+  Future<void> _pickDate(TextEditingController c, {bool withTime = false}) async {
+    final init = DateTime.tryParse(c.text.trim()) ?? DateTime.now();
+    final d = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2020), lastDate: DateTime(2099));
+    if (d == null) return;
+    if (withTime) {
+      final t = await showTimePicker(context: context, initialTime: TimeOfDay(hour: init.hour, minute: init.minute));
+      final hh = (t?.hour ?? 9).toString().padLeft(2, '0');
+      final mm = (t?.minute ?? 0).toString().padLeft(2, '0');
+      setState(() => c.text = '${d.toIso8601String().substring(0, 10)} $hh:$mm');
+    } else {
+      setState(() => c.text = d.toIso8601String().substring(0, 10));
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final body = {
+      'einladung': {
+        'versand_methode':  _methode,
+        'versand_datum':    _versandC.text.trim().isEmpty ? null : _versandC.text.trim(),
+        'eingegangen_am':   _eingangC.text.trim().isEmpty ? null : _eingangC.text.trim(),
+        'datum_termin':     _terminC.text.trim().isEmpty  ? null : _terminC.text.trim(),
+        'thema':            _themaC.text.trim(),
+        'frist_datum':      _fristC.text.trim().isEmpty   ? null : _fristC.text.trim(),
+        'mit_meldepflicht': _meldepflicht,
+        'notiz':            _notizC.text.trim(),
+      },
+    };
+    final res = widget.existing == null
+        ? await widget.apiService.jobcenterAvAction({...body, 'action': 'create_einladung', 'user_id': widget.userId, 'user_av_id': widget.userAvId})
+        : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_einladung', 'einladung_id': widget.existing!['id']});
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) Navigator.pop(context, true);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  Future<void> _delete() async {
+    if (widget.existing == null) return;
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Einladung löschen?'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jobcenterAvAction({'action': 'delete_einladung', 'einladung_id': widget.existing!['id']});
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  Widget _dateField(TextEditingController c, String label, {IconData? icon, bool withTime = false}) => TextField(
+    controller: c, readOnly: true, onTap: () => _pickDate(c, withTime: withTime),
+    decoration: InputDecoration(labelText: label, prefixIcon: icon != null ? Icon(icon, size: 18) : null, suffixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: const OutlineInputBorder()),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final fingiert = _calcFingiert();
+    final gap = _calcFristGap();
+    final eingangSpaeter = (fingiert != null && _eingangC.text.trim().isNotEmpty)
+        ? (DateTime.tryParse(_eingangC.text.trim())?.isAfter(DateTime.parse(fingiert)) ?? false)
+        : false;
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 580, height: 640, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.orange.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+        const Icon(Icons.mail, color: Colors.white), const SizedBox(width: 8),
+        Expanded(child: Text(widget.existing == null ? 'Neue Einladung' : 'Einladung bearbeiten', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+      ])),
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
+        // ── Versand ─────────────────────────────────────────────
+        Card(color: Colors.orange.shade50, child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Icon(Icons.send, size: 16, color: Colors.orange), const SizedBox(width: 6), Text('Versand', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900))]),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _methode,
+            decoration: const InputDecoration(labelText: 'Versand-Methode', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.send, size: 18)),
+            items: _methoden.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
+            onChanged: (v) => setState(() => _methode = v ?? 'post'),
+          ),
+          const SizedBox(height: 8),
+          _dateField(_versandC, 'Versand-Datum (Datum auf dem Brief)', icon: Icons.event_note),
+          if (fingiert != null) Padding(padding: const EdgeInsets.only(top: 6), child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)), child: Row(children: [
+            const Icon(Icons.gavel, size: 14, color: Colors.blue), const SizedBox(width: 4),
+            Expanded(child: Text('Zugangsfiktion: $fingiert (§ 37 Abs. 2 SGB X)', style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontWeight: FontWeight.w600))),
+          ]))),
+        ]))),
+        const SizedBox(height: 10),
+        // ── Eingang beim Mitglied ───────────────────────────────
+        Card(color: Colors.green.shade50, child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Icon(Icons.mark_email_read, size: 16, color: Colors.green), const SizedBox(width: 6), Text('Eingang beim Mitglied', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900))]),
+          const SizedBox(height: 8),
+          _dateField(_eingangC, 'Tatsächlich eingegangen am', icon: Icons.event_available),
+          if (eingangSpaeter) Padding(padding: const EdgeInsets.only(top: 6), child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.amber.shade400)), child: Row(children: const [
+            Icon(Icons.info_outline, size: 14, color: Colors.amber), SizedBox(width: 4),
+            Expanded(child: Text('Brief ist NACH der gesetzlichen Zugangsfiktion eingegangen. Beweisstück aufbewahren (Umschlag mit Poststempel) — falls später eine Sanktion wg. Versäumnis droht, kann der Spätzugang in der Anhörung / im Widerspruch gegen den Sanktionsbescheid (§§ 24, 33 SGB X i.V.m. § 37 Abs. 2 S. 3 SGB X) vorgetragen werden.', style: TextStyle(fontSize: 11, color: Colors.brown, fontWeight: FontWeight.w600))),
+          ]))),
+        ]))),
+        const SizedBox(height: 10),
+        // ── Termin ──────────────────────────────────────────────
+        Card(color: Colors.indigo.shade50, child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Icon(Icons.event, size: 16, color: Colors.indigo), const SizedBox(width: 6), Text('Termin', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade900))]),
+          const SizedBox(height: 8),
+          _dateField(_terminC, 'Termin-Datum (YYYY-MM-DD HH:MM)', icon: Icons.calendar_today, withTime: true),
+          const SizedBox(height: 8),
+          _dateField(_fristC, 'Antwort-Frist (optional)', icon: Icons.timer),
+          if (gap != null) Padding(padding: const EdgeInsets.only(top: 6), child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: gap < 7 ? Colors.amber.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: gap < 7 ? Colors.amber.shade400 : Colors.green.shade300)), child: Row(children: [
+            Icon(gap < 7 ? Icons.info_outline : Icons.check_circle, size: 14, color: gap < 7 ? Colors.amber : Colors.green), const SizedBox(width: 4),
+            Expanded(child: Text(
+              gap < 0 ? 'Termin liegt VOR dem Eingang ($gap Tage) — Daten prüfen.' :
+              gap < 1 ? 'Termin am selben Tag wie Eingang — Mitglied sollte sofort Kontakt mit Jobcenter aufnehmen (Verschiebungsantrag).' :
+              gap < 7 ? 'Nur $gap Tage zwischen Eingang und Termin (< 7 Tage). Hinweis: Bei einem späteren Sanktionsbescheid wg. Versäumnis kann die unzureichende Vorbereitungszeit (BSG-Linie 7 Tage Mindestvorlauf) als Argument im Widerspruchsverfahren gegen den Sanktionsbescheid dienen.' :
+              'OK: $gap Tage zwischen Eingang und Termin (≥7 Tage Vorlauf eingehalten).',
+              style: TextStyle(fontSize: 11, color: gap < 7 ? Colors.brown : Colors.green.shade900, fontWeight: FontWeight.w600),
+            )),
+          ]))),
+        ]))),
+        const SizedBox(height: 10),
+        TextField(controller: _themaC, decoration: const InputDecoration(labelText: 'Thema (laut Einladung)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.topic, size: 18)), maxLines: 2),
+        const SizedBox(height: 8),
+        SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Mit Meldepflicht (§ 32 SGB II)', style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text('Bei Versäumnis: 10% Sanktion (1. Mal seit 01.07.2026 ohne Sanktion)', style: TextStyle(fontSize: 11, color: Colors.red)), value: _meldepflicht, onChanged: (v) => setState(() => _meldepflicht = v)),
+        const SizedBox(height: 4),
+        TextField(controller: _notizC, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder()), maxLines: 2),
+      ]))),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+        if (widget.existing != null) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
+        const Spacer(),
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        const SizedBox(width: 8),
+        ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white), child: Text(_saving ? '...' : 'Speichern')),
+      ])),
+    ])));
+  }
+}
+
+class _AvTermineTab extends StatelessWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final List<Map<String, dynamic>> einladungen, termine;
+  final bool loading;
+  final VoidCallback onChanged;
+  const _AvTermineTab({required this.apiService, required this.userId, required this.userAvId, required this.einladungen, required this.termine, required this.loading, required this.onChanged});
+
+  Future<void> _openDialog(BuildContext context, [Map<String, dynamic>? existing]) async {
+    final changed = await showDialog<bool>(context: context, builder: (_) => _TerminEditDialog(apiService: apiService, userId: userId, userAvId: userAvId, einladungen: einladungen, existing: existing));
+    if (changed == true) onChanged();
+  }
+
+  static const _statusColors = {
+    'geplant': Colors.blue, 'durchgefuehrt': Colors.green, 'versaeumt': Colors.red,
+    'abgesagt_kunde': Colors.orange, 'abgesagt_jobcenter': Colors.purple, 'verschoben': Colors.grey,
+  };
+  static const _statusLabels = {
+    'geplant': 'Geplant', 'durchgefuehrt': 'Durchgeführt', 'versaeumt': '⚠️ Versäumt',
+    'abgesagt_kunde': 'Abgesagt v. Kunde', 'abgesagt_jobcenter': 'Abgesagt v. JC', 'verschoben': 'Verschoben',
+  };
+  static const _typLabels = {
+    'erstgespraech': 'Erstgespräch', 'folgegespraech': 'Folgegespräch', 'vermittlung': 'Vermittlung',
+    'kooperationsplan': 'Kooperationsplan (§15)', 'meldetermin': 'Meldetermin', 'anhoerung': 'Anhörung (Sanktion)',
+    'vorsprache': 'Vorsprache', 'reha': 'Reha-Beratung', 'sonstige': 'Sonstige',
+  };
+  static const _initiatorLabels = {'jobcenter': 'Jobcenter', 'kunde': 'Kunde', 'verein': 'Verein', 'sonstige': 'Sonstige'};
+  static const _initiatorIcons = {'jobcenter': Icons.business, 'kunde': Icons.person, 'verein': Icons.groups, 'sonstige': Icons.help_outline};
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Row(children: [
+        Expanded(child: Text('${termine.length} Termin(e)', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(onPressed: () => _openDialog(context), icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Termin'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32))),
+      ])),
+      Expanded(child: termine.isEmpty
+          ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade500)))
+          : ListView.builder(itemCount: termine.length, itemBuilder: (_, i) {
+              final t = termine[i];
+              final st = (t['status'] ?? 'geplant').toString();
+              final typ = (t['termin_typ'] ?? 'sonstige').toString();
+              final init = (t['initiator'] ?? 'jobcenter').toString();
+              final stColor = _statusColors[st] ?? Colors.grey;
+              return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: InkWell(
+                onTap: () => _openDialog(context, t),
+                child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(_initiatorIcons[init] ?? Icons.help_outline, size: 16, color: Colors.indigo.shade700),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(t['termin_datum']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8), border: Border.all(color: stColor)), child: Text(_statusLabels[st] ?? st, style: TextStyle(fontSize: 10, color: stColor, fontWeight: FontWeight.bold))),
+                  ]),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)), child: Text(_typLabels[typ] ?? typ, style: TextStyle(fontSize: 10, color: Colors.indigo.shade900))),
+                    const SizedBox(width: 6),
+                    Text('initiiert v. ${_initiatorLabels[init]}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  ]),
+                  if ((t['verlauf'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Verlauf: ${t['verlauf']}', style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  if ((t['sanktion_drohend'] ?? 0) == 1) Padding(padding: const EdgeInsets.only(top: 4), child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.red.shade300)), child: Row(children: [const Icon(Icons.warning, size: 12, color: Colors.red), const SizedBox(width: 4), Expanded(child: Text('Sanktion drohend${(t['sanktion_paragraf'] ?? '').toString().isNotEmpty ? " (${t['sanktion_paragraf']})" : ""}', style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)))]))),
+                ])),
+              ));
+            })),
+    ]);
+  }
+}
+
+class _TerminEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final List<Map<String, dynamic>> einladungen;
+  final Map<String, dynamic>? existing;
+  const _TerminEditDialog({required this.apiService, required this.userId, required this.userAvId, required this.einladungen, this.existing});
+  @override State<_TerminEditDialog> createState() => _TerminEditDialogState();
+}
+class _TerminEditDialogState extends State<_TerminEditDialog> {
+  late TextEditingController _datumC, _ortC, _themaC, _verlaufC, _ergebnisC, _sanktionParaC, _notizC;
+  String _typ = 'folgegespraech', _initiator = 'jobcenter', _modus = 'persoenlich', _status = 'geplant';
+  int? _einladungId;
+  bool _anwMit = true, _anwVor = false, _anwDol = false, _sanktion = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? const {};
+    _datumC = TextEditingController(text: e['termin_datum']?.toString() ?? DateTime.now().toIso8601String().substring(0, 16).replaceFirst('T', ' '));
+    _ortC = TextEditingController(text: e['ort']?.toString() ?? '');
+    _themaC = TextEditingController(text: e['thema']?.toString() ?? '');
+    _verlaufC = TextEditingController(text: e['verlauf']?.toString() ?? '');
+    _ergebnisC = TextEditingController(text: e['ergebnis']?.toString() ?? '');
+    _sanktionParaC = TextEditingController(text: e['sanktion_paragraf']?.toString() ?? '');
+    _notizC = TextEditingController(text: e['notiz']?.toString() ?? '');
+    _typ = (e['termin_typ'] ?? 'folgegespraech').toString();
+    _initiator = (e['initiator'] ?? 'jobcenter').toString();
+    _modus = (e['modus'] ?? 'persoenlich').toString();
+    _status = (e['status'] ?? 'geplant').toString();
+    _einladungId = e['einladung_id'] != null ? (e['einladung_id'] as num).toInt() : null;
+    _anwMit = (e['anwesend_mitglied'] ?? 1) == 1;
+    _anwVor = (e['anwesend_vorsitzer'] ?? 0) == 1;
+    _anwDol = (e['anwesend_dolmetscher'] ?? 0) == 1;
+    _sanktion = (e['sanktion_drohend'] ?? 0) == 1;
+  }
+  @override
+  void dispose() { _datumC.dispose(); _ortC.dispose(); _themaC.dispose(); _verlaufC.dispose(); _ergebnisC.dispose(); _sanktionParaC.dispose(); _notizC.dispose(); super.dispose(); }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final body = {
+      'termin': {
+        'einladung_id': _einladungId,
+        'termin_datum': _datumC.text.trim(),
+        'termin_typ': _typ, 'initiator': _initiator, 'modus': _modus, 'status': _status,
+        'ort': _ortC.text.trim(),
+        'anwesend_mitglied': _anwMit, 'anwesend_vorsitzer': _anwVor, 'anwesend_dolmetscher': _anwDol,
+        'thema': _themaC.text.trim(),
+        'verlauf': _verlaufC.text.trim(),
+        'ergebnis': _ergebnisC.text.trim(),
+        'sanktion_drohend': _sanktion,
+        'sanktion_paragraf': _sanktionParaC.text.trim(),
+        'notiz': _notizC.text.trim(),
+      },
+    };
+    final res = widget.existing == null
+        ? await widget.apiService.jobcenterAvAction({...body, 'action': 'create_termin', 'user_id': widget.userId, 'user_av_id': widget.userAvId})
+        : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_termin', 'termin_id': widget.existing!['id']});
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) Navigator.pop(context, true);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  Future<void> _delete() async {
+    if (widget.existing == null) return;
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Termin löschen?'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jobcenterAvAction({'action': 'delete_termin', 'termin_id': widget.existing!['id']});
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 600, height: 620, child: Column(children: [
+    Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+      const Icon(Icons.event, color: Colors.white), const SizedBox(width: 8),
+      Expanded(child: Text(widget.existing == null ? 'Neuer Termin' : 'Termin bearbeiten', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+      IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+    ])),
+    Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
+      TextField(controller: _datumC, decoration: const InputDecoration(labelText: 'Termin-Datum (YYYY-MM-DD HH:MM)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18))),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: DropdownButtonFormField<String>(initialValue: _typ, decoration: const InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder()), items: const [
+          DropdownMenuItem(value: 'erstgespraech', child: Text('Erstgespräch')), DropdownMenuItem(value: 'folgegespraech', child: Text('Folgegespräch')),
+          DropdownMenuItem(value: 'vermittlung', child: Text('Vermittlung')), DropdownMenuItem(value: 'kooperationsplan', child: Text('Kooperationsplan (§15)')),
+          DropdownMenuItem(value: 'meldetermin', child: Text('Meldetermin')), DropdownMenuItem(value: 'anhoerung', child: Text('Anhörung (Sanktion)')),
+          DropdownMenuItem(value: 'vorsprache', child: Text('Vorsprache')), DropdownMenuItem(value: 'reha', child: Text('Reha-Beratung')), DropdownMenuItem(value: 'sonstige', child: Text('Sonstige')),
+        ], onChanged: (v) => setState(() => _typ = v ?? 'folgegespraech'))),
+        const SizedBox(width: 8),
+        Expanded(child: DropdownButtonFormField<String>(initialValue: _initiator, decoration: const InputDecoration(labelText: 'Initiiert von', isDense: true, border: OutlineInputBorder()), items: const [
+          DropdownMenuItem(value: 'jobcenter', child: Text('Jobcenter')), DropdownMenuItem(value: 'kunde', child: Text('Kunde')),
+          DropdownMenuItem(value: 'verein', child: Text('Verein')), DropdownMenuItem(value: 'sonstige', child: Text('Sonstige')),
+        ], onChanged: (v) => setState(() => _initiator = v ?? 'jobcenter'))),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: DropdownButtonFormField<String>(initialValue: _modus, decoration: const InputDecoration(labelText: 'Modus', isDense: true, border: OutlineInputBorder()), items: const [
+          DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')), DropdownMenuItem(value: 'telefonisch', child: Text('Telefonisch')),
+          DropdownMenuItem(value: 'video', child: Text('Video')), DropdownMenuItem(value: 'schriftlich', child: Text('Schriftlich')),
+        ], onChanged: (v) => setState(() => _modus = v ?? 'persoenlich'))),
+        const SizedBox(width: 8),
+        Expanded(child: DropdownButtonFormField<String>(initialValue: _status, decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()), items: const [
+          DropdownMenuItem(value: 'geplant', child: Text('Geplant')), DropdownMenuItem(value: 'durchgefuehrt', child: Text('Durchgeführt')),
+          DropdownMenuItem(value: 'versaeumt', child: Text('Versäumt')), DropdownMenuItem(value: 'abgesagt_kunde', child: Text('Abgesagt v. Kunde')),
+          DropdownMenuItem(value: 'abgesagt_jobcenter', child: Text('Abgesagt v. JC')), DropdownMenuItem(value: 'verschoben', child: Text('Verschoben')),
+        ], onChanged: (v) => setState(() => _status = v ?? 'geplant'))),
+      ]),
+      const SizedBox(height: 8),
+      TextField(controller: _ortC, decoration: const InputDecoration(labelText: 'Ort (z.B. Zimmer 203 / online / telefonisch)', isDense: true, border: OutlineInputBorder())),
+      if (widget.einladungen.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int?>(initialValue: _einladungId, decoration: const InputDecoration(labelText: 'Aus Einladung (optional)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.link, size: 18)), items: [
+          const DropdownMenuItem(value: null, child: Text('— keine —')),
+          ...widget.einladungen.map((e) => DropdownMenuItem(value: e['id'] as int, child: Text('${e['einladung_datum_termin'] ?? "?"} — ${e['thema'] ?? "?"}', overflow: TextOverflow.ellipsis))),
+        ], onChanged: (v) => setState(() => _einladungId = v)),
+      ],
+      const SizedBox(height: 12),
+      Card(color: Colors.indigo.shade50, child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Anwesend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.indigo.shade800)),
+        Row(children: [
+          Expanded(child: CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, title: const Text('Mitglied', style: TextStyle(fontSize: 11)), value: _anwMit, onChanged: (v) => setState(() => _anwMit = v ?? false))),
+          Expanded(child: CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, title: const Text('Vorsitzer', style: TextStyle(fontSize: 11)), value: _anwVor, onChanged: (v) => setState(() => _anwVor = v ?? false))),
+          Expanded(child: CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, title: const Text('Dolmetscher', style: TextStyle(fontSize: 11)), value: _anwDol, onChanged: (v) => setState(() => _anwDol = v ?? false))),
+        ]),
+      ]))),
+      const SizedBox(height: 8),
+      TextField(controller: _themaC, decoration: const InputDecoration(labelText: 'Thema (was war geplant?)', isDense: true, border: OutlineInputBorder()), maxLines: 2),
+      const SizedBox(height: 8),
+      TextField(controller: _verlaufC, decoration: const InputDecoration(labelText: 'Verlauf — was ist passiert?', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.history_edu, size: 18)), maxLines: 4),
+      const SizedBox(height: 8),
+      TextField(controller: _ergebnisC, decoration: const InputDecoration(labelText: 'Ergebnis / Vereinbarungen', isDense: true, border: OutlineInputBorder()), maxLines: 3),
+      const SizedBox(height: 8),
+      if (_status == 'versaeumt') Card(color: Colors.red.shade50, child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Sanktion drohend?', style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text('§ 31a SGB II (Pflichtverletzung) / § 32 SGB II (Meldeversäumnis)', style: TextStyle(fontSize: 10)), value: _sanktion, onChanged: (v) => setState(() => _sanktion = v)),
+        if (_sanktion) TextField(controller: _sanktionParaC, decoration: const InputDecoration(labelText: 'Paragraf (z.B. § 32 SGB II)', isDense: true, border: OutlineInputBorder()), style: const TextStyle(fontSize: 12)),
+      ]))),
+      const SizedBox(height: 8),
+      TextField(controller: _notizC, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder()), maxLines: 2),
+    ]))),
+    Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+      if (widget.existing != null) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      const Spacer(),
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+      const SizedBox(width: 8),
+      ElevatedButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white)),
+    ])),
+  ])));
 }
