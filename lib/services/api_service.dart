@@ -6763,4 +6763,44 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }
+
+  /// Record a Versand (send-to-doctor) event with optional confirmation file
+  /// (fax send-report, post receipt scan, email screenshot, ...).
+  /// methode: persoenlich | fax | post | email | online | sonstige
+  Future<Map<String, dynamic>> createSchweigepflichtVersand({
+    required int schweigepflichtId,
+    required String methode,
+    String? datum, // Y-m-d H:i:s (server defaults to NOW)
+    String? faxNummer,
+    String? emailAdresse,
+    String? notiz,
+    Uint8List? confirmationBytes,
+    String? confirmationFilename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/schweigepflicht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['versand_methode']    = methode;
+    if (datum != null && datum.isNotEmpty)        req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty)     req.fields['fax_nummer']    = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty)         req.fields['notiz']         = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteSchweigepflichtVersand({required int versandId}) async {
+    return await schweigepflichtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> downloadSchweigepflichtVersandConfirmation(int versandId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/schweigepflicht_pdf.php?type=versand_confirmation&versand_id=$versandId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
 }

@@ -15266,6 +15266,256 @@ class _ManagementViewState extends State<_ManagementView> {
         Icon(Icons.info_outline, size: 14, color: Colors.grey.shade700), const SizedBox(width: 6),
         Expanded(child: Text('Keine Übersetzung erforderlich (Mitglied hat preferred_language=de oder nicht gesetzt).', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
       ])),
+      const SizedBox(height: 16),
+      _versandSection(),
     ]));
+  }
+
+  // ── Versand (sent-to-doctor tracking) ───────────────────────────────
+  List<Map<String, dynamic>> _versandList() {
+    final raw = widget.sp['versand'];
+    if (raw is List) return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    return const [];
+  }
+
+  static const _methodIcons = {
+    'persoenlich': Icons.person_pin,
+    'fax': Icons.fax,
+    'post': Icons.local_post_office,
+    'email': Icons.email,
+    'online': Icons.web,
+    'sonstige': Icons.help_outline,
+  };
+  static const _methodLabels = {
+    'persoenlich': 'Persönlich übergeben',
+    'fax': 'Fax',
+    'post': 'Post',
+    'email': 'E-Mail',
+    'online': 'Online / Portal',
+    'sonstige': 'Sonstige',
+  };
+
+  Future<void> _addVersand() async {
+    final added = await showDialog<bool>(context: context, builder: (_) => _AddVersandDialog(apiService: widget.apiService, schweigepflichtId: _id));
+    if (added == true) await widget.onRefresh();
+  }
+
+  Future<void> _deleteVersand(int versandId, String label) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Versand löschen?'),
+      content: Text(label),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.deleteSchweigepflichtVersand(versandId: versandId);
+    if (!mounted) return;
+    if (res['success'] == true) await widget.onRefresh();
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  Future<void> _openVersandConfirmation(int versandId, String filename) async {
+    final res = await widget.apiService.downloadSchweigepflichtVersandConfirmation(versandId);
+    if (!mounted) return;
+    if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, filename.isNotEmpty ? filename : 'versand_confirmation_$versandId.pdf');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${res.statusCode})'), backgroundColor: Colors.red));
+    }
+  }
+
+  Widget _versandSection() {
+    final list = _versandList();
+    return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.send, size: 18, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text('Versand an den Arzt  (${list.length})', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700))),
+      ]),
+      const SizedBox(height: 6),
+      if (list.isEmpty) Text('Noch nicht versendet', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      ...list.map((v) {
+        final vid    = (v['id'] as num).toInt();
+        final meth   = (v['methode'] ?? 'sonstige').toString();
+        final datum  = (v['datum'] ?? '').toString();
+        final fax    = (v['fax_nummer'] ?? '').toString();
+        final email  = (v['email_adresse'] ?? '').toString();
+        final notiz  = (v['notiz'] ?? '').toString();
+        final confFn = (v['confirmation_filename'] ?? '').toString();
+        final confAt = (v['confirmation_uploaded_at'] ?? '').toString();
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.deepPurple.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(_methodIcons[meth] ?? Icons.help_outline, size: 16, color: Colors.deepPurple.shade800),
+              const SizedBox(width: 6),
+              Expanded(child: Text('${_methodLabels[meth] ?? meth}  ·  ${_fmtDateTime(datum)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+              IconButton(icon: const Icon(Icons.delete, size: 16, color: Colors.red), tooltip: 'Löschen', onPressed: () => _deleteVersand(vid, _methodLabels[meth] ?? meth), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+            ]),
+            if (fax.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('Fax-Nr.: $fax', style: const TextStyle(fontSize: 11))),
+            if (email.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('E-Mail: $email', style: const TextStyle(fontSize: 11))),
+            if (notiz.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(notiz, style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic))),
+            if (confFn.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+              Icon(_fileIcon((v['confirmation_mime_type'] ?? '').toString(), confFn), size: 14, color: Colors.green),
+              const SizedBox(width: 4),
+              Expanded(child: Text(confFn, style: const TextStyle(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              if (confAt.isNotEmpty) Text(_fmtDateTime(confAt), style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+              const SizedBox(width: 4),
+              SizedBox(width: 28, height: 28, child: IconButton(icon: const Icon(Icons.visibility, size: 16), tooltip: 'Bestätigung ansehen', onPressed: () => _openVersandConfirmation(vid, confFn), padding: EdgeInsets.zero)),
+            ])),
+          ]),
+        );
+      }),
+      const SizedBox(height: 8),
+      ElevatedButton.icon(
+        onPressed: _addVersand,
+        icon: const Icon(Icons.add, size: 16),
+        label: const Text('Versand markieren', style: TextStyle(fontSize: 12)),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple.shade700, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 34)),
+      ),
+    ])));
+  }
+}
+
+class _AddVersandDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int schweigepflichtId;
+  const _AddVersandDialog({required this.apiService, required this.schweigepflichtId});
+  @override
+  State<_AddVersandDialog> createState() => _AddVersandDialogState();
+}
+
+class _AddVersandDialogState extends State<_AddVersandDialog> {
+  String _methode = 'fax';
+  final _faxC   = TextEditingController();
+  final _emailC = TextEditingController();
+  final _notizC = TextEditingController();
+  DateTime _datum = DateTime.now();
+  PlatformFile? _confFile;
+  bool _saving = false;
+
+  static const _options = {
+    'persoenlich': 'Persönlich übergeben',
+    'fax': 'Fax',
+    'post': 'Post',
+    'email': 'E-Mail',
+    'online': 'Online / Portal',
+    'sonstige': 'Sonstige',
+  };
+
+  @override
+  void dispose() { _faxC.dispose(); _emailC.dispose(); _notizC.dispose(); super.dispose(); }
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(context: context, initialDate: _datum, firstDate: DateTime(2020), lastDate: DateTime(2099));
+    if (d == null) return;
+    final t = await showTimePicker(context: context, initialTime: TimeOfDay(hour: _datum.hour, minute: _datum.minute));
+    setState(() => _datum = DateTime(d.year, d.month, d.day, t?.hour ?? _datum.hour, t?.minute ?? _datum.minute));
+  }
+
+  Future<void> _pickConf() async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    setState(() => _confFile = picked.files.single);
+  }
+
+  Future<void> _save() async {
+    if (_methode == 'fax' && _faxC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fax-Nummer erforderlich'), backgroundColor: Colors.red));
+      return;
+    }
+    if (_methode == 'email' && _emailC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('E-Mail erforderlich'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _saving = true);
+    String two(int n) => n.toString().padLeft(2, '0');
+    final datumStr = '${_datum.year}-${two(_datum.month)}-${two(_datum.day)} ${two(_datum.hour)}:${two(_datum.minute)}:00';
+    final res = await widget.apiService.createSchweigepflichtVersand(
+      schweigepflichtId: widget.schweigepflichtId,
+      methode: _methode,
+      datum: datumStr,
+      faxNummer:    _methode == 'fax'   ? _faxC.text.trim()   : null,
+      emailAdresse: _methode == 'email' ? _emailC.text.trim() : null,
+      notiz: _notizC.text.trim(),
+      confirmationBytes:    _confFile?.bytes,
+      confirmationFilename: _confFile?.name,
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) Navigator.pop(context, true);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final dStr = '${two(_datum.day)}.${two(_datum.month)}.${_datum.year}  ${two(_datum.hour)}:${two(_datum.minute)}';
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 560, height: 560, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.deepPurple.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+        const Icon(Icons.send, color: Colors.white), const SizedBox(width: 8),
+        const Expanded(child: Text('Versand an den Arzt markieren', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+      ])),
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        DropdownButtonFormField<String>(
+          initialValue: _methode,
+          decoration: const InputDecoration(labelText: 'Versand-Methode', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.alt_route, size: 18)),
+          items: _options.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+          onChanged: (v) => setState(() => _methode = v ?? 'fax'),
+        ),
+        const SizedBox(height: 10),
+        InkWell(onTap: _pickDate, child: InputDecorator(
+          decoration: const InputDecoration(labelText: 'Versand-Datum/Uhrzeit', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18)),
+          child: Text(dStr, style: const TextStyle(fontSize: 14)),
+        )),
+        if (_methode == 'fax') ...[
+          const SizedBox(height: 10),
+          TextField(controller: _faxC, decoration: const InputDecoration(labelText: 'Fax-Nummer des Arztes', hintText: 'z.B. 0731/123456-99', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.fax, size: 18))),
+        ],
+        if (_methode == 'email') ...[
+          const SizedBox(height: 10),
+          TextField(controller: _emailC, decoration: const InputDecoration(labelText: 'E-Mail des Arztes', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.email, size: 18))),
+        ],
+        const SizedBox(height: 10),
+        TextField(controller: _notizC, decoration: const InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder()), maxLines: 2),
+        const SizedBox(height: 12),
+        Card(color: Colors.amber.shade50, child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.attach_file, size: 16, color: Colors.amber.shade800),
+            const SizedBox(width: 6),
+            Expanded(child: Text(_methode == 'fax' ? 'Fax-Sendebericht (erste Seite)' : 'Bestätigung / Quittung (optional)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade900))),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+            _methode == 'fax'
+                ? 'Erste Seite mit Bestätigung "OK" hochladen — als Beweis, dass das Fax übermittelt wurde.'
+                : 'Optional: Quittung der Post, Screenshot der E-Mail, Portal-Bestätigung usw.',
+            style: const TextStyle(fontSize: 11),
+          ),
+          const SizedBox(height: 6),
+          if (_confFile != null) Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)), child: Row(children: [
+            const Icon(Icons.check_circle, size: 14, color: Colors.green), const SizedBox(width: 4),
+            Expanded(child: Text(_confFile!.name, style: const TextStyle(fontSize: 11))),
+            IconButton(icon: const Icon(Icons.clear, size: 14), onPressed: () => setState(() => _confFile = null), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+          ])),
+          OutlinedButton.icon(onPressed: _pickConf, icon: const Icon(Icons.upload_file, size: 14), label: Text(_confFile == null ? 'Datei wählen' : 'Andere Datei wählen', style: const TextStyle(fontSize: 11))),
+        ]))),
+      ]))),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+        const Spacer(),
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, size: 16), label: const Text('Versand speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple.shade700, foregroundColor: Colors.white)),
+      ])),
+    ])));
   }
 }
