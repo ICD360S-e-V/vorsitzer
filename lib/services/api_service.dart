@@ -6803,4 +6803,35 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }
+
+  // === ARZT-KORRESPONDENZ (per arzt-tab, with attachments) ===
+  Future<Map<String, dynamic>> arztKorrespondenzAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/arzt_korrespondenz_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadArztKorrespondenzAnhang({
+    required int korrespondenzId,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/arzt_korrespondenz_anhang_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['korrespondenz_id'] = korrespondenzId.toString();
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadArztKorrespondenzAnhang(int anhangId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/arzt_korrespondenz_pdf.php?anhang_id=$anhangId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
 }

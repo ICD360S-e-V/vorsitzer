@@ -558,6 +558,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   const Tab(icon: Icon(Icons.receipt, size: 16), text: 'Rechnung'),
                   const Tab(icon: Icon(Icons.medical_information, size: 16), text: 'Medikamente Plan'),
                   const Tab(icon: Icon(Icons.lock_person, size: 16), text: 'Schweigepflicht'),
+                  const Tab(icon: Icon(Icons.forum, size: 16), text: 'Korrespondenz'),
                   if (isZahnarzt) const Tab(icon: Icon(Icons.gavel, size: 16), text: 'Härtefall'),
                 ],
               ),
@@ -853,7 +854,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     // ===== TAB 14: SCHWEIGEPFLICHTENTBINDUNG =====
                     _SchweigepflichtTab(apiService: widget.apiService, user: widget.user, arztTyp: type, arztTitle: arztTitle, arztData: data),
 
-                    // ===== TAB 15: HÄRTEFALL (nur Zahnarzt) =====
+                    // ===== TAB 15: KORRESPONDENZ =====
+                    _ArztKorrespondenzTab(apiService: widget.apiService, user: widget.user, arztTyp: type, arztTitle: arztTitle, arztData: data),
+
+                    // ===== TAB 16: HÄRTEFALL (nur Zahnarzt) =====
                     if (isZahnarzt) _buildHartefallTab(type, data, saveAll, setLocalState),
                   ],
                 ),
@@ -15516,6 +15520,545 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
         const SizedBox(width: 8),
         ElevatedButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, size: 16), label: const Text('Versand speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple.shade700, foregroundColor: Colors.white)),
       ])),
+    ])));
+  }
+}
+
+// ============================================================
+//  ARZT KORRESPONDENZ TAB
+// ============================================================
+
+class _ArztKorrespondenzTab extends StatefulWidget {
+  final ApiService apiService;
+  final dynamic user;
+  final String arztTyp;
+  final String arztTitle;
+  final Map<String, dynamic> arztData;
+  const _ArztKorrespondenzTab({required this.apiService, required this.user, required this.arztTyp, required this.arztTitle, required this.arztData});
+  @override
+  State<_ArztKorrespondenzTab> createState() => _ArztKorrespondenzTabState();
+}
+
+class _ArztKorrespondenzTabState extends State<_ArztKorrespondenzTab> {
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+  String _filter = 'alle';
+
+  static const _methodIcons = {
+    'online': Icons.web, 'fax': Icons.fax, 'persoenlich': Icons.person_pin,
+    'post': Icons.local_post_office, 'email': Icons.email, 'sonstige': Icons.help_outline,
+  };
+  static const _methodLabels = {
+    'online': 'Online / Portal', 'fax': 'Fax', 'persoenlich': 'Persönlich',
+    'post': 'Post', 'email': 'E-Mail', 'sonstige': 'Sonstige',
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final res = await widget.apiService.arztKorrespondenzAction({
+      'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
+    });
+    if (!mounted) return;
+    setState(() {
+      _list = List<Map<String, dynamic>>.from(res['korrespondenzen'] ?? []);
+      _loading = false;
+    });
+  }
+
+  String _prefilledArztName() {
+    final raw = widget.arztData['selected_arzt'];
+    if (raw is Map) {
+      final n = (raw['arzt_name'] ?? '').toString().trim();
+      if (n.isNotEmpty) return n;
+      final p = (raw['praxis_name'] ?? '').toString().trim();
+      if (p.isNotEmpty) return p;
+    }
+    return (widget.arztData['behandelnder_arzt'] ?? '').toString().trim();
+  }
+
+  Future<void> _add() async {
+    final created = await showDialog<bool>(context: context, builder: (_) => _KorrEditDialog(
+      apiService: widget.apiService, userId: widget.user.id, arztTyp: widget.arztTyp,
+      arztTitle: widget.arztTitle, prefilledArztName: _prefilledArztName(),
+    ));
+    if (created == true) await _load();
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> k) async {
+    final changed = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _KorrDetailModal(
+      apiService: widget.apiService, korr: k,
+    ));
+    if (changed == true) await _load();
+  }
+
+  String _fmtDateTime(String s) {
+    final d = DateTime.tryParse(s);
+    if (d == null) return s;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}.${two(d.month)}.${d.year}  ${two(d.hour)}:${two(d.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final visible = _filter == 'alle' ? _list : _list.where((e) => (e['richtung'] ?? '') == _filter).toList();
+    final eingangCount = _list.where((e) => (e['richtung'] ?? '') == 'eingang').length;
+    final ausgangCount = _list.where((e) => (e['richtung'] ?? '') == 'ausgang').length;
+
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(bottom: BorderSide(color: Colors.blue.shade200))),
+        child: Row(children: [
+          Icon(Icons.forum, size: 20, color: Colors.blue.shade800),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Korrespondenz — ${widget.arztTitle}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+            Text('Eingang: $eingangCount  ·  Ausgang: $ausgangCount', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ])),
+          ElevatedButton.icon(
+            onPressed: _add,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neu', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+          ),
+        ]),
+      ),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'alle', label: Text('Alle', style: TextStyle(fontSize: 11))),
+          ButtonSegment(value: 'eingang', label: Text('Eingang', style: TextStyle(fontSize: 11)), icon: Icon(Icons.call_received, size: 14)),
+          ButtonSegment(value: 'ausgang', label: Text('Ausgang', style: TextStyle(fontSize: 11)), icon: Icon(Icons.call_made, size: 14)),
+        ],
+        selected: {_filter},
+        onSelectionChanged: (s) => setState(() => _filter = s.first),
+      )),
+      Expanded(child: visible.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.forum_outlined, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(_list.isEmpty ? 'Noch keine Korrespondenz' : 'Keine Einträge für diesen Filter', style: TextStyle(color: Colors.grey.shade600)),
+              if (_list.isEmpty) ...[
+                const SizedBox(height: 8),
+                TextButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 14), label: const Text('Erste Korrespondenz erfassen', style: TextStyle(fontSize: 12))),
+              ],
+            ]))
+          : ListView.builder(padding: const EdgeInsets.all(12), itemCount: visible.length, itemBuilder: (_, i) {
+              final k = visible[i];
+              final richtung = (k['richtung'] ?? 'eingang').toString();
+              final methode = (k['methode'] ?? 'post').toString();
+              final dirColor = richtung == 'eingang' ? Colors.green : Colors.orange;
+              final dirIcon  = richtung == 'eingang' ? Icons.call_received : Icons.call_made;
+              final subj = (k['subject'] ?? '').toString();
+              final datum = (k['datum'] ?? '').toString();
+              final atts = k['attachments'] is List ? (k['attachments'] as List).length : 0;
+              return Card(margin: const EdgeInsets.only(bottom: 8), child: InkWell(
+                onTap: () => _openDetail(k),
+                child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(dirIcon, size: 16, color: dirColor),
+                    const SizedBox(width: 4),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: dirColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)), child: Text(richtung.toUpperCase(), style: TextStyle(fontSize: 9, color: dirColor, fontWeight: FontWeight.bold))),
+                    const SizedBox(width: 6),
+                    Icon(_methodIcons[methode] ?? Icons.help_outline, size: 14, color: Colors.blue.shade700),
+                    const SizedBox(width: 3),
+                    Text(_methodLabels[methode] ?? methode, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    const Spacer(),
+                    Text(_fmtDateTime(datum), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(subj.isEmpty ? '(kein Betreff)' : subj, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if ((k['nachricht'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text((k['nachricht'] ?? '').toString(), style: const TextStyle(fontSize: 11, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  if (atts > 0) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                    const Icon(Icons.attachment, size: 12, color: Colors.indigo),
+                    const SizedBox(width: 2),
+                    Text('$atts Anhang/Anhänge', style: const TextStyle(fontSize: 10, color: Colors.indigo, fontWeight: FontWeight.w600)),
+                  ])),
+                ])),
+              ));
+            })),
+    ]);
+  }
+}
+
+class _KorrEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String arztTyp;
+  final String arztTitle;
+  final String prefilledArztName;
+  final Map<String, dynamic>? existing;
+  const _KorrEditDialog({required this.apiService, required this.userId, required this.arztTyp, required this.arztTitle, required this.prefilledArztName, this.existing});
+  @override
+  State<_KorrEditDialog> createState() => _KorrEditDialogState();
+}
+
+class _KorrEditDialogState extends State<_KorrEditDialog> {
+  static const _options = {
+    'online': 'Online / Portal', 'fax': 'Fax', 'persoenlich': 'Persönlich',
+    'post': 'Post', 'email': 'E-Mail', 'sonstige': 'Sonstige',
+  };
+
+  String _richtung = 'eingang';
+  String _methode  = 'post';
+  late TextEditingController _arztC, _subjectC, _bodyC, _faxC, _emailC, _notizC;
+  DateTime _datum = DateTime.now();
+  final List<PlatformFile> _pendingFiles = [];
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final k = widget.existing ?? const {};
+    _richtung = (k['richtung'] ?? 'eingang').toString();
+    _methode  = (k['methode']  ?? 'post').toString();
+    _arztC    = TextEditingController(text: (k['arzt_name']     ?? widget.prefilledArztName).toString());
+    _subjectC = TextEditingController(text: (k['subject']       ?? '').toString());
+    _bodyC    = TextEditingController(text: (k['nachricht']     ?? '').toString());
+    _faxC     = TextEditingController(text: (k['fax_nummer']    ?? '').toString());
+    _emailC   = TextEditingController(text: (k['email_adresse'] ?? '').toString());
+    _notizC   = TextEditingController(text: (k['notiz']         ?? '').toString());
+    final d = DateTime.tryParse((k['datum'] ?? '').toString());
+    if (d != null) _datum = d;
+  }
+  @override
+  void dispose() {
+    for (final c in [_arztC, _subjectC, _bodyC, _faxC, _emailC, _notizC]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(context: context, initialDate: _datum, firstDate: DateTime(2020), lastDate: DateTime(2099));
+    if (d == null) return;
+    final t = await showTimePicker(context: context, initialTime: TimeOfDay(hour: _datum.hour, minute: _datum.minute));
+    setState(() => _datum = DateTime(d.year, d.month, d.day, t?.hour ?? _datum.hour, t?.minute ?? _datum.minute));
+  }
+
+  Future<void> _pickFiles() async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+      withData: true, allowMultiple: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    setState(() => _pendingFiles.addAll(picked.files));
+  }
+
+  Future<void> _save() async {
+    if (_subjectC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Betreff erforderlich'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _saving = true);
+    String two(int n) => n.toString().padLeft(2, '0');
+    final datumStr = '${_datum.year}-${two(_datum.month)}-${two(_datum.day)} ${two(_datum.hour)}:${two(_datum.minute)}:00';
+    final payload = {
+      'arzt_name': _arztC.text.trim(),
+      'richtung': _richtung, 'methode': _methode, 'datum': datumStr,
+      'subject': _subjectC.text.trim(),
+      'nachricht': _bodyC.text.trim(),
+      'fax_nummer':    _methode == 'fax'   ? _faxC.text.trim()   : null,
+      'email_adresse': _methode == 'email' ? _emailC.text.trim() : null,
+      'notiz': _notizC.text.trim(),
+    };
+    final res = widget.existing == null
+        ? await widget.apiService.arztKorrespondenzAction({'action': 'create', 'user_id': widget.userId, 'arzt_typ': widget.arztTyp, 'korr': payload})
+        : await widget.apiService.arztKorrespondenzAction({'action': 'update', 'id': widget.existing!['id'], 'korr': payload});
+    if (!mounted) return;
+    if (res['success'] != true) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+      return;
+    }
+    final kid = widget.existing == null ? (res['id'] as num).toInt() : int.tryParse(widget.existing!['id'].toString()) ?? 0;
+    int ok = 0, fail = 0;
+    for (final f in _pendingFiles) {
+      if (f.bytes == null) { fail++; continue; }
+      final ur = await widget.apiService.uploadArztKorrespondenzAnhang(korrespondenzId: kid, bytes: f.bytes!, filename: f.name);
+      if (ur['success'] == true) ok++; else fail++;
+    }
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Gespeichert' + (_pendingFiles.isNotEmpty ? ' (Anhänge: $ok' + (fail > 0 ? ', $fail fehlgeschlagen' : '') + ')' : '')),
+      backgroundColor: fail > 0 ? Colors.orange : Colors.green,
+    ));
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final dStr = '${two(_datum.day)}.${two(_datum.month)}.${_datum.year}  ${two(_datum.hour)}:${two(_datum.minute)}';
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 600, height: 640, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+        const Icon(Icons.forum, color: Colors.white), const SizedBox(width: 8),
+        Expanded(child: Text(widget.existing == null ? 'Neue Korrespondenz — ${widget.arztTitle}' : 'Korrespondenz bearbeiten', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+      ])),
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
+        Row(children: [
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: _richtung,
+            decoration: const InputDecoration(labelText: 'Richtung', isDense: true, border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: 'eingang', child: Row(children: [Icon(Icons.call_received, size: 14, color: Colors.green), SizedBox(width: 6), Text('Eingang')])),
+              DropdownMenuItem(value: 'ausgang', child: Row(children: [Icon(Icons.call_made, size: 14, color: Colors.orange), SizedBox(width: 6), Text('Ausgang')])),
+            ],
+            onChanged: (v) => setState(() => _richtung = v ?? 'eingang'),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: _methode,
+            decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()),
+            items: _options.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+            onChanged: (v) => setState(() => _methode = v ?? 'post'),
+          )),
+        ]),
+        const SizedBox(height: 10),
+        InkWell(onTap: _pickDate, child: InputDecorator(
+          decoration: const InputDecoration(labelText: 'Datum / Uhrzeit', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18)),
+          child: Text(dStr, style: const TextStyle(fontSize: 14)),
+        )),
+        const SizedBox(height: 10),
+        TextField(controller: _arztC, decoration: const InputDecoration(labelText: 'Arzt / Praxis', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.local_hospital, size: 18))),
+        if (_methode == 'fax') ...[
+          const SizedBox(height: 10),
+          TextField(controller: _faxC, decoration: const InputDecoration(labelText: 'Fax-Nummer', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.fax, size: 18))),
+        ],
+        if (_methode == 'email') ...[
+          const SizedBox(height: 10),
+          TextField(controller: _emailC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.email, size: 18))),
+        ],
+        const SizedBox(height: 10),
+        TextField(controller: _subjectC, decoration: const InputDecoration(labelText: 'Betreff *', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.title, size: 18))),
+        const SizedBox(height: 10),
+        TextField(controller: _bodyC, decoration: const InputDecoration(labelText: 'Nachricht / Inhalt', isDense: true, border: OutlineInputBorder()), maxLines: 6),
+        const SizedBox(height: 10),
+        TextField(controller: _notizC, decoration: const InputDecoration(labelText: 'Interne Notiz (optional)', isDense: true, border: OutlineInputBorder()), maxLines: 2),
+        const SizedBox(height: 12),
+        Card(color: Colors.indigo.shade50, child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.attach_file, size: 16, color: Colors.indigo.shade700),
+            const SizedBox(width: 6),
+            Expanded(child: Text('Anhänge (PDF/JPG/JPEG/PNG/HEIC)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade900))),
+          ]),
+          const SizedBox(height: 4),
+          ..._pendingFiles.asMap().entries.map((e) => Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3), border: Border.all(color: Colors.indigo.shade200)),
+            child: Row(children: [
+              const Icon(Icons.insert_drive_file, size: 14),
+              const SizedBox(width: 4),
+              Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              IconButton(icon: const Icon(Icons.clear, size: 14), onPressed: () => setState(() => _pendingFiles.removeAt(e.key)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
+            ]),
+          )),
+          const SizedBox(height: 4),
+          OutlinedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.upload_file, size: 14), label: const Text('Datei(en) hinzufügen', style: TextStyle(fontSize: 11))),
+        ]))),
+      ]))),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+        const Spacer(),
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white)),
+      ])),
+    ])));
+  }
+}
+
+class _KorrDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> korr;
+  const _KorrDetailModal({required this.apiService, required this.korr});
+  @override
+  State<_KorrDetailModal> createState() => _KorrDetailModalState();
+}
+
+class _KorrDetailModalState extends State<_KorrDetailModal> {
+  late Map<String, dynamic> _k;
+  bool _changed = false;
+
+  @override
+  void initState() { super.initState(); _k = Map<String, dynamic>.from(widget.korr); }
+  int get _id => int.tryParse(_k['id'].toString()) ?? 0;
+
+  Future<void> _refresh() async {
+    final res = await widget.apiService.arztKorrespondenzAction({
+      'action': 'list', 'user_id': _k['user_id'], 'arzt_typ': _k['arzt_typ'],
+    });
+    if (!mounted) return;
+    final all = List<Map<String, dynamic>>.from(res['korrespondenzen'] ?? []);
+    final updated = all.firstWhere((e) => (int.tryParse(e['id'].toString()) ?? 0) == _id, orElse: () => _k);
+    setState(() { _k = updated; _changed = true; });
+  }
+
+  Future<void> _edit() async {
+    final changed = await showDialog<bool>(context: context, builder: (_) => _KorrEditDialog(
+      apiService: widget.apiService,
+      userId: int.tryParse(_k['user_id'].toString()) ?? 0,
+      arztTyp: (_k['arzt_typ'] ?? '').toString(),
+      arztTitle: '', prefilledArztName: (_k['arzt_name'] ?? '').toString(),
+      existing: _k,
+    ));
+    if (changed == true) await _refresh();
+  }
+
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Korrespondenz löschen?'),
+      content: const Text('Die Nachricht und alle Anhänge werden endgültig entfernt.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.arztKorrespondenzAction({'action': 'delete', 'id': _id});
+    if (!mounted) return;
+    if (res['success'] == true) Navigator.pop(context, true);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  Future<void> _addAttachments() async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+      withData: true, allowMultiple: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    int ok = 0, fail = 0;
+    for (final f in picked.files) {
+      if (f.bytes == null) { fail++; continue; }
+      final r = await widget.apiService.uploadArztKorrespondenzAnhang(korrespondenzId: _id, bytes: f.bytes!, filename: f.name);
+      if (r['success'] == true) ok++; else fail++;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$ok hochgeladen' + (fail > 0 ? ', $fail fehlgeschlagen' : '')), backgroundColor: fail > 0 ? Colors.orange : Colors.green));
+    await _refresh();
+  }
+
+  Future<void> _deleteAttachment(int aid, String filename) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Anhang löschen?'), content: Text(filename),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.arztKorrespondenzAction({'action': 'delete_anhang', 'anhang_id': aid});
+    await _refresh();
+  }
+
+  Future<void> _openAttachment(int aid, String filename) async {
+    final res = await widget.apiService.downloadArztKorrespondenzAnhang(aid);
+    if (!mounted) return;
+    if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, filename);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${res.statusCode})'), backgroundColor: Colors.red));
+    }
+  }
+
+  String _fmtDateTime(String s) {
+    final d = DateTime.tryParse(s);
+    if (d == null) return s;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}.${two(d.month)}.${d.year}  ${two(d.hour)}:${two(d.minute)}';
+  }
+  String _fmtSize(int bytes) {
+    if (bytes < 1024) return '${bytes} B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+  IconData _fileIcon(String mime, String name) {
+    if (mime.startsWith('image/') || RegExp(r'\.(jpg|jpeg|png|heic|heif)$', caseSensitive: false).hasMatch(name)) return Icons.image;
+    if (mime == 'application/pdf' || name.toLowerCase().endsWith('.pdf')) return Icons.picture_as_pdf;
+    return Icons.insert_drive_file;
+  }
+
+  Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    SizedBox(width: 110, child: Text(k, style: const TextStyle(fontSize: 12, color: Colors.grey))),
+    Expanded(child: Text(v.isEmpty ? '—' : v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+  ]));
+
+  @override
+  Widget build(BuildContext context) {
+    final richtung = (_k['richtung'] ?? 'eingang').toString();
+    final methode = (_k['methode'] ?? 'post').toString();
+    final atts = _k['attachments'] is List ? List<Map<String, dynamic>>.from((_k['attachments'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
+    final dirColor = richtung == 'eingang' ? Colors.green : Colors.orange;
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 700, height: 640, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+        Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, color: Colors.white),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Korrespondenz #$_id', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+          Text('${richtung.toUpperCase()}  ·  ${_KorrEditDialogState._options[methode] ?? methode}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ])),
+        IconButton(icon: const Icon(Icons.edit, color: Colors.white), tooltip: 'Bearbeiten', onPressed: _edit),
+        IconButton(icon: const Icon(Icons.delete, color: Colors.white), tooltip: 'Löschen', onPressed: _delete),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
+      ])),
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: dirColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4), border: Border.all(color: dirColor)), child: Text(richtung.toUpperCase(), style: TextStyle(color: dirColor, fontSize: 10, fontWeight: FontWeight.bold))),
+        const SizedBox(height: 12),
+        _kv('Datum', _fmtDateTime((_k['datum'] ?? '').toString())),
+        _kv('Arzt / Praxis', (_k['arzt_name'] ?? '').toString()),
+        if ((_k['fax_nummer'] ?? '').toString().isNotEmpty) _kv('Fax-Nummer', (_k['fax_nummer'] ?? '').toString()),
+        if ((_k['email_adresse'] ?? '').toString().isNotEmpty) _kv('E-Mail', (_k['email_adresse'] ?? '').toString()),
+        const SizedBox(height: 8),
+        Text('Betreff', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text((_k['subject'] ?? '').toString(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        if ((_k['nachricht'] ?? '').toString().isNotEmpty) ...[
+          Text('Nachricht', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.grey.shade300)), child: Text((_k['nachricht'] ?? '').toString(), style: const TextStyle(fontSize: 12))),
+          const SizedBox(height: 12),
+        ],
+        if ((_k['notiz'] ?? '').toString().isNotEmpty) ...[
+          Text('Notiz', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4)), child: Text((_k['notiz'] ?? '').toString(), style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic))),
+          const SizedBox(height: 12),
+        ],
+        Row(children: [
+          Icon(Icons.attach_file, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
+          Text('Anhänge  (${atts.length})', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          const Spacer(),
+          OutlinedButton.icon(onPressed: _addAttachments, icon: const Icon(Icons.add, size: 14), label: const Text('Hinzufügen', style: TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30))),
+        ]),
+        const SizedBox(height: 6),
+        ...atts.map((a) {
+          final aid = (a['id'] as num).toInt();
+          final fn = (a['filename'] ?? '').toString();
+          final mime = (a['mime_type'] ?? '').toString();
+          final size = a['file_size'] is num ? (a['file_size'] as num).toInt() : 0;
+          final at = (a['uploaded_at'] ?? '').toString();
+          return Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade100)),
+            child: Row(children: [
+              Icon(_fileIcon(mime, fn), size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(fn, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Row(children: [
+                  if (size > 0) Text(_fmtSize(size), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                  if (size > 0) const SizedBox(width: 8),
+                  if (at.isNotEmpty) Text(_fmtDateTime(at), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                ]),
+              ])),
+              IconButton(icon: const Icon(Icons.visibility, size: 18), tooltip: 'Ansehen', onPressed: () => _openAttachment(aid, fn), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+              IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), tooltip: 'Löschen', onPressed: () => _deleteAttachment(aid, fn), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+            ]),
+          );
+        }),
+      ]))),
     ])));
   }
 }
