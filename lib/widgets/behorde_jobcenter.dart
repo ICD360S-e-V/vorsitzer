@@ -1077,19 +1077,19 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
 
   // Sanktion-Typ → [Label, default paragraf, default prozent, Dauer-Hinweis]
   static const Map<String, List<String>> _typMap = {
-    'sgb2_31a_10':  ['§ 31a SGB II — Pflichtverletzung (10 %)',           '§ 31a Abs. 1 SGB II', '10', '1 Monat (§ 31b Abs. 2 SGB II)'],
-    'sgb2_31a_20':  ['§ 31a SGB II — Pflichtverletzung (20 %)',           '§ 31a Abs. 1 SGB II', '20', '2 Monate (§ 31b Abs. 2 SGB II)'],
-    'sgb2_31a_30':  ['§ 31a SGB II — Pflichtverletzung (30 %)',           '§ 31a Abs. 1 SGB II', '30', '3 Monate (§ 31b Abs. 2 SGB II)'],
-    'sgb2_31a_100': ['§ 31a Abs. 7 SGB II nF — verfestigte Verweigerung (100 %)', '§ 31a Abs. 7 SGB II', '100', 'bis 6 Monate (verfestigt — Einzelfall, ab 01.07.2026 ab 3. Meldeversäumnis 100 %)'],
-    'sgb2_32':      ['§ 32 SGB II — Meldeversäumnis (10 %)',              '§ 32 SGB II', '10', '1 Monat (§ 31b Abs. 2 SGB II); aktuell bis 30.06.2026 ausgesetzt'],
+    'sgb2_31a_10':  ['§ 31a SGB II — Pflichtverletzung (10 %)',           '§ 31a Abs. 1 SGB II', '10', '1 Mon. (§ 31b Abs. 2 SGB II). AB 01.07.2026 entfällt 10/20-Stufenmodell — einheitlich 30 %.'],
+    'sgb2_31a_20':  ['§ 31a SGB II — Pflichtverletzung (20 %)',           '§ 31a Abs. 1 SGB II', '20', '2 Mon. (§ 31b Abs. 2 SGB II). AB 01.07.2026 entfällt 10/20-Stufenmodell — einheitlich 30 %.'],
+    'sgb2_31a_30':  ['§ 31a SGB II — Pflichtverletzung (30 %)',           '§ 31a Abs. 1 SGB II', '30', 'BIS 30.06.2026: 3 Mon. AB 01.07.2026: einheitlich 30 % je Pflichtverletzung.'],
+    'sgb2_31a_100': ['§ 31a Abs. 7 SGB II — vorsätzliche Arbeitsverweigerung (100 %)', '§ 31a Abs. 7 SGB II', '100', 'Mind. 1 Mon. (§ 31b Abs. 3); KdU direkt an Vermieter; nur bei vorsätzl. Verweigerung tatsächl. mögl. Arbeit; in Kraft seit 23.04.2026'],
+    'sgb2_32':      ['§ 32 SGB II — Meldeversäumnis',                    '§ 32 SGB II', '10', 'BIS 30.06.2026: 10 % × 1 Mon. AB 01.07.2026: 1.=0 %, 2.=30 % × 1 Mon., 3.=100 % Wegfall'],
     'sgbx_45':      ['§ 45 SGB X — Rücknahme (Bewilligung rechtswidrig)', '§ 45 SGB X', '', 'Einmalige Rückforderung (keine Dauer)'],
     'sgbx_48':      ['§ 48 SGB X — Aufhebung (Änderung Verhältnisse)',    '§ 48 SGB X', '', 'Einmalige Rückforderung (keine Dauer)'],
     'sgbx_50':      ['§ 50 SGB X — Erstattung / Rückforderung',           '§ 50 SGB X', '', 'Einmalige Erstattung — aufschiebende Wirkung § 86a SGG'],
-    'sgb2_43':      ['§ 43 SGB II — Aufrechnung (max. 30 %)',             '§ 43 SGB II', '', 'Bis 36 Monate (max. 30 % Regelbedarf)'],
+    'sgb2_43':      ['§ 43 SGB II — Aufrechnung (30 % oder 10 % bei § 41a)', '§ 43 SGB II', '', '30 % Standard, NUR 10 % bei Erstattung aus § 41a oder § 48 Abs. 1 S. 2 Nr. 3 + § 50 SGB X. Aufrechnung unzulässig wenn AVA bereits um 30 % gemindert.'],
     'sgb2_22':      ['§ 22 SGB II — KdU-Kürzung (unangemessene Miete)',   '§ 22 SGB II', '', '12 Mon. Karenzzeit + 6 Mon. Senkungsverfahren, danach unbefristet bis Umzug'],
     'sgb2_41a':     ['§ 41a SGB II — endgültige Festsetzung / Rückforderung', '§ 41a SGB II', '', 'Einmaliger Bescheid'],
     'sgb3_159':     ['§ 159 SGB III — Sperrzeit (Arbeitsagentur ALG I)',  '§ 159 SGB III', '', '1 / 2 / 3 / 6 / 12 Wochen je nach Tatbestand (Härtefall: halbiert)'],
-    'sgb2_24':      ['§ 24 / § 42a SGB II — Darlehen Rückforderung',      '§ 42a SGB II', '10', 'Bis zur Tilgung (max. 10 % Regelbedarf / Monat)'],
+    'sgb2_24':      ['§ 24 / § 42a SGB II — Darlehen Rückforderung',      '§ 42a SGB II', '5',  'Bis zur Tilgung (max. 5 % Regelbedarf / Monat, seit 01.07.2023; früher 10 %)'],
     'sgb2_16e_16i': ['§ 16e / § 16i SGB II — EGZ Rückforderung',          '§ 16e SGB II', '', 'Einmalige Rückforderung'],
     'sonstige':     ['Sonstiger Bescheid',                                '', '', '—'],
   };
