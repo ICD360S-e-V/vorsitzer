@@ -14598,12 +14598,15 @@ class _SchweigepflichtTab extends StatefulWidget {
   State<_SchweigepflichtTab> createState() => _SchweigepflichtTabState();
 }
 
-class _SchweigepflichtTabState extends State<_SchweigepflichtTab> {
+class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTickerProviderStateMixin {
+  late TabController _subTab;
   List<Map<String, dynamic>> _list = [];
   bool _loading = true;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() { super.initState(); _subTab = TabController(length: 2, vsync: this); _load(); }
+  @override
+  void dispose() { _subTab.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -14615,6 +14618,11 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> {
       _list = List<Map<String, dynamic>>.from(res['schweigepflichten'] ?? []);
       _loading = false;
     });
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> sp) async {
+    final changed = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _SchweigepflichtDetailModal(apiService: widget.apiService, user: widget.user, sp: sp));
+    if (changed == true) _load();
   }
 
   Future<void> _generate() async {
@@ -14681,68 +14689,98 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> {
     _load();
   }
 
+  Widget _headerBar() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    decoration: BoxDecoration(color: Colors.purple.shade50, border: Border(bottom: BorderSide(color: Colors.purple.shade200))),
+    child: Row(children: [
+      Icon(Icons.lock_person, size: 18, color: Colors.purple.shade800),
+      const SizedBox(width: 6),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Schweigepflichtentbindung — ${widget.arztTitle}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+        const Text('§ 203 StGB · § 35 SGB I · §§ 67 ff. SGB X · Art. 9 II a DSGVO', style: TextStyle(fontSize: 10, color: Colors.grey)),
+      ])),
+    ]),
+  );
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: Colors.purple.shade50, border: Border(bottom: BorderSide(color: Colors.purple.shade200))),
-        child: Row(children: [
-          Icon(Icons.lock_person, size: 20, color: Colors.purple.shade800),
-          const SizedBox(width: 8),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Schweigepflichtentbindung — ${widget.arztTitle}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
-            const Text('§ 203 StGB · § 35 SGB I · §§ 67 ff. SGB X · Art. 9 II a DSGVO', style: TextStyle(fontSize: 10, color: Colors.grey)),
-          ])),
+      _headerBar(),
+      TabBar(controller: _subTab, labelColor: Colors.purple.shade700, indicatorColor: Colors.purple.shade700, labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), tabs: const [
+        Tab(icon: Icon(Icons.note_add, size: 16), text: 'Generator'),
+        Tab(icon: Icon(Icons.folder_special, size: 16), text: 'Verwaltung'),
+      ]),
+      Expanded(child: TabBarView(controller: _subTab, children: [
+        // ── Generator ────────────────────────────────────────────
+        Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.lock_person, size: 80, color: Colors.purple.shade300),
+          const SizedBox(height: 16),
+          Text('Neue Schweigepflichtentbindung generieren', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+          const SizedBox(height: 8),
+          const Text(
+            'Patient-Daten werden aus Verifizierung Stufe 1 übernommen.\nArzt-Daten kommen aus dem Tab "Arzt" (oder Behandelnder Arzt).',
+            style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: _generate,
-            icon: const Icon(Icons.note_add, size: 16),
-            label: const Text('Generieren', style: TextStyle(fontSize: 12)),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+            icon: const Icon(Icons.note_add),
+            label: const Text('Generieren'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14)),
           ),
-        ]),
-      ),
-      Expanded(child: _list.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.lock_outline, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
-              Text('Noch keine Schweigepflichtentbindung für diesen Arzt', style: TextStyle(color: Colors.grey.shade600)),
-              const SizedBox(height: 8),
-              TextButton.icon(onPressed: _generate, icon: const Icon(Icons.add, size: 14), label: const Text('Jetzt generieren', style: TextStyle(fontSize: 12))),
-            ]))
-          : ListView.builder(padding: const EdgeInsets.all(12), itemCount: _list.length, itemBuilder: (_, i) {
-              final s = _list[i];
-              final status = (s['status'] ?? 'draft').toString();
-              final color = switch (status) { 'aktiv' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, _ => Colors.grey };
-              final tLang = (s['translation_language'] ?? '').toString();
-              final tFile = (s['pdf_translation_filename'] ?? '').toString();
-              final hasTrans = tLang.isNotEmpty && tFile.isNotEmpty;
-              final umfang = (s['umfang'] as Map?) ?? const {};
-              final umfangActive = umfang.entries.where((e) => e.value == true || e.value == 1).map((e) => e.key.toString()).toList();
-              return Card(margin: const EdgeInsets.only(bottom: 8), child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Icon(Icons.picture_as_pdf, color: color),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('Schweigepflicht #${s['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                  if (hasTrans) Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
-                    child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
-                  ),
-                  if (status != 'revoked') IconButton(icon: const Icon(Icons.cancel, size: 18, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(s['id'])),
-                ]),
-                if ((s['arzt_name'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Arzt: ${s['arzt_name']}', style: const TextStyle(fontSize: 12))),
-                Padding(padding: const EdgeInsets.only(top: 2), child: Text('Erteilt: ${s['erteilt_am']}  ·  Gültig bis: ${s['gueltig_bis'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11, color: Colors.grey))),
-                if (umfangActive.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 4, runSpacing: 4, children: umfangActive.map((k) => Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)), child: Text(k, style: TextStyle(fontSize: 9, color: Colors.indigo.shade900)))).toList())),
+        ]))),
+        // ── Verwaltung ────────────────────────────────────────────
+        _list.isEmpty
+            ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.folder_off, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 12),
+                Text('Noch keine Schweigepflichten erstellt', style: TextStyle(color: Colors.grey.shade600)),
                 const SizedBox(height: 8),
-                Wrap(spacing: 6, runSpacing: 4, children: [
-                  OutlinedButton.icon(icon: const Icon(Icons.picture_as_pdf, size: 14), label: const Text('DE (Original)', style: TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: () => _openPdf(s['id'])),
-                  if (hasTrans) OutlinedButton.icon(icon: const Icon(Icons.translate, size: 14), label: Text('Übersetzung ${tLang.toUpperCase()}', style: const TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap, foregroundColor: Colors.amber.shade900, side: BorderSide(color: Colors.amber.shade700)), onPressed: () => _openPdf(s['id'], type: 'translation')),
-                ]),
-              ])));
-            })),
+                TextButton.icon(onPressed: () => _subTab.animateTo(0), icon: const Icon(Icons.note_add, size: 14), label: const Text('Zum Generator', style: TextStyle(fontSize: 12))),
+              ]))
+            : ListView.builder(padding: const EdgeInsets.all(12), itemCount: _list.length, itemBuilder: (_, i) {
+                final s = _list[i];
+                final status = (s['status'] ?? 'draft').toString();
+                final color = switch (status) { 'aktiv' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, _ => Colors.grey };
+                final tLang = (s['translation_language'] ?? '').toString();
+                final hasTrans = tLang.isNotEmpty;
+                final hasSigDe   = (s['signature_de_filename'] ?? '').toString().isNotEmpty;
+                final hasSigUeb  = (s['signature_uebersetzung_filename'] ?? '').toString().isNotEmpty;
+                return Card(margin: const EdgeInsets.only(bottom: 8), child: InkWell(
+                  onTap: () => _openDetail(s),
+                  child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.picture_as_pdf, color: color),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('Schweigepflicht #${s['id']} — ${status.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                      if (hasTrans) Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
+                        child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                      ),
+                    ]),
+                    if ((s['arzt_name'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Arzt: ${s['arzt_name']}', style: const TextStyle(fontSize: 12))),
+                    Padding(padding: const EdgeInsets.only(top: 2), child: Text('Erteilt: ${s['erteilt_am']}  ·  Gültig bis: ${s['gueltig_bis'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11, color: Colors.grey))),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      Icon(hasSigDe ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigDe ? Colors.green : Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(hasSigDe ? 'DE signiert' : 'DE nicht signiert', style: TextStyle(fontSize: 11, color: hasSigDe ? Colors.green.shade900 : Colors.grey)),
+                      const SizedBox(width: 14),
+                      if (hasTrans) ...[
+                        Icon(hasSigUeb ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigUeb ? Colors.green : Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(hasSigUeb ? 'Übersetzung signiert' : 'Übersetzung nicht signiert', style: TextStyle(fontSize: 11, color: hasSigUeb ? Colors.green.shade900 : Colors.grey)),
+                      ],
+                      const Spacer(),
+                      const Text('Tippen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+                    ]),
+                  ])),
+                ));
+              }),
+      ])),
     ]);
   }
 }
@@ -14911,4 +14949,265 @@ class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerate
       ElevatedButton.icon(onPressed: _saving ? null : _generate, icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.note_add, size: 16), label: const Text('Generieren'), style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white)),
     ])),
   ])));
+}
+
+// ============================================================
+//  Schweigepflicht — DETAIL MODAL (Details + Management)
+// ============================================================
+
+class _SchweigepflichtDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final dynamic user;
+  final Map<String, dynamic> sp;
+  const _SchweigepflichtDetailModal({required this.apiService, required this.user, required this.sp});
+  @override
+  State<_SchweigepflichtDetailModal> createState() => _SchweigepflichtDetailModalState();
+}
+
+class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  late Map<String, dynamic> _sp;
+  bool _changed = false;
+
+  @override
+  void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _sp = Map<String, dynamic>.from(widget.sp); }
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
+  int get _id => (_sp['id'] as num).toInt();
+
+  Future<void> _refresh() async {
+    final res = await widget.apiService.schweigepflichtAction({'action': 'list', 'user_id': widget.user.id, 'arzt_typ': _sp['arzt_typ']});
+    if (!mounted) return;
+    final all = List<Map<String, dynamic>>.from(res['schweigepflichten'] ?? []);
+    final updated = all.firstWhere((e) => (e['id'] as num).toInt() == _id, orElse: () => _sp);
+    setState(() { _sp = updated; _changed = true; });
+  }
+
+  Future<void> _openPdf(String type) async {
+    final res = await widget.apiService.downloadSchweigepflichtPdf(_id, type: type);
+    if (!mounted) return;
+    if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, 'schweigepflicht_${type}_$_id.pdf');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${res.statusCode})'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _revoke() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Widerrufen?'),
+      content: const Text('Die Schweigepflichtentbindung wird als widerrufen markiert. Die hochgeladenen Signaturen bleiben in der Akte.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Widerrufen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.schweigepflichtAction({'action': 'revoke', 'id': _id});
+    await _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (_sp['status'] ?? 'draft').toString();
+    final tLang = (_sp['translation_language'] ?? '').toString();
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 700, height: 600, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.purple.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+        const Icon(Icons.lock_person, color: Colors.white), const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Schweigepflicht #$_id', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+          Text('${_sp['arzt_name'] ?? ''}  ·  ${status.toUpperCase()}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        ])),
+        if (status != 'revoked') IconButton(icon: const Icon(Icons.cancel, color: Colors.white), tooltip: 'Widerrufen', onPressed: _revoke),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
+      ])),
+      TabBar(controller: _tab, labelColor: Colors.purple, tabs: const [
+        Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+        Tab(icon: Icon(Icons.upload_file, size: 18), text: 'Management'),
+      ]),
+      Expanded(child: TabBarView(controller: _tab, children: [
+        _DetailsView(sp: _sp, onOpenPdf: _openPdf, tLang: tLang),
+        _ManagementView(apiService: widget.apiService, sp: _sp, tLang: tLang, onRefresh: _refresh, onOpenPdf: _openPdf),
+      ])),
+    ])));
+  }
+}
+
+class _DetailsView extends StatelessWidget {
+  final Map<String, dynamic> sp;
+  final String tLang;
+  final Future<void> Function(String) onOpenPdf;
+  const _DetailsView({required this.sp, required this.tLang, required this.onOpenPdf});
+
+  Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    SizedBox(width: 140, child: Text(k, style: const TextStyle(fontSize: 12, color: Colors.grey))),
+    Expanded(child: Text(v.isEmpty ? '—' : v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+  ]));
+
+  @override
+  Widget build(BuildContext context) {
+    final umfang = (sp['umfang'] as Map?) ?? const {};
+    final umfangActive = umfang.entries.where((e) => e.value == true || e.value == 1).map((e) => e.key.toString()).toList();
+    final adresse = [(sp['arzt_strasse'] ?? '').toString(), [(sp['arzt_plz'] ?? '').toString(), (sp['arzt_ort'] ?? '').toString()].where((e) => e.isNotEmpty).join(' ')].where((e) => e.isNotEmpty).join(', ');
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _section('Arzt'),
+      _kv('Name', (sp['arzt_name'] ?? '').toString()),
+      _kv('Adresse', adresse),
+      _kv('Telefon', (sp['arzt_telefon'] ?? '').toString()),
+      _kv('Fachgebiet', (sp['arzt_typ'] ?? '').toString()),
+      const SizedBox(height: 14),
+      _section('Geltung'),
+      _kv('Erteilt am', (sp['erteilt_am'] ?? '').toString()),
+      _kv('Gültig bis', (sp['gueltig_bis'] ?? 'auf Widerruf').toString()),
+      _kv('Status', (sp['status'] ?? '').toString().toUpperCase()),
+      if ((sp['revoked_at'] ?? '').toString().isNotEmpty) _kv('Widerrufen am', (sp['revoked_at'] ?? '').toString()),
+      const SizedBox(height: 14),
+      _section('Umfang der Entbindung'),
+      if (umfangActive.isEmpty) const Text('—', style: TextStyle(fontSize: 12, color: Colors.grey))
+      else Wrap(spacing: 6, runSpacing: 6, children: umfangActive.map((k) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.purple.shade200)), child: Text(k, style: TextStyle(fontSize: 11, color: Colors.purple.shade900)))).toList()),
+      const SizedBox(height: 14),
+      _section('PDF-Dateien'),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton.icon(onPressed: () => onOpenPdf('pdf'), icon: const Icon(Icons.picture_as_pdf, size: 16), label: const Text('DE (Original)')),
+        if (tLang.isNotEmpty) OutlinedButton.icon(onPressed: () => onOpenPdf('translation'), icon: const Icon(Icons.translate, size: 16), label: Text('Übersetzung ${tLang.toUpperCase()}'), style: OutlinedButton.styleFrom(foregroundColor: Colors.amber.shade900, side: BorderSide(color: Colors.amber.shade700))),
+      ]),
+      if ((sp['notes'] ?? '').toString().isNotEmpty) ...[
+        const SizedBox(height: 14),
+        _section('Anmerkungen'),
+        Text((sp['notes'] ?? '').toString(), style: const TextStyle(fontSize: 12)),
+      ],
+    ]));
+  }
+
+  Widget _section(String title) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)));
+}
+
+class _ManagementView extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> sp;
+  final String tLang;
+  final Future<void> Function() onRefresh;
+  final Future<void> Function(String) onOpenPdf;
+  const _ManagementView({required this.apiService, required this.sp, required this.tLang, required this.onRefresh, required this.onOpenPdf});
+  @override State<_ManagementView> createState() => _ManagementViewState();
+}
+
+class _ManagementViewState extends State<_ManagementView> {
+  bool _uploadingDe = false, _uploadingUeb = false, _deletingDe = false, _deletingUeb = false;
+
+  int get _id => (widget.sp['id'] as num).toInt();
+
+  Future<void> _pickAndUpload(String type) async {
+    final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'], withData: true);
+    if (picked == null || picked.files.isEmpty) return;
+    final f = picked.files.single;
+    if (f.bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Datei konnte nicht geladen werden'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() { if (type == 'de') _uploadingDe = true; else _uploadingUeb = true; });
+    final res = await widget.apiService.uploadSchweigepflichtSignature(
+      schweigepflichtId: _id, type: type, bytes: f.bytes!, filename: f.name,
+    );
+    if (!mounted) return;
+    setState(() { if (type == 'de') _uploadingDe = false; else _uploadingUeb = false; });
+    if (res['success'] == true) {
+      await widget.onRefresh();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signiert hochgeladen (${type == 'de' ? 'DE' : 'Übersetzung'})'), backgroundColor: Colors.green));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _delete(String type) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Signatur löschen?'),
+      content: Text('Die hochgeladene Unterschrift für ${type == 'de' ? 'DE' : 'Übersetzung'} wird gelöscht.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    setState(() { if (type == 'de') _deletingDe = true; else _deletingUeb = true; });
+    final res = await widget.apiService.deleteSchweigepflichtSignature(schweigepflichtId: _id, type: type);
+    if (!mounted) return;
+    setState(() { if (type == 'de') _deletingDe = false; else _deletingUeb = false; });
+    if (res['success'] == true) await widget.onRefresh();
+  }
+
+  String _fmtDateTime(String s) {
+    if (s.isEmpty) return '';
+    // server returns "YYYY-MM-DD HH:MM:SS"
+    final d = DateTime.tryParse(s);
+    if (d == null) return s;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}.${two(d.month)}.${d.year}  ${two(d.hour)}:${two(d.minute)}';
+  }
+
+  Widget _slot({
+    required String title, required String typeKey,
+    required String fileField, required String dateField,
+    required bool uploading, required bool deleting,
+    required Color accent,
+    required String downloadType,
+  }) {
+    final filename = (widget.sp[fileField] ?? '').toString();
+    final uploadedAt = (widget.sp[dateField] ?? '').toString();
+    final has = filename.isNotEmpty;
+    return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(has ? Icons.check_circle : Icons.radio_button_unchecked, color: has ? Colors.green : Colors.grey, size: 18),
+        const SizedBox(width: 6),
+        Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: accent))),
+      ]),
+      const SizedBox(height: 6),
+      if (has) ...[
+        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Icon(Icons.insert_drive_file, size: 14, color: Colors.green), const SizedBox(width: 4), Expanded(child: Text(filename, style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis))]),
+          if (uploadedAt.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [const Icon(Icons.access_time, size: 12, color: Colors.green), const SizedBox(width: 4), Text('Hochgeladen: ${_fmtDateTime(uploadedAt)}', style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600))])),
+        ])),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, children: [
+          OutlinedButton.icon(onPressed: () => widget.onOpenPdf(downloadType), icon: const Icon(Icons.visibility, size: 14), label: const Text('Ansehen', style: TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30))),
+          OutlinedButton.icon(onPressed: uploading ? null : () => _pickAndUpload(typeKey), icon: const Icon(Icons.upload_file, size: 14), label: const Text('Ersetzen', style: TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30))),
+          OutlinedButton.icon(onPressed: deleting ? null : () => _delete(typeKey), icon: const Icon(Icons.delete, size: 14, color: Colors.red), label: const Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30), side: const BorderSide(color: Colors.red))),
+        ]),
+      ] else ...[
+        Text('Noch nicht hochgeladen', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          onPressed: uploading ? null : () => _pickAndUpload(typeKey),
+          icon: uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
+          label: const Text('Signiert hochladen', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, minimumSize: const Size(0, 34)),
+        ),
+      ],
+    ])));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
+      Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)), child: Row(children: const [
+        Icon(Icons.shield, size: 18, color: Colors.blue), SizedBox(width: 8),
+        Expanded(child: Text('Beide Versionen (DE + Übersetzung) sollten vom Mitglied unterschrieben hochgeladen werden — das schützt den Verein und beweist, dass das Mitglied die deutsche Originalfassung UND die Übersetzung verstanden und akzeptiert hat.', style: TextStyle(fontSize: 11, color: Colors.blue))),
+      ])),
+      const SizedBox(height: 12),
+      _slot(
+        title: 'DE (Original) — signiert', typeKey: 'de',
+        fileField: 'signature_de_filename', dateField: 'signature_de_uploaded_at',
+        uploading: _uploadingDe, deleting: _deletingDe,
+        accent: Colors.indigo.shade700, downloadType: 'signature_de',
+      ),
+      const SizedBox(height: 10),
+      if (widget.tLang.isNotEmpty) _slot(
+        title: 'Übersetzung ${widget.tLang.toUpperCase()} — signiert', typeKey: 'uebersetzung',
+        fileField: 'signature_uebersetzung_filename', dateField: 'signature_uebersetzung_uploaded_at',
+        uploading: _uploadingUeb, deleting: _deletingUeb,
+        accent: Colors.amber.shade800, downloadType: 'signature_uebersetzung',
+      ) else Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)), child: Row(children: [
+        Icon(Icons.info_outline, size: 14, color: Colors.grey.shade700), const SizedBox(width: 6),
+        Expanded(child: Text('Keine Übersetzung erforderlich (Mitglied hat preferred_language=de oder nicht gesetzt).', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      ])),
+    ]));
+  }
 }

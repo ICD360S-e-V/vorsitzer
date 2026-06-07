@@ -6722,4 +6722,32 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }
+
+  /// Upload a signed Schweigepflicht (PDF/JPG/PNG).
+  ///   type = 'de'           — signed German original
+  ///   type = 'uebersetzung' — signed translation
+  Future<Map<String, dynamic>> uploadSchweigepflichtSignature({
+    required int schweigepflichtId,
+    required String type,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/schweigepflicht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteSchweigepflichtSignature({required int schweigepflichtId, required String type}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/schweigepflicht_signature_upload.php'),
+      headers: _headers,
+      body: jsonEncode({'schweigepflicht_id': schweigepflichtId, 'type': type, 'delete': true}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
 }
