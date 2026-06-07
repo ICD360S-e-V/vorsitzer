@@ -14745,8 +14745,10 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
                 final color = switch (status) { 'aktiv' => Colors.green, 'draft' => Colors.blue, 'revoked' => Colors.red, _ => Colors.grey };
                 final tLang = (s['translation_language'] ?? '').toString();
                 final hasTrans = tLang.isNotEmpty;
-                final hasSigDe   = (s['signature_de_filename'] ?? '').toString().isNotEmpty;
-                final hasSigUeb  = (s['signature_uebersetzung_filename'] ?? '').toString().isNotEmpty;
+                final sigsDe = (s['signatures_de'] is List) ? (s['signatures_de'] as List).length : 0;
+                final sigsUeb = (s['signatures_uebersetzung'] is List) ? (s['signatures_uebersetzung'] as List).length : 0;
+                final hasSigDe   = sigsDe > 0 || (s['signature_de_filename'] ?? '').toString().isNotEmpty;
+                final hasSigUeb  = sigsUeb > 0 || (s['signature_uebersetzung_filename'] ?? '').toString().isNotEmpty;
                 return Card(margin: const EdgeInsets.only(bottom: 8), child: InkWell(
                   onTap: () => _openDetail(s),
                   child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -14767,12 +14769,12 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
                     Row(children: [
                       Icon(hasSigDe ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigDe ? Colors.green : Colors.grey),
                       const SizedBox(width: 4),
-                      Text(hasSigDe ? 'DE signiert' : 'DE nicht signiert', style: TextStyle(fontSize: 11, color: hasSigDe ? Colors.green.shade900 : Colors.grey)),
+                      Text(hasSigDe ? 'DE signiert ($sigsDe)' : 'DE nicht signiert', style: TextStyle(fontSize: 11, color: hasSigDe ? Colors.green.shade900 : Colors.grey)),
                       const SizedBox(width: 14),
                       if (hasTrans) ...[
                         Icon(hasSigUeb ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigUeb ? Colors.green : Colors.grey),
                         const SizedBox(width: 4),
-                        Text(hasSigUeb ? 'Übersetzung signiert' : 'Übersetzung nicht signiert', style: TextStyle(fontSize: 11, color: hasSigUeb ? Colors.green.shade900 : Colors.grey)),
+                        Text(hasSigUeb ? 'Übersetzung signiert ($sigsUeb)' : 'Übersetzung nicht signiert', style: TextStyle(fontSize: 11, color: hasSigUeb ? Colors.green.shade900 : Colors.grey)),
                       ],
                       const Spacer(),
                       const Text('Tippen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
@@ -14974,21 +14976,41 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
 
-  int get _id => (_sp['id'] as num).toInt();
+  int get _id => int.tryParse(_sp['id'].toString()) ?? 0;
 
   Future<void> _refresh() async {
     final res = await widget.apiService.schweigepflichtAction({'action': 'list', 'user_id': widget.user.id, 'arzt_typ': _sp['arzt_typ']});
     if (!mounted) return;
     final all = List<Map<String, dynamic>>.from(res['schweigepflichten'] ?? []);
-    final updated = all.firstWhere((e) => (e['id'] as num).toInt() == _id, orElse: () => _sp);
+    final updated = all.firstWhere((e) => (int.tryParse(e['id'].toString()) ?? 0) == _id, orElse: () => _sp);
     setState(() { _sp = updated; _changed = true; });
+  }
+
+  /// Pick a sensible filename for the viewer — signatures can be JPG/PNG/PDF,
+  /// generated PDFs are always PDF. Use the actual filename from the row when
+  /// available so FileViewer routes to image vs PDF correctly.
+  String _viewerNameForType(String type) {
+    switch (type) {
+      case 'signature_de':
+        final fn = (_sp['signature_de_filename'] ?? '').toString();
+        if (fn.isNotEmpty) return fn;
+        return 'signature_de_$_id.pdf';
+      case 'signature_uebersetzung':
+        final fn = (_sp['signature_uebersetzung_filename'] ?? '').toString();
+        if (fn.isNotEmpty) return fn;
+        return 'signature_uebersetzung_$_id.pdf';
+      case 'translation':
+        return 'schweigepflicht_uebersetzung_$_id.pdf';
+      default:
+        return 'schweigepflicht_$_id.pdf';
+    }
   }
 
   Future<void> _openPdf(String type) async {
     final res = await widget.apiService.downloadSchweigepflichtPdf(_id, type: type);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-      FileViewerDialog.showFromBytes(context, res.bodyBytes, 'schweigepflicht_${type}_$_id.pdf');
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, _viewerNameForType(type));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${res.statusCode})'), backgroundColor: Colors.red));
     }
@@ -15094,93 +15116,137 @@ class _ManagementView extends StatefulWidget {
 }
 
 class _ManagementViewState extends State<_ManagementView> {
-  bool _uploadingDe = false, _uploadingUeb = false, _deletingDe = false, _deletingUeb = false;
+  bool _uploadingDe = false, _uploadingUeb = false;
 
-  int get _id => (widget.sp['id'] as num).toInt();
+  int get _id => int.tryParse(widget.sp['id'].toString()) ?? 0;
 
-  Future<void> _pickAndUpload(String type) async {
-    final picked = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'], withData: true);
-    if (picked == null || picked.files.isEmpty) return;
-    final f = picked.files.single;
-    if (f.bytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Datei konnte nicht geladen werden'), backgroundColor: Colors.red));
-      return;
-    }
-    setState(() { if (type == 'de') _uploadingDe = true; else _uploadingUeb = true; });
-    final res = await widget.apiService.uploadSchweigepflichtSignature(
-      schweigepflichtId: _id, type: type, bytes: f.bytes!, filename: f.name,
-    );
-    if (!mounted) return;
-    setState(() { if (type == 'de') _uploadingDe = false; else _uploadingUeb = false; });
-    if (res['success'] == true) {
-      await widget.onRefresh();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Signiert hochgeladen (${type == 'de' ? 'DE' : 'Übersetzung'})'), backgroundColor: Colors.green));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
-    }
+  List<Map<String, dynamic>> _signatures(String type) {
+    final key = type == 'de' ? 'signatures_de' : 'signatures_uebersetzung';
+    final raw = widget.sp[key];
+    if (raw is List) return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    return const [];
   }
 
-  Future<void> _delete(String type) async {
+  Future<void> _pickAndUploadMulti(String type) async {
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+      withData: true,
+      allowMultiple: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    setState(() { if (type == 'de') _uploadingDe = true; else _uploadingUeb = true; });
+    int ok = 0, fail = 0;
+    for (final f in picked.files) {
+      if (f.bytes == null) { fail++; continue; }
+      final res = await widget.apiService.uploadSchweigepflichtSignature(
+        schweigepflichtId: _id, type: type, bytes: f.bytes!, filename: f.name,
+      );
+      if (res['success'] == true) ok++; else fail++;
+    }
+    if (!mounted) return;
+    setState(() { if (type == 'de') _uploadingDe = false; else _uploadingUeb = false; });
+    await widget.onRefresh();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('$ok Datei(en) hochgeladen' + (fail > 0 ? ', $fail fehlgeschlagen' : '')),
+      backgroundColor: fail > 0 ? Colors.orange : Colors.green,
+    ));
+  }
+
+  Future<void> _deleteOne(int signatureId, String filename) async {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Signatur löschen?'),
-      content: Text('Die hochgeladene Unterschrift für ${type == 'de' ? 'DE' : 'Übersetzung'} wird gelöscht.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+      title: const Text('Datei löschen?'),
+      content: Text(filename),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
     ));
     if (ok != true) return;
-    setState(() { if (type == 'de') _deletingDe = true; else _deletingUeb = true; });
-    final res = await widget.apiService.deleteSchweigepflichtSignature(schweigepflichtId: _id, type: type);
+    final res = await widget.apiService.deleteSchweigepflichtSignatureById(signatureId: signatureId);
     if (!mounted) return;
-    setState(() { if (type == 'de') _deletingDe = false; else _deletingUeb = false; });
     if (res['success'] == true) await widget.onRefresh();
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  Future<void> _openSignature(int signatureId, String filename) async {
+    final res = await widget.apiService.downloadSchweigepflichtSignatureFile(signatureId);
+    if (!mounted) return;
+    if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, filename);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${res.statusCode})'), backgroundColor: Colors.red));
+    }
   }
 
   String _fmtDateTime(String s) {
     if (s.isEmpty) return '';
-    // server returns "YYYY-MM-DD HH:MM:SS"
     final d = DateTime.tryParse(s);
     if (d == null) return s;
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(d.day)}.${two(d.month)}.${d.year}  ${two(d.hour)}:${two(d.minute)}';
   }
 
+  String _fmtSize(int bytes) {
+    if (bytes < 1024) return '${bytes} B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  IconData _fileIcon(String mime, String name) {
+    if (mime.startsWith('image/') || RegExp(r'\.(jpg|jpeg|png|heic|heif)$', caseSensitive: false).hasMatch(name)) return Icons.image;
+    if (mime == 'application/pdf' || name.toLowerCase().endsWith('.pdf')) return Icons.picture_as_pdf;
+    return Icons.insert_drive_file;
+  }
+
   Widget _slot({
     required String title, required String typeKey,
-    required String fileField, required String dateField,
-    required bool uploading, required bool deleting,
+    required bool uploading,
     required Color accent,
-    required String downloadType,
   }) {
-    final filename = (widget.sp[fileField] ?? '').toString();
-    final uploadedAt = (widget.sp[dateField] ?? '').toString();
-    final has = filename.isNotEmpty;
+    final files = _signatures(typeKey);
+    final has = files.isNotEmpty;
     return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(has ? Icons.check_circle : Icons.radio_button_unchecked, color: has ? Colors.green : Colors.grey, size: 18),
         const SizedBox(width: 6),
-        Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: accent))),
+        Expanded(child: Text('$title  (${files.length})', style: TextStyle(fontWeight: FontWeight.bold, color: accent))),
       ]),
       const SizedBox(height: 6),
-      if (has) ...[
-        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [const Icon(Icons.insert_drive_file, size: 14, color: Colors.green), const SizedBox(width: 4), Expanded(child: Text(filename, style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis))]),
-          if (uploadedAt.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [const Icon(Icons.access_time, size: 12, color: Colors.green), const SizedBox(width: 4), Text('Hochgeladen: ${_fmtDateTime(uploadedAt)}', style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600))])),
-        ])),
-        const SizedBox(height: 8),
-        Wrap(spacing: 8, children: [
-          OutlinedButton.icon(onPressed: () => widget.onOpenPdf(downloadType), icon: const Icon(Icons.visibility, size: 14), label: const Text('Ansehen', style: TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30))),
-          OutlinedButton.icon(onPressed: uploading ? null : () => _pickAndUpload(typeKey), icon: const Icon(Icons.upload_file, size: 14), label: const Text('Ersetzen', style: TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30))),
-          OutlinedButton.icon(onPressed: deleting ? null : () => _delete(typeKey), icon: const Icon(Icons.delete, size: 14, color: Colors.red), label: const Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30), side: const BorderSide(color: Colors.red))),
-        ]),
-      ] else ...[
-        Text('Noch nicht hochgeladen', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
-        const SizedBox(height: 8),
-        ElevatedButton.icon(
-          onPressed: uploading ? null : () => _pickAndUpload(typeKey),
-          icon: uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
-          label: const Text('Signiert hochladen', style: TextStyle(fontSize: 12)),
-          style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, minimumSize: const Size(0, 34)),
-        ),
-      ],
+      if (!has) Text('Noch nicht hochgeladen', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      ...files.map((f) {
+        final sigId = (f['id'] as num).toInt();
+        final fn   = (f['filename'] ?? '').toString();
+        final mime = (f['mime_type'] ?? '').toString();
+        final size = (f['file_size'] is num) ? (f['file_size'] as num).toInt() : 0;
+        final at   = (f['uploaded_at'] ?? '').toString();
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Icon(_fileIcon(mime, fn), size: 18, color: Colors.green.shade800),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(fn, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Row(children: [
+                if (size > 0) Text(_fmtSize(size), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                if (size > 0) const SizedBox(width: 8),
+                if (at.isNotEmpty) Text(_fmtDateTime(at), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+              ]),
+            ])),
+            IconButton(icon: const Icon(Icons.visibility, size: 18), tooltip: 'Ansehen', onPressed: () => _openSignature(sigId, fn), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+            IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), tooltip: 'Löschen', onPressed: () => _deleteOne(sigId, fn), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
+          ]),
+        );
+      }),
+      const SizedBox(height: 8),
+      ElevatedButton.icon(
+        onPressed: uploading ? null : () => _pickAndUploadMulti(typeKey),
+        icon: uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_photo_alternate, size: 16),
+        label: Text(has ? 'Weitere Seiten hinzufügen' : 'Signiert hochladen (mehrere Seiten möglich)', style: const TextStyle(fontSize: 12)),
+        style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 34)),
+      ),
     ])));
   }
 
@@ -15189,22 +15255,14 @@ class _ManagementViewState extends State<_ManagementView> {
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
       Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)), child: Row(children: const [
         Icon(Icons.shield, size: 18, color: Colors.blue), SizedBox(width: 8),
-        Expanded(child: Text('Beide Versionen (DE + Übersetzung) sollten vom Mitglied unterschrieben hochgeladen werden — das schützt den Verein und beweist, dass das Mitglied die deutsche Originalfassung UND die Übersetzung verstanden und akzeptiert hat.', style: TextStyle(fontSize: 11, color: Colors.blue))),
+        Expanded(child: Text('Beide Versionen (DE + Übersetzung) sollten vom Mitglied unterschrieben hochgeladen werden — pro Seite eine Datei (PDF/JPG/PNG/HEIC) — das schützt den Verein und beweist, dass das Mitglied die deutsche Originalfassung UND die Übersetzung verstanden und akzeptiert hat.', style: TextStyle(fontSize: 11, color: Colors.blue))),
       ])),
       const SizedBox(height: 12),
-      _slot(
-        title: 'DE (Original) — signiert', typeKey: 'de',
-        fileField: 'signature_de_filename', dateField: 'signature_de_uploaded_at',
-        uploading: _uploadingDe, deleting: _deletingDe,
-        accent: Colors.indigo.shade700, downloadType: 'signature_de',
-      ),
+      _slot(title: 'DE (Original) — signierte Seiten', typeKey: 'de', uploading: _uploadingDe, accent: Colors.indigo.shade700),
       const SizedBox(height: 10),
-      if (widget.tLang.isNotEmpty) _slot(
-        title: 'Übersetzung ${widget.tLang.toUpperCase()} — signiert', typeKey: 'uebersetzung',
-        fileField: 'signature_uebersetzung_filename', dateField: 'signature_uebersetzung_uploaded_at',
-        uploading: _uploadingUeb, deleting: _deletingUeb,
-        accent: Colors.amber.shade800, downloadType: 'signature_uebersetzung',
-      ) else Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)), child: Row(children: [
+      if (widget.tLang.isNotEmpty)
+        _slot(title: 'Übersetzung ${widget.tLang.toUpperCase()} — signierte Seiten', typeKey: 'uebersetzung', uploading: _uploadingUeb, accent: Colors.amber.shade800)
+      else Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)), child: Row(children: [
         Icon(Icons.info_outline, size: 14, color: Colors.grey.shade700), const SizedBox(width: 6),
         Expanded(child: Text('Keine Übersetzung erforderlich (Mitglied hat preferred_language=de oder nicht gesetzt).', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
       ])),

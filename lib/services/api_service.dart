@@ -6750,4 +6750,17 @@ class ApiService {
     ).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
+
+  /// Delete a single signature row from the multi-file slot.
+  Future<Map<String, dynamic>> deleteSchweigepflichtSignatureById({required int signatureId}) async {
+    return await schweigepflichtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  /// Download a single file from the multi-file signature slot.
+  Future<http.Response> downloadSchweigepflichtSignatureFile(int signatureId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/schweigepflicht_pdf.php?type=signature_file&signature_id=$signatureId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
 }
