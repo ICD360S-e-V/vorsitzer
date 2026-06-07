@@ -6696,4 +6696,30 @@ class ApiService {
     ).timeout(const Duration(seconds: 20));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
+
+  // === SCHWEIGEPFLICHT (Arzt — per arzt-tab medical confidentiality waiver) ===
+  Future<Map<String, dynamic>> createSchweigepflicht(Map<String, dynamic> payload) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/schweigepflicht_create.php'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> schweigepflichtAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/schweigepflicht_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadSchweigepflichtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/schweigepflicht_pdf.php?id=$id&type=$type'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
 }
