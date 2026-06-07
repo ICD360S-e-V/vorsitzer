@@ -1689,13 +1689,20 @@ class _SanktionWiderspruchTabState extends State<_SanktionWiderspruchTab> {
 
       const SizedBox(height: 16),
       Row(children: [
-        ElevatedButton.icon(onPressed: _generatePdf, icon: const Icon(Icons.picture_as_pdf, size: 16), label: const Text('Widerspruch PDF generieren'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white)),
+        ElevatedButton.icon(onPressed: _generatePdf, icon: const Icon(Icons.picture_as_pdf, size: 16), label: const Text('Widerspruch-Muster für Mitglied generieren'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white)),
         const Spacer(),
         ElevatedButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)),
       ]),
       const SizedBox(height: 10),
-      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)), child: const Text(
-        'Die PDF-Vorlage zieht automatisch:\n• Klientendaten aus Verifizierung Stufe 1 (Name, Adresse, Geb.-Datum)\n• Jobcenter-Stammdaten (Adresse, Kundennummer, BG-Nummer)\n• Sanktion-Daten (Az., Paragraf, %, Zeitraum)\n\nEnthält: Fristwahrender Widerspruch + § 25 SGB X Akteneinsicht + § 1 BerHG Beratungshilfe + § 86b SGG aufschiebende Wirkung + § 88/§ 87 SGG Klagefristen.', style: TextStyle(fontSize: 10, color: Colors.green))),
+      Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade400)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.warning_amber, size: 16, color: Colors.amber.shade900), const SizedBox(width: 6), Text('Rechtsdienstleistungs-Hinweis (§ 2 / § 6 RDG)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900))]),
+          const SizedBox(height: 4),
+          const Text('Diese Vorlage wird vom Mitglied PERSÖNLICH unterzeichnet und eingereicht. Der Verein erbringt KEINE Rechtsdienstleistung — wir bieten ausschließlich Hilfestellung zur Selbsthilfe (§ 6 RDG). Anwaltliche Beratung erfolgt durch das Mitglied selbst über einen Beratungshilfeschein beim Amtsgericht (§ 1 BerHG, BVerfG 04.04.2022 — 1 BvR 1370/20).', style: TextStyle(fontSize: 10, color: Colors.black87)),
+          const SizedBox(height: 6),
+          Text('Die generierte PDF enthält:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+          const Text('• Seite 1 — interner Hinweis für das Mitglied (vor Einreichung zu entfernen)\n• Seite 2+ — Widerspruch im Namen des Mitglieds (Ich-Form), unterzeichnet vom Mitglied\n• Auto-Daten: Verifizierung Stufe 1 + Jobcenter-Stammdaten + Sanktion-Details\n• Typ-spezifische Rügen, Anträge, Aufschiebende-Wirkung-Strategie', style: TextStyle(fontSize: 10, color: Colors.black87)),
+        ])),
     ]));
   }
 }
