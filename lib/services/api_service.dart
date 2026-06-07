@@ -5225,6 +5225,28 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  /// Delete a single row from the multi-file signatures table.
+  Future<Map<String, dynamic>> deleteVollmachtSignatureById({
+    required int vollmachtId,
+    required String signer,
+    required int signatureId,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vollmacht_signature_upload.php'),
+      headers: _headers,
+      body: jsonEncode({'vollmacht_id': vollmachtId, 'signer': signer, 'signature_id': signatureId, 'delete': true}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Download a single signature page by its row id.
+  Future<http.Response> downloadVollmachtSignatureFile(int signatureId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/vollmacht_pdf.php?type=signature_file&signature_id=$signatureId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<Map<String, dynamic>> submitVollmacht({
     required int vollmachtId,
     String? submittedAt,

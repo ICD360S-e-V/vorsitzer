@@ -2345,7 +2345,7 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
                 Icon(Icons.info, color: Colors.amber.shade800, size: 18), const SizedBox(width: 6),
                 const Expanded(child: Text('Procedure: PDF ausdrucken → eigenhändig unterschreiben → einscannen → hier hochladen (PDF, JPG oder PNG, max 10 MB)', style: TextStyle(fontSize: 11))),
               ]))),
-          Row(children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: _signatureCard(
               label: 'Vollmachtgeber (Mitglied)',
               name: '${user['vorname'] ?? ''} ${user['nachname'] ?? ''}',
@@ -2354,6 +2354,9 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
               uploading: _uploadingMember,
               vollmachtId: v['id'],
               signer: 'member',
+              pages: v['signatures_member'] is List
+                  ? List<Map<String, dynamic>>.from((v['signatures_member'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+                  : const [],
             )),
             const SizedBox(width: 8),
             Expanded(child: _signatureCard(
@@ -2364,6 +2367,9 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
               uploading: _uploadingVorstand,
               vollmachtId: v['id'],
               signer: 'vorstand',
+              pages: v['signatures_vorstand'] is List
+                  ? List<Map<String, dynamic>>.from((v['signatures_vorstand'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+                  : const [],
             )),
           ]),
         ])),
@@ -2460,45 +2466,85 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
   }
 
   Widget _signatureCard({required String label, required String name, required bool has, required dynamic uploadedAt,
-                         required bool uploading, required int vollmachtId, required String signer}) {
+                         required bool uploading, required int vollmachtId, required String signer,
+                         List<Map<String, dynamic>>? pages}) {
+    final pageList = pages ?? const <Map<String, dynamic>>[];
+    final hasAny = has || pageList.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: has ? Colors.green.shade50 : Colors.grey.shade50,
-        border: Border.all(color: has ? Colors.green.shade400 : Colors.grey.shade400),
+        color: hasAny ? Colors.green.shade50 : Colors.grey.shade50,
+        border: Border.all(color: hasAny ? Colors.green.shade400 : Colors.grey.shade400),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(has ? Icons.check_circle : Icons.pending, size: 16, color: has ? Colors.green : Colors.orange),
+          Icon(hasAny ? Icons.check_circle : Icons.pending, size: 16, color: hasAny ? Colors.green : Colors.orange),
           const SizedBox(width: 4),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text('$label  (${pageList.length})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
         ]),
         Text(name, style: const TextStyle(fontSize: 10), overflow: TextOverflow.ellipsis),
         const SizedBox(height: 6),
-        if (has) ...[
-          Text('Hochgeladen: $uploadedAt', style: const TextStyle(fontSize: 9, color: Colors.grey)),
-          const SizedBox(height: 4),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.visibility, size: 14), label: const Text('Ansehen', style: TextStyle(fontSize: 10)),
-              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4)),
-              onPressed: () => _openPdf(vollmachtId, '${signer}_signature.pdf', type: 'signature_$signer'))),
-            const SizedBox(width: 4),
-            IconButton(icon: const Icon(Icons.delete, size: 16, color: Colors.red), tooltip: 'Entfernen',
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28), padding: EdgeInsets.zero,
-              onPressed: () => _deleteSignature(vollmachtId, signer)),
-          ]),
-        ] else ...[
-          if (uploading) const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
-          else SizedBox(width: double.infinity, child: ElevatedButton.icon(
-            icon: const Icon(Icons.upload_file, size: 14),
-            label: const Text('Datei hochladen', style: TextStyle(fontSize: 10)),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 6)),
-            onPressed: () => _pickAndUpload(vollmachtId, signer),
-          )),
-        ],
+        if (pageList.isEmpty)
+          Text('Noch keine Seite hochgeladen', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))
+        else ...pageList.map((p) {
+          final pid = (p['id'] as num).toInt();
+          final fn = (p['filename'] ?? '').toString();
+          final at = (p['uploaded_at'] ?? '').toString();
+          final mime = (p['mime_type'] ?? '').toString();
+          final isImg = mime.startsWith('image/') || RegExp(r'\.(jpg|jpeg|png|heic|heif)$', caseSensitive: false).hasMatch(fn);
+          return Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)),
+            child: Row(children: [
+              Icon(isImg ? Icons.image : Icons.picture_as_pdf, size: 14, color: Colors.green.shade800),
+              const SizedBox(width: 4),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(fn, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (at.isNotEmpty) Text(at, style: TextStyle(fontSize: 8, color: Colors.grey.shade700)),
+              ])),
+              SizedBox(width: 24, height: 24, child: IconButton(icon: const Icon(Icons.visibility, size: 14), padding: EdgeInsets.zero, tooltip: 'Ansehen', onPressed: () => _openSignaturePage(pid, fn))),
+              SizedBox(width: 24, height: 24, child: IconButton(icon: const Icon(Icons.delete, size: 14, color: Colors.red), padding: EdgeInsets.zero, tooltip: 'Löschen', onPressed: () => _deleteSignaturePage(vollmachtId, signer, pid, fn))),
+            ]),
+          );
+        }),
+        const SizedBox(height: 6),
+        if (uploading) const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
+        else SizedBox(width: double.infinity, child: ElevatedButton.icon(
+          icon: const Icon(Icons.add_photo_alternate, size: 14),
+          label: Text(pageList.isEmpty ? 'Seite(n) hochladen' : 'Weitere Seite hinzufügen', style: const TextStyle(fontSize: 10)),
+          style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 6)),
+          onPressed: () => _pickAndUpload(vollmachtId, signer),
+        )),
       ]),
     );
+  }
+
+  Future<void> _openSignaturePage(int signatureId, String filename) async {
+    final res = await widget.apiService.downloadVollmachtSignatureFile(signatureId);
+    if (!mounted) return;
+    if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, filename);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${res.statusCode})'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _deleteSignaturePage(int vollmachtId, String signer, int signatureId, String filename) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Seite löschen?'),
+      content: Text(filename),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.deleteVollmachtSignatureById(vollmachtId: vollmachtId, signer: signer, signatureId: signatureId);
+    if (!mounted) return;
+    if (res['success'] == true) _loadAll();
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
   }
 
   List<Widget> _methodOptions() {
@@ -2527,31 +2573,36 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
   );
 
   Future<void> _pickAndUpload(int vollmachtId, String signer) async {
+    final allowMulti = signer == 'member' || signer == 'vorstand';
     final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true,
+      allowMultiple: allowMulti,
     );
-    if (result == null || result.files.isEmpty || result.files.single.bytes == null) return;
-    final f = result.files.single;
+    if (result == null || result.files.isEmpty) return;
     setState(() {
       if (signer == 'member') _uploadingMember = true;
       else if (signer == 'vorstand') _uploadingVorstand = true;
       else if (signer == 'receipt') _uploadingReceipt = true;
     });
-    final res = await widget.apiService.uploadVollmachtSignature(
-      vollmachtId: vollmachtId, signer: signer, bytes: f.bytes!, filename: f.name,
-    );
+    int ok = 0, fail = 0;
+    for (final f in result.files) {
+      if (f.bytes == null) { fail++; continue; }
+      final res = await widget.apiService.uploadVollmachtSignature(
+        vollmachtId: vollmachtId, signer: signer, bytes: f.bytes!, filename: f.name,
+      );
+      if (res['success'] == true) ok++; else fail++;
+    }
     if (!mounted) return;
     setState(() {
       _uploadingMember = false; _uploadingVorstand = false; _uploadingReceipt = false;
     });
-    final ok = res['success'] == true;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Hochgeladen' : (res['message'] ?? 'Fehler')),
-      backgroundColor: ok ? Colors.green : Colors.red,
+      content: Text('$ok hochgeladen' + (fail > 0 ? ', $fail fehlgeschlagen' : '')),
+      backgroundColor: fail > 0 ? Colors.orange : Colors.green,
     ));
-    if (ok) _loadAll();
+    if (ok > 0) _loadAll();
   }
 
   Future<void> _deleteSignature(int vollmachtId, String signer) async {
