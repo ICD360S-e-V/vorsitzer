@@ -1025,6 +1025,55 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
   String _status = 'offen';
   String _typ = 'sgb2_31a_10';
   bool _saving = false;
+  List<Map<String, dynamic>> _gruende = []; // [{code: '...', details_freitext: '...'}]
+
+  // Grund-Catalog (parallel to server-side jobcenter_sanktion_grund_catalog.php)
+  // Each entry: code → [label, [applicable typ codes]]
+  static const Map<String, List<dynamic>> _grundCatalog = {
+    'pv_kooperationsplan':           ['Kooperationsplan nicht eingehalten (§ 31 Abs. 1 Nr. 1)', ['sgb2_31a_10','sgb2_31a_20','sgb2_31a_30','sgb2_31a_100']],
+    'pv_arbeit_verweigert':          ['Zumutbare Arbeit nicht angenommen (§ 31 Abs. 1 Nr. 2)', ['sgb2_31a_10','sgb2_31a_20','sgb2_31a_30','sgb2_31a_100','sgb3_159']],
+    'pv_massnahme_nicht_angetreten': ['Eingliederungsmaßnahme nicht angetreten', ['sgb2_31a_10','sgb2_31a_20','sgb2_31a_30','sgb2_31a_100','sgb3_159']],
+    'pv_massnahme_abgebrochen':      ['Maßnahme abgebrochen', ['sgb2_31a_10','sgb2_31a_20','sgb2_31a_30','sgb2_31a_100','sgb3_159']],
+    'pv_sprachkurs_verletzt':        ['Sprach-/Integrationskurs schuldhaft verletzt (ohne Nachweis)', ['sgb2_31a_10','sgb2_31a_20','sgb2_31a_30','sgb2_31a_100']],
+    'pv_eigenbemuehungen':           ['Eigenbemühungen nicht ausreichend nachgewiesen', ['sgb2_31a_10','sgb2_31a_20','sgb2_31a_30','sgb3_159']],
+    'pv_schulausbildung':            ['Schul-/Berufsausbildung abgebrochen', ['sgb2_31a_10','sgb2_31a_20','sgb2_31a_30','sgb3_159']],
+    'mv_termin_jc':                  ['Termin beim Jobcenter nicht wahrgenommen', ['sgb2_32','sgb3_159']],
+    'mv_termin_amtsarzt':            ['Amtsärztliche Untersuchung versäumt', ['sgb2_32','sgb3_159']],
+    'mv_termin_traeger':             ['Termin beim Maßnahmenträger versäumt', ['sgb2_32','sgb3_159']],
+    'mv_meldepflicht':               ['Regelmäßige Meldepflicht verletzt', ['sgb2_32','sgb3_159']],
+    'rz_einkommen_verschwiegen':     ['Einkommen verschwiegen (Vorwurf)', ['sgbx_45','sgbx_48','sgbx_50']],
+    'rz_vermoegen_verschwiegen':     ['Vermögen verschwiegen (Vorwurf)', ['sgbx_45','sgbx_48','sgbx_50']],
+    'rz_arbeit_aufgenommen':         ['Arbeitsaufnahme nicht (rechtzeitig) gemeldet', ['sgbx_45','sgbx_48','sgbx_50']],
+    'rz_bg_aenderung':               ['Änderung Bedarfsgemeinschaft nicht gemeldet', ['sgbx_45','sgbx_48','sgbx_50']],
+    'rz_umzug_nicht_gemeldet':       ['Umzug / Wohnungswechsel nicht gemeldet', ['sgbx_45','sgbx_48','sgb2_22']],
+    'rz_erbschaft':                  ['Erbschaft / Schenkung nicht gemeldet', ['sgbx_45','sgbx_48','sgbx_50']],
+    'kdu_unangemessen':              ['Miete über Angemessenheitsgrenze', ['sgb2_22']],
+    'kdu_umzug_ohne_zustimmung':     ['Umzug ohne Zustimmung des Jobcenters', ['sgb2_22']],
+    'kdu_keine_suche':               ['Wohnungssuche nicht dokumentiert', ['sgb2_22']],
+    'vf_einkommen_hoeher':           ['Tatsächliches Einkommen höher als vorläufig angenommen', ['sgb2_41a','sgbx_48']],
+    'sz_eigenkuendigung':            ['Eigenkündigung des Arbeitnehmers', ['sgb3_159']],
+    'sz_aufhebungsvertrag':          ['Aufhebungsvertrag — drohende Kündigung', ['sgb3_159']],
+    'sz_arbeitsuchend_versp':        ['Verspätete Arbeitsuchendmeldung', ['sgb3_159']],
+    'so_sonstiges':                  ['Sonstiger Grund (Freitext)', ['*']],
+  };
+
+  List<MapEntry<String, List<dynamic>>> _availableGrunds() {
+    return _grundCatalog.entries.where((e) {
+      final types = e.value[1] as List;
+      return types.contains('*') || types.contains(_typ);
+    }).toList();
+  }
+
+  Future<void> _addGrund() async {
+    final result = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _GrundPickerDialog(available: _availableGrunds(), catalog: _grundCatalog));
+    if (result != null) setState(() => _gruende.add(result));
+  }
+
+  Future<void> _editGrund(int i) async {
+    final existing = _gruende[i];
+    final result = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _GrundPickerDialog(available: _availableGrunds(), catalog: _grundCatalog, existing: existing));
+    if (result != null) setState(() => _gruende[i] = result);
+  }
 
   // Sanktion-Typ → [Label, default paragraf, default prozent, Dauer-Hinweis]
   static const Map<String, List<String>> _typMap = {
@@ -1072,6 +1121,14 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
     _status = e['status']?.toString() ?? 'offen';
     final existingTyp = e['sanktion_typ']?.toString() ?? '';
     if (existingTyp.isNotEmpty && _typMap.containsKey(existingTyp)) _typ = existingTyp;
+    // Load existing Gründe from server (already parsed JSON)
+    final rawG = e['gruende'];
+    if (rawG is List) {
+      _gruende = rawG.map((g) => g is Map ? Map<String, dynamic>.from(g) : <String, dynamic>{'code': g.toString()}).toList();
+    } else if ((e['grund']?.toString() ?? '').isNotEmpty) {
+      // Legacy single grund text → treat as one freitext entry
+      _gruende = [{'code': 'so_sonstiges', 'details_freitext': e['grund'].toString()}];
+    }
   }
   @override void dispose() { for (final c in [_aktC,_grundC,_paraC,_prozC,_betragC,_zvC,_zbC,_bdC,_vdC,_zkC,_zuC,_notizC]) { c.dispose(); } super.dispose(); }
 
@@ -1087,6 +1144,7 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
     final payload = {
       'sanktion_typ': _typ,
       'aktenzeichen': _aktC.text.trim(),
+      'gruende': _gruende,
       'grund': _grundC.text.trim(),
       'paragraf': _paraC.text.trim(),
       'prozent': _prozC.text.trim(),
@@ -1131,7 +1189,7 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
             const SizedBox(width: 6),
             Expanded(child: Text('Gesetzliche Dauer: ${_typMap[_typ]?[3] ?? '—'}', style: TextStyle(fontSize: 10, color: Colors.deepOrange.shade900, fontWeight: FontWeight.w600))),
           ])),
-        _f('Aktenzeichen Bescheid', _aktC, icon: Icons.numbers),
+        _f('Aktenzeichen Bescheid (optional — JC-Bescheide haben oft nur Kundennr + BG-Nr aus Stammdaten)', _aktC, icon: Icons.numbers),
         _f('Paragraf (auto vorausgefüllt)', _paraC, icon: Icons.gavel, hint: 'z.B. § 31a Abs. 1 SGB II'),
         Row(children: [
           Expanded(child: _f('Minderung (%)', _prozC, icon: Icons.percent, hint: '10/20/30/100')),
@@ -1139,7 +1197,36 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
           Expanded(child: _f('Betrag (€)', _betragC, icon: Icons.euro, hint: '0.00')),
         ]),
         Row(children: [Expanded(child: _dt('Zeitraum von', _zvC)), const SizedBox(width: 8), Expanded(child: _dt('Zeitraum bis', _zbC))]),
-        _f('Grund der Sanktion', _grundC, maxLines: 2, icon: Icons.description),
+        // ===== Multi-Grund Editor =====
+        Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.list_alt, size: 14, color: Colors.indigo),
+              const SizedBox(width: 4),
+              const Text('Gründe der Sanktion (mehrere möglich)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              TextButton.icon(onPressed: _addGrund, icon: const Icon(Icons.add, size: 14), label: const Text('+ Grund', style: TextStyle(fontSize: 11)), style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0), minimumSize: const Size(0, 28))),
+            ]),
+            if (_gruende.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('Noch kein Grund hinzugefügt. Klicken Sie auf "+ Grund" um Gründe auszuwählen.', style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic))),
+            ..._gruende.asMap().entries.map((entry) {
+              final i = entry.key;
+              final g = entry.value;
+              final code = (g['code'] ?? '').toString();
+              final details = (g['details_freitext'] ?? '').toString();
+              final label = _grundCatalog[code]?[0]?.toString() ?? code;
+              return Container(margin: const EdgeInsets.only(top: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
+                child: Row(children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(3)), child: Text('${i+1}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigo))),
+                  const SizedBox(width: 6),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                    if (details.isNotEmpty) Text(details, style: TextStyle(fontSize: 9, color: Colors.grey.shade700, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ])),
+                  IconButton(icon: const Icon(Icons.edit, size: 14), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), tooltip: 'Bearbeiten', onPressed: () => _editGrund(i)),
+                  IconButton(icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), tooltip: 'Entfernen', onPressed: () => setState(() => _gruende.removeAt(i))),
+                ]));
+            }),
+          ])),
         const Divider(height: 18),
         Text('Zustellung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
         const SizedBox(height: 6),
@@ -4500,4 +4587,63 @@ class _TerminEditDialogState extends State<_TerminEditDialog> {
       ElevatedButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white)),
     ])),
   ])));
+}
+
+// ==================== _GrundPickerDialog ====================
+class _GrundPickerDialog extends StatefulWidget {
+  final List<MapEntry<String, List<dynamic>>> available;
+  final Map<String, List<dynamic>> catalog;
+  final Map<String, dynamic>? existing;
+  const _GrundPickerDialog({required this.available, required this.catalog, this.existing});
+  @override State<_GrundPickerDialog> createState() => _GrundPickerDialogState();
+}
+
+class _GrundPickerDialogState extends State<_GrundPickerDialog> {
+  String _code = '';
+  late TextEditingController _detailsC;
+
+  @override void initState() {
+    super.initState();
+    _detailsC = TextEditingController(text: widget.existing?['details_freitext']?.toString() ?? '');
+    final existingCode = widget.existing?['code']?.toString() ?? '';
+    if (existingCode.isNotEmpty && widget.catalog.containsKey(existingCode)) {
+      _code = existingCode;
+    } else if (widget.available.isNotEmpty) {
+      _code = widget.available.first.key;
+    }
+  }
+  @override void dispose() { _detailsC.dispose(); super.dispose(); }
+
+  @override Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.existing == null ? 'Grund hinzufügen' : 'Grund bearbeiten', style: const TextStyle(fontSize: 15)),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        DropdownButtonFormField<String>(
+          initialValue: _code.isNotEmpty ? _code : null,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: 'Vorwurf der Behörde', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          items: widget.available.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value[0].toString(), style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))).toList(),
+          onChanged: (v) => setState(() => _code = v ?? ''),
+        ),
+        const SizedBox(height: 8),
+        TextField(controller: _detailsC, maxLines: 3, decoration: InputDecoration(
+          labelText: _code == 'so_sonstiges' ? 'Beschreibung des Grundes (Pflichtfeld)' : 'Konkretisierung / Details (optional, z.B. Datum, Termin-Az., Maßnahme-Name)',
+          hintText: _code == 'so_sonstiges' ? 'z.B. "Versäumnis Eingliederungsvereinbarung vom 12.05.2026"' : null,
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ), style: const TextStyle(fontSize: 11)),
+        const SizedBox(height: 6),
+        Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+          child: Row(children: [
+            const Icon(Icons.info_outline, size: 12, color: Colors.blue),
+            const SizedBox(width: 4),
+            Expanded(child: Text('Der Standard-Einwand für diesen Grund (BSG-Linie, BVerfG, § 56 SGB II AU-Sperre etc.) wird automatisch in das PDF eingefügt.', style: TextStyle(fontSize: 9, color: Colors.blue.shade900))),
+          ])),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: _code.isEmpty ? null : () => Navigator.pop(context, {'code': _code, 'details_freitext': _detailsC.text.trim()}), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white), child: const Text('Übernehmen')),
+      ],
+    );
+  }
 }
