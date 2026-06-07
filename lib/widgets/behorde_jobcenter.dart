@@ -1023,7 +1023,36 @@ class _AddEditSanktionDialog extends StatefulWidget {
 class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
   late TextEditingController _aktC, _grundC, _paraC, _prozC, _betragC, _zvC, _zbC, _bdC, _vdC, _zkC, _zuC, _notizC;
   String _status = 'offen';
+  String _typ = 'sgb2_31a_10';
   bool _saving = false;
+
+  // Sanktion-Typ → (Label, default paragraf, default prozent)
+  static const Map<String, List<String>> _typMap = {
+    'sgb2_31a_10':  ['§ 31a SGB II — Pflichtverletzung (10 %)',           '§ 31a Abs. 1 SGB II', '10'],
+    'sgb2_31a_20':  ['§ 31a SGB II — Pflichtverletzung (20 %)',           '§ 31a Abs. 1 SGB II', '20'],
+    'sgb2_31a_30':  ['§ 31a SGB II — Pflichtverletzung (30 %)',           '§ 31a Abs. 1 SGB II', '30'],
+    'sgb2_31a_100': ['§ 31a Abs. 7 SGB II nF — verfestigte Verweigerung (100 %)', '§ 31a Abs. 7 SGB II', '100'],
+    'sgb2_32':      ['§ 32 SGB II — Meldeversäumnis (10 %)',              '§ 32 SGB II', '10'],
+    'sgbx_45':      ['§ 45 SGB X — Rücknahme (Bewilligung rechtswidrig)', '§ 45 SGB X', ''],
+    'sgbx_48':      ['§ 48 SGB X — Aufhebung (Änderung Verhältnisse)',    '§ 48 SGB X', ''],
+    'sgbx_50':      ['§ 50 SGB X — Erstattung / Rückforderung',           '§ 50 SGB X', ''],
+    'sgb2_43':      ['§ 43 SGB II — Aufrechnung (max. 30 %)',             '§ 43 SGB II', ''],
+    'sgb2_22':      ['§ 22 SGB II — KdU-Kürzung (unangemessene Miete)',   '§ 22 SGB II', ''],
+    'sgb2_41a':     ['§ 41a SGB II — endgültige Festsetzung / Rückforderung', '§ 41a SGB II', ''],
+    'sgb3_159':     ['§ 159 SGB III — Sperrzeit (Arbeitsagentur ALG I)',  '§ 159 SGB III', ''],
+    'sgb2_24':      ['§ 24 / § 42a SGB II — Darlehen Rückforderung',      '§ 42a SGB II', '10'],
+    'sgb2_16e_16i': ['§ 16e / § 16i SGB II — EGZ Rückforderung',          '§ 16e SGB II', ''],
+    'sonstige':     ['Sonstiger Bescheid',                                '', ''],
+  };
+
+  void _applyTyp(String t) {
+    final m = _typMap[t]; if (m == null) return;
+    setState(() {
+      _typ = t;
+      if (_paraC.text.isEmpty || _paraC.text == _typMap[_typ]?[1]) _paraC.text = m[1];
+      if (_prozC.text.isEmpty || _prozC.text == _typMap[_typ]?[2]) _prozC.text = m[2];
+    });
+  }
 
   @override void initState() {
     super.initState();
@@ -1041,6 +1070,8 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
     _zuC = TextEditingController(text: e['zugang_uns_datum']?.toString() ?? '');
     _notizC = TextEditingController(text: e['notiz']?.toString() ?? '');
     _status = e['status']?.toString() ?? 'offen';
+    final existingTyp = e['sanktion_typ']?.toString() ?? '';
+    if (existingTyp.isNotEmpty && _typMap.containsKey(existingTyp)) _typ = existingTyp;
   }
   @override void dispose() { for (final c in [_aktC,_grundC,_paraC,_prozC,_betragC,_zvC,_zbC,_bdC,_vdC,_zkC,_zuC,_notizC]) { c.dispose(); } super.dispose(); }
 
@@ -1054,6 +1085,7 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
   Future<void> _save() async {
     setState(() => _saving = true);
     final payload = {
+      'sanktion_typ': _typ,
       'aktenzeichen': _aktC.text.trim(),
       'grund': _grundC.text.trim(),
       'paragraf': _paraC.text.trim(),
@@ -1084,8 +1116,16 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
     return AlertDialog(
       title: Text(widget.existing == null ? 'Neue Sanktion' : 'Sanktion bearbeiten', style: const TextStyle(fontSize: 16)),
       content: SizedBox(width: 600, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(padding: const EdgeInsets.only(bottom: 8), child: DropdownButtonFormField<String>(
+          initialValue: _typ,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: 'Sanktion-Typ (bestimmt PDF-Argumentation)', prefixIcon: const Icon(Icons.category, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          style: const TextStyle(fontSize: 12, color: Colors.black87),
+          items: _typMap.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value[0], style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))).toList(),
+          onChanged: (v) { if (v != null) _applyTyp(v); },
+        )),
         _f('Aktenzeichen Bescheid', _aktC, icon: Icons.numbers),
-        _f('Paragraf', _paraC, icon: Icons.gavel, hint: 'z.B. § 31a Abs. 1 SGB II'),
+        _f('Paragraf (auto vorausgefüllt)', _paraC, icon: Icons.gavel, hint: 'z.B. § 31a Abs. 1 SGB II'),
         Row(children: [
           Expanded(child: _f('Minderung (%)', _prozC, icon: Icons.percent, hint: '10/20/30/100')),
           const SizedBox(width: 8),
