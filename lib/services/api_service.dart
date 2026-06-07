@@ -6856,4 +6856,65 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }
+
+  // === JOBCENTER SANKTIONEN (refactored: list + modal Details/Korrespondenz/Widerspruch) ===
+  Future<Map<String, dynamic>> jobcenterSanktionAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_sanktion_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadJobcenterSanktionFile({
+    required int sanktionId,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/jobcenter_sanktion_file_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['target'] = 'sanktion';
+    req.fields['sanktion_id'] = sanktionId.toString();
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadJobcenterSanktionKorrAnhang({
+    required int korrId,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/jobcenter_sanktion_file_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['target'] = 'korr';
+    req.fields['korr_id'] = korrId.toString();
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadJobcenterSanktionFile(int fileId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_sanktion_pdf.php?type=file&file_id=$fileId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<http.Response> downloadJobcenterSanktionKorrAnhang(int anhangId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_sanktion_pdf.php?type=anhang&anhang_id=$anhangId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<http.Response> downloadJobcenterSanktionWiderspruchPdf(int sanktionId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_sanktion_widerspruch_pdf.php?sanktion_id=$sanktionId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
 }

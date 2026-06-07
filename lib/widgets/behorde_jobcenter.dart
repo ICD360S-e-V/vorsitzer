@@ -899,32 +899,756 @@ class _AntragEgvTabState extends State<_AntragEgvTab> {
   }
 }
 
-// ==================== SANKTIONEN TAB ====================
+// ==================== SANKTIONEN TAB (LIST + MODAL DETAILS/KORRESPONDENZ/WIDERSPRUCH) ====================
 class _AntragSanktionenTab extends StatefulWidget {
   final Map<String, dynamic> antrag; final ApiService apiService; final int userId; final Future<void> Function() onReload;
   const _AntragSanktionenTab({required this.antrag, required this.apiService, required this.userId, required this.onReload});
   @override State<_AntragSanktionenTab> createState() => _AntragSanktionenTabState();
 }
+
 class _AntragSanktionenTabState extends State<_AntragSanktionenTab> {
-  late TextEditingController _sanktionNotizC;
-  bool _hasSanktion = false, _saving = false;
-  @override void initState() { super.initState(); _sanktionNotizC = TextEditingController(text: widget.antrag['sanktion_notiz']?.toString() ?? ''); _hasSanktion = widget.antrag['has_sanktion']?.toString() == 'true'; }
-  @override void dispose() { _sanktionNotizC.dispose(); super.dispose(); }
+  List<Map<String, dynamic>> _items = [];
+  bool _loading = true;
+
+  int get _antragId => int.tryParse(widget.antrag['id'].toString()) ?? 0;
+
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final res = await widget.apiService.jobcenterSanktionAction({'action': 'list', 'antrag_id': _antragId});
+      final list = (res['data']?['sanktionen'] as List?) ?? (res['sanktionen'] as List?) ?? [];
+      _items = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _add() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _AddEditSanktionDialog(apiService: widget.apiService, antragId: _antragId, userId: widget.userId));
+    if (ok == true) await _load();
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> s) async {
+    await showDialog(context: context, barrierDismissible: true, builder: (_) => Dialog(insetPadding: const EdgeInsets.all(10), child: SizedBox(width: MediaQuery.of(context).size.width * 0.95, height: MediaQuery.of(context).size.height * 0.9, child: _SanktionDetailModal(apiService: widget.apiService, userId: widget.userId, sanktion: s))));
+    await _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Sanktion löschen?'), content: const Text('Diese Aktion löscht auch alle Anhänge, Korrespondenz und Widerspruch-Daten. Fortfahren?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Löschen', style: TextStyle(color: Colors.white)))]));
+    if (ok != true) return;
+    final res = await widget.apiService.jobcenterSanktionAction({'action': 'delete', 'id': id});
+    if (res['success'] == true) { await _load(); if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gelöscht'), backgroundColor: Colors.green.shade600)); }
+  }
+
+  Color _statusColor(String s) => switch (s) {
+    'offen' => Colors.orange,
+    'widerspruch_eingelegt' => Colors.blue,
+    'akteneinsicht' => Colors.purple,
+    'widerspruchsbescheid' => Colors.indigo,
+    'klage' => Colors.deepOrange,
+    'abgeschlossen' => Colors.green,
+    _ => Colors.grey,
+  };
+  String _statusLabel(String s) => switch (s) {
+    'offen' => 'Offen',
+    'widerspruch_eingelegt' => 'Widerspruch eingelegt',
+    'akteneinsicht' => 'Akteneinsicht',
+    'widerspruchsbescheid' => 'Widerspruchsbescheid',
+    'klage' => 'Klage anhängig',
+    'abgeschlossen' => 'Abgeschlossen',
+    _ => s,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+    return Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.warning_amber, size: 22, color: Colors.red.shade700),
+        const SizedBox(width: 8),
+        Text('Sanktionen / Leistungsminderung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 16), label: const Text('Sanktion hinzufügen'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6))),
+      ]),
+      const SizedBox(height: 12),
+      if (_items.isEmpty)
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+          child: const Row(children: [Icon(Icons.info_outline, size: 18, color: Colors.grey), SizedBox(width: 8), Expanded(child: Text('Keine Sanktionen erfasst. Klicken Sie auf "Sanktion hinzufügen" um eine neue Sanktion / Leistungsminderung anzulegen.', style: TextStyle(fontSize: 12, color: Colors.grey)))])),
+      Expanded(child: ListView.separated(itemCount: _items.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (_, i) {
+        final s = _items[i];
+        final st = (s['status'] ?? 'offen').toString();
+        final akt = (s['aktenzeichen'] ?? '').toString();
+        final paragraf = (s['paragraf'] ?? '').toString();
+        final prozent = (s['prozent'] ?? '').toString();
+        final betrag = (s['betrag'] ?? '').toString();
+        final bd = (s['bescheid_datum'] ?? '').toString();
+        final zk = (s['zugang_klient_datum'] ?? '').toString();
+        final frist = (s['widerspruchsfrist'] ?? '').toString();
+        final id = int.tryParse(s['id'].toString()) ?? 0;
+        return Material(color: Colors.white, borderRadius: BorderRadius.circular(8), elevation: 1, child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _openDetail(s), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: _statusColor(st).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)), child: Text(_statusLabel(st), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _statusColor(st)))),
+              const SizedBox(width: 8),
+              if (prozent.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.red.shade300)), child: Text('$prozent %', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700))),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(id)),
+            ]),
+            const SizedBox(height: 6),
+            if (akt.isNotEmpty) Text('Az.: $akt', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            if (paragraf.isNotEmpty) Text(paragraf, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            if (betrag.isNotEmpty) Text('Minderungsbetrag: $betrag €', style: const TextStyle(fontSize: 11)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 12, runSpacing: 2, children: [
+              if (bd.isNotEmpty) Text('Bescheid: $bd', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              if (zk.isNotEmpty) Text('Zugang Klient: $zk', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              if (frist.isNotEmpty) Text('Frist Widerspruch: $frist', style: const TextStyle(fontSize: 10, color: Colors.deepOrange, fontWeight: FontWeight.bold)),
+            ]),
+          ]),
+        )));
+      })),
+    ]));
+  }
+}
+
+// -------- Add/Edit Sanktion Dialog --------
+class _AddEditSanktionDialog extends StatefulWidget {
+  final ApiService apiService; final int antragId; final int userId;
+  final Map<String, dynamic>? existing;
+  const _AddEditSanktionDialog({required this.apiService, required this.antragId, required this.userId, this.existing});
+  @override State<_AddEditSanktionDialog> createState() => _AddEditSanktionDialogState();
+}
+
+class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
+  late TextEditingController _aktC, _grundC, _paraC, _prozC, _betragC, _zvC, _zbC, _bdC, _vdC, _zkC, _zuC, _notizC;
+  String _status = 'offen';
+  bool _saving = false;
+
+  @override void initState() {
+    super.initState();
+    final e = widget.existing ?? {};
+    _aktC = TextEditingController(text: e['aktenzeichen']?.toString() ?? '');
+    _grundC = TextEditingController(text: e['grund']?.toString() ?? '');
+    _paraC = TextEditingController(text: e['paragraf']?.toString() ?? '');
+    _prozC = TextEditingController(text: e['prozent']?.toString() ?? '');
+    _betragC = TextEditingController(text: e['betrag']?.toString() ?? '');
+    _zvC = TextEditingController(text: e['zeitraum_von']?.toString() ?? '');
+    _zbC = TextEditingController(text: e['zeitraum_bis']?.toString() ?? '');
+    _bdC = TextEditingController(text: e['bescheid_datum']?.toString() ?? '');
+    _vdC = TextEditingController(text: e['versand_datum']?.toString() ?? '');
+    _zkC = TextEditingController(text: e['zugang_klient_datum']?.toString() ?? '');
+    _zuC = TextEditingController(text: e['zugang_uns_datum']?.toString() ?? '');
+    _notizC = TextEditingController(text: e['notiz']?.toString() ?? '');
+    _status = e['status']?.toString() ?? 'offen';
+  }
+  @override void dispose() { for (final c in [_aktC,_grundC,_paraC,_prozC,_betragC,_zvC,_zbC,_bdC,_vdC,_zkC,_zuC,_notizC]) { c.dispose(); } super.dispose(); }
+
+  Future<void> _pickDate(TextEditingController c) async {
+    DateTime? init;
+    if (c.text.isNotEmpty) { try { final p = c.text.split('.'); if (p.length == 3) init = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); } catch (_) {} }
+    final d = await showDatePicker(context: context, initialDate: init ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+    if (d != null) c.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}';
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
-    await widget.apiService.jobcenterAction(widget.userId, {'action': 'save_antrag', 'antrag': {...widget.antrag, 'has_sanktion': _hasSanktion.toString(), 'sanktion_notiz': _sanktionNotizC.text}});
-    await widget.onReload();
-    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
+    final payload = {
+      'aktenzeichen': _aktC.text.trim(),
+      'grund': _grundC.text.trim(),
+      'paragraf': _paraC.text.trim(),
+      'prozent': _prozC.text.trim(),
+      'betrag': _betragC.text.trim(),
+      'zeitraum_von': _zvC.text.trim(),
+      'zeitraum_bis': _zbC.text.trim(),
+      'bescheid_datum': _bdC.text.trim(),
+      'versand_datum': _vdC.text.trim(),
+      'zugang_klient_datum': _zkC.text.trim(),
+      'zugang_uns_datum': _zuC.text.trim(),
+      'notiz': _notizC.text.trim(),
+      'status': _status,
+    };
+    final res = widget.existing == null
+        ? await widget.apiService.jobcenterSanktionAction({'action': 'create', 'antrag_id': widget.antragId, 'user_id': widget.userId, 'sanktion': payload})
+        : await widget.apiService.jobcenterSanktionAction({'action': 'update', 'id': widget.existing!['id'], 'sanktion': payload});
+    if (mounted) {
+      if (res['success'] == true) Navigator.pop(context, true);
+      else { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Unbekannt'}'), backgroundColor: Colors.red)); }
+    }
   }
+
+  Widget _f(String label, TextEditingController c, {int maxLines = 1, IconData? icon, String? hint}) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(labelText: label, hintText: hint, prefixIcon: icon != null ? Icon(icon, size: 18) : null, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12)));
+  Widget _dt(String label, TextEditingController c) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: c, readOnly: true, onTap: () => _pickDate(c), decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.calendar_today, size: 16), suffixIcon: c.text.isNotEmpty ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => c.clear())) : null, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12)));
+
   @override Widget build(BuildContext context) {
-    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.warning_amber, size: 22, color: Colors.red.shade700), const SizedBox(width: 8), Text('Sanktionen / Leistungsminderung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-        const Spacer(), Switch(value: _hasSanktion, onChanged: (v) => setState(() => _hasSanktion = v), activeThumbColor: Colors.red)]),
-      if (_hasSanktion) ...[const SizedBox(height: 12),
-        TextField(controller: _sanktionNotizC, maxLines: 5, decoration: InputDecoration(labelText: 'Details zur Sanktion (Grund, Minderung %, Zeitraum, Widerspruch...)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 12),
-        Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white))),
+    return AlertDialog(
+      title: Text(widget.existing == null ? 'Neue Sanktion' : 'Sanktion bearbeiten', style: const TextStyle(fontSize: 16)),
+      content: SizedBox(width: 600, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _f('Aktenzeichen Bescheid', _aktC, icon: Icons.numbers),
+        _f('Paragraf', _paraC, icon: Icons.gavel, hint: 'z.B. § 31a Abs. 1 SGB II'),
+        Row(children: [
+          Expanded(child: _f('Minderung (%)', _prozC, icon: Icons.percent, hint: '10/20/30/100')),
+          const SizedBox(width: 8),
+          Expanded(child: _f('Betrag (€)', _betragC, icon: Icons.euro, hint: '0.00')),
+        ]),
+        Row(children: [Expanded(child: _dt('Zeitraum von', _zvC)), const SizedBox(width: 8), Expanded(child: _dt('Zeitraum bis', _zbC))]),
+        _f('Grund der Sanktion', _grundC, maxLines: 2, icon: Icons.description),
+        const Divider(height: 18),
+        Text('Zustellung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+        const SizedBox(height: 6),
+        Row(children: [Expanded(child: _dt('Bescheid-Datum (auf Brief)', _bdC)), const SizedBox(width: 8), Expanded(child: _dt('Versand (Plicul generiert)', _vdC))]),
+        Row(children: [Expanded(child: _dt('Zugang beim Klienten', _zkC)), const SizedBox(width: 8), Expanded(child: _dt('Zugang bei uns (Verein)', _zuC))]),
+        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade300)), child: const Row(children: [Icon(Icons.info_outline, size: 14, color: Colors.amber), SizedBox(width: 6), Expanded(child: Text('Widerspruchsfrist = Zugang Klient + 1 Monat (§ 84 SGG). Wird automatisch berechnet.', style: TextStyle(fontSize: 10, color: Colors.brown)))])),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(initialValue: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), items: const [
+          DropdownMenuItem(value: 'offen', child: Text('Offen')),
+          DropdownMenuItem(value: 'widerspruch_eingelegt', child: Text('Widerspruch eingelegt')),
+          DropdownMenuItem(value: 'akteneinsicht', child: Text('Akteneinsicht')),
+          DropdownMenuItem(value: 'widerspruchsbescheid', child: Text('Widerspruchsbescheid erhalten')),
+          DropdownMenuItem(value: 'klage', child: Text('Klage anhängig')),
+          DropdownMenuItem(value: 'abgeschlossen', child: Text('Abgeschlossen')),
+        ], onChanged: (v) => setState(() => _status = v ?? 'offen')),
+        const SizedBox(height: 8),
+        _f('Notizen', _notizC, maxLines: 3, icon: Icons.notes),
+      ]))),
+      actions: [
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        ElevatedButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)),
       ],
+    );
+  }
+}
+
+// -------- Sanktion Detail Modal (Details/Korrespondenz/Widerspruch) --------
+class _SanktionDetailModal extends StatefulWidget {
+  final ApiService apiService; final int userId; final Map<String, dynamic> sanktion;
+  const _SanktionDetailModal({required this.apiService, required this.userId, required this.sanktion});
+  @override State<_SanktionDetailModal> createState() => _SanktionDetailModalState();
+}
+
+class _SanktionDetailModalState extends State<_SanktionDetailModal> with SingleTickerProviderStateMixin {
+  late TabController _tabC;
+  late Map<String, dynamic> _s;
+  int get _sId => int.tryParse(_s['id'].toString()) ?? 0;
+
+  @override void initState() { super.initState(); _tabC = TabController(length: 3, vsync: this); _s = Map<String, dynamic>.from(widget.sanktion); }
+  @override void dispose() { _tabC.dispose(); super.dispose(); }
+
+  Future<void> _reload() async {
+    final res = await widget.apiService.jobcenterSanktionAction({'action': 'list', 'antrag_id': _s['antrag_id']});
+    final list = (res['data']?['sanktionen'] as List?) ?? (res['sanktionen'] as List?) ?? [];
+    for (final e in list) {
+      final m = Map<String, dynamic>.from(e as Map);
+      if (m['id'].toString() == _s['id'].toString()) { if (mounted) setState(() => _s = m); return; }
+    }
+  }
+
+  @override Widget build(BuildContext context) {
+    final akt = (_s['aktenzeichen'] ?? '').toString();
+    return Column(children: [
+      Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
+        child: Row(children: [Icon(Icons.warning_amber, color: Colors.red.shade700), const SizedBox(width: 8), Expanded(child: Text('Sanktion${akt.isNotEmpty ? " — Az. $akt" : ""}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800), overflow: TextOverflow.ellipsis)), IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))])),
+      TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, tabs: const [Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 16)), Tab(text: 'Korrespondenz', icon: Icon(Icons.forum, size: 16)), Tab(text: 'Widerspruch', icon: Icon(Icons.gavel, size: 16))]),
+      Expanded(child: TabBarView(controller: _tabC, children: [
+        _SanktionDetailsTab(apiService: widget.apiService, sanktion: _s, onReload: _reload),
+        _SanktionKorrTab(apiService: widget.apiService, sanktionId: _sId),
+        _SanktionWiderspruchTab(apiService: widget.apiService, sanktion: _s, onReload: _reload),
+      ])),
+    ]);
+  }
+}
+
+// -------- Sanktion Details Tab (edit + files) --------
+class _SanktionDetailsTab extends StatefulWidget {
+  final ApiService apiService; final Map<String, dynamic> sanktion; final Future<void> Function() onReload;
+  const _SanktionDetailsTab({required this.apiService, required this.sanktion, required this.onReload});
+  @override State<_SanktionDetailsTab> createState() => _SanktionDetailsTabState();
+}
+
+class _SanktionDetailsTabState extends State<_SanktionDetailsTab> {
+  bool _uploading = false;
+  int get _sId => int.tryParse(widget.sanktion['id'].toString()) ?? 0;
+
+  Future<void> _edit() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _AddEditSanktionDialog(apiService: widget.apiService, antragId: int.tryParse(widget.sanktion['antrag_id'].toString()) ?? 0, userId: int.tryParse(widget.sanktion['user_id'].toString()) ?? 0, existing: widget.sanktion));
+    if (ok == true) await widget.onReload();
+  }
+
+  Future<void> _pickAndUpload() async {
+    final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf','jpg','jpeg','png','heic','heif'], withData: true, allowMultiple: true);
+    if (res == null || res.files.isEmpty) return;
+    setState(() => _uploading = true);
+    int ok = 0;
+    for (final f in res.files) {
+      if (f.bytes == null) continue;
+      final r = await widget.apiService.uploadJobcenterSanktionFile(sanktionId: _sId, bytes: f.bytes!, filename: f.name);
+      if (r['success'] == true) ok++;
+    }
+    if (mounted) setState(() => _uploading = false);
+    await widget.onReload();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$ok / ${res.files.length} hochgeladen'), backgroundColor: ok > 0 ? Colors.green.shade600 : Colors.red));
+  }
+
+  Future<void> _viewFile(int fileId, String name) async {
+    final r = await widget.apiService.downloadJobcenterSanktionFile(fileId);
+    if (r.statusCode == 200 && mounted) await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+    else if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konnte Datei nicht laden')));
+  }
+
+  Future<void> _deleteFile(int fileId) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Datei löschen?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Löschen', style: TextStyle(color: Colors.white)))]));
+    if (ok != true) return;
+    final r = await widget.apiService.jobcenterSanktionAction({'action': 'delete_file', 'file_id': fileId});
+    if (r['success'] == true) await widget.onReload();
+  }
+
+  Widget _row(String label, String? value, {IconData? icon, Color? color}) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (icon != null) Icon(icon, size: 14, color: color ?? Colors.grey.shade600),
+      if (icon != null) const SizedBox(width: 6),
+      SizedBox(width: 150, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      Expanded(child: Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color ?? Colors.black87))),
+    ]));
+  }
+
+  @override Widget build(BuildContext context) {
+    final s = widget.sanktion;
+    final files = (s['files'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Sanktion-Details', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const Spacer(),
+        TextButton.icon(onPressed: _edit, icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten')),
+      ]),
+      const Divider(),
+      _row('Aktenzeichen:', s['aktenzeichen']?.toString(), icon: Icons.numbers),
+      _row('Paragraf:', s['paragraf']?.toString(), icon: Icons.gavel),
+      _row('Minderung %:', s['prozent']?.toString(), icon: Icons.percent, color: Colors.red),
+      _row('Betrag (€):', s['betrag']?.toString(), icon: Icons.euro),
+      _row('Zeitraum von:', s['zeitraum_von']?.toString(), icon: Icons.event),
+      _row('Zeitraum bis:', s['zeitraum_bis']?.toString(), icon: Icons.event),
+      _row('Grund:', s['grund']?.toString(), icon: Icons.description),
+      const SizedBox(height: 8),
+      Text('Zustellung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+      const Divider(),
+      _row('Bescheid-Datum:', s['bescheid_datum']?.toString(), icon: Icons.calendar_today),
+      _row('Versand (Plicul):', s['versand_datum']?.toString(), icon: Icons.outbox),
+      _row('Zugang Klient:', s['zugang_klient_datum']?.toString(), icon: Icons.person, color: Colors.blue),
+      _row('Zugang bei uns:', s['zugang_uns_datum']?.toString(), icon: Icons.home_work),
+      _row('Widerspruchsfrist:', s['widerspruchsfrist']?.toString(), icon: Icons.alarm, color: Colors.deepOrange),
+      const SizedBox(height: 12),
+      // ---- Files ----
+      Row(children: [
+        Text('Anhänge (Bescheid)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+        const Spacer(),
+        TextButton.icon(onPressed: _uploading ? null : _pickAndUpload, icon: const Icon(Icons.upload_file, size: 16), label: Text(_uploading ? 'Lädt...' : 'Dateien hochladen')),
+      ]),
+      const Divider(),
+      if (files.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Noch keine Datei hochgeladen.', style: TextStyle(fontSize: 11, color: Colors.grey))),
+      ...files.map((f) {
+        final fn = (f['filename'] ?? '').toString();
+        final orig = (f['original_name'] ?? '').toString();
+        final shown = orig.isNotEmpty ? orig : fn;
+        final fid = int.tryParse(f['id'].toString()) ?? 0;
+        final size = int.tryParse(f['size_bytes']?.toString() ?? '0') ?? 0;
+        final sizeKb = (size / 1024).toStringAsFixed(1);
+        return Container(margin: const EdgeInsets.only(bottom: 4), padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+          child: Row(children: [
+            const Icon(Icons.attach_file, size: 16, color: Colors.indigo),
+            const SizedBox(width: 6),
+            Expanded(child: Text(shown, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+            Text('${sizeKb} KB', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            const SizedBox(width: 6),
+            IconButton(icon: const Icon(Icons.visibility, size: 16), tooltip: 'Ansehen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _viewFile(fid, shown)),
+            IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _deleteFile(fid)),
+          ]));
+      }),
+    ]));
+  }
+}
+
+// -------- Sanktion Korrespondenz Tab --------
+class _SanktionKorrTab extends StatefulWidget {
+  final ApiService apiService; final int sanktionId;
+  const _SanktionKorrTab({required this.apiService, required this.sanktionId});
+  @override State<_SanktionKorrTab> createState() => _SanktionKorrTabState();
+}
+
+class _SanktionKorrTabState extends State<_SanktionKorrTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loading = true;
+
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final r = await widget.apiService.jobcenterSanktionAction({'action': 'korr_list', 'sanktion_id': widget.sanktionId});
+    final list = (r['data']?['korrespondenz'] as List?) ?? (r['korrespondenz'] as List?) ?? [];
+    _items = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _addOrEdit({Map<String, dynamic>? existing}) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _SanktionKorrDialog(apiService: widget.apiService, sanktionId: widget.sanktionId, existing: existing));
+    if (ok == true) await _load();
+  }
+
+  Future<void> _delete(int kid) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Korrespondenz löschen?'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Löschen', style: TextStyle(color: Colors.white)))]));
+    if (ok != true) return;
+    final r = await widget.apiService.jobcenterSanktionAction({'action': 'korr_delete', 'id': kid});
+    if (r['success'] == true) await _load();
+  }
+
+  Future<void> _viewAnhang(int aid, String name) async {
+    final r = await widget.apiService.downloadJobcenterSanktionKorrAnhang(aid);
+    if (r.statusCode == 200 && mounted) await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+  }
+
+  @override Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Korrespondenz zur Sanktion', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: () => _addOrEdit(), icon: const Icon(Icons.add, size: 16), label: const Text('Hinzufügen'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6))),
+      ]),
+      const Divider(),
+      Expanded(child: _items.isEmpty
+          ? const Center(child: Text('Keine Korrespondenz erfasst.', style: TextStyle(color: Colors.grey, fontSize: 12)))
+          : ListView.separated(itemCount: _items.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (_, i) {
+              final k = _items[i];
+              final rich = (k['richtung'] ?? 'eingang').toString();
+              final isE = rich == 'eingang';
+              final met = (k['methode'] ?? '').toString();
+              final dat = (k['datum'] ?? '').toString();
+              final subj = (k['subject'] ?? '').toString();
+              final nach = (k['nachricht'] ?? '').toString();
+              final anh = (k['anhaenge'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+              final kid = int.tryParse(k['id'].toString()) ?? 0;
+              final MaterialColor mc = isE ? Colors.blue : Colors.green;
+              return Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: mc.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: mc.shade200)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(isE ? Icons.call_received : Icons.call_made, size: 14, color: isE ? Colors.blue : Colors.green),
+                    const SizedBox(width: 4),
+                    Text(isE ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isE ? Colors.blue : Colors.green)),
+                    const SizedBox(width: 8),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(3)), child: Text(met, style: const TextStyle(fontSize: 10))),
+                    const Spacer(),
+                    Text(dat, style: const TextStyle(fontSize: 10)),
+                    IconButton(icon: const Icon(Icons.edit, size: 14), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 26, minHeight: 26), onPressed: () => _addOrEdit(existing: k)),
+                    IconButton(icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 26, minHeight: 26), onPressed: () => _delete(kid)),
+                  ]),
+                  if (subj.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(subj, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                  if (nach.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(nach, style: const TextStyle(fontSize: 11))),
+                  if (anh.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Wrap(spacing: 4, runSpacing: 4, children: anh.map((a) {
+                    final n = (a['original_name'] ?? a['filename'] ?? 'datei').toString();
+                    final aid = int.tryParse(a['id'].toString()) ?? 0;
+                    return ActionChip(label: Text(n, style: const TextStyle(fontSize: 10)), avatar: const Icon(Icons.attach_file, size: 12), onPressed: () => _viewAnhang(aid, n), visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap);
+                  }).toList())),
+                ]));
+            })),
+    ]));
+  }
+}
+
+// -------- Korrespondenz Add/Edit Dialog --------
+class _SanktionKorrDialog extends StatefulWidget {
+  final ApiService apiService; final int sanktionId; final Map<String, dynamic>? existing;
+  const _SanktionKorrDialog({required this.apiService, required this.sanktionId, this.existing});
+  @override State<_SanktionKorrDialog> createState() => _SanktionKorrDialogState();
+}
+
+class _SanktionKorrDialogState extends State<_SanktionKorrDialog> {
+  late TextEditingController _datumC, _subjC, _nachC;
+  String _rich = 'eingang', _met = 'post';
+  bool _saving = false;
+  List<PlatformFile> _pendingFiles = [];
+
+  @override void initState() {
+    super.initState();
+    final e = widget.existing ?? {};
+    _datumC = TextEditingController(text: e['datum']?.toString() ?? '');
+    _subjC = TextEditingController(text: e['subject']?.toString() ?? '');
+    _nachC = TextEditingController(text: e['nachricht']?.toString() ?? '');
+    _rich = e['richtung']?.toString() ?? 'eingang';
+    _met = e['methode']?.toString() ?? 'post';
+  }
+  @override void dispose() { _datumC.dispose(); _subjC.dispose(); _nachC.dispose(); super.dispose(); }
+
+  Future<void> _pickFiles() async {
+    final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf','jpg','jpeg','png','heic','heif'], withData: true, allowMultiple: true);
+    if (res != null && res.files.isNotEmpty) setState(() => _pendingFiles = res.files);
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final payload = {'richtung': _rich, 'methode': _met, 'datum': _datumC.text.trim(), 'subject': _subjC.text.trim(), 'nachricht': _nachC.text.trim()};
+    int kid = int.tryParse(widget.existing?['id']?.toString() ?? '0') ?? 0;
+    if (kid == 0) {
+      final r = await widget.apiService.jobcenterSanktionAction({'action': 'korr_create', 'sanktion_id': widget.sanktionId, 'korrespondenz': payload});
+      if (r['success'] == true) kid = int.tryParse(r['data']?['id']?.toString() ?? r['id']?.toString() ?? '0') ?? 0;
+    } else {
+      await widget.apiService.jobcenterSanktionAction({'action': 'korr_update', 'id': kid, 'korrespondenz': payload});
+    }
+    // upload pending files
+    for (final f in _pendingFiles) {
+      if (f.bytes != null && kid > 0) {
+        await widget.apiService.uploadJobcenterSanktionKorrAnhang(korrId: kid, bytes: f.bytes!, filename: f.name);
+      }
+    }
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  @override Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.existing == null ? 'Neue Korrespondenz' : 'Korrespondenz bearbeiten', style: const TextStyle(fontSize: 15)),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          ChoiceChip(label: const Text('Eingang'), selected: _rich == 'eingang', onSelected: (_) => setState(() => _rich = 'eingang')),
+          const SizedBox(width: 6),
+          ChoiceChip(label: const Text('Ausgang'), selected: _rich == 'ausgang', onSelected: (_) => setState(() => _rich = 'ausgang')),
+        ]),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(initialValue: _met, decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()), items: const [
+          DropdownMenuItem(value: 'post', child: Text('Post')),
+          DropdownMenuItem(value: 'fax', child: Text('Fax')),
+          DropdownMenuItem(value: 'email', child: Text('E-Mail')),
+          DropdownMenuItem(value: 'online', child: Text('Online')),
+          DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')),
+          DropdownMenuItem(value: 'telefon', child: Text('Telefon')),
+        ], onChanged: (v) => setState(() => _met = v ?? 'post')),
+        const SizedBox(height: 8),
+        TextField(controller: _datumC, readOnly: true, decoration: const InputDecoration(labelText: 'Datum', prefixIcon: Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder()),
+          onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) _datumC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; }),
+        const SizedBox(height: 8),
+        TextField(controller: _subjC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        TextField(controller: _nachC, maxLines: 4, decoration: const InputDecoration(labelText: 'Nachricht', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        Row(children: [
+          ElevatedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.attach_file, size: 14), label: Text(_pendingFiles.isEmpty ? 'Anhänge wählen' : '${_pendingFiles.length} Datei(en)')),
+        ]),
+      ]))),
+      actions: [TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')), ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white), child: const Text('Speichern'))],
+    );
+  }
+}
+
+// -------- Sanktion Widerspruch Tab --------
+class _SanktionWiderspruchTab extends StatefulWidget {
+  final ApiService apiService; final Map<String, dynamic> sanktion; final Future<void> Function() onReload;
+  const _SanktionWiderspruchTab({required this.apiService, required this.sanktion, required this.onReload});
+  @override State<_SanktionWiderspruchTab> createState() => _SanktionWiderspruchTabState();
+}
+
+class _SanktionWiderspruchTabState extends State<_SanktionWiderspruchTab> {
+  Map<String, dynamic> _w = {};
+  bool _loading = true, _saving = false;
+
+  late TextEditingController _eingelegtAmC, _akteEinBeantC, _akteEinGewC, _begDateC, _begTextC, _berDateC, _amtsgC, _berAktC, _anwNameC, _anwDateC, _wbDateC, _klageDateC, _klageAktC, _utDateC, _notizC;
+  late bool _eingelegt, _fristwahrend, _akteneinsicht, _begEingereicht, _berBeantragt, _berErhalten, _anwaltKons, _wbEingegangen, _klageEing, _utEing;
+  String _eingMet = 'post', _wbErgebnis = '';
+
+  int get _sId => int.tryParse(widget.sanktion['id'].toString()) ?? 0;
+
+  @override void initState() { super.initState();
+    _eingelegtAmC = TextEditingController();
+    _akteEinBeantC = TextEditingController();
+    _akteEinGewC = TextEditingController();
+    _begDateC = TextEditingController();
+    _begTextC = TextEditingController();
+    _berDateC = TextEditingController();
+    _amtsgC = TextEditingController();
+    _berAktC = TextEditingController();
+    _anwNameC = TextEditingController();
+    _anwDateC = TextEditingController();
+    _wbDateC = TextEditingController();
+    _klageDateC = TextEditingController();
+    _klageAktC = TextEditingController();
+    _utDateC = TextEditingController();
+    _notizC = TextEditingController();
+    _eingelegt = false; _fristwahrend = true; _akteneinsicht = false; _begEingereicht = false;
+    _berBeantragt = false; _berErhalten = false; _anwaltKons = false; _wbEingegangen = false; _klageEing = false; _utEing = false;
+    _load();
+  }
+
+  @override void dispose() { for (final c in [_eingelegtAmC,_akteEinBeantC,_akteEinGewC,_begDateC,_begTextC,_berDateC,_amtsgC,_berAktC,_anwNameC,_anwDateC,_wbDateC,_klageDateC,_klageAktC,_utDateC,_notizC]) { c.dispose(); } super.dispose(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.jobcenterSanktionAction({'action': 'widerspruch_get', 'sanktion_id': _sId});
+    final w = (r['data']?['widerspruch'] as Map?) ?? (r['widerspruch'] as Map?) ?? {};
+    _w = Map<String, dynamic>.from(w);
+    _eingelegt = _w['eingelegt'].toString() == '1' || _w['eingelegt'] == true;
+    _fristwahrend = _w['eingelegt_fristwahrend'].toString() == '1' || _w['eingelegt_fristwahrend'] == true;
+    _akteneinsicht = _w['akteneinsicht_beantragt'].toString() == '1' || _w['akteneinsicht_beantragt'] == true;
+    _begEingereicht = _w['begruendung_eingereicht'].toString() == '1' || _w['begruendung_eingereicht'] == true;
+    _berBeantragt = _w['beratungsschein_beantragt'].toString() == '1' || _w['beratungsschein_beantragt'] == true;
+    _berErhalten = _w['beratungsschein_erhalten'].toString() == '1' || _w['beratungsschein_erhalten'] == true;
+    _anwaltKons = _w['anwalt_konsultiert'].toString() == '1' || _w['anwalt_konsultiert'] == true;
+    _wbEingegangen = _w['widerspruchsbescheid_eingegangen'].toString() == '1' || _w['widerspruchsbescheid_eingegangen'] == true;
+    _klageEing = _w['klage_eingereicht'].toString() == '1' || _w['klage_eingereicht'] == true;
+    _utEing = _w['untaetigkeitsklage_eingereicht'].toString() == '1' || _w['untaetigkeitsklage_eingereicht'] == true;
+    _eingMet = (_w['eingelegt_methode'] ?? 'post').toString();
+    _wbErgebnis = (_w['widerspruchsbescheid_ergebnis'] ?? '').toString();
+    _eingelegtAmC.text = (_w['eingelegt_am'] ?? '').toString();
+    _akteEinBeantC.text = (_w['akteneinsicht_beantragt_am'] ?? '').toString();
+    _akteEinGewC.text = (_w['akteneinsicht_gewaehrt_am'] ?? '').toString();
+    _begDateC.text = (_w['begruendung_datum'] ?? '').toString();
+    _begTextC.text = (_w['begruendung_text'] ?? '').toString();
+    _berDateC.text = (_w['beratungsschein_datum'] ?? '').toString();
+    _amtsgC.text = (_w['amtsgericht'] ?? '').toString();
+    _berAktC.text = (_w['beratungsschein_aktenz'] ?? '').toString();
+    _anwNameC.text = (_w['anwalt_name'] ?? '').toString();
+    _anwDateC.text = (_w['anwalt_datum'] ?? '').toString();
+    _wbDateC.text = (_w['widerspruchsbescheid_datum'] ?? '').toString();
+    _klageDateC.text = (_w['klage_datum'] ?? '').toString();
+    _klageAktC.text = (_w['klage_aktenz'] ?? '').toString();
+    _utDateC.text = (_w['untaetigkeitsklage_datum'] ?? '').toString();
+    _notizC.text = (_w['notiz'] ?? '').toString();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final payload = {
+      'eingelegt': _eingelegt,
+      'eingelegt_am': _eingelegtAmC.text.trim(),
+      'eingelegt_methode': _eingMet,
+      'eingelegt_fristwahrend': _fristwahrend,
+      'akteneinsicht_beantragt': _akteneinsicht,
+      'akteneinsicht_beantragt_am': _akteEinBeantC.text.trim(),
+      'akteneinsicht_gewaehrt_am': _akteEinGewC.text.trim(),
+      'begruendung_eingereicht': _begEingereicht,
+      'begruendung_datum': _begDateC.text.trim(),
+      'begruendung_text': _begTextC.text.trim(),
+      'beratungsschein_beantragt': _berBeantragt,
+      'beratungsschein_datum': _berDateC.text.trim(),
+      'amtsgericht': _amtsgC.text.trim(),
+      'beratungsschein_erhalten': _berErhalten,
+      'beratungsschein_aktenz': _berAktC.text.trim(),
+      'anwalt_konsultiert': _anwaltKons,
+      'anwalt_name': _anwNameC.text.trim(),
+      'anwalt_datum': _anwDateC.text.trim(),
+      'widerspruchsbescheid_eingegangen': _wbEingegangen,
+      'widerspruchsbescheid_datum': _wbDateC.text.trim(),
+      'widerspruchsbescheid_ergebnis': _wbErgebnis,
+      'klage_eingereicht': _klageEing,
+      'klage_datum': _klageDateC.text.trim(),
+      'klage_aktenz': _klageAktC.text.trim(),
+      'untaetigkeitsklage_eingereicht': _utEing,
+      'untaetigkeitsklage_datum': _utDateC.text.trim(),
+      'notiz': _notizC.text.trim(),
+    };
+    final r = await widget.apiService.jobcenterSanktionAction({'action': 'widerspruch_save', 'sanktion_id': _sId, 'widerspruch': payload});
+    if (mounted) {
+      setState(() => _saving = false);
+      if (r['success'] == true) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); await _load(); }
+    }
+  }
+
+  Future<void> _generatePdf() async {
+    final r = await widget.apiService.downloadJobcenterSanktionWiderspruchPdf(_sId);
+    if (r.statusCode == 200 && mounted) {
+      await FileViewerDialog.showFromBytes(context, r.bodyBytes, 'widerspruch_sanktion_${_sId}.pdf');
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Konnte PDF nicht laden (${r.statusCode})')));
+    }
+  }
+
+  Future<void> _pickDate(TextEditingController c) async {
+    final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+    if (d != null) setState(() => c.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}');
+  }
+
+  Widget _dateField(String label, TextEditingController c) => TextField(controller: c, readOnly: true, onTap: () => _pickDate(c), decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.calendar_today, size: 14), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12));
+  Widget _textField(String label, TextEditingController c, {int maxLines = 1}) => TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(labelText: label, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12));
+  Widget _section(String title, IconData icon, Color color) => Padding(padding: const EdgeInsets.only(top: 12, bottom: 6), child: Row(children: [Icon(icon, size: 16, color: color), const SizedBox(width: 6), Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color))]));
+
+  @override Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final frist = (widget.sanktion['widerspruchsfrist'] ?? '').toString();
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Info banner
+      Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.gavel, size: 16, color: Colors.blue.shade700), const SizedBox(width: 6), Text('Widerspruchsverfahren — Übersicht', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade800))]),
+          const SizedBox(height: 4),
+          Text('• Widerspruchsfrist: 1 Monat ab Zugang (§ 84 SGG)${frist.isNotEmpty ? " — bis $frist" : ""}', style: const TextStyle(fontSize: 10)),
+          const Text('• Strategie: fristwahrend einlegen → Akteneinsicht § 25 SGB X → Begründung nachreichen → Beratungshilfeschein Amtsgericht (§ 1 BerHG) → ggf. Anwalt', style: TextStyle(fontSize: 10)),
+          const Text('• Behörde muss in 3 Mon. entscheiden (§ 88 SGG) — sonst Untätigkeitsklage. Klagefrist 1 Mon. ab Widerspruchsbescheid (§ 87 SGG)', style: TextStyle(fontSize: 10)),
+        ])),
+
+      _section('1. Widerspruch einlegen', Icons.send, Colors.red.shade700),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Widerspruch eingelegt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: _eingelegt, onChanged: (v) => setState(() => _eingelegt = v)),
+      if (_eingelegt) Column(children: [
+        Row(children: [Expanded(child: _dateField('Eingelegt am', _eingelegtAmC)), const SizedBox(width: 8), Expanded(child: DropdownButtonFormField<String>(initialValue: _eingMet, decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()), items: const [
+          DropdownMenuItem(value: 'post', child: Text('Post (Einschreiben)')),
+          DropdownMenuItem(value: 'fax', child: Text('Fax')),
+          DropdownMenuItem(value: 'email', child: Text('E-Mail')),
+          DropdownMenuItem(value: 'online', child: Text('Online-Portal')),
+          DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')),
+        ], onChanged: (v) => setState(() => _eingMet = v ?? 'post')))]),
+        const SizedBox(height: 6),
+        SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Fristwahrend (Begründung folgt)', style: TextStyle(fontSize: 11)), subtitle: const Text('Empfohlen: zuerst fristwahrend, dann Akteneinsicht und Begründung nachreichen', style: TextStyle(fontSize: 9)), value: _fristwahrend, onChanged: (v) => setState(() => _fristwahrend = v)),
+      ]),
+
+      _section('2. Akteneinsicht (§ 25 SGB X)', Icons.folder_open, Colors.purple.shade700),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Akteneinsicht beantragt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: _akteneinsicht, onChanged: (v) => setState(() => _akteneinsicht = v)),
+      if (_akteneinsicht) Row(children: [Expanded(child: _dateField('Beantragt am', _akteEinBeantC)), const SizedBox(width: 8), Expanded(child: _dateField('Gewährt am', _akteEinGewC))]),
+
+      _section('3. Begründung nachgereicht', Icons.edit_note, Colors.orange.shade700),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Begründung eingereicht', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: _begEingereicht, onChanged: (v) => setState(() => _begEingereicht = v)),
+      if (_begEingereicht) Column(children: [
+        _dateField('Datum Begründung', _begDateC),
+        const SizedBox(height: 6),
+        _textField('Begründung-Text', _begTextC, maxLines: 4),
+      ]),
+
+      _section('4. Beratungshilfe (§ 1 BerHG)', Icons.account_balance, Colors.indigo.shade700),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Beratungsschein beantragt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), subtitle: const Text('Amtsgericht des Wohnorts — Rechtsantragsstelle', style: TextStyle(fontSize: 10)), value: _berBeantragt, onChanged: (v) => setState(() => _berBeantragt = v)),
+      if (_berBeantragt) Column(children: [
+        Row(children: [Expanded(child: _dateField('Beantragt am', _berDateC)), const SizedBox(width: 8), Expanded(child: _textField('Amtsgericht', _amtsgC))]),
+        const SizedBox(height: 6),
+        SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Beratungsschein erhalten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)), value: _berErhalten, onChanged: (v) => setState(() => _berErhalten = v)),
+        if (_berErhalten) _textField('Az. Beratungsschein', _berAktC),
+      ]),
+
+      _section('5. Anwaltliche Vertretung', Icons.support_agent, Colors.teal.shade700),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Anwalt konsultiert', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: _anwaltKons, onChanged: (v) => setState(() => _anwaltKons = v)),
+      if (_anwaltKons) Row(children: [Expanded(child: _textField('Anwalt-Name', _anwNameC)), const SizedBox(width: 8), Expanded(child: _dateField('Beauftragt am', _anwDateC))]),
+
+      _section('6. Widerspruchsbescheid', Icons.mark_email_read, Colors.brown.shade700),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Widerspruchsbescheid eingegangen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: _wbEingegangen, onChanged: (v) => setState(() => _wbEingegangen = v)),
+      if (_wbEingegangen) Column(children: [
+        Row(children: [Expanded(child: _dateField('Datum', _wbDateC)), const SizedBox(width: 8), Expanded(child: DropdownButtonFormField<String>(initialValue: _wbErgebnis.isEmpty ? null : _wbErgebnis, decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder()), items: const [
+          DropdownMenuItem(value: 'stattgegeben', child: Text('Stattgegeben')),
+          DropdownMenuItem(value: 'teilweise', child: Text('Teilweise stattgegeben')),
+          DropdownMenuItem(value: 'zurueckgewiesen', child: Text('Zurückgewiesen')),
+        ], onChanged: (v) => setState(() => _wbErgebnis = v ?? '')))]),
+      ]),
+
+      _section('7. Klage / Untätigkeitsklage', Icons.balance, Colors.deepOrange.shade700),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Klage beim Sozialgericht eingereicht', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), subtitle: const Text('Frist: 1 Mon. ab Widerspruchsbescheid (§ 87 SGG)', style: TextStyle(fontSize: 10)), value: _klageEing, onChanged: (v) => setState(() => _klageEing = v)),
+      if (_klageEing) Row(children: [Expanded(child: _dateField('Klage-Datum', _klageDateC)), const SizedBox(width: 8), Expanded(child: _textField('Aktenzeichen Sozialgericht', _klageAktC))]),
+      const SizedBox(height: 6),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Untätigkeitsklage eingereicht', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), subtitle: const Text('Möglich nach 3 Mon. ohne Entscheidung (§ 88 SGG)', style: TextStyle(fontSize: 10)), value: _utEing, onChanged: (v) => setState(() => _utEing = v)),
+      if (_utEing) _dateField('Untätigkeitsklage-Datum', _utDateC),
+
+      _section('Notizen', Icons.notes, Colors.grey.shade700),
+      _textField('Notizen', _notizC, maxLines: 3),
+
+      const SizedBox(height: 16),
+      Row(children: [
+        ElevatedButton.icon(onPressed: _generatePdf, icon: const Icon(Icons.picture_as_pdf, size: 16), label: const Text('Widerspruch PDF generieren'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white)),
+      ]),
+      const SizedBox(height: 10),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)), child: const Text(
+        'Die PDF-Vorlage zieht automatisch:\n• Klientendaten aus Verifizierung Stufe 1 (Name, Adresse, Geb.-Datum)\n• Jobcenter-Stammdaten (Adresse, Kundennummer, BG-Nummer)\n• Sanktion-Daten (Az., Paragraf, %, Zeitraum)\n\nEnthält: Fristwahrender Widerspruch + § 25 SGB X Akteneinsicht + § 1 BerHG Beratungshilfe + § 86b SGG aufschiebende Wirkung + § 88/§ 87 SGG Klagefristen.', style: TextStyle(fontSize: 10, color: Colors.green))),
     ]));
   }
 }
