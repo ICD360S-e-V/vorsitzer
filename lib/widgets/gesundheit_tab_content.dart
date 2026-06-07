@@ -14618,15 +14618,34 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> {
   }
 
   Future<void> _generate() async {
-    // Pull doctor data from the Arzt-tab: selected_arzt (if present) or fallback to behandelnder_arzt textfield.
-    final selArzt = widget.arztData['selected_arzt'];
+    // Pull doctor data from the Arzt-tab. The DB uses arzt_name + praxis_name +
+    // plz_ort (combined), not the simple {name,plz,ort} shape — map carefully.
+    final raw = widget.arztData['selected_arzt'];
+    final selArzt = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
     final beh = (widget.arztData['behandelnder_arzt'] ?? '').toString().trim();
+
+    String aName  = (selArzt['arzt_name'] ?? '').toString().trim();
+    final praxis  = (selArzt['praxis_name'] ?? '').toString().trim();
+    if (aName.isEmpty) aName = praxis;
+    if (aName.isNotEmpty && praxis.isNotEmpty && aName != praxis) aName = '$aName — $praxis';
+    if (aName.isEmpty) aName = beh;
+
+    final aStr = (selArzt['strasse'] ?? '').toString().trim();
+    final plzOrt = (selArzt['plz_ort'] ?? '').toString().trim();
+    String aPlz = '', aOrt = '';
+    if (plzOrt.isNotEmpty) {
+      final parts = plzOrt.split(RegExp(r'\s+'));
+      if (parts.length >= 2 && RegExp(r'^\d{4,5}$').hasMatch(parts.first)) {
+        aPlz = parts.first;
+        aOrt = parts.sublist(1).join(' ');
+      } else {
+        aOrt = plzOrt;
+      }
+    }
+    final aTel = (selArzt['telefon'] ?? '').toString().trim();
+
     final arzt = <String, String>{
-      'name':    selArzt is Map ? (selArzt['name'] ?? '').toString() : (beh.isNotEmpty ? beh : ''),
-      'strasse': selArzt is Map ? (selArzt['strasse'] ?? '').toString() : '',
-      'plz':     selArzt is Map ? (selArzt['plz'] ?? '').toString() : '',
-      'ort':     selArzt is Map ? (selArzt['ort'] ?? '').toString() : '',
-      'telefon': selArzt is Map ? (selArzt['telefon'] ?? '').toString() : '',
+      'name': aName, 'strasse': aStr, 'plz': aPlz, 'ort': aOrt, 'telefon': aTel,
     };
     if (arzt['name']!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erst Arzt im Tab "Arzt" auswählen oder unter "Behandelnder Arzt" eintragen'), backgroundColor: Colors.orange));
