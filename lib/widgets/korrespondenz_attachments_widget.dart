@@ -30,11 +30,28 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   @override
   void initState() { super.initState(); _load(); }
 
+  // CRITICAL: ListView reuses State when a list reorders. Without this, the
+  // state's _attachments stay frozen on the OLD korrespondenzId — meaning a
+  // newly added Korrespondenz shows attachments from a previous list row.
+  @override
+  void didUpdateWidget(covariant KorrAttachmentsWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.korrespondenzId != widget.korrespondenzId || oldWidget.modul != widget.modul) {
+      _attachments = [];
+      _loaded = false;
+      _load();
+    }
+  }
+
   Future<void> _load() async {
     final r = await widget.apiService.listKorrAttachments(widget.modul, widget.korrespondenzId);
     if (!mounted) return;
     setState(() {
-      if (r['success'] == true && r['data'] is List) _attachments = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (r['success'] == true && r['data'] is List) {
+        _attachments = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } else {
+        _attachments = [];
+      }
       _loaded = true;
     });
   }

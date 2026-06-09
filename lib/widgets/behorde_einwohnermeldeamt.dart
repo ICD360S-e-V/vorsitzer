@@ -114,42 +114,100 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
   }
 
   Widget _buildAmtTab() {
-    final dienststelleC = TextEditingController(text: _v('dienststelle'));
-    final anmeldedatumC = TextEditingController(text: _v('anmeldedatum'));
-    final meldeadresseC = TextEditingController(text: _v('meldeadresse'));
-    final nebenwohnsitzC = TextEditingController(text: _v('nebenwohnsitz'));
-    final meldebeschNrC = TextEditingController(text: _v('meldebescheinigung_nr'));
+    final selected = _buergeraemter.firstWhere((b) => b['name'] == _v('dienststelle'), orElse: () => <String, String>{});
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Bürgeramt auswählen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      Text('Zuständiges Bürgeramt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
       const SizedBox(height: 8),
-      ..._buergeraemter.map((b) => Container(margin: const EdgeInsets.only(bottom: 6), child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => setState(() { _data['dienststelle'] = b['name']; dienststelleC.text = b['name']!; }),
-        child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _v('dienststelle') == b['name'] ? Colors.teal.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: _v('dienststelle') == b['name'] ? Colors.teal.shade400 : Colors.grey.shade200, width: _v('dienststelle') == b['name'] ? 2 : 1)),
-          child: Row(children: [
-            Icon(Icons.account_balance, size: 18, color: _v('dienststelle') == b['name'] ? Colors.teal.shade700 : Colors.grey.shade500),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(b['name']!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _v('dienststelle') == b['name'] ? Colors.teal.shade800 : Colors.grey.shade800)),
-              Text(b['adresse']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-              if (b['telefon'] != null) Text('Tel: ${b['telefon']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-              if (b['oeffnungszeiten'] != null) Text(b['oeffnungszeiten']!, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-            ])),
-            if (_v('dienststelle') == b['name']) Icon(Icons.check_circle, size: 20, color: Colors.teal.shade600),
-          ]))))),
+      // Search field — type or select from dropdown of known Bürgerämter.
+      Autocomplete<Map<String, String>>(
+        initialValue: TextEditingValue(text: _v('dienststelle')),
+        displayStringForOption: (b) => b['name'] ?? '',
+        optionsBuilder: (textEditingValue) {
+          final q = textEditingValue.text.trim().toLowerCase();
+          if (q.isEmpty) return _buergeraemter;
+          return _buergeraemter.where((b) => (b['name'] ?? '').toLowerCase().contains(q) || (b['adresse'] ?? '').toLowerCase().contains(q));
+        },
+        fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) {
+          return TextField(
+            controller: controller,
+            focusNode: focusNode,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: controller.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () { controller.clear(); setState(() { _data['dienststelle'] = ''; }); _saveFields({'dienststelle': ''}); },
+                    )
+                  : null,
+              hintText: 'Bürgeramt suchen…',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+            onSubmitted: (val) {
+              setState(() { _data['dienststelle'] = val.trim(); });
+              _saveFields({'dienststelle': val.trim()});
+              onFieldSubmitted();
+            },
+          );
+        },
+        optionsViewBuilder: (ctx, onSelected, options) {
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 280, maxWidth: 480),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  children: options.map((b) => InkWell(
+                    onTap: () => onSelected(b),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(b['name'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text(b['adresse'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      ]),
+                    ),
+                  )).toList(),
+                ),
+              ),
+            ),
+          );
+        },
+        onSelected: (b) {
+          setState(() { _data['dienststelle'] = b['name']; });
+          _saveFields({'dienststelle': b['name'] ?? ''});
+        },
+      ),
       const SizedBox(height: 16),
-      _dateField('Anmeldedatum', anmeldedatumC, context),
+      // Selected Bürgeramt details card (only shown when something is selected).
+      if (_v('dienststelle').isNotEmpty) Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade300)),
+        child: Row(children: [
+          Icon(Icons.account_balance, size: 24, color: Colors.teal.shade700),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_v('dienststelle'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            if (selected.isNotEmpty) ...[
+              if ((selected['adresse'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [Icon(Icons.location_on, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Expanded(child: Text(selected['adresse']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)))])),
+              if ((selected['telefon'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Text(selected['telefon']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
+              if ((selected['email'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [Icon(Icons.email, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Text(selected['email']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
+              if ((selected['oeffnungszeiten'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.schedule, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Expanded(child: Text(selected['oeffnungszeiten']!, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)))])),
+            ] else
+              Padding(padding: const EdgeInsets.only(top: 4), child: Text('Manuell eingegeben', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+          ])),
+        ]),
+      ),
       const SizedBox(height: 12),
-      _textField('Meldeadresse (Hauptwohnsitz)', meldeadresseC, hint: 'Straße Nr, PLZ Ort', icon: Icons.location_on, maxLines: 2),
-      const SizedBox(height: 12),
-      _textField('Nebenwohnsitz', nebenwohnsitzC, hint: 'Falls vorhanden', icon: Icons.home_work),
-      const SizedBox(height: 12),
-      _textField('Meldebescheinigung-Nr.', meldebeschNrC, hint: 'Nummer', icon: Icons.description),
-      const SizedBox(height: 16),
-      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: _saving ? null : () => _saveFields({'dienststelle': dienststelleC.text.trim(), 'anmeldedatum': anmeldedatumC.text.trim(), 'meldeadresse': meldeadresseC.text.trim(), 'nebenwohnsitz': nebenwohnsitzC.text.trim(), 'meldebescheinigung_nr': meldebeschNrC.text.trim()}),
-        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-        label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white))),
+      // Hint about where the registration data is now stored.
+      Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [
+        Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500), const SizedBox(width: 6),
+        Expanded(child: Text('Einzugsdatum, Meldeadresse, Nebenwohnsitz & Meldebescheinigung-Nr. werden pro Vorfall erfasst.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+      ])),
     ]));
   }
 
@@ -195,10 +253,14 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     final datumC = TextEditingController();
     final titelC = TextEditingController();
     final notizC = TextEditingController();
+    final einzugsdatumC = TextEditingController();
+    final meldeadresseC = TextEditingController();
+    final nebenwohnsitzC = TextEditingController();
+    final meldebescheinigungNrC = TextEditingController();
     String typ = '';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 14))]),
-      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(isExpanded: true, initialValue: typ.isEmpty ? null : typ,
           decoration: InputDecoration(labelText: 'Dienstleistung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _vorfallTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
@@ -209,11 +271,35 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
         _dateField('Datum', datumC, ctx),
         const SizedBox(height: 12),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 16),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+        Row(children: [
+          Icon(Icons.home, size: 14, color: Colors.teal.shade600), const SizedBox(width: 6),
+          Text('Meldedaten (optional)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+        ]),
+        const SizedBox(height: 8),
+        _dateField('Einzugsdatum', einzugsdatumC, ctx),
+        const SizedBox(height: 10),
+        TextField(controller: meldeadresseC, maxLines: 2, decoration: InputDecoration(labelText: 'Meldeadresse (Hauptwohnsitz)', hintText: 'Straße Nr, PLZ Ort', prefixIcon: const Icon(Icons.location_on, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: nebenwohnsitzC, decoration: InputDecoration(labelText: 'Nebenwohnsitz', hintText: 'Falls vorhanden', prefixIcon: const Icon(Icons.home_work, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: meldebescheinigungNrC, decoration: InputDecoration(labelText: 'Meldebescheinigung-Nr.', prefixIcon: const Icon(Icons.description, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          await widget.apiService.saveBuergeramtVorfall(widget.userId, {'typ': typ, 'titel': titelC.text.trim(), 'datum': datumC.text.trim(), 'notiz': notizC.text.trim()});
+          await widget.apiService.saveBuergeramtVorfall(widget.userId, {
+            'typ': typ,
+            'titel': titelC.text.trim(),
+            'datum': datumC.text.trim(),
+            'notiz': notizC.text.trim(),
+            'einzugsdatum': einzugsdatumC.text.trim(),
+            'meldeadresse': meldeadresseC.text.trim(),
+            'nebenwohnsitz': nebenwohnsitzC.text.trim(),
+            'meldebescheinigung_nr': meldebescheinigungNrC.text.trim(),
+          });
           if (ctx.mounted) Navigator.pop(ctx); await _load();
         }, child: const Text('Speichern')),
       ],
@@ -224,13 +310,6 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     final vid = v['id'] is int ? v['id'] as int : int.parse(v['id'].toString());
     showDialog(context: context, builder: (ctx) => Dialog(
       child: SizedBox(width: 600, height: 550, child: _BuergeramtVorfallDetail(apiService: widget.apiService, userId: widget.userId, vorfallId: vid, vorfall: v, onChanged: () { _load(); }))));
-  }
-
-  Widget _textField(String label, TextEditingController c, {String hint = '', IconData icon = Icons.edit, int maxLines = 1}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
-      TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)), style: const TextStyle(fontSize: 14)),
-    ]);
   }
 
   Widget _dateField(String label, TextEditingController c, BuildContext ctx) {
@@ -309,12 +388,25 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
   }
 
   Widget _buildDetails(Map<String, dynamic> v) {
+    final hasMeldedaten = ['einzugsdatum', 'meldeadresse', 'nebenwohnsitz', 'meldebescheinigung_nr']
+        .any((k) => (v[k]?.toString() ?? '').isNotEmpty);
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _infoRow(Icons.category, 'Typ', v['typ']),
       _infoRow(Icons.title, 'Titel', v['titel']),
       _infoRow(Icons.calendar_today, 'Datum', v['datum']),
       _infoRow(Icons.folder, 'Aktenzeichen', v['aktenzeichen']),
       _infoRow(Icons.flag, 'Status', v['status']),
+      if (hasMeldedaten) ...[
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 8),
+        Row(children: [Icon(Icons.home, size: 13, color: Colors.teal.shade600), const SizedBox(width: 6), Text('Meldedaten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700))]),
+        const SizedBox(height: 6),
+        _infoRow(Icons.event_available, 'Einzugsdatum', v['einzugsdatum']),
+        _infoRow(Icons.location_on, 'Meldeadresse', v['meldeadresse']),
+        _infoRow(Icons.home_work, 'Nebenwohnsitz', v['nebenwohnsitz']),
+        _infoRow(Icons.description, 'Meldebescheinigung-Nr.', v['meldebescheinigung_nr']),
+      ],
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 10),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,10 +16,15 @@ import 'package:webview_flutter_android/webview_flutter_android.dart' as android
 // Windows-specific WebView (conditional)
 import 'package:webview_windows/webview_windows.dart' as windows_webview;
 
+// Linux-specific WebView (CEF / Chromium embedded — bundled in the app)
+import 'package:webview_cef/webview_cef.dart' as cef;
+
 /// Cross-Platform WebView Screen
 /// - Windows: webview_windows (Edge WebView2)
-/// - macOS/Linux: Opens in external browser (webview_flutter desktop not stable)
+/// - macOS: webview_flutter (WKWebView)
 /// - Android/iOS: webview_flutter (native WebView)
+/// - Linux: webview_cef (bundled Chromium / CEF) — embedded in-app, with
+///   user-script injection at LOAD_END for auto-fill
 class WebViewScreen extends StatefulWidget {
   final String title;
   final String url;
@@ -48,6 +54,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
   // Mobile WebView controller
   mobile_webview.WebViewController? _mobileController;
 
+  // Linux CEF controller (Chromium Embedded Framework, bundled with app)
+  cef.WebViewController? _cefController;
+
   bool _isLoading = true;
   bool _isInitialized = false;
   String _currentUrl = '';
@@ -64,8 +73,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
     } else if (Platform.isMacOS || PlatformService.isMobile) {
       // macOS uses WKWebView via webview_flutter (same as iOS)
       await _initMobileWebView();
+    } else if (Platform.isLinux) {
+      // Linux: bundled Chromium via webview_cef
+      await _initLinuxCefWebView();
     } else {
-      // Linux: Open in external browser
       await _openInExternalBrowser();
     }
   }
@@ -186,18 +197,94 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
-  /// macOS/Linux: Open URL in system browser
+  /// Linux: In-app browser via webview_cef (bundled Chromium / CEF).
+  /// Embeds the webview INSIDE the Flutter app (like Windows/mobile).
+  /// `customJs` is registered as a LOAD_END user script so it auto-runs after
+  /// every navigation completes — no manual delay or polling needed.
+  Future<void> _initLinuxCefWebView() async {
+    try {
+      // Make sure CEF is initialized (idempotent across the app lifetime).
+      await cef.WebviewManager().initialize();
+
+      _cefController = cef.WebviewManager().createWebView(
+        loading: const Center(child: CircularProgressIndicator()),
+      );
+
+      _cefController!.setWebviewListener(cef.WebviewEventsListener(
+        onUrlChanged: (url) {
+          if (mounted) setState(() => _currentUrl = url);
+        },
+        onLoadStart: (_, url) {
+          if (mounted) setState(() => _isLoading = true);
+        },
+        onLoadEnd: (_, url) async {
+          if (mounted) setState(() => _isLoading = false);
+          // Inject customJs once per page load (works the same as Windows/mobile).
+          if (widget.customJs != null && widget.customJs!.isNotEmpty) {
+            try {
+              await _cefController!.executeJavaScript(widget.customJs!);
+            } catch (e) {
+              debugPrint('[CEF] customJs injection failed: $e');
+            }
+          }
+        },
+      ));
+
+      await _cefController!.initialize(widget.url);
+
+      if (mounted) setState(() => _isInitialized = true);
+    } catch (e, stack) {
+      debugPrint('[CEF] Init failed: $e\n$stack');
+      _showError('Linux WebView (CEF) Fehler: $e');
+    }
+  }
+
+  /// Fallback (no longer used by default — kept for unknown platforms): Open
+  /// URL in system browser. On Flatpak url_launcher may fail because the
+  /// sandbox can't see host's xdg-open — we then try flatpak-spawn --host
+  /// and common browsers.
   Future<void> _openInExternalBrowser() async {
     final uri = Uri.parse(widget.url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      // Close this screen since we opened external browser
-      if (mounted) {
-        Navigator.pop(context);
+
+    // Try url_launcher first (works on standard Linux, macOS, mobile).
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (mounted) Navigator.pop(context);
+        return;
       }
-    } else {
-      _showError('Konnte Browser nicht öffnen');
+    } catch (_) {}
+
+    // Linux fallback chain: detached Process.start, first one that doesn't
+    // throw wins. flatpak-spawn first so Flatpak builds escape the sandbox
+    // via org.freedesktop.portal.Flatpak.Spawn.
+    final attempts = <List<String>>[
+      ['flatpak-spawn', '--host', 'xdg-open', widget.url],
+      ['xdg-open', widget.url],
+      ['gio', 'open', widget.url],
+      ['kde-open5', widget.url],
+      ['flatpak', 'run', 'org.mozilla.firefox', widget.url],
+      ['firefox', widget.url],
+      ['flatpak', 'run', 'org.chromium.Chromium', widget.url],
+      ['chromium', widget.url],
+      ['chromium-browser', widget.url],
+      ['google-chrome', widget.url],
+    ];
+
+    for (final cmd in attempts) {
+      try {
+        await Process.start(cmd.first, cmd.sublist(1), mode: ProcessStartMode.detached);
+        if (mounted) Navigator.pop(context);
+        return;
+      } catch (_) {
+        continue;
+      }
     }
+
+    // All failed: copy URL to clipboard so user can paste into a browser.
+    await Clipboard.setData(ClipboardData(text: widget.url));
+    if (!mounted) return;
+    _showError('Browser konnte nicht geöffnet werden. URL wurde in die Zwischenablage kopiert.');
   }
 
   void _showError(String message) {
@@ -214,6 +301,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   void dispose() {
     _windowsController?.dispose();
+    _cefController?.dispose();
     super.dispose();
   }
 
@@ -720,6 +808,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _goBack() async {
     if (Platform.isWindows) {
       _windowsController?.goBack();
+    } else if (Platform.isLinux) {
+      _cefController?.goBack();
     } else if (_mobileController != null) {
       if (await _mobileController!.canGoBack()) {
         _mobileController!.goBack();
@@ -730,6 +820,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _goForward() async {
     if (Platform.isWindows) {
       _windowsController?.goForward();
+    } else if (Platform.isLinux) {
+      _cefController?.goForward();
     } else if (_mobileController != null) {
       if (await _mobileController!.canGoForward()) {
         _mobileController!.goForward();
@@ -740,6 +832,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _reload() async {
     if (Platform.isWindows) {
       _windowsController?.reload();
+    } else if (Platform.isLinux) {
+      _cefController?.reload();
     } else {
       _mobileController?.reload();
     }
@@ -748,6 +842,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _loadHome() async {
     if (Platform.isWindows) {
       _windowsController?.loadUrl(widget.url);
+    } else if (Platform.isLinux) {
+      _cefController?.loadUrl(widget.url);
     } else {
       _mobileController?.loadRequest(Uri.parse(widget.url));
     }
@@ -880,6 +976,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
       return windows_webview.Webview(_windowsController!);
     } else if ((Platform.isMacOS || PlatformService.isMobile) && _mobileController != null) {
       return mobile_webview.WebViewWidget(controller: _mobileController!);
+    } else if (Platform.isLinux && _cefController != null) {
+      return ValueListenableBuilder<bool>(
+        valueListenable: _cefController!,
+        builder: (ctx, ready, _) => ready
+            ? _cefController!.webviewWidget
+            : _cefController!.loadingWidget,
+      );
     }
 
     // Fallback - should not reach here

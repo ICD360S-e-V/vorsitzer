@@ -33,6 +33,10 @@ finish-args:
   - --talk-name=org.kde.kwalletd6
   # Auto-start on login
   - --talk-name=org.freedesktop.portal.Background
+  # CEF / Chromium (webview_cef) needs unprivileged user namespaces for its
+  # multi-process sandbox. Without --allow=devel the renderer crashes on
+  # startup. Same flag the Chromium/Brave Flatpaks use.
+  - --allow=devel
 
 cleanup:
   - /include

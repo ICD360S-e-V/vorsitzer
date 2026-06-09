@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 6.4.4+718
+version: 6.4.8+722
 
 environment:
   sdk: ^3.6.1
@@ -140,6 +140,11 @@ dependencies:
 
   # WebView for Windows (WebView2)
   webview_windows: ^0.4.0
+
+  # WebView for Linux — bundles CEF (Chromium Embedded Framework) so it works
+  # under org.freedesktop.Platform Flatpak without needing webkit2gtk. Provides
+  # executeJavaScript + evaluateJavascript for auto-fill (Rundfunkbeitrag etc.)
+  webview_cef: ^0.2.2
 
   # WebView for mobile (Android/iOS)
   webview_flutter: ^4.10.0

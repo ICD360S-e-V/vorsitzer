@@ -335,7 +335,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'auslaenderbehoerde', 'icon': Icons.public, 'label': 'Ausl\u00E4nderbeh\u00F6rde'},
     {'type': 'familienkasse', 'icon': Icons.child_care, 'label': 'Familienkasse'},
     {'type': 'jugendamt', 'icon': Icons.family_restroom, 'label': 'Jugendamt'},
-    {'type': 'einwohnermeldeamt', 'icon': Icons.home, 'label': 'Einwohnermeldeamt'},
+    {'type': 'einwohnermeldeamt', 'icon': Icons.home, 'label': 'Bürgeramt'},
     {'type': 'wohngeldstelle', 'icon': Icons.house, 'label': 'Wohngeldstelle'},
     {'type': 'bamf', 'icon': Icons.flag, 'label': 'BAMF'},
     {'type': 'vermieter', 'icon': Icons.apartment, 'label': 'Vermieter'},
