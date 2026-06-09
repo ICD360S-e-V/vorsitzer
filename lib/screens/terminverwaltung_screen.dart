@@ -370,8 +370,10 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            // Legend
-            Row(
+            // Legend — wrap so it stays readable on narrower windows
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -392,7 +394,6 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -408,6 +409,44 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                       Text(
                         'Ohne Begleitung durch ICD360S e.V.',
                         style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade400),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.do_not_disturb_on, size: 16, color: Colors.grey.shade700),
+                      const SizedBox(width: 6),
+                      Text(
+                        '08–12 Vormittag (kein Service)',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_outline, size: 16, color: Colors.green.shade700),
+                      const SizedBox(width: 6),
+                      Text(
+                        '13–17 Sprechzeiten',
+                        style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -567,22 +606,63 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     );
   }
 
-  /// Hour label on the left of each row (8, 9, …, 19).
+  /// Background color of the time zone:
+  /// - 8-12 Uhr  = Vormittag, kein Service (grey)
+  /// - 13-17 Uhr = Sprechzeiten (light green)
+  /// - 18-19 Uhr = Abend (default white / weekend grey)
+  Color _zoneColor(int hour, bool isWeekend) {
+    if (hour >= 8 && hour <= 12) {
+      return isWeekend ? Colors.grey.shade300 : Colors.grey.shade200;
+    }
+    if (hour >= 13 && hour <= 17) {
+      return isWeekend ? Colors.green.shade100 : Colors.green.shade50;
+    }
+    return isWeekend ? Colors.grey.shade100 : Colors.white;
+  }
+
+  /// Hour label on the left of each row (8, 9, …, 19). Color matches the zone.
+  /// 12 = lunch — adds restaurant icon under the number.
   Widget _buildHourLabel(int hour) {
+    final Color bgColor;
+    final Color textColor;
+    if (hour >= 8 && hour <= 12) {
+      bgColor = Colors.grey.shade200;
+      textColor = Colors.grey.shade800;
+    } else if (hour >= 13 && hour <= 17) {
+      bgColor = Colors.green.shade50;
+      textColor = Colors.green.shade900;
+    } else {
+      bgColor = Colors.grey.shade50;
+      textColor = Colors.black87;
+    }
     return Container(
       width: 44,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: bgColor,
         border: Border(
           right: BorderSide(color: Colors.grey.shade300),
           top: BorderSide(color: Colors.grey.shade300),
         ),
       ),
-      child: Text(
-        '$hour',
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-      ),
+      child: hour == 12
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$hour',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor),
+                ),
+                Tooltip(
+                  message: 'Mittagspause',
+                  child: Icon(Icons.restaurant, size: 13, color: Colors.brown.shade600),
+                ),
+              ],
+            )
+          : Text(
+              '$hour',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor),
+            ),
     );
   }
 
@@ -612,6 +692,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       right: rightBorder,
       top: BorderSide(color: Colors.grey.shade300, width: 0.6),
     );
+    final zoneColor = _zoneColor(hour, isWeekend);
 
     // Feiertag — show indigo background; click does nothing (informational)
     if (feiertagName != null) {
@@ -667,39 +748,53 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
             ),
           );
         },
+        // Outer = zone color (gray/green) shows as thin frame around appointment.
+        // Inner = appointment color (red = brauchtMich, amber = nicht).
         child: Container(
-          decoration: BoxDecoration(color: shade, border: cellBorder),
+          decoration: BoxDecoration(color: zoneColor, border: cellBorder),
           padding: const EdgeInsets.all(2),
-          child: isStartSlot
-              ? Tooltip(
-                  message: '${DateFormat('HH:mm').format(termin.terminDate)}–${DateFormat('HH:mm').format(termin.terminEndTime)}\n${termin.title}',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        DateFormat('HH:mm').format(termin.terminDate),
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
-                      ),
-                      Expanded(
-                        child: Text(
-                          termin.title,
-                          style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+          child: Container(
+            color: shade,
+            padding: const EdgeInsets.all(2),
+            child: isStartSlot
+                ? Tooltip(
+                    message: '${DateFormat('HH:mm').format(termin.terminDate)}–${DateFormat('HH:mm').format(termin.terminEndTime)}\n${termin.title}',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormat('HH:mm').format(termin.terminDate),
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
                         ),
-                      ),
-                    ],
-                  ),
-                )
-              : null,
+                        Expanded(
+                          child: Text(
+                            termin.title,
+                            style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : null,
+          ),
         ),
       );
     }
 
-    // Empty slot
-    final bgColor = isWeekend ? Colors.grey.shade100 : Colors.white;
-    final cell = Container(decoration: BoxDecoration(color: bgColor, border: cellBorder));
+    // Empty slot — zone color (gray for 8-12, green for 13-17, white/weekend for 18-19).
+    // At 12:00 add a lunch marker icon (one per day column).
+    final cell = Container(
+      decoration: BoxDecoration(color: zoneColor, border: cellBorder),
+      child: (hour == 12 && minute == 0)
+          ? Tooltip(
+              message: 'Mittagspause',
+              child: Center(child: Icon(Icons.restaurant, size: 14, color: Colors.brown.shade400)),
+            )
+          : null,
+    );
     if (isPast) {
       return ClipRect(child: CustomPaint(painter: _DiagonalStripesPainter(), child: cell));
     }
