@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -480,6 +482,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                                             t.terminDate.year == day.year &&
                                             t.terminDate.month == day.month &&
                                             t.terminDate.day == day.day).toList();
+                                        final dayLanes = _computeLanes(dayTermine);
                                         final dayStr = DateFormat('yyyy-MM-dd').format(day);
                                         final feiertag = holidays[dayStr];
                                         final urlaubPeriod = _urlaub.firstWhere(
@@ -504,6 +507,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                                                   hour,
                                                   minute,
                                                   dayTermine,
+                                                  dayLanes,
                                                   feiertagName: feiertag,
                                                   urlaubPeriod: urlaubPeriod.isEmpty ? null : urlaubPeriod,
                                                   isWeekend: isWeekend,
@@ -606,6 +610,36 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     );
   }
 
+  /// Assign each termin to a lane (first-fit). Termine in the same lane never
+  /// overlap. Lane 0 = leftmost, lane 1 = right of it, etc. brauchtMich-true
+  /// termine get sorted earlier so they tend to land in lane 0 (most visible).
+  Map<int, int> _computeLanes(List<Termin> dayTermine) {
+    final lanes = <int, int>{};
+    if (dayTermine.isEmpty) return lanes;
+    final sorted = [...dayTermine]..sort((a, b) {
+      // brauchtMich first so it gets lane 0
+      if (a.brauchtMich != b.brauchtMich) return a.brauchtMich ? -1 : 1;
+      // then by start time
+      final c = a.terminDate.compareTo(b.terminDate);
+      if (c != 0) return c;
+      return a.id.compareTo(b.id);
+    });
+    final laneEnds = <DateTime>[];
+    for (final t in sorted) {
+      int? lane;
+      for (int i = 0; i < laneEnds.length; i++) {
+        if (!t.terminDate.isBefore(laneEnds[i])) {
+          lane = i;
+          laneEnds[i] = t.terminEndTime;
+          break;
+        }
+      }
+      lane ??= () { laneEnds.add(t.terminEndTime); return laneEnds.length - 1; }();
+      lanes[t.id] = lane;
+    }
+    return lanes;
+  }
+
   /// Background color of the time zone:
   /// - 8-12 Uhr  = Vormittag, kein Service (grey)
   /// - 13-17 Uhr = Sprechzeiten (light green)
@@ -670,12 +704,14 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   /// a quarter-of-an-hour. Color: red = brauchtMich, yellow = does not need me.
   /// A 30-min appointment spans 2 consecutive cells; details (title + duration)
   /// only appear on the start cell; continuation cells render colored background.
-  /// Click opens EditTerminDialog (or Urlaub dialog for vacation cells).
+  /// When N termine overlap in the same cell, the cell is split into N side-by-side
+  /// mini-boxes (one per lane). Click opens EditTerminDialog for the clicked box.
   Widget _buildQuarterSlot(
     DateTime day,
     int hour,
     int minute,
-    List<Termin> dayTermine, {
+    List<Termin> dayTermine,
+    Map<int, int> dayLanes, {
     String? feiertagName,
     Map<String, dynamic>? urlaubPeriod,
     bool isWeekend = false,
@@ -721,65 +757,36 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     }
 
     // Appointments covering this slot
-    final termine = dayTermine.where((t) {
+    final cellTermine = dayTermine.where((t) {
       return t.terminDate.isBefore(slotEnd) && t.terminEndTime.isAfter(slotStart);
     }).toList();
 
-    if (termine.isNotEmpty) {
-      // For overlapping termine: show the most prominent (brauchtMich wins).
-      termine.sort((a, b) => (b.brauchtMich ? 1 : 0) - (a.brauchtMich ? 1 : 0));
-      final termin = termine.first;
-      final isStartSlot = !termin.terminDate.isBefore(slotStart) && termin.terminDate.isBefore(slotEnd);
-      final color = termin.brauchtMich ? Colors.red : Colors.amber;
-      final shade = isPast ? color.shade200 : color.shade400;
+    if (cellTermine.isNotEmpty) {
+      // Number of lanes needed for THIS cell = max lane index among termine here + 1.
+      // (Not max lanes for the whole day — so a non-conflicting slot stays full width.)
+      final laneIdx = cellTermine
+          .map((t) => dayLanes[t.id] ?? 0)
+          .reduce(math.max);
+      final numLanes = laneIdx + 1;
 
-      return GestureDetector(
-        onTap: () async {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => EditTerminDialog(
-              termin: termin,
-              terminService: _terminService,
-              users: _users,
-              tickets: _tickets,
-              onTerminUpdated: _loadTermine,
-              currentMitgliedernummer: widget.currentMitgliedernummer,
-            ),
-          );
-        },
-        // Outer = zone color (gray/green) shows as thin frame around appointment.
-        // Inner = appointment color (red = brauchtMich, amber = nicht).
-        child: Container(
-          decoration: BoxDecoration(color: zoneColor, border: cellBorder),
-          padding: const EdgeInsets.all(2),
-          child: Container(
-            color: shade,
-            padding: const EdgeInsets.all(2),
-            child: isStartSlot
-                ? Tooltip(
-                    message: '${DateFormat('HH:mm').format(termin.terminDate)}–${DateFormat('HH:mm').format(termin.terminEndTime)}\n${termin.title}',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          DateFormat('HH:mm').format(termin.terminDate),
-                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
-                        ),
-                        Expanded(
-                          child: Text(
-                            termin.title,
-                            style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : null,
-          ),
+      return Container(
+        decoration: BoxDecoration(color: zoneColor, border: cellBorder),
+        padding: const EdgeInsets.all(2),
+        child: Row(
+          children: List.generate(numLanes, (lane) {
+            Termin? termin;
+            for (final t in cellTermine) {
+              if ((dayLanes[t.id] ?? -1) == lane) {
+                termin = t;
+                break;
+              }
+            }
+            if (termin == null) {
+              // Empty lane in this cell (other termin occupies it on neighbour cells).
+              return Expanded(child: Container(color: zoneColor));
+            }
+            return Expanded(child: _buildTerminBox(termin, slotStart, slotEnd, isPast));
+          }),
         ),
       );
     }
@@ -799,6 +806,60 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       return ClipRect(child: CustomPaint(painter: _DiagonalStripesPainter(), child: cell));
     }
     return cell;
+  }
+
+  /// Coloured mini-box for one termin in one lane of a quarter-cell.
+  /// Title + time only render on the START quarter; continuation quarters
+  /// just paint the colour so the user can see the termin extends.
+  Widget _buildTerminBox(Termin termin, DateTime slotStart, DateTime slotEnd, bool isPast) {
+    final isStartSlot = !termin.terminDate.isBefore(slotStart) && termin.terminDate.isBefore(slotEnd);
+    final color = termin.brauchtMich ? Colors.red : Colors.amber;
+    final shade = isPast ? color.shade200 : color.shade400;
+
+    return GestureDetector(
+      onTap: () async {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => EditTerminDialog(
+            termin: termin,
+            terminService: _terminService,
+            users: _users,
+            tickets: _tickets,
+            onTerminUpdated: _loadTermine,
+            currentMitgliedernummer: widget.currentMitgliedernummer,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 1),
+        color: shade,
+        padding: const EdgeInsets.all(2),
+        child: isStartSlot
+            ? Tooltip(
+                message: '${DateFormat('HH:mm').format(termin.terminDate)}–${DateFormat('HH:mm').format(termin.terminEndTime)}\n${termin.title}',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('HH:mm').format(termin.terminDate),
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
+                    ),
+                    Expanded(
+                      child: Text(
+                        termin.title,
+                        style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : null,
+      ),
+    );
   }
 
   /// Show the urlaub editing dialog (remove first/last day, delete period).
