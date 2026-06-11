@@ -37,6 +37,11 @@ finish-args:
   # multi-process sandbox. Without --allow=devel the renderer crashes on
   # startup. Same flag the Chromium/Brave Flatpaks use.
   - --allow=devel
+  # `flatpak-spawn --host` for ExternalBrowserService — required so we can
+  # launch the user's host-side Chromium/Brave/Chrome Flatpak and drive it
+  # over the CDP WebSocket. This is the production path for the Antrag-Online
+  # auto-fill flow on Linux (webview_cef stays as fallback).
+  - --talk-name=org.freedesktop.Flatpak
 
 cleanup:
   - /include

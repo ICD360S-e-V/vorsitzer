@@ -8,6 +8,7 @@ import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../services/api_service.dart';
+import '../services/external_browser_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 
@@ -620,8 +621,40 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
 })();
 ''';
 
+    const targetUrl = 'https://www.rundfunkbeitrag.de/buergerinnen-und-buerger/formulare/kontakt#step_personendaten';
+
+    // Linux/Flatpak: webview_cef is too unstable, drive an external Chromium
+    // via CDP instead. Windows/macOS/mobile keep using the embedded webview.
+    if (Platform.isLinux) {
+      // Wait for the new browser tab to load before re-injecting on every
+      // page navigation handled internally by CDP.
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(const SnackBar(
+        content: Row(children: [
+          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+          SizedBox(width: 12),
+          Text('Chromium wird gestartet…'),
+        ]),
+        backgroundColor: Colors.blue,
+        duration: Duration(seconds: 4),
+      ));
+      final err = await ExternalBrowserService.openWithAutoFill(
+        url: targetUrl,
+        autoFillJs: js,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        showDialog(context: context, builder: (d) => AlertDialog(
+          title: const Text('Browser nicht verfügbar'),
+          content: SingleChildScrollView(child: Text(err)),
+          actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('OK'))],
+        ));
+      }
+      return;
+    }
+
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => WebViewScreen(
-      url: 'https://www.rundfunkbeitrag.de/buergerinnen-und-buerger/formulare/kontakt#step_personendaten',
+      url: targetUrl,
       title: 'Rundfunkbeitrag — Antrag Online',
       customJs: js,
     )));
