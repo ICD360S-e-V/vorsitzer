@@ -715,6 +715,7 @@ ICD360S e.V. Vorstand''';
                 conversationId,
                 widget.currentMitgliedernummer,
                 message,
+                skipTranslation: true, // Termin-Erinnerung bleibt deutsch — NLLB würde Zahlen/Datum/Uhrzeit halluzinieren
               );
               sentCount++;
             } else {

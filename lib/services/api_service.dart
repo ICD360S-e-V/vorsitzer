@@ -765,6 +765,7 @@ class ApiService {
     String mitgliedernummer,
     String message, {
     bool urgent = false,  // 🆕 Urgent flag for full-screen notifications
+    bool skipTranslation = false,  // 🆕 Send as-is, bypass NLLB (Termin reminders etc.)
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/chat/send.php'),
@@ -773,7 +774,8 @@ class ApiService {
         'conversation_id': conversationId,
         'mitgliedernummer': mitgliedernummer,
         'message': message,
-        'urgent': urgent,  // 🆕 Send urgent flag to backend
+        'urgent': urgent,
+        'skip_translation': skipTranslation,
       }),
     ).timeout(const Duration(seconds: 15));
 
