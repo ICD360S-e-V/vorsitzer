@@ -10699,6 +10699,111 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     }
   }
 
+  /// Berechnet den Physio-Rezept-Status für Hausarzt/Orthopäde.
+  /// Regel: max 3 Physiotherapie-Heilmittel pro Arzt; nach dem 3. Rezept
+  /// 6 Monate Karenz ab dem Datum dieses 3. Rezepts. Danach dürfen wieder 3
+  /// folgen. Andere Fachrichtungen verschreiben keine Physio → kein Badge.
+  ///
+  /// Rückgabe: null = nicht anwendbar, sonst {state, count, lastDate, freeFrom}
+  /// state ∈ {'free', 'cooldown', 'reactivated'}
+  Map<String, dynamic>? _physioRezeptStatus(String type, List<dynamic> heilmittel) {
+    // Multi-arzt suffixes (_2, _3, ...) abschneiden, dann Basistyp prüfen
+    final baseType = type.replaceFirst(RegExp(r'_\d+$'), '');
+    if (baseType != 'gesundheit_hausarzt' && baseType != 'gesundheit_orthopaede') {
+      return null;
+    }
+    final physio = heilmittel
+        .whereType<Map>()
+        .where((h) => (h['bereich']?.toString() ?? '') == 'Physiotherapie')
+        .toList();
+    if (physio.isEmpty) {
+      return {'state': 'free', 'count': 0, 'lastDate': null, 'freeFrom': null};
+    }
+    // Nach datum DESC sortieren (neueste zuerst)
+    physio.sort((a, b) {
+      final da = DateTime.tryParse(a['datum']?.toString() ?? '') ?? DateTime(1970);
+      final db = DateTime.tryParse(b['datum']?.toString() ?? '') ?? DateTime(1970);
+      return db.compareTo(da);
+    });
+    final count = physio.length;
+    final lastDate = DateTime.tryParse(physio.first['datum']?.toString() ?? '');
+    if (count < 3) {
+      return {'state': 'free', 'count': count, 'lastDate': lastDate, 'freeFrom': null};
+    }
+    if (lastDate == null) {
+      return {'state': 'free', 'count': count, 'lastDate': null, 'freeFrom': null};
+    }
+    final freeFrom = DateTime(lastDate.year, lastDate.month + 6, lastDate.day);
+    if (DateTime.now().isBefore(freeFrom)) {
+      return {'state': 'cooldown', 'count': count, 'lastDate': lastDate, 'freeFrom': freeFrom};
+    }
+    return {'state': 'reactivated', 'count': count, 'lastDate': lastDate, 'freeFrom': freeFrom};
+  }
+
+  Widget _physioRezeptBadge(Map<String, dynamic> status) {
+    final state = status['state'] as String;
+    final count = status['count'] as int;
+    final lastDate = status['lastDate'] as DateTime?;
+    final freeFrom = status['freeFrom'] as DateTime?;
+    final df = DateFormat('dd.MM.yyyy');
+
+    late Color bg, border, fg;
+    late IconData icon;
+    late String title, subtitle;
+
+    if (state == 'free') {
+      bg = Colors.green.shade50;
+      border = Colors.green.shade300;
+      fg = Colors.green.shade800;
+      icon = Icons.check_circle_outline;
+      title = 'Physiotherapie-Rezepte: $count/3 ausgestellt';
+      subtitle = count == 0
+          ? 'Bisher kein Physio-Rezept dieses Arztes — bis zu 3 möglich.'
+          : '${3 - count} weitere Verordnung${(3 - count) == 1 ? '' : 'en'} ohne Karenz möglich.';
+    } else if (state == 'cooldown') {
+      bg = Colors.red.shade50;
+      border = Colors.red.shade400;
+      fg = Colors.red.shade800;
+      icon = Icons.block;
+      final daysLeft = freeFrom!.difference(DateTime.now()).inDays;
+      title = '3/3 Physio-Rezepte — Karenz aktiv';
+      subtitle = 'Letzte Verordnung am ${df.format(lastDate!)}. '
+          'Nächste mögliche Verordnung ab ${df.format(freeFrom)} '
+          '(in $daysLeft Tag${daysLeft == 1 ? '' : 'en'}).';
+    } else {
+      bg = Colors.amber.shade50;
+      border = Colors.amber.shade400;
+      fg = Colors.amber.shade900;
+      icon = Icons.notifications_active;
+      final monthsAgo = ((DateTime.now().difference(lastDate!).inDays) / 30).floor();
+      title = 'Karenz vorbei — Arzt kontaktieren';
+      subtitle = 'Letzte Verordnung vor ${monthsAgo} Monaten (am ${df.format(lastDate)}). '
+          'Sie können den Arzt erneut um eine Physio-Verordnung bitten.';
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: border, width: 1.5),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 22, color: fg),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: fg)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: TextStyle(fontSize: 11, color: fg)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
   // ═══════════════════════════════════════════════════════
   // HEILMITTELVERORDNUNG TAB (Muster 13)
   // ═══════════════════════════════════════════════════════
@@ -12033,6 +12138,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       final statusColors2 = <String, MaterialColor>{'ausgestellt': Colors.blue, 'begonnen': Colors.orange, 'abgeschlossen': Colors.green, 'abgelaufen': Colors.grey};
       final statusLabels2 = const {'ausgestellt': 'Ausgestellt', 'begonnen': 'Begonnen', 'abgeschlossen': 'Abgeschlossen', 'abgelaufen': 'Abgelaufen'};
       final current = data['heilmittel'] is List ? data['heilmittel'] as List : [];
+      // Live-Status neu berechnen (current kann sich nach Insert/Edit ändern)
+      final livePhysioStatus = _physioRezeptStatus(type, current);
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.healing, size: 18, color: Colors.teal.shade700),
@@ -12041,9 +12148,53 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           const Spacer(),
           FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neue Verordnung', style: TextStyle(fontSize: 12)),
             style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
-            onPressed: () => showHeilmittelDialog()),
+            onPressed: () async {
+              // Warnung bei aktiver Karenz (Hausarzt/Orthopäde, 3 Physio-Rezepte
+              // ausgestellt, letzte < 6 Monate her). Admin kann übersteuern.
+              if (livePhysioStatus != null && livePhysioStatus['state'] == 'cooldown') {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: Row(children: [
+                      Icon(Icons.warning_amber, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      const Text('Karenz aktiv', style: TextStyle(fontSize: 15)),
+                    ]),
+                    content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(
+                        'Dieser Arzt hat bereits 3 Physiotherapie-Rezepte ausgestellt.',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Letzte Verordnung am ${DateFormat('dd.MM.yyyy').format(livePhysioStatus['lastDate'])}.\n'
+                        'Reguläre Karenz bis ${DateFormat('dd.MM.yyyy').format(livePhysioStatus['freeFrom'])}.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Möchten Sie trotzdem eine weitere Verordnung erfassen?',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade800),
+                      ),
+                    ]),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+                      FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Trotzdem erfassen'),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok != true) return;
+              }
+              showHeilmittelDialog();
+            }),
         ]),
         const SizedBox(height: 12),
+        // Physio-Rezept-Status-Badge (nur Hausarzt/Orthopäde)
+        if (livePhysioStatus != null) _physioRezeptBadge(livePhysioStatus),
         if (current.isEmpty)
           Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(children: [
             Icon(Icons.healing, size: 40, color: Colors.grey.shade300),
