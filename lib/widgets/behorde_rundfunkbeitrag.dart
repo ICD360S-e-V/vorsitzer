@@ -498,7 +498,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     _loadFromDB();
   }
 
-  void _openAntragOnline(Map<String, dynamic> antrag) {
+  Future<void> _openAntragOnline(Map<String, dynamic> antrag) async {
     final u = widget.user;
     final beitragsnr = _b('beitrag')['beitragsnummer']?.toString() ?? '';
     final grundKey = antrag['befreiungsgrund']?.toString() ?? '';

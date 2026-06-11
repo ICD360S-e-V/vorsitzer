@@ -184,7 +184,7 @@ class ExternalBrowserService {
 
   static Future<void> _resetBrowser() async {
     try {
-      await _browser?.disconnect();
+      _browser?.disconnect();
     } catch (_) {}
     _browser = null;
   }
