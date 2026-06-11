@@ -3656,7 +3656,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                                 Icon(Icons.attach_file, size: 15, color: tabIndex == 2 ? Colors.white : Colors.grey.shade600),
                                 const SizedBox(width: 6),
-                                Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 2 ? Colors.white : Colors.grey.shade600)),
+                                Text('Unterlagen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 2 ? Colors.white : Colors.grey.shade600)),
                               ]),
                             ),
                           ),

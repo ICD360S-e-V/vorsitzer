@@ -32,6 +32,7 @@ import 'behorde_versorgungsamt.dart';
 import 'behorde_landratsamt.dart';
 import 'behorde_rundfunkbeitrag.dart';
 import 'file_viewer_dialog.dart';
+import 'korrespondenz_attachments_widget.dart';
 import '../screens/webview_screen.dart';
 import '../utils/file_picker_helper.dart';
 
@@ -3642,7 +3643,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               height: 420,
               child: Column(
                 children: [
-                  // Tab bar
+                  // Tab bar (3 tabs: Details | Verlauf | Unterlagen)
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
@@ -3670,18 +3671,34 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         ),
                         Expanded(
                           child: InkWell(
-                            borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
                             onTap: () => setDlgState(() { t['_viewTab'] = 1; }),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               decoration: BoxDecoration(
                                 color: tabIndex == 1 ? Colors.deepPurple.shade600 : Colors.transparent,
-                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
                               ),
                               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                                 Icon(Icons.history, size: 15, color: tabIndex == 1 ? Colors.white : Colors.grey.shade600),
                                 const SizedBox(width: 6),
                                 Text('Verlauf (${verlauf.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 1 ? Colors.white : Colors.grey.shade600)),
+                              ]),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                            onTap: () => setDlgState(() { t['_viewTab'] = 2; }),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: tabIndex == 2 ? Colors.deepPurple.shade600 : Colors.transparent,
+                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                              ),
+                              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                Icon(Icons.attach_file, size: 15, color: tabIndex == 2 ? Colors.white : Colors.grey.shade600),
+                                const SizedBox(width: 6),
+                                Text('Unterlagen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 2 ? Colors.white : Colors.grey.shade600)),
                               ]),
                             ),
                           ),
@@ -3694,7 +3711,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   Expanded(
                     child: tabIndex == 0
                       ? _buildTerminDetailsTab(tArt, datum, uhrzeit, ansprechpartner, grund, ort, notiz, einladungDatum, briefErhalten, terminId)
-                      : _buildTerminVerlaufTab(verlauf, termin, termine, terminIndex, onChanged, setDlgState),
+                      : tabIndex == 1
+                        ? _buildTerminVerlaufTab(verlauf, termin, termine, terminIndex, onChanged, setDlgState)
+                        : _buildTerminUnterlagenTab(behoerdeType, terminId),
                   ),
                 ],
               ),
@@ -3814,6 +3833,66 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
         ],
       ),
+    );
+  }
+
+  /// Unterlagen-Tab im Termin-Detail: hochladen / einsehen der von der
+  /// Behörde erhaltenen Briefe (Arbeitsagentur-Einladungen, Jobcenter-
+  /// Vorladungen, etc.). Pro Behörde-Typ getrennt; termin_id aus zentraler
+  /// Terminverwaltung als stabiler korrespondenz_id.
+  Widget _buildTerminUnterlagenTab(String behoerdeType, dynamic terminId) {
+    if (terminId == null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.amber.shade300),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.info_outline, size: 18, color: Colors.amber.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Dieser Termin ist noch nicht im zentralen Kalender gespeichert.\n'
+                'Bearbeiten Sie den Termin und aktivieren Sie "Im Kalender speichern", '
+                'um anschließend Unterlagen (z.B. Einladungsbrief der Behörde) anhängen zu können.',
+                style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+              ),
+            ),
+          ]),
+        ),
+      );
+    }
+    final tid = terminId is int ? terminId : int.tryParse(terminId.toString()) ?? 0;
+    final modul = '${behoerdeType}_termin';
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(children: [
+            Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Hier laden Sie die von der Behörde erhaltenen Briefe / Einladungen hoch.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 4),
+        KorrAttachmentsWidget(
+          key: ValueKey('${modul}_$tid'),
+          apiService: widget.apiService,
+          modul: modul,
+          korrespondenzId: tid,
+        ),
+      ]),
     );
   }
 
