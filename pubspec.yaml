@@ -144,7 +144,13 @@ dependencies:
   # WebView for Linux — bundles CEF (Chromium Embedded Framework) so it works
   # under org.freedesktop.Platform Flatpak without needing webkit2gtk. Provides
   # executeJavaScript + evaluateJavascript for auto-fill (Rundfunkbeitrag etc.)
-  webview_cef: ^0.2.2
+  # Pinned to master commit 68c245f (PR #195) — fixes multi-instance bug where
+  # CefExecuteProcess subprocess spawned blank windows instead of returning;
+  # published 0.2.2 (from May 2024) still has this bug.
+  webview_cef:
+    git:
+      url: https://github.com/hlwhl/webview_cef.git
+      ref: 68c245fa54cb46d00d80bd8fc4464a3496a3ccfc
 
   # WebView for mobile (Android/iOS)
   webview_flutter: ^4.10.0
