@@ -17,6 +17,7 @@ import 'behorde_finanzamt.dart';
 import 'behorde_gericht.dart';
 import 'behorde_kindergarten.dart';
 import 'behorde_fruehfoerderung.dart';
+import 'behorde_wbs.dart';
 import 'behorde_krankenkasse.dart';
 import 'behorde_rentenversicherung.dart';
 import 'behorde_jobcenter.dart';
@@ -84,7 +85,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'gericht',
     'krankenkasse', 'rentenversicherung', 'auslaenderbehoerde', 'familienkasse',
     'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei',
-    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten', 'fruehfoerderung',
+    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten', 'fruehfoerderung', 'wbs',
   ];
 
   // Fields per type for completion calculation
@@ -348,6 +349,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'rundfunkbeitrag', 'icon': Icons.radio, 'label': 'ARD ZDF'},
     {'type': 'kindergarten', 'icon': Icons.child_care, 'label': 'Kindergarten'},
     {'type': 'fruehfoerderung', 'icon': Icons.psychology, 'label': 'Frühförderung'},
+    {'type': 'wbs', 'icon': Icons.house_outlined, 'label': 'WBS'},
   ];
 
   @override
@@ -355,7 +357,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 23,
+      length: 24,
       child: Column(
         children: [
           _buildMemberAddressCard(),
@@ -600,6 +602,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   userId: widget.user.id,
                 )),
                 _buildTabContent('fruehfoerderung', () => BehordeFruehfoerderungContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                )),
+                _buildTabContent('wbs', () => BehordeWbsContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
                 )),

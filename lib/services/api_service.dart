@@ -5331,6 +5331,28 @@ class ApiService {
   }
 
   // === BÜRGERAMT ===
+  // ── WBS (Wohnberechtigungsschein) ──
+  Future<Map<String, dynamic>> getWbsData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/wbs_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveWbsData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/wbs_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_data', 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveWbsVorfall(int userId, Map<String, dynamic> vorfall) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/wbs_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_vorfall', 'vorfall': vorfall})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteWbsVorfall(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/wbs_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_vorfall', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listWbsInstitutionen() async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/wbs_manage.php?action=institutionen'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> getBuergeramtData(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/buergeramt_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
