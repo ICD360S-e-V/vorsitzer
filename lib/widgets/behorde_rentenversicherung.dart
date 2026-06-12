@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -122,6 +124,17 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     _tabCtrl = TabController(length: 3, vsync: this);
     _dienststelleC = TextEditingController();
     _traegerC = TextEditingController();
+    // Dienststelle is rendered by a parent-supplied builder, so we can't
+    // attach onChanged in the widget. Hook the controller listener
+    // directly — fires after every keystroke.
+    // Same trick for every field that auto-saves: hook the controller
+    // so we don't have to thread onChanged through nested widgets.
+    _dienststelleC.addListener(_scheduleSave);
+    _traegerC.addListener(_scheduleSave);
+    _rvnrC.addListener(_scheduleSave);
+    _entgeltpunkteC.addListener(_scheduleSave);
+    _zugangsfaktorC.addListener(_scheduleSave);
+    _notizenC.addListener(_scheduleSave);
     _rvnrC = TextEditingController();
     _entgeltpunkteC = TextEditingController();
     _zugangsfaktorC = TextEditingController(text: '1,0');
@@ -130,6 +143,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
     _tabCtrl.dispose();
     _dienststelleC.dispose();
     _traegerC.dispose();
@@ -142,6 +156,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
 
   void _hydrate(Map<String, dynamic> data) {
     if (_initialized) return;
+    _hydrating = true;
     _dienststelleC.text = data['dienststelle']?.toString() ?? '';
     _traegerC.text = data['traeger']?.toString() ?? '';
     _rvnrC.text = (data['rentennummer'] ?? data['sozialversicherungsnummer'] ?? data['versicherungsnummer'] ?? '').toString();
@@ -155,6 +170,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
       _antraege = rawAnt.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     _initialized = true;
+    _hydrating = false;
   }
 
   Map<String, dynamic> _collect() => {
@@ -170,6 +186,16 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
       };
 
   void _save() => widget.saveData(type, _collect());
+
+  // Debounced save for text fields so we don't hammer the server on every
+  // keystroke. Dropdowns / checkboxes call _save() directly.
+  Timer? _saveTimer;
+  bool _hydrating = false; // suppress auto-save during the initial fill
+  void _scheduleSave() {
+    if (_hydrating) return;
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 800), _save);
+  }
 
   // RVNR validator: 12 chars, format AA TTMMJJ B SSS (Bereich + Geburtsdatum + Initiale + Seriennr)
   String? _validateRvnr() {
@@ -227,14 +253,14 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                 ]),
               ),
               const Spacer(),
-              ElevatedButton.icon(
-                onPressed: widget.isSaving(type) ? null : _save,
-                icon: widget.isSaving(type)
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.save, size: 16),
-                label: const Text('Speichern', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-              ),
+              // No global Speichern button — every field auto-saves
+              // (debounced for free-text fields) to match WBS/Bürgeramt.
+              if (widget.isSaving(type))
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.deepPurple.shade700)),
+                  const SizedBox(width: 6),
+                  Text('Speichert…', style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700)),
+                ]),
             ],
           ),
         ),
@@ -618,7 +644,10 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                         child: Text(f != null ? '${e.value} (Faktor: ${f.toStringAsFixed(2)})' : e.value, style: const TextStyle(fontSize: 13)),
                       );
                     }).toList(),
-                    onChanged: (v) => setLocalState(() => _rentenart = v ?? ''),
+                    onChanged: (v) {
+                      setLocalState(() => _rentenart = v ?? '');
+                      _scheduleSave();
+                    },
                   ),
                 ),
               ),
@@ -681,14 +710,20 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                 ChoiceChip(
                   label: const Text('Ja', style: TextStyle(fontSize: 12)),
                   selected: _hatKinder,
-                  onSelected: (_) => setLocalState(() => _hatKinder = true),
+                  onSelected: (_) {
+                    setLocalState(() => _hatKinder = true);
+                    _scheduleSave();
+                  },
                   selectedColor: Colors.green.shade200,
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
                   label: const Text('Nein', style: TextStyle(fontSize: 12)),
                   selected: !_hatKinder,
-                  onSelected: (_) => setLocalState(() => _hatKinder = false),
+                  onSelected: (_) {
+                    setLocalState(() => _hatKinder = false);
+                    _scheduleSave();
+                  },
                   selectedColor: Colors.orange.shade200,
                 ),
                 const Spacer(),
