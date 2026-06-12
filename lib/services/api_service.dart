@@ -5352,6 +5352,23 @@ class ApiService {
     final r = await _client.get(Uri.parse('$baseUrl/admin/wbs_manage.php?action=institutionen'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  /// Generate the WBS Stadt Ulm 2026 PDF pre-filled with the member's data
+  /// and the selected Antrag. Returns raw PDF bytes (binary), or null on
+  /// error. Caller saves the bytes to a file and shows them.
+  Future<List<int>?> generateWbsPdf({required int userId, required int vorfallId}) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/wbs_pdf_generate.php?user_id=$userId&vorfall_id=$vorfallId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      if (r.statusCode == 200 && r.bodyBytes.length > 1000 &&
+          r.bodyBytes[0] == 0x25 && r.bodyBytes[1] == 0x50 && r.bodyBytes[2] == 0x44 && r.bodyBytes[3] == 0x46) {
+        // %PDF magic ok
+        return r.bodyBytes;
+      }
+    } catch (_) {}
+    return null;
+  }
 
   Future<Map<String, dynamic>> getBuergeramtData(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/buergeramt_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));

@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 
 /// WBS — Wohnberechtigungsschein
@@ -280,11 +284,178 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
                     if (a == 'delete') _deleteVorfall(v);
                   },
                 ),
-                onTap: () => _showVorfallDialog(existing: v),
+                onTap: () => _showAntragDetailModal(v),
               ),
             );
           })),
     ]);
+  }
+
+  /// Modal with Details / Korrespondenz / Generator tabs.
+  void _showAntragDetailModal(Map<String, dynamic> vorfall) {
+    showDialog(context: context, builder: (ctx) => DefaultTabController(
+      length: 3,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: SizedBox(width: 720, height: 560, child: Column(children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+            child: Row(children: [
+              Icon(Icons.description, color: Colors.indigo.shade700),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                vorfall['typ']?.toString() ?? 'WBS-Antrag',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              )),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+            ]),
+          ),
+          TabBar(
+            labelColor: Colors.indigo.shade700,
+            unselectedLabelColor: Colors.grey.shade500,
+            indicatorColor: Colors.indigo.shade700,
+            tabs: const [
+              Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+              Tab(icon: Icon(Icons.mail_outline, size: 18), text: 'Korrespondenz'),
+              Tab(icon: Icon(Icons.picture_as_pdf, size: 18), text: 'Generator'),
+            ],
+          ),
+          Expanded(child: TabBarView(children: [
+            _buildDetailsPane(ctx, vorfall),
+            _buildKorrespondenzPane(),
+            _buildGeneratorPane(vorfall),
+          ])),
+        ])),
+      ),
+    ));
+  }
+
+  Widget _buildDetailsPane(BuildContext modalCtx, Map<String, dynamic> v) {
+    final rows = <(String, String)>[
+      ('Antragstyp', v['typ']?.toString() ?? '—'),
+      ('Status', v['status']?.toString() ?? 'offen'),
+      ('Datum', v['datum']?.toString() ?? ''),
+      ('Aktenzeichen', v['aktenzeichen']?.toString() ?? ''),
+      ('Haushaltsgröße', v['haushaltsgroesse']?.toString() ?? ''),
+      ('Brutto/Mt €', v['einkommen_brutto']?.toString() ?? ''),
+      ('Netto/Mt €', v['einkommen_netto']?.toString() ?? ''),
+      ('Dringlichkeit', v['dringlichkeitsstufe']?.toString() ?? ''),
+      ('Wohnfläche (m²)', v['gewuenschte_wohnflaeche']?.toString() ?? ''),
+      ('Zimmerzahl', v['gewuenschte_zimmerzahl']?.toString() ?? ''),
+    ];
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      ...rows.where((r) => r.$2.isNotEmpty).map((r) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 140, child: Text(r.$1, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500))),
+        Expanded(child: Text(r.$2, style: const TextStyle(fontSize: 12))),
+      ]))),
+      if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Text('Notiz', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)), child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+      ],
+      const SizedBox(height: 16),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.edit, size: 16),
+        label: const Text('Bearbeiten'),
+        onPressed: () { Navigator.pop(modalCtx); _showVorfallDialog(existing: v); },
+      ),
+    ]));
+  }
+
+  Widget _buildKorrespondenzPane() {
+    return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+      const SizedBox(height: 12),
+      Text('Korrespondenz für WBS folgt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+      const SizedBox(height: 4),
+      Text('(eingehende/ausgehende Schreiben mit der Behörde)', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+    ]));
+  }
+
+  Widget _buildGeneratorPane(Map<String, dynamic> v) {
+    return StatefulBuilder(builder: (gCtx, setG) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          const Text('WBS Stadt Ulm — Antragsformular 2026', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        ]),
+        const SizedBox(height: 10),
+        Text(
+          'Das offizielle Antragsformular von ulm.de wird mit den hinterlegten '
+          'Mitgliedsdaten vorausgefüllt (Familienname, Vorname, Geburtsdatum, '
+          'Adresse, Telefon, E-Mail, Staatsangehörigkeit, Familienstand). '
+          'Anschließend prüfen / ergänzen / unterschreiben und per E-Mail an '
+          'wbs@ulm.de senden oder ausdrucken.',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          icon: _generating
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.download, size: 18),
+          label: Text(_generating ? 'Wird erstellt…' : 'PDF herunterladen'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600),
+          onPressed: _generating ? null : () async {
+            setG(() => _generating = true);
+            await _downloadFilledPdf(v);
+            if (mounted) setG(() => _generating = false);
+          },
+        ),
+        if (_lastGeneratedPath != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+            child: Row(children: [
+              Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_lastGeneratedPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+              TextButton.icon(
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: const Text('Öffnen'),
+                onPressed: () => OpenFilex.open(_lastGeneratedPath!),
+              ),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 20),
+        Text('Hinweis: Sensible Angaben (Aufenthaltsstatus, Geburtsname) bleiben '
+             'leer und müssen vom Mitglied vor Absendung ergänzt werden.',
+             style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+      ]));
+    });
+  }
+
+  bool _generating = false;
+  String? _lastGeneratedPath;
+
+  Future<void> _downloadFilledPdf(Map<String, dynamic> v) async {
+    final id = int.tryParse(v['id'].toString()) ?? 0;
+    final bytes = await widget.apiService.generateWbsPdf(userId: widget.userId, vorfallId: id);
+    if (!mounted) return;
+    if (bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF konnte nicht erstellt werden'), backgroundColor: Colors.red));
+      return;
+    }
+    try {
+      final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      final filename = 'WBS_Antrag_${widget.userId}_$id.pdf';
+      final f = File('${dir.path}${Platform.pathSeparator}$filename');
+      await f.writeAsBytes(bytes);
+      if (mounted) {
+        setState(() => _lastGeneratedPath = f.path);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('PDF gespeichert: ${f.path}'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(f.path)),
+        ));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler beim Speichern: $e'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _deleteVorfall(Map<String, dynamic> v) async {
