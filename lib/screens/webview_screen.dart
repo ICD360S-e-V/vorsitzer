@@ -84,9 +84,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   Future<void> _launchLinuxExternal() async {
     if (mounted) setState(() { _linuxBusy = true; _isInitialized = true; _isLoading = false; });
+
+    // Prefer customJs (pre-built by the caller for sites like Rundfunkbeitrag).
+    // Otherwise build the Go2Doc-style patient JS from the structured data
+    // — same logic the Win/macOS path uses via _tryGo2DocAutoFill, just
+    // applied once via CDP instead of retried in-tab.
+    var js = widget.customJs ?? '';
+    if (js.isEmpty && widget.go2docAutoFill != null && widget.go2docAutoFill!.isNotEmpty) {
+      js = _buildGo2DocJs(widget.go2docAutoFill!);
+    }
+
     final err = await ExternalBrowserService.openWithAutoFill(
       url: widget.url,
-      autoFillJs: widget.customJs ?? '',
+      autoFillJs: js,
     );
     if (!mounted) return;
     setState(() { _linuxBusy = false; _linuxError = err; });
@@ -282,16 +292,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   bool _go2docInjected = false;
 
-  /// Inject Go2Doc patient form auto-fill (stage 3: Vorname, Nachname, Geburtsdatum, Email, Versicherung, Einwilligung)
-  Future<void> _tryGo2DocAutoFill() async {
-    if (_go2docInjected || widget.go2docAutoFill == null || widget.go2docAutoFill!.isEmpty) return;
-    final d = widget.go2docAutoFill!;
+  /// Build the patient-form auto-fill JS. Works on any portal that exposes
+  /// inputs with German-style name/id/placeholder/label (Vorname, Nachname,
+  /// Geburtsdatum, E-Mail, Versicherung) — not just Go2Doc. The Linux/CDP
+  /// path uses this directly; the Win/mobile/macOS path wraps it in retry.
+  static String _buildGo2DocJs(Map<String, String> d) {
     final vorname = (d['vorname'] ?? '').replaceAll("'", "\\'");
     final nachname = (d['nachname'] ?? '').replaceAll("'", "\\'");
     final gebTag = d['geb_tag'] ?? '';
     final gebMonat = d['geb_monat'] ?? '';
     final gebJahr = d['geb_jahr'] ?? '';
-    // Go2Doc: try multiple date formats depending on input type
     final gebDatumISO = (gebTag.isNotEmpty && gebMonat.isNotEmpty && gebJahr.isNotEmpty)
         ? '$gebJahr-${gebMonat.padLeft(2, '0')}-${gebTag.padLeft(2, '0')}'
         : '';
@@ -302,12 +312,17 @@ class _WebViewScreenState extends State<WebViewScreen> {
         ? '${gebMonat.padLeft(2, '0')}/${gebTag.padLeft(2, '0')}/$gebJahr'
         : '';
     final email = (d['email'] ?? '').toString().replaceAll("'", "\\'");
+    final telefon = (d['telefon'] ?? '').toString().replaceAll("'", "\\'");
+    final plz = (d['plz'] ?? '').toString().replaceAll("'", "\\'");
+    final ort = (d['ort'] ?? '').toString().replaceAll("'", "\\'");
+    final strasse = (d['strasse'] ?? '').toString().replaceAll("'", "\\'");
     final versicherung = d['versicherung'] ?? 'gesetzlich';
+    final versNr = (d['versichertennummer'] ?? '').toString().replaceAll("'", "\\'");
 
-    final js = '''
+    return '''
 (function() {
   function setVal(el, val) {
-    if (!el) return false;
+    if (!el || !val) return false;
     var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
     if (setter) setter.call(el, val);
     else el.value = val;
@@ -316,7 +331,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     return true;
   }
   function setSelect(el, val) {
-    if (!el) return false;
+    if (!el || !val) return false;
     for (var i = 0; i < el.options.length; i++) {
       if (el.options[i].value == val || el.options[i].text.toLowerCase().indexOf(val.toLowerCase()) >= 0) {
         el.selectedIndex = i;
@@ -335,29 +350,40 @@ class _WebViewScreenState extends State<WebViewScreen> {
     var id = (el.id || '').toLowerCase();
     var lbl = '';
     if (el.id) { var l = document.querySelector('label[for="' + el.id + '"]'); if (l) lbl = l.textContent.toLowerCase(); }
+    var aria = (el.getAttribute('aria-label') || '').toLowerCase();
+    var combined = ph + ' ' + nm + ' ' + id + ' ' + lbl + ' ' + aria;
 
-    if (ph.indexOf('vorname') >= 0 || nm.indexOf('vorname') >= 0 || nm.indexOf('firstname') >= 0 || lbl.indexOf('vorname') >= 0 || id.indexOf('vorname') >= 0 || id.indexOf('firstname') >= 0) {
+    if (combined.indexOf('vorname') >= 0 || combined.indexOf('firstname') >= 0 || combined.indexOf('first name') >= 0) {
       if (setVal(el, '$vorname')) filled++;
-    } else if (ph.indexOf('nachname') >= 0 || nm.indexOf('nachname') >= 0 || nm.indexOf('lastname') >= 0 || nm.indexOf('surname') >= 0 || lbl.indexOf('nachname') >= 0 || id.indexOf('nachname') >= 0 || id.indexOf('lastname') >= 0) {
+    } else if (combined.indexOf('nachname') >= 0 || combined.indexOf('familienname') >= 0 || combined.indexOf('lastname') >= 0 || combined.indexOf('surname') >= 0 || combined.indexOf('last name') >= 0) {
       if (setVal(el, '$nachname')) filled++;
-    } else if (lbl.indexOf('geburtsdatum') >= 0 || lbl.indexOf('birthdate') >= 0 || ph.indexOf('geburtsdatum') >= 0 || ph.indexOf('tt.mm') >= 0 || nm.indexOf('birthdate') >= 0 || nm.indexOf('geburt') >= 0 || id.indexOf('birthdate') >= 0 || id.indexOf('geburt') >= 0) {
+    } else if (combined.indexOf('geburtsdatum') >= 0 || combined.indexOf('birthdate') >= 0 || combined.indexOf('geburt') >= 0 || combined.indexOf('tt.mm') >= 0 || combined.indexOf('date of birth') >= 0) {
       if ('$gebDatumISO') {
         if (el.type === 'date') { if (setVal(el, '$gebDatumISO')) filled++; }
         else { if (setVal(el, '$gebDatumDE') || setVal(el, '$gebDatumSlash') || setVal(el, '$gebDatumISO')) filled++; }
-        // Also try setting Angular ngModel directly
         try {
           var ngEl = window.ng && window.ng.getComponent ? window.ng.getComponent(el) : null;
           if (!ngEl) { var scope = angular && angular.element && angular.element(el).scope(); if (scope) { scope.Birthdate = '$gebDatumDE'; scope.\$apply(); filled++; } }
         } catch(e2) {}
       }
-    } else if (ph.indexOf('e-mail') >= 0 || ph.indexOf('email') >= 0 || nm.indexOf('email') >= 0 || el.type === 'email' || lbl.indexOf('email') >= 0 || lbl.indexOf('e-mail') >= 0) {
+    } else if (combined.indexOf('e-mail') >= 0 || combined.indexOf('email') >= 0 || el.type === 'email') {
       if (setVal(el, '$email')) filled++;
-    } else if (el.tagName === 'SELECT' && (nm.indexOf('versicher') >= 0 || id.indexOf('versicher') >= 0 || lbl.indexOf('versicher') >= 0 || lbl.indexOf('kranken') >= 0 || lbl.indexOf('kassenart') >= 0)) {
+    } else if (combined.indexOf('telefon') >= 0 || combined.indexOf('telephone') >= 0 || combined.indexOf('phone') >= 0 || combined.indexOf('mobil') >= 0 || el.type === 'tel') {
+      if (setVal(el, '$telefon')) filled++;
+    } else if (combined.indexOf('plz') >= 0 || combined.indexOf('postleitzahl') >= 0 || combined.indexOf('zip') >= 0 || combined.indexOf('postal') >= 0) {
+      if (setVal(el, '$plz')) filled++;
+    } else if (combined.indexOf('ort') >= 0 && combined.indexOf('geburt') < 0) {
+      if (setVal(el, '$ort')) filled++;
+    } else if (combined.indexOf('straße') >= 0 || combined.indexOf('strasse') >= 0 || combined.indexOf('street') >= 0) {
+      if (setVal(el, '$strasse')) filled++;
+    } else if (combined.indexOf('versichertennummer') >= 0 || combined.indexOf('versicherungsnummer') >= 0 || combined.indexOf('kvnr') >= 0 || combined.indexOf('insurance number') >= 0) {
+      if (setVal(el, '$versNr')) filled++;
+    } else if (el.tagName === 'SELECT' && (combined.indexOf('versicher') >= 0 || combined.indexOf('kranken') >= 0 || combined.indexOf('kassenart') >= 0)) {
       if (setSelect(el, '$versicherung')) filled++;
     }
   }
 
-  // Fallback: find Geburtsdatum by scanning labels directly (Go2Doc Angular)
+  // Fallback: find Geburtsdatum via label scan (Angular SPA / custom layouts)
   if ('$gebDatumDE') {
     var labels = document.querySelectorAll('label');
     for (var lb of labels) {
@@ -374,12 +400,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
-  // Auto-check consent checkbox
+  // Auto-check consent checkboxes
   var checkboxes = document.querySelectorAll('input[type="checkbox"]');
   for (var cb of checkboxes) {
     var parent = cb.closest('label') || cb.parentElement;
     var txt = parent ? parent.textContent.toLowerCase() : '';
-    if (txt.indexOf('willige ein') >= 0 || txt.indexOf('einwillig') >= 0 || txt.indexOf('datenschutz') >= 0 || txt.indexOf('go2doc') >= 0) {
+    if (txt.indexOf('willige ein') >= 0 || txt.indexOf('einwillig') >= 0 || txt.indexOf('datenschutz') >= 0 || txt.indexOf('akzeptier') >= 0) {
       if (!cb.checked) { cb.click(); filled++; }
     }
   }
@@ -387,6 +413,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
   return filled;
 })();
 ''';
+  }
+
+  /// Inject Go2Doc patient form auto-fill on Win/macOS/mobile webviews —
+  /// retries because Angular SPAs load inputs lazily.
+  Future<void> _tryGo2DocAutoFill() async {
+    if (_go2docInjected || widget.go2docAutoFill == null || widget.go2docAutoFill!.isEmpty) return;
+    final js = _buildGo2DocJs(widget.go2docAutoFill!);
 
     // Retry up to 10 times (Angular SPA loads fields dynamically)
     for (int attempt = 0; attempt < 10; attempt++) {

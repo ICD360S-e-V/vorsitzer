@@ -62,6 +62,35 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   // Quelle: DGKL (Deutsche Gesellschaft für Klinische Chemie), Thomas L. "Labor und Diagnose" 8. Auflage
   // M = männlich, W = weiblich. Bei gleichen Werten: min_m == min_w etc.
 
+  /// Build the structured auto-fill bundle for any external doctor portal
+  /// (Go2Doc, Doctolib, custom Hausarzt forms — Dr. Lankes etc.). The Linux
+  /// path drives the host Chromium via CDP; Win/macOS/mobile use the same
+  /// data via WebViewScreen's _tryGo2DocAutoFill.
+  Map<String, String> _buildPatientAutoFill() {
+    String tag = '', monat = '', jahr = '';
+    final geb = widget.user.geburtsdatum;
+    if (geb != null && geb.isNotEmpty) {
+      final parts = geb.toString().split(RegExp(r'[-./]'));
+      if (parts.length == 3) {
+        if (parts[0].length == 4) { jahr = parts[0]; monat = parts[1]; tag = parts[2]; }
+        else { tag = parts[0]; monat = parts[1]; jahr = parts[2]; }
+      }
+    }
+    return {
+      'vorname': widget.user.vorname ?? '',
+      'nachname': widget.user.nachname ?? '',
+      'geb_tag': tag,
+      'geb_monat': monat,
+      'geb_jahr': jahr,
+      'email': widget.user.email,
+      'telefon': widget.user.telefonMobil ?? widget.user.telefonFix ?? '',
+      'plz': widget.user.plz ?? '',
+      'ort': widget.user.ort ?? '',
+      'strasse': [widget.user.strasse ?? '', widget.user.hausnummer ?? ''].where((s) => s.isNotEmpty).join(' '),
+      'versicherung': 'gesetzlich',
+    };
+  }
+
   int _berechneAlter() {
     final geb = widget.user.geburtsdatum;
     if (geb == null || geb.isEmpty) return 40; // Default
@@ -4933,7 +4962,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                 child: OutlinedButton.icon(
                                   onPressed: () {
                                     Navigator.push(context, MaterialPageRoute(
-                                      builder: (_) => WebViewScreen(title: termin['portal_label']?.toString() ?? 'Portal', url: termin['portal_url'].toString()),
+                                      builder: (_) => WebViewScreen(title: termin['portal_label']?.toString() ?? 'Portal', url: termin['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                     ));
                                   },
                                   icon: Icon(Icons.open_in_browser, size: 16, color: Colors.deepPurple.shade700),
@@ -5141,7 +5170,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                       child: OutlinedButton.icon(
                                         onPressed: () {
                                           Navigator.push(context, MaterialPageRoute(
-                                            builder: (_) => WebViewScreen(title: termin['portal_label']?.toString() ?? 'Portal', url: termin['portal_url'].toString()),
+                                            builder: (_) => WebViewScreen(title: termin['portal_label']?.toString() ?? 'Portal', url: termin['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                           ));
                                         },
                                         icon: Icon(Icons.open_in_browser, size: 16, color: Colors.deepPurple.shade700),
@@ -5506,7 +5535,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                                       child: OutlinedButton.icon(
                                                         onPressed: () {
                                                           Navigator.push(context, MaterialPageRoute(
-                                                            builder: (_) => WebViewScreen(title: selectedPraxis!['portal_label']?.toString() ?? 'Portal', url: selectedPraxis!['portal_url'].toString()),
+                                                            builder: (_) => WebViewScreen(title: selectedPraxis!['portal_label']?.toString() ?? 'Portal', url: selectedPraxis!['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                                           ));
                                                         },
                                                         icon: Icon(Icons.open_in_browser, size: 16, color: Colors.deepPurple.shade700),
@@ -5736,7 +5765,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                             child: OutlinedButton.icon(
                                               onPressed: () {
                                                 Navigator.push(context, MaterialPageRoute(
-                                                  builder: (_) => WebViewScreen(title: b['portal_label']?.toString() ?? 'Portal', url: b['portal_url'].toString()),
+                                                  builder: (_) => WebViewScreen(title: b['portal_label']?.toString() ?? 'Portal', url: b['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                                 ));
                                               },
                                               icon: Icon(Icons.open_in_browser, size: 14, color: Colors.deepPurple.shade700),
@@ -6902,29 +6931,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: () {
-                            // Parse user.geburtsdatum into day/month/year for go2doc auto-fill
-                            String gebTag = '', gebMonat = '', gebJahr = '';
-                            final geb = widget.user.geburtsdatum;
-                            if (geb != null) {
-                              final parts = geb.toString().split(RegExp(r'[-./]'));
-                              if (parts.length == 3) {
-                                if (parts[0].length == 4) { gebJahr = parts[0]; gebMonat = parts[1]; gebTag = parts[2]; }
-                                else { gebTag = parts[0]; gebMonat = parts[1]; gebJahr = parts[2]; }
-                              }
-                            }
                             Navigator.push(context, MaterialPageRoute(
                               builder: (_) => WebViewScreen(
                                 title: 'Online Terminanfrage - $arztName',
                                 url: onlineUrl,
-                                go2docAutoFill: {
-                                  'vorname': widget.user.vorname ?? '',
-                                  'nachname': widget.user.nachname ?? '',
-                                  'geb_tag': gebTag,
-                                  'geb_monat': gebMonat,
-                                  'geb_jahr': gebJahr,
-                                  'email': widget.user.email,
-                                  'versicherung': 'gesetzlich',
-                                },
+                                go2docAutoFill: _buildPatientAutoFill(),
                               ),
                             ));
                           },
@@ -7983,30 +7994,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                 onTap: () {
                                   Navigator.pop(ctx);
                                   Navigator.push(context, MaterialPageRoute(
-                                    builder: (_) {
-                                      final geb = widget.user.geburtsdatum;
-                                      String gebTag = '', gebMonat = '', gebJahr = '';
-                                      if (geb != null) {
-                                        final parts = geb.toString().split(RegExp(r'[-./]'));
-                                        if (parts.length == 3) {
-                                          if (parts[0].length == 4) { gebJahr = parts[0]; gebMonat = parts[1]; gebTag = parts[2]; }
-                                          else { gebTag = parts[0]; gebMonat = parts[1]; gebJahr = parts[2]; }
-                                        }
-                                      }
-                                      return WebViewScreen(
-                                        title: 'Online Termin — $arztTitle',
-                                        url: onlineTerminUrl,
-                                        go2docAutoFill: {
-                                          'vorname': widget.user.vorname ?? '',
-                                          'nachname': widget.user.nachname ?? '',
-                                          'geb_tag': gebTag,
-                                          'geb_monat': gebMonat,
-                                          'geb_jahr': gebJahr,
-                                          'email': widget.user.email,
-                                          'versicherung': 'gesetzlich',
-                                        },
-                                      );
-                                    },
+                                    builder: (_) => WebViewScreen(
+                                      title: 'Online Termin — $arztTitle',
+                                      url: onlineTerminUrl,
+                                      go2docAutoFill: _buildPatientAutoFill(),
+                                    ),
                                   ));
                                 },
                                 child: Row(children: [
