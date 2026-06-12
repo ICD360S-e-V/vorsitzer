@@ -5384,6 +5384,50 @@ class ApiService {
     return null;
   }
 
+  /// Scan the user's incoming Jobcenter-Korrespondenz for keywords like
+  /// "Rentenauskunft" so the Brief-Generator tab can pre-propose templates.
+  /// Returns the parsed JSON (success + matches[]).
+  Future<Map<String, dynamic>> scanJobcenterBriefGenerator(int userId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_brief_generator.php?action=scan&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Generate a DIN-5008-formatted PDF (sender = client) and return raw PDF
+  /// bytes for saving + opening. Server response is base64-encoded so we can
+  /// transport it through the existing JSON envelope.
+  Future<List<int>?> generateJobcenterBrief({
+    required int userId,
+    required String type,
+    String? ihrZeichen,
+    String? ihrSchreibenVom,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'action': 'generate',
+        'user_id': userId,
+        'type': type,
+        if (ihrZeichen != null && ihrZeichen.isNotEmpty) 'ihr_zeichen': ihrZeichen,
+        if (ihrSchreibenVom != null && ihrSchreibenVom.isNotEmpty) 'ihr_schreiben_vom': ihrSchreibenVom,
+      };
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/jobcenter_brief_generator.php'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 30));
+      if (r.statusCode != 200) return null;
+      final dec = jsonDecode(r.body);
+      if (dec is! Map || dec['success'] != true) return null;
+      final b64 = (dec['data']?['pdf_base64'] ?? dec['pdf_base64'] ?? '').toString();
+      if (b64.isEmpty) return null;
+      return base64Decode(b64);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> getBuergeramtData(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/buergeramt_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }

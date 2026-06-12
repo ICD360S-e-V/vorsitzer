@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/brief_pdf_generator.dart';
 import '../utils/file_picker_helper.dart';
@@ -25,7 +27,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _load();
   }
 
@@ -66,6 +68,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['stammdaten.kundennummer'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Stammdaten')])),
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.assignment_ind, size: 14, color: Colors.red), const SizedBox(width: 5), const Text('Vollmacht')])),
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['vermittler.name'] ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 5), const Text('Arbeitsvermittler')])),
+        const Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.picture_as_pdf, size: 14, color: Colors.red), SizedBox(width: 5), Text('Brief-Generator')])),
       ]),
       Expanded(child: TabBarView(controller: _tabController, children: [
         _JobcenterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
@@ -73,6 +76,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
         _JobcenterStammdatenFieldsTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
         _JCVollmachtSection(apiService: widget.apiService, userId: widget.userId),
         _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
+        _JobcenterBriefGeneratorTab(apiService: widget.apiService, userId: widget.userId),
       ])),
     ]);
   }
@@ -4643,6 +4647,283 @@ class _GrundPickerDialogState extends State<_GrundPickerDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
         ElevatedButton(onPressed: _code.isEmpty ? null : () => Navigator.pop(context, {'code': _code, 'details_freitext': _detailsC.text.trim()}), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white), child: const Text('Übernehmen')),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// TAB 6: Brief-Generator (DIN 5008, Mandant als Absender)
+//   - scant Jobcenter-Korrespondenz nach Stichwörtern (Rentenauskunft, …)
+//   - bietet pro Treffer einen "PDF generieren" Button mit Modal an
+// ============================================================================
+
+class _JobcenterBriefGeneratorTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _JobcenterBriefGeneratorTab({required this.apiService, required this.userId});
+  @override
+  State<_JobcenterBriefGeneratorTab> createState() => _JobcenterBriefGeneratorTabState();
+}
+
+class _JobcenterBriefGeneratorTabState extends State<_JobcenterBriefGeneratorTab> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _matches = [];
+  List<Map<String, dynamic>> _catalog = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _scan();
+  }
+
+  Future<void> _scan() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final r = await widget.apiService.scanJobcenterBriefGenerator(widget.userId);
+      if (r['success'] == true) {
+        final data = (r['data'] ?? {}) as Map;
+        _matches = (data['matches'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        _catalog = (data['catalog'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      } else {
+        _error = r['message']?.toString() ?? 'Scan fehlgeschlagen';
+      }
+    } catch (e) {
+      _error = 'Fehler: $e';
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _openModal(String type, String label, {String? prefillSchreibenVom}) async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => _BriefGenerateModal(type: type, label: label, prefillSchreibenVom: prefillSchreibenVom),
+    );
+    if (result == null) return;
+    await _generate(type, result['ihr_zeichen'] ?? '', result['ihr_schreiben_vom'] ?? '');
+  }
+
+  Future<void> _generate(String type, String ihrZeichen, String ihrSchreibenVom) async {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generiere PDF …'), duration: Duration(seconds: 2)));
+    final bytes = await widget.apiService.generateJobcenterBrief(
+      userId: widget.userId,
+      type: type,
+      ihrZeichen: ihrZeichen,
+      ihrSchreibenVom: ihrSchreibenVom,
+    );
+    if (!mounted) return;
+    if (bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF konnte nicht erzeugt werden. Prüfe Server-Logs.'), backgroundColor: Colors.red));
+      return;
+    }
+    Directory? dir;
+    try { dir = await getDownloadsDirectory(); } catch (_) {}
+    dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
+    final stamp = DateTime.now().toIso8601String().substring(0, 10).replaceAll('-', '');
+    final filename = 'Jobcenter_${type}_${widget.userId}_$stamp.pdf';
+    final path = '${dir.path}${Platform.pathSeparator}$filename';
+    await File(path).writeAsBytes(bytes);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('PDF gespeichert: $path'),
+      backgroundColor: Colors.green,
+      action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return RefreshIndicator(
+      onRefresh: _scan,
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Row(children: [
+            Icon(Icons.auto_awesome, size: 16, color: Colors.red.shade700),
+            const SizedBox(width: 6),
+            Text('Aus Korrespondenz erkannt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade800)),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: 'Neu scannen', onPressed: _scan),
+          ]),
+          if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12))),
+          if (_matches.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Keine Stichwörter in eingehender Jobcenter-Korrespondenz gefunden.\nLege im Tab "Antrag" → "Korrespondenz" das Schreiben des Jobcenters ab, dann erkennt der Generator automatisch z.B. "Rentenauskunft".',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              ),
+            )
+          else
+            ..._matches.map((m) => Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              elevation: 1,
+              child: ListTile(
+                dense: true,
+                leading: Icon(
+                  (m['available'] == true) ? Icons.warning_amber : Icons.info_outline,
+                  color: (m['available'] == true) ? Colors.orange.shade700 : Colors.grey,
+                ),
+                title: Text(m['label']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                subtitle: Text(
+                  'Erkannt in: ${(m['betreff'] ?? '(ohne Betreff)').toString()}\nDatum: ${m['datum'] ?? '—'}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                trailing: (m['available'] == true)
+                    ? ElevatedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf, size: 14),
+                        label: const Text('PDF generieren', style: TextStyle(fontSize: 11)),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+                        onPressed: () => _openModal(
+                          m['type']?.toString() ?? '',
+                          m['label']?.toString() ?? '',
+                          prefillSchreibenVom: m['datum']?.toString(),
+                        ),
+                      )
+                    : const Text('(geplant)', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              ),
+            )),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 8),
+          Row(children: [
+            Icon(Icons.edit_note, size: 16, color: Colors.red.shade700),
+            const SizedBox(width: 6),
+            Text('Manuell generieren', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade800)),
+          ]),
+          const SizedBox(height: 6),
+          ..._catalog.where((c) => c['available'] == true).map((c) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.picture_as_pdf, size: 14),
+              label: Text('Antwort: ${c['label']}', style: const TextStyle(fontSize: 12)),
+              onPressed: () => _openModal(c['type']?.toString() ?? '', c['label']?.toString() ?? ''),
+            ),
+          )),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline, size: 12, color: Colors.blue),
+              const SizedBox(width: 4),
+              Expanded(child: Text(
+                'Absender = Mandant (Vorname, Nachname, Anschrift aus Verifizierung Stufe 1).\n'
+                'Versicherten-Nr. wird aus Behörde → Rentenversicherung → Stammdaten übernommen.\n'
+                'BG-Nr. + Kunden-Nr. aus Jobcenter → Stammdaten. PDF nach DIN 5008.',
+                style: TextStyle(fontSize: 9, color: Colors.blue.shade900),
+              )),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BriefGenerateModal extends StatefulWidget {
+  final String type;
+  final String label;
+  final String? prefillSchreibenVom;
+  const _BriefGenerateModal({required this.type, required this.label, this.prefillSchreibenVom});
+  @override
+  State<_BriefGenerateModal> createState() => _BriefGenerateModalState();
+}
+
+class _BriefGenerateModalState extends State<_BriefGenerateModal> {
+  final _zeichenC = TextEditingController();
+  final _datumC = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.prefillSchreibenVom?.trim() ?? '';
+    if (p.isNotEmpty) {
+      // Normalize ISO YYYY-MM-DD → DD.MM.YYYY für deutsche Darstellung
+      final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(p);
+      _datumC.text = m != null ? '${m.group(3)}.${m.group(2)}.${m.group(1)}' : p;
+    }
+  }
+
+  @override
+  void dispose() {
+    _zeichenC.dispose();
+    _datumC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final initial = DateTime.tryParse(
+      _datumC.text.trim().split('.').reversed.join('-'),
+    ) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      locale: const Locale('de'),
+    );
+    if (picked == null) return;
+    _datumC.text = DateFormat('dd.MM.yyyy').format(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Antwort: ${widget.label}', style: const TextStyle(fontSize: 14)),
+      content: SizedBox(
+        width: 420,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: _datumC,
+            decoration: InputDecoration(
+              labelText: 'Ihr Schreiben vom (TT.MM.JJJJ)',
+              hintText: '03.06.2026',
+              suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: _pickDate),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _zeichenC,
+            decoration: InputDecoration(
+              labelText: 'Ihr Zeichen / Aktenzeichen (optional)',
+              hintText: 'z.B. 12345/B12',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline, size: 12, color: Colors.orange),
+              const SizedBox(width: 4),
+              Expanded(child: Text(
+                'BG-Nummer, Kunden-Nr. und Versicherten-Nr. werden automatisch aus den Stammdaten gefüllt. Hier nur Ihr Zeichen und Datum des Jobcenter-Schreibens eintragen.',
+                style: TextStyle(fontSize: 9, color: Colors.orange.shade900),
+              )),
+            ]),
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.picture_as_pdf, size: 14),
+          label: const Text('PDF erzeugen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(context, {
+            'ihr_zeichen': _zeichenC.text.trim(),
+            'ihr_schreiben_vom': _datumC.text.trim(),
+          }),
+        ),
       ],
     );
   }
