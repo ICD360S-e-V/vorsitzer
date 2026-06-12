@@ -485,6 +485,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 ),
                 BehordeRentenversicherungContent(
                   user: widget.user,
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
                   isSaving: (t) => _behoerdeSaving[t] == true,

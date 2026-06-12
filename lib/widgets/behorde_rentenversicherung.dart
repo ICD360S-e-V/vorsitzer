@@ -4,9 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
+import '../services/api_service.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class BehordeRentenversicherungContent extends StatefulWidget {
   final User? user; // optional so legacy call sites still compile
+  final ApiService? apiService;
+  final int? userId;
   final Map<String, dynamic> Function(String type) getData;
   final bool Function(String type) isLoading;
   final bool Function(String type) isSaving;
@@ -25,6 +29,8 @@ class BehordeRentenversicherungContent extends StatefulWidget {
   const BehordeRentenversicherungContent({
     super.key,
     this.user,
+    this.apiService,
+    this.userId,
     required this.getData,
     required this.isLoading,
     required this.isSaving,
@@ -125,7 +131,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 4, vsync: this);
     _dienststelleC = TextEditingController();
     _traegerC = TextEditingController();
     // Dienststelle is rendered by a parent-supplied builder, so we can't
@@ -277,10 +283,12 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
           unselectedLabelColor: Colors.grey.shade600,
           indicatorColor: Colors.deepPurple,
           labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          isScrollable: true,
           tabs: const [
             Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Zustaendige Behoerde'),
             Tab(icon: Icon(Icons.assignment, size: 18), text: 'Antraege'),
             Tab(icon: Icon(Icons.badge, size: 18), text: 'Stammdaten'),
+            Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Information Rente'),
           ],
         ),
 
@@ -292,6 +300,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
               _buildBehoerdeTab(),
               _buildAntraegeTab(),
               _buildStammdatenTab(context),
+              _buildInformationRenteTab(context),
             ],
           ),
         ),
@@ -488,21 +497,11 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
   }
 
   // ═══════════════════════════════════════════════════════
-  //   TAB 3: Stammdaten
+  //   TAB 3: Stammdaten — RVNR + Sozialversicherungsausweis-Upload
   // ═══════════════════════════════════════════════════════
   Widget _buildStammdatenTab(BuildContext context) {
     return StatefulBuilder(
       builder: (context, setLocalState) {
-        final currentYear = DateTime.now().year;
-        final rentenwert = _getRentenwert(currentYear);
-        final faktor = _rentenartFaktoren[_rentenart] ?? 1.0;
-        final ep = double.tryParse(_entgeltpunkteC.text.trim().replaceAll(',', '.')) ?? 0;
-        final zf = double.tryParse(_zugangsfaktorC.text.trim().replaceAll(',', '.')) ?? 1.0;
-        final brutto = ep * zf * rentenwert * faktor;
-        final kvAbzug = brutto * (_kvBeitragRentner + _kvZusatzbeitrag / 2) / 100;
-        final pvSatz = _hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos;
-        final pvAbzug = brutto * pvSatz / 100;
-        final netto = brutto - kvAbzug - pvAbzug;
         final rvnrError = _validateRvnr();
 
         return SingleChildScrollView(
@@ -710,6 +709,85 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
               ),
               const SizedBox(height: 20),
 
+              // ─── SOZIALVERSICHERUNGSAUSWEIS UPLOAD ───
+              _buildSozialversAusweisUpload(),
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSozialversAusweisUpload() {
+    if (widget.apiService == null || widget.userId == null) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+        child: Text(
+          'Upload nicht verfügbar (kein API-Kontext).',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.indigo.shade50, Colors.deepPurple.shade50],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.deepPurple.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.upload_file, color: Colors.deepPurple.shade700, size: 22),
+          const SizedBox(width: 8),
+          Text('Sozialversicherungsausweis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+        ]),
+        const SizedBox(height: 6),
+        Text(
+          'PDF, JPEG oder JPG hochladen. Der Sozialversicherungsausweis ist '
+          'der Nachweis der Rentenversicherungsnummer; auf seiner Vorderseite '
+          'steht die RVNR direkt unter Name und Geburtsdatum.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 220,
+          child: KorrAttachmentsWidget(
+            apiService: widget.apiService!,
+            modul: 'rente_sozialvers_ausweis',
+            korrespondenzId: widget.userId!,
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //   TAB 4: Information Rente — Rentenwert, Rentenart, EP,
+  //   Zugangsfaktor, Kinder, Berechnung, Notizen
+  // ═══════════════════════════════════════════════════════
+  Widget _buildInformationRenteTab(BuildContext context) {
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        final currentYear = DateTime.now().year;
+        final rentenwert = _getRentenwert(currentYear);
+        final faktor = _rentenartFaktoren[_rentenart] ?? 1.0;
+        final ep = double.tryParse(_entgeltpunkteC.text.trim().replaceAll(',', '.')) ?? 0;
+        final zf = double.tryParse(_zugangsfaktorC.text.trim().replaceAll(',', '.')) ?? 1.0;
+        final brutto = ep * zf * rentenwert * faktor;
+        final kvAbzug = brutto * (_kvBeitragRentner + _kvZusatzbeitrag / 2) / 100;
+        final pvSatz = _hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos;
+        final pvAbzug = brutto * pvSatz / 100;
+        final netto = brutto - kvAbzug - pvAbzug;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // ─── RENTENWERT ───
               Container(
                 width: double.infinity,
