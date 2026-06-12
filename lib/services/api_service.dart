@@ -5395,10 +5395,10 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
-  /// Generate a DIN-5008-formatted PDF (sender = client) and return raw PDF
-  /// bytes for saving + opening. Server response is base64-encoded so we can
-  /// transport it through the existing JSON envelope.
-  Future<List<int>?> generateJobcenterBrief({
+  /// Generate a DIN-5008-formatted PDF (sender = client) and merge any
+  /// Rente-Antrag proof attachments. Returns `{bytes, proof_count,
+  /// proof_antrag, proof_datum}` or null on failure.
+  Future<Map<String, dynamic>?> generateJobcenterBrief({
     required int userId,
     required String type,
     String? ihrZeichen,
@@ -5416,13 +5416,19 @@ class ApiService {
         Uri.parse('$baseUrl/admin/jobcenter_brief_generator.php'),
         headers: _headers,
         body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 60));
       if (r.statusCode != 200) return null;
       final dec = jsonDecode(r.body);
       if (dec is! Map || dec['success'] != true) return null;
-      final b64 = (dec['data']?['pdf_base64'] ?? dec['pdf_base64'] ?? '').toString();
+      final root = (dec['data'] is Map) ? Map<String, dynamic>.from(dec['data'] as Map) : Map<String, dynamic>.from(dec);
+      final b64 = (root['pdf_base64'] ?? '').toString();
       if (b64.isEmpty) return null;
-      return base64Decode(b64);
+      return {
+        'bytes':       base64Decode(b64),
+        'proof_count': root['proof_count'] ?? 0,
+        'proof_antrag': root['proof_antrag']?.toString() ?? '',
+        'proof_datum': root['proof_datum']?.toString() ?? '',
+      };
     } catch (_) {
       return null;
     }

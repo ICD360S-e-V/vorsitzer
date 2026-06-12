@@ -4707,18 +4707,20 @@ class _JobcenterBriefGeneratorTabState extends State<_JobcenterBriefGeneratorTab
   }
 
   Future<void> _generate(String type, String ihrZeichen, String ihrSchreibenVom) async {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generiere PDF …'), duration: Duration(seconds: 2)));
-    final bytes = await widget.apiService.generateJobcenterBrief(
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generiere PDF (inkl. Nachweis aus Rente-Antrag) …'), duration: Duration(seconds: 3)));
+    final res = await widget.apiService.generateJobcenterBrief(
       userId: widget.userId,
       type: type,
       ihrZeichen: ihrZeichen,
       ihrSchreibenVom: ihrSchreibenVom,
     );
     if (!mounted) return;
-    if (bytes == null) {
+    if (res == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF konnte nicht erzeugt werden. Prüfe Server-Logs.'), backgroundColor: Colors.red));
       return;
     }
+    final bytes = (res['bytes'] as List<int>?) ?? const <int>[];
+    final proofCount = (res['proof_count'] as num?)?.toInt() ?? 0;
     Directory? dir;
     try { dir = await getDownloadsDirectory(); } catch (_) {}
     dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
@@ -4727,9 +4729,13 @@ class _JobcenterBriefGeneratorTabState extends State<_JobcenterBriefGeneratorTab
     final path = '${dir.path}${Platform.pathSeparator}$filename';
     await File(path).writeAsBytes(bytes);
     if (!mounted) return;
+    final proofInfo = proofCount > 0
+        ? ' (mit $proofCount Nachweis-Anhang${proofCount == 1 ? '' : 'en'} aus Rente-Antrag)'
+        : ' (KEIN Nachweis-Anhang gefunden — lade einen Antrag-Nachweis in Behörde → Rente → Anträge → Unterlagen hoch)';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('PDF gespeichert: $path'),
-      backgroundColor: Colors.green,
+      content: Text('PDF gespeichert$proofInfo: $path'),
+      backgroundColor: proofCount > 0 ? Colors.green : Colors.orange,
+      duration: const Duration(seconds: 8),
       action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
     ));
   }
@@ -4814,7 +4820,12 @@ class _JobcenterBriefGeneratorTabState extends State<_JobcenterBriefGeneratorTab
               Expanded(child: Text(
                 'Absender = Mandant (Vorname, Nachname, Anschrift aus Verifizierung Stufe 1).\n'
                 'Versicherten-Nr. wird aus Behörde → Rentenversicherung → Stammdaten übernommen.\n'
-                'BG-Nr. + Kunden-Nr. aus Jobcenter → Stammdaten. PDF nach DIN 5008.',
+                'BG-Nr. + Kunden-Nr. aus Jobcenter → Stammdaten. PDF nach DIN 5008.\n'
+                '\n'
+                'Der Brief teilt dem Jobcenter mit, dass die Rentenauskunft bei der DRV '
+                'beantragt wurde. Als NACHWEIS werden automatisch die Unterlagen aus dem '
+                'Rente-Antrag (bevorzugt "Kontenklärung") angehängt — bitte vorher in '
+                'Behörde → Rente → Anträge → Unterlagen hochladen.',
                 style: TextStyle(fontSize: 9, color: Colors.blue.shade900),
               )),
             ]),
