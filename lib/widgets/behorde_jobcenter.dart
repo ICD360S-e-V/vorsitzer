@@ -4683,9 +4683,11 @@ class _JobcenterBriefGeneratorTabState extends State<_JobcenterBriefGeneratorTab
     try {
       final r = await widget.apiService.scanJobcenterBriefGenerator(widget.userId);
       if (r['success'] == true) {
-        final data = (r['data'] ?? {}) as Map;
-        _matches = (data['matches'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-        _catalog = (data['catalog'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        // jsonResponse mergt Daten an die Wurzel, nicht unter `data` —
+        // beide Varianten der Sicherheit halber lesen.
+        final root = (r['data'] is Map) ? Map<String, dynamic>.from(r['data'] as Map) : r;
+        _matches = (root['matches'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        _catalog = (root['catalog'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
       } else {
         _error = r['message']?.toString() ?? 'Scan fehlgeschlagen';
       }
