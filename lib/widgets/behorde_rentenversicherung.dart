@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class BehordeRentenversicherungContent extends StatefulWidget {
   final Map<String, dynamic> Function(String type) getData;
@@ -43,6 +44,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
 
   // Tab 3 — Stammdaten
   late final TextEditingController _rvnrC;
+  bool _rvnrEditing = false; // off by default — pencil button toggles it on
   late final TextEditingController _entgeltpunkteC;
   late final TextEditingController _zugangsfaktorC;
   late final TextEditingController _notizenC;
@@ -397,25 +399,67 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                       Text('Deutsche Rentennummer (RVNR)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
                     ]),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: _rvnrC,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: InputDecoration(
-                        hintText: 'z.B. 15 070649 C 103',
-                        prefixIcon: const Icon(Icons.badge, size: 20),
-                        suffixIcon: rvnrError == null && _rvnrC.text.trim().isNotEmpty
-                            ? Icon(Icons.check_circle, color: Colors.green.shade600, size: 20)
-                            : null,
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        errorText: rvnrError,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    // RVNR field — readonly by default. The pencil toggles
+                    // edit mode; the clipboard button copies the current
+                    // value to the system clipboard. When the value is
+                    // valid we also show the green checkmark inline.
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(child: TextField(
+                        controller: _rvnrC,
+                        readOnly: !_rvnrEditing,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: InputDecoration(
+                          hintText: _rvnrEditing ? 'z.B. 15 070649 C 103' : null,
+                          prefixIcon: Icon(Icons.badge, size: 20, color: _rvnrEditing ? Colors.deepPurple.shade700 : Colors.grey.shade600),
+                          suffixIcon: rvnrError == null && _rvnrC.text.trim().isNotEmpty
+                              ? Icon(Icons.check_circle, color: Colors.green.shade600, size: 20)
+                              : null,
+                          isDense: true,
+                          filled: true,
+                          fillColor: _rvnrEditing ? Colors.white : Colors.grey.shade100,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          errorText: rvnrError,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontFamily: 'monospace',
+                          color: _rvnrEditing ? Colors.black : Colors.grey.shade800,
+                          fontWeight: _rvnrEditing ? FontWeight.normal : FontWeight.w600,
+                        ),
+                        onChanged: (_) => setLocalState(() {}),
+                      )),
+                      const SizedBox(width: 6),
+                      // Copy to clipboard.
+                      IconButton(
+                        tooltip: 'In Zwischenablage kopieren',
+                        icon: const Icon(Icons.content_copy, size: 18),
+                        color: Colors.deepPurple.shade700,
+                        onPressed: _rvnrC.text.trim().isEmpty ? null : () async {
+                          await Clipboard.setData(ClipboardData(text: _rvnrC.text.trim()));
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('RVNR kopiert: ${_rvnrC.text.trim()}'),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
+                          ));
+                        },
                       ),
-                      style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
-                      onChanged: (_) => setLocalState(() {}),
-                    ),
+                      // Edit toggle.
+                      IconButton(
+                        tooltip: _rvnrEditing ? 'Speichern' : 'Bearbeiten',
+                        icon: Icon(_rvnrEditing ? Icons.check : Icons.edit, size: 18),
+                        color: _rvnrEditing ? Colors.green.shade700 : Colors.deepPurple.shade700,
+                        onPressed: () {
+                          setLocalState(() => _rvnrEditing = !_rvnrEditing);
+                          setState(() {}); // share with the outer state
+                          if (!_rvnrEditing) {
+                            // exiting edit mode → persist
+                            _save();
+                          }
+                        },
+                      ),
+                    ]),
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.all(10),
