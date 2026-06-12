@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../utils/aufenthaltsstatus_options.dart';
 import '../services/verwarnung_service.dart';
 import '../services/dokumente_service.dart';
 import '../services/ticket_service.dart';
@@ -3107,7 +3108,6 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         if (_stufe1GeburtsdatumController.text.isNotEmpty) _buildAlterRow(_stufe1GeburtsdatumController.text),
         _stufe1EditableRow('Geburtsort', _stufe1GeburtsortController, readOnly: isLocked),
         _stufe1EditableRow('Geburtsname', _stufe1GeburtsnameController, readOnly: isLocked),
-        _stufe1EditableRow('Aufenthaltsstatus', _stufe1AufenthaltsstatusController, readOnly: isLocked),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
@@ -3232,6 +3232,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ],
           ),
         ),
+        _stufe1AufenthaltsstatusRow(readOnly: isLocked),
         _stufe1EditableRow('Strasse', _stufe1StrasseController, readOnly: isLocked),
         _stufe1EditableRow('Hausnummer', _stufe1HausnummerController, readOnly: isLocked),
         _stufe1EditableRow('PLZ', _stufe1PlzController, readOnly: isLocked),
@@ -3379,6 +3380,92 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             decoration: InputDecoration(hintText: label, hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)), filled: readOnly, fillColor: readOnly ? Colors.grey.shade100 : null)))),
         ],
+      ]),
+    );
+  }
+
+  /// Aufenthaltsstatus row — the options shown in the dropdown depend on
+  /// the currently selected Staatsangehörigkeit (DE / EU / UK / Drittstaat).
+  /// "Sonstiges" reveals a free-form TextField so admins can type whatever
+  /// the case actually needs.
+  Widget _stufe1AufenthaltsstatusRow({required bool readOnly}) {
+    // Resolve iso_code for the current Staatsangehörigkeit.
+    String? iso;
+    for (final s in _staatsangehoerigkeitenListe) {
+      if ((s['bezeichnung'] ?? '').toString() == _stufe1Staatsangehoerigkeit) {
+        iso = s['iso_code']?.toString();
+        break;
+      }
+    }
+    final options = aufenthaltsOptionsForStaat(
+      isoCode: iso, bezeichnung: _stufe1Staatsangehoerigkeit);
+
+    final current = _stufe1AufenthaltsstatusController.text.trim();
+    final inList = options.contains(current);
+    final showFreeText = (!inList && current.isNotEmpty) || current.isEmpty
+        ? (current.isNotEmpty && !inList)
+        : false;
+    // The Dropdown's "value" must match an entry in items; if the stored
+    // value isn't in the list (custom text), pretend "Sonstiges" is selected.
+    final selectedDropdown = inList ? current : (current.isNotEmpty ? 'Sonstiges' : null);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(
+            current.isNotEmpty ? Icons.check_circle_outline : Icons.cancel_outlined,
+            size: 16,
+            color: current.isNotEmpty ? Colors.green : Colors.red.shade300,
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 120,
+            child: Text('Aufenthaltsstatus', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: selectedDropdown,
+            isExpanded: true,
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+            style: const TextStyle(fontSize: 12, color: Colors.black87),
+            hint: const Text('— wählen —', style: TextStyle(fontSize: 12)),
+            items: options.map((o) => DropdownMenuItem(
+              value: o,
+              child: Text(o, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+            )).toList(),
+            onChanged: readOnly ? null : (v) => setState(() {
+              if (v == null) return;
+              if (v == 'Sonstiges') {
+                // Clear so the free-text field becomes the source of truth.
+                _stufe1AufenthaltsstatusController.text = '';
+              } else {
+                _stufe1AufenthaltsstatusController.text = v;
+              }
+            }),
+          )),
+        ]),
+        // Free-text field shown when "Sonstiges" is picked or the stored
+        // value doesn't match any predefined option.
+        if (selectedDropdown == 'Sonstiges' || showFreeText) Padding(
+          padding: const EdgeInsets.only(left: 144, top: 4),
+          child: TextField(
+            controller: _stufe1AufenthaltsstatusController,
+            readOnly: readOnly,
+            style: const TextStyle(fontSize: 12),
+            decoration: InputDecoration(
+              hintText: 'Status frei eintippen…',
+              hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
       ]),
     );
   }
