@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/external_browser_service.dart';
 import '../services/platform_service.dart';
 import '../utils/file_picker_helper.dart';
 
@@ -16,15 +17,13 @@ import 'package:webview_flutter_android/webview_flutter_android.dart' as android
 // Windows-specific WebView (conditional)
 import 'package:webview_windows/webview_windows.dart' as windows_webview;
 
-// Linux-specific WebView (CEF / Chromium embedded — bundled in the app)
-import 'package:webview_cef/webview_cef.dart' as cef;
-
 /// Cross-Platform WebView Screen
 /// - Windows: webview_windows (Edge WebView2)
 /// - macOS: webview_flutter (WKWebView)
 /// - Android/iOS: webview_flutter (native WebView)
-/// - Linux: webview_cef (bundled Chromium / CEF) — embedded in-app, with
-///   user-script injection at LOAD_END for auto-fill
+/// - Linux: driven external Chromium via CDP (see ExternalBrowserService) —
+///   webview_cef was removed because libcef.so crashed inside the
+///   freedesktop-Platform Flatpak (~3 s splash, then exit).
 class WebViewScreen extends StatefulWidget {
   final String title;
   final String url;
@@ -54,8 +53,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
   // Mobile WebView controller
   mobile_webview.WebViewController? _mobileController;
 
-  // Linux CEF controller (Chromium Embedded Framework, bundled with app)
-  cef.WebViewController? _cefController;
+  // Linux: external Chromium error message (if launch failed)
+  String? _linuxError;
+  bool _linuxBusy = false;
 
   bool _isLoading = true;
   bool _isInitialized = false;
@@ -74,10 +74,25 @@ class _WebViewScreenState extends State<WebViewScreen> {
       // macOS uses WKWebView via webview_flutter (same as iOS)
       await _initMobileWebView();
     } else if (Platform.isLinux) {
-      // Linux: bundled Chromium via webview_cef
-      await _initLinuxCefWebView();
+      // Linux: hand off to the host Chromium-Flatpak via CDP. Nothing to
+      // render in our own window — the user works in the external tab.
+      await _launchLinuxExternal();
     } else {
       await _openInExternalBrowser();
+    }
+  }
+
+  Future<void> _launchLinuxExternal() async {
+    if (mounted) setState(() { _linuxBusy = true; _isInitialized = true; _isLoading = false; });
+    final err = await ExternalBrowserService.openWithAutoFill(
+      url: widget.url,
+      autoFillJs: widget.customJs ?? '',
+    );
+    if (!mounted) return;
+    setState(() { _linuxBusy = false; _linuxError = err; });
+    if (err == null) {
+      // Browser is up with the page loaded — close our placeholder.
+      Navigator.of(context).maybePop();
     }
   }
 
@@ -197,48 +212,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
-  /// Linux: In-app browser via webview_cef (bundled Chromium / CEF).
-  /// Embeds the webview INSIDE the Flutter app (like Windows/mobile).
-  /// `customJs` is registered as a LOAD_END user script so it auto-runs after
-  /// every navigation completes — no manual delay or polling needed.
-  Future<void> _initLinuxCefWebView() async {
-    try {
-      // Make sure CEF is initialized (idempotent across the app lifetime).
-      await cef.WebviewManager().initialize();
-
-      _cefController = cef.WebviewManager().createWebView(
-        loading: const Center(child: CircularProgressIndicator()),
-      );
-
-      _cefController!.setWebviewListener(cef.WebviewEventsListener(
-        onUrlChanged: (url) {
-          if (mounted) setState(() => _currentUrl = url);
-        },
-        onLoadStart: (_, url) {
-          if (mounted) setState(() => _isLoading = true);
-        },
-        onLoadEnd: (_, url) async {
-          if (mounted) setState(() => _isLoading = false);
-          // Inject customJs once per page load (works the same as Windows/mobile).
-          if (widget.customJs != null && widget.customJs!.isNotEmpty) {
-            try {
-              await _cefController!.executeJavaScript(widget.customJs!);
-            } catch (e) {
-              debugPrint('[CEF] customJs injection failed: $e');
-            }
-          }
-        },
-      ));
-
-      await _cefController!.initialize(widget.url);
-
-      if (mounted) setState(() => _isInitialized = true);
-    } catch (e, stack) {
-      debugPrint('[CEF] Init failed: $e\n$stack');
-      _showError('Linux WebView (CEF) Fehler: $e');
-    }
-  }
-
   /// Fallback (no longer used by default — kept for unknown platforms): Open
   /// URL in system browser. On Flatpak url_launcher may fail because the
   /// sandbox can't see host's xdg-open — we then try flatpak-spawn --host
@@ -301,7 +274,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   void dispose() {
     _windowsController?.dispose();
-    _cefController?.dispose();
     super.dispose();
   }
 
@@ -808,8 +780,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _goBack() async {
     if (Platform.isWindows) {
       _windowsController?.goBack();
-    } else if (Platform.isLinux) {
-      _cefController?.goBack();
     } else if (_mobileController != null) {
       if (await _mobileController!.canGoBack()) {
         _mobileController!.goBack();
@@ -820,8 +790,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _goForward() async {
     if (Platform.isWindows) {
       _windowsController?.goForward();
-    } else if (Platform.isLinux) {
-      _cefController?.goForward();
     } else if (_mobileController != null) {
       if (await _mobileController!.canGoForward()) {
         _mobileController!.goForward();
@@ -832,8 +800,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _reload() async {
     if (Platform.isWindows) {
       _windowsController?.reload();
-    } else if (Platform.isLinux) {
-      _cefController?.reload();
     } else {
       _mobileController?.reload();
     }
@@ -842,8 +808,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _loadHome() async {
     if (Platform.isWindows) {
       _windowsController?.loadUrl(widget.url);
-    } else if (Platform.isLinux) {
-      _cefController?.loadUrl(widget.url);
     } else {
       _mobileController?.loadRequest(Uri.parse(widget.url));
     }
@@ -976,13 +940,36 @@ class _WebViewScreenState extends State<WebViewScreen> {
       return windows_webview.Webview(_windowsController!);
     } else if ((Platform.isMacOS || PlatformService.isMobile) && _mobileController != null) {
       return mobile_webview.WebViewWidget(controller: _mobileController!);
-    } else if (Platform.isLinux && _cefController != null) {
-      return ValueListenableBuilder<bool>(
-        valueListenable: _cefController!,
-        builder: (ctx, ready, _) => ready
-            ? _cefController!.webviewWidget
-            : _cefController!.loadingWidget,
-      );
+    } else if (Platform.isLinux) {
+      // The page is now served by the host Chromium-Flatpak via CDP — this
+      // screen is just a courtesy placeholder while ExternalBrowserService
+      // launches and connects.
+      if (_linuxBusy) {
+        return const Center(
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Chromium wird gestartet…'),
+          ]),
+        );
+      }
+      if (_linuxError != null) {
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.warning_amber, size: 48, color: Colors.orange.shade700),
+            const SizedBox(height: 16),
+            Text(_linuxError!, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _launchLinuxExternal,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Erneut versuchen'),
+            ),
+          ]),
+        );
+      }
+      return const SizedBox.shrink();
     }
 
     // Fallback - should not reach here
