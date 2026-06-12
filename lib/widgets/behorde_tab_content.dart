@@ -484,6 +484,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   autoSaveField: (t, f, v) => _autoSaveField(t, f, v),
                 ),
                 BehordeRentenversicherungContent(
+                  user: widget.user,
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
                   isSaving: (t) => _behoerdeSaving[t] == true,

@@ -318,6 +318,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final strasse = (d['strasse'] ?? '').toString().replaceAll("'", "\\'");
     final versicherung = d['versicherung'] ?? 'gesetzlich';
     final versNr = (d['versichertennummer'] ?? '').toString().replaceAll("'", "\\'");
+    final geburtsname = (d['geburtsname'] ?? '').toString().replaceAll("'", "\\'");
 
     return '''
 (function() {
@@ -353,7 +354,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
     var aria = (el.getAttribute('aria-label') || '').toLowerCase();
     var combined = ph + ' ' + nm + ' ' + id + ' ' + lbl + ' ' + aria;
 
-    if (combined.indexOf('vorname') >= 0 || combined.indexOf('firstname') >= 0 || combined.indexOf('first name') >= 0) {
+    // Geburtsname check MUST run before the generic "geburt" branch — that
+    // one matches geburtsdatum and would steal the value otherwise.
+    if (combined.indexOf('geburtsname') >= 0 || combined.indexOf('birthname') >= 0 || combined.indexOf('maiden') >= 0 || combined.indexOf('geburtsfamilienname') >= 0) {
+      if (setVal(el, '$geburtsname')) filled++;
+    } else if (combined.indexOf('vorname') >= 0 || combined.indexOf('firstname') >= 0 || combined.indexOf('first name') >= 0) {
       if (setVal(el, '$vorname')) filled++;
     } else if (combined.indexOf('nachname') >= 0 || combined.indexOf('familienname') >= 0 || combined.indexOf('lastname') >= 0 || combined.indexOf('surname') >= 0 || combined.indexOf('last name') >= 0) {
       if (setVal(el, '$nachname')) filled++;

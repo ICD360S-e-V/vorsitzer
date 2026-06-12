@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/user.dart';
+import '../screens/webview_screen.dart';
 
 class BehordeRentenversicherungContent extends StatefulWidget {
+  final User? user; // optional so legacy call sites still compile
   final Map<String, dynamic> Function(String type) getData;
   final bool Function(String type) isLoading;
   final bool Function(String type) isSaving;
@@ -21,6 +24,7 @@ class BehordeRentenversicherungContent extends StatefulWidget {
 
   const BehordeRentenversicherungContent({
     super.key,
+    this.user,
     required this.getData,
     required this.isLoading,
     required this.isSaving,
@@ -366,17 +370,120 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: widget.antraegeBuilder(
-        behoerdeType: type,
-        antraege: _antraege,
-        artItems: artItems,
-        statusItems: statusItems,
-        onChanged: (updated) {
-          setState(() => _antraege = updated);
-          _save();
-        },
-        context: context,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _buildOnlineServiceCard(),
+        const SizedBox(height: 14),
+        widget.antraegeBuilder(
+          behoerdeType: type,
+          antraege: _antraege,
+          artItems: artItems,
+          statusItems: statusItems,
+          onChanged: (updated) {
+            setState(() => _antraege = updated);
+            _save();
+          },
+          context: context,
+        ),
+      ]),
+    );
+  }
+
+  /// "Online Service" card — launches eservice-drv.de/SelfServiceWeb in the
+  /// embedded browser with the member's Vorname / Nachname / Geburtsname
+  /// (Verifizierung Stufe 1) and the RVNR from the Stammdaten-tab already
+  /// auto-filled. Same auto-fill mechanism as the Rundfunkbeitrag and
+  /// Hausarzt-Portal flows.
+  Widget _buildOnlineServiceCard() {
+    final user = widget.user;
+    final vorname = user?.vorname ?? '';
+    final nachname = user?.nachname ?? '';
+    final geburtsname = user?.geburtsname ?? '';
+    final rvnr = _rvnrC.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+
+    final canFill = vorname.isNotEmpty && nachname.isNotEmpty && rvnr.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [Colors.deepPurple.shade50, Colors.indigo.shade50], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.deepPurple.shade200),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.language, color: Colors.deepPurple.shade700, size: 22),
+          const SizedBox(width: 8),
+          Text('Online Service — eservice-drv.de',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+        ]),
+        const SizedBox(height: 6),
+        Text(
+          'Versicherungsverlauf, Renten- und Lückenauskunft, Bezugsbescheinigungen — '
+          'direkt im SelfServiceWeb der DRV anfordern. Daten werden aus '
+          'Stufe-1-Verifizierung (Vor-, Familien- und Geburtsname) und dem '
+          'Stammdaten-Tab (RVNR) vorausgefüllt.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        // Quick view of what would be filled.
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          _dataChip('Vorname', vorname),
+          _dataChip('Familienname', nachname),
+          _dataChip('Geburtsname', geburtsname, optional: true),
+          _dataChip('Versicherungsnr.', rvnr),
+        ]),
+        if (!canFill) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade300)),
+            child: Row(children: [
+              Icon(Icons.info_outline, color: Colors.amber.shade800, size: 14),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                'Vorname, Familienname und RVNR müssen vor dem Öffnen ausgefüllt sein.',
+                style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          icon: const Icon(Icons.open_in_new, size: 18),
+          label: const Text('Online Service öffnen'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade700),
+          onPressed: !canFill ? null : () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => WebViewScreen(
+              title: 'DRV — Versicherungsunterlagen anfordern',
+              url: 'https://www.eservice-drv.de/SelfServiceWeb/',
+              go2docAutoFill: {
+                'vorname': vorname,
+                'nachname': nachname,
+                'geburtsname': geburtsname,
+                'versichertennummer': rvnr,
+              },
+            )));
+          },
+        )),
+      ]),
+    );
+  }
+
+  Widget _dataChip(String label, String value, {bool optional = false}) {
+    final empty = value.isEmpty;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: empty ? (optional ? Colors.grey.shade100 : Colors.red.shade50) : Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: empty ? (optional ? Colors.grey.shade300 : Colors.red.shade300) : Colors.green.shade300),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(empty ? (optional ? Icons.remove : Icons.warning_amber) : Icons.check, size: 11,
+          color: empty ? (optional ? Colors.grey.shade500 : Colors.red.shade700) : Colors.green.shade700),
+        const SizedBox(width: 4),
+        Text('$label: ', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+        Text(empty ? (optional ? '(optional)' : '—') : value, style: TextStyle(fontSize: 10, color: Colors.black87, fontWeight: FontWeight.w600)),
+      ]),
     );
   }
 
