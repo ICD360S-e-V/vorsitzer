@@ -57,6 +57,9 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
   // Tab 3 — Stammdaten
   late final TextEditingController _rvnrC;
   bool _rvnrEditing = false; // off by default — pencil button toggles it on
+  String _lastAutoPickedBereich = ''; // remember which bereich we already auto-picked
+  Map<String, dynamic>? _selectedTraeger; // currently picked träger (full row)
+  List<Map<String, dynamic>> _traegerListe = []; // catalog from drv_traeger.php
   late final TextEditingController _entgeltpunkteC;
   late final TextEditingController _zugangsfaktorC;
   late final TextEditingController _notizenC;
@@ -134,21 +137,75 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     _tabCtrl = TabController(length: 4, vsync: this);
     _dienststelleC = TextEditingController();
     _traegerC = TextEditingController();
-    // Dienststelle is rendered by a parent-supplied builder, so we can't
-    // attach onChanged in the widget. Hook the controller listener
-    // directly — fires after every keystroke.
-    // Same trick for every field that auto-saves: hook the controller
-    // so we don't have to thread onChanged through nested widgets.
-    _dienststelleC.addListener(_scheduleSave);
-    _traegerC.addListener(_scheduleSave);
-    _rvnrC.addListener(_scheduleSave);
-    _entgeltpunkteC.addListener(_scheduleSave);
-    _zugangsfaktorC.addListener(_scheduleSave);
-    _notizenC.addListener(_scheduleSave);
     _rvnrC = TextEditingController();
     _entgeltpunkteC = TextEditingController();
     _zugangsfaktorC = TextEditingController(text: '1,0');
     _notizenC = TextEditingController();
+    // Auto-save listeners — attach AFTER all controllers are constructed.
+    _dienststelleC.addListener(_scheduleSave);
+    _traegerC.addListener(_scheduleSave);
+    _rvnrC.addListener(_scheduleSave);
+    _rvnrC.addListener(_handleRvnrChange); // also drives the träger auto-pick
+    _entgeltpunkteC.addListener(_scheduleSave);
+    _zugangsfaktorC.addListener(_scheduleSave);
+    _notizenC.addListener(_scheduleSave);
+    _loadTraegerCatalog();
+  }
+
+  Future<void> _loadTraegerCatalog() async {
+    if (widget.apiService == null) return;
+    try {
+      final res = await widget.apiService!.listDrvTraeger();
+      if (!mounted) return;
+      if (res['success'] == true) {
+        setState(() {
+          _traegerListe = (res['traeger'] as List? ?? [])
+              .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        });
+        // After the catalog is loaded, if the trager-name is already in
+        // _traegerC, try to resolve it to the full row.
+        _resolveSelectedFromName(_traegerC.text);
+      }
+    } catch (_) {}
+  }
+
+  void _resolveSelectedFromName(String name) {
+    if (name.isEmpty) { setState(() => _selectedTraeger = null); return; }
+    Map<String, dynamic>? match;
+    for (final t in _traegerListe) {
+      if (((t['kurz'] ?? '').toString() == name) || ((t['name'] ?? '').toString() == name)) {
+        match = t; break;
+      }
+    }
+    setState(() => _selectedTraeger = match);
+  }
+
+  /// When the user edits the RVNR, take the first two digits and ask the
+  /// server which Träger that Bereichsnummer maps to. If we find one we
+  /// pre-fill the Träger field (only if the user hasn't manually picked a
+  /// different one for the same bereich already).
+  Future<void> _handleRvnrChange() async {
+    if (widget.apiService == null) return;
+    final clean = _rvnrC.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+    if (clean.length < 2) return;
+    final bereich = clean.substring(0, 2);
+    if (bereich == _lastAutoPickedBereich) return; // already done this one
+    if (!RegExp(r'^\d{2}$').hasMatch(bereich)) return;
+    try {
+      final res = await widget.apiService!.getDrvTraegerByBereich(bereich);
+      if (!mounted) return;
+      final t = res['traeger'];
+      if (t is Map) {
+        _lastAutoPickedBereich = bereich;
+        final kurz = (t['kurz'] ?? '').toString();
+        // Don't blow away a manual choice — only auto-fill if empty or matches
+        // the auto-detected family.
+        if (_traegerC.text.trim().isEmpty || _traegerC.text.trim() == kurz) {
+          _traegerC.text = kurz;
+          setState(() => _selectedTraeger = Map<String, dynamic>.from(t));
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -340,22 +397,80 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
 
           Text('Rentenversicherungstraeger', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
           const SizedBox(height: 4),
-          TextField(
-            controller: _traegerC,
-            decoration: InputDecoration(
-              hintText: 'z.B. Deutsche Rentenversicherung Bund / Baden-Wuerttemberg',
-              prefixIcon: const Icon(Icons.account_balance, size: 20),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          // Autocomplete with magnifier — same pattern as WBS / Bürgeramt.
+          Autocomplete<Map<String, dynamic>>(
+            initialValue: TextEditingValue(text: _traegerC.text),
+            displayStringForOption: (t) => (t['kurz'] ?? '').toString(),
+            optionsBuilder: (txt) {
+              final q = txt.text.trim().toLowerCase();
+              if (_traegerListe.isEmpty) return const Iterable.empty();
+              if (q.isEmpty) return _traegerListe;
+              return _traegerListe.where((t) =>
+                ((t['kurz'] ?? '').toString().toLowerCase().contains(q)) ||
+                ((t['name'] ?? '').toString().toLowerCase().contains(q)) ||
+                ((t['zustaendig_fuer'] ?? '').toString().toLowerCase().contains(q)) ||
+                ((t['hauptsitz_ort'] ?? '').toString().toLowerCase().contains(q)));
+            },
+            fieldViewBuilder: (ctx, controller, focusNode, onSubmit) {
+              // Keep the autocomplete's internal controller in sync with our
+              // saved _traegerC value (e.g. after the RVNR auto-pick).
+              if (controller.text != _traegerC.text) {
+                controller.text = _traegerC.text;
+                controller.selection = TextSelection.collapsed(offset: controller.text.length);
+              }
+              return TextField(
+                controller: controller, focusNode: focusNode,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: controller.text.isNotEmpty
+                    ? IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () {
+                        controller.clear();
+                        _traegerC.text = '';
+                        setState(() => _selectedTraeger = null);
+                      })
+                    : null,
+                  hintText: 'Träger suchen (z.B. „Bund", „Baden", „Bayern"…)',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                onChanged: (v) {
+                  // Allow free input but try to resolve to a known träger.
+                  _traegerC.text = v.trim();
+                  _resolveSelectedFromName(v.trim());
+                },
+              );
+            },
+            optionsViewBuilder: (ctx, onSel, options) => Align(
+              alignment: Alignment.topLeft,
+              child: Material(elevation: 4, borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320, maxWidth: 520),
+                  child: ListView(padding: EdgeInsets.zero, shrinkWrap: true,
+                    children: options.map((t) => InkWell(
+                      onTap: () => onSel(t),
+                      child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text((t['kurz'] ?? '').toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text((t['name'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700)),
+                        Text('${t['hauptsitz_strasse'] ?? ''}, ${t['hauptsitz_plz'] ?? ''} ${t['hauptsitz_ort'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      ])),
+                    )).toList(),
+                  ),
+                ),
+              ),
             ),
-            style: const TextStyle(fontSize: 14),
+            onSelected: (t) {
+              _traegerC.text = (t['kurz'] ?? '').toString();
+              setState(() => _selectedTraeger = Map<String, dynamic>.from(t));
+            },
           ),
           const SizedBox(height: 4),
           Text(
-            'Bund, Knappschaft-Bahn-See oder eine der 14 Regionaltraeger.',
+            'DRV Bund, 14 Regionalträger oder Knappschaft-Bahn-See. Bei eingetragener RVNR wird der zuständige Träger automatisch aus den ersten zwei Ziffern (Bereichsnummer) ausgewählt.',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
           ),
+          const SizedBox(height: 12),
+          if (_selectedTraeger != null) _buildTraegerCard(_selectedTraeger!),
           const SizedBox(height: 20),
 
           Text('Dienststelle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
@@ -365,6 +480,58 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
       ),
     );
   }
+
+  Widget _buildTraegerCard(Map<String, dynamic> t) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.deepPurple.shade300),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.account_balance, size: 28, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text((t['name'] ?? '').toString(),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900)),
+          if ((t['zustaendig_fuer'] ?? '').toString().isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 2),
+              child: Text(t['zustaendig_fuer'].toString(),
+                style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700, fontStyle: FontStyle.italic))),
+          const SizedBox(height: 6),
+          _kvRow(Icons.location_on, '${t['hauptsitz_strasse'] ?? ''}, ${t['hauptsitz_plz'] ?? ''} ${t['hauptsitz_ort'] ?? ''}'),
+          if ((t['telefon'] ?? '').toString().isNotEmpty)
+            _kvRow(Icons.phone, t['telefon'].toString()),
+          if ((t['servicetelefon'] ?? '').toString().isNotEmpty)
+            _kvRow(Icons.phone_in_talk, 'Service: ${t['servicetelefon']}'),
+          if ((t['fax'] ?? '').toString().isNotEmpty)
+            _kvRow(Icons.fax, 'Fax: ${t['fax']}'),
+          if ((t['email'] ?? '').toString().isNotEmpty)
+            _kvRow(Icons.email, t['email'].toString()),
+          if ((t['website'] ?? '').toString().isNotEmpty)
+            _kvRow(Icons.language, t['website'].toString()),
+          if ((t['oeffnungszeiten'] ?? '').toString().isNotEmpty)
+            _kvRow(Icons.schedule, t['oeffnungszeiten'].toString()),
+          if ((t['regional_kontext'] ?? '').toString().isNotEmpty || (t['bemerkung'] ?? '').toString().isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                [t['regional_kontext'], t['bemerkung']].where((s) => s != null && s.toString().isNotEmpty).join(' — '),
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              )),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _kvRow(IconData icon, String text) => Padding(
+    padding: const EdgeInsets.only(top: 3),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 13, color: Colors.grey.shade600),
+      const SizedBox(width: 6),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+    ]),
+  );
 
   // ═══════════════════════════════════════════════════════
   //   TAB 2: Antraege

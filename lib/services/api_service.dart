@@ -5352,6 +5352,16 @@ class ApiService {
     final r = await _client.post(Uri.parse('$baseUrl/admin/wbs_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_vorfall', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  // ── DRV-Träger ──
+  Future<Map<String, dynamic>> listDrvTraeger() async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/drv_traeger.php?action=list'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> getDrvTraegerByBereich(String bereich) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/drv_traeger.php?action=by_bereich&bereich=$bereich'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> listWbsInstitutionen() async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/wbs_manage.php?action=institutionen'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
