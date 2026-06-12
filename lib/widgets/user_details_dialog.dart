@@ -88,6 +88,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   final _stufe1NachnameController = TextEditingController();
   final _stufe1GeburtsdatumController = TextEditingController();
   final _stufe1GeburtsortController = TextEditingController();
+  final _stufe1GeburtsnameController = TextEditingController();
+  final _stufe1AufenthaltsstatusController = TextEditingController();
   final _stufe1StrasseController = TextEditingController();
   final _stufe1HausnummerController = TextEditingController();
   final _stufe1PlzController = TextEditingController();
@@ -163,6 +165,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       _stufe1GeburtsdatumController.text = geb;
     }
     _stufe1GeburtsortController.text = user.geburtsort ?? '';
+    _stufe1GeburtsnameController.text = user.geburtsname ?? '';
+    _stufe1AufenthaltsstatusController.text = user.aufenthaltsstatus ?? '';
     _stufe1StrasseController.text = user.strasse ?? '';
     _stufe1HausnummerController.text = user.hausnummer ?? '';
     _stufe1PlzController.text = user.plz ?? '';
@@ -195,6 +199,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         geburtsdatum = gebRaw;
       }
       final geburtsort = _stufe1GeburtsortController.text.trim();
+      final geburtsname = _stufe1GeburtsnameController.text.trim();
+      final aufenthaltsstatus = _stufe1AufenthaltsstatusController.text.trim();
       final strasse = _stufe1StrasseController.text.trim();
       final hausnummer = _stufe1HausnummerController.text.trim();
       final plz = _stufe1PlzController.text.trim();
@@ -206,6 +212,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         nachname: nachname.isNotEmpty ? nachname : null,
         geburtsdatum: geburtsdatum,
         geburtsort: geburtsort.isNotEmpty ? geburtsort : null,
+        geburtsname: geburtsname.isNotEmpty ? geburtsname : null,
+        aufenthaltsstatus: aufenthaltsstatus.isNotEmpty ? aufenthaltsstatus : null,
         strasse: strasse.isNotEmpty ? strasse : null,
         hausnummer: hausnummer.isNotEmpty ? hausnummer : null,
         plz: plz.isNotEmpty ? plz : null,
@@ -3098,6 +3106,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         _stufe1DateRow('Geburtsdatum', _stufe1GeburtsdatumController, readOnly: isLocked),
         if (_stufe1GeburtsdatumController.text.isNotEmpty) _buildAlterRow(_stufe1GeburtsdatumController.text),
         _stufe1EditableRow('Geburtsort', _stufe1GeburtsortController, readOnly: isLocked),
+        _stufe1EditableRow('Geburtsname', _stufe1GeburtsnameController, readOnly: isLocked),
+        _stufe1EditableRow('Aufenthaltsstatus', _stufe1AufenthaltsstatusController, readOnly: isLocked),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(

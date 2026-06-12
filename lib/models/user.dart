@@ -8,7 +8,9 @@ class User {
   final String? nachname;
   final String? geburtsdatum;
   final String? geburtsort;
+  final String? geburtsname;
   final String? staatsangehoerigkeit;
+  final String? aufenthaltsstatus;
   final String? muttersprache;
   final String? strasse;
   final String? hausnummer;
@@ -42,7 +44,9 @@ class User {
     this.nachname,
     this.geburtsdatum,
     this.geburtsort,
+    this.geburtsname,
     this.staatsangehoerigkeit,
+    this.aufenthaltsstatus,
     this.muttersprache,
     this.strasse,
     this.hausnummer,
@@ -78,7 +82,9 @@ class User {
       nachname: json['nachname'],
       geburtsdatum: json['geburtsdatum'],
       geburtsort: json['geburtsort'],
+      geburtsname: json['geburtsname'],
       staatsangehoerigkeit: json['staatsangehoerigkeit'],
+      aufenthaltsstatus: json['aufenthaltsstatus'],
       muttersprache: json['muttersprache'],
       strasse: json['strasse'],
       hausnummer: json['hausnummer'],
@@ -140,7 +146,9 @@ class User {
       'nachname': nachname,
       'geburtsdatum': geburtsdatum,
       'geburtsort': geburtsort,
+      'geburtsname': geburtsname,
       'staatsangehoerigkeit': staatsangehoerigkeit,
+      'aufenthaltsstatus': aufenthaltsstatus,
       'muttersprache': muttersprache,
       'strasse': strasse,
       'hausnummer': hausnummer,
