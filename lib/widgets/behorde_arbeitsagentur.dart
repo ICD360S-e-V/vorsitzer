@@ -356,6 +356,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: widget.antraegeBuilder(
       behoerdeType: type, antraege: antraege,
       artItems: const [
+        DropdownMenuItem(value: 'arbeitsuchend_meldung', child: Text('Arbeitsuchendmeldung (§ 38 SGB III — ohne Leistungsbezug)', style: TextStyle(fontSize: 13))),
+        DropdownMenuItem(value: 'arbeitslosmeldung', child: Text('Arbeitslosmeldung (§ 141 SGB III)', style: TextStyle(fontSize: 13))),
         DropdownMenuItem(value: 'erstantrag', child: Text('Erstantrag ALG I', style: TextStyle(fontSize: 13))),
         DropdownMenuItem(value: 'weiterbewilligung', child: Text('Weiterbewilligungsantrag', style: TextStyle(fontSize: 13))),
         DropdownMenuItem(value: 'wiederholung', child: Text('Wiederholungsantrag', style: TextStyle(fontSize: 13))),
