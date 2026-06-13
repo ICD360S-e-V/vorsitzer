@@ -4824,8 +4824,8 @@ class _JobcenterBriefGeneratorTabState extends State<_JobcenterBriefGeneratorTab
                 '\n'
                 'Der Brief teilt dem Jobcenter mit, dass die Rentenauskunft bei der DRV '
                 'beantragt wurde. Als NACHWEIS werden automatisch die Unterlagen aus dem '
-                'Rente-Antrag (bevorzugt "Kontenklärung") angehängt — bitte vorher in '
-                'Behörde → Rente → Anträge → Unterlagen hochladen.',
+                'Rente-Antrag (bevorzugt Antrag-Art "Rentenauskunft", sonst "Kontenklärung") '
+                'angehängt — bitte vorher in Behörde → Rente → Anträge → Unterlagen hochladen.',
                 style: TextStyle(fontSize: 9, color: Colors.blue.shade900),
               )),
             ]),

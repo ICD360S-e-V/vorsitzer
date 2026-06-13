@@ -106,6 +106,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
   static const double _pvBeitragKinderlos = 2.3;
 
   static const List<({String key, String label})> _antragArten = [
+    (key: 'rentenauskunft', label: 'Rentenauskunft'),
     (key: 'altersrente', label: 'Altersrentenantrag'),
     (key: 'emr_voll', label: 'Erwerbsminderungsrente (voll)'),
     (key: 'emr_teil', label: 'Erwerbsminderungsrente (teilweise)'),
