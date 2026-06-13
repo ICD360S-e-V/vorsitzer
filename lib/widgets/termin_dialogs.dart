@@ -61,15 +61,15 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
       return;
     }
 
-    // Validare ore permise: 08:00-19:00
+    // Validare ore permise: 08:00-18:00
     final hour = _selectedTime.hour;
-    final isValidTime = (hour >= 8 && hour <= 19);
+    final isValidTime = (hour >= 8 && hour <= 18);
 
     if (!isValidTime) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Termine sind nur möglich:\n08:00-19:00 Uhr',
+            'Termine sind nur möglich:\n08:00-18:00 Uhr',
             textAlign: TextAlign.center,
           ),
           backgroundColor: Colors.orange,
@@ -259,7 +259,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '08:00-19:00',
+                                  '08:00-18:00',
                                   style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                                 ),
                               ],
@@ -506,10 +506,10 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     final hour = _selectedTime.hour;
-    final isValidTime = (hour >= 8 && hour <= 17);
+    final isValidTime = (hour >= 8 && hour <= 18);
     if (!isValidTime) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Termine: 08:00-19:00'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Termine: 08:00-18:00'), backgroundColor: Colors.orange),
       );
       return;
     }

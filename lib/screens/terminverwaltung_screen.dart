@@ -476,7 +476,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                           // Body: one row per hour, with hour label + 7 days × 4 quarter cells
                           Expanded(
                             child: ListView.builder(
-                              itemCount: 12,
+                              itemCount: 11,
                               itemBuilder: (ctx, hourIdx) {
                                 final hour = 8 + hourIdx;
                                 return SizedBox(
@@ -651,7 +651,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   /// Background color of the time zone:
   /// - 8-12 Uhr  = Vormittag, kein Service (grey)
   /// - 13-17 Uhr = Sprechzeiten (light green)
-  /// - 18-19 Uhr = Abend (default white / weekend grey)
+  /// - 18 Uhr    = letzter Slot (default white / weekend grey)
   Color _zoneColor(int hour, bool isWeekend) {
     if (hour >= 8 && hour <= 12) {
       return isWeekend ? Colors.grey.shade300 : Colors.grey.shade200;
@@ -662,7 +662,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     return isWeekend ? Colors.grey.shade100 : Colors.white;
   }
 
-  /// Hour label on the left of each row (8, 9, …, 19). Color matches the zone.
+  /// Hour label on the left of each row (8, 9, …, 18). Color matches the zone.
   /// 12 = lunch — adds restaurant icon under the number.
   Widget _buildHourLabel(int hour) {
     final Color bgColor;
@@ -799,7 +799,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       );
     }
 
-    // Empty slot — zone color (gray for 8-12, green for 13-17, white/weekend for 18-19).
+    // Empty slot — zone color (gray for 8-12, green for 13-17, white/weekend for 18).
     // At 12:00 add a lunch marker icon (one per day column).
     final cell = Container(
       decoration: BoxDecoration(color: zoneColor, border: cellBorder),
