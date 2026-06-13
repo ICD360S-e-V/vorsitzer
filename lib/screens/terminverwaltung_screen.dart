@@ -861,29 +861,57 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
         padding: const EdgeInsets.all(2),
         child: isStartSlot
             ? Tooltip(
-                message: '${DateFormat('HH:mm').format(termin.terminDate)}–${DateFormat('HH:mm').format(termin.terminEndTime)}\n${termin.title}',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                message: _buildTooltipText(termin),
+                child: Stack(
                   children: [
-                    Text(
-                      DateFormat('HH:mm').format(termin.terminDate),
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormat('HH:mm').format(termin.terminDate),
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
+                        ),
+                        Expanded(
+                          child: Text(
+                            termin.title,
+                            style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: Text(
-                        termin.title,
-                        style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    // ── Status-Indicator oben rechts (punct colorat) ──
+                    if (termin.feedbackStatus == 'wahrgenommen')
+                      const Positioned(top: 0, right: 0, child: _StatusDot(color: Colors.green)),
+                    if (termin.feedbackStatus == 'nicht_wahrgenommen')
+                      const Positioned(top: 0, right: 0, child: _StatusDot(color: Colors.red)),
+                    // ── Feedback-Indicator unten rechts (Megafon) ──
+                    if (termin.feedbackErhalten)
+                      const Positioned(
+                        bottom: 0, right: 0,
+                        child: Icon(Icons.campaign, size: 11, color: Colors.deepOrange),
                       ),
-                    ),
                   ],
                 ),
               )
             : null,
       ),
     );
+  }
+
+  /// Tooltip-Text inkl. Nachbearbeitungs-Status, wenn gesetzt.
+  String _buildTooltipText(Termin t) {
+    final base = '${DateFormat('HH:mm').format(t.terminDate)}–${DateFormat('HH:mm').format(t.terminEndTime)}\n${t.title}';
+    final parts = <String>[base];
+    if (t.feedbackStatus == 'wahrgenommen') parts.add('✓ Wahrgenommen');
+    if (t.feedbackStatus == 'nicht_wahrgenommen') {
+      final g = t.nichtWahrgenommenGrund;
+      parts.add('✗ Nicht wahrgenommen${g != null ? " ($g)" : ""}');
+    }
+    if (t.feedbackErhalten) parts.add('📢 Feedback eingegangen');
+    return parts.join('\n');
   }
 
   /// Show the urlaub editing dialog (remove first/last day, delete period).
@@ -1088,4 +1116,27 @@ class _NachbearbeitungStatsBarState extends State<_NachbearbeitungStatsBar> {
     const SizedBox(width: 4),
     Text(t, style: TextStyle(fontSize: 10, color: Colors.indigo.shade900)),
   ]);
+}
+
+/// Kleiner farbiger Status-Punkt für die Termin-Kachel (Corner-Indicator).
+/// Grün = wahrgenommen, Rot = nicht wahrgenommen.
+class _StatusDot extends StatelessWidget {
+  final Color color;
+  const _StatusDot({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.2),
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 2, spreadRadius: 0.5),
+        ],
+      ),
+    );
+  }
 }
