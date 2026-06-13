@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1487,10 +1488,43 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
       return;
     }
     if (filePath != null) {
+      debugPrint('[Anregung] PDF saved at: $filePath');
+      // OpenFilex.open does NOT throw — it returns OpenResult. Must check .type.
+      OpenResult? openResult;
       try {
-        await OpenFilex.open(filePath);
+        openResult = await OpenFilex.open(filePath);
+        debugPrint('[Anregung] OpenFilex result: type=${openResult.type}, message=${openResult.message}');
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF konnte nicht geöffnet werden: $e'), backgroundColor: Colors.orange));
+        debugPrint('[Anregung] OpenFilex threw: $e');
+        openResult = null;
+      }
+      if (!mounted) return;
+      if (openResult == null || openResult.type != ResultType.done) {
+        // Open failed — show snackbar with path so user can find the PDF manually
+        final errType = openResult?.type.toString().split('.').last ?? 'unknown';
+        final errMsg = openResult?.message ?? 'OpenFilex Exception';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 12),
+          backgroundColor: Colors.orange.shade700,
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('PDF konnte nicht automatisch geöffnet werden ($errType): $errMsg',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text('Datei abgelegt unter:\n$filePath',
+              style: const TextStyle(color: Colors.white, fontSize: 11)),
+          ]),
+          action: SnackBarAction(
+            label: 'KOPIEREN',
+            textColor: Colors.white,
+            onPressed: () { Clipboard.setData(ClipboardData(text: filePath!)); },
+          ),
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('PDF generiert & geöffnet'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ));
       }
     }
   }
