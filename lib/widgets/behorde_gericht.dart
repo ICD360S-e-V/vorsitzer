@@ -1145,27 +1145,37 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
     final List<(DateTime, IconData, String, String, MaterialColor)> items = [];
 
-    // Verlauf entries
+    // Verlauf entries (manuelle Notizen)
     for (final e in _verlauf) {
       final d = _parseDate(e['datum']);
-      if (d != null) items.add((d, Icons.circle, e['notiz']?.toString() ?? _sLabel(e['status']?.toString() ?? ''), fmt(d), widget.color));
+      if (d != null) items.add((d, Icons.edit_note, e['notiz']?.toString() ?? _sLabel(e['status']?.toString() ?? ''), fmt(d), widget.color));
     }
-    // Korrespondenz
+    // Korrespondenz (Eingang / Ausgang)
     for (final k in _korr) {
       final d = _parseDate(k['datum']);
       final isEin = k['richtung'] == 'eingang';
       if (d != null) items.add((d, isEin ? Icons.call_received : Icons.call_made, '${isEin ? "Eingang" : "Ausgang"}: ${k['betreff'] ?? ''}', fmt(d), isEin ? Colors.green : Colors.blue));
     }
-    // Termine
+    // Termine (geplante Termine)
     for (final t in _termine) {
       final d = _parseDate(t['datum']);
-      if (d != null) items.add((d, Icons.event, 'Termin: ${t['ort'] ?? ''} ${t['uhrzeit'] ?? ''}', fmt(d), Colors.purple));
+      if (d != null) items.add((d, Icons.event, 'Termin: ${t['ort'] ?? ''} ${t['uhrzeit'] ?? ''}'.trim(), fmt(d), Colors.purple));
     }
-    // Bescheid
+    // Dokumente (hochgeladen — created_at als Zeitpunkt)
+    for (final d in _docs) {
+      final ts = _parseDate(d['created_at']);
+      if (ts != null) {
+        final kategorie = (d['kategorie']?.toString() ?? 'sonstiges');
+        final kategorieLabel = kategorie == 'antrag' ? 'Antrag' : 'Sonstiges';
+        items.add((ts, Icons.upload_file, 'Dokument hochgeladen ($kategorieLabel): ${d['datei_name'] ?? ''}', fmt(ts), Colors.teal));
+      }
+    }
+    // Bescheid / Zustellung (Vorfall-Datum als Eintrag)
     final bescheidD = _parseDate(v['datum']);
     if (bescheidD != null) items.add((bescheidD, Icons.description, 'Bescheid / Zustellung', fmt(bescheidD), Colors.indigo));
 
-    items.sort((a, b) => a.$1.compareTo(b.$1));
+    // Neueste zuerst (descending)
+    items.sort((a, b) => b.$1.compareTo(a.$1));
 
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
