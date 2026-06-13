@@ -23,6 +23,7 @@ import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'sanitaetshaus.dart';
+import 'rettungsdienst.dart';
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -233,7 +234,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 20,
+      length: 21,
       child: Column(
         children: [
           TabBar(
@@ -261,6 +262,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               _gesundheitTabItem(Icons.lunch_dining, 'Gastroenterologie', isCompact),
               _gesundheitTabItem(Icons.healing, 'Wundzentrum', isCompact),
               _gesundheitTabItem(Icons.local_hospital, 'Krankenhaus', isCompact),
+              _gesundheitTabItem(Icons.emergency, 'Rettungsdienst', isCompact),
               _gesundheitTabItem(Icons.medical_services, 'Sanitätshaus', isCompact),
               _gesundheitTabItem(Icons.more_horiz, 'Sonstige', isCompact),
             ],
@@ -286,6 +288,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 _buildArztContent('gesundheit_gastroenterologie', 'Gastroenterologe', 'Gastroenterologie / Magen-Darm-Erkrankungen'),
                 _buildArztContent('gesundheit_wundzentrum', 'Wundzentrum', 'Wundversorgung / Chronische Wunden'),
                 _buildArztContent('gesundheit_krankenhaus', 'Krankenhaus', 'Klinik / Stationare Behandlung'),
+                RettungsdienstContent(apiService: widget.apiService, userId: widget.user.id),
                 SanitaetshausContent(apiService: widget.apiService, userId: widget.user.id),
                 _buildArztContent('gesundheit_sonstige', 'Sonstiger Arzt', 'Weitere Fachrichtung'),
               ],
