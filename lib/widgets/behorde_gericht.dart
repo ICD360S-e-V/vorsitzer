@@ -1528,6 +1528,61 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
   Widget _tf(String key, String label, {int maxLines = 1}) => Padding(padding: const EdgeInsets.symmetric(vertical: 4),
     child: TextField(controller: _texts[key], maxLines: maxLines, decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder())));
 
+  /// TextField + 👤+ Button next to it: pick a Mitglied to auto-fill formatted entry.
+  Widget _tfWithPicker(String key, String label, {String? helpHint}) {
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: TextField(
+          controller: _texts[key], maxLines: 2,
+          decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder()),
+        )),
+        const SizedBox(width: 6),
+        Tooltip(message: 'Mitglied auswählen und automatisch eintragen',
+          child: ElevatedButton.icon(
+            onPressed: () => _pickMitgliedFor(key),
+            icon: const Icon(Icons.person_add, size: 16),
+            label: const Text('Mitglied', style: TextStyle(fontSize: 11)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: widget.color.shade100,
+              foregroundColor: widget.color.shade900,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            ),
+          )),
+      ]),
+      if (helpHint != null) Padding(padding: const EdgeInsets.only(left: 4, top: 2),
+        child: Text(helpHint, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+    ]));
+  }
+
+  Future<void> _pickMitgliedFor(String key) async {
+    final picked = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _MitgliedPickerDialog(apiService: widget.apiService, excludeId: widget.userId),
+    );
+    if (picked == null || !mounted) return;
+    final formatted = _formatMitgliedEntry(picked);
+    final current = _texts[key]!.text.trim();
+    setState(() {
+      _texts[key]!.text = current.isEmpty ? formatted : '$current\n$formatted';
+    });
+  }
+
+  String _formatMitgliedEntry(Map<String, dynamic> m) {
+    final parts = <String>[];
+    final fullName = '${m['vorname'] ?? ''} ${m['nachname'] ?? ''}'.trim();
+    if (fullName.isNotEmpty) parts.add(fullName);
+    final adr = [
+      '${m['strasse'] ?? ''} ${m['hausnummer'] ?? ''}'.trim(),
+      '${m['plz'] ?? ''} ${m['ort'] ?? ''}'.trim(),
+    ].where((e) => e.isNotEmpty).join(', ');
+    if (adr.isNotEmpty) parts.add(adr);
+    final tel = (m['telefon_mobil']?.toString().isNotEmpty ?? false)
+        ? m['telefon_mobil'].toString()
+        : (m['telefon_fix']?.toString() ?? '');
+    if (tel.isNotEmpty) parts.add('Tel: $tel');
+    return parts.join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
@@ -1657,9 +1712,12 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
 
       // ============ WUNSCH / LEHNT / VERTRAUENSPERSONEN ============
       _section('Wunsch-Betreuer / Lehnt ab / Vertrauenspersonen'),
-      _tf('wunsch_betreuer', 'Wunsch-Betreuer (Name, Adresse, Telefon)', maxLines: 2),
-      _tf('lehnt_betreuer', 'Lehnt als Betreuer ab (Name, Adresse)', maxLines: 2),
-      _tf('vertrauenspersonen', 'Vertrauenspersonen (Name, Adresse, Telefon)', maxLines: 2),
+      _tfWithPicker('wunsch_betreuer', 'Wunsch-Betreuer (Name, Adresse, Telefon)',
+        helpHint: 'Person, die der/die Betroffene als Betreuer wünscht (§ 1816 Abs. 2 BGB — Gericht muss respektieren)'),
+      _tfWithPicker('lehnt_betreuer', 'Lehnt als Betreuer ab (Name, Adresse)',
+        helpHint: 'Person, die der/die Betroffene NICHT als Betreuer haben möchte (z.B. Konflikt, Misstrauen)'),
+      _tfWithPicker('vertrauenspersonen', 'Vertrauenspersonen (Name, Adresse, Telefon)',
+        helpHint: 'Andere Personen aus dem Vertrauensumfeld, die als Betreuer in Betracht kommen'),
 
       // ============ AUFGABENBEREICHE ============
       _section('Aufgabenbereiche des Betreuers'),
@@ -1705,5 +1763,93 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
       ]),
       const SizedBox(height: 20),
     ]));
+  }
+}
+
+// ============================================================================
+// _MitgliedPickerDialog — search & pick a Mitglied to insert as
+// Wunsch-/Lehnt-Betreuer or Vertrauensperson.
+// ============================================================================
+
+class _MitgliedPickerDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int excludeId;
+  const _MitgliedPickerDialog({required this.apiService, required this.excludeId});
+  @override
+  State<_MitgliedPickerDialog> createState() => _MitgliedPickerDialogState();
+}
+
+class _MitgliedPickerDialogState extends State<_MitgliedPickerDialog> {
+  final _searchC = TextEditingController();
+  List<Map<String, dynamic>> _candidates = [];
+  bool _searching = false;
+
+  @override
+  void dispose() { _searchC.dispose(); super.dispose(); }
+
+  Future<void> _search() async {
+    final q = _searchC.text.trim();
+    if (q.length < 2) return;
+    setState(() { _searching = true; _candidates = []; });
+    try {
+      final r = await widget.apiService.searchMembersForLink(query: q, excludeVormundId: widget.excludeId);
+      if (r['success'] == true) {
+        _candidates = (r['candidates'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _searching = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(children: [
+        Icon(Icons.person_search, color: Colors.indigo.shade700, size: 22),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Mitglied auswählen', style: TextStyle(fontSize: 16))),
+      ]),
+      content: SizedBox(width: 520, height: 460, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: TextField(controller: _searchC,
+            decoration: InputDecoration(
+              hintText: 'ID / Mitgliedernummer / Name...',
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onSubmitted: (_) => _search(),
+          )),
+          const SizedBox(width: 8),
+          ElevatedButton(onPressed: _searching ? null : _search,
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+            child: _searching ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Suchen'),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Expanded(child: _candidates.isEmpty
+          ? Center(child: Text(_searching ? '' : 'Geben Sie Name oder Nummer ein und suchen.', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+          : ListView.separated(
+              itemCount: _candidates.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+              itemBuilder: (lctx, i) {
+                final c = _candidates[i];
+                final adr = '${c['strasse'] ?? ''} ${c['hausnummer'] ?? ''}, ${c['plz'] ?? ''} ${c['ort'] ?? ''}'.trim();
+                return ListTile(
+                  dense: true,
+                  leading: CircleAvatar(backgroundColor: Colors.indigo.shade50, child: Icon(Icons.person, color: Colors.indigo.shade700, size: 18)),
+                  title: Text('${c['vorname'] ?? ''} ${c['nachname'] ?? ''}'.trim(),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Nr. ${c['mitgliedernummer'] ?? '#${c['id']}'} · ${c['role'] ?? ''}', style: const TextStyle(fontSize: 10)),
+                    if (adr.length > 2) Text(adr, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  ]),
+                  trailing: const Icon(Icons.add_circle_outline, size: 20),
+                  onTap: () => Navigator.pop(context, c),
+                );
+              },
+            )),
+      ])),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen'))],
+    );
   }
 }
