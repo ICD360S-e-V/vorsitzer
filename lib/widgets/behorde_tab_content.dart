@@ -1429,9 +1429,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
   String _antragArtText(String art, String behoerdeType) {
     if (behoerdeType == 'bundesagentur') {
       const map = {
+        'arbeitsuchend_meldung': 'Arbeitsuchendmeldung (§ 38 SGB III — ohne Leistungsbezug)',
+        'arbeitslosmeldung': 'Arbeitslosmeldung (§ 141 SGB III)',
         'erstantrag': 'Erstantrag ALG I',
         'weiterbewilligung': 'Weiterbewilligungsantrag',
         'wiederholung': 'Wiederholungsantrag',
+        'insolvenzantrag': 'Insolvenzantrag',
       };
       return map[art] ?? art;
     } else if (behoerdeType == 'rentenversicherung') {

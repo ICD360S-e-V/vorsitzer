@@ -85,50 +85,54 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     }
   }
 
-  Future<void> _addVorfall() async {
+  Future<void> _addVorfall({Map<String, dynamic>? existing}) async {
+    final isEdit = existing != null;
+    String s(String k) => (existing?[k] ?? '').toString();
+
     // Basis-Felder
-    final datumC = TextEditingController();
-    final beschreibungC = TextEditingController();
-    final aktenzeichenC = TextEditingController();
-    final sachbearbeiterC = TextEditingController();
-    final sachbearbeiterTelC = TextEditingController();
-    String selectedTyp = 'owi_geschwindigkeit';
+    final datumC = TextEditingController(text: _formatIsoToDe(s('datum')));
+    final beschreibungC = TextEditingController(text: s('beschreibung'));
+    final aktenzeichenC = TextEditingController(text: s('aktenzeichen'));
+    final sachbearbeiterC = TextEditingController(text: s('sachbearbeiter_name'));
+    final sachbearbeiterTelC = TextEditingController(text: s('sachbearbeiter_telefon'));
+    String selectedTyp = s('typ').isNotEmpty ? s('typ') : 'owi_geschwindigkeit';
 
-    // Strafanzeige-Felder (nur bei selectedTyp.startsWith('straf_'))
-    final datumAnzeigeC = TextEditingController();
-    final datumBescheinigungC = TextEditingController();
-    final tatortBemerkungC = TextEditingController();
-    final tatortPlzC = TextEditingController();
-    final tatortOrtC = TextEditingController();
-    final tatortStadtteilC = TextEditingController();
-    final tatortStrasseC = TextEditingController();
-    final tatortFreieC = TextEditingController();
-    String? tatzeitWochentag;
-    final tatzeitDatumC = TextEditingController();
-    final tatzeitStundeC = TextEditingController();
-    final tatzeitMinuteC = TextEditingController();
-    final deliktC = TextEditingController();
+    // Strafanzeige-Felder
+    final datumAnzeigeC = TextEditingController(text: _formatIsoToDe(s('datum_anzeigeaufnahme')));
+    final datumBescheinigungC = TextEditingController(text: _formatIsoToDe(s('datum_bescheinigung')));
+    final tatortBemerkungC = TextEditingController(text: s('tatort_bemerkung'));
+    final tatortPlzC = TextEditingController(text: s('tatort_plz'));
+    final tatortOrtC = TextEditingController(text: s('tatort_ort'));
+    final tatortStadtteilC = TextEditingController(text: s('tatort_stadtteil'));
+    final tatortStrasseC = TextEditingController(text: s('tatort_strasse'));
+    final tatortFreieC = TextEditingController(text: s('tatort_freie_bezeichnung'));
+    String? tatzeitWochentag = s('tatzeit_wochentag').isEmpty ? null : s('tatzeit_wochentag');
+    final tatzeitDatumC = TextEditingController(text: _formatIsoToDe(s('tatzeit_datum')));
+    final tatzeitStundeC = TextEditingController(text: s('tatzeit_stunde'));
+    final tatzeitMinuteC = TextEditingController(text: s('tatzeit_minute'));
+    final deliktC = TextEditingController(text: s('delikt'));
 
-    // Geschädigt — auto-fill aus Verifizierung Stufe 1
+    // Geschädigt — bei Edit: aus DB; sonst auto-fill aus Verifizierung Stufe 1
     final u = widget.user;
-    final geschNameC = TextEditingController(text: u?.nachname ?? '');
-    final geschGeburtsnameC = TextEditingController(text: u?.geburtsname ?? '');
-    final geschVornameC = TextEditingController(text: u?.vorname ?? '');
-    final geschGebDatumC = TextEditingController(text: _formatIsoToDe(u?.geburtsdatum));
-    final geschGebOrtC = TextEditingController(text: u?.geburtsort ?? '');
-    String? geschGeschlecht = u?.geschlecht;
-    final geschStaatC = TextEditingController(text: u?.staatsangehoerigkeit ?? '');
-    final geschWohnsitzC = TextEditingController(
-      text: [u?.strasse, u?.hausnummer].where((s) => s != null && s.isNotEmpty).join(' ') +
-            (u?.plz != null && (u?.plz ?? '').isNotEmpty ? ', ${u?.plz} ${u?.ort ?? ''}' : ''));
+    final autoWohnsitz =
+        ([u?.strasse, u?.hausnummer].where((s) => s != null && s.isNotEmpty).join(' ')) +
+        (u?.plz != null && (u?.plz ?? '').isNotEmpty ? ', ${u?.plz} ${u?.ort ?? ''}' : '');
+    final geschNameC = TextEditingController(text: isEdit ? s('gesch_name') : (u?.nachname ?? ''));
+    final geschGeburtsnameC = TextEditingController(text: isEdit ? s('gesch_geburtsname') : (u?.geburtsname ?? ''));
+    final geschVornameC = TextEditingController(text: isEdit ? s('gesch_vorname') : (u?.vorname ?? ''));
+    final geschGebDatumC = TextEditingController(text: isEdit ? _formatIsoToDe(s('gesch_geburtsdatum')) : _formatIsoToDe(u?.geburtsdatum));
+    final geschGebOrtC = TextEditingController(text: isEdit ? s('gesch_geburtsort') : (u?.geburtsort ?? ''));
+    String? geschGeschlecht = isEdit ? (s('gesch_geschlecht').isEmpty ? null : s('gesch_geschlecht')) : u?.geschlecht;
+    final geschStaatC = TextEditingController(text: isEdit ? s('gesch_staatsangehoerigkeit') : (u?.staatsangehoerigkeit ?? ''));
+    final geschWohnsitzC = TextEditingController(text: isEdit ? s('gesch_wohnsitz') : autoWohnsitz);
 
-    // Folgen — 4 Optionen (zumindest eine aktiv markierbar)
-    bool folgenVerletzungen = false;
-    final folgenDiebstahlWertC = TextEditingController();
-    final folgenBeschaedigungWertC = TextEditingController();
-    final folgenSonstigeC = TextEditingController();
-    String? sachfahndung;
-    String? tatverdaechtige;
+    // Folgen
+    bool folgenVerletzungen = isEdit && (existing['folgen_verletzungen']?.toString() == '1' || existing['folgen_verletzungen'] == true);
+    final folgenDiebstahlWertC = TextEditingController(text: s('folgen_diebstahl_wert'));
+    final folgenBeschaedigungWertC = TextEditingController(text: s('folgen_beschaedigung_wert'));
+    final folgenSonstigeC = TextEditingController(text: s('folgen_sonstige'));
+    String? sachfahndung = s('sachfahndung').isEmpty ? null : s('sachfahndung');
+    String? tatverdaechtige = s('tatverdaechtige').isEmpty ? null : s('tatverdaechtige');
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -154,9 +158,11 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
 
           return AlertDialog(
             title: Row(children: [
-              Icon(Icons.add_circle, color: Colors.blue.shade700),
+              Icon(isEdit ? Icons.edit : Icons.add_circle, color: Colors.blue.shade700),
               const SizedBox(width: 8),
-              Text(isStraftat ? 'Neue Strafanzeige' : 'Neuen Vorfall melden'),
+              Text(isEdit
+                  ? (isStraftat ? 'Strafanzeige bearbeiten' : 'Vorfall bearbeiten')
+                  : (isStraftat ? 'Neue Strafanzeige' : 'Neuen Vorfall melden')),
             ]),
             content: SizedBox(
               width: isStraftat ? 720 : 500,
@@ -427,7 +433,8 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
               ElevatedButton.icon(
-                icon: const Icon(Icons.add, size: 18), label: const Text('Melden'),
+                icon: Icon(isEdit ? Icons.save : Icons.add, size: 18),
+                label: Text(isEdit ? 'Speichern' : 'Melden'),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
                 onPressed: () => Navigator.pop(ctx, {
                   'typ': selectedTyp, 'datum': datumC.text.trim(),
@@ -474,12 +481,28 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     );
 
     if (result != null) {
-      final apiResult = await widget.apiService.addUserPolizeiVorfall(widget.userId, result);
+      final apiResult = isEdit
+          ? await widget.apiService.polizeiVorfallAction({
+              ...result,
+              'action': 'update_vorfall',
+              'vorfall_id': existing['id'],
+            })
+          : await widget.apiService.addUserPolizeiVorfall(widget.userId, result);
       if (mounted && apiResult['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vorfall gemeldet'), backgroundColor: Colors.green),
+          SnackBar(
+            content: Text(isEdit ? 'Vorfall aktualisiert' : 'Vorfall gemeldet'),
+            backgroundColor: Colors.green,
+          ),
         );
         _loadUserPolizei().then((_) { if (mounted) setState(() {}); });
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(apiResult['message']?.toString() ?? 'Fehler beim Speichern'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -770,7 +793,11 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
             if (typ.startsWith('kontakt_')) badgeColor = Colors.blue;
             final vorfallId = v['id'] is int ? v['id'] : int.tryParse(v['id'].toString()) ?? 0;
             return InkWell(
-              onTap: () => PolizeiVorfallDialog.show(context, widget.apiService, vorfallId, widget.adminMitgliedernummer, () => _loadUserPolizei().then((_) { if (mounted) setState(() {}); })),
+              onTap: () => PolizeiVorfallDialog.show(
+                context, widget.apiService, vorfallId, widget.adminMitgliedernummer,
+                () => _loadUserPolizei().then((_) { if (mounted) setState(() {}); }),
+                onEdit: (existingV) => _addVorfall(existing: existingV),
+              ),
               borderRadius: BorderRadius.circular(8),
               child: Container(
               margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),

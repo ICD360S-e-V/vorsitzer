@@ -11,11 +11,12 @@ class PolizeiVorfallDialog extends StatefulWidget {
   final int vorfallId;
   final String mitgliedernummer;
   final VoidCallback onUpdated;
+  final void Function(Map<String, dynamic> vorfall)? onEdit;
 
-  const PolizeiVorfallDialog({super.key, required this.apiService, required this.vorfallId, required this.mitgliedernummer, required this.onUpdated});
+  const PolizeiVorfallDialog({super.key, required this.apiService, required this.vorfallId, required this.mitgliedernummer, required this.onUpdated, this.onEdit});
 
-  static Future<void> show(BuildContext context, ApiService apiService, int vorfallId, String mitgliedernummer, VoidCallback onUpdated) {
-    return showDialog(context: context, builder: (_) => PolizeiVorfallDialog(apiService: apiService, vorfallId: vorfallId, mitgliedernummer: mitgliedernummer, onUpdated: onUpdated));
+  static Future<void> show(BuildContext context, ApiService apiService, int vorfallId, String mitgliedernummer, VoidCallback onUpdated, {void Function(Map<String, dynamic> vorfall)? onEdit}) {
+    return showDialog(context: context, builder: (_) => PolizeiVorfallDialog(apiService: apiService, vorfallId: vorfallId, mitgliedernummer: mitgliedernummer, onUpdated: onUpdated, onEdit: onEdit));
   }
 
   @override
@@ -70,6 +71,16 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(4)),
                 child: Text('Az: ${_vorfall!['aktenzeichen']}', style: const TextStyle(color: Colors.white, fontSize: 12))),
             const SizedBox(width: 8),
+            if (widget.onEdit != null && _vorfall != null)
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                tooltip: 'Vorfall bearbeiten',
+                onPressed: () {
+                  final v = Map<String, dynamic>.from(_vorfall!);
+                  Navigator.pop(context);
+                  widget.onEdit!(v);
+                },
+              ),
             IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
           ]),
         ),
