@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../models/user.dart';
 import 'polizei_vorfall_dialog.dart';
 
 class BehordePolizeiContent extends StatefulWidget {
@@ -8,6 +9,7 @@ class BehordePolizeiContent extends StatefulWidget {
   final String adminMitgliedernummer;
   final String clientMitgliedernummer;
   final int userId;
+  final User? user;
 
   const BehordePolizeiContent({
     super.key,
@@ -15,6 +17,7 @@ class BehordePolizeiContent extends StatefulWidget {
     required this.adminMitgliedernummer,
     required this.clientMitgliedernummer,
     required this.userId,
+    this.user,
   });
 
   @override
@@ -83,6 +86,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
   }
 
   Future<void> _addVorfall() async {
+    // Basis-Felder
     final datumC = TextEditingController();
     final beschreibungC = TextEditingController();
     final aktenzeichenC = TextEditingController();
@@ -90,91 +94,382 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     final sachbearbeiterTelC = TextEditingController();
     String selectedTyp = 'owi_geschwindigkeit';
 
+    // Strafanzeige-Felder (nur bei selectedTyp.startsWith('straf_'))
+    final datumAnzeigeC = TextEditingController();
+    final datumBescheinigungC = TextEditingController();
+    final tatortBemerkungC = TextEditingController();
+    final tatortPlzC = TextEditingController();
+    final tatortOrtC = TextEditingController();
+    final tatortStadtteilC = TextEditingController();
+    final tatortStrasseC = TextEditingController();
+    final tatortFreieC = TextEditingController();
+    String? tatzeitWochentag;
+    final tatzeitDatumC = TextEditingController();
+    final tatzeitStundeC = TextEditingController();
+    final tatzeitMinuteC = TextEditingController();
+    final deliktC = TextEditingController();
+
+    // Geschädigt — auto-fill aus Verifizierung Stufe 1
+    final u = widget.user;
+    final geschNameC = TextEditingController(text: u?.nachname ?? '');
+    final geschGeburtsnameC = TextEditingController(text: u?.geburtsname ?? '');
+    final geschVornameC = TextEditingController(text: u?.vorname ?? '');
+    final geschGebDatumC = TextEditingController(text: _formatIsoToDe(u?.geburtsdatum));
+    final geschGebOrtC = TextEditingController(text: u?.geburtsort ?? '');
+    String? geschGeschlecht = u?.geschlecht;
+    final geschStaatC = TextEditingController(text: u?.staatsangehoerigkeit ?? '');
+    final geschWohnsitzC = TextEditingController(
+      text: [u?.strasse, u?.hausnummer].where((s) => s != null && s.isNotEmpty).join(' ') +
+            (u?.plz != null && (u?.plz ?? '').isNotEmpty ? ', ${u?.plz} ${u?.ort ?? ''}' : ''));
+
+    // Folgen — 4 Optionen (zumindest eine aktiv markierbar)
+    bool folgenVerletzungen = false;
+    final folgenDiebstahlWertC = TextEditingController();
+    final folgenBeschaedigungWertC = TextEditingController();
+    final folgenSonstigeC = TextEditingController();
+    String? sachfahndung;
+    String? tatverdaechtige;
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Row(
-            children: [
+        builder: (ctx, setDialogState) {
+          final isStraftat = selectedTyp.startsWith('straf_');
+
+          Widget label(String t) => Padding(padding: const EdgeInsets.only(top: 6, bottom: 4),
+              child: Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)));
+          Widget sectionHeader(IconData ic, String t, Color c) => Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 6),
+              child: Row(children: [
+                Icon(ic, size: 16, color: c), const SizedBox(width: 6),
+                Text(t, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c)),
+              ]));
+
+          Future<void> pickDate(TextEditingController c) async {
+            final picked = await showDatePicker(context: ctx, initialDate: DateTime.now(),
+                firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 30)),
+                locale: const Locale('de'));
+            if (picked != null) setDialogState(() => c.text = _fmtDe(picked));
+          }
+
+          return AlertDialog(
+            title: Row(children: [
               Icon(Icons.add_circle, color: Colors.blue.shade700),
               const SizedBox(width: 8),
-              const Text('Neuen Vorfall melden'),
-            ],
-          ),
-          content: SizedBox(
-            width: 500,
-            child: SingleChildScrollView(
-              child: Column(
+              Text(isStraftat ? 'Neue Strafanzeige' : 'Neuen Vorfall melden'),
+            ]),
+            content: SizedBox(
+              width: isStraftat ? 720 : 500,
+              child: SingleChildScrollView(child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Art des Vorfalls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
+                  label('Art des Vorfalls'),
                   DropdownButtonFormField<String>(
-                    initialValue: selectedTyp,
+                    initialValue: selectedTyp, isExpanded: true,
                     decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
-                    isExpanded: true,
                     items: _buildVorfallTypItems(),
-                    onChanged: (v) { if (v != null) setDialogState(() => selectedTyp = v); },
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDialogState(() {
+                        selectedTyp = v;
+                        // Delikt-Default je nach Auswahl
+                        if (v == 'straf_koerperverletzung') {
+                          deliktC.text = 'Körperverletzung einfach vorsätzlich, § 223 StGB';
+                        } else if (v.startsWith('straf_') && deliktC.text.isEmpty) {
+                          deliktC.text = _vorfallKategorien[v] ?? '';
+                        }
+                      });
+                    },
                   ),
                   const SizedBox(height: 12),
                   Row(children: [
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Datum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      TextField(controller: datumC, decoration: InputDecoration(
-                        border: const OutlineInputBorder(), isDense: true, hintText: 'TT.MM.JJJJ',
-                        suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () async {
-                          final picked = await showDatePicker(context: ctx, initialDate: DateTime.now(),
-                            firstDate: DateTime(2000), lastDate: DateTime.now(), locale: const Locale('de'));
-                          if (picked != null) datumC.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
-                        }),
-                      )),
+                      label('Datum'),
+                      TextField(controller: datumC, readOnly: true,
+                        decoration: InputDecoration(border: const OutlineInputBorder(), isDense: true,
+                          hintText: 'TT.MM.JJJJ',
+                          suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18),
+                            onPressed: () => pickDate(datumC))),
+                      ),
                     ])),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Aktenzeichen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      label('Aktenzeichen'),
                       TextField(controller: aktenzeichenC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'Az.')),
                     ])),
                   ]),
                   const SizedBox(height: 12),
                   Row(children: [
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      label('Sachbearbeiter/in'),
                       TextField(controller: sachbearbeiterC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'Name')),
                     ])),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Durchwahl', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      label('Durchwahl'),
                       TextField(controller: sachbearbeiterTelC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'Telefon')),
                     ])),
                   ]),
-                  const SizedBox(height: 12),
-                  const Text('Beschreibung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
+                  label('Beschreibung'),
                   TextField(controller: beschreibungC, maxLines: 3, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'Was ist passiert?')),
+
+                  // ────────── STRAFTAT-spezifische Felder ──────────
+                  if (isStraftat) ...[
+                    sectionHeader(Icons.event_note, 'Bescheinigung über die Erstattung einer Strafanzeige', Colors.indigo.shade700),
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Datum Anzeigenaufnahme (Polizei)'),
+                        TextField(controller: datumAnzeigeC, readOnly: true,
+                          decoration: InputDecoration(border: const OutlineInputBorder(), isDense: true, hintText: 'TT.MM.JJJJ',
+                            suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () => pickDate(datumAnzeigeC))),
+                        ),
+                      ])),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Datum Bescheinigung'),
+                        TextField(controller: datumBescheinigungC, readOnly: true,
+                          decoration: InputDecoration(border: const OutlineInputBorder(), isDense: true, hintText: 'TT.MM.JJJJ',
+                            suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () => pickDate(datumBescheinigungC))),
+                        ),
+                      ])),
+                    ]),
+
+                    sectionHeader(Icons.location_on, 'Tatort', Colors.deepOrange.shade700),
+                    label('Bemerkung'),
+                    TextField(controller: tatortBemerkungC, maxLines: 2,
+                      decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'z.B. Nähe Eingang Westseite')),
+                    Row(children: [
+                      Expanded(flex: 1, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('PLZ'),
+                        TextField(controller: tatortPlzC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: '89077')),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Ort'),
+                        TextField(controller: tatortOrtC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'Ulm')),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Stadtteil'),
+                        TextField(controller: tatortStadtteilC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'Weststadt')),
+                      ])),
+                    ]),
+                    label('Straße / Hausnr.'),
+                    TextField(controller: tatortStrasseC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'Römerstraße 122')),
+                    label('Freie Ortsbezeichnung (optional)'),
+                    TextField(controller: tatortFreieC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: 'z.B. Parkplatz hinter dem Gebäude')),
+
+                    sectionHeader(Icons.access_time, 'Tatzeit', Colors.deepOrange.shade700),
+                    Row(children: [
+                      Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Wochentag'),
+                        DropdownButtonFormField<String>(
+                          initialValue: tatzeitWochentag, isExpanded: true,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                          items: const ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag']
+                              .map((w) => DropdownMenuItem(value: w, child: Text(w, style: const TextStyle(fontSize: 13)))).toList(),
+                          onChanged: (v) => setDialogState(() => tatzeitWochentag = v),
+                        ),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Datum'),
+                        TextField(controller: tatzeitDatumC, readOnly: true,
+                          decoration: InputDecoration(border: const OutlineInputBorder(), isDense: true, hintText: 'TT.MM.JJJJ',
+                            suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () => pickDate(tatzeitDatumC))),
+                        ),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(flex: 1, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Stunde'),
+                        TextField(controller: tatzeitStundeC, keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: '14')),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(flex: 1, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Minute'),
+                        TextField(controller: tatzeitMinuteC, keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: '30')),
+                      ])),
+                    ]),
+
+                    sectionHeader(Icons.gavel, 'Delikt', Colors.red.shade700),
+                    TextField(controller: deliktC,
+                      decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true,
+                        hintText: 'z.B. Körperverletzung einfach vorsätzlich, § 223 StGB')),
+
+                    sectionHeader(Icons.person, 'Geschädigte/r (aus Verifizierung Stufe 1)', Colors.green.shade700),
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Familienname'),
+                        TextField(controller: geschNameC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Geburtsname'),
+                        TextField(controller: geschGeburtsnameC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Vorname'),
+                        TextField(controller: geschVornameC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
+                      ])),
+                    ]),
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Geburtsdatum'),
+                        TextField(controller: geschGebDatumC, readOnly: true,
+                          decoration: InputDecoration(border: const OutlineInputBorder(), isDense: true, hintText: 'TT.MM.JJJJ',
+                            suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18),
+                              onPressed: () async {
+                                final p = await showDatePicker(context: ctx, initialDate: DateTime(1990),
+                                  firstDate: DateTime(1900), lastDate: DateTime.now(), locale: const Locale('de'));
+                                if (p != null) setDialogState(() => geschGebDatumC.text = _fmtDe(p));
+                              })),
+                        ),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Geburtsort / Land'),
+                        TextField(controller: geschGebOrtC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Geschlecht'),
+                        DropdownButtonFormField<String>(
+                          initialValue: geschGeschlecht, isExpanded: true,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                          items: const [
+                            DropdownMenuItem(value: 'm', child: Text('männlich')),
+                            DropdownMenuItem(value: 'w', child: Text('weiblich')),
+                            DropdownMenuItem(value: 'd', child: Text('divers')),
+                          ],
+                          onChanged: (v) => setDialogState(() => geschGeschlecht = v),
+                        ),
+                      ])),
+                    ]),
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Staatsangehörigkeit'),
+                        TextField(controller: geschStaatC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
+                      ])),
+                      const SizedBox(width: 8),
+                      Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Wohnsitz / Anschrift'),
+                        TextField(controller: geschWohnsitzC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
+                      ])),
+                    ]),
+
+                    sectionHeader(Icons.fact_check, 'Folgendes wird geltend gemacht', Colors.blue.shade700),
+                    CheckboxListTile(
+                      dense: true, contentPadding: EdgeInsets.zero,
+                      value: folgenVerletzungen, onChanged: (v) => setDialogState(() => folgenVerletzungen = v ?? false),
+                      title: const Text('Verletzungen werden geltend gemacht', style: TextStyle(fontSize: 13)),
+                    ),
+                    Row(children: [
+                      const Expanded(flex: 3, child: Text('Diebesgut im Wert von', style: TextStyle(fontSize: 13))),
+                      Expanded(flex: 2, child: TextField(controller: folgenDiebstahlWertC, keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: '0.00', suffixText: 'EUR'))),
+                      const Expanded(flex: 2, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('wird geltend gemacht', style: TextStyle(fontSize: 12)))),
+                    ]),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Expanded(flex: 3, child: Text('Beschädigungen in Höhe von', style: TextStyle(fontSize: 13))),
+                      Expanded(flex: 2, child: TextField(controller: folgenBeschaedigungWertC, keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, hintText: '0.00', suffixText: 'EUR'))),
+                      const Expanded(flex: 2, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('werden geltend gemacht', style: TextStyle(fontSize: 12)))),
+                    ]),
+                    label('Sonstige Folgen (Freitext)'),
+                    TextField(controller: folgenSonstigeC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
+
+                    sectionHeader(Icons.search, 'Ermittlungen', Colors.purple.shade700),
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Sachfahndung veranlasst'),
+                        DropdownButtonFormField<String>(
+                          initialValue: sachfahndung, isExpanded: true,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                          items: const [
+                            DropdownMenuItem(value: 'ja', child: Text('Ja')),
+                            DropdownMenuItem(value: 'nein', child: Text('Nein')),
+                          ],
+                          onChanged: (v) => setDialogState(() => sachfahndung = v),
+                        ),
+                      ])),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        label('Tatverdächtige'),
+                        DropdownButtonFormField<String>(
+                          initialValue: tatverdaechtige, isExpanded: true,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                          items: const [
+                            DropdownMenuItem(value: 'bekannt', child: Text('bekannt')),
+                            DropdownMenuItem(value: 'nicht_bekannt', child: Text('nicht bekannt')),
+                          ],
+                          onChanged: (v) => setDialogState(() => tatverdaechtige = v),
+                        ),
+                      ])),
+                    ]),
+                    const SizedBox(height: 12),
+                    Container(padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                      child: Text(
+                        'Nach Abschluss der Ermittlungen wird die Anzeige unter dem '
+                        'Aktenzeichen ${aktenzeichenC.text.isEmpty ? "<Az>" : aktenzeichenC.text} '
+                        'der Staatsanwaltschaft Ulm vorgelegt.',
+                        style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontStyle: FontStyle.italic),
+                      )),
+                  ],
                 ],
+              )),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 18), label: const Text('Melden'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(ctx, {
+                  'typ': selectedTyp, 'datum': datumC.text.trim(),
+                  'aktenzeichen': aktenzeichenC.text.trim(),
+                  'sachbearbeiter': sachbearbeiterC.text.trim(),
+                  'sachbearbeiter_telefon': sachbearbeiterTelC.text.trim(),
+                  'beschreibung': beschreibungC.text.trim(),
+                  if (isStraftat) ...{
+                    'datum_anzeigeaufnahme': datumAnzeigeC.text.trim(),
+                    'datum_bescheinigung': datumBescheinigungC.text.trim(),
+                    'tatort_bemerkung': tatortBemerkungC.text.trim(),
+                    'tatort_plz': tatortPlzC.text.trim(),
+                    'tatort_ort': tatortOrtC.text.trim(),
+                    'tatort_stadtteil': tatortStadtteilC.text.trim(),
+                    'tatort_strasse': tatortStrasseC.text.trim(),
+                    'tatort_freie_bezeichnung': tatortFreieC.text.trim(),
+                    'tatzeit_wochentag': tatzeitWochentag ?? '',
+                    'tatzeit_datum': tatzeitDatumC.text.trim(),
+                    'tatzeit_stunde': tatzeitStundeC.text.trim(),
+                    'tatzeit_minute': tatzeitMinuteC.text.trim(),
+                    'delikt': deliktC.text.trim(),
+                    'gesch_name': geschNameC.text.trim(),
+                    'gesch_geburtsname': geschGeburtsnameC.text.trim(),
+                    'gesch_vorname': geschVornameC.text.trim(),
+                    'gesch_geburtsdatum': geschGebDatumC.text.trim(),
+                    'gesch_geburtsort': geschGebOrtC.text.trim(),
+                    'gesch_geschlecht': geschGeschlecht ?? '',
+                    'gesch_staatsangehoerigkeit': geschStaatC.text.trim(),
+                    'gesch_wohnsitz': geschWohnsitzC.text.trim(),
+                    'folgen_verletzungen': folgenVerletzungen ? 1 : 0,
+                    'folgen_diebstahl_wert': folgenDiebstahlWertC.text.trim(),
+                    'folgen_beschaedigung_wert': folgenBeschaedigungWertC.text.trim(),
+                    'folgen_sonstige': folgenSonstigeC.text.trim(),
+                    'sachfahndung': sachfahndung ?? '',
+                    'tatverdaechtige': tatverdaechtige ?? '',
+                    'staatsanwaltschaft': 'Staatsanwaltschaft Ulm',
+                  },
+                }),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.add, size: 18), label: const Text('Melden'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
-              onPressed: () => Navigator.pop(ctx, {
-                'typ': selectedTyp, 'datum': datumC.text.trim(),
-                'aktenzeichen': aktenzeichenC.text.trim(),
-                'sachbearbeiter': sachbearbeiterC.text.trim(),
-                'sachbearbeiter_telefon': sachbearbeiterTelC.text.trim(),
-                'beschreibung': beschreibungC.text.trim(),
-              }),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
 
@@ -187,6 +482,15 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
         _loadUserPolizei().then((_) { if (mounted) setState(() {}); });
       }
     }
+  }
+
+  static String _fmtDe(DateTime p) =>
+      '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
+
+  static String _formatIsoToDe(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(iso);
+    return m != null ? '${m.group(3)}.${m.group(2)}.${m.group(1)}' : iso;
   }
 
   Future<void> _deleteVorfall(int vorfallId) async {
