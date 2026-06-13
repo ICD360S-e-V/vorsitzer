@@ -7055,6 +7055,21 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Generate the official 'Nachweis von Eigenbemuehungen' PDF on the server.
+  // Returns the decoded bytes on success or null on failure (caller shows error).
+  Future<List<int>?> generateEigenbemPdf({required int userAvId, required String monat}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'generate_eigenbem_pdf', 'user_av_id': userAvId, 'monat': monat}),
+    ).timeout(const Duration(seconds: 60));
+    try {
+      final j = jsonDecode(response.body);
+      if (j['success'] != true || j['data']?['pdf_base64'] == null) return null;
+      return base64Decode(j['data']['pdf_base64'] as String);
+    } catch (_) { return null; }
+  }
+
   // === SCHWEIGEPFLICHT (Arzt — per arzt-tab medical confidentiality waiver) ===
   Future<Map<String, dynamic>> createSchweigepflicht(Map<String, dynamic> payload) async {
     final response = await _client.post(
