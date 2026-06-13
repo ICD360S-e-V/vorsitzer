@@ -21,7 +21,8 @@ class BehordePolizeiContent extends StatefulWidget {
   State<BehordePolizeiContent> createState() => _BehordePolizeiContentState();
 }
 
-class _BehordePolizeiContentState extends State<BehordePolizeiContent> {
+class _BehordePolizeiContentState extends State<BehordePolizeiContent> with SingleTickerProviderStateMixin {
+  late final TabController _tabCtrl;
   List<Map<String, dynamic>> _dienststellen = [];
   List<Map<String, dynamic>> _vorfaelle = [];
   Map<String, dynamic>? _polizeiData;
@@ -32,11 +33,13 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> {
   @override
   void initState() {
     super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
     _loadAll();
   }
 
   @override
   void dispose() {
+    _tabCtrl.dispose();
     _zustaendigController.dispose();
     super.dispose();
   }
@@ -212,21 +215,49 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(flex: 2, child: _buildDienststelleCard()),
-            const SizedBox(width: 16),
-            Expanded(flex: 1, child: _buildNotfallCard()),
-          ]),
-          const SizedBox(height: 16),
-          _buildVorfaelleCard(),
+    return Column(children: [
+      TabBar(
+        controller: _tabCtrl,
+        labelColor: Colors.blue.shade800,
+        unselectedLabelColor: Colors.grey.shade500,
+        indicatorColor: Colors.blue.shade700,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        tabs: [
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.circle, size: 8,
+              color: (_polizeiData?['dienststelle_name']?.toString().isNotEmpty ?? false) ? Colors.green : Colors.red),
+            const SizedBox(width: 5),
+            const Icon(Icons.local_police, size: 16),
+            const SizedBox(width: 5),
+            const Text('Zuständige Polizeidienststelle'),
+          ])),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red),
+            const SizedBox(width: 5),
+            const Icon(Icons.report, size: 16),
+            const SizedBox(width: 5),
+            Text('Vorfälle${_vorfaelle.isNotEmpty ? ' (${_vorfaelle.length})' : ''}'),
+          ])),
         ],
       ),
-    );
+      Expanded(child: TabBarView(controller: _tabCtrl, children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 2, child: _buildDienststelleCard()),
+              const SizedBox(width: 16),
+              Expanded(flex: 1, child: _buildNotfallCard()),
+            ]),
+          ]),
+        ),
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: _buildVorfaelleCard(),
+        ),
+      ])),
+    ]);
   }
 
   static const _vorfallKategorien = {
