@@ -33,6 +33,7 @@ class User {
   final DateTime? deactivatedAt;
   final String? deactivationReason;
   final int? vormundUserId;
+  final String? vormundTyp;
 
   User({
     required this.id,
@@ -69,6 +70,7 @@ class User {
     this.deactivatedAt,
     this.deactivationReason,
     this.vormundUserId,
+    this.vormundTyp,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -119,6 +121,7 @@ class User {
           : (json['vormund_user_id'] is int
               ? json['vormund_user_id'] as int
               : int.tryParse(json['vormund_user_id'].toString())),
+      vormundTyp: json['vormund_typ']?.toString(),
     );
   }
 

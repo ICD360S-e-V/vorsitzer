@@ -3,7 +3,13 @@ import '../models/user.dart';
 import '../models/member_activity.dart';
 import '../utils/role_helpers.dart';
 
-/// Data table displaying all users with actions
+/// Data table displaying all users with actions.
+///
+/// Layout: tree-style — Vormund members appear as top-level rows; their
+/// linked kinder (full members with vormund_user_id pointing back) appear
+/// indented directly below their Vormund, with a soft background and
+/// Verknüpfungstyp badge. Orphan members (vormund_user_id set but parent
+/// not in the current filtered list) fall through as normal top-level rows.
 class UserDataTable extends StatelessWidget {
   final List<User> users;
   final String currentMitgliedernummer;
@@ -28,6 +34,42 @@ class UserDataTable extends StatelessWidget {
       return const Center(child: Text('Keine Benutzer gefunden'));
     }
 
+    // Group kinder by their vormund id
+    final byVormund = <int, List<User>>{};
+    for (final u in users) {
+      if (u.vormundUserId != null) {
+        byVormund.putIfAbsent(u.vormundUserId!, () => []).add(u);
+      }
+    }
+
+    // Set of ids that are children of someone in the current list
+    final shownAsChildren = <int>{};
+    for (final entries in byVormund.entries) {
+      // only count as child if the parent is also in the list
+      final parentInList = users.any((x) => x.id == entries.key);
+      if (parentInList) {
+        for (final k in entries.value) {
+          shownAsChildren.add(k.id);
+        }
+      }
+    }
+
+    final rows = <DataRow>[];
+    for (final u in users) {
+      if (shownAsChildren.contains(u.id)) continue; // shown later under parent
+      final kids = byVormund[u.id] ?? const <User>[];
+      rows.add(_buildUserRow(u, kidCount: kids.length, isChild: false));
+      // Sort kinder by birthdate (oldest first), nulls last
+      final sortedKids = [...kids]..sort((a, b) {
+        final ag = a.geburtsdatum ?? '9999-99-99';
+        final bg = b.geburtsdatum ?? '9999-99-99';
+        return ag.compareTo(bg);
+      });
+      for (final k in sortedKids) {
+        rows.add(_buildUserRow(k, kidCount: 0, isChild: true));
+      }
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Card(
@@ -48,25 +90,27 @@ class UserDataTable extends StatelessWidget {
               DataColumn(label: Text('Diese Woche')),
               DataColumn(label: Text('Aktionen')),
             ],
-            rows: users.map((user) => _buildUserRow(user)).toList(),
+            rows: rows,
           ),
         ),
       ),
     );
   }
 
-  DataRow _buildUserRow(User user) {
+  DataRow _buildUserRow(User user, {required int kidCount, required bool isChild}) {
     final isCurrentUser = user.mitgliedernummer == currentMitgliedernummer;
+    final bg = isChild ? Colors.indigo.shade50.withValues(alpha: 0.4) : null;
 
     return DataRow(
+      color: bg != null ? WidgetStateProperty.all(bg) : null,
       onSelectChanged: (selected) {
         if (selected == true) {
           onUserTap(user);
         }
       },
       cells: [
-        DataCell(Text(user.mitgliedernummer)),
-        DataCell(_buildNameCell(user)),
+        DataCell(_buildMnrCell(user, isChild: isChild)),
+        DataCell(_buildNameCell(user, kidCount: kidCount, isChild: isChild)),
         DataCell(_buildRoleBadge(user.role)),
         DataCell(Text(user.email)),
         DataCell(_buildStatusBadge(user.status)),
@@ -75,6 +119,17 @@ class UserDataTable extends StatelessWidget {
         DataCell(_buildActions(user, isCurrentUser)),
       ],
     );
+  }
+
+  Widget _buildMnrCell(User user, {required bool isChild}) {
+    if (!isChild) return Text(user.mitgliedernummer);
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Padding(
+        padding: const EdgeInsets.only(left: 4, right: 6),
+        child: Text('└─', style: TextStyle(color: Colors.indigo.shade300, fontWeight: FontWeight.bold)),
+      ),
+      Text(user.mitgliedernummer, style: TextStyle(fontSize: 12, color: Colors.indigo.shade900)),
+    ]);
   }
 
   Widget _buildWeekIndicators(MemberActivity activity) {
@@ -104,7 +159,7 @@ class UserDataTable extends StatelessWidget {
     );
   }
 
-  Widget _buildNameCell(User user) {
+  Widget _buildNameCell(User user, {required int kidCount, required bool isChild}) {
     IconData genderIcon;
     Color genderColor;
     switch (user.geschlecht) {
@@ -159,15 +214,65 @@ class UserDataTable extends StatelessWidget {
       } catch (_) {}
     }
 
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(genderIcon, size: 18, color: genderColor),
-      const SizedBox(width: 4),
-      Text(user.name),
-      if (birthdayWidget != null) ...[
-        const SizedBox(width: 6),
-        birthdayWidget,
-      ],
-    ]);
+    return Padding(
+      padding: EdgeInsets.only(left: isChild ? 16 : 0),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(genderIcon, size: 18, color: genderColor),
+        const SizedBox(width: 4),
+        if (isChild) ...[
+          Icon(Icons.subdirectory_arrow_right, size: 12, color: Colors.indigo.shade300),
+          const SizedBox(width: 2),
+        ],
+        Text(user.name, style: TextStyle(fontWeight: isChild ? FontWeight.w500 : FontWeight.w600, color: isChild ? Colors.indigo.shade900 : null)),
+        if (isChild && (user.vormundTyp?.isNotEmpty ?? false)) ...[
+          const SizedBox(width: 6),
+          _vormundTypBadge(user.vormundTyp!),
+        ],
+        if (kidCount > 0) ...[
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Hat $kidCount verknüpfte${kidCount == 1 ? 's' : ''} Konto${kidCount == 1 ? '' : 'en'} unter sich (Kinder / Betreute)',
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.pink.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.pink.shade200, width: 1),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.family_restroom, size: 11, color: Colors.pink.shade700),
+                const SizedBox(width: 3),
+                Text('+$kidCount', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.pink.shade800)),
+              ]),
+            ),
+          ),
+        ],
+        if (birthdayWidget != null) ...[
+          const SizedBox(width: 6),
+          birthdayWidget,
+        ],
+      ]),
+    );
+  }
+
+  Widget _vormundTypBadge(String typ) {
+    final (label, color) = switch (typ) {
+      'familienangehoeriger' => ('Familie', Colors.pink),
+      'sorgeberechtigter'    => ('Sorgeberecht.', Colors.teal),
+      'ehrenamtlich'         => ('Ehrenamt', Colors.green),
+      'vorlaeufig'           => ('vorläufig', Colors.orange),
+      'vorsorgevollmacht'    => ('Vollmacht', Colors.purple),
+      'berufsbetreuer'       => ('Berufsbetreuer', Colors.blue),
+      _                      => (typ, Colors.grey),
+    };
+    return Tooltip(
+      message: 'Verknüpfungstyp: $label',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: color.shade200, width: 1)),
+        child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color.shade800)),
+      ),
+    );
   }
 
   Widget _buildRoleBadge(String role) {
