@@ -6873,6 +6873,44 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Returns user's Zuständige Polizeidienststelle (from Behörde → Polizei → Tab 1).
+  /// Used to auto-fill the "Polizei vor Ort" → Dienststelle field in Rettungsdienst-Einsatz dialog.
+  Future<Map<String, dynamic>> getZustaendigePolizei(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/rettungsdienst_manage.php?user_id=$userId&action=zustaendige_polizei'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Returns user's Strafanzeigen (Polizei-Vorfälle with typ LIKE 'straf_%') for picker dropdown.
+  Future<Map<String, dynamic>> listStrafanzeigenForRettungsdienst(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/rettungsdienst_manage.php?user_id=$userId&action=list_strafanzeigen'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Returns user's Zuständiger Rettungsdienst (instance 0 — primary Träger from Ärzten → Rettungsdienst → Tab 1).
+  /// Used to auto-fill the "Rettungsdienst vor Ort" → Träger field in Polizei-Vorfall dialog.
+  Future<Map<String, dynamic>> getZustaendigerRettungsdienst(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/user_polizei.php?user_id=$userId&action=zustaendige_rettungsdienst'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Returns user's Rettungsdienst-Einsätze (all instances) for picker dropdown in Polizei dialog.
+  Future<Map<String, dynamic>> listRettungsdienstEinsaetzeForPolizei(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/user_polizei.php?user_id=$userId&action=list_rettungsdienst_einsaetze'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== JOBCENTER (dedicated DB) ==========
 
   Future<Map<String, dynamic>> getJobcenterData(int userId) async {

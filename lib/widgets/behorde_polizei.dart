@@ -175,6 +175,20 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     String? sachfahndung = s('sachfahndung').isEmpty ? null : s('sachfahndung');
     String? tatverdaechtige = s('tatverdaechtige').isEmpty ? null : s('tatverdaechtige');
 
+    // ===== Rettungsdienst vor Ort (cross-link to RD-Einsatz) =====
+    String rdVorOrt = s('rettungsdienst_vor_ort').isNotEmpty ? s('rettungsdienst_vor_ort') : 'nein';
+    final rdTraegerC = TextEditingController(text: s('rettungsdienst_traeger'));
+    final rdEinsatznrC = TextEditingController(text: s('rettungsdienst_einsatznummer'));
+    int? rdVorfallId = existing?['rettungsdienst_vorfall_id'] != null ? int.tryParse(existing!['rettungsdienst_vorfall_id'].toString()) : null;
+    bool rdTraegerAutofill = (existing?['rettungsdienst_autofill'] ?? 0) == 1;
+    List<Map<String, dynamic>> rdEinsaetze = [];
+    bool rdEinsaetzeLoaded = false;
+    const rdVorOrtOptions = {
+      'nein': 'Nein, kein Rettungsdienst',
+      'ja_kein_einsatz_erfasst': 'Ja, ohne erfasste Einsatzakte',
+      'ja_einsatz_existiert': 'Ja, mit erfasster Einsatzakte',
+    };
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -468,6 +482,81 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                         style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontStyle: FontStyle.italic),
                       )),
                   ],
+                  // ============== Rettungsdienst vor Ort (alle Typen) ==============
+                  sectionHeader(Icons.emergency, 'Rettungsdienst vor Ort', Colors.teal.shade700),
+                  DropdownButtonFormField<String>(
+                    initialValue: rdVorOrt, isExpanded: true,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                    items: rdVorOrtOptions.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
+                    onChanged: (v) async {
+                      if (v == null) return;
+                      setDialogState(() => rdVorOrt = v);
+                      if (v != 'nein' && rdTraegerC.text.trim().isEmpty) {
+                        try {
+                          final r = await widget.apiService.getZustaendigerRettungsdienst(widget.userId);
+                          final rd = r['rettungsdienst'];
+                          if (rd is Map && (rd['name']?.toString().isNotEmpty ?? false)) {
+                            setDialogState(() {
+                              rdTraegerC.text = rd['name'].toString();
+                              rdTraegerAutofill = true;
+                            });
+                          }
+                        } catch (_) {}
+                      }
+                      if (v == 'ja_einsatz_existiert' && !rdEinsaetzeLoaded) {
+                        try {
+                          final r = await widget.apiService.listRettungsdienstEinsaetzeForPolizei(widget.userId);
+                          final list = (r['einsaetze'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+                          setDialogState(() { rdEinsaetze = list; rdEinsaetzeLoaded = true; });
+                        } catch (_) {}
+                      }
+                      if (v != 'ja_einsatz_existiert') {
+                        setDialogState(() => rdVorfallId = null);
+                      }
+                    },
+                  ),
+                  if (rdVorOrt != 'nein') ...[
+                    const SizedBox(height: 10),
+                    label('Rettungsdienst-Träger'),
+                    TextField(controller: rdTraegerC,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(), isDense: true,
+                        prefixIcon: const Icon(Icons.local_taxi, size: 18),
+                        suffixIcon: rdTraegerAutofill ? Tooltip(message: 'Übernommen aus Zuständiger Rettungsdienst', child: Icon(Icons.link, size: 16, color: Colors.teal.shade600)) : null,
+                        hintText: 'DRK / Malteser / ASB / Johanniter / Feuerwehr ...',
+                      ),
+                      onChanged: (_) => setDialogState(() => rdTraegerAutofill = false),
+                    ),
+                    const SizedBox(height: 10),
+                    label('Einsatznummer'),
+                    TextField(controller: rdEinsatznrC,
+                      decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, prefixIcon: Icon(Icons.tag, size: 18))),
+                    if (rdVorOrt == 'ja_einsatz_existiert') ...[
+                      const SizedBox(height: 10),
+                      label('Verknüpfter Einsatz'),
+                      DropdownButtonFormField<int?>(
+                        initialValue: rdVorfallId, isExpanded: true,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                        items: [
+                          const DropdownMenuItem<int?>(value: null, child: Text('— keine Verknüpfung —', style: TextStyle(fontSize: 12, color: Colors.grey))),
+                          ...rdEinsaetze.map((e) => DropdownMenuItem<int?>(
+                            value: e['id'] is int ? e['id'] as int : int.tryParse(e['id'].toString()),
+                            child: Text(
+                              '${e['einsatznummer']?.toString().isNotEmpty == true ? "Nr. ${e['einsatznummer']} · " : ""}${e['datum'] ?? ''} ${e['uhrzeit'] ?? ''} · ${e['titel']?.toString().isNotEmpty == true ? e['titel'] : (e['typ'] ?? '')}',
+                              style: const TextStyle(fontSize: 11),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )),
+                        ],
+                        onChanged: (v) => setDialogState(() => rdVorfallId = v),
+                      ),
+                      if (rdEinsaetze.isEmpty && rdEinsaetzeLoaded)
+                        Padding(padding: const EdgeInsets.only(top: 6), child: Text(
+                          'Keine Rettungsdienst-Einsätze für dieses Mitglied erfasst. Erst unter Ärzten → Rettungsdienst → Einsätze anlegen.',
+                          style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+                        )),
+                    ],
+                  ],
                 ],
               )),
             ),
@@ -483,6 +572,11 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                   'sachbearbeiter': sachbearbeiterC.text.trim(),
                   'sachbearbeiter_telefon': sachbearbeiterTelC.text.trim(),
                   'beschreibung': beschreibungC.text.trim(),
+                  'rettungsdienst_vor_ort': rdVorOrt,
+                  'rettungsdienst_traeger': rdTraegerC.text.trim(),
+                  'rettungsdienst_einsatznummer': rdEinsatznrC.text.trim(),
+                  'rettungsdienst_vorfall_id': rdVorOrt == 'ja_einsatz_existiert' ? rdVorfallId : null,
+                  'rettungsdienst_autofill': rdTraegerAutofill ? 1 : 0,
                   if (isStraftat) ...{
                     'datum_anzeigeaufnahme': datumAnzeigeC.text.trim(),
                     'datum_bescheinigung': datumBescheinigungC.text.trim(),

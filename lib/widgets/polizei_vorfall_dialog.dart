@@ -277,6 +277,55 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
             )),
         ],
       ],
+
+      // ============== Rettungsdienst vor Ort (Cross-Link) ==============
+      if ((g('rettungsdienst_vor_ort').isNotEmpty && g('rettungsdienst_vor_ort') != 'nein')) ...[
+        const SizedBox(height: 12),
+        section(Icons.emergency, 'Rettungsdienst vor Ort', Colors.teal.shade700),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.local_taxi, size: 16, color: Colors.teal.shade700),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                {
+                  'ja_kein_einsatz_erfasst': 'Ja, ohne erfasste Einsatzakte',
+                  'ja_einsatz_existiert': 'Ja, mit erfasster Einsatzakte',
+                }[g('rettungsdienst_vor_ort')] ?? g('rettungsdienst_vor_ort'),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal.shade800),
+              )),
+              if ((v['rettungsdienst_autofill'] ?? 0) == 1)
+                Tooltip(message: 'Träger aus Zuständiger Rettungsdienst übernommen', child: Icon(Icons.link, size: 14, color: Colors.teal.shade600)),
+            ]),
+            if (g('rettungsdienst_traeger').isNotEmpty)
+              Padding(padding: const EdgeInsets.only(top: 4), child: Text('Träger: ${g('rettungsdienst_traeger')}', style: const TextStyle(fontSize: 12))),
+            if (g('rettungsdienst_einsatznummer').isNotEmpty)
+              Padding(padding: const EdgeInsets.only(top: 2), child: Text('Einsatznummer: ${g('rettungsdienst_einsatznummer')}', style: const TextStyle(fontSize: 12))),
+            if (g('linked_einsatz_einsatznummer').isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.teal.shade300)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.emergency, size: 14, color: Colors.red.shade700),
+                  const SizedBox(width: 4),
+                  Flexible(child: Text(
+                    'Einsatz Nr. ${g('linked_einsatz_einsatznummer')}${g('linked_einsatz_datum').isNotEmpty ? ' (${g('linked_einsatz_datum')})' : ''}',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade900),
+                    overflow: TextOverflow.ellipsis,
+                  )),
+                  const SizedBox(width: 6),
+                  Icon(Icons.open_in_new, size: 12, color: Colors.teal.shade700),
+                ]),
+              ),
+              Padding(padding: const EdgeInsets.only(top: 2), child: Text(
+                'Einsatz einsehbar unter Ärzten → Rettungsdienst → Einsätze',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              )),
+            ],
+          ]),
+        ),
+      ],
     ]));
   }
 
