@@ -5201,12 +5201,16 @@ class _AvEigenbemTabState extends State<_AvEigenbemTab> {
         child: Row(children: [
           Expanded(child: Text('${_eintraege.length} Eintrag/e — max. 10 passen auf das Formular', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
           ElevatedButton.icon(
-            onPressed: _generating ? null : _generatePdf,
+            onPressed: (_generating || _eintraege.isEmpty) ? null : _generatePdf,
             icon: _generating
                 ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.picture_as_pdf, size: 16),
             label: const Text('PDF generieren'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo.shade700,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+            ),
           ),
         ]),
       ),
