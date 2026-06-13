@@ -372,6 +372,14 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               ],
             ),
             const SizedBox(height: 12),
+            // Wochenstatistik der Termin-Nachbearbeitung
+            _NachbearbeitungStatsBar(
+              key: ValueKey('${_currentWeekStart.toIso8601String()}_stats'),
+              terminService: _terminService,
+              from: _currentWeekStart,
+              to: _currentWeekStart.add(const Duration(days: 6)),
+            ),
+            const SizedBox(height: 12),
             // Legend — wrap so it stays readable on narrower windows
             Wrap(
               spacing: 8,
@@ -945,4 +953,123 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       }
     }
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Wochen-Statistik der Termin-Nachbearbeitung
+//  Zeigt für alle Termine im Zeitraum [from..to] die Verteilung
+//  wahrgenommen / nicht_wahrgenommen / offen + Feedback-Quote +
+//  Legende mit Farb-Codes.
+// ════════════════════════════════════════════════════════════════════════
+class _NachbearbeitungStatsBar extends StatefulWidget {
+  final TerminService terminService;
+  final DateTime from;
+  final DateTime to;
+  const _NachbearbeitungStatsBar({super.key, required this.terminService, required this.from, required this.to});
+  @override
+  State<_NachbearbeitungStatsBar> createState() => _NachbearbeitungStatsBarState();
+}
+
+class _NachbearbeitungStatsBarState extends State<_NachbearbeitungStatsBar> {
+  int _wahr = 0, _nicht = 0, _offen = 0, _feedback = 0, _gesamt = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await widget.terminService.getTerminStats(from: widget.from, to: widget.to);
+      if (r['success'] == true && mounted) {
+        setState(() {
+          _wahr     = (r['wahrgenommen'] ?? 0) as int;
+          _nicht    = (r['nicht_wahrgenommen'] ?? 0) as int;
+          _offen    = (r['offen'] ?? 0) as int;
+          _feedback = (r['mit_feedback'] ?? 0) as int;
+          _gesamt   = (r['gesamt'] ?? 0) as int;
+          _loading  = false;
+        });
+        return;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Widget _chip(IconData ic, String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(ic, size: 14, color: color),
+        const SizedBox(width: 6),
+        Text('$value', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.85))),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const SizedBox(height: 50, child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))));
+    }
+    if (_gesamt == 0) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 8),
+          Text('Keine Termine in dieser Woche', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ]),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.indigo.shade50.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.indigo.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.bar_chart, size: 18, color: Colors.indigo.shade700),
+          const SizedBox(width: 6),
+          Text('Diese Woche (${_gesamt} Termine)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade900)),
+          const Spacer(),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            _chip(Icons.check_circle, 'wahrgenommen', _wahr, Colors.green.shade700),
+            _chip(Icons.cancel, 'nicht wahrg.', _nicht, Colors.red.shade700),
+            _chip(Icons.hourglass_empty, 'offen', _offen, Colors.grey.shade700),
+            _chip(Icons.campaign, 'mit Feedback', _feedback, Colors.orange.shade700),
+          ]),
+        ]),
+        const SizedBox(height: 6),
+        // Legende
+        Padding(
+          padding: const EdgeInsets.only(left: 24, top: 2),
+          child: Wrap(spacing: 12, runSpacing: 4, children: [
+            _legendDot(Colors.green.shade700, 'grün = Mitglied war beim Termin'),
+            _legendDot(Colors.red.shade700, 'rot = nicht wahrgenommen (mit Grund)'),
+            _legendDot(Colors.grey.shade700, 'grau = noch nicht nachbearbeitet'),
+            _legendDot(Colors.orange.shade700, 'orange = Feedback / Rückmeldung erhalten'),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _legendDot(Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+    const SizedBox(width: 4),
+    Text(t, style: TextStyle(fontSize: 10, color: Colors.indigo.shade900)),
+  ]);
 }

@@ -23,6 +23,16 @@ class Termin {
   final DateTime createdAt;
   final DateTime? updatedAt;
 
+  // Termin-Nachbearbeitung (manuelles Tracking nach dem Termin)
+  final String feedbackStatus; // offen, wahrgenommen, nicht_wahrgenommen
+  final bool feedbackErhalten;
+  final String? nichtWahrgenommenGrund; // key aus 10er-Liste
+  final String? nichtWahrgenommenGrundText;
+  final String? feedbackText;
+  final DateTime? feedbackEingegangenAm;
+  final int? markiertVonUserId;
+  final DateTime? markiertAm;
+
   // Participant stats (când vine din admin list)
   final int? totalParticipants;
   final int? confirmedCount;
@@ -73,6 +83,14 @@ class Termin {
     this.participantNachname,
     this.participantMitgliedernummer,
     this.participantRole,
+    this.feedbackStatus = 'offen',
+    this.feedbackErhalten = false,
+    this.nichtWahrgenommenGrund,
+    this.nichtWahrgenommenGrundText,
+    this.feedbackText,
+    this.feedbackEingegangenAm,
+    this.markiertVonUserId,
+    this.markiertAm,
   });
 
   factory Termin.fromJson(Map<String, dynamic> json) {
@@ -136,6 +154,20 @@ class Termin {
       participantNachname: json['participant_nachname'],
       participantMitgliedernummer: json['participant_mitgliedernummer'],
       participantRole: json['participant_role'],
+      feedbackStatus: (json['feedback_status'] ?? 'offen').toString(),
+      feedbackErhalten: json['feedback_erhalten'] == 1 || json['feedback_erhalten'] == '1' || json['feedback_erhalten'] == true,
+      nichtWahrgenommenGrund: json['nicht_wahrgenommen_grund']?.toString(),
+      nichtWahrgenommenGrundText: json['nicht_wahrgenommen_grund_text']?.toString(),
+      feedbackText: json['feedback_text']?.toString(),
+      feedbackEingegangenAm: (json['feedback_eingegangen_am'] != null && json['feedback_eingegangen_am'].toString().isNotEmpty)
+          ? DateTime.tryParse(json['feedback_eingegangen_am'].toString())
+          : null,
+      markiertVonUserId: json['markiert_von_user_id'] is int
+          ? json['markiert_von_user_id']
+          : int.tryParse(json['markiert_von_user_id']?.toString() ?? ''),
+      markiertAm: (json['markiert_am'] != null && json['markiert_am'].toString().isNotEmpty)
+          ? DateTime.tryParse(json['markiert_am'].toString())
+          : null,
     );
   }
 
@@ -288,6 +320,83 @@ class TerminService {
       if (deviceKey != null) 'X-Device-Key': deviceKey,
     };
   }
+
+  // ========== NACHBEARBEITUNG (manuelles Status-Tracking) ==========
+
+  /// Setzt den Feedback-Status (offen / wahrgenommen / nicht_wahrgenommen).
+  /// Bei nicht_wahrgenommen ist [grund] aus der 10er-Liste Pflicht.
+  Future<Map<String, dynamic>> setTerminStatus({
+    required int terminId,
+    required String feedbackStatus,
+    String? grund,
+    String? grundText,
+  }) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/termine_nachbearbeitung.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'set_status',
+        'termin_id': terminId,
+        'feedback_status': feedbackStatus,
+        if (grund != null) 'grund': grund,
+        if (grundText != null) 'grund_text': grundText,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Speichert Feedback-Text und markiert "feedback erhalten".
+  Future<Map<String, dynamic>> setTerminFeedback({
+    required int terminId,
+    required String feedbackText,
+    String? eingegangenAm,
+  }) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/termine_nachbearbeitung.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'set_feedback',
+        'termin_id': terminId,
+        'feedback_text': feedbackText,
+        if (eingegangenAm != null) 'eingegangen_am': eingegangenAm,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Reset auf "offen" und löscht Gründe / Feedback.
+  Future<Map<String, dynamic>> clearTerminNachbearbeitung(int terminId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/termine_nachbearbeitung.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'clear', 'termin_id': terminId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Wochen-Statistik aller Termine im Zeitraum.
+  Future<Map<String, dynamic>> getTerminStats({required DateTime from, required DateTime to}) async {
+    String fmt(DateTime d) => '${d.year.toString().padLeft(4, "0")}-${d.month.toString().padLeft(2, "0")}-${d.day.toString().padLeft(2, "0")}';
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/termine_nachbearbeitung.php?action=stats&from=${fmt(from)}&to=${fmt(to)}'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Erlaubte Gründe für "nicht wahrgenommen" — synchron mit Server-Allowlist.
+  static const Map<String, String> nichtWahrgenommenGruende = {
+    'vergessen': 'Vergessen',
+    'krankheit': 'Akute Krankheit / Verschlechterung',
+    'transport': 'Transportprobleme (Bahn, Auto, Ticket)',
+    'familiennotfall': 'Familiennotfall (Kind krank, Pflegefall)',
+    'arbeit_kollision': 'Arbeitseinsatz / Schichtkollision',
+    'sprachbarriere': 'Sprachbarriere / Verständnis',
+    'angst': 'Angst / psychische Belastung',
+    'umgebucht': 'Vom Anbieter umgebucht — nicht rechtzeitig informiert',
+    'falsche_zeit': 'Falsche Uhrzeit notiert',
+    'sonstiges': 'Sonstiges (Freitext erforderlich)',
+  };
 
   // ========== ADMIN METHODS ==========
 

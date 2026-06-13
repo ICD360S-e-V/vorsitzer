@@ -859,6 +859,9 @@ ICD360S e.V. Vorstand''';
                       const SizedBox(height: 12),
                       _readOnlyRow(Icons.person, 'Erstellt von', termin.createdByName!),
                     ],
+
+                    // ── Termin-Nachbearbeitung (nach Termin-Beginn) ──
+                    _buildNachbearbeitungSection(),
                   ],
                 ),
               ),
@@ -994,5 +997,287 @@ ICD360S e.V. Vorstand''';
         Text(count, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
       ]),
     );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Termin-Nachbearbeitung (manuelles Tracking)
+  //  Chips: ✓ Wahrgenommen | ✗ Nicht wahrg. | 📢 Feedback
+  //  - Aktiviert nach termin.terminDate (= nach Termin-Beginn)
+  //  - Wahrgenommen / nicht_wahrgenommen mutually exclusive
+  //  - Feedback unabhängig (toggle, Bottom-Sheet für Text)
+  // ════════════════════════════════════════════════════════════════════════
+  Widget _buildNachbearbeitungSection() {
+    final termin = widget.termin;
+    final started = DateTime.now().isAfter(termin.terminDate);
+    final status = termin.feedbackStatus;
+    final hasFeedback = termin.feedbackErhalten;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(height: 1, color: Colors.grey.shade300),
+        const SizedBox(height: 14),
+        Row(children: [
+          Icon(Icons.fact_check, size: 18, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          const Text('Termin-Nachbearbeitung', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          if (!started) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+              child: Text('erst nach Termin-Beginn verfügbar',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+            ),
+          ],
+        ]),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          FilterChip(
+            avatar: Icon(Icons.check_circle,
+              size: 18, color: status == 'wahrgenommen' ? Colors.white : Colors.green.shade700),
+            label: const Text('Wahrgenommen'),
+            selected: status == 'wahrgenommen',
+            onSelected: started ? (sel) => _setStatus(sel ? 'wahrgenommen' : 'offen') : null,
+            selectedColor: Colors.green.shade700,
+            checkmarkColor: Colors.white,
+            labelStyle: TextStyle(
+              fontSize: 12,
+              color: status == 'wahrgenommen' ? Colors.white : Colors.black87,
+              fontWeight: status == 'wahrgenommen' ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          FilterChip(
+            avatar: Icon(Icons.cancel,
+              size: 18, color: status == 'nicht_wahrgenommen' ? Colors.white : Colors.red.shade700),
+            label: const Text('Nicht wahrgenommen'),
+            selected: status == 'nicht_wahrgenommen',
+            onSelected: started ? (sel) => sel ? _selectGrundAndSet() : _setStatus('offen') : null,
+            selectedColor: Colors.red.shade700,
+            checkmarkColor: Colors.white,
+            labelStyle: TextStyle(
+              fontSize: 12,
+              color: status == 'nicht_wahrgenommen' ? Colors.white : Colors.black87,
+              fontWeight: status == 'nicht_wahrgenommen' ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          FilterChip(
+            avatar: Icon(Icons.campaign,
+              size: 18, color: hasFeedback ? Colors.white : Colors.orange.shade700),
+            label: const Text('Feedback'),
+            selected: hasFeedback,
+            onSelected: started ? (_) => _openFeedbackSheet() : null,
+            selectedColor: Colors.orange.shade700,
+            checkmarkColor: Colors.white,
+            labelStyle: TextStyle(
+              fontSize: 12,
+              color: hasFeedback ? Colors.white : Colors.black87,
+              fontWeight: hasFeedback ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ]),
+
+        // Details über gesetzten Status
+        if (status == 'nicht_wahrgenommen' && termin.nichtWahrgenommenGrund != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.info_outline, size: 14, color: Colors.red.shade700),
+                const SizedBox(width: 6),
+                Text('Grund: ${TerminService.nichtWahrgenommenGruende[termin.nichtWahrgenommenGrund] ?? termin.nichtWahrgenommenGrund}',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade900)),
+              ]),
+              if ((termin.nichtWahrgenommenGrundText ?? '').isNotEmpty)
+                Padding(padding: const EdgeInsets.only(top: 4, left: 20),
+                  child: Text(termin.nichtWahrgenommenGrundText!, style: TextStyle(fontSize: 11, color: Colors.red.shade800, fontStyle: FontStyle.italic))),
+            ]),
+          ),
+        ],
+        if (hasFeedback && (termin.feedbackText ?? '').isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.campaign, size: 14, color: Colors.orange.shade700),
+                const SizedBox(width: 6),
+                Text('Feedback eingegangen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade900)),
+              ]),
+              Padding(padding: const EdgeInsets.only(top: 4),
+                child: Text(termin.feedbackText!, style: TextStyle(fontSize: 12, color: Colors.orange.shade900))),
+            ]),
+          ),
+        ],
+        if (termin.markiertAm != null) ...[
+          const SizedBox(height: 8),
+          Text('Markiert am ${DateFormat('dd.MM.yyyy HH:mm').format(termin.markiertAm!)}',
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        ],
+      ]),
+    );
+  }
+
+  Future<void> _setStatus(String newStatus, {String? grund, String? grundText}) async {
+    final res = await widget.terminService.setTerminStatus(
+      terminId: widget.termin.id, feedbackStatus: newStatus, grund: grund, grundText: grundText,
+    );
+    if (!mounted) return;
+    if (res['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(newStatus == 'wahrgenommen' ? 'Als wahrgenommen markiert'
+          : newStatus == 'nicht_wahrgenommen' ? 'Als nicht wahrgenommen markiert'
+          : 'Status zurückgesetzt'),
+        backgroundColor: Colors.green,
+      ));
+      widget.onTerminUpdated();
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _selectGrundAndSet() async {
+    String? selectedKey;
+    final freitextC = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
+        title: Row(children: [
+          Icon(Icons.cancel, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          const Text('Grund für Versäumnis', style: TextStyle(fontSize: 15)),
+        ]),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ...TerminService.nichtWahrgenommenGruende.entries.map((e) => RadioListTile<String>(
+              value: e.key, groupValue: selectedKey,
+              onChanged: (v) => setS(() => selectedKey = v),
+              title: Text(e.value, style: const TextStyle(fontSize: 12)),
+              dense: true, contentPadding: EdgeInsets.zero, visualDensity: VisualDensity.compact,
+            )),
+            if (selectedKey == 'sonstiges') ...[
+              const SizedBox(height: 8),
+              TextField(controller: freitextC, maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Beschreibung *', border: OutlineInputBorder(), isDense: true)),
+            ] else if (selectedKey != null) ...[
+              const SizedBox(height: 8),
+              TextField(controller: freitextC, maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Zusätzliche Details (optional)', border: OutlineInputBorder(), isDense: true)),
+            ],
+          ])),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: selectedKey == null
+                ? null
+                : () {
+                    if (selectedKey == 'sonstiges' && freitextC.text.trim().isEmpty) return;
+                    Navigator.pop(ctx, {'grund': selectedKey!, 'grund_text': freitextC.text.trim()});
+                  },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+            child: const Text('Bestätigen'),
+          ),
+        ],
+      )),
+    );
+    if (result == null) return;
+    await _setStatus('nicht_wahrgenommen', grund: result['grund'], grundText: result['grund_text']);
+  }
+
+  Future<void> _openFeedbackSheet() async {
+    final textC = TextEditingController(text: widget.termin.feedbackText ?? '');
+    final dateC = TextEditingController(
+      text: widget.termin.feedbackEingegangenAm != null
+          ? DateFormat('dd.MM.yyyy').format(widget.termin.feedbackEingegangenAm!)
+          : DateFormat('dd.MM.yyyy').format(DateTime.now()),
+    );
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.campaign, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              const Text('Feedback / Was wurde besprochen?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx, false)),
+            ]),
+            const SizedBox(height: 8),
+            TextField(controller: textC, maxLines: 6,
+              decoration: const InputDecoration(
+                labelText: 'Feedback-Text',
+                hintText: 'z.B. Diagnose, neue Medikation, nächste Termine, Bescheid…',
+                border: OutlineInputBorder(),
+              )),
+            const SizedBox(height: 10),
+            Row(children: [
+              const Text('Rückmeldung eingegangen am: ', style: TextStyle(fontSize: 12)),
+              SizedBox(width: 130, child: TextField(controller: dateC, readOnly: true,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () async {
+                    final p = await showDatePicker(context: ctx, initialDate: DateTime.now(),
+                      firstDate: DateTime(2020), lastDate: DateTime.now(), locale: const Locale('de'));
+                    if (p != null) dateC.text = DateFormat('dd.MM.yyyy').format(p);
+                  }),
+                ),
+                style: const TextStyle(fontSize: 12),
+              )),
+            ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              if (widget.termin.feedbackErhalten)
+                Expanded(child: OutlinedButton.icon(
+                  onPressed: () async {
+                    textC.clear();
+                    Navigator.pop(ctx, true);
+                  },
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700),
+                  icon: const Icon(Icons.delete_outline, size: 16),
+                  label: const Text('Feedback löschen'),
+                )),
+              if (widget.termin.feedbackErhalten) const SizedBox(width: 8),
+              Expanded(flex: 2, child: ElevatedButton.icon(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white),
+                icon: const Icon(Icons.save, size: 16),
+                label: const Text('Speichern'),
+              )),
+            ]),
+            const SizedBox(height: 12),
+          ]),
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+    final res = await widget.terminService.setTerminFeedback(
+      terminId: widget.termin.id,
+      feedbackText: textC.text.trim(),
+      eingegangenAm: dateC.text.trim(),
+    );
+    if (!mounted) return;
+    if (res['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(textC.text.trim().isEmpty ? 'Feedback gelöscht' : 'Feedback gespeichert'),
+        backgroundColor: Colors.green,
+      ));
+      widget.onTerminUpdated();
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 }
