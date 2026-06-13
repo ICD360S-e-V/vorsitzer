@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1451,10 +1452,10 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
   }
 
   Future<void> _generateAndOpen() async {
-    // Spinner ON from the very beginning — covers _save + PDF download + file write.
+    // Spinner ON from the very beginning — covers _save + PDF download.
     if (mounted) setState(() => _generating = true);
 
-    String? filePath;
+    Uint8List? pdfBytes;
     String? errorMsg;
 
     try {
@@ -1468,17 +1469,19 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
       if (bytes == null || bytes.isEmpty) {
         errorMsg = 'PDF-Generierung fehlgeschlagen (Server lieferte keine Daten oder Zeitüberschreitung).';
       } else {
-        final dir = await getTemporaryDirectory();
-        final ts = DateTime.now().millisecondsSinceEpoch;
-        final f = File('${dir.path}/Anregung_Betreuung_$ts.pdf');
-        await f.writeAsBytes(bytes, flush: true);
-        filePath = f.path;
+        pdfBytes = Uint8List.fromList(bytes);
+        // Cache to disk too (so user can also access via filesystem)
+        try {
+          final dir = await getTemporaryDirectory();
+          final ts = DateTime.now().millisecondsSinceEpoch;
+          final f = File('${dir.path}/Anregung_Betreuung_$ts.pdf');
+          await f.writeAsBytes(pdfBytes, flush: true);
+          debugPrint('[Anregung] PDF cached at: ${f.path}');
+        } catch (e) { debugPrint('[Anregung] cache write failed (non-fatal): $e'); }
       }
     } catch (e) {
       errorMsg = 'Fehler: $e';
     } finally {
-      // Spinner OFF before opening the PDF — OpenFilex blocks until viewer closes
-      // on some platforms (desktop), and we don't want the button stuck.
       if (mounted) setState(() => _generating = false);
     }
 
@@ -1487,45 +1490,15 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
       return;
     }
-    if (filePath != null) {
-      debugPrint('[Anregung] PDF saved at: $filePath');
-      // OpenFilex.open does NOT throw — it returns OpenResult. Must check .type.
-      OpenResult? openResult;
-      try {
-        openResult = await OpenFilex.open(filePath);
-        debugPrint('[Anregung] OpenFilex result: type=${openResult.type}, message=${openResult.message}');
-      } catch (e) {
-        debugPrint('[Anregung] OpenFilex threw: $e');
-        openResult = null;
-      }
-      if (!mounted) return;
-      if (openResult == null || openResult.type != ResultType.done) {
-        // Open failed — show snackbar with path so user can find the PDF manually
-        final errType = openResult?.type.toString().split('.').last ?? 'unknown';
-        final errMsg = openResult?.message ?? 'OpenFilex Exception';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          duration: const Duration(seconds: 12),
-          backgroundColor: Colors.orange.shade700,
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('PDF konnte nicht automatisch geöffnet werden ($errType): $errMsg',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('Datei abgelegt unter:\n$filePath',
-              style: const TextStyle(color: Colors.white, fontSize: 11)),
-          ]),
-          action: SnackBarAction(
-            label: 'KOPIEREN',
-            textColor: Colors.white,
-            onPressed: () { Clipboard.setData(ClipboardData(text: filePath!)); },
-          ),
-        ));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('PDF generiert & geöffnet'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ));
-      }
+    if (pdfBytes != null) {
+      // Show in-app PDF viewer with pdfrx — works on all platforms without
+      // depending on external apps (xdg-open / Okular / Adobe Reader).
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      await FileViewerDialog.showFromBytes(
+        context,
+        pdfBytes,
+        'Anregung_Betreuung_$ts.pdf',
+      );
     }
   }
 
