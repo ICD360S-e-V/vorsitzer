@@ -1450,25 +1450,48 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
   }
 
   Future<void> _generateAndOpen() async {
-    await _save();
-    if (!mounted) return;
-    setState(() => _generating = true);
+    // Spinner ON from the very beginning — covers _save + PDF download + file write.
+    if (mounted) setState(() => _generating = true);
+
+    String? filePath;
+    String? errorMsg;
+
     try {
-      final bytes = await widget.apiService.downloadAnregungBetreuerPdf(vorfallId: widget.vorfallId, userId: widget.userId);
+      await _save();
       if (!mounted) return;
-      if (bytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF-Generierung fehlgeschlagen'), backgroundColor: Colors.red));
-        return;
+
+      final bytes = await widget.apiService.downloadAnregungBetreuerPdf(
+        vorfallId: widget.vorfallId, userId: widget.userId,
+      );
+      if (!mounted) return;
+      if (bytes == null || bytes.isEmpty) {
+        errorMsg = 'PDF-Generierung fehlgeschlagen (Server lieferte keine Daten oder Zeitüberschreitung).';
+      } else {
+        final dir = await getTemporaryDirectory();
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final f = File('${dir.path}/Anregung_Betreuung_$ts.pdf');
+        await f.writeAsBytes(bytes, flush: true);
+        filePath = f.path;
       }
-      final dir = await getTemporaryDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final f = File('${dir.path}/Anregung_Betreuung_$ts.pdf');
-      await f.writeAsBytes(bytes, flush: true);
-      await OpenFilex.open(f.path);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+      errorMsg = 'Fehler: $e';
     } finally {
+      // Spinner OFF before opening the PDF — OpenFilex blocks until viewer closes
+      // on some platforms (desktop), and we don't want the button stuck.
       if (mounted) setState(() => _generating = false);
+    }
+
+    if (!mounted) return;
+    if (errorMsg != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
+      return;
+    }
+    if (filePath != null) {
+      try {
+        await OpenFilex.open(filePath);
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF konnte nicht geöffnet werden: $e'), backgroundColor: Colors.orange));
+      }
     }
   }
 

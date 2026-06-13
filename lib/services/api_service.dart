@@ -464,11 +464,12 @@ class ApiService {
   }
 
   /// Download the filled PDF as bytes (for save-to-disk in the app).
+  /// Timeout: 120s. Returns `bytes` on success, `null` on HTTP error.
   Future<List<int>?> downloadAnregungBetreuerPdf({required int vorfallId, required int userId}) async {
     final response = await _client.get(
       Uri.parse(anregungBetreuerPdfUrl(vorfallId: vorfallId, userId: userId)),
       headers: _headers,
-    ).timeout(const Duration(seconds: 30));
+    ).timeout(const Duration(seconds: 120));
     if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
       return response.bodyBytes;
     }
