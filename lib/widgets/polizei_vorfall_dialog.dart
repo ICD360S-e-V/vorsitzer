@@ -382,7 +382,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
             ]),
             Padding(padding: const EdgeInsets.only(top: 4, bottom: 8),
               child: Text(
-                'Nur PDF / JPG / JPEG. Wird vom Polizeirevier nach Anzeigenaufnahme ausgestellt (§ 158 Abs. 1 S. 3 StPO).',
+                'PDF / JPG / JPEG, mehrseitige Bescheinigungen können als mehrere Bilder gleichzeitig hochgeladen werden. Wird vom Polizeirevier nach Anzeigenaufnahme ausgestellt (§ 158 Abs. 1 S. 3 StPO).',
                 style: TextStyle(fontSize: 10, color: Colors.indigo.shade700, fontStyle: FontStyle.italic),
               )),
             docList(bescheinigungen, 'Noch keine Bescheinigung hochgeladen.'),
@@ -412,13 +412,13 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
       allowedExtensions: isBescheinigung
           ? const ['pdf', 'jpg', 'jpeg']
           : const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp', 'doc', 'docx'],
-      allowMultiple: !isBescheinigung,
+      allowMultiple: true,
       dialogTitle: isBescheinigung
-          ? 'Bescheinigung auswählen (PDF / JPG / JPEG)'
+          ? 'Bescheinigung auswählen (PDF / JPG / JPEG, mehrere Seiten erlaubt)'
           : 'Dokumente auswählen (max 20)',
     );
     if (result == null || result.files.isEmpty) return;
-    final paths = result.files.where((f) => f.path != null).take(isBescheinigung ? 1 : 20).map((f) => f.path!).toList();
+    final paths = result.files.where((f) => f.path != null).take(20).map((f) => f.path!).toList();
     if (paths.isEmpty) return;
 
     setState(() => _uploading = true);
