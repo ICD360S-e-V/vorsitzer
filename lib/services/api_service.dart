@@ -427,6 +427,54 @@ class ApiService {
   // Admin register new member (status: neu)
   // For role=jugendmitglied the server auto-generates internal placeholder
   // email + password (no login possible) when those fields are omitted.
+  // ========== ANREGUNG BETREUER (Betreuungsgericht-Vorfall) ==========
+
+  /// Load saved input config + auto-derived defaults from vormund_typ.
+  /// Returns: { input: {...} | null, target: {...}, vormund: {...} | null, defaults: {...} }
+  Future<Map<String, dynamic>> loadAnregungBetreuerInput({required int vorfallId, required int userId}) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/anregung_betreuer.php?action=load&vorfall_id=$vorfallId&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Save the input config (upsert per vorfall_id).
+  Future<Map<String, dynamic>> saveAnregungBetreuerInput({
+    required int vorfallId,
+    required int userId,
+    required Map<String, dynamic> input,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/anregung_betreuer.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'save',
+        'vorfall_id': vorfallId,
+        'user_id': userId,
+        'input': input,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Returns the URL to download the generated, filled PDF.
+  String anregungBetreuerPdfUrl({required int vorfallId, required int userId}) {
+    return '$baseUrl/admin/anregung_betreuer.php?action=generate&vorfall_id=$vorfallId&user_id=$userId';
+  }
+
+  /// Download the filled PDF as bytes (for save-to-disk in the app).
+  Future<List<int>?> downloadAnregungBetreuerPdf({required int vorfallId, required int userId}) async {
+    final response = await _client.get(
+      Uri.parse(anregungBetreuerPdfUrl(vorfallId: vorfallId, userId: userId)),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+      return response.bodyBytes;
+    }
+    return null;
+  }
+
   // ========== VORMUND-KIND-VERKNÜPFUNG ==========
 
   /// Search members for linking as Kind to another member.

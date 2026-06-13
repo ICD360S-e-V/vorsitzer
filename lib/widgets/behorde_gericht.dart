@@ -459,7 +459,9 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   Widget build(BuildContext context) {
     final v = widget.vorfall;
     final status = v['status']?.toString() ?? 'offen';
-    return DefaultTabController(length: 7, child: Column(children: [
+    final isBetreuung = widget.gerichtTyp == 'betreuungsgericht';
+    final tabCount = isBetreuung ? 8 : 7;
+    return DefaultTabController(length: tabCount, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: widget.color.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -473,17 +475,24 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: widget.color.shade700, indicatorColor: widget.color.shade700, isScrollable: true, tabs: const [
-        Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
-        Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
-        Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
-        Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
-        Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
-        Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
-        Tab(icon: Icon(Icons.balance, size: 18), text: 'Klage'),
+      TabBar(labelColor: widget.color.shade700, indicatorColor: widget.color.shade700, isScrollable: true, tabs: [
+        const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+        if (isBetreuung) const Tab(icon: Icon(Icons.assignment, size: 18), text: 'Antrag Generator'),
+        const Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
+        const Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
+        const Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
+        const Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+        const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
+        const Tab(icon: Icon(Icons.balance, size: 18), text: 'Klage'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
+        if (isBetreuung) _AnregungBetreuerTab(
+          apiService: widget.apiService,
+          vorfallId: widget.vorfallId,
+          userId: widget.userId,
+          color: widget.color,
+        ),
         _buildDokumente(),
         _buildVerlaufUnified(v),
         _buildTermine(),
@@ -1328,5 +1337,320 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
 
   String _sLabel(String s) {
     switch (s) { case 'offen': return 'Offen'; case 'in_bearbeitung': return 'In Bearbeitung'; case 'bewilligt': return 'Bewilligt'; case 'abgelehnt': return 'Abgelehnt'; case 'erledigt': return 'Erledigt'; default: return s; }
+  }
+}
+
+// ============================================================================
+// Anregung Betreuer-Tab — Antrag Generator für Betreuungsgericht-Vorfall.
+// Befüllt den offiziellen Bayern-Vordruck "Anregung zur Bestellung eines
+// Betreuers" mit den Daten Vormund (Absender) + Mitglied (Betroffene Person)
+// + Aufgabenbereiche-Auswahl, und liefert das fertige PDF zurück.
+// ============================================================================
+
+class _AnregungBetreuerTab extends StatefulWidget {
+  final ApiService apiService;
+  final int vorfallId;
+  final int userId;
+  final MaterialColor color;
+  const _AnregungBetreuerTab({required this.apiService, required this.vorfallId, required this.userId, required this.color});
+  @override
+  State<_AnregungBetreuerTab> createState() => _AnregungBetreuerTabState();
+}
+
+class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
+  bool _loading = true;
+  bool _saving = false;
+  bool _generating = false;
+  Map<String, dynamic>? _target;
+  Map<String, dynamic>? _vormund;
+  Map<String, dynamic>? _defaults;
+
+  String _verhaeltnisTyp = 'verwandt';
+  final _verwandtschaftC = TextEditingController();
+  final _artKontaktC = TextEditingController();
+  final _aufgabenSonstigesTextC = TextEditingController();
+  final _eilbedGrundC = TextEditingController();
+
+  final Map<String, bool> _aufgaben = {
+    'gesundheit': false,
+    'vermoegen': false,
+    'aufenthalt': false,
+    'wohnung': false,
+    'haus_grund': false,
+    'vertretung': false,
+    'ambulant': false,
+    'heim': false,
+    'geschlossene_unterbringung': false,
+    'freiheitsentziehend': false,
+    'rechte_bevollm': false,
+    'post': false,
+    'sonstiges': false,
+  };
+  bool _eilbeduerftigkeit = false;
+  bool _anlageVollmachten = false;
+  bool _anlageAerztlStellung = false;
+
+  static const _aufgabenLabels = {
+    'gesundheit': 'Gesundheitssorge',
+    'vermoegen': 'Vermögenssorge',
+    'aufenthalt': 'Aufenthaltsbestimmung',
+    'wohnung': 'Wohnungsangelegenheiten',
+    'haus_grund': 'Haus- und Grundstücksangelegenheiten',
+    'vertretung': 'Vertretung gegenüber Behörden, Versicherungen, Renten-, Kranken- und Sozialleistungsträgern',
+    'ambulant': 'Organisation der ambulanten Versorgung',
+    'heim': 'Abschluss, Änderung und Kontrolle eines Heim- oder Pflegevertrages',
+    'geschlossene_unterbringung': 'Entscheidung über die geschlossene Unterbringung',
+    'freiheitsentziehend': 'Entscheidung über freiheitsentziehende Maßnahmen',
+    'rechte_bevollm': 'Geltendmachung von Rechten gegenüber dem Bevollmächtigten',
+    'post': 'Entgegennahme, Öffnen und Anhalten der Post im Rahmen der übertragenen Aufgabenbereiche',
+    'sonstiges': 'Sonstiges',
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  @override
+  void dispose() {
+    _verwandtschaftC.dispose();
+    _artKontaktC.dispose();
+    _aufgabenSonstigesTextC.dispose();
+    _eilbedGrundC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final r = await widget.apiService.loadAnregungBetreuerInput(vorfallId: widget.vorfallId, userId: widget.userId);
+      if (r['success'] == true) {
+        _target  = r['target']  is Map ? Map<String, dynamic>.from(r['target']  as Map) : null;
+        _vormund = r['vormund'] is Map ? Map<String, dynamic>.from(r['vormund'] as Map) : null;
+        _defaults= r['defaults']is Map ? Map<String, dynamic>.from(r['defaults']as Map) : null;
+        final input = r['input'] is Map ? Map<String, dynamic>.from(r['input'] as Map) : null;
+        if (input != null) {
+          _verhaeltnisTyp = input['verhaeltnis_typ']?.toString() ?? 'verwandt';
+          _verwandtschaftC.text = input['verwandtschaftsverhaeltnis']?.toString() ?? '';
+          _artKontaktC.text = input['art_des_kontakts']?.toString() ?? '';
+          _aufgaben['gesundheit'] = (input['aufgaben_gesundheit'] ?? 0).toString() == '1';
+          _aufgaben['vermoegen'] = (input['aufgaben_vermoegen'] ?? 0).toString() == '1';
+          _aufgaben['aufenthalt'] = (input['aufgaben_aufenthalt'] ?? 0).toString() == '1';
+          _aufgaben['wohnung'] = (input['aufgaben_wohnung'] ?? 0).toString() == '1';
+          _aufgaben['haus_grund'] = (input['aufgaben_haus_grund'] ?? 0).toString() == '1';
+          _aufgaben['vertretung'] = (input['aufgaben_vertretung'] ?? 0).toString() == '1';
+          _aufgaben['ambulant'] = (input['aufgaben_ambulant'] ?? 0).toString() == '1';
+          _aufgaben['heim'] = (input['aufgaben_heim'] ?? 0).toString() == '1';
+          _aufgaben['geschlossene_unterbringung'] = (input['aufgaben_geschlossene_unterbringung'] ?? 0).toString() == '1';
+          _aufgaben['freiheitsentziehend'] = (input['aufgaben_freiheitsentziehend'] ?? 0).toString() == '1';
+          _aufgaben['rechte_bevollm'] = (input['aufgaben_rechte_bevollm'] ?? 0).toString() == '1';
+          _aufgaben['post'] = (input['aufgaben_post'] ?? 0).toString() == '1';
+          _aufgaben['sonstiges'] = (input['aufgaben_sonstiges'] ?? 0).toString() == '1';
+          _aufgabenSonstigesTextC.text = input['aufgaben_sonstiges_text']?.toString() ?? '';
+          _eilbeduerftigkeit = (input['eilbeduerftigkeit'] ?? 0).toString() == '1';
+          _eilbedGrundC.text = input['eilbeduerftigkeit_grund']?.toString() ?? '';
+          _anlageVollmachten = (input['anlage_vollmachten'] ?? 0).toString() == '1';
+          _anlageAerztlStellung = (input['anlage_aerztl_stellung'] ?? 0).toString() == '1';
+        } else if (_defaults != null) {
+          _verhaeltnisTyp = _defaults!['verhaeltnis_typ']?.toString() ?? 'verwandt';
+          _artKontaktC.text = _defaults!['art_des_kontakts_default']?.toString() ?? '';
+        }
+      }
+    } catch (e) { debugPrint('[AnregungBetreuer] load: $e'); }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final input = {
+      'verhaeltnis_typ': _verhaeltnisTyp,
+      'verwandtschaftsverhaeltnis': _verwandtschaftC.text.trim(),
+      'art_des_kontakts': _artKontaktC.text.trim(),
+      'aufgaben_gesundheit': _aufgaben['gesundheit']! ? 1 : 0,
+      'aufgaben_vermoegen': _aufgaben['vermoegen']! ? 1 : 0,
+      'aufgaben_aufenthalt': _aufgaben['aufenthalt']! ? 1 : 0,
+      'aufgaben_wohnung': _aufgaben['wohnung']! ? 1 : 0,
+      'aufgaben_haus_grund': _aufgaben['haus_grund']! ? 1 : 0,
+      'aufgaben_vertretung': _aufgaben['vertretung']! ? 1 : 0,
+      'aufgaben_ambulant': _aufgaben['ambulant']! ? 1 : 0,
+      'aufgaben_heim': _aufgaben['heim']! ? 1 : 0,
+      'aufgaben_geschlossene_unterbringung': _aufgaben['geschlossene_unterbringung']! ? 1 : 0,
+      'aufgaben_freiheitsentziehend': _aufgaben['freiheitsentziehend']! ? 1 : 0,
+      'aufgaben_rechte_bevollm': _aufgaben['rechte_bevollm']! ? 1 : 0,
+      'aufgaben_post': _aufgaben['post']! ? 1 : 0,
+      'aufgaben_sonstiges': _aufgaben['sonstiges']! ? 1 : 0,
+      'aufgaben_sonstiges_text': _aufgabenSonstigesTextC.text.trim(),
+      'eilbeduerftigkeit': _eilbeduerftigkeit ? 1 : 0,
+      'eilbeduerftigkeit_grund': _eilbedGrundC.text.trim(),
+      'anlage_vollmachten': _anlageVollmachten ? 1 : 0,
+      'anlage_aerztl_stellung': _anlageAerztlStellung ? 1 : 0,
+    };
+    final r = await widget.apiService.saveAnregungBetreuerInput(vorfallId: widget.vorfallId, userId: widget.userId, input: input);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r['message']?.toString() ?? (r['success'] == true ? 'Gespeichert' : 'Fehler')),
+      backgroundColor: r['success'] == true ? Colors.green : Colors.red,
+    ));
+  }
+
+  Future<void> _generateAndOpen() async {
+    await _save();
+    if (!mounted) return;
+    setState(() => _generating = true);
+    try {
+      final bytes = await widget.apiService.downloadAnregungBetreuerPdf(vorfallId: widget.vorfallId, userId: widget.userId);
+      if (!mounted) return;
+      if (bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF-Generierung fehlgeschlagen'), backgroundColor: Colors.red));
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final f = File('${dir.path}/Anregung_Betreuung_$ts.pdf');
+      await f.writeAsBytes(bytes, flush: true);
+      await OpenFilex.open(f.path);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Widget _section(String title) => Padding(padding: const EdgeInsets.only(top: 14, bottom: 6),
+    child: Row(children: [
+      Container(width: 4, height: 16, color: widget.color.shade400),
+      const SizedBox(width: 8),
+      Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: widget.color.shade800)),
+    ]));
+
+  Widget _info(String label, String? value) {
+    final v = (value ?? '').trim();
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
+      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      Expanded(child: Text(v.isEmpty ? '—' : v, style: TextStyle(fontSize: 12, color: v.isEmpty ? Colors.grey.shade400 : null))),
+    ]));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final hasVormund = _vormund != null;
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: widget.color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: widget.color.shade200)),
+        child: Row(children: [
+          Icon(Icons.gavel, color: widget.color.shade700, size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            'Anregung zur Bestellung eines Betreuers — Vordruck Bayerisches Staatsministerium der Justiz, einzureichen bei Amtsgericht Neu-Ulm (Betreuungsgericht).',
+            style: TextStyle(fontSize: 11, color: widget.color.shade900))),
+        ])),
+      const SizedBox(height: 14),
+      if (!hasVormund) Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+        child: Row(children: [
+          Icon(Icons.warning_amber, color: Colors.orange.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            'Dieses Mitglied hat keinen Vormund verknüpft. Der Antragsteller (Absender) kann nicht automatisch befüllt werden. Bitte zuerst unter dem Vormund-Konto eine Verknüpfung anlegen.',
+            style: TextStyle(fontSize: 12, color: Colors.orange.shade900))),
+        ]),
+      ),
+
+      _section('Absender — Antragsteller (Vormund / Betreuer)'),
+      if (hasVormund) ...[
+        _info('Name, Vorname', '${_vormund!['nachname'] ?? ''}, ${_vormund!['vorname'] ?? ''}'),
+        _info('Straße, Hausnr.', '${_vormund!['strasse'] ?? ''} ${_vormund!['hausnummer'] ?? ''}'),
+        _info('PLZ, Ort', '${_vormund!['plz'] ?? ''} ${_vormund!['ort'] ?? ''}'),
+        _info('Telefon mobil', _vormund!['telefon_mobil']?.toString()),
+        _info('Telefon Festnetz', _vormund!['telefon_fix']?.toString()),
+        _info('E-Mail', _vormund!['email']?.toString()),
+      ],
+
+      _section('Betroffene Person — Mitglied'),
+      if (_target != null) ...[
+        _info('Name, Vorname', '${_target!['nachname'] ?? ''}, ${_target!['vorname'] ?? ''}'),
+        _info('Geburtsdatum', _target!['geburtsdatum']?.toString()),
+        _info('Straße, Hausnr.', '${_target!['strasse'] ?? ''} ${_target!['hausnummer'] ?? ''}'),
+        _info('PLZ, Wohnort', '${_target!['plz'] ?? ''} ${_target!['ort'] ?? ''}'),
+        _info('Telefon mobil', _target!['telefon_mobil']?.toString()),
+        _info('Telefon Festnetz', _target!['telefon_fix']?.toString()),
+        _info('E-Mail', _target!['email']?.toString()),
+      ],
+
+      _section('Verhältnis zur betroffenen Person'),
+      Wrap(spacing: 8, children: [
+        ChoiceChip(label: const Text('verwandt'), selected: _verhaeltnisTyp == 'verwandt', onSelected: (_) => setState(() => _verhaeltnisTyp = 'verwandt')),
+        ChoiceChip(label: const Text('bekannt / befreundet'), selected: _verhaeltnisTyp == 'befreundet', onSelected: (_) => setState(() => _verhaeltnisTyp = 'befreundet')),
+        ChoiceChip(label: const Text('beruflich'), selected: _verhaeltnisTyp == 'beruflich', onSelected: (_) => setState(() => _verhaeltnisTyp = 'beruflich')),
+      ]),
+      if (_verhaeltnisTyp == 'verwandt') Padding(padding: const EdgeInsets.only(top: 8),
+        child: TextField(controller: _verwandtschaftC, decoration: const InputDecoration(
+          labelText: 'Verwandtschaftsverhältnis (Vater / Mutter / Sohn / Tochter / ...)',
+          isDense: true, border: OutlineInputBorder()))),
+      if (_verhaeltnisTyp == 'beruflich') Padding(padding: const EdgeInsets.only(top: 8),
+        child: TextField(controller: _artKontaktC, decoration: const InputDecoration(
+          labelText: 'Art des Kontakts (z.B. Behörde, Arzt, Sozialdienst, Berufsbetreuer)',
+          isDense: true, border: OutlineInputBorder()))),
+
+      _section('Aufgabenbereiche des Betreuers'),
+      ...['gesundheit','vermoegen','aufenthalt','wohnung','haus_grund','vertretung','ambulant','heim','geschlossene_unterbringung','freiheitsentziehend','rechte_bevollm','post','sonstiges']
+          .map((k) => CheckboxListTile(
+                dense: true, contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(_aufgabenLabels[k]!, style: const TextStyle(fontSize: 12)),
+                value: _aufgaben[k]!,
+                onChanged: (v) => setState(() => _aufgaben[k] = v ?? false),
+              )),
+      if (_aufgaben['sonstiges']!) Padding(padding: const EdgeInsets.only(top: 6),
+        child: TextField(controller: _aufgabenSonstigesTextC, decoration: const InputDecoration(
+          labelText: 'Sonstige Aufgabenbereiche (Freitext)', isDense: true, border: OutlineInputBorder()))),
+
+      _section('Eilbedürftigkeit'),
+      CheckboxListTile(
+        dense: true, contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        title: const Text('Es besteht besondere Eilbedürftigkeit', style: TextStyle(fontSize: 12)),
+        value: _eilbeduerftigkeit,
+        onChanged: (v) => setState(() => _eilbeduerftigkeit = v ?? false),
+      ),
+      if (_eilbeduerftigkeit) Padding(padding: const EdgeInsets.only(top: 4),
+        child: TextField(controller: _eilbedGrundC, maxLines: 2, decoration: const InputDecoration(
+          labelText: 'Begründung der Eilbedürftigkeit', isDense: true, border: OutlineInputBorder()))),
+
+      _section('Anlagen'),
+      CheckboxListTile(
+        dense: true, contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        title: const Text('Vollmacht/en in Kopie', style: TextStyle(fontSize: 12)),
+        value: _anlageVollmachten,
+        onChanged: (v) => setState(() => _anlageVollmachten = v ?? false),
+      ),
+      CheckboxListTile(
+        dense: true, contentPadding: EdgeInsets.zero,
+        controlAffinity: ListTileControlAffinity.leading,
+        title: const Text('Ärztliche Stellungnahme in Kopie', style: TextStyle(fontSize: 12)),
+        value: _anlageAerztlStellung,
+        onChanged: (v) => setState(() => _anlageAerztlStellung = v ?? false),
+      ),
+
+      const SizedBox(height: 18),
+      Row(children: [
+        OutlinedButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: ElevatedButton.icon(
+          onPressed: (_generating || !hasVormund) ? null : _generateAndOpen,
+          icon: _generating ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.picture_as_pdf, size: 16),
+          label: const Text('PDF generieren & öffnen'),
+          style: ElevatedButton.styleFrom(backgroundColor: widget.color.shade700, foregroundColor: Colors.white),
+        )),
+      ]),
+      const SizedBox(height: 20),
+    ]));
   }
 }
