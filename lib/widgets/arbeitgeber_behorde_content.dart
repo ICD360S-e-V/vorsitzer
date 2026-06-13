@@ -42,6 +42,38 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   final String _selectedArbeitgeberId = '';
   late TabController _mainTabC;
 
+  // Accepts ISO YYYY-MM-DD, German DD.MM.YYYY, "MM.YYYY" and bare "YYYY".
+  // Used to sort Arbeitgeber lists newest-first by vertragsbeginn.
+  DateTime? _parseAgDate(dynamic v) {
+    final s = v?.toString().trim() ?? '';
+    if (s.isEmpty || s.toLowerCase() == 'null') return null;
+    final iso = DateTime.tryParse(s);
+    if (iso != null) return iso;
+    final m = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(s);
+    if (m != null) {
+      try { return DateTime(int.parse(m.group(3)!), int.parse(m.group(2)!), int.parse(m.group(1)!)); } catch (_) {}
+    }
+    final mm = RegExp(r'^(\d{1,2})\.(\d{4})$').firstMatch(s);
+    if (mm != null) {
+      try { return DateTime(int.parse(mm.group(2)!), int.parse(mm.group(1)!), 1); } catch (_) {}
+    }
+    final y = RegExp(r'^(\d{4})$').firstMatch(s);
+    if (y != null) {
+      final yr = int.tryParse(y.group(1)!);
+      if (yr != null) return DateTime(yr, 1, 1);
+    }
+    return null;
+  }
+
+  int _compareAgChronological(Map<String, dynamic> a, Map<String, dynamic> b) {
+    bool aktuell(Map<String, dynamic> x) => x['aktuell'] == true || x['aktuell'] == 'true' || x['aktuell'] == 1 || x['aktuell'] == '1';
+    final aA = aktuell(a), bA = aktuell(b);
+    if (aA != bA) return aA ? -1 : 1;
+    final aD = _parseAgDate(a['vertragsbeginn']) ?? DateTime(1900);
+    final bD = _parseAgDate(b['vertragsbeginn']) ?? DateTime(1900);
+    return bD.compareTo(aD);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2253,9 +2285,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
   Widget _buildZustaendigerTab() {
     return StatefulBuilder(builder: (ctx, setLocal) {
-      final vollzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && (a['art']?.toString() ?? 'vollzeit') == 'vollzeit').toList();
-      final teilzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'teilzeit').toList();
-      final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList();
+      final vollzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && (a['art']?.toString() ?? 'vollzeit') == 'vollzeit').toList()..sort(_compareAgChronological);
+      final teilzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'teilzeit').toList()..sort(_compareAgChronological);
+      final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList()..sort(_compareAgChronological);
 
       Widget section(String label, IconData icon, MaterialColor color, List<Map<String, dynamic>> list, String artKey) {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3054,6 +3086,10 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               Builder(builder: (_) {
                 final vollzeitList = arbeitgeber.where((a) => (a['art']?.toString() ?? 'vollzeit') != 'minijob').toList();
                 final minijobList = arbeitgeber.where((a) => a['art']?.toString() == 'minijob').toList();
+                // Sort chronologically: aktuell first, then vertragsbeginn DESC
+                // (newest job at the top — matches a CV reverse-chronological order).
+                vollzeitList.sort(_compareAgChronological);
+                minijobList.sort(_compareAgChronological);
                 return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
               // ── VOLLZEIT SECTION ──
