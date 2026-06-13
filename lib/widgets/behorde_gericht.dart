@@ -658,6 +658,56 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   }
 
   // ── KORRESPONDENZ ──
+  String _methodeLabel(String m) {
+    switch (m) {
+      case 'email': return 'E-Mail';
+      case 'post': return 'Post';
+      case 'online': return 'Online';
+      case 'persoenlich': return 'Persönlich';
+      case 'fax': return 'Fax';
+      case 'telefon': return 'Telefon';
+      default: return m.isEmpty ? '' : m;
+    }
+  }
+
+  IconData _methodeIcon(String m) {
+    switch (m) {
+      case 'email': return Icons.email;
+      case 'post': return Icons.mail;
+      case 'online': return Icons.language;
+      case 'persoenlich': return Icons.person;
+      case 'fax': return Icons.fax;
+      case 'telefon': return Icons.phone;
+      default: return Icons.help_outline;
+    }
+  }
+
+  MaterialColor _methodeColor(String m) {
+    switch (m) {
+      case 'email': return Colors.cyan;
+      case 'post': return Colors.brown;
+      case 'online': return Colors.deepPurple;
+      case 'persoenlich': return Colors.amber;
+      case 'fax': return Colors.grey;
+      case 'telefon': return Colors.teal;
+      default: return Colors.blueGrey;
+    }
+  }
+
+  Widget _methodeBadge(String methode) {
+    if (methode.isEmpty) return const SizedBox.shrink();
+    final c = _methodeColor(methode);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: c.shade300, width: 1)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(_methodeIcon(methode), size: 11, color: c.shade700),
+        const SizedBox(width: 3),
+        Text(_methodeLabel(methode), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: c.shade800)),
+      ]),
+    );
+  }
+
   Widget _buildKorrespondenz() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
@@ -673,14 +723,24 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
+            final methode = k['methode']?.toString() ?? '';
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
               child: Row(children: [
                 Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
-                  Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                  if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800))),
+                    if (methode.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 4), child: _methodeBadge(methode)),
+                  ]),
+                  const SizedBox(height: 2),
+                  Row(children: [
+                    Icon(Icons.calendar_today, size: 11, color: Colors.grey.shade500),
+                    const SizedBox(width: 4),
+                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  ]),
+                  if ((k['notiz']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
+                    child: Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
                   if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
                     child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gericht_vorfall', korrespondenzId: k['id'] as int)),
                 ])),
@@ -1150,11 +1210,18 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       final d = _parseDate(e['datum']);
       if (d != null) items.add((d, Icons.edit_note, e['notiz']?.toString() ?? _sLabel(e['status']?.toString() ?? ''), fmt(d), widget.color));
     }
-    // Korrespondenz (Eingang / Ausgang)
+    // Korrespondenz (Eingang / Ausgang) — mit Methode in Label
     for (final k in _korr) {
       final d = _parseDate(k['datum']);
       final isEin = k['richtung'] == 'eingang';
-      if (d != null) items.add((d, isEin ? Icons.call_received : Icons.call_made, '${isEin ? "Eingang" : "Ausgang"}: ${k['betreff'] ?? ''}', fmt(d), isEin ? Colors.green : Colors.blue));
+      final methode = k['methode']?.toString() ?? '';
+      final methodeLabel = _methodeLabel(methode);
+      final betreff = k['betreff']?.toString() ?? '';
+      final dirLabel = isEin ? 'Eingang' : 'Ausgang';
+      final label = methodeLabel.isNotEmpty
+          ? '$dirLabel · $methodeLabel: $betreff'
+          : '$dirLabel: $betreff';
+      if (d != null) items.add((d, isEin ? Icons.call_received : Icons.call_made, label, fmt(d), isEin ? Colors.green : Colors.blue));
     }
     // Termine (geplante Termine)
     for (final t in _termine) {
