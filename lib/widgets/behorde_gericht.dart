@@ -540,50 +540,73 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     ]));
   }
 
-  // ── DOKUMENTE ──
+  // ── DOKUMENTE (kategorisiert) ──
   Widget _buildDokumente() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.folder, size: 20, color: widget.color.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Dokumente (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: widget.color.shade700))),
-        ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
-          style: ElevatedButton.styleFrom(backgroundColor: widget.color, foregroundColor: Colors.white)),
-      ])),
-      Expanded(child: _docs.isEmpty
-        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Dokumente', style: TextStyle(color: Colors.grey.shade500))]))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) {
-            final d = _docs[i];
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: widget.color.shade200)),
-              child: Row(children: [
-                Icon(Icons.attach_file, size: 18, color: widget.color.shade700), const SizedBox(width: 8),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.color.shade800)),
-                  if ((d['created_at']?.toString() ?? '').isNotEmpty) Text(d['created_at'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                ])),
-                IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Anzeigen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
-                  try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); } } catch (_) {}
-                }),
-                IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
-                  try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); await OpenFilex.open(file.path); } } catch (_) {}
-                }),
-                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
-                  await widget.apiService.deleteGerichtVorfallDoc(d['id'] as int); _load();
-                }),
-              ]),
-            );
-          })),
-    ]);
+    final antragDocs   = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'antrag').toList();
+    final sonstigeDocs = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'sonstiges').toList();
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _buildDokSection('Antrag', Icons.assignment, antragDocs, 'antrag',
+        hint: 'Generierter Anregung-Antrag, Anlagen zum Antrag (Vollmachten, ärztliche Stellungnahme, Kopien)'),
+      _buildDokSection('Sonstiges', Icons.folder, sonstigeDocs, 'sonstiges',
+        hint: 'Alle anderen Dokumente ohne feste Kategorie'),
+    ]));
   }
 
-  Future<void> _uploadDoc() async {
+  Widget _buildDokSection(String title, IconData icon, List<Map<String, dynamic>> docs, String kategorie, {String? hint}) {
+    return Container(margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: widget.color.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(color: widget.color.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(10))),
+          child: Row(children: [
+            Icon(icon, size: 18, color: widget.color.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('$title (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: widget.color.shade800)),
+              if (hint != null) Text(hint, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            ])),
+            ElevatedButton.icon(
+              onPressed: () => _uploadDoc(kategorie),
+              icon: const Icon(Icons.upload_file, size: 14),
+              label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
+              style: ElevatedButton.styleFrom(backgroundColor: widget.color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+            ),
+          ])),
+        if (docs.isEmpty) Padding(padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            Icon(Icons.inbox, size: 18, color: Colors.grey.shade400),
+            const SizedBox(width: 8),
+            Text('Keine Dokumente', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          ])),
+        ...docs.map((d) => Padding(padding: const EdgeInsets.fromLTRB(12, 4, 8, 4), child: Row(children: [
+          Icon(Icons.attach_file, size: 16, color: widget.color.shade700), const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(d['datei_name']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            if ((d['created_at']?.toString() ?? '').isNotEmpty) Text(d['created_at'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          ])),
+          IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Anzeigen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
+            try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); } } catch (_) {}
+          }),
+          IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
+            try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); await OpenFilex.open(file.path); } } catch (_) {}
+          }),
+          IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
+            await widget.apiService.deleteGerichtVorfallDoc(d['id'] as int); _load();
+          }),
+        ]))),
+        const SizedBox(height: 6),
+      ]),
+    );
+  }
+
+  Future<void> _uploadDoc(String kategorie) async {
     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) werden hochgeladen...'), duration: const Duration(seconds: 2)));
     for (final file in files) {
-      await widget.apiService.uploadGerichtVorfallDoc(vorfallId: widget.vorfallId, filePath: file.path!, fileName: file.name);
+      await widget.apiService.uploadGerichtVorfallDoc(vorfallId: widget.vorfallId, filePath: file.path!, fileName: file.name, kategorie: kategorie);
     }
     _load();
   }

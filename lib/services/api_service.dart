@@ -4018,10 +4018,11 @@ class ApiService {
     final r = await _client.get(Uri.parse('$baseUrl/admin/gericht_vorfall_detail.php?vorfall_id=$vorfallId&type=docs'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
-  Future<Map<String, dynamic>> uploadGerichtVorfallDoc({required int vorfallId, required String filePath, required String fileName}) async {
+  Future<Map<String, dynamic>> uploadGerichtVorfallDoc({required int vorfallId, required String filePath, required String fileName, String kategorie = 'sonstiges'}) async {
     final uri = Uri.parse('$baseUrl/admin/gericht_vorfall_detail.php');
     final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
     request.fields['vorfall_id'] = vorfallId.toString(); request.fields['type'] = 'upload_doc';
+    request.fields['kategorie'] = kategorie;
     request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
     final sr = await request.send(); final response = await http.Response.fromStream(sr);
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
