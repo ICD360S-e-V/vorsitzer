@@ -391,12 +391,15 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
   String _getArbeitgeberName() => _arbeitgeberName;
 
   void _showVorfallDetailDialog(int vorfallId, Map<String, dynamic> vorfall, String typ, String label, MaterialColor color, List<String> antragTypen) {
+    final size = MediaQuery.of(context).size;
+    final dialogWidth = (size.width * 0.92).clamp(700.0, 1200.0);
+    final dialogHeight = (size.height * 0.92).clamp(600.0, 1000.0);
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 620, height: 580, child: _GerichtVorfallDetailView(
+        child: SizedBox(width: dialogWidth, height: dialogHeight, child: _GerichtVorfallDetailView(
           apiService: widget.apiService, userId: widget.user.id,
           vorfallId: vorfallId, vorfall: vorfall, gerichtTyp: typ, color: color, antragTypen: antragTypen,
           onEdit: () { Navigator.pop(ctx); _showVorfallDialog(typ, label, color, antragTypen, existing: vorfall); },
@@ -1366,55 +1369,43 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
   Map<String, dynamic>? _defaults;
 
   String _verhaeltnisTyp = 'verwandt';
-  final _verwandtschaftC = TextEditingController();
-  final _artKontaktC = TextEditingController();
-  final _aufgabenSonstigesTextC = TextEditingController();
-  final _eilbedGrundC = TextEditingController();
 
-  final Map<String, bool> _aufgaben = {
-    'gesundheit': false,
-    'vermoegen': false,
-    'aufenthalt': false,
-    'wohnung': false,
-    'haus_grund': false,
-    'vertretung': false,
-    'ambulant': false,
-    'heim': false,
-    'geschlossene_unterbringung': false,
-    'freiheitsentziehend': false,
-    'rechte_bevollm': false,
-    'post': false,
-    'sonstiges': false,
-  };
-  bool _eilbeduerftigkeit = false;
-  bool _anlageVollmachten = false;
-  bool _anlageAerztlStellung = false;
+  // All boolean fields (mirror server BOOL_COLS list)
+  static const _boolKeys = [
+    'aufgaben_gesundheit','aufgaben_vermoegen','aufgaben_aufenthalt','aufgaben_wohnung',
+    'aufgaben_haus_grund','aufgaben_vertretung','aufgaben_ambulant','aufgaben_heim',
+    'aufgaben_geschlossene_unterbringung','aufgaben_freiheitsentziehend','aufgaben_rechte_bevollm',
+    'aufgaben_post','aufgaben_sonstiges',
+    'eilbeduerftigkeit','anlage_vollmachten','anlage_aerztl_stellung',
+    'vollm_nicht_bekannt','vollm_vorsorge','vollm_bank','vollm_in_anhang','vollm_betreuung_notwendig',
+    'vollm_umfasst_nicht','vollm_will_nicht','vollm_verstorben','vollm_nicht_zum_wohl','vollm_uneinig','vollm_sonstiges',
+    'diag_demenz','diag_hirnorganisch','diag_alzheimer','diag_schlaganfall','diag_schizophrenie','diag_psychose',
+    'diag_schaedelhirn','diag_sucht','diag_geistig','diag_mehrfach','diag_depression','aerztl_stellung_vorhanden',
+    'zustand_willen_kund','zustand_willen_nicht','zustand_fortbewegen','zustand_nicht_fortbewegen',
+    'zustand_hilfe_alles','zustand_tuer_nicht',
+    'komm_schwerhoerig','komm_sehbehindert','komm_keine_deutsch',
+    'aufenthalt_wohnung','aufenthalt_anderes',
+    'zugericht_kann','zugericht_nicht',
+    'haltung_nicht_bekannt','haltung_nicht_einverstanden','haltung_einverstanden','haltung_keine_kenntnis',
+  ];
+  // All text fields
+  static const _textKeys = [
+    'verwandtschaftsverhaeltnis','art_des_kontakts',
+    'aufgaben_sonstiges_text','eilbeduerftigkeit_grund',
+    'vollm_sonstiges_text','diag_sonstiges_text',
+    'komm_dolmetscher_sprache','aufenthalt_anderes_text',
+    'wunsch_betreuer','lehnt_betreuer','vertrauenspersonen',
+  ];
 
-  static const _aufgabenLabels = {
-    'gesundheit': 'Gesundheitssorge',
-    'vermoegen': 'Vermögenssorge',
-    'aufenthalt': 'Aufenthaltsbestimmung',
-    'wohnung': 'Wohnungsangelegenheiten',
-    'haus_grund': 'Haus- und Grundstücksangelegenheiten',
-    'vertretung': 'Vertretung gegenüber Behörden, Versicherungen, Renten-, Kranken- und Sozialleistungsträgern',
-    'ambulant': 'Organisation der ambulanten Versorgung',
-    'heim': 'Abschluss, Änderung und Kontrolle eines Heim- oder Pflegevertrages',
-    'geschlossene_unterbringung': 'Entscheidung über die geschlossene Unterbringung',
-    'freiheitsentziehend': 'Entscheidung über freiheitsentziehende Maßnahmen',
-    'rechte_bevollm': 'Geltendmachung von Rechten gegenüber dem Bevollmächtigten',
-    'post': 'Entgegennahme, Öffnen und Anhalten der Post im Rahmen der übertragenen Aufgabenbereiche',
-    'sonstiges': 'Sonstiges',
-  };
+  final Map<String, bool> _bools = {for (final k in _boolKeys) k: false};
+  late final Map<String, TextEditingController> _texts = {for (final k in _textKeys) k: TextEditingController()};
 
   @override
   void initState() { super.initState(); _load(); }
 
   @override
   void dispose() {
-    _verwandtschaftC.dispose();
-    _artKontaktC.dispose();
-    _aufgabenSonstigesTextC.dispose();
-    _eilbedGrundC.dispose();
+    for (final c in _texts.values) { c.dispose(); }
     super.dispose();
   }
 
@@ -1429,29 +1420,15 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
         final input = r['input'] is Map ? Map<String, dynamic>.from(r['input'] as Map) : null;
         if (input != null) {
           _verhaeltnisTyp = input['verhaeltnis_typ']?.toString() ?? 'verwandt';
-          _verwandtschaftC.text = input['verwandtschaftsverhaeltnis']?.toString() ?? '';
-          _artKontaktC.text = input['art_des_kontakts']?.toString() ?? '';
-          _aufgaben['gesundheit'] = (input['aufgaben_gesundheit'] ?? 0).toString() == '1';
-          _aufgaben['vermoegen'] = (input['aufgaben_vermoegen'] ?? 0).toString() == '1';
-          _aufgaben['aufenthalt'] = (input['aufgaben_aufenthalt'] ?? 0).toString() == '1';
-          _aufgaben['wohnung'] = (input['aufgaben_wohnung'] ?? 0).toString() == '1';
-          _aufgaben['haus_grund'] = (input['aufgaben_haus_grund'] ?? 0).toString() == '1';
-          _aufgaben['vertretung'] = (input['aufgaben_vertretung'] ?? 0).toString() == '1';
-          _aufgaben['ambulant'] = (input['aufgaben_ambulant'] ?? 0).toString() == '1';
-          _aufgaben['heim'] = (input['aufgaben_heim'] ?? 0).toString() == '1';
-          _aufgaben['geschlossene_unterbringung'] = (input['aufgaben_geschlossene_unterbringung'] ?? 0).toString() == '1';
-          _aufgaben['freiheitsentziehend'] = (input['aufgaben_freiheitsentziehend'] ?? 0).toString() == '1';
-          _aufgaben['rechte_bevollm'] = (input['aufgaben_rechte_bevollm'] ?? 0).toString() == '1';
-          _aufgaben['post'] = (input['aufgaben_post'] ?? 0).toString() == '1';
-          _aufgaben['sonstiges'] = (input['aufgaben_sonstiges'] ?? 0).toString() == '1';
-          _aufgabenSonstigesTextC.text = input['aufgaben_sonstiges_text']?.toString() ?? '';
-          _eilbeduerftigkeit = (input['eilbeduerftigkeit'] ?? 0).toString() == '1';
-          _eilbedGrundC.text = input['eilbeduerftigkeit_grund']?.toString() ?? '';
-          _anlageVollmachten = (input['anlage_vollmachten'] ?? 0).toString() == '1';
-          _anlageAerztlStellung = (input['anlage_aerztl_stellung'] ?? 0).toString() == '1';
+          for (final k in _boolKeys) {
+            _bools[k] = (input[k] ?? 0).toString() == '1';
+          }
+          for (final k in _textKeys) {
+            _texts[k]!.text = input[k]?.toString() ?? '';
+          }
         } else if (_defaults != null) {
           _verhaeltnisTyp = _defaults!['verhaeltnis_typ']?.toString() ?? 'verwandt';
-          _artKontaktC.text = _defaults!['art_des_kontakts_default']?.toString() ?? '';
+          _texts['art_des_kontakts']!.text = _defaults!['art_des_kontakts_default']?.toString() ?? '';
         }
       }
     } catch (e) { debugPrint('[AnregungBetreuer] load: $e'); }
@@ -1460,29 +1437,9 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    final input = {
-      'verhaeltnis_typ': _verhaeltnisTyp,
-      'verwandtschaftsverhaeltnis': _verwandtschaftC.text.trim(),
-      'art_des_kontakts': _artKontaktC.text.trim(),
-      'aufgaben_gesundheit': _aufgaben['gesundheit']! ? 1 : 0,
-      'aufgaben_vermoegen': _aufgaben['vermoegen']! ? 1 : 0,
-      'aufgaben_aufenthalt': _aufgaben['aufenthalt']! ? 1 : 0,
-      'aufgaben_wohnung': _aufgaben['wohnung']! ? 1 : 0,
-      'aufgaben_haus_grund': _aufgaben['haus_grund']! ? 1 : 0,
-      'aufgaben_vertretung': _aufgaben['vertretung']! ? 1 : 0,
-      'aufgaben_ambulant': _aufgaben['ambulant']! ? 1 : 0,
-      'aufgaben_heim': _aufgaben['heim']! ? 1 : 0,
-      'aufgaben_geschlossene_unterbringung': _aufgaben['geschlossene_unterbringung']! ? 1 : 0,
-      'aufgaben_freiheitsentziehend': _aufgaben['freiheitsentziehend']! ? 1 : 0,
-      'aufgaben_rechte_bevollm': _aufgaben['rechte_bevollm']! ? 1 : 0,
-      'aufgaben_post': _aufgaben['post']! ? 1 : 0,
-      'aufgaben_sonstiges': _aufgaben['sonstiges']! ? 1 : 0,
-      'aufgaben_sonstiges_text': _aufgabenSonstigesTextC.text.trim(),
-      'eilbeduerftigkeit': _eilbeduerftigkeit ? 1 : 0,
-      'eilbeduerftigkeit_grund': _eilbedGrundC.text.trim(),
-      'anlage_vollmachten': _anlageVollmachten ? 1 : 0,
-      'anlage_aerztl_stellung': _anlageAerztlStellung ? 1 : 0,
-    };
+    final input = <String, dynamic>{'verhaeltnis_typ': _verhaeltnisTyp};
+    for (final k in _boolKeys) { input[k] = _bools[k]! ? 1 : 0; }
+    for (final k in _textKeys) { input[k] = _texts[k]!.text.trim(); }
     final r = await widget.apiService.saveAnregungBetreuerInput(vorfallId: widget.vorfallId, userId: widget.userId, input: input);
     if (!mounted) return;
     setState(() => _saving = false);
@@ -1529,6 +1486,17 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
       Expanded(child: Text(v.isEmpty ? '—' : v, style: TextStyle(fontSize: 12, color: v.isEmpty ? Colors.grey.shade400 : null))),
     ]));
   }
+
+  Widget _cb(String key, String label) => CheckboxListTile(
+    dense: true, contentPadding: EdgeInsets.zero,
+    controlAffinity: ListTileControlAffinity.leading,
+    title: Text(label, style: const TextStyle(fontSize: 12)),
+    value: _bools[key]!,
+    onChanged: (v) => setState(() => _bools[key] = v ?? false),
+  );
+
+  Widget _tf(String key, String label, {int maxLines = 1}) => Padding(padding: const EdgeInsets.symmetric(vertical: 4),
+    child: TextField(controller: _texts[key], maxLines: maxLines, decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder())));
 
   @override
   Widget build(BuildContext context) {
@@ -1585,55 +1553,110 @@ class _AnregungBetreuerTabState extends State<_AnregungBetreuerTab> {
         ChoiceChip(label: const Text('bekannt / befreundet'), selected: _verhaeltnisTyp == 'befreundet', onSelected: (_) => setState(() => _verhaeltnisTyp = 'befreundet')),
         ChoiceChip(label: const Text('beruflich'), selected: _verhaeltnisTyp == 'beruflich', onSelected: (_) => setState(() => _verhaeltnisTyp = 'beruflich')),
       ]),
-      if (_verhaeltnisTyp == 'verwandt') Padding(padding: const EdgeInsets.only(top: 8),
-        child: TextField(controller: _verwandtschaftC, decoration: const InputDecoration(
-          labelText: 'Verwandtschaftsverhältnis (Vater / Mutter / Sohn / Tochter / ...)',
-          isDense: true, border: OutlineInputBorder()))),
-      if (_verhaeltnisTyp == 'beruflich') Padding(padding: const EdgeInsets.only(top: 8),
-        child: TextField(controller: _artKontaktC, decoration: const InputDecoration(
-          labelText: 'Art des Kontakts (z.B. Behörde, Arzt, Sozialdienst, Berufsbetreuer)',
-          isDense: true, border: OutlineInputBorder()))),
+      if (_verhaeltnisTyp == 'verwandt') _tf('verwandtschaftsverhaeltnis', 'Verwandtschaftsverhältnis (Vater / Mutter / Sohn / Tochter / ...)'),
+      if (_verhaeltnisTyp == 'beruflich') _tf('art_des_kontakts', 'Art des Kontakts (z.B. Behörde, Arzt, Sozialdienst, Berufsbetreuer)'),
 
+      // ============ VOLLMACHTEN ============
+      _section('Vollmachten'),
+      _cb('vollm_nicht_bekannt', 'Ob Vollmachten bestehen, ist mir nicht bekannt'),
+      _cb('vollm_vorsorge', 'Es besteht eine Vorsorgevollmacht'),
+      _cb('vollm_bank', 'Es besteht eine Bankvollmacht'),
+      _cb('vollm_in_anhang', 'Die bestehende/n Vollmacht/en füge ich in Kopie im Anhang bei'),
+      _cb('vollm_betreuung_notwendig', 'Eine Betreuung ist notwendig, obwohl eine Vollmacht vorhanden ist, denn:'),
+      if (_bools['vollm_betreuung_notwendig']!) ...[
+        Padding(padding: const EdgeInsets.only(left: 24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _cb('vollm_umfasst_nicht', 'die Vollmacht umfasst nicht alle notwendigen Bereiche'),
+          _cb('vollm_will_nicht', 'der/die Bevollmächtigte möchte die Vollmacht nicht mehr ausüben'),
+          _cb('vollm_verstorben', 'der/die Bevollmächtigte ist verstorben oder gesundheitlich nicht in der Lage'),
+          _cb('vollm_nicht_zum_wohl', 'der/die Bevollmächtigte übt die Vollmacht nicht zum Wohl der betroffenen Person aus'),
+          _cb('vollm_uneinig', 'mehrere Bevollmächtigte sind sich über die Ausübung uneinig'),
+          _cb('vollm_sonstiges', 'Sonstiges:'),
+          if (_bools['vollm_sonstiges']!) _tf('vollm_sonstiges_text', 'Sonstiges (Freitext)'),
+        ])),
+      ],
+
+      // ============ DIAGNOSE ============
+      _section('Gesundheitszustand — Diagnose'),
+      _cb('diag_demenz', 'Demenz'),
+      _cb('diag_hirnorganisch', 'Hirnorganisches Psychosyndrom'),
+      _cb('diag_alzheimer', 'Alzheimer Erkrankung'),
+      _cb('diag_schlaganfall', 'Zustand nach Schlaganfall'),
+      _cb('diag_schizophrenie', 'Schizophrenie'),
+      _cb('diag_psychose', 'Psychose'),
+      _cb('diag_schaedelhirn', 'Schädel-Hirn-Trauma'),
+      _cb('diag_sucht', 'Suchtkrankheit'),
+      _cb('diag_geistig', 'Geistige Behinderung'),
+      _cb('diag_mehrfach', 'Mehrfachbehinderung'),
+      _cb('diag_depression', 'Depression bzw. Angststörung'),
+      _tf('diag_sonstiges_text', 'Sonstige Diagnose (Freitext)'),
+      _cb('aerztl_stellung_vorhanden', 'Es liegt eine ärztliche Stellungnahme vor (als Anlage beigefügt)'),
+
+      // ============ ZUSTAND ============
+      _section('Zustand der betroffenen Person'),
+      _cb('zustand_willen_kund', 'kann ihren Willen kundzutun'),
+      _cb('zustand_willen_nicht', 'kann ihren Willen NICHT kundzutun'),
+      _cb('zustand_fortbewegen', 'kann sich fortbewegen'),
+      _cb('zustand_nicht_fortbewegen', 'kann sich NICHT fortbewegen'),
+      _cb('zustand_hilfe_alles', 'ist in allen Bereichen des täglichen Lebens auf Hilfe angewiesen'),
+      _cb('zustand_tuer_nicht', 'wird bei einem Kontaktversuch voraussichtlich die Tür nicht öffnen'),
+
+      // ============ KOMMUNIKATION ============
+      _section('Kommunikationsprobleme'),
+      _cb('komm_schwerhoerig', 'Schwerhörigkeit'),
+      _cb('komm_sehbehindert', 'Sehbehinderung'),
+      _cb('komm_keine_deutsch', 'Unzureichende deutsche Sprachkenntnisse — Dolmetscher erforderlich'),
+      if (_bools['komm_keine_deutsch']!) _tf('komm_dolmetscher_sprache', 'Sprache des Dolmetschers'),
+
+      // ============ AUFENTHALTSORT ============
+      _section('Derzeitiger Aufenthaltsort'),
+      _cb('aufenthalt_wohnung', 'Die betroffene Person ist unter ihrer Wohnanschrift anzutreffen'),
+      _cb('aufenthalt_anderes', 'Die betroffene Person ist derzeit anderweitig anzutreffen:'),
+      if (_bools['aufenthalt_anderes']!) _tf('aufenthalt_anderes_text', 'Einrichtung, Adresse, Ansprechpartner, Station, Telefon (Freitext)', maxLines: 2),
+
+      // ============ ZU GERICHT KOMMEN ============
+      _section('Kann die Person zu Gericht / Sachverständigen kommen?'),
+      _cb('zugericht_kann', 'kann kommen oder gebracht werden'),
+      _cb('zugericht_nicht', 'kann NICHT kommen oder gebracht werden'),
+
+      // ============ HALTUNG ============
+      _section('Haltung der betroffenen Person zur Bestellung'),
+      _cb('haltung_nicht_bekannt', 'Die Haltung ist mir nicht bekannt'),
+      _cb('haltung_nicht_einverstanden', 'NICHT einverstanden'),
+      _cb('haltung_einverstanden', 'einverstanden'),
+      _cb('haltung_keine_kenntnis', 'Die betroffene Person hat von dieser Anregung keine Kenntnis'),
+
+      // ============ WUNSCH / LEHNT / VERTRAUENSPERSONEN ============
+      _section('Wunsch-Betreuer / Lehnt ab / Vertrauenspersonen'),
+      _tf('wunsch_betreuer', 'Wunsch-Betreuer (Name, Adresse, Telefon)', maxLines: 2),
+      _tf('lehnt_betreuer', 'Lehnt als Betreuer ab (Name, Adresse)', maxLines: 2),
+      _tf('vertrauenspersonen', 'Vertrauenspersonen (Name, Adresse, Telefon)', maxLines: 2),
+
+      // ============ AUFGABENBEREICHE ============
       _section('Aufgabenbereiche des Betreuers'),
-      ...['gesundheit','vermoegen','aufenthalt','wohnung','haus_grund','vertretung','ambulant','heim','geschlossene_unterbringung','freiheitsentziehend','rechte_bevollm','post','sonstiges']
-          .map((k) => CheckboxListTile(
-                dense: true, contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(_aufgabenLabels[k]!, style: const TextStyle(fontSize: 12)),
-                value: _aufgaben[k]!,
-                onChanged: (v) => setState(() => _aufgaben[k] = v ?? false),
-              )),
-      if (_aufgaben['sonstiges']!) Padding(padding: const EdgeInsets.only(top: 6),
-        child: TextField(controller: _aufgabenSonstigesTextC, decoration: const InputDecoration(
-          labelText: 'Sonstige Aufgabenbereiche (Freitext)', isDense: true, border: OutlineInputBorder()))),
+      _cb('aufgaben_gesundheit', 'Gesundheitssorge'),
+      _cb('aufgaben_vermoegen', 'Vermögenssorge'),
+      _cb('aufgaben_aufenthalt', 'Aufenthaltsbestimmung'),
+      _cb('aufgaben_wohnung', 'Wohnungsangelegenheiten'),
+      _cb('aufgaben_haus_grund', 'Haus- und Grundstücksangelegenheiten'),
+      _cb('aufgaben_vertretung', 'Vertretung gegenüber Behörden, Versicherungen, Renten-, Kranken- und Sozialleistungsträgern'),
+      _cb('aufgaben_ambulant', 'Organisation der ambulanten Versorgung'),
+      _cb('aufgaben_heim', 'Abschluss, Änderung und Kontrolle eines Heim- oder Pflegevertrages'),
+      _cb('aufgaben_geschlossene_unterbringung', 'Entscheidung über die geschlossene Unterbringung'),
+      _cb('aufgaben_freiheitsentziehend', 'Entscheidung über freiheitsentziehende Maßnahmen'),
+      _cb('aufgaben_rechte_bevollm', 'Geltendmachung von Rechten gegenüber dem Bevollmächtigten'),
+      _cb('aufgaben_post', 'Entgegennahme, Öffnen und Anhalten der Post'),
+      _cb('aufgaben_sonstiges', 'Sonstiges'),
+      if (_bools['aufgaben_sonstiges']!) _tf('aufgaben_sonstiges_text', 'Sonstige Aufgabenbereiche (Freitext)'),
 
+      // ============ EILBEDÜRFTIGKEIT ============
       _section('Eilbedürftigkeit'),
-      CheckboxListTile(
-        dense: true, contentPadding: EdgeInsets.zero,
-        controlAffinity: ListTileControlAffinity.leading,
-        title: const Text('Es besteht besondere Eilbedürftigkeit', style: TextStyle(fontSize: 12)),
-        value: _eilbeduerftigkeit,
-        onChanged: (v) => setState(() => _eilbeduerftigkeit = v ?? false),
-      ),
-      if (_eilbeduerftigkeit) Padding(padding: const EdgeInsets.only(top: 4),
-        child: TextField(controller: _eilbedGrundC, maxLines: 2, decoration: const InputDecoration(
-          labelText: 'Begründung der Eilbedürftigkeit', isDense: true, border: OutlineInputBorder()))),
+      _cb('eilbeduerftigkeit', 'Es besteht besondere Eilbedürftigkeit'),
+      if (_bools['eilbeduerftigkeit']!) _tf('eilbeduerftigkeit_grund', 'Begründung der Eilbedürftigkeit', maxLines: 2),
 
+      // ============ ANLAGEN ============
       _section('Anlagen'),
-      CheckboxListTile(
-        dense: true, contentPadding: EdgeInsets.zero,
-        controlAffinity: ListTileControlAffinity.leading,
-        title: const Text('Vollmacht/en in Kopie', style: TextStyle(fontSize: 12)),
-        value: _anlageVollmachten,
-        onChanged: (v) => setState(() => _anlageVollmachten = v ?? false),
-      ),
-      CheckboxListTile(
-        dense: true, contentPadding: EdgeInsets.zero,
-        controlAffinity: ListTileControlAffinity.leading,
-        title: const Text('Ärztliche Stellungnahme in Kopie', style: TextStyle(fontSize: 12)),
-        value: _anlageAerztlStellung,
-        onChanged: (v) => setState(() => _anlageAerztlStellung = v ?? false),
-      ),
+      _cb('anlage_vollmachten', 'Vollmacht/en in Kopie'),
+      _cb('anlage_aerztl_stellung', 'Ärztliche Stellungnahme in Kopie'),
 
       const SizedBox(height: 18),
       Row(children: [
