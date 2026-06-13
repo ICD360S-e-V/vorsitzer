@@ -813,9 +813,25 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   // ── WIDERSPRUCH ──
 
   DateTime? _parseDate(dynamic v) {
-    final s = v?.toString() ?? '';
+    final s = v?.toString().trim() ?? '';
     if (s.isEmpty || s == 'null') return null;
-    return DateTime.tryParse(s);
+    // Try ISO 8601 first (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+    final iso = DateTime.tryParse(s);
+    if (iso != null) return iso;
+    // Try German DD.MM.YYYY (and DD.MM.YYYY HH:MM)
+    final m = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$').firstMatch(s);
+    if (m != null) {
+      try {
+        return DateTime(
+          int.parse(m.group(3)!),
+          int.parse(m.group(2)!),
+          int.parse(m.group(1)!),
+          m.group(4) != null ? int.parse(m.group(4)!) : 0,
+          m.group(5) != null ? int.parse(m.group(5)!) : 0,
+        );
+      } catch (_) { return null; }
+    }
+    return null;
   }
 
   DateTime _addDays(DateTime d, int days) {
