@@ -649,9 +649,10 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   }
 
   /// Background color of the time zone:
-  /// - 8-12 Uhr  = Vormittag, kein Service (grey)
-  /// - 13-17 Uhr = Sprechzeiten (light green)
-  /// - 18 Uhr    = letzter Slot (default white / weekend grey)
+  /// - 8-11 Uhr  = Vormittag, kein Service (grey)
+  /// - 12 Uhr    = Mittagspause (grey + Restaurant-Icon)
+  /// - 13-17 Uhr = Sprechzeiten (light green) — letzter buchbarer Slot 17:00
+  /// - 18 Uhr    = Abendessen, keine Terminbuchung (orange + dinner_dining-Icon)
   Color _zoneColor(int hour, bool isWeekend) {
     if (hour >= 8 && hour <= 12) {
       return isWeekend ? Colors.grey.shade300 : Colors.grey.shade200;
@@ -659,11 +660,14 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     if (hour >= 13 && hour <= 17) {
       return isWeekend ? Colors.green.shade100 : Colors.green.shade50;
     }
+    if (hour == 18) {
+      return isWeekend ? Colors.orange.shade100 : Colors.orange.shade50;
+    }
     return isWeekend ? Colors.grey.shade100 : Colors.white;
   }
 
   /// Hour label on the left of each row (8, 9, …, 18). Color matches the zone.
-  /// 12 = lunch — adds restaurant icon under the number.
+  /// 12 = Mittagspause (restaurant icon), 18 = Abendessen (dinner icon).
   Widget _buildHourLabel(int hour) {
     final Color bgColor;
     final Color textColor;
@@ -673,6 +677,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     } else if (hour >= 13 && hour <= 17) {
       bgColor = Colors.green.shade50;
       textColor = Colors.green.shade900;
+    } else if (hour == 18) {
+      bgColor = Colors.orange.shade50;
+      textColor = Colors.orange.shade900;
     } else {
       bgColor = Colors.grey.shade50;
       textColor = Colors.black87;
@@ -687,7 +694,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
           top: BorderSide(color: Colors.grey.shade300),
         ),
       ),
-      child: hour == 12
+      child: (hour == 12 || hour == 18)
           ? Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -696,8 +703,12 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textColor),
                 ),
                 Tooltip(
-                  message: 'Mittagspause',
-                  child: Icon(Icons.restaurant, size: 13, color: Colors.brown.shade600),
+                  message: hour == 12 ? 'Mittagspause' : 'Abendessen',
+                  child: Icon(
+                    hour == 12 ? Icons.restaurant : Icons.dinner_dining,
+                    size: 13,
+                    color: hour == 12 ? Colors.brown.shade600 : Colors.orange.shade700,
+                  ),
                 ),
               ],
             )
@@ -799,8 +810,8 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       );
     }
 
-    // Empty slot — zone color (gray for 8-12, green for 13-17, white/weekend for 18).
-    // At 12:00 add a lunch marker icon (one per day column).
+    // Empty slot — zone color (gray 8-12, green 13-17, orange 18, white else).
+    // At 12:00 = Mittagspause marker, at 18:00 = Abendessen marker.
     final cell = Container(
       decoration: BoxDecoration(color: zoneColor, border: cellBorder),
       child: (hour == 12 && minute == 0)
@@ -808,7 +819,12 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               message: 'Mittagspause',
               child: Center(child: Icon(Icons.restaurant, size: 14, color: Colors.brown.shade400)),
             )
-          : null,
+          : (hour == 18 && minute == 0)
+              ? Tooltip(
+                  message: 'Abendessen',
+                  child: Center(child: Icon(Icons.dinner_dining, size: 14, color: Colors.orange.shade700)),
+                )
+              : null,
     );
     if (isPast) {
       return ClipRect(child: CustomPaint(painter: _DiagonalStripesPainter(), child: cell));
