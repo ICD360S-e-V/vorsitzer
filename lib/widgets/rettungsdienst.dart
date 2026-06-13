@@ -10,311 +10,43 @@ class RettungsdienstContent extends StatefulWidget {
   State<RettungsdienstContent> createState() => _RettungsdienstContentState();
 }
 
-class _RettungsdienstContentState extends State<RettungsdienstContent> with TickerProviderStateMixin {
-  late TabController _tabC;
-  Map<String, dynamic> _allData = {};
+class _RettungsdienstContentState extends State<RettungsdienstContent> {
   List<Map<String, dynamic>> _vorfaelle = [];
   bool _isLoading = true;
-  int _count = 1;
-  int _selectedIdx = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 2, vsync: this);
     _load();
   }
-
-  @override
-  void dispose() { _tabC.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
       final res = await widget.apiService.getRettungsdienstData(widget.userId);
       if (res['success'] == true) {
-        _allData = Map<String, dynamic>.from(res['data'] ?? {});
         _vorfaelle = (res['vorfaelle'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-        final saved = _allData['stammdaten.instance_count'];
-        if (saved != null) _count = int.tryParse(saved.toString()) ?? 1;
       }
     } catch (e) { debugPrint('[Rettungsdienst] load: $e'); }
     if (mounted) setState(() => _isLoading = false);
   }
 
-  String _prefix(int idx) => idx == 0 ? 'stammdaten' : 'stammdaten_${idx + 1}';
-
-  Map<String, dynamic> _dataForIdx(int idx) {
-    final prefix = _prefix(idx);
-    final filtered = <String, dynamic>{};
-    for (final entry in _allData.entries) {
-      if (entry.key.startsWith('$prefix.')) {
-        filtered['stammdaten.${entry.key.substring(prefix.length + 1)}'] = entry.value;
-      }
-    }
-    return filtered;
-  }
-
-  String _nameForIdx(int idx) {
-    final prefix = _prefix(idx);
-    return _allData['$prefix.selected_name']?.toString() ?? 'Rettungsdienst ${idx + 1}';
-  }
-
-  Future<void> _addInstance() async {
-    _count++;
-    _allData['stammdaten.instance_count'] = _count.toString();
-    await widget.apiService.rettungsdienstAction(widget.userId, {'action': 'save_data', 'data': {'stammdaten.instance_count': _count.toString()}});
-    setState(() => _selectedIdx = _count - 1);
-  }
-
-  Future<void> _removeInstance(int idx) async {
-    if (idx == 0) return;
-    final name = _nameForIdx(idx);
-    final confirm = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-      title: const Text('Entfernen?'), content: Text('$name entfernen?'),
-      actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
-        TextButton(onPressed: () => Navigator.pop(c, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Entfernen'))],
-    ));
-    if (confirm != true) return;
-    final prefix = _prefix(idx);
-    final toDelete = _allData.keys.where((k) => k.startsWith('$prefix.')).toList();
-    for (final k in toDelete) { _allData.remove(k); }
-    _count--;
-    _allData['stammdaten.instance_count'] = _count.toString();
-    await widget.apiService.rettungsdienstAction(widget.userId, {'action': 'save_data', 'data': {'stammdaten.instance_count': _count.toString()}});
-    _selectedIdx = 0;
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
-    final currentData = _dataForIdx(_selectedIdx);
-
-    return Column(children: [
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: Colors.teal.shade50, border: Border(bottom: BorderSide(color: Colors.teal.shade200))),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            for (int i = 0; i < _count; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: InkWell(
-                  onTap: () => setState(() => _selectedIdx = i),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _selectedIdx == i ? Colors.teal.shade600 : Colors.white,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                      border: Border.all(color: _selectedIdx == i ? Colors.teal.shade600 : Colors.teal.shade200),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.local_taxi, size: 14, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
-                      const SizedBox(width: 6),
-                      Text(_nameForIdx(i), style: TextStyle(fontSize: 12, fontWeight: _selectedIdx == i ? FontWeight.bold : FontWeight.normal, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700)),
-                      if (i > 0 && _selectedIdx == i) ...[
-                        const SizedBox(width: 8),
-                        InkWell(onTap: () => _removeInstance(i), child: Icon(Icons.close, size: 14, color: Colors.white.withValues(alpha: 0.8))),
-                      ],
-                    ]),
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: InkWell(
-                onTap: _addInstance,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade300)),
-                  child: Icon(Icons.add, size: 16, color: Colors.teal.shade700),
-                ),
-              ),
-            ),
-          ]),
-        ),
-      ),
-      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
-        Tab(text: 'Zuständiger Rettungsdienst'),
-        Tab(text: 'Einsätze'),
-      ]),
-      Expanded(child: TabBarView(controller: _tabC, children: [
-        _StammdatenTab(data: currentData, apiService: widget.apiService, userId: widget.userId, bereichPrefix: _prefix(_selectedIdx), onSaved: _load),
-        _EinsatzTab(vorfaelle: _vorfaelle.where((v) => (int.tryParse(v['user_rettungsdienst_id']?.toString() ?? '') ?? 0) == _selectedIdx).toList(), apiService: widget.apiService, userId: widget.userId, instanceIdx: _selectedIdx, onReload: _load),
-      ])),
-    ]);
+    // Träger varies per Einsatz (ILS dispatches whoever's available), so no "Zuständiger" tab —
+    // Einsätze is the only meaningful structure. Each Einsatz records its own Träger.
+    return _EinsatzTab(
+      vorfaelle: _vorfaelle,
+      apiService: widget.apiService,
+      userId: widget.userId,
+      instanceIdx: 0,
+      onReload: _load,
+    );
   }
 }
 
-// ==================== TAB 1: Zuständiger Rettungsdienst ====================
-
-class _StammdatenTab extends StatefulWidget {
-  final Map<String, dynamic> data;
-  final ApiService apiService;
-  final int userId;
-  final String bereichPrefix;
-  final VoidCallback? onSaved;
-  const _StammdatenTab({required this.data, required this.apiService, required this.userId, this.bereichPrefix = 'stammdaten', this.onSaved});
-  @override
-  State<_StammdatenTab> createState() => _StammdatenTabState();
-}
-
-class _StammdatenTabState extends State<_StammdatenTab> {
-  List<Map<String, dynamic>> _results = [];
-  Map<String, dynamic>? _selected;
-  bool _searching = false;
-  bool _saving = false;
-  final _searchC = TextEditingController();
-  late TextEditingController _kundennummerC, _ansprechpartnerC, _telefonC, _emailC, _leitstelleC;
-
-  @override
-  void initState() {
-    super.initState();
-    _initFromData(widget.data);
-  }
-
-  void _initFromData(Map<String, dynamic> d) {
-    _kundennummerC = TextEditingController(text: d['stammdaten.kundennummer'] ?? '');
-    _ansprechpartnerC = TextEditingController(text: d['stammdaten.ansprechpartner'] ?? '');
-    _telefonC = TextEditingController(text: d['stammdaten.telefon'] ?? '');
-    _emailC = TextEditingController(text: d['stammdaten.email'] ?? '');
-    _leitstelleC = TextEditingController(text: d['stammdaten.leitstelle_telefon'] ?? '112');
-    final name = d['stammdaten.selected_name'] ?? '';
-    if (name.isNotEmpty) {
-      _selected = {
-        'name': name,
-        'traeger': d['stammdaten.selected_traeger'] ?? '',
-        'strasse': d['stammdaten.selected_strasse'] ?? '',
-        'plz': d['stammdaten.selected_plz'] ?? '',
-        'ort': d['stammdaten.selected_ort'] ?? '',
-        'leitstelle_telefon': d['stammdaten.selected_leitstelle'] ?? '',
-        'telefon': d['stammdaten.selected_telefon'] ?? '',
-      };
-    } else {
-      _selected = null;
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _StammdatenTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.bereichPrefix != widget.bereichPrefix || oldWidget.data != widget.data) {
-      _kundennummerC.dispose(); _ansprechpartnerC.dispose(); _telefonC.dispose(); _emailC.dispose(); _leitstelleC.dispose();
-      _initFromData(widget.data);
-      setState(() {});
-    }
-  }
-
-  @override
-  void dispose() {
-    _searchC.dispose();
-    _kundennummerC.dispose(); _ansprechpartnerC.dispose(); _telefonC.dispose(); _emailC.dispose(); _leitstelleC.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search(String q) async {
-    if (q.length < 2) return;
-    setState(() => _searching = true);
-    try {
-      final res = await widget.apiService.searchRettungsdienstDatenbank(q);
-      if (res['success'] == true) _results = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-    } catch (_) {}
-    if (mounted) setState(() => _searching = false);
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    final p = widget.bereichPrefix;
-    final fields = <String, String>{
-      '$p.kundennummer': _kundennummerC.text.trim(),
-      '$p.ansprechpartner': _ansprechpartnerC.text.trim(),
-      '$p.telefon': _telefonC.text.trim(),
-      '$p.email': _emailC.text.trim(),
-      '$p.leitstelle_telefon': _leitstelleC.text.trim(),
-    };
-    if (_selected != null) {
-      fields['$p.selected_name'] = _selected!['name']?.toString() ?? '';
-      fields['$p.selected_traeger'] = _selected!['traeger']?.toString() ?? '';
-      fields['$p.selected_strasse'] = _selected!['strasse']?.toString() ?? '';
-      fields['$p.selected_plz'] = _selected!['plz']?.toString() ?? '';
-      fields['$p.selected_ort'] = _selected!['ort']?.toString() ?? '';
-      fields['$p.selected_telefon'] = _selected!['telefon']?.toString() ?? '';
-      fields['$p.selected_leitstelle'] = _selected!['leitstelle_telefon']?.toString() ?? '';
-    }
-    await widget.apiService.rettungsdienstAction(widget.userId, {'action': 'save_data', 'data': fields});
-    if (mounted) { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green.shade600)); }
-    widget.onSaved?.call();
-  }
-
-  Widget _field(String label, TextEditingController c, {IconData icon = Icons.edit}) {
-    return Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(controller: c, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Rettungsdienst suchen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: TextField(controller: _searchC, decoration: InputDecoration(hintText: 'Name, Träger oder Ort...', prefixIcon: const Icon(Icons.search, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onSubmitted: _search)),
-        const SizedBox(width: 8),
-        ElevatedButton(onPressed: () => _search(_searchC.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Suchen')),
-      ]),
-      if (_searching) const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator()),
-      if (_results.isNotEmpty) Container(
-        margin: const EdgeInsets.only(top: 8), constraints: const BoxConstraints(maxHeight: 220),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-        child: ListView.builder(shrinkWrap: true, itemCount: _results.length, itemBuilder: (ctx, i) {
-          final s = _results[i];
-          return ListTile(dense: true,
-            title: Text(s['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: Text('${s['traeger'] ?? ''} · ${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
-            trailing: const Icon(Icons.check_circle_outline, size: 20),
-            onTap: () => setState(() { _selected = s; _results = []; }));
-        }),
-      ),
-      if (_selected != null) Container(
-        margin: const EdgeInsets.only(top: 12), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.shade200)),
-        child: Row(children: [
-          Icon(Icons.local_taxi, color: Colors.teal.shade700, size: 24),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_selected!['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.teal.shade800)),
-            if ((_selected!['traeger'] ?? '').isNotEmpty) Text('Träger: ${_selected!['traeger']}', style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
-            if ((_selected!['strasse'] ?? '').isNotEmpty) Text('${_selected!['strasse']}, ${_selected!['plz'] ?? ''} ${_selected!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
-            if ((_selected!['leitstelle_telefon'] ?? '').isNotEmpty) Text('Leitstelle: ${_selected!['leitstelle_telefon']}', style: const TextStyle(fontSize: 11)),
-            if ((_selected!['telefon'] ?? '').isNotEmpty) Text('Tel: ${_selected!['telefon']}', style: const TextStyle(fontSize: 11)),
-          ])),
-          IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selected = null)),
-        ]),
-      ),
-      const Divider(height: 24),
-      Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-      const SizedBox(height: 8),
-      _field('Leitstelle / Notruf', _leitstelleC, icon: Icons.emergency),
-      _field('Kundennummer / Patientennummer', _kundennummerC, icon: Icons.badge),
-      _field('Ansprechpartner', _ansprechpartnerC, icon: Icons.person),
-      Row(children: [
-        Expanded(child: _field('Telefon (Verwaltung)', _telefonC, icon: Icons.phone)),
-        const SizedBox(width: 12),
-        Expanded(child: _field('E-Mail', _emailC, icon: Icons.email)),
-      ]),
-      const SizedBox(height: 12),
-      Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-        onPressed: _saving ? null : _save,
-        icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 18),
-        label: const Text('Speichern'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
-      )),
-    ]));
-  }
-}
-
-// ==================== TAB 2: Einsätze ====================
+// ==================== EINSÄTZE ====================
 
 class _EinsatzTab extends StatefulWidget {
   final List<Map<String, dynamic>> vorfaelle;
@@ -393,6 +125,24 @@ class _EinsatzTabState extends State<_EinsatzTab> {
     final polizeiSbC = TextEditingController(text: existing?['polizei_sachbearbeiter']?.toString() ?? '');
     List<Map<String, dynamic>> strafanzeigen = [];
     bool strafanzeigenLoaded = false;
+    // Träger (per Einsatz — Rettungsdienst is dispatched on-demand by 112)
+    final traegerC = TextEditingController(text: existing?['traeger']?.toString() ?? '');
+    int? traegerId = existing?['traeger_id'] != null ? int.tryParse(existing!['traeger_id'].toString()) : null;
+    final traegerSearchC = TextEditingController();
+    List<Map<String, dynamic>> traegerResults = [];
+    bool traegerSearching = false;
+
+    Future<void> searchTraeger(String q, void Function(VoidCallback) setDlg) async {
+      if (q.length < 2) return;
+      setDlg(() => traegerSearching = true);
+      try {
+        final r = await widget.apiService.searchRettungsdienstDatenbank(q);
+        if (r['success'] == true) {
+          traegerResults = (r['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        }
+      } catch (_) {}
+      setDlg(() => traegerSearching = false);
+    }
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
@@ -404,6 +154,60 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         DropdownButtonFormField<String>(initialValue: typ, decoration: InputDecoration(labelText: 'Einsatz-Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: typLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => typ = v ?? typ)),
+        const SizedBox(height: 10),
+        // ============== Träger (per Einsatz) ==============
+        TextField(controller: traegerC,
+          decoration: InputDecoration(
+            labelText: 'Rettungsdienst-Träger',
+            hintText: 'DRK / Malteser / Johanniter / ASB / Feuerwehr ...',
+            isDense: true,
+            prefixIcon: const Icon(Icons.local_taxi, size: 18),
+            suffixIcon: traegerId != null
+              ? Tooltip(message: 'Aus Datenbank verknüpft', child: Icon(Icons.verified, size: 16, color: Colors.teal.shade600))
+              : null,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onChanged: (v) => setDlg(() {
+            // Freier Text — Datenbank-Verknüpfung aufheben
+            traegerId = null;
+          }),
+        ),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: TextField(controller: traegerSearchC,
+            decoration: InputDecoration(
+              hintText: 'In Datenbank suchen (DRK Ulm, Malteser ...)',
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 16),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onSubmitted: (q) => searchTraeger(q, setDlg),
+          )),
+          const SizedBox(width: 6),
+          IconButton(
+            icon: traegerSearching ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.search, size: 18),
+            onPressed: () => searchTraeger(traegerSearchC.text, setDlg),
+            tooltip: 'Suchen',
+          ),
+        ]),
+        if (traegerResults.isNotEmpty)
+          Container(margin: const EdgeInsets.only(top: 4), constraints: const BoxConstraints(maxHeight: 150),
+            decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+            child: ListView.builder(shrinkWrap: true, itemCount: traegerResults.length, itemBuilder: (lctx, i) {
+              final t = traegerResults[i];
+              return ListTile(dense: true,
+                title: Text(t['name'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                subtitle: Text('${t['traeger'] ?? ''} · ${t['ort'] ?? ''}', style: const TextStyle(fontSize: 10)),
+                trailing: const Icon(Icons.check_circle_outline, size: 16),
+                onTap: () => setDlg(() {
+                  traegerC.text = t['name']?.toString() ?? '';
+                  traegerId = t['id'] is int ? t['id'] as int : int.tryParse(t['id'].toString());
+                  traegerResults = [];
+                  traegerSearchC.clear();
+                }),
+              );
+            }),
+          ),
         const SizedBox(height: 10),
         TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel / Anlass', hintText: 'z.B. Sturz, Brustschmerz, Atemnot...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
@@ -539,6 +343,8 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         ElevatedButton(onPressed: () async {
           Navigator.pop(ctx);
           final payload = <String, dynamic>{
+            'traeger': traegerC.text,
+            'traeger_id': traegerId,
             'typ': typ,
             'titel': titelC.text,
             'status': status,
@@ -615,6 +421,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
               title: Text(v['titel']?.toString().isNotEmpty == true ? v['titel'].toString() : (typLabels[v['typ']] ?? v['typ']?.toString() ?? ''), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${typLabels[v['typ']] ?? ''} · ${v['datum'] ?? ''} ${v['uhrzeit'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                if ((v['traeger']?.toString() ?? '').isNotEmpty) Text('Träger: ${v['traeger']}', style: TextStyle(fontSize: 10, color: Colors.teal.shade700, fontWeight: FontWeight.w600)),
                 if ((v['einsatznummer']?.toString() ?? '').isNotEmpty) Text('Nr. ${v['einsatznummer']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                 if (transport == 'ja' && (v['zielklinik']?.toString() ?? '').isNotEmpty)
                   Text('→ ${v['zielklinik']}', style: TextStyle(fontSize: 10, color: Colors.teal.shade700, fontStyle: FontStyle.italic)),
@@ -667,7 +474,7 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 4, vsync: this);
+    _tabC = TabController(length: 5, vsync: this);
     _loadDetail();
   }
 
@@ -704,12 +511,14 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
       TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: const [
         Tab(text: 'Details'),
         Tab(text: 'Einsatzprotokoll'),
+        Tab(text: 'Unterlagen'),
         Tab(text: 'Korrespondenz'),
         Tab(text: 'Rechnungen'),
       ]),
       Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
         _buildDetailsTab(),
         _buildProtokollTab(),
+        _buildUnterlagenTab(),
         _buildKorrTab(),
         _buildRechnungenTab(),
       ])),
@@ -730,6 +539,7 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
       const SizedBox(height: 14),
       _section('Einsatz'),
       _infoRow('Typ', _EinsatzTabState.typLabels[v['typ']] ?? v['typ']?.toString() ?? ''),
+      _infoRow('Träger', v['traeger']?.toString() ?? ''),
       _infoRow('Titel / Anlass', v['titel']?.toString() ?? ''),
       _infoRow('Einsatznummer', v['einsatznummer']?.toString() ?? ''),
       _infoRow('Alarmiert durch', _EinsatzTabState.alarmiertDurchOptions[v['alarmiert_durch']] ?? v['alarmiert_durch']?.toString() ?? ''),
@@ -826,6 +636,23 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
         ])),
       const SizedBox(height: 12),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_einsatz', korrespondenzId: vId),
+    ]));
+  }
+
+  Widget _buildUnterlagenTab() {
+    final vId = int.tryParse(widget.vorfall['id'].toString()) ?? 0;
+    return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+        child: Row(children: [
+          Icon(Icons.folder_open, color: Colors.indigo.shade700, size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            'Sonstige Unterlagen — Arztberichte, Entlassungsbriefe, Befunde, Fotos, weitere PDFs/JPG/JPEG zum Einsatz. Mehrere Dateien möglich.',
+            style: TextStyle(fontSize: 12, color: Colors.indigo.shade900))),
+        ])),
+      const SizedBox(height: 12),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_unterlagen', korrespondenzId: vId),
     ]));
   }
 
