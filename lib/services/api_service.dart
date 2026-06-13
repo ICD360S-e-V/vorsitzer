@@ -427,6 +427,54 @@ class ApiService {
   // Admin register new member (status: neu)
   // For role=jugendmitglied the server auto-generates internal placeholder
   // email + password (no login possible) when those fields are omitted.
+  // ========== VORMUND-KIND-VERKNÜPFUNG ==========
+
+  /// Search members for linking as Kind to another member.
+  /// Returns candidates with their age, current vormund (if any), and is_vormund_of_others flag.
+  Future<Map<String, dynamic>> searchMembersForLink({required String query, required int excludeVormundId}) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/admin_vormund_link.php?action=search&q=${Uri.encodeComponent(query)}&exclude=$excludeVormundId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Link an existing member as Kind under the given Vormund.
+  /// vormundTyp: familienangehoeriger / ehrenamtlich / vorlaeufig / vorsorgevollmacht / berufsbetreuer / sorgeberechtigter
+  /// forceOverwrite=true to replace existing vormund.
+  Future<Map<String, dynamic>> linkVormund({
+    required int targetUserId,
+    required int vormundUserId,
+    required String vormundTyp,
+    bool forceOverwrite = false,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/admin_vormund_link.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'link_existing',
+        'target_user_id': targetUserId,
+        'vormund_user_id': vormundUserId,
+        'vormund_typ': vormundTyp,
+        'force_overwrite': forceOverwrite ? 1 : 0,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Unlink a Kind from its Vormund. Account stays active (independent).
+  Future<Map<String, dynamic>> unlinkVormund(int targetUserId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/admin_vormund_link.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'unlink',
+        'target_user_id': targetUserId,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> adminRegisterMember({
     required String name,
     String? email,

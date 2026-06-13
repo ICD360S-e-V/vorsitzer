@@ -65,7 +65,6 @@ Future<void> openMitgliedProfile({
           ),
         );
         if (created == true && context.mounted) {
-          // Re-trigger the selector with refreshed data
           openMitgliedProfile(
             context: context,
             apiService: apiService,
@@ -74,6 +73,89 @@ Future<void> openMitgliedProfile({
             onUpdated: onUpdated,
           );
           onUpdated();
+        }
+      },
+      onLinkExistingKind: () async {
+        Navigator.of(selCtx).pop();
+        if (!context.mounted) return;
+        final linked = await showDialog<bool>(
+          context: context,
+          builder: (_) => LinkExistingMitgliedDialog(
+            apiService: apiService,
+            vormundUser: user,
+          ),
+        );
+        if (linked == true && context.mounted) {
+          openMitgliedProfile(
+            context: context,
+            apiService: apiService,
+            user: user,
+            adminMitgliedernummer: adminMitgliedernummer,
+            onUpdated: onUpdated,
+          );
+          onUpdated();
+        }
+      },
+      onUnlinkKind: (kindMap) async {
+        final kindId = kindMap['id'] is int ? kindMap['id'] as int : int.tryParse(kindMap['id'].toString());
+        final kindName = '${kindMap['vorname'] ?? ''} ${kindMap['nachname'] ?? ''}'.trim();
+        final typ = kindMap['vormund_typ']?.toString() ?? '';
+        if (kindId == null) return;
+        final isFamily = typ == 'familienangehoeriger';
+        final confirm = await showDialog<bool>(
+          context: selCtx,
+          builder: (cctx) => AlertDialog(
+            title: Row(children: [
+              Icon(Icons.link_off, color: isFamily ? Colors.red : Colors.orange, size: 22),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Verknuepfung loesen?', style: TextStyle(fontSize: 16))),
+            ]),
+            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('"$kindName" wird vom Vormund-Konto getrennt. Das Konto bleibt aktiv und kann eigenstaendig genutzt werden.', style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 10),
+              if (isFamily)
+                Container(padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+                  child: Row(children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                      'Dieser Eintrag ist als FAMILIENANGEHOERIGER markiert. Familienverknuepfungen sollten normalerweise nicht geloest werden.',
+                      style: TextStyle(fontSize: 11, color: Colors.red.shade900),
+                    )),
+                  ]),
+                ),
+            ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(cctx, false), child: const Text('Abbrechen')),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(cctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: isFamily ? Colors.red : Colors.orange, foregroundColor: Colors.white),
+                child: const Text('Verknuepfung loesen'),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+        final res = await apiService.unlinkVormund(kindId);
+        if (!context.mounted) return;
+        if (res['success'] == true) {
+          Navigator.of(selCtx).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Verknuepfung geloest — Konto bleibt aktiv'), backgroundColor: Colors.green),
+          );
+          openMitgliedProfile(
+            context: context,
+            apiService: apiService,
+            user: user,
+            adminMitgliedernummer: adminMitgliedernummer,
+            onUpdated: onUpdated,
+          );
+          onUpdated();
+        } else if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(res['message']?.toString() ?? 'Fehler beim Loesen'), backgroundColor: Colors.red),
+          );
         }
       },
     ),
@@ -107,6 +189,8 @@ class FamilieSelectorDialog extends StatelessWidget {
   final List<Map<String, dynamic>> kinder;
   final void Function(User target) onProfileSelected;
   final VoidCallback? onAddKind;
+  final VoidCallback? onLinkExistingKind;
+  final void Function(Map<String, dynamic> kind)? onUnlinkKind;
 
   const FamilieSelectorDialog({
     super.key,
@@ -115,6 +199,8 @@ class FamilieSelectorDialog extends StatelessWidget {
     required this.kinder,
     required this.onProfileSelected,
     this.onAddKind,
+    this.onLinkExistingKind,
+    this.onUnlinkKind,
   });
 
   @override
@@ -126,7 +212,7 @@ class FamilieSelectorDialog extends StatelessWidget {
     }
     entries.add(_FamilieEntry.fromActiveUser(activeUser));
     for (final k in kinder) {
-      entries.add(_FamilieEntry.fromMap(k));
+      entries.add(_FamilieEntry.fromMap(k, sourceRaw: k));
     }
 
     return AlertDialog(
@@ -165,10 +251,26 @@ class FamilieSelectorDialog extends StatelessWidget {
                 ),
                 title: Text('Neues Kind hinzufuegen',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.pink.shade700)),
-                subtitle: Text('Jugendmitglied unter diesem Vormund-Konto anlegen',
+                subtitle: Text('Neues Konto unter diesem Vormund anlegen',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                 trailing: Icon(Icons.add_circle_outline, size: 20, color: Colors.pink.shade400),
                 onTap: onAddKind,
+              ),
+            ],
+            if (onLinkExistingKind != null) ...[
+              Divider(height: 1, color: Colors.grey.shade200),
+              ListTile(
+                key: const Key('link-existing-kind-tile'),
+                leading: CircleAvatar(
+                  backgroundColor: Colors.indigo.shade50,
+                  child: Icon(Icons.link, color: Colors.indigo.shade700, size: 22),
+                ),
+                title: Text('Bestehendes Mitglied verknuepfen',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo.shade700)),
+                subtitle: Text('Bestehendes Konto als Kind / Betreutes Mitglied verknuepfen (Familie, Ehrenamt, Betreuung)',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                trailing: Icon(Icons.person_search, size: 20, color: Colors.indigo.shade400),
+                onTap: onLinkExistingKind,
               ),
             ],
           ],
@@ -183,6 +285,10 @@ class FamilieSelectorDialog extends StatelessWidget {
     final icon = isChild
         ? Icons.child_care
         : (e.isVormund ? Icons.supervisor_account : Icons.person);
+    // Is this entry a kind of the activeUser (eligible for unlink)?
+    final isKindEntry = e.sourceRaw != null && e.sourceRaw!.containsKey('vormund_typ');
+    final vormundTyp = (e.sourceRaw?['vormund_typ'] ?? '').toString();
+    final canUnlink = isKindEntry && onUnlinkKind != null;
 
     return ListTile(
       leading: CircleAvatar(
@@ -205,11 +311,54 @@ class FamilieSelectorDialog extends StatelessWidget {
               decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(4)),
               child: Text('Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
             ),
+          if (vormundTyp.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(color: _vormundTypColor(vormundTyp).shade50, borderRadius: BorderRadius.circular(4)),
+              child: Text(
+                _vormundTypLabel(vormundTyp),
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _vormundTypColor(vormundTyp).shade800),
+              ),
+            ),
         ],
       ),
-      trailing: const Icon(Icons.chevron_right, size: 20),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (canUnlink)
+          IconButton(
+            tooltip: vormundTyp == 'familienangehoeriger'
+                ? 'Familienverknuepfung loesen (Konto bleibt aktiv)'
+                : 'Verknuepfung loesen (Konto bleibt aktiv)',
+            icon: Icon(Icons.link_off, size: 18, color: Colors.red.shade300),
+            onPressed: () => onUnlinkKind!(e.sourceRaw!),
+          ),
+        const Icon(Icons.chevron_right, size: 20),
+      ]),
       onTap: () => onProfileSelected(e.toUser(fallback: activeUser)),
     );
+  }
+
+  static MaterialColor _vormundTypColor(String typ) {
+    switch (typ) {
+      case 'familienangehoeriger': return Colors.pink;
+      case 'ehrenamtlich': return Colors.green;
+      case 'vorlaeufig': return Colors.orange;
+      case 'vorsorgevollmacht': return Colors.purple;
+      case 'berufsbetreuer': return Colors.blue;
+      case 'sorgeberechtigter': return Colors.teal;
+      default: return Colors.grey;
+    }
+  }
+
+  static String _vormundTypLabel(String typ) {
+    switch (typ) {
+      case 'familienangehoeriger': return 'Familie';
+      case 'ehrenamtlich': return 'Ehrenamt';
+      case 'vorlaeufig': return 'vorlaeufig';
+      case 'vorsorgevollmacht': return 'Vollmacht';
+      case 'berufsbetreuer': return 'Berufsbetreuer';
+      case 'sorgeberechtigter': return 'Sorgeberecht.';
+      default: return typ;
+    }
   }
 }
 
@@ -388,6 +537,7 @@ class _FamilieEntry {
   final String? geburtsdatum;
   final int? age;
   final bool isVormund;
+  final Map<String, dynamic>? sourceRaw;
 
   _FamilieEntry({
     required this.id,
@@ -400,9 +550,10 @@ class _FamilieEntry {
     this.email,
     this.geburtsdatum,
     this.isVormund = false,
+    this.sourceRaw,
   }) : age = calculateAge(geburtsdatum);
 
-  factory _FamilieEntry.fromMap(Map<String, dynamic> m, {bool isVormund = false}) {
+  factory _FamilieEntry.fromMap(Map<String, dynamic> m, {bool isVormund = false, Map<String, dynamic>? sourceRaw}) {
     return _FamilieEntry(
       id: m['id'] is int ? m['id'] as int : int.tryParse(m['id'].toString()) ?? 0,
       mitgliedernummer: m['mitgliedernummer']?.toString() ?? '',
@@ -414,6 +565,7 @@ class _FamilieEntry {
       status: m['status']?.toString() ?? 'active',
       geburtsdatum: m['geburtsdatum']?.toString(),
       isVormund: isVormund,
+      sourceRaw: sourceRaw,
     );
   }
 
@@ -452,5 +604,194 @@ class _FamilieEntry {
       'status': status,
       'geburtsdatum': geburtsdatum,
     });
+  }
+}
+
+// ============================================================================
+// LinkExistingMitgliedDialog — search + link an existing member as Kind
+// ============================================================================
+
+class LinkExistingMitgliedDialog extends StatefulWidget {
+  final ApiService apiService;
+  final User vormundUser;
+  const LinkExistingMitgliedDialog({super.key, required this.apiService, required this.vormundUser});
+  @override
+  State<LinkExistingMitgliedDialog> createState() => _LinkExistingMitgliedDialogState();
+}
+
+class _LinkExistingMitgliedDialogState extends State<LinkExistingMitgliedDialog> {
+  final _searchC = TextEditingController();
+  List<Map<String, dynamic>> _candidates = [];
+  Map<String, dynamic>? _selected;
+  String _vormundTyp = 'familienangehoeriger';
+  bool _searching = false;
+  bool _linking = false;
+
+  static const _typLabels = {
+    'familienangehoeriger': 'Familienangehoeriger (Eltern / Kind / Geschwister)',
+    'sorgeberechtigter': 'Sorgeberechtigter (§ 1626 BGB — Eltern minderjaehriger Kinder)',
+    'ehrenamtlich': 'Ehrenamtliche Betreuung (§ 1816 Abs. 4 BGB — Freunde, Nachbarn)',
+    'vorlaeufig': 'Vorlaeufige Betreuung (§ 300 FamFG — Gerichtsbeschluss, max. 1 Jahr)',
+    'vorsorgevollmacht': 'Vorsorgevollmacht (§ 1820 BGB — vorher festgelegt)',
+    'berufsbetreuer': 'Berufsbetreuung (§ 1818 BGB — beruflich, bezahlt)',
+  };
+
+  @override
+  void dispose() { _searchC.dispose(); super.dispose(); }
+
+  Future<void> _search() async {
+    final q = _searchC.text.trim();
+    if (q.length < 2) return;
+    setState(() { _searching = true; _candidates = []; _selected = null; });
+    try {
+      final res = await widget.apiService.searchMembersForLink(query: q, excludeVormundId: widget.vormundUser.id);
+      if (res['success'] == true) {
+        _candidates = (res['candidates'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _searching = false);
+  }
+
+  Future<void> _doLink({bool forceOverwrite = false}) async {
+    if (_selected == null) return;
+    setState(() => _linking = true);
+    try {
+      final targetId = _selected!['id'] is int ? _selected!['id'] as int : int.tryParse(_selected!['id'].toString())!;
+      final res = await widget.apiService.linkVormund(
+        targetUserId: targetId,
+        vormundUserId: widget.vormundUser.id,
+        vormundTyp: _vormundTyp,
+        forceOverwrite: forceOverwrite,
+      );
+      if (!mounted) return;
+      if (res['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Verknuepft (neue Rolle: ${res['new_role'] ?? 'mitglied'})'),
+          backgroundColor: Colors.green,
+        ));
+        Navigator.pop(context, true);
+      } else if (res['requires_confirmation'] == true || res['existing_vormund_id'] != null) {
+        // Confirm umtragen
+        final confirm = await showDialog<bool>(context: context, builder: (cctx) => AlertDialog(
+          title: Row(children: [Icon(Icons.swap_horiz, color: Colors.orange.shade700, size: 22), const SizedBox(width: 8), const Text('Vormund umtragen?', style: TextStyle(fontSize: 16))]),
+          content: Text(
+            'Mitglied hat bereits einen Vormund (Typ: ${res['existing_vormund_typ'] ?? '—'}). '
+            'Soll die alte Verknuepfung geloest und auf ${widget.vormundUser.vorname ?? widget.vormundUser.name} umgetragen werden?',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(cctx, false), child: const Text('Abbrechen')),
+            ElevatedButton(onPressed: () => Navigator.pop(cctx, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white), child: const Text('Umtragen')),
+          ],
+        ));
+        if (confirm == true && mounted) {
+          _doLink(forceOverwrite: true);
+          return;
+        }
+        setState(() => _linking = false);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message']?.toString() ?? 'Verknuepfung fehlgeschlagen'),
+          backgroundColor: Colors.red,
+        ));
+        setState(() => _linking = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+        setState(() => _linking = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(children: [
+        Icon(Icons.person_search, color: Colors.indigo.shade700, size: 22),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Verknuepfen mit ${widget.vormundUser.vorname ?? widget.vormundUser.name}', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
+      ]),
+      content: SizedBox(width: 520, height: 520, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: TextField(controller: _searchC,
+            decoration: InputDecoration(
+              hintText: 'ID / Mitgliedernummer / Name suchen...',
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onSubmitted: (_) => _search(),
+          )),
+          const SizedBox(width: 8),
+          ElevatedButton(onPressed: _searching ? null : _search,
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+            child: _searching ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Suchen'),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Expanded(child: _candidates.isEmpty
+          ? Center(child: Text(_searching ? '' : 'Geben Sie Name oder Nummer ein und suchen.', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+          : ListView.separated(
+              itemCount: _candidates.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+              itemBuilder: (lctx, i) {
+                final c = _candidates[i];
+                final isSel = _selected != null && _selected!['id'] == c['id'];
+                final age = c['age'];
+                final hasExistingVormund = c['has_existing_vormund'] == true;
+                final isVormundOfOthers = c['is_vormund_of_others'] == true;
+                return ListTile(
+                  dense: true,
+                  selected: isSel,
+                  selectedTileColor: Colors.indigo.shade50,
+                  leading: CircleAvatar(
+                    backgroundColor: isVormundOfOthers ? Colors.red.shade50 : Colors.grey.shade100,
+                    child: Icon(isVormundOfOthers ? Icons.block : Icons.person, color: isVormundOfOthers ? Colors.red.shade400 : Colors.grey.shade700, size: 18),
+                  ),
+                  title: Text('${c['vorname'] ?? ''} ${c['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: Wrap(spacing: 6, children: [
+                    Text(c['mitgliedernummer']?.toString() ?? '#${c['id']}', style: const TextStyle(fontSize: 10)),
+                    if (age != null) Text('· $age J.', style: const TextStyle(fontSize: 10)),
+                    if (c['role'] != null) Text('· ${c['role']}', style: const TextStyle(fontSize: 10)),
+                    if (hasExistingVormund) Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text('hat Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+                    if (isVormundOfOthers) Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text('ist Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red.shade900))),
+                  ]),
+                  trailing: isVormundOfOthers
+                    ? Tooltip(message: 'Kann nicht verknuepft werden — ist selbst Vormund anderer Mitglieder', child: Icon(Icons.do_not_disturb, color: Colors.red.shade400, size: 18))
+                    : (isSel ? Icon(Icons.check_circle, color: Colors.indigo.shade700, size: 20) : const Icon(Icons.radio_button_unchecked, size: 18)),
+                  onTap: isVormundOfOthers ? null : () => setState(() => _selected = c),
+                );
+              },
+            )),
+        if (_selected != null) ...[
+          const Divider(height: 16),
+          Text('Verknuepfungstyp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: _vormundTyp, isExpanded: true,
+            decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: _typLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))).toList(),
+            onChanged: (v) => setState(() => _vormundTyp = v ?? _vormundTyp),
+          ),
+          if (_selected!['age'] != null && (_selected!['age'] as int) >= 18 && _vormundTyp == 'familienangehoeriger')
+            Padding(padding: const EdgeInsets.only(top: 6), child: Text(
+              '! Volljaehriges Mitglied wird als Familienangehoeriger verknuepft — bei Betreuungs-/Vollmacht-Faellen besseren Typ waehlen.',
+              style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+            )),
+        ],
+      ])),
+      actions: [
+        TextButton(onPressed: _linking ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          onPressed: (_selected == null || _linking) ? null : () => _doLink(),
+          icon: _linking ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.link, size: 18),
+          label: const Text('Verknuepfen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+        ),
+      ],
+    );
   }
 }
