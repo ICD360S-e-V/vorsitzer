@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../utils/aufenthaltsstatus_options.dart';
 import '../services/verwarnung_service.dart';
@@ -1947,7 +1948,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Widget _buildDokumenteTab() {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
           // Sub-tabs
@@ -1957,6 +1958,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               labelColor: Colors.blue.shade800,
               unselectedLabelColor: Colors.grey.shade600,
               indicatorColor: Colors.blue.shade800,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               tabs: [
                 Tab(
                   child: Row(
@@ -1982,6 +1985,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     ],
                   ),
                 ),
+                const Tab(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.handshake, size: 18),
+                      SizedBox(width: 6),
+                      Text('Mitwirkungspflicht'),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1991,6 +2004,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               children: [
                 _buildDokumenteSubTab('vereindokumente'),
                 _buildDokumenteSubTab('behoerde'),
+                _MitwirkungspflichtSubTab(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                ),
               ],
             ),
           ),
@@ -6114,5 +6131,318 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       user: widget.user,
       apiService: widget.apiService,
     );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Mitwirkungspflicht Sub-Tab — Beratungs- & Mitwirkungserklärung
+//  • Status-Banner: aktiv (grün) / inaktiv (orange)
+//  • PDF generieren (bilingual DE + Muttersprache aus Stufe 1)
+//  • Unterzeichneten Scan hochladen (PDF/JPG/JPEG/PNG, mehrseitig)
+//  • Verlauf mit Widerruf-Option
+// ════════════════════════════════════════════════════════════════════════════
+
+class _MitwirkungspflichtSubTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _MitwirkungspflichtSubTab({required this.apiService, required this.userId});
+  @override
+  State<_MitwirkungspflichtSubTab> createState() => _MitwirkungspflichtSubTabState();
+}
+
+class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
+  bool _loading = true;
+  bool _busy = false;
+  List<Map<String, dynamic>> _erklaerungen = [];
+  Map<String, dynamic>? _aktive;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final r = await widget.apiService.listMitwirkungserklaerungen(widget.userId);
+      if (r['success'] == true) {
+        _erklaerungen = (r['erklaerungen'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ?? [];
+        final a = r['aktive_erklaerung'];
+        _aktive = a is Map ? Map<String, dynamic>.from(a) : null;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _generate() async {
+    setState(() => _busy = true);
+    final r = await widget.apiService.generateMitwirkungserklaerung(widget.userId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r['success'] == true) {
+      final lang = r['language_member']?.toString() ?? 'en';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('PDF erzeugt (DE + ${lang.toUpperCase()}). Bitte Mitglied unterschreiben lassen und Scan hochladen.'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 5),
+      ));
+      _load();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(r['message']?.toString() ?? 'Fehler beim Generieren'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
+  Future<void> _downloadAndOpen(int id, String which) async {
+    setState(() => _busy = true);
+    final bytes = await widget.apiService.downloadMitwirkungserklaerung(id, which: which);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Datei konnte nicht geladen werden'), backgroundColor: Colors.red));
+      return;
+    }
+    Directory? dir;
+    try { dir = await getDownloadsDirectory(); } catch (_) {}
+    dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
+    final filename = 'Mitwirkungserklaerung_${id}_$which.pdf';
+    final path = '${dir.path}${Platform.pathSeparator}$filename';
+    await File(path).writeAsBytes(bytes);
+    await OpenFilex.open(path);
+  }
+
+  Future<void> _uploadSigned(int id) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+      allowMultiple: false,
+      dialogTitle: 'Unterzeichnete Erklärung auswählen (PDF/JPG/JPEG/PNG)',
+    );
+    if (result == null || result.files.isEmpty || result.files.first.path == null) return;
+    setState(() => _busy = true);
+    final r = await widget.apiService.uploadMitwirkungserklaerungSigned(id, result.files.first.path!);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unterzeichnete Erklärung gespeichert — Mitwirkungspflicht ist nun aktiv'), backgroundColor: Colors.green));
+      _load();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(r['message']?.toString() ?? 'Upload-Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _widerruf(int id) async {
+    final grundC = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Widerruf erfassen'),
+        content: SizedBox(
+          width: 400,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Die Erklärung wird mit dem heutigen Datum widerrufen. Die Mitgliedschaft selbst bleibt unberührt.', style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 10),
+            TextField(controller: grundC, maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Grund (optional)', border: OutlineInputBorder(), isDense: true)),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Widerrufen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    final r = await widget.apiService.widerrufMitwirkungserklaerung(id, grundC.text.trim());
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Widerruf erfasst'), backgroundColor: Colors.orange));
+      _load();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final isAktiv = _aktive != null;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Status Banner ──
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isAktiv ? Colors.green.shade50 : Colors.orange.shade50,
+            border: Border.all(color: isAktiv ? Colors.green.shade400 : Colors.orange.shade400),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(children: [
+            Icon(isAktiv ? Icons.verified : Icons.warning_amber,
+                color: isAktiv ? Colors.green.shade700 : Colors.orange.shade700, size: 28),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                isAktiv ? 'Gültige Mitwirkungserklärung vorhanden' : 'Keine gültige Mitwirkungserklärung',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13,
+                  color: isAktiv ? Colors.green.shade900 : Colors.orange.shade900),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                isAktiv
+                    ? 'Unterzeichnet am ${_fmtDate(_aktive!['signed_at'])}, gültig seit ${_fmtDate(_aktive!['valid_from'])}.'
+                    : 'Bitte PDF generieren, unterschreiben lassen und Scan hochladen, bevor Verwarnungen wegen Kommunikationspflichtverletzung ausgesprochen werden.',
+                style: TextStyle(fontSize: 11, color: isAktiv ? Colors.green.shade800 : Colors.orange.shade800),
+              ),
+            ])),
+          ]),
+        ),
+
+        const SizedBox(height: 12),
+
+        // ── Generator Button ──
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.picture_as_pdf, color: Colors.indigo.shade700),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Beratungs- und Mitwirkungserklärung', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+              ]),
+              const SizedBox(height: 4),
+              Text(
+                'Das PDF wird zweisprachig erzeugt: deutsche Fassung (rechtsverbindlich) + Übersetzung gemäß Staatsangehörigkeit aus Verifizierung Stufe 1 (ro / uk / tr / en). Inkl. Auszug Satzung § 6 Abs. 3 + 6 und QR-Code zur Datenschutzerklärung.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: ElevatedButton.icon(
+                icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.add_circle, size: 18),
+                label: const Text('Neue Erklärung erzeugen'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+                onPressed: _busy ? null : _generate,
+              )),
+            ]),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // ── Verlauf ──
+        Row(children: [
+          Icon(Icons.history, size: 16, color: Colors.grey.shade700),
+          const SizedBox(width: 6),
+          Text('Verlauf (${_erklaerungen.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        ]),
+        const SizedBox(height: 6),
+        if (_erklaerungen.isEmpty)
+          Padding(padding: const EdgeInsets.all(20),
+            child: Center(child: Text('Noch keine Erklärung erzeugt', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))),
+        ..._erklaerungen.map(_buildErklaerungCard),
+      ]),
+    );
+  }
+
+  Widget _buildErklaerungCard(Map<String, dynamic> e) {
+    final id = e['id'] is int ? e['id'] as int : int.tryParse(e['id'].toString()) ?? 0;
+    final lang = (e['language_member'] ?? 'en').toString();
+    final signed = (e['signed_at']?.toString() ?? '').isNotEmpty;
+    final widerruf = (e['widerruf_at']?.toString() ?? '').isNotEmpty;
+    final validUntil = e['valid_until']?.toString() ?? '';
+    final isActiveRow = signed && !widerruf && (validUntil.isEmpty || _isFuture(validUntil));
+
+    Color borderC = Colors.grey.shade300;
+    String statusText = 'Generiert, noch nicht unterzeichnet';
+    Color statusC = Colors.orange.shade700;
+    if (widerruf) {
+      statusText = 'Widerrufen am ${_fmtDate(e['widerruf_at'])}';
+      statusC = Colors.red.shade700;
+      borderC = Colors.red.shade200;
+    } else if (signed) {
+      statusText = isActiveRow ? 'Aktiv seit ${_fmtDate(e['valid_from'])}' : 'Abgelaufen';
+      statusC = isActiveRow ? Colors.green.shade700 : Colors.grey.shade600;
+      borderC = isActiveRow ? Colors.green.shade300 : Colors.grey.shade400;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(side: BorderSide(color: borderC), borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: statusC.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+              child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusC))),
+            const Spacer(),
+            Text('Sprache: DE + ${lang.toUpperCase()}', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+          ]),
+          const SizedBox(height: 4),
+          Text('Erzeugt: ${_fmtDate(e['generated_at'])}', style: const TextStyle(fontSize: 11)),
+          if (signed) Text('Unterzeichnet: ${_fmtDate(e['signed_at'])}', style: const TextStyle(fontSize: 11)),
+          if (widerruf && (e['widerruf_grund']?.toString() ?? '').isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 2),
+              child: Text('Grund: ${e['widerruf_grund']}', style: TextStyle(fontSize: 11, color: Colors.red.shade700, fontStyle: FontStyle.italic))),
+          const SizedBox(height: 6),
+          Wrap(spacing: 6, children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.visibility, size: 14),
+              label: const Text('PDF öffnen', style: TextStyle(fontSize: 11)),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+              onPressed: _busy ? null : () => _downloadAndOpen(id, 'generated'),
+            ),
+            if (signed)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.draw, size: 14),
+                label: const Text('Signiert öffnen', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero, foregroundColor: Colors.green.shade700),
+                onPressed: _busy ? null : () => _downloadAndOpen(id, 'signed'),
+              ),
+            if (!signed && !widerruf)
+              ElevatedButton.icon(
+                icon: const Icon(Icons.upload_file, size: 14),
+                label: const Text('Scan hochladen', style: TextStyle(fontSize: 11)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+                onPressed: _busy ? null : () => _uploadSigned(id),
+              ),
+            if (signed && !widerruf)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.cancel, size: 14),
+                label: const Text('Widerrufen', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+                onPressed: _busy ? null : () => _widerruf(id),
+              ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  static String _fmtDate(dynamic v) {
+    if (v == null) return '-';
+    final s = v.toString();
+    if (s.isEmpty) return '-';
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(s);
+    return m != null ? '${m.group(3)}.${m.group(2)}.${m.group(1)}' : s;
+  }
+
+  static bool _isFuture(String dateStr) {
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(dateStr);
+    if (m == null) return false;
+    final d = DateTime(int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!));
+    return d.isAfter(DateTime.now().subtract(const Duration(days: 1)));
   }
 }

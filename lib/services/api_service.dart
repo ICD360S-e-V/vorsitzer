@@ -5435,6 +5435,64 @@ class ApiService {
     }
   }
 
+  // ========== MITWIRKUNGSERKLÄRUNG (Vereinbarung pro Mitglied) ==========
+
+  /// Liste aller Mitwirkungserklärungen + aktive Erklärung für ein Mitglied.
+  Future<Map<String, dynamic>> listMitwirkungserklaerungen(int userId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/mitwirkungserklaerung_manage.php?action=list&user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Generiert ein neues PDF (DE + Muttersprache aus Stufe 1).
+  Future<Map<String, dynamic>> generateMitwirkungserklaerung(int userId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/mitwirkungserklaerung_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'generate', 'user_id': userId}),
+    ).timeout(const Duration(seconds: 60));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Lädt eine vom Mitglied unterschriebene Scan-Datei (PDF/JPG/JPEG/PNG) hoch.
+  Future<Map<String, dynamic>> uploadMitwirkungserklaerungSigned(int erklaerungId, String filePath) async {
+    final uri = Uri.parse('$baseUrl/admin/mitwirkungserklaerung_manage.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['action'] = 'upload_signed';
+    request.fields['erklaerung_id'] = erklaerungId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final response = await _client.send(request).timeout(const Duration(seconds: 60));
+    final body = await response.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Erfasst einen Widerruf (Mitglied tritt von der Erklärung zurück).
+  Future<Map<String, dynamic>> widerrufMitwirkungserklaerung(int erklaerungId, String grund) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/mitwirkungserklaerung_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'widerruf', 'erklaerung_id': erklaerungId, 'grund': grund}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Lädt eine Datei (generated|signed) als Bytes herunter.
+  Future<List<int>?> downloadMitwirkungserklaerung(int erklaerungId, {String which = 'generated'}) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/mitwirkungserklaerung_manage.php?action=download&id=$erklaerungId&which=$which'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) return null;
+      return r.bodyBytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> getBuergeramtData(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/buergeramt_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
