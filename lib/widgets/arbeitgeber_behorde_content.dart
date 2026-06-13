@@ -42,36 +42,19 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   final String _selectedArbeitgeberId = '';
   late TabController _mainTabC;
 
-  // Accepts ISO YYYY-MM-DD, German DD.MM.YYYY, "MM.YYYY" and bare "YYYY".
-  // Used to sort Arbeitgeber lists newest-first by vertragsbeginn.
-  DateTime? _parseAgDate(dynamic v) {
-    final s = v?.toString().trim() ?? '';
-    if (s.isEmpty || s.toLowerCase() == 'null') return null;
-    final iso = DateTime.tryParse(s);
-    if (iso != null) return iso;
-    final m = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(s);
-    if (m != null) {
-      try { return DateTime(int.parse(m.group(3)!), int.parse(m.group(2)!), int.parse(m.group(1)!)); } catch (_) {}
-    }
-    final mm = RegExp(r'^(\d{1,2})\.(\d{4})$').firstMatch(s);
-    if (mm != null) {
-      try { return DateTime(int.parse(mm.group(2)!), int.parse(mm.group(1)!), 1); } catch (_) {}
-    }
-    final y = RegExp(r'^(\d{4})$').firstMatch(s);
-    if (y != null) {
-      final yr = int.tryParse(y.group(1)!);
-      if (yr != null) return DateTime(yr, 1, 1);
-    }
-    return null;
-  }
-
+  // Sort Arbeitgeber rows newest-first by Beschäftigungs-Beginn — which is
+  // stored as separate von_jahr + von_monat columns (the same fields the
+  // form uses and the zeitraum() label displays). aktuell rows come first.
   int _compareAgChronological(Map<String, dynamic> a, Map<String, dynamic> b) {
     bool aktuell(Map<String, dynamic> x) => x['aktuell'] == true || x['aktuell'] == 'true' || x['aktuell'] == 1 || x['aktuell'] == '1';
     final aA = aktuell(a), bA = aktuell(b);
     if (aA != bA) return aA ? -1 : 1;
-    final aD = _parseAgDate(a['vertragsbeginn']) ?? DateTime(1900);
-    final bD = _parseAgDate(b['vertragsbeginn']) ?? DateTime(1900);
-    return bD.compareTo(aD);
+    int sortKey(Map<String, dynamic> x) {
+      final yj = int.tryParse((x['von_jahr'] ?? '').toString()) ?? 0;
+      final ym = int.tryParse((x['von_monat'] ?? '').toString()) ?? 0;
+      return yj * 100 + ym;
+    }
+    return sortKey(b).compareTo(sortKey(a));
   }
 
   @override
