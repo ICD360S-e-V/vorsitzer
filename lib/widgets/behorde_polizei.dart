@@ -31,6 +31,15 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
   Map<String, dynamic>? _polizeiData;
   bool _isLoading = true;
 
+  /// Frische Stufe-1-Daten direkt aus der DB (vorname, nachname,
+  /// geburtsname, geburtsdatum, geburtsort, geschlecht,
+  /// staatsangehoerigkeit, strasse, hausnummer, plz, ort, …).
+  /// widget.user wird i.d.R. aus der Mitgliederliste übergeben und
+  /// enthält die Stammdaten oft nur teilweise — deshalb hier nochmal
+  /// frisch laden, damit "Geschädigte/r" bei Strafanzeige korrekt
+  /// vorausgefüllt wird.
+  Map<String, dynamic>? _stufe1;
+
   final _zustaendigController = TextEditingController();
 
   @override
@@ -49,8 +58,17 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
-    await Future.wait([_loadDienststellen(), _loadUserPolizei()]);
+    await Future.wait([_loadDienststellen(), _loadUserPolizei(), _loadStufe1()]);
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadStufe1() async {
+    try {
+      final r = await widget.apiService.getUserDetails(widget.userId);
+      if (r['success'] == true && r['user'] is Map) {
+        _stufe1 = Map<String, dynamic>.from(r['user'] as Map);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadDienststellen() async {
@@ -112,18 +130,41 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     final tatzeitMinuteC = TextEditingController(text: s('tatzeit_minute'));
     final deliktC = TextEditingController(text: s('delikt'));
 
-    // Geschädigt — bei Edit: aus DB; sonst auto-fill aus Verifizierung Stufe 1
+    // Geschädigt — bei Edit: aus DB; sonst auto-fill aus Verifizierung Stufe 1.
+    // Quelle: zuerst die FRISCH geladenen Stufe-1-Daten (_stufe1), Fallback
+    // widget.user (kann unvollständig sein, wenn aus Listenansicht übergeben).
+    String pickStufe1(String key, String? fallback) {
+      final v = _stufe1?[key];
+      if (v != null && v.toString().isNotEmpty) return v.toString();
+      return fallback ?? '';
+    }
     final u = widget.user;
-    final autoWohnsitz =
-        ([u?.strasse, u?.hausnummer].where((s) => s != null && s.isNotEmpty).join(' ')) +
-        (u?.plz != null && (u?.plz ?? '').isNotEmpty ? ', ${u?.plz} ${u?.ort ?? ''}' : '');
-    final geschNameC = TextEditingController(text: isEdit ? s('gesch_name') : (u?.nachname ?? ''));
-    final geschGeburtsnameC = TextEditingController(text: isEdit ? s('gesch_geburtsname') : (u?.geburtsname ?? ''));
-    final geschVornameC = TextEditingController(text: isEdit ? s('gesch_vorname') : (u?.vorname ?? ''));
-    final geschGebDatumC = TextEditingController(text: isEdit ? _formatIsoToDe(s('gesch_geburtsdatum')) : _formatIsoToDe(u?.geburtsdatum));
-    final geschGebOrtC = TextEditingController(text: isEdit ? s('gesch_geburtsort') : (u?.geburtsort ?? ''));
-    String? geschGeschlecht = isEdit ? (s('gesch_geschlecht').isEmpty ? null : s('gesch_geschlecht')) : u?.geschlecht;
-    final geschStaatC = TextEditingController(text: isEdit ? s('gesch_staatsangehoerigkeit') : (u?.staatsangehoerigkeit ?? ''));
+    final s1Vorname    = pickStufe1('vorname',              u?.vorname);
+    final s1Nachname   = pickStufe1('nachname',             u?.nachname);
+    final s1Geburtsname= pickStufe1('geburtsname',          u?.geburtsname);
+    final s1Gebdat     = pickStufe1('geburtsdatum',         u?.geburtsdatum);
+    final s1Gebort     = pickStufe1('geburtsort',           u?.geburtsort);
+    final s1Geschlecht = pickStufe1('geschlecht',           u?.geschlecht);
+    final s1Staat      = pickStufe1('staatsangehoerigkeit', u?.staatsangehoerigkeit);
+    final s1Strasse    = pickStufe1('strasse',              u?.strasse);
+    final s1Hausnr     = pickStufe1('hausnummer',           u?.hausnummer);
+    final s1Plz        = pickStufe1('plz',                  u?.plz);
+    final s1Ort        = pickStufe1('ort',                  u?.ort);
+
+    final autoWohnsitz = [
+      [s1Strasse, s1Hausnr].where((v) => v.isNotEmpty).join(' '),
+      [s1Plz, s1Ort].where((v) => v.isNotEmpty).join(' '),
+    ].where((v) => v.isNotEmpty).join(', ');
+
+    final geschNameC = TextEditingController(text: isEdit ? s('gesch_name') : s1Nachname);
+    final geschGeburtsnameC = TextEditingController(text: isEdit ? s('gesch_geburtsname') : s1Geburtsname);
+    final geschVornameC = TextEditingController(text: isEdit ? s('gesch_vorname') : s1Vorname);
+    final geschGebDatumC = TextEditingController(text: isEdit ? _formatIsoToDe(s('gesch_geburtsdatum')) : _formatIsoToDe(s1Gebdat));
+    final geschGebOrtC = TextEditingController(text: isEdit ? s('gesch_geburtsort') : s1Gebort);
+    String? geschGeschlecht = isEdit
+        ? (s('gesch_geschlecht').isEmpty ? null : s('gesch_geschlecht'))
+        : (s1Geschlecht.isEmpty ? null : s1Geschlecht);
+    final geschStaatC = TextEditingController(text: isEdit ? s('gesch_staatsangehoerigkeit') : s1Staat);
     final geschWohnsitzC = TextEditingController(text: isEdit ? s('gesch_wohnsitz') : autoWohnsitz);
 
     // Folgen
