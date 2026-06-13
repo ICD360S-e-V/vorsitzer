@@ -4381,12 +4381,13 @@ class ApiService {
 
   // ========== POLIZEI VORFALL DOKUMENTE ==========
 
-  Future<Map<String, dynamic>> uploadPolizeiVorfallDokumente(int vorfallId, List<String> filePaths, String mitgliedernummer) async {
+  Future<Map<String, dynamic>> uploadPolizeiVorfallDokumente(int vorfallId, List<String> filePaths, String mitgliedernummer, {String kategorie = 'sonstiges'}) async {
     final uri = Uri.parse('$baseUrl/admin/polizei_vorfall_upload.php');
     final request = http.MultipartRequest('POST', uri);
     request.headers.addAll(_headers);
     request.fields['vorfall_id'] = vorfallId.toString();
     request.fields['hochgeladen_von'] = mitgliedernummer;
+    request.fields['kategorie'] = kategorie;
     for (final path in filePaths) {
       request.files.add(await http.MultipartFile.fromPath('files[]', path));
     }

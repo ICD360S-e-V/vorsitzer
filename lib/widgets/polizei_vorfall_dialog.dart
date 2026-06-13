@@ -66,7 +66,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
           decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
           child: Row(children: [
             const Icon(Icons.report, color: Colors.white, size: 24), const SizedBox(width: 10),
-            Expanded(child: Text(_vorfall != null ? 'Vorfall: ${_vorfall!['typ'] ?? ''}' : 'Vorfall', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+            Expanded(child: Text(_vorfall != null ? _typLabel(_vorfall!['typ']?.toString() ?? '') : 'Vorfall', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
             if (_vorfall?['aktenzeichen'] != null && _vorfall!['aktenzeichen'].toString().isNotEmpty)
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(4)),
                 child: Text('Az: ${_vorfall!['aktenzeichen']}', style: const TextStyle(color: Colors.white, fontSize: 12))),
@@ -104,57 +104,333 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
   Widget _buildDetailsTab() {
     if (_vorfall == null) return const Center(child: Text('Keine Daten'));
     final v = _vorfall!;
+    final typ = (v['typ'] ?? '').toString();
+    final isStraftat = typ.startsWith('straf_');
     final datum = (v['datum'] ?? '').toString();
-    final fDatum = datum.contains('-') ? datum.split('-').reversed.join('.') : datum;
+    final fDatum = _isoToDe(datum);
+
+    String g(String k) {
+      final val = v[k];
+      if (val == null) return '';
+      final s = val.toString();
+      return s.isEmpty ? '' : s;
+    }
+
+    Widget section(IconData ic, String t, Color c) => Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 6),
+        child: Row(children: [
+          Icon(ic, size: 16, color: c), const SizedBox(width: 6),
+          Text(t, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c)),
+        ]));
+
+    Widget block(List<Widget> rows) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows));
+
+    final tatortStrasse = g('tatort_strasse');
+    final tatortPlz = g('tatort_plz');
+    final tatortOrt = g('tatort_ort');
+    final tatortStadtteil = g('tatort_stadtteil');
+    final tatortBemerkung = g('tatort_bemerkung');
+    final tatortFreie = g('tatort_freie_bezeichnung');
+    final hasTatort = [tatortStrasse, tatortPlz, tatortOrt, tatortStadtteil, tatortBemerkung, tatortFreie].any((s) => s.isNotEmpty);
+
+    final tatzeitWochentag = g('tatzeit_wochentag');
+    final tatzeitDatum = _isoToDe(g('tatzeit_datum'));
+    final tatzeitStunde = g('tatzeit_stunde');
+    final tatzeitMinute = g('tatzeit_minute');
+    final hasTatzeit = [tatzeitWochentag, tatzeitDatum, tatzeitStunde, tatzeitMinute].any((s) => s.isNotEmpty);
+    final tatzeitUhr = (tatzeitStunde.isNotEmpty || tatzeitMinute.isNotEmpty)
+        ? '${tatzeitStunde.padLeft(2, '0')}:${tatzeitMinute.padLeft(2, '0')} Uhr'
+        : '';
+
+    final delikt = g('delikt');
+
+    final geschVor = g('gesch_vorname');
+    final geschName = g('gesch_name');
+    final geschGebname = g('gesch_geburtsname');
+    final geschGebDat = _isoToDe(g('gesch_geburtsdatum'));
+    final geschGebOrt = g('gesch_geburtsort');
+    final geschGeschlecht = switch (g('gesch_geschlecht')) {
+      'm' => 'männlich',
+      'w' => 'weiblich',
+      'd' => 'divers',
+      _ => g('gesch_geschlecht'),
+    };
+    final geschStaat = g('gesch_staatsangehoerigkeit');
+    final geschWohn = g('gesch_wohnsitz');
+    final hasGesch = [geschVor, geschName, geschGebname, geschGebDat, geschGebOrt, geschGeschlecht, geschStaat, geschWohn].any((s) => s.isNotEmpty);
+
+    final folgenVer = v['folgen_verletzungen']?.toString() == '1' || v['folgen_verletzungen'] == true;
+    final folgenDieb = g('folgen_diebstahl_wert');
+    final folgenBesch = g('folgen_beschaedigung_wert');
+    final folgenSonst = g('folgen_sonstige');
+    final hasFolgen = folgenVer || folgenDieb.isNotEmpty || folgenBesch.isNotEmpty || folgenSonst.isNotEmpty;
+
+    final sachfahndung = switch (g('sachfahndung')) {
+      'ja' => 'Ja',
+      'nein' => 'Nein',
+      _ => '',
+    };
+    final tatverdaechtige = switch (g('tatverdaechtige')) {
+      'bekannt' => 'bekannt',
+      'nicht_bekannt' => 'nicht bekannt',
+      _ => '',
+    };
+    final hasErmittlungen = sachfahndung.isNotEmpty || tatverdaechtige.isNotEmpty;
+
+    final datumAnzeige = _isoToDe(g('datum_anzeigeaufnahme'));
+    final datumBesch = _isoToDe(g('datum_bescheinigung'));
+    final hasAnzeigeDatums = datumAnzeige.isNotEmpty || datumBesch.isNotEmpty;
+    final staatsanw = g('staatsanwaltschaft');
+
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _detailRow('Art', v['typ'] ?? '-'), _detailRow('Datum', fDatum.isNotEmpty ? fDatum : '-'),
-      _detailRow('Aktenzeichen', v['aktenzeichen'] ?? '-'), _detailRow('Status', _statusLabel(v['status'])),
-      _detailRow('Sachbearbeiter', v['sachbearbeiter_name'] ?? '-'), _detailRow('Durchwahl', v['sachbearbeiter_telefon'] ?? '-'),
+      _detailRow('Art', _typLabel(typ)),
+      _detailRow('Datum', fDatum.isNotEmpty ? fDatum : '-'),
+      _detailRow('Aktenzeichen', g('aktenzeichen').isNotEmpty ? g('aktenzeichen') : '-'),
+      _detailRow('Status', _statusLabel(v['status'])),
+      _detailRow('Sachbearbeiter', g('sachbearbeiter_name').isNotEmpty ? g('sachbearbeiter_name') : '-'),
+      _detailRow('Durchwahl', g('sachbearbeiter_telefon').isNotEmpty ? g('sachbearbeiter_telefon') : '-'),
+
       const Divider(height: 24),
       const Text('Beschreibung', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)), const SizedBox(height: 6),
       Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
-        child: Text(v['beschreibung'] ?? 'Keine Beschreibung', style: const TextStyle(fontSize: 13))),
+        child: Text(g('beschreibung').isNotEmpty ? g('beschreibung') : 'Keine Beschreibung', style: const TextStyle(fontSize: 13))),
+
+      // ──────── Strafanzeige-spezifische Sektionen ────────
+      if (isStraftat) ...[
+        if (hasAnzeigeDatums) ...[
+          section(Icons.event_note, 'Anzeige & Bescheinigung', Colors.indigo.shade700),
+          block([
+            if (datumAnzeige.isNotEmpty) _detailRow('Anzeigenaufnahme', datumAnzeige),
+            if (datumBesch.isNotEmpty) _detailRow('Bescheinigung', datumBesch),
+          ]),
+        ],
+
+        if (hasTatort) ...[
+          section(Icons.location_on, 'Tatort', Colors.deepOrange.shade700),
+          block([
+            if (tatortBemerkung.isNotEmpty) _detailRow('Bemerkung', tatortBemerkung),
+            if (tatortStrasse.isNotEmpty) _detailRow('Straße / Hausnr.', tatortStrasse),
+            if (tatortPlz.isNotEmpty || tatortOrt.isNotEmpty) _detailRow('PLZ / Ort', '$tatortPlz $tatortOrt'.trim()),
+            if (tatortStadtteil.isNotEmpty) _detailRow('Stadtteil', tatortStadtteil),
+            if (tatortFreie.isNotEmpty) _detailRow('Freie Bezeichnung', tatortFreie),
+          ]),
+        ],
+
+        if (hasTatzeit) ...[
+          section(Icons.access_time, 'Tatzeit', Colors.deepOrange.shade700),
+          block([
+            if (tatzeitWochentag.isNotEmpty) _detailRow('Wochentag', tatzeitWochentag),
+            if (tatzeitDatum.isNotEmpty) _detailRow('Datum', tatzeitDatum),
+            if (tatzeitUhr.isNotEmpty) _detailRow('Uhrzeit', tatzeitUhr),
+          ]),
+        ],
+
+        if (delikt.isNotEmpty) ...[
+          section(Icons.gavel, 'Delikt', Colors.red.shade700),
+          block([_detailRow('Bezeichnung', delikt)]),
+        ],
+
+        if (hasGesch) ...[
+          section(Icons.person, 'Geschädigte/r', Colors.green.shade700),
+          block([
+            if (geschName.isNotEmpty || geschVor.isNotEmpty) _detailRow('Name', '$geschVor $geschName'.trim()),
+            if (geschGebname.isNotEmpty) _detailRow('Geburtsname', geschGebname),
+            if (geschGebDat.isNotEmpty) _detailRow('Geburtsdatum', geschGebDat),
+            if (geschGebOrt.isNotEmpty) _detailRow('Geburtsort / Land', geschGebOrt),
+            if (geschGeschlecht.isNotEmpty) _detailRow('Geschlecht', geschGeschlecht),
+            if (geschStaat.isNotEmpty) _detailRow('Staatsangehörigkeit', geschStaat),
+            if (geschWohn.isNotEmpty) _detailRow('Wohnsitz', geschWohn),
+          ]),
+        ],
+
+        if (hasFolgen) ...[
+          section(Icons.fact_check, 'Folgen', Colors.blue.shade700),
+          block([
+            if (folgenVer) _detailRow('Verletzungen', 'geltend gemacht'),
+            if (folgenDieb.isNotEmpty) _detailRow('Diebesgut Wert', '$folgenDieb EUR'),
+            if (folgenBesch.isNotEmpty) _detailRow('Beschädigungs-Wert', '$folgenBesch EUR'),
+            if (folgenSonst.isNotEmpty) _detailRow('Sonstige Folgen', folgenSonst),
+          ]),
+        ],
+
+        if (hasErmittlungen) ...[
+          section(Icons.search, 'Ermittlungen', Colors.purple.shade700),
+          block([
+            if (sachfahndung.isNotEmpty) _detailRow('Sachfahndung veranlasst', sachfahndung),
+            if (tatverdaechtige.isNotEmpty) _detailRow('Tatverdächtige', tatverdaechtige),
+          ]),
+        ],
+
+        if (staatsanw.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+            child: Text(
+              'Nach Abschluss der Ermittlungen wird die Anzeige unter dem '
+              'Aktenzeichen ${g('aktenzeichen').isEmpty ? '<Az>' : g('aktenzeichen')} '
+              'der $staatsanw vorgelegt.',
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontStyle: FontStyle.italic),
+            )),
+        ],
+      ],
     ]));
   }
+
+  /// ISO YYYY-MM-DD → DD.MM.YYYY; lässt andere Formate unverändert.
+  static String _isoToDe(String d) {
+    if (d.isEmpty) return '';
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(d);
+    return m != null ? '${m.group(3)}.${m.group(2)}.${m.group(1)}' : d;
+  }
+
+  /// Lesbares Label für den Vorfalls-Typ (gespiegelt aus
+  /// behorde_polizei.dart _vorfallKategorien).
+  static String _typLabel(String key) => _vorfallTypLabels[key] ?? key;
+
+  static const Map<String, String> _vorfallTypLabels = {
+    'owi_geschwindigkeit': 'OWi: Geschwindigkeitsüberschreitung',
+    'owi_rotlicht': 'OWi: Rotlichtverstoß',
+    'owi_handy': 'OWi: Handynutzung am Steuer',
+    'owi_parken': 'OWi: Parkverstoß / Halteverbot',
+    'owi_alkohol': 'OWi: Alkohol am Steuer (0,5-1,09‰)',
+    'owi_drogen_steuer': 'OWi: Drogeneinfluss am Steuer (§24a StVG)',
+    'owi_abstand': 'OWi: Abstandsverstoß',
+    'owi_ueberholen': 'OWi: Überholverstoß',
+    'owi_gurt': 'OWi: Anschnallpflicht / Kindersicherung',
+    'owi_vorfahrt': 'OWi: Vorfahrtverletzung',
+    'owi_rettungsgasse': 'OWi: Rettungsgasse nicht gebildet',
+    'owi_tuev': 'OWi: Fahrzeug ohne gültige HU (TÜV)',
+    'owi_fahrrad': 'OWi: Fahrradverstoß',
+    'owi_sonstige': 'OWi: Sonstige Ordnungswidrigkeit',
+    'bussgeld_fahrverbot_1m': 'Bußgeld + 1 Monat Fahrverbot',
+    'bussgeld_fahrverbot_2m': 'Bußgeld + 2 Monate Fahrverbot',
+    'bussgeld_fahrverbot_3m': 'Bußgeld + 3 Monate Fahrverbot',
+    'straf_koerperverletzung': 'Straftat: Körperverletzung (§223 StGB)',
+    'straf_gef_koerperverletzung': 'Straftat: Gefährliche Körperverletzung (§224)',
+    'straf_bedrohung': 'Straftat: Bedrohung (§241 StGB)',
+    'straf_noetigung': 'Straftat: Nötigung (§240 StGB)',
+    'straf_beleidigung': 'Straftat: Beleidigung (§185 StGB)',
+    'straf_stalking': 'Straftat: Nachstellung/Stalking (§238 StGB)',
+    'straf_haeusliche_gewalt': 'Straftat: Häusliche Gewalt',
+    'straf_diebstahl': 'Straftat: Diebstahl (§242 StGB)',
+    'straf_einbruch': 'Straftat: Einbruchsdiebstahl (§244 StGB)',
+    'straf_raub': 'Straftat: Raub (§249 StGB)',
+    'straf_betrug': 'Straftat: Betrug (§263 StGB)',
+    'straf_sachbeschaedigung': 'Straftat: Sachbeschädigung (§303 StGB)',
+    'straf_unterschlagung': 'Straftat: Unterschlagung (§246 StGB)',
+    'straf_erpressung': 'Straftat: Erpressung (§253 StGB)',
+    'straf_urkundenfaelschung': 'Straftat: Urkundenfälschung (§267 StGB)',
+    'straf_fahrerflucht': 'Straftat: Fahrerflucht (§142 StGB)',
+    'straf_trunkenheit': 'Straftat: Trunkenheit im Verkehr (§316 StGB)',
+    'straf_ohne_fahrerlaubnis': 'Straftat: Fahren ohne Fahrerlaubnis (§21 StVG)',
+    'straf_gefaehrdung_verkehr': 'Straftat: Gefährdung Straßenverkehr (§315c)',
+    'straf_rennen': 'Straftat: Verbotenes Kraftfahrzeugrennen (§315d)',
+    'straf_btm_besitz': 'Straftat: Besitz Betäubungsmittel (§29 BtMG)',
+    'straf_btm_handel': 'Straftat: Handel Betäubungsmittel (§29 BtMG)',
+    'straf_cannabis': 'Straftat: Cannabis über Freigrenze (§34 KCanG)',
+    'straf_hausfriedensbruch': 'Straftat: Hausfriedensbruch (§123 StGB)',
+    'straf_widerstand': 'Straftat: Widerstand gg. Vollstreckungsbeamte (§113)',
+    'straf_schwarzfahren': 'Straftat: Erschleichen von Leistungen (§265a)',
+    'straf_cybercrime': 'Straftat: Computerbetrug / Cyberkriminalität',
+    'straf_brandstiftung': 'Straftat: Brandstiftung (§306 StGB)',
+    'straf_sonstige': 'Straftat: Sonstige Straftat',
+    'kontakt_zeuge': 'Kontakt: Zeugenbefragung / Vorladung',
+    'kontakt_anzeige_erstattet': 'Kontakt: Strafanzeige erstattet (Opfer)',
+    'kontakt_beschuldigter': 'Kontakt: Als Beschuldigter geladen',
+    'kontakt_verkehrsunfall': 'Kontakt: Verkehrsunfall',
+    'kontakt_kontrolle': 'Kontakt: Polizeikontrolle / Identitätsfeststellung',
+    'kontakt_durchsuchung': 'Kontakt: Durchsuchung / Razzia',
+    'kontakt_festnahme': 'Kontakt: Festnahme / Verhaftung',
+    'kontakt_streitschlichtung': 'Kontakt: Streitschlichtung',
+    'kontakt_sonstiges': 'Kontakt: Sonstiger Polizeikontakt',
+  };
 
   // ==================== DOKUMENTE ====================
   Widget _buildDokumenteTab() {
-    return Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    final bescheinigungen = _dokumente.where((d) => (d['kategorie']?.toString() ?? '') == 'bescheinigung').toList();
+    final sonstige = _dokumente.where((d) => (d['kategorie']?.toString() ?? '') != 'bescheinigung').toList();
+
+    Widget docList(List<Map<String, dynamic>> list, String emptyMsg) => list.isEmpty
+        ? Padding(padding: const EdgeInsets.all(12), child: Text(emptyMsg, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+        : Column(children: list.map(_buildDocItem).toList());
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── Sektion 1: Bescheinigung über Erstattung einer Strafanzeige ──
+      Card(
+        color: Colors.indigo.shade50,
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.verified, color: Colors.indigo.shade700, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                'Bescheinigung über die Erstattung einer Strafanzeige (${bescheinigungen.length})',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+              )),
+              ElevatedButton.icon(
+                icon: _uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
+                label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+                onPressed: _uploading ? null : () => _uploadDokumente(kategorie: 'bescheinigung'),
+              ),
+            ]),
+            Padding(padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(
+                'Nur PDF / JPG / JPEG. Wird vom Polizeirevier nach Anzeigenaufnahme ausgestellt (§ 158 Abs. 1 S. 3 StPO).',
+                style: TextStyle(fontSize: 10, color: Colors.indigo.shade700, fontStyle: FontStyle.italic),
+              )),
+            docList(bescheinigungen, 'Noch keine Bescheinigung hochgeladen.'),
+          ]),
+        ),
+      ),
+
+      // ── Sektion 2: Sonstige Dokumente ──
       Row(children: [
-        Expanded(child: Text('Dokumente (${_dokumente.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+        Expanded(child: Text('Sonstige Dokumente (${sonstige.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
         ElevatedButton.icon(
-          icon: _uploading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 18),
-          label: Text(_uploading ? 'Wird hochgeladen...' : 'Hochladen (max 20)'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
-          onPressed: _uploading ? null : _uploadDokumente,
+          icon: _uploading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
+          label: Text(_uploading ? 'Lädt …' : 'Hochladen (max 20)', style: const TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+          onPressed: _uploading ? null : () => _uploadDokumente(kategorie: 'sonstiges'),
         ),
       ]),
-      const Divider(height: 24),
-      Expanded(child: _dokumente.isEmpty
-        ? Center(child: Text('Keine Dokumente', style: TextStyle(color: Colors.grey.shade500)))
-        : ListView.builder(itemCount: _dokumente.length, itemBuilder: (_, i) => _buildDocItem(_dokumente[i]))),
+      const SizedBox(height: 8),
+      docList(sonstige, 'Keine sonstigen Dokumente.'),
     ]));
   }
 
-  Future<void> _uploadDokumente() async {
+  Future<void> _uploadDokumente({String kategorie = 'sonstiges'}) async {
+    final isBescheinigung = kategorie == 'bescheinigung';
     final result = await FilePickerHelper.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp', 'doc', 'docx'],
-      allowMultiple: true,
-      dialogTitle: 'Dokumente auswählen (max 20)',
+      allowedExtensions: isBescheinigung
+          ? const ['pdf', 'jpg', 'jpeg']
+          : const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp', 'doc', 'docx'],
+      allowMultiple: !isBescheinigung,
+      dialogTitle: isBescheinigung
+          ? 'Bescheinigung auswählen (PDF / JPG / JPEG)'
+          : 'Dokumente auswählen (max 20)',
     );
     if (result == null || result.files.isEmpty) return;
-    final paths = result.files.where((f) => f.path != null).take(20).map((f) => f.path!).toList();
+    final paths = result.files.where((f) => f.path != null).take(isBescheinigung ? 1 : 20).map((f) => f.path!).toList();
     if (paths.isEmpty) return;
 
     setState(() => _uploading = true);
     try {
-      final uploadResult = await widget.apiService.uploadPolizeiVorfallDokumente(widget.vorfallId, paths, widget.mitgliedernummer);
+      final uploadResult = await widget.apiService.uploadPolizeiVorfallDokumente(
+        widget.vorfallId, paths, widget.mitgliedernummer, kategorie: kategorie,
+      );
       if (mounted) {
         final count = (uploadResult['uploaded'] as List?)?.length ?? 0;
         final errors = (uploadResult['errors'] as List?)?.length ?? 0;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$count Dokument(e) hochgeladen${errors > 0 ? ', $errors Fehler' : ''}'),
+          content: Text('$count ${isBescheinigung ? "Bescheinigung" : "Dokument(e)"} hochgeladen${errors > 0 ? ', $errors Fehler' : ''}'),
           backgroundColor: errors > 0 ? Colors.orange : Colors.green,
         ));
         _loadData();
