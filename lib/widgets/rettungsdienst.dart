@@ -120,7 +120,6 @@ class _EinsatzTabState extends State<_EinsatzTab> {
     final massnahmenC = TextEditingController(text: existing?['massnahmen_vor_ort']?.toString() ?? '');
     final zielklinikC = TextEditingController(text: existing?['zielklinik']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
-    final polizeiAktenzC = TextEditingController(text: existing?['polizei_aktenzeichen']?.toString() ?? '');
     final polizeiDsC = TextEditingController(text: existing?['polizei_dienststelle']?.toString() ?? '');
     final polizeiSbC = TextEditingController(text: existing?['polizei_sachbearbeiter']?.toString() ?? '');
     List<Map<String, dynamic>> strafanzeigen = [];
@@ -293,24 +292,28 @@ class _EinsatzTabState extends State<_EinsatzTab> {
           }),
         if (polizeiVorOrt != 'nein') ...[
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: TextField(controller: polizeiDsC,
-              decoration: InputDecoration(
-                labelText: 'Polizei-Dienststelle',
-                isDense: true,
-                prefixIcon: const Icon(Icons.local_police, size: 18),
-                suffixIcon: polizeiDsAutofill ? Tooltip(message: 'Übernommen aus Zuständige Polizeidienststelle', child: Icon(Icons.link, size: 16, color: Colors.teal.shade600)) : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onChanged: (_) => setDlg(() => polizeiDsAutofill = false),
-            )),
-          ]),
+          TextField(controller: polizeiDsC,
+            decoration: InputDecoration(
+              labelText: 'Polizei-Dienststelle',
+              isDense: true,
+              prefixIcon: const Icon(Icons.local_police, size: 18),
+              suffixIcon: polizeiDsAutofill ? Tooltip(message: 'Übernommen aus Zuständige Polizeidienststelle', child: Icon(Icons.link, size: 16, color: Colors.teal.shade600)) : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onChanged: (_) => setDlg(() => polizeiDsAutofill = false),
+          ),
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: TextField(controller: polizeiAktenzC, decoration: InputDecoration(labelText: 'Tagebuchnummer / Az.', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: polizeiSbC, decoration: InputDecoration(labelText: 'Sachbearbeiter', isDense: true, prefixIcon: const Icon(Icons.person, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          ]),
+          TextField(controller: polizeiSbC,
+            decoration: InputDecoration(
+              labelText: 'Sachbearbeiter',
+              isDense: true,
+              prefixIcon: const Icon(Icons.person, size: 18),
+              suffixIcon: polizeiVorOrt == 'ja_anzeige_existiert' && polizeiVorfallId != null
+                ? Tooltip(message: 'Übernommen aus verknüpfter Strafanzeige', child: Icon(Icons.link, size: 16, color: Colors.teal.shade600))
+                : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
           if (polizeiVorOrt == 'ja_anzeige_existiert') ...[
             const SizedBox(height: 10),
             DropdownButtonFormField<int?>(
@@ -328,7 +331,15 @@ class _EinsatzTabState extends State<_EinsatzTab> {
                   ),
                 )),
               ],
-              onChanged: (v) => setDlg(() => polizeiVorfallId = v),
+              onChanged: (v) {
+                setDlg(() => polizeiVorfallId = v);
+                // Auto-fill Sachbearbeiter from picked Strafanzeige
+                if (v != null) {
+                  final picked = strafanzeigen.firstWhere((sa) => (sa['id'] is int ? sa['id'] as int : int.tryParse(sa['id'].toString())) == v, orElse: () => {});
+                  final sb = picked['sachbearbeiter_name']?.toString() ?? '';
+                  if (sb.isNotEmpty) setDlg(() => polizeiSbC.text = sb);
+                }
+              },
             ),
             if (strafanzeigen.isEmpty && strafanzeigenLoaded)
               Padding(padding: const EdgeInsets.only(top: 6), child: Text(
@@ -359,7 +370,6 @@ class _EinsatzTabState extends State<_EinsatzTab> {
             'zielklinik': zielklinikC.text,
             'notiz': notizC.text,
             'polizei_vor_ort': polizeiVorOrt,
-            'polizei_aktenzeichen': polizeiAktenzC.text,
             'polizei_dienststelle': polizeiDsC.text,
             'polizei_sachbearbeiter': polizeiSbC.text,
             'polizei_vorfall_id': polizeiVorOrt == 'ja_anzeige_existiert' ? polizeiVorfallId : null,
@@ -573,8 +583,6 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
             ]),
             if ((v['polizei_dienststelle']?.toString() ?? '').isNotEmpty)
               Padding(padding: const EdgeInsets.only(top: 4), child: Text('Dienststelle: ${v['polizei_dienststelle']}', style: const TextStyle(fontSize: 12))),
-            if ((v['polizei_aktenzeichen']?.toString() ?? '').isNotEmpty)
-              Padding(padding: const EdgeInsets.only(top: 2), child: Text('Tagebuch-Nr.: ${v['polizei_aktenzeichen']}', style: const TextStyle(fontSize: 12))),
             if ((v['polizei_sachbearbeiter']?.toString() ?? '').isNotEmpty)
               Padding(padding: const EdgeInsets.only(top: 2), child: Text('Sachbearbeiter: ${v['polizei_sachbearbeiter']}', style: const TextStyle(fontSize: 12))),
             // Linked Strafanzeige
