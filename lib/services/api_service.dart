@@ -5926,6 +5926,15 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  Future<Map<String, dynamic>> setUserKoerperlicheEinschraenkung(int userId, bool value) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/user_qualifikationen.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'action': 'set_koerperlich', 'value': value ? 1 : 0}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> deleteUserQualifikation(int userId, String table, int id) async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/user_qualifikationen.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'table': table, 'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
     try {

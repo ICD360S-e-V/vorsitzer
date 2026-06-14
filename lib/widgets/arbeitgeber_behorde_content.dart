@@ -4110,6 +4110,7 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
   List<Map<String, dynamic>> _fsKlassen = [];
   List<Map<String, dynamic>> _sprachenDB = [];
   bool _gabelstaplerschein = false;
+  bool _koerperlicheEinschraenkung = false;
   bool _loaded = false;
 
   @override
@@ -4134,6 +4135,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
             _sprachen = List<Map<String, dynamic>>.from(results[0]['sprachen'] ?? []);
             final g = results[0]['gabelstaplerschein'];
             _gabelstaplerschein = g == 1 || g == '1' || g == true;
+            final k = results[0]['koerperliche_einschraenkung'];
+            _koerperlicheEinschraenkung = k == 1 || k == '1' || k == true;
           }
           if (results[1]['success'] == true) _fsKlassen = List<Map<String, dynamic>>.from(results[1]['data'] ?? []);
           if (results[2]['success'] == true) _sprachenDB = List<Map<String, dynamic>>.from(results[2]['data'] ?? []);
@@ -4153,6 +4156,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
           _sprachen = List<Map<String, dynamic>>.from(result['sprachen'] ?? []);
           final g = result['gabelstaplerschein'];
           _gabelstaplerschein = g == 1 || g == '1' || g == true;
+          final k = result['koerperliche_einschraenkung'];
+          _koerperlicheEinschraenkung = k == 1 || k == '1' || k == true;
         });
       }
     } catch (_) {}
@@ -4215,6 +4220,36 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
             const SizedBox(width: 8),
             Text(_gabelstaplerschein ? 'Vorhanden' : 'Nicht vorhanden',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _gabelstaplerschein ? Colors.green.shade700 : Colors.grey.shade600)),
+          ]),
+        ),
+        // ── KÖRPERLICHE EINSCHRÄNKUNG ──
+        // Steht zwischen Gabelstapler und Führerschein, weil das Stellen-
+        // angebote-Modul damit Jobs ausfiltern kann, die schweres Heben
+        // (DGUV-Risikoschwelle: 15 kg für Frauen, 25 kg für Männer) fordern.
+        _sectionHeader(Icons.fitness_center, 'Körperliche Einschränkung', Colors.deepPurple.shade700),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(children: [
+            Switch(
+              value: _koerperlicheEinschraenkung,
+              activeThumbColor: Colors.deepPurple.shade700,
+              onChanged: (v) async {
+                setState(() => _koerperlicheEinschraenkung = v);
+                final res = await widget.apiService.setUserKoerperlicheEinschraenkung(widget.userId, v);
+                if (res['success'] != true && mounted) {
+                  setState(() => _koerperlicheEinschraenkung = !v);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speichern fehlgeschlagen'), backgroundColor: Colors.red));
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              _koerperlicheEinschraenkung
+                  ? 'Keine schweren Lasten (ab 15 kg) heben'
+                  : 'Keine Einschränkung',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                  color: _koerperlicheEinschraenkung ? Colors.deepPurple.shade700 : Colors.grey.shade600),
+            )),
           ]),
         ),
         // ── FÜHRERSCHEIN ──

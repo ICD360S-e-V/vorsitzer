@@ -65,6 +65,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   bool _nurNeueStellen = true; // blendet bereits beworbene Stellen aus
   bool _hatFuehrerschein = false;
   bool _hatGabelstapler = false;
+  bool _koerperlicheEinschraenkung = false; // true = NICHT schwere Lasten heben
   final Map<String, Map<String, dynamic>?> _detailCache = {};
 
   // Bereits beworbene BA-Stellen: refnr → bewerbung row (mit arbeitgeber_id,
@@ -88,7 +89,8 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       if (d != null && d.isNotEmpty) {
         final missG = _needsGabelstapler(d) && !_hatGabelstapler;
         final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
-        if (missG || missF) return false;
+        final missS = _needsSchwerarbeit(d) && _koerperlicheEinschraenkung;
+        if (missG || missF || missS) return false;
       }
     }
     return true;
@@ -234,9 +236,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     final fs = List<Map<String, dynamic>>.from(res['fuehrerschein'] ?? []);
     final hatFs = fs.any((f) => (f['klasse'] ?? '').toString().toLowerCase() != 'keinen');
     final g = res['gabelstaplerschein'];
+    final k = res['koerperliche_einschraenkung'];
     setState(() {
       _hatFuehrerschein = hatFs;
       _hatGabelstapler = g == 1 || g == '1' || g == true;
+      _koerperlicheEinschraenkung = k == 1 || k == '1' || k == true;
     });
   }
 
@@ -263,6 +267,29 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   // den Treffer dann auf 'optional'.
   static const _kwStapler = ['gabelstapler', 'staplerschein', 'flurförder', 'flurfoerder'];
   static const _kwFuehrer = ['führerschein', 'fuehrerschein', 'fahrerlaubnis', 'pkw-schein'];
+  // Keywords aus realen Stellenanzeigen + DGUV-Vokabular für schweres Heben.
+  // Schwellenwert für die kg-Erkennung: 15 kg (BAuA-Orientierung Frauen,
+  // ab dem die Belastung als signifikantes Risiko gilt).
+  static const _kwSchwer = [
+    'heben und tragen',
+    'schwere lasten',
+    'schwerere paketstücke',
+    'schwere paketstücke',
+    'heben von lasten',
+    'heben von packstücken',
+    'körperlich belastbar',
+    'körperliche belastbarkeit',
+    'körperlich anspruchsvoll',
+    'körperlich anstrengend',
+    'schwere körperliche arbeit',
+    'körperliche fitness',
+    'schwerarbeit',
+  ];
+  // Regex zieht 15..999 kg (mit optionalem Dezimalpunkt für '31,5 kg').
+  static final _kwSchwerKg = RegExp(
+    r'\b(1[5-9]|[2-9]\d|\d{3})(?:[.,]\d{1,2})?\s*kg\b',
+    caseSensitive: false,
+  );
   static final _kwOptional = RegExp(
     r'(nicht erforderlich|nicht notwendig|von vorteil|wünschenswert|wuenschenswert|wäre vorteilhaft|waere vorteilhaft)',
     caseSensitive: false,
@@ -293,6 +320,20 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     if (i == null) return false;
     final start = (i.start - 60).clamp(0, t.length);
     final end = (i.end + 60).clamp(0, t.length);
+    return !_kwOptional.hasMatch(t.substring(start, end));
+  }
+
+  /// True wenn die Stelle eindeutig schweres Heben verlangt — entweder durch
+  /// Standard-Formulierungen ('Heben und Tragen', 'körperlich belastbar', ...)
+  /// oder konkrete Gewichtsangaben ab 15 kg. Negationskontext im 60-Zeichen-
+  /// Fenster ('leichte Lasten', 'nicht erforderlich', ...) hebt den Treffer auf.
+  bool _needsSchwerarbeit(Map<String, dynamic> d) {
+    final t = '${d['stellenangebotsBeschreibung'] ?? ''} ${d['stellenangebotsTitel'] ?? ''}'.toLowerCase();
+    if (_matchAny(t, _kwSchwer)) return true;
+    final m = _kwSchwerKg.firstMatch(t);
+    if (m == null) return false;
+    final start = (m.start - 60).clamp(0, t.length);
+    final end = (m.end + 60).clamp(0, t.length);
     return !_kwOptional.hasMatch(t.substring(start, end));
   }
 
@@ -564,7 +605,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               const SizedBox(width: 4),
               const Text('Nur passende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               const SizedBox(width: 4),
-              Text('(${_hatFuehrerschein ? "FS✓" : "FS✗"}·${_hatGabelstapler ? "Gabelst.✓" : "Gabelst.✗"})',
+              Text('(${_hatFuehrerschein ? "FS✓" : "FS✗"}·${_hatGabelstapler ? "Gabelst.✓" : "Gabelst.✗"}${_koerperlicheEinschraenkung ? "·Schwer✗" : ""})',
                   style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
             ]),
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -740,6 +781,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                     final pruefend = d == null && _detailCache.containsKey(refnr);
                     final needG = d != null && d.isNotEmpty && _needsGabelstapler(d);
                     final needF = d != null && d.isNotEmpty && _needsFuehrerschein(d);
+                    final needS = d != null && d.isNotEmpty && _needsSchwerarbeit(d);
                     final bewerbung = _bewerbungenByRefnr[refnr];
                     final beworben = bewerbung != null;
                     return Card(
@@ -790,10 +832,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                               Text(eintritt, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                             ],
                           ])),
-                          if (pruefend || needG || needF) Padding(padding: const EdgeInsets.only(top: 6), child: Wrap(spacing: 4, runSpacing: 4, children: [
+                          if (pruefend || needG || needF || needS) Padding(padding: const EdgeInsets.only(top: 6), child: Wrap(spacing: 4, runSpacing: 4, children: [
                             if (pruefend) _smallBadge(Icons.hourglass_empty, 'wird geprueft', Colors.grey),
                             if (needG) _smallBadge(Icons.local_shipping, _hatGabelstapler ? 'Gabelstapler ✓' : 'Gabelstapler ✗', _hatGabelstapler ? Colors.green : Colors.red),
                             if (needF) _smallBadge(Icons.directions_car, _hatFuehrerschein ? 'Führerschein ✓' : 'Führerschein ✗', _hatFuehrerschein ? Colors.green : Colors.red),
+                            if (needS) _smallBadge(Icons.fitness_center, _koerperlicheEinschraenkung ? 'Schwere Arbeit ✗' : 'Schwere Arbeit', _koerperlicheEinschraenkung ? Colors.red : Colors.green),
                           ])),
                         ])),
                       ),
