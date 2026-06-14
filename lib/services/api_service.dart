@@ -3856,6 +3856,19 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Markiert eine Stelle aus der Bundesagentur-Jobsuche als beworben:
+  /// findet die Firma in arbeitgeber_db (oder legt sie minimal an) und
+  /// schreibt die BA-Metadaten (refnr/titel/beruf/eintritt) in
+  /// user_bewerbungen-Spalten — kein JSON-Blob.
+  Future<Map<String, dynamic>> quickApplyBaJob(int userId, Map<String, dynamic> baData) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/bewerbung_quick_apply.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, ...baData}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== VERSORGUNGSAMT DATA (dedicated DB) ==========
 
   Future<Map<String, dynamic>> getVersorgungsamtData(int userId) async {

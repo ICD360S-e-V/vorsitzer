@@ -66,6 +66,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   bool _hatGabelstapler = false;
   final Map<String, Map<String, dynamic>?> _detailCache = {};
 
+  // Bereits beworbene BA-Stellen: refnr → bewerbung row (mit arbeitgeber_id,
+  // ba_marked_at usw.). Wird aus bewerbung_list.php geladen und bei jedem
+  // 'Habe mich beworben'-Klick aktualisiert.
+  final Map<String, Map<String, dynamic>> _bewerbungenByRefnr = {};
+
   int get _filterAktivCount =>
       (_arbeitszeit != null ? 1 : 0) +
       (_befristung != null ? 1 : 0) +
@@ -155,6 +160,64 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     // oben, wenn der Vorsitzer das letzte Mal etwas anderes ausgewaehlt hat.
     _restoreSelection();
     _loadQualifikationen();
+    _loadBewerbungen();
+  }
+
+  Future<void> _loadBewerbungen() async {
+    final r = await widget.apiService.listBewerbungen(widget.user.id);
+    if (!mounted || r['success'] != true) return;
+    final list = ((r['data'] ?? r)['bewerbungen'] ?? []) as List;
+    final map = <String, Map<String, dynamic>>{};
+    for (final raw in list) {
+      final b = Map<String, dynamic>.from(raw as Map);
+      final refnr = (b['ba_refnr'] ?? '').toString();
+      if (refnr.isNotEmpty) map[refnr] = b;
+    }
+    setState(() {
+      _bewerbungenByRefnr
+        ..clear()
+        ..addAll(map);
+    });
+  }
+
+  Future<void> _markAsApplied(Map<String, dynamic> jobDetail, Map<String, dynamic> suchergebnis) async {
+    final refnr = (suchergebnis['refnr'] ?? '').toString();
+    if (refnr.isEmpty) return;
+    final firma = (jobDetail['firma'] ?? suchergebnis['arbeitgeber'] ?? '').toString().trim();
+    if (firma.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Arbeitgeber unbekannt — kann nicht markieren')));
+      return;
+    }
+    final loc = (jobDetail['stellenlokationen'] is List && (jobDetail['stellenlokationen'] as List).isNotEmpty)
+        ? (jobDetail['stellenlokationen'] as List).first as Map<String, dynamic>
+        : null;
+    final adr = (loc?['adresse'] is Map) ? loc!['adresse'] as Map : const {};
+    final strasse = [(adr['strasse'] ?? '').toString(), (adr['hausnummer'] ?? '').toString()]
+        .where((e) => e.isNotEmpty).join(' ');
+    final eintritt = ((jobDetail['eintrittszeitraum'] is Map ? jobDetail['eintrittszeitraum']['von'] : null) ?? '').toString().split('T').first;
+    final res = await widget.apiService.quickApplyBaJob(widget.user.id, {
+      'firma_name': firma,
+      'ba_refnr': refnr,
+      'ba_titel': (jobDetail['stellenangebotsTitel'] ?? suchergebnis['titel'] ?? '').toString(),
+      'ba_beruf': (jobDetail['hauptberuf'] ?? suchergebnis['beruf'] ?? '').toString(),
+      'ba_eintrittsdatum': eintritt,
+      'strasse': strasse,
+      'plz': (adr['plz'] ?? '').toString(),
+      'ort': (adr['ort'] ?? '').toString(),
+    });
+    if (!mounted) return;
+    if (res['success'] == true) {
+      await _loadBewerbungen();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Als Bewerbung markiert — Status in Bewerbungsuebersicht setzen'),
+        backgroundColor: Colors.green.shade700,
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(res['message']?.toString() ?? 'Markieren fehlgeschlagen'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   Future<void> _loadQualifikationen() async {
@@ -363,6 +426,8 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         refnr: refnr,
         arbeitsortLabel: _arbeitsort(ag),
         onOpenExtern: () { Navigator.pop(context); _openExtern(refnr); },
+        bewerbung: _bewerbungenByRefnr[refnr],
+        onMarkApplied: (detail) async { await _markAsApplied(detail, ag); },
       ),
     );
   }
@@ -652,11 +717,20 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                     final pruefend = d == null && _detailCache.containsKey(refnr);
                     final needG = d != null && d.isNotEmpty && _needsGabelstapler(d);
                     final needF = d != null && d.isNotEmpty && _needsFuehrerschein(d);
+                    final bewerbung = _bewerbungenByRefnr[refnr];
+                    final beworben = bewerbung != null;
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: beworben ? Colors.green.shade50 : null,
                       child: InkWell(
                         onTap: () => _openDetails(s),
                         child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          if (beworben) Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+                            Icon(Icons.check_circle, size: 14, color: Colors.green.shade800),
+                            const SizedBox(width: 4),
+                            Text('Bereits beworben${bewerbung['ba_marked_at'] != null ? ' am ${bewerbung['ba_marked_at'].toString().split('T').first.split(' ').first}' : ''}',
+                                style: TextStyle(fontSize: 11, color: Colors.green.shade900, fontWeight: FontWeight.bold)),
+                          ])),
                           Text(titel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                           if (firma.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
                             Icon(Icons.business, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
@@ -712,12 +786,16 @@ class _StellenDetailDialog extends StatefulWidget {
   final String refnr;
   final String arbeitsortLabel;
   final VoidCallback onOpenExtern;
+  final Map<String, dynamic>? bewerbung;
+  final Future<void> Function(Map<String, dynamic> jobDetail)? onMarkApplied;
   const _StellenDetailDialog({
     required this.apiService,
     required this.suchergebnis,
     required this.refnr,
     required this.arbeitsortLabel,
     required this.onOpenExtern,
+    this.bewerbung,
+    this.onMarkApplied,
   });
 
   @override
@@ -961,8 +1039,24 @@ class _StellenDetailDialogState extends State<_StellenDetailDialog> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))),
-            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            child: Row(children: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schliessen')),
+              const Spacer(),
+              if (widget.bewerbung != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Row(children: [
+                Icon(Icons.check_circle, size: 16, color: Colors.green.shade800),
+                const SizedBox(width: 4),
+                Text('beworben${widget.bewerbung!['ba_marked_at'] != null ? " am ${widget.bewerbung!['ba_marked_at'].toString().split('T').first.split(' ').first}" : ""}',
+                    style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.bold)),
+              ]))
+              else if (widget.onMarkApplied != null && d != null) ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await widget.onMarkApplied!(d);
+                },
+                icon: const Icon(Icons.send, size: 16),
+                label: const Text('Habe mich beworben'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
+              ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: widget.onOpenExtern,

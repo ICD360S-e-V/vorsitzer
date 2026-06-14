@@ -247,6 +247,19 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Text([branche, ort].where((e) => e.isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                               ),
+                            if ((b['ba_titel']?.toString() ?? '').isNotEmpty || (b['ba_beruf']?.toString() ?? '').isNotEmpty) Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.search, size: 11, color: Colors.indigo.shade700),
+                                  const SizedBox(width: 4),
+                                  Flexible(child: Text('BA-Stelle: ${b['ba_titel']?.toString() ?? b['ba_beruf']?.toString() ?? ''}',
+                                      style: TextStyle(fontSize: 10, color: Colors.indigo.shade900), overflow: TextOverflow.ellipsis)),
+                                ]),
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             Row(children: [
                               _miniBadge(Icons.history, '$statusCount', Colors.blue, 'Status-Einträge'),
