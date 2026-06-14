@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 
@@ -325,6 +327,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
     // PHP jsonResponse uses array_merge — fields are at ROOT level, not nested under 'data'
     final arbeitgeber = res['arbeitgeber'] is Map ? Map<String, dynamic>.from(res['arbeitgeber'] as Map) : <String, dynamic>{};
     final inner = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : <String, dynamic>{};
+    final baRefnr = (res['ba_refnr'] ?? '').toString();
+    final baTitel = (res['ba_titel'] ?? '').toString();
+    final baBeruf = (res['ba_beruf'] ?? '').toString();
+    final baMarkedAt = (res['ba_marked_at'] ?? '').toString();
+    final hasBa = baRefnr.isNotEmpty;
 
     List<Map<String, dynamic>> statusJournal = List<Map<String, dynamic>>.from(
       (inner['status_journal'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
@@ -347,7 +354,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       context: context,
       barrierDismissible: false,
       builder: (dlgCtx) => DefaultTabController(
-        length: 3,
+        length: hasBa ? 4 : 3,
         child: StatefulBuilder(builder: (mctx, setM) {
           return AlertDialog(
             titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
@@ -370,14 +377,16 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               ]),
               const SizedBox(height: 4),
               TabBar(
+                isScrollable: hasBa,
                 labelColor: Colors.deepPurple.shade700,
                 unselectedLabelColor: Colors.grey.shade600,
                 indicatorColor: Colors.deepPurple,
                 labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                tabs: const [
-                  Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
-                  Tab(icon: Icon(Icons.history, size: 16), text: 'Bewerbung Status'),
-                  Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+                tabs: [
+                  const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+                  const Tab(icon: Icon(Icons.history, size: 16), text: 'Bewerbung Status'),
+                  const Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+                  if (hasBa) const Tab(icon: Icon(Icons.work_outline, size: 16), text: 'Stellenanzeige'),
                 ],
               ),
             ]),
@@ -388,6 +397,13 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                 _detailsTab(arbeitgeber, generalNotes, (v) async { generalNotes = v; await persist(); }),
                 _statusJournalTab(statusJournal, (updated) async { setM(() => statusJournal = updated); await persist(); }),
                 _korrespondenzTab(arbeitgeberId, korrespondenz, (updated) async { setM(() => korrespondenz = updated); await persist(); }),
+                if (hasBa) _StellenanzeigeTab(
+                  apiService: widget.apiService,
+                  refnr: baRefnr,
+                  baTitel: baTitel,
+                  baBeruf: baBeruf,
+                  baMarkedAt: baMarkedAt,
+                ),
               ]),
             ),
           );
@@ -1069,6 +1085,243 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                 },
               ),
       ),
+    ]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Tab "Stellenanzeige" — sichtbar nur, wenn die Bewerbung urspruenglich
+// aus der Bundesagentur-Jobsuche kam (ba_refnr gesetzt). Laedt den
+// Volltext der Stelle live ueber /pc/v4/jobdetails — wenn die Anzeige
+// inzwischen offline ist, sehen wir 'Stelle nicht mehr verfuegbar'.
+// ─────────────────────────────────────────────────────────────────
+class _StellenanzeigeTab extends StatefulWidget {
+  final ApiService apiService;
+  final String refnr;
+  final String baTitel;
+  final String baBeruf;
+  final String baMarkedAt;
+  const _StellenanzeigeTab({
+    required this.apiService,
+    required this.refnr,
+    required this.baTitel,
+    required this.baBeruf,
+    required this.baMarkedAt,
+  });
+
+  @override
+  State<_StellenanzeigeTab> createState() => _StellenanzeigeTabState();
+}
+
+class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
+  Map<String, dynamic>? _detail;
+  bool _loading = true;
+  String? _error;
+
+  static final _emailRe = RegExp(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}');
+  static final _telRe = RegExp(r'(?:\+49[\s\-/]?|\(?0\)?[\s\-/]?)\d[\d\s\-/()]{6,}\d');
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.getStellenangebotDetail(widget.refnr);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _detail = res;
+      if (res == null) _error = 'Stelle nicht mehr verfuegbar bei der Bundesagentur';
+    });
+  }
+
+  Future<void> _launch(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Konnte $url nicht oeffnen')));
+    }
+  }
+
+  List<String> _extractAll(String text, RegExp re) =>
+      re.allMatches(text).map((m) => m.group(0)!.trim()).toSet().toList();
+
+  Widget _row(IconData icon, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
+      Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
+    ]),
+  );
+
+  Widget _badge(IconData icon, String text, MaterialColor color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: color.shade800), const SizedBox(width: 4),
+      Text(text, style: TextStyle(fontSize: 11, color: color.shade900)),
+    ]),
+  );
+
+  String _arbeitszeitLabel(Map<String, dynamic> d) {
+    final parts = <String>[];
+    if (d['arbeitszeitVollzeit'] == true) parts.add('Vollzeit');
+    if (d['arbeitszeitTeilzeit'] == true) parts.add('Teilzeit');
+    if (d['arbeitszeitMinijob'] == true) parts.add('Minijob');
+    if (d['arbeitszeitSchichtNachtWochenende'] == true) parts.add('Schicht/Nacht/Wo');
+    if (d['arbeitszeitHeimTelearbeit'] == true) parts.add('Home-Office');
+    if (d['istGeringfuegigeBeschaeftigung'] == true && !parts.contains('Minijob')) parts.add('Minijob');
+    return parts.join(' · ');
+  }
+
+  String _adresseLabel(Map<String, dynamic>? loc) {
+    if (loc == null) return '';
+    final a = (loc['adresse'] is Map) ? loc['adresse'] as Map : <String, dynamic>{};
+    final strasse = a['strasse']?.toString() ?? '';
+    final hausnr = a['hausnummer']?.toString() ?? '';
+    final plz = a['plz']?.toString() ?? '';
+    final ort = a['ort']?.toString() ?? '';
+    return [
+      if (strasse.isNotEmpty) '$strasse${hausnr.isNotEmpty ? " $hausnr" : ""}',
+      if (plz.isNotEmpty || ort.isNotEmpty) '$plz $ort'.trim(),
+    ].join(', ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+
+    // Always show marked-at + fallback title even if detail is gone
+    Widget header() => Container(
+      padding: const EdgeInsets.all(10),
+      color: Colors.indigo.shade50,
+      child: Row(children: [
+        Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          'Markiert als beworben${widget.baMarkedAt.isNotEmpty ? " am ${widget.baMarkedAt.split('T').first.split(' ').first}" : ""}',
+          style: TextStyle(fontSize: 11, color: Colors.green.shade900, fontWeight: FontWeight.bold),
+        )),
+        Text('Ref ${widget.refnr}', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+      ]),
+    );
+
+    if (_error != null || _detail == null) {
+      return Column(children: [
+        header(),
+        Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.cloud_off, size: 40, color: Colors.grey.shade400),
+          const SizedBox(height: 8),
+          Text(_error ?? 'Keine Daten', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade700)),
+          const SizedBox(height: 12),
+          if (widget.baTitel.isNotEmpty) Text(widget.baTitel, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+          if (widget.baBeruf.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(widget.baBeruf, style: const TextStyle(fontSize: 12, color: Colors.grey))),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () => _launch('https://www.arbeitsagentur.de/jobsuche/jobdetail/${widget.refnr}'),
+            icon: const Icon(Icons.open_in_new, size: 14),
+            label: const Text('Auf arbeitsagentur.de versuchen'),
+          ),
+        ])))),
+      ]);
+    }
+
+    final d = _detail!;
+    final titel = (d['stellenangebotsTitel'] ?? widget.baTitel).toString();
+    final firma = (d['firma'] ?? '').toString();
+    final hauptberuf = (d['hauptberuf'] ?? widget.baBeruf).toString();
+    final alt1 = (d['alternativBeruf1'] ?? '').toString();
+    final alt2 = (d['alternativBeruf2'] ?? '').toString();
+    final vertrag = (d['vertragsdauer'] ?? '').toString();
+    final vergueteung = (d['verguetungsangabe'] ?? '').toString();
+    final eintritt = ((d['eintrittszeitraum'] is Map ? d['eintrittszeitraum']['von'] : null) ?? '').toString().split('T').first;
+    final beschreibung = (d['stellenangebotsBeschreibung'] ?? '').toString();
+    final loc = (d['stellenlokationen'] is List && (d['stellenlokationen'] as List).isNotEmpty)
+        ? (d['stellenlokationen'] as List).first as Map<String, dynamic>
+        : null;
+    final adresse = _adresseLabel(loc);
+    final lat = loc?['breite'];
+    final lon = loc?['laenge'];
+    final emails = beschreibung.isEmpty ? <String>[] : _extractAll(beschreibung, _emailRe);
+    final tels = beschreibung.isEmpty ? <String>[] : _extractAll(beschreibung, _telRe);
+
+    return Column(children: [
+      header(),
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(titel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        if (firma.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(firma, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        const SizedBox(height: 10),
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          if (_arbeitszeitLabel(d).isNotEmpty) _badge(Icons.access_time, _arbeitszeitLabel(d), Colors.blue),
+          if (vertrag.isNotEmpty) _badge(Icons.event_repeat, vertrag, Colors.purple),
+          if (eintritt.isNotEmpty) _badge(Icons.event, 'ab $eintritt', Colors.green),
+          if (vergueteung.isNotEmpty && vergueteung != 'KEINE_ANGABEN') _badge(Icons.euro, vergueteung, Colors.orange),
+          if (d['quereinstiegGeeignet'] == true) _badge(Icons.swap_horiz, 'Quereinstieg', Colors.teal),
+        ]),
+        const SizedBox(height: 12),
+        if (hauptberuf.isNotEmpty) _row(Icons.work, 'Hauptberuf: $hauptberuf'),
+        if (alt1.isNotEmpty) _row(Icons.alt_route, 'Alternativ: $alt1'),
+        if (alt2.isNotEmpty) _row(Icons.alt_route, 'Alternativ: $alt2'),
+        if (adresse.isNotEmpty) Row(children: [
+          Expanded(child: _row(Icons.location_on, adresse)),
+          if (lat != null && lon != null) TextButton.icon(
+            onPressed: () => _launch('https://www.google.com/maps/search/?api=1&query=$lat,$lon'),
+            icon: const Icon(Icons.map, size: 14), label: const Text('Karte', style: TextStyle(fontSize: 11)),
+          ),
+        ]),
+        if (emails.isNotEmpty || tels.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.contact_mail, size: 14, color: Colors.green.shade800), const SizedBox(width: 4),
+                Text('Bewerbungs-Kontakt aus Anzeige', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+              ]),
+              const SizedBox(height: 4),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                ...emails.map((e) => ActionChip(
+                  avatar: const Icon(Icons.email, size: 12),
+                  label: Text(e, style: const TextStyle(fontSize: 10)),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: e));
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e kopiert'), duration: const Duration(seconds: 1)));
+                  },
+                )),
+                ...tels.map((t) {
+                  final digits = t.replaceAll(RegExp(r'[^\d+]'), '');
+                  return ActionChip(
+                    avatar: const Icon(Icons.phone, size: 12),
+                    label: Text(t, style: const TextStyle(fontSize: 10)),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: digits));
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$digits kopiert'), duration: const Duration(seconds: 1)));
+                    },
+                  );
+                }),
+              ]),
+            ]),
+          ),
+        ],
+        if (beschreibung.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Beschreibung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.grey.shade200)),
+            child: SelectableText(beschreibung, style: const TextStyle(fontSize: 12, height: 1.4)),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+          onPressed: () => _launch('https://www.arbeitsagentur.de/jobsuche/jobdetail/${widget.refnr}'),
+          icon: const Icon(Icons.open_in_new, size: 14),
+          label: const Text('Auf arbeitsagentur.de oeffnen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+        )),
+      ]))),
     ]);
   }
 }
