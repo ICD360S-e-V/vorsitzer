@@ -69,6 +69,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   /// auftaucht — solche Anzeigen sind oft Lead-Generation ohne ernst
   /// gemeinten Bewerbungsweg.
   bool _nurMitEmail = true;
+  /// Blendet 'duenne' Anzeigen aus: mindestens 2 von 3 Seriositaets-
+  /// Kriterien muessen erfuellt sein — Ansprechpartner, Vergueteung
+  /// (EU-Pflicht 2026), Vertragsdauer.
+  bool _nurSerioes = true;
   bool _hatFuehrerschein = false;
   bool _hatGabelstapler = false;
   /// Profilwert: true = laut Stellen-Tab keine schweren Lasten heben.
