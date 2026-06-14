@@ -102,6 +102,19 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     return _results.where(_isVisible).length;
   }
 
+  /// Wie viele Stellen verlangen schwere Arbeit, die der Vorsitzer fuer dieses
+  /// Mitglied per koerperliche_einschraenkung ausblenden moechte.
+  int get _schwerarbeitHiddenCount {
+    if (!_koerperlicheEinschraenkung) return 0;
+    var n = 0;
+    for (final s in _results) {
+      final d = _detailCache[(s['refnr'] ?? '').toString()];
+      if (d == null || d.isEmpty) continue;
+      if (_needsSchwerarbeit(d)) n++;
+    }
+    return n;
+  }
+
   /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
   /// damit man sofort sieht WAS gerade durchgereicht wird.
   String get _aktiveFilterLabel {
@@ -607,7 +620,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 onChanged: (v) { setState(() => _nurPassendeStellen = v); _persistSelection(); },
               ),
               const SizedBox(width: 4),
-              const Text('Nur passende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              Tooltip(
+                message: 'Blendet Stellen aus, die eine Qualifikation\nverlangen, die dem Mitglied fehlt:\n• Fuehrerschein\n• Gabelstaplerschein\n• Koerperliche Belastbarkeit (schweres Heben)',
+                child: const Text('Nur passende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
               const SizedBox(width: 4),
               Text('(${_hatFuehrerschein ? "FS✓" : "FS✗"}·${_hatGabelstapler ? "Gabelst.✓" : "Gabelst.✗"}${_koerperlicheEinschraenkung ? "·Schwer✗" : ""})',
                   style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
@@ -623,6 +639,41 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               const SizedBox(width: 4),
               if (_bewerbungenByRefnr.isNotEmpty) Text('(${_bewerbungenByRefnr.length} beworben)',
                   style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
+            ]),
+            // Schwerlast-Toggle direkt neben den anderen beiden, damit der
+            // Vorsitzer beim Job-Suchen in Echtzeit ein- und ausschalten kann.
+            // Persistiert sofort ins Profil (users.koerperliche_einschraenkung).
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Switch(
+                value: _koerperlicheEinschraenkung,
+                activeThumbColor: Colors.deepPurple.shade700,
+                onChanged: (v) async {
+                  setState(() => _koerperlicheEinschraenkung = v);
+                  final res = await widget.apiService.setUserKoerperlicheEinschraenkung(widget.user.id, v);
+                  if (res['success'] != true && mounted) {
+                    setState(() => _koerperlicheEinschraenkung = !v);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Speichern im Profil fehlgeschlagen'), backgroundColor: Colors.red,
+                    ));
+                    return;
+                  }
+                  _search();
+                },
+              ),
+              const SizedBox(width: 4),
+              const Text('Schwere Arbeit ausblenden', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              if (_schwerarbeitHiddenCount > 0) Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade200)),
+                child: Text('${_schwerarbeitHiddenCount} ausgeblendet',
+                    style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade900, fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Blendet Stellen mit Heben/Tragen ueber 15 kg aus.\nAenderung wird sofort im Mitglieder-Profil gespeichert.',
+                child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+              ),
             ]),
           ]),
           // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
