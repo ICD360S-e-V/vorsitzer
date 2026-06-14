@@ -387,6 +387,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     // Persist current selection so the next time this user opens the tab
     // (incl. after an app restart) we land on the same filter/chip set.
     _persistSelection();
+    // Re-fetch the member's qualifications on every search — the Stellen-tab
+    // toggle (Gabelstapler, Fuehrerschein, koerperliche Einschraenkung) can
+    // have changed since this widget was last mounted (KeepAlive cache).
+    await _loadQualifikationen();
 
     // Bei Mehrfach-Berufen feuern wir parallele Requests und vereinigen die
     // Treffer (dedupe nach refnr/hashId) — die API selbst kennt kein OR.
