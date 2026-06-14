@@ -5926,6 +5926,31 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Lade die Stellenangebote-UI-Praeferenzen eines Mitglieds. Returns
+  /// die rohe JSON-Map (oder null wenn noch nie gespeichert).
+  Future<Map<String, dynamic>?> getStellenangebotePrefs(int userId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/user_stellen_prefs.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 10));
+    try {
+      final j = jsonDecode(r.body);
+      if (j['success'] != true) return null;
+      final p = j['prefs'];
+      return p is Map ? Map<String, dynamic>.from(p as Map) : null;
+    } catch (_) { return null; }
+  }
+
+  Future<void> saveStellenangebotePrefs(int userId, Map<String, dynamic> prefs) async {
+    try {
+      await _client.post(
+        Uri.parse('$baseUrl/admin/user_stellen_prefs.php'),
+        headers: _headers,
+        body: jsonEncode({'user_id': userId, 'prefs': prefs}),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
   Future<Map<String, dynamic>> setUserKoerperlicheEinschraenkung(int userId, bool value) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/user_qualifikationen.php'),

@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -173,8 +171,6 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     }
     return out;
   }
-
-  String get _prefsKey => 'stellen_pref_v1_${widget.user.id}';
 
   @override
   void initState() {
@@ -370,11 +366,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
 
   Future<void> _restoreSelection() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_prefsKey);
-      if (raw == null) return;
-      final m = jsonDecode(raw) as Map<String, dynamic>;
-      if (!mounted) return;
+      // Cross-device per Mitglied: gespeichert in users.stellenangebote_prefs
+      // (JSON-Blob). Vorher lagen die Daten in SharedPreferences — bei
+      // App-Neuinstallation oder Geraetewechsel waren sie weg.
+      final m = await widget.apiService.getStellenangebotePrefs(widget.user.id);
+      if (m == null || !mounted) return;
       setState(() {
         final savedBerufe = (m['berufe'] as List?)?.cast<String>() ?? const [];
         _selectedBerufe..clear()..addAll(savedBerufe);
@@ -396,22 +392,20 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   }
 
   Future<void> _persistSelection() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefsKey, jsonEncode({
-        'berufe': _selectedBerufe.toList(),
-        'was': _wasC.text,
-        'wo': _woC.text,
-        'umkreis': _umkreis,
-        'arbeitszeit': _arbeitszeit,
-        'befristung': _befristung,
-        'veroeffentlichtSeit': _veroeffentlichtSeit,
-        'angebotsart': _angebotsart,
-        'nurPassendeStellen': _nurPassendeStellen,
-        'nurNeueStellen': _nurNeueStellen,
-        'filterSchwerarbeit': _filterSchwerarbeit,
-      }));
-    } catch (_) {}
+    // Fire-and-forget DB save — cross-device by design.
+    widget.apiService.saveStellenangebotePrefs(widget.user.id, {
+      'berufe': _selectedBerufe.toList(),
+      'was': _wasC.text,
+      'wo': _woC.text,
+      'umkreis': _umkreis,
+      'arbeitszeit': _arbeitszeit,
+      'befristung': _befristung,
+      'veroeffentlichtSeit': _veroeffentlichtSeit,
+      'angebotsart': _angebotsart,
+      'nurPassendeStellen': _nurPassendeStellen,
+      'nurNeueStellen': _nurNeueStellen,
+      'filterSchwerarbeit': _filterSchwerarbeit,
+    });
   }
 
   @override
