@@ -1,6 +1,11 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdfrx/pdfrx.dart';
+import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
@@ -423,7 +428,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       context: context,
       barrierDismissible: false,
       builder: (dlgCtx) => DefaultTabController(
-        length: hasBa ? 4 : 3,
+        length: hasBa ? 5 : 4,
         child: StatefulBuilder(builder: (mctx, setM) {
           return AlertDialog(
             titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
@@ -446,7 +451,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               ]),
               const SizedBox(height: 4),
               TabBar(
-                isScrollable: hasBa,
+                isScrollable: true,
                 labelColor: Colors.deepPurple.shade700,
                 unselectedLabelColor: Colors.grey.shade600,
                 indicatorColor: Colors.deepPurple,
@@ -456,6 +461,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                   const Tab(icon: Icon(Icons.history, size: 16), text: 'Bewerbung Status'),
                   const Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
                   if (hasBa) const Tab(icon: Icon(Icons.work_outline, size: 16), text: 'Stellenanzeige'),
+                  const Tab(icon: Icon(Icons.description, size: 16), text: 'Lebenslauf'),
                 ],
               ),
             ]),
@@ -473,6 +479,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                   baTitel: baTitel,
                   baBeruf: baBeruf,
                   baMarkedAt: baMarkedAt,
+                ),
+                _LebenslaufTab(
+                  apiService: widget.apiService,
+                  userId: widget.userId,
+                  firmaName: firmaName,
                 ),
               ]),
             ),
@@ -1401,6 +1412,164 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
           style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
         )),
       ]))),
+    ]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Tab "Lebenslauf" — generiert den DIN-5008-Lebenslauf server-seitig
+// (mPDF) aus Mitgliederverwaltung + Behoerde-Daten + Stellen-Tab
+// (Berufserfahrung, Schulbildung, Fuehrerschein, Sprachen,
+// Gabelstaplerschein, koerperliche Einschraenkung) und zeigt ihn
+// direkt im Modal. Nichts wird zwischengespeichert — bei jedem
+// Tab-Wechsel wird ein frischer PDF generiert, damit Aenderungen
+// in den Stammdaten sofort sichtbar sind.
+// ─────────────────────────────────────────────────────────────────
+class _LebenslaufTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String firmaName;
+  const _LebenslaufTab({
+    required this.apiService,
+    required this.userId,
+    required this.firmaName,
+  });
+
+  @override
+  State<_LebenslaufTab> createState() => _LebenslaufTabState();
+}
+
+class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveClientMixin {
+  Uint8List? _bytes;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    final list = await widget.apiService.generateLebenslaufPdfServer(widget.userId);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (list == null || list.isEmpty) {
+        _error = 'PDF konnte nicht erstellt werden — fehlen Stammdaten?';
+      } else {
+        _bytes = Uint8List.fromList(list);
+      }
+    });
+  }
+
+  Future<void> _saveToDisk() async {
+    if (_bytes == null) return;
+    try {
+      final dir = await getTemporaryDirectory();
+      final safeFirma = widget.firmaName.replaceAll(RegExp(r'[^\w\-]'), '_');
+      final file = File('${dir.path}/Lebenslauf_${safeFirma}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+      await file.writeAsBytes(_bytes!);
+      final uri = Uri.file(file.path);
+      if (!await launchUrl(uri)) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gespeichert: ${file.path}')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speicherfehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _print() async {
+    if (_bytes == null) return;
+    try {
+      await Printing.layoutPdf(onLayout: (_) async => _bytes!, name: 'Lebenslauf');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Druckfehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    Widget header() => Container(
+      padding: const EdgeInsets.all(10),
+      color: Colors.deepPurple.shade50,
+      child: Row(children: [
+        Icon(Icons.description, size: 16, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          'Lebenslauf (DIN 5008, zweispaltig) — generiert vom Server',
+          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900, fontWeight: FontWeight.bold),
+        )),
+        IconButton(
+          icon: const Icon(Icons.refresh, size: 18),
+          tooltip: 'Neu generieren',
+          onPressed: _loading ? null : _load,
+          color: Colors.deepPurple.shade700,
+        ),
+      ]),
+    );
+
+    if (_loading) {
+      return Column(children: [
+        header(),
+        const Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 12),
+          Text('PDF wird generiert…', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        ]))),
+      ]);
+    }
+
+    if (_error != null || _bytes == null) {
+      return Column(children: [
+        header(),
+        Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.error_outline, size: 40, color: Colors.grey.shade400),
+          const SizedBox(height: 8),
+          Text(_error ?? 'Kein PDF', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade700)),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh, size: 14),
+            label: const Text('Erneut versuchen'),
+          ),
+        ])))),
+      ]);
+    }
+
+    return Column(children: [
+      header(),
+      Expanded(
+        child: Container(
+          color: Colors.grey.shade300,
+          child: PdfViewer.data(_bytes!, sourceName: 'Lebenslauf_${widget.userId}.pdf'),
+        ),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 12, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Expanded(child: Text(
+            '${(_bytes!.length / 1024).toStringAsFixed(1)} KB · aus Stammdaten + Berufserfahrung',
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+          )),
+          TextButton.icon(
+            onPressed: _print,
+            icon: const Icon(Icons.print, size: 14),
+            label: const Text('Drucken', style: TextStyle(fontSize: 11)),
+          ),
+          TextButton.icon(
+            onPressed: _saveToDisk,
+            icon: const Icon(Icons.download, size: 14),
+            label: const Text('Speichern', style: TextStyle(fontSize: 11)),
+          ),
+        ]),
+      ),
     ]);
   }
 }
