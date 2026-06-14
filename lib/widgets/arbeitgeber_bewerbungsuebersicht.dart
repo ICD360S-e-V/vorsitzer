@@ -428,7 +428,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       context: context,
       barrierDismissible: false,
       builder: (dlgCtx) => DefaultTabController(
-        length: hasBa ? 5 : 4,
+        length: hasBa ? 6 : 4,
         child: StatefulBuilder(builder: (mctx, setM) {
           return AlertDialog(
             titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
@@ -461,6 +461,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                   const Tab(icon: Icon(Icons.history, size: 16), text: 'Bewerbung Status'),
                   const Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
                   if (hasBa) const Tab(icon: Icon(Icons.work_outline, size: 16), text: 'Stellenanzeige'),
+                  if (hasBa) const Tab(icon: Icon(Icons.edit_note, size: 16), text: 'Anschreiben'),
                   const Tab(icon: Icon(Icons.description, size: 16), text: 'Lebenslauf'),
                 ],
               ),
@@ -479,6 +480,12 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                   baTitel: baTitel,
                   baBeruf: baBeruf,
                   baMarkedAt: baMarkedAt,
+                ),
+                if (hasBa) _AnschreibenTab(
+                  apiService: widget.apiService,
+                  userId: widget.userId,
+                  refnr: baRefnr,
+                  firmaName: firmaName,
                 ),
                 _LebenslaufTab(
                   apiService: widget.apiService,
@@ -1556,6 +1563,165 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
           const SizedBox(width: 4),
           Expanded(child: Text(
             '${(_bytes!.length / 1024).toStringAsFixed(1)} KB · aus Stammdaten + Berufserfahrung',
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+          )),
+          TextButton.icon(
+            onPressed: _print,
+            icon: const Icon(Icons.print, size: 14),
+            label: const Text('Drucken', style: TextStyle(fontSize: 11)),
+          ),
+          TextButton.icon(
+            onPressed: _saveToDisk,
+            icon: const Icon(Icons.download, size: 14),
+            label: const Text('Speichern', style: TextStyle(fontSize: 11)),
+          ),
+        ]),
+      ),
+    ]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Tab "Anschreiben" — sichtbar nur, wenn die Bewerbung eine BA-Refnr
+// hat. Verbindet:
+//   Stellenanzeige (live BA-API: hauptberuf, firma, ansprechpartner,
+//     beschreibung → Anforderungen)
+//   + Lebenslauf-Daten (berufserfahrung, fuehrerschein, stapler,
+//     sprachen)
+// Ergebnis: 1-seitiges PDF nach DIN 5008 Form B mit Keyword-Match.
+// ─────────────────────────────────────────────────────────────────
+class _AnschreibenTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String refnr;
+  final String firmaName;
+  const _AnschreibenTab({
+    required this.apiService,
+    required this.userId,
+    required this.refnr,
+    required this.firmaName,
+  });
+
+  @override
+  State<_AnschreibenTab> createState() => _AnschreibenTabState();
+}
+
+class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliveClientMixin {
+  Uint8List? _bytes;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    final list = await widget.apiService.generateAnschreibenPdfServer(
+      userId: widget.userId,
+      refnr: widget.refnr,
+    );
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (list == null || list.isEmpty) {
+        _error = 'Anschreiben konnte nicht erzeugt werden — Stelle bei BA nicht abrufbar?';
+      } else {
+        _bytes = Uint8List.fromList(list);
+      }
+    });
+  }
+
+  Future<void> _saveToDisk() async {
+    if (_bytes == null) return;
+    try {
+      final dir = await getTemporaryDirectory();
+      final safeFirma = widget.firmaName.replaceAll(RegExp(r'[^\w\-]'), '_');
+      final file = File('${dir.path}/Anschreiben_${safeFirma}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+      await file.writeAsBytes(_bytes!);
+      final uri = Uri.file(file.path);
+      if (!await launchUrl(uri)) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gespeichert: ${file.path}')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speicherfehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _print() async {
+    if (_bytes == null) return;
+    try {
+      await Printing.layoutPdf(onLayout: (_) async => _bytes!, name: 'Anschreiben');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Druckfehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    Widget header() => Container(
+      padding: const EdgeInsets.all(10),
+      color: Colors.teal.shade50,
+      child: Row(children: [
+        Icon(Icons.edit_note, size: 16, color: Colors.teal.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          'Anschreiben (DIN 5008 Form B) · auto-generiert aus Stelle + Lebenslauf',
+          style: TextStyle(fontSize: 11, color: Colors.teal.shade900, fontWeight: FontWeight.bold),
+        )),
+        IconButton(
+          icon: const Icon(Icons.refresh, size: 18),
+          tooltip: 'Neu generieren',
+          onPressed: _loading ? null : _load,
+          color: Colors.teal.shade700,
+        ),
+      ]),
+    );
+
+    if (_loading) {
+      return Column(children: [
+        header(),
+        const Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 12),
+          Text('Stelle wird live von BA geladen + Match-Algorithmus laeuft…', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        ]))),
+      ]);
+    }
+
+    if (_error != null || _bytes == null) {
+      return Column(children: [
+        header(),
+        Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.error_outline, size: 40, color: Colors.grey.shade400),
+          const SizedBox(height: 8),
+          Text(_error ?? 'Kein PDF', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade700)),
+          const SizedBox(height: 12),
+          TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh, size: 14), label: const Text('Erneut versuchen')),
+        ])))),
+      ]);
+    }
+
+    return Column(children: [
+      header(),
+      Expanded(
+        child: Container(
+          color: Colors.grey.shade300,
+          child: PdfViewer.data(_bytes!, sourceName: 'Anschreiben_${widget.refnr}.pdf'),
+        ),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+        child: Row(children: [
+          Icon(Icons.tips_and_updates, size: 12, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Expanded(child: Text(
+            '${(_bytes!.length / 1024).toStringAsFixed(1)} KB · Keyword-Match aus Anzeige + Lebenslauf',
             style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
           )),
           TextButton.icon(

@@ -3870,6 +3870,27 @@ class ApiService {
     return r.bodyBytes;
   }
 
+  /// Generiert ein personalisiertes Anschreiben als PDF auf dem Server.
+  /// Kombiniert Stellenanzeige (live BA-API per refnr) + Lebenslauf-Daten
+  /// (Berufserfahrung, Fuehrerschein, Stapler, Sprachen) mittels
+  /// Keyword-Matching gegen hauptberuf und Anforderungs-Extraktion aus
+  /// stellenangebotsBeschreibung.
+  ///
+  /// Anti-AI-Sprache: vermeidet 'mit großem Interesse', 'umfangreiche
+  /// Erfahrung', 'teamfähig und belastbar' — typische ChatGPT-Marker, die
+  /// 2026 von Workday/Personio automatisch geflaggt werden.
+  Future<List<int>?> generateAnschreibenPdfServer({required int userId, required String refnr}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/anschreiben_pdf.php'),
+      headers: {..._headers, 'Accept': 'application/pdf'},
+      body: jsonEncode({'user_id': userId, 'ba_refnr': refnr}),
+    ).timeout(const Duration(seconds: 30));
+    if (r.statusCode != 200) return null;
+    final ct = r.headers['content-type'] ?? '';
+    if (!ct.startsWith('application/pdf')) return null;
+    return r.bodyBytes;
+  }
+
   /// Markiert einen einzelnen Eintrag als 'BA-Stelle expired' bzw. setzt
   /// das Flag zurueck — vom Stellenanzeige-Tab aufgerufen, wenn der
   /// Live-Fetch der Stelle 404 liefert.
