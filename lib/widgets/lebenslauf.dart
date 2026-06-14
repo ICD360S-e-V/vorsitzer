@@ -1,8 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +9,11 @@ import 'file_viewer_dialog.dart';
 /// ATS-optimized Lebenslauf (CV) generator
 /// Simple layout, standard fonts, no icons/images, standard section headings
 class LebenslaufGenerator {
+  /// Generiert den Lebenslauf jetzt server-seitig (mPDF) — Layout-Aenderungen
+  /// sind sofort live, ohne dass die Flutter-App neu gebaut werden muss.
+  /// Die ATS-Quality-Check-Regeln (~160 Pruefungen) leben weiterhin im
+  /// Client (_LebenslaufDialog), weil sie nur UI-Feedback fuer den Vorsitzer
+  /// sind und nicht ins PDF einfliessen.
   static Future<void> generate(BuildContext context, ApiService apiService, int userId) async {
     showDialog(
       context: context,
@@ -20,308 +22,41 @@ class LebenslaufGenerator {
         child: Padding(padding: EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
           CircularProgressIndicator(),
           SizedBox(height: 12),
-          Text('Lebenslauf wird erstellt...', style: TextStyle(fontSize: 14)),
+          Text('Lebenslauf wird auf dem Server erstellt...', style: TextStyle(fontSize: 14)),
         ])),
       )),
     );
 
     try {
-      // Load fonts
-      final fontData = await rootBundle.load('assets/fonts/DejaVuSans.ttf');
-      final fontBoldData = await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf');
-      final ttf = pw.Font.ttf(fontData);
-      final ttfBold = pw.Font.ttf(fontBoldData);
+      final bytes = await apiService.generateLebenslaufPdfServer(userId);
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).maybePop(); // close spinner
 
-      // Load all data
-      final results = await Future.wait([
-        apiService.getUserDetails(userId),
-        apiService.getBerufserfahrung(userId),
-        apiService.getUserSchulbildung(userId),
-        apiService.getUserQualifikationen(userId),
-      ]);
-
-      final userData = results[0]['success'] == true ? (results[0]['user'] ?? {}) : {};
-      final berufserfahrung = results[1]['success'] == true ? List<Map<String, dynamic>>.from(results[1]['data'] ?? []) : <Map<String, dynamic>>[];
-      final schulbildung = results[2]['success'] == true ? List<Map<String, dynamic>>.from(results[2]['data'] ?? []) : <Map<String, dynamic>>[];
-      final qualifikationen = results[3];
-      final fuehrerschein = qualifikationen['success'] == true ? List<Map<String, dynamic>>.from(qualifikationen['fuehrerschein'] ?? []) : <Map<String, dynamic>>[];
-      final sprachen = qualifikationen['success'] == true ? List<Map<String, dynamic>>.from(qualifikationen['sprachen'] ?? []) : <Map<String, dynamic>>[];
-      final gabelstaplerschein = qualifikationen['success'] == true && (qualifikationen['gabelstaplerschein'] == 1 || qualifikationen['gabelstaplerschein'] == '1' || qualifikationen['gabelstaplerschein'] == true);
-
-      // Clean invisible Unicode characters
-      String clean(String? s) => (s ?? '').replaceAll(RegExp(r'[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]'), '').trim();
-
-      // Personal data
-      final vorname = clean(userData['vorname']);
-      final nachname = clean(userData['nachname']);
-      final fullName = '$vorname $nachname'.trim();
-      final geburtsdatum = clean(userData['geburtsdatum']);
-      final geburtsort = clean(userData['geburtsort']);
-      final strasse = clean(userData['strasse']);
-      final hausnummer = clean(userData['hausnummer']);
-      final plz = clean(userData['plz']);
-      final ort = clean(userData['ort']);
-      final telefon = clean(userData['telefon_mobil']?.toString().isNotEmpty == true ? userData['telefon_mobil'] : userData['telefon_fix']);
-      final email = clean(userData['email']);
-      final familienstand = clean(userData['familienstand']);
-      final geschlecht = clean(userData['geschlecht']);
-      final staatsangehoerigkeit = clean(userData['staatsangehoerigkeit']);
-
-      String formatDate(String datum) {
-        if (datum.isEmpty) return '';
-        try {
-          final d = DateTime.parse(datum);
-          return DateFormat('dd.MM.yyyy').format(d);
-        } catch (_) { return datum; }
+      if (bytes == null || bytes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Server konnte das PDF nicht erzeugen'), backgroundColor: Colors.red,
+        ));
+        return;
       }
 
-      String adresse() {
-        final parts = <String>[];
-        if (strasse.isNotEmpty) parts.add('$strasse${hausnummer.isNotEmpty ? ' $hausnummer' : ''}');
-        if (plz.isNotEmpty || ort.isNotEmpty) parts.add('$plz $ort'.trim());
-        return parts.join(', ');
-      }
-
-      String familienstandLabel(String fs) {
-        const labels = {
-          'ledig': 'Ledig',
-          'verheiratet': 'Verheiratet',
-          'eingetragene_lebenspartnerschaft': 'Eingetragene Lebenspartnerschaft',
-          'geschieden': 'Geschieden',
-          'verwitwet': 'Verwitwet',
-          'getrennt_lebend': 'Getrennt lebend',
-          'eheaehnliche_gemeinschaft': 'Eheähnliche Gemeinschaft',
-        };
-        return labels[fs] ?? fs;
-      }
-
-      String geschlechtLabel(String g) {
-        if (g == 'M') return 'Männlich';
-        if (g == 'W') return 'Weiblich';
-        if (g == 'D') return 'Divers';
-        return g;
-      }
-
-      // ATS-optimized colors
-      final darkColor = PdfColor.fromHex('#333333');
-      final greyColor = PdfColor.fromHex('#666666');
-      final lineColor = PdfColor.fromHex('#cccccc');
-
-      final pdf = pw.Document(
-        theme: pw.ThemeData.withFont(base: ttf, bold: ttfBold),
-      );
-
-      pdf.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.symmetric(horizontal: 50, vertical: 40),
-          build: (pw.Context ctx) {
-            return [
-              // === NAME (large, bold, top) ===
-              pw.Text(
-                fullName.isNotEmpty ? fullName : 'Lebenslauf',
-                style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: darkColor),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Container(height: 2, color: darkColor),
-              pw.SizedBox(height: 16),
-
-              // === PERSÖNLICHE DATEN ===
-              _sectionTitle('PERSÖNLICHE DATEN', darkColor),
-              _dataRow('Adresse', adresse(), greyColor),
-              _dataRow('Telefon', telefon, greyColor),
-              _dataRow('E-Mail', email, greyColor),
-              _dataRow('Geburtsdatum', formatDate(geburtsdatum), greyColor),
-              _dataRow('Geburtsort', geburtsort, greyColor),
-              _dataRow('Staatsangehörigkeit', staatsangehoerigkeit, greyColor),
-              _dataRow('Familienstand', familienstandLabel(familienstand), greyColor),
-              _dataRow('Geschlecht', geschlechtLabel(geschlecht), greyColor),
-              if (fuehrerschein.isNotEmpty) ...[
-                if (fuehrerschein.any((f) => (f['klasse'] ?? '').toString().toLowerCase() == 'keinen'))
-                  _dataRow('Führerschein', 'Keinen', greyColor)
-                else
-                  _dataRow('Führerschein', fuehrerschein.map((f) => 'Klasse ${clean(f['klasse'])}').join(', '), greyColor),
-              ],
-              _dataRow('Gabelstaplerschein', gabelstaplerschein ? 'Vorhanden' : 'Keinen', greyColor),
-              pw.SizedBox(height: 16),
-
-              // === BERUFSERFAHRUNG ===
-              if (berufserfahrung.isNotEmpty) ...[
-                _sectionTitle('BERUFSERFAHRUNG', darkColor),
-                ...berufserfahrung.map((be) {
-                  final firma = clean(be['firma']);
-                  final funktion = clean(be['funktion'] ?? be['position']);
-                  final beOrt = clean(be['ort']);
-                  final vonM = clean(be['von_monat']);
-                  final vonJ = clean(be['von_jahr']);
-                  final bisM = clean(be['bis_monat']);
-                  final bisJ = clean(be['bis_jahr']);
-                  final von = vonM.isNotEmpty && vonJ.isNotEmpty ? '$vonM/$vonJ' : '';
-                  final bis = bisM.isNotEmpty && bisJ.isNotEmpty ? '$bisM/$bisJ' : 'heute';
-                  final zeitraum = von.isNotEmpty ? '$von - $bis' : '';
-                  final aufgaben = <String>[
-                    if (clean(be['aufgabe1']).isNotEmpty) clean(be['aufgabe1']),
-                    if (clean(be['aufgabe2']).isNotEmpty) clean(be['aufgabe2']),
-                    if (clean(be['aufgabe3']).isNotEmpty) clean(be['aufgabe3']),
-                  ];
-
-                  return pw.Container(
-                    margin: const pw.EdgeInsets.only(bottom: 10),
-                    child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      // Date range on the left, job title bold
-                      pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                        pw.SizedBox(
-                          width: 120,
-                          child: pw.Text(zeitraum, style: pw.TextStyle(fontSize: 10, color: greyColor)),
-                        ),
-                        pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                          // Job title first (ATS priority)
-                          if (funktion.isNotEmpty)
-                            pw.Text(funktion, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: darkColor)),
-                          // Company + Location
-                          pw.Text(
-                            '$firma${beOrt.isNotEmpty ? ', $beOrt' : ''}',
-                            style: pw.TextStyle(fontSize: 10, color: greyColor),
-                          ),
-                          // Tasks as bullet points
-                          if (aufgaben.isNotEmpty) ...[
-                            pw.SizedBox(height: 3),
-                            ...aufgaben.map((a) => pw.Padding(
-                              padding: const pw.EdgeInsets.only(bottom: 1),
-                              child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                                pw.Text('- ', style: pw.TextStyle(fontSize: 10, color: darkColor)),
-                                pw.Expanded(child: pw.Text(a, style: const pw.TextStyle(fontSize: 10))),
-                              ]),
-                            )),
-                          ],
-                        ])),
-                      ]),
-                    ]),
-                  );
-                }),
-                pw.SizedBox(height: 12),
-              ],
-
-              // === SCHULBILDUNG / AUSBILDUNG ===
-              if (schulbildung.isNotEmpty) ...[
-                _sectionTitle('SCHULBILDUNG', darkColor),
-                ...schulbildung.map((sc) {
-                  final name = clean(sc['schul_name']);
-                  final art = clean(sc['schulart']);
-                  final scOrt = clean(sc['schul_plz_ort']);
-                  final klasse = clean(sc['klasse']);
-                  // Convert DD.MM.YYYY to MM/YYYY for compact display
-                  String toShort(String d) {
-                    if (d.isEmpty) return '';
-                    final parts = d.split('.');
-                    if (parts.length == 3) return '${parts[1]}/${parts[2]}';
-                    return d;
-                  }
-                  final beginn = toShort(clean(sc['schul_beginn']));
-                  final ende = toShort(clean(sc['schul_ende']));
-                  final zeitraum = beginn.isNotEmpty ? '$beginn - ${ende.isNotEmpty ? ende : 'heute'}' : '';
-
-                  return pw.Container(
-                    margin: const pw.EdgeInsets.only(bottom: 8),
-                    child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.SizedBox(
-                        width: 120,
-                        child: pw.Text(zeitraum, style: pw.TextStyle(fontSize: 10, color: greyColor)),
-                      ),
-                      pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                        pw.Text(name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: darkColor)),
-                        if (art.isNotEmpty) pw.Text(art, style: pw.TextStyle(fontSize: 10, color: greyColor)),
-                        if (scOrt.isNotEmpty) pw.Text(scOrt, style: pw.TextStyle(fontSize: 10, color: greyColor)),
-                        if (klasse.isNotEmpty) pw.Text('Klasse: $klasse', style: pw.TextStyle(fontSize: 10, color: greyColor)),
-                      ])),
-                    ]),
-                  );
-                }),
-                pw.SizedBox(height: 12),
-              ],
-
-              // === SPRACHKENNTNISSE ===
-              if (sprachen.isNotEmpty) ...[
-                _sectionTitle('SPRACHKENNTNISSE', darkColor),
-                ...sprachen.map((sp) {
-                  final sprache = clean(sp['sprache']);
-                  final niveau = clean(sp['niveau']);
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.only(bottom: 3),
-                    child: pw.Row(children: [
-                      pw.SizedBox(width: 120, child: pw.Text(sprache, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
-                      pw.Text(niveau, style: pw.TextStyle(fontSize: 10, color: greyColor)),
-                    ]),
-                  );
-                }),
-                pw.SizedBox(height: 12),
-              ],
-
-              // === FÜHRERSCHEIN (if not already shown above) ===
-              // Already shown in Persönliche Daten
-
-              // === ORT UND DATUM ===
-              pw.SizedBox(height: 24),
-              pw.Container(
-                decoration: pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: lineColor))),
-                padding: const pw.EdgeInsets.only(top: 8),
-                child: pw.Text(
-                  '${ort.isNotEmpty ? ort : ''}, ${DateFormat('dd.MM.yyyy').format(DateTime.now())}',
-                  style: pw.TextStyle(fontSize: 10, color: greyColor),
-                ),
-              ),
-            ];
-          },
-        ),
-      );
-
-      // Save PDF
       final dir = await getTemporaryDirectory();
-      final fileName = 'Lebenslauf_${nachname}_$vorname.pdf'.replaceAll(' ', '_');
+      final fileName = 'Lebenslauf_$userId.pdf';
       final file = File('${dir.path}/$fileName');
-      await file.writeAsBytes(await pdf.save());
+      await file.writeAsBytes(bytes);
 
-      if (context.mounted) {
-        Navigator.pop(context); // Close loading dialog
-        final handled = await FileViewerDialog.show(context, file.path, fileName);
-        if (!handled && context.mounted) {
-          await OpenFilex.open(file.path);
-        }
+      if (!context.mounted) return;
+      final handled = await FileViewerDialog.show(context, file.path, fileName);
+      if (!handled && context.mounted) {
+        await OpenFilex.open(file.path);
       }
+      return;
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      // Ensure loading dialog is always closed, even on unexpected errors
-      if (context.mounted) {
         Navigator.of(context, rootNavigator: true).maybePop();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
       }
+      return;
     }
-  }
-
-  /// ATS-friendly section title with underline
-  static pw.Widget _sectionTitle(String title, PdfColor color) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(bottom: 6),
-      decoration: pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: color, width: 1))),
-      padding: const pw.EdgeInsets.only(bottom: 3),
-      child: pw.Text(title, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: color, letterSpacing: 1)),
-    );
-  }
-
-  /// Simple data row: label + value
-  static pw.Widget _dataRow(String label, String? value, PdfColor greyColor) {
-    if (value == null || value.isEmpty) return pw.SizedBox.shrink();
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 3),
-      child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.SizedBox(width: 140, child: pw.Text(label, style: pw.TextStyle(fontSize: 10, color: greyColor))),
-        pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 10))),
-      ]),
-    );
   }
 
   /// Modal with tabs: Generate + Quality Check

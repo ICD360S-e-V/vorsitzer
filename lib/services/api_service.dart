@@ -3856,6 +3856,20 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Generiert den Lebenslauf als PDF auf dem Server (mPDF + HTML-Template).
+  /// Vorteil: Layout-Aenderungen sind sofort live, ohne Flutter-Rebuild.
+  Future<List<int>?> generateLebenslaufPdfServer(int userId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/lebenslauf_pdf.php'),
+      headers: {..._headers, 'Accept': 'application/pdf'},
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 60));
+    if (r.statusCode != 200) return null;
+    final ct = r.headers['content-type'] ?? '';
+    if (!ct.startsWith('application/pdf')) return null;
+    return r.bodyBytes;
+  }
+
   /// Markiert eine Stelle aus der Bundesagentur-Jobsuche als beworben:
   /// findet die Firma in arbeitgeber_db (oder legt sie minimal an) und
   /// schreibt die BA-Metadaten (refnr/titel/beruf/eintritt) in
