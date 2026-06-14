@@ -312,6 +312,36 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                               ],
                             ]),
                           ])),
+                          // BA-Validitäts-Badge (nur fuer Eintraege mit ba_refnr):
+                          //   ✓ gruen  – Stelle existiert noch bei der Bundesagentur
+                          //   ✗ rot    – Stelle wurde inzwischen entfernt
+                          if ((b['ba_refnr']?.toString() ?? '').isNotEmpty) Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Tooltip(
+                              message: (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty
+                                  ? 'BA-Stelle noch verfuegbar'
+                                  : 'BA-Stelle nicht mehr verfuegbar',
+                              child: Container(
+                                width: 22, height: 22,
+                                decoration: BoxDecoration(
+                                  color: (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty
+                                      ? Colors.green.shade100
+                                      : Colors.red.shade100,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty
+                                      ? Colors.green.shade400
+                                      : Colors.red.shade400, width: 1.5),
+                                ),
+                                child: Icon(
+                                  (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty ? Icons.check : Icons.close,
+                                  size: 14,
+                                  color: (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty
+                                      ? Colors.green.shade800
+                                      : Colors.red.shade800,
+                                ),
+                              ),
+                            ),
+                          ),
                           IconButton(
                             icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
                             tooltip: 'Bewerbung löschen',

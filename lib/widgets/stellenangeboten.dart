@@ -762,8 +762,30 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                           if (ort.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
                             Icon(Icons.location_on, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
                             Text(ort, style: const TextStyle(fontSize: 12)),
+                            const Spacer(),
+                            // Gültigkeits-Badge unmittelbar vor dem Eintritt-Datum:
+                            // grün ✓ wenn die Stelle im aktuellen API-Ergebnis ist,
+                            // rot ✗ wenn der Bulk-Check sie inzwischen als expired
+                            // markiert hat (Mitglied hat sich beworben, BA hat die
+                            // Anzeige entfernt).
+                            Builder(builder: (_) {
+                              final expired = (bewerbung?['ba_stelle_expired_at']?.toString() ?? '').isNotEmpty;
+                              return Tooltip(
+                                message: expired ? 'BA: nicht mehr verfuegbar' : 'BA: noch verfuegbar',
+                                child: Container(
+                                  width: 16, height: 16,
+                                  margin: const EdgeInsets.only(right: 6),
+                                  decoration: BoxDecoration(
+                                    color: expired ? Colors.red.shade100 : Colors.green.shade100,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: expired ? Colors.red.shade400 : Colors.green.shade400, width: 1.2),
+                                  ),
+                                  child: Icon(expired ? Icons.close : Icons.check, size: 11,
+                                      color: expired ? Colors.red.shade800 : Colors.green.shade800),
+                                ),
+                              );
+                            }),
                             if (eintritt.isNotEmpty) ...[
-                              const Spacer(),
                               Icon(Icons.event, size: 12, color: Colors.grey.shade600), const SizedBox(width: 3),
                               Text(eintritt, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                             ],
