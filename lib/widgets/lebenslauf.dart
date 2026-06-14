@@ -136,13 +136,13 @@ class LebenslaufGenerator {
               _dataRow('Staatsangehörigkeit', staatsangehoerigkeit, greyColor),
               _dataRow('Familienstand', familienstandLabel(familienstand), greyColor),
               _dataRow('Geschlecht', geschlechtLabel(geschlecht), greyColor),
-              if (gabelstaplerschein) _dataRow('Gabelstaplerschein', 'Vorhanden', greyColor),
               if (fuehrerschein.isNotEmpty) ...[
                 if (fuehrerschein.any((f) => (f['klasse'] ?? '').toString().toLowerCase() == 'keinen'))
                   _dataRow('Führerschein', 'Keinen', greyColor)
                 else
                   _dataRow('Führerschein', fuehrerschein.map((f) => 'Klasse ${clean(f['klasse'])}').join(', '), greyColor),
               ],
+              if (gabelstaplerschein) _dataRow('Gabelstaplerschein', 'Vorhanden', greyColor),
               pw.SizedBox(height: 16),
 
               // === BERUFSERFAHRUNG ===
