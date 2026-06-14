@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -52,6 +53,24 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
       (_befristung != null ? 1 : 0) +
       (_veroeffentlichtSeit != null ? 1 : 0) +
       (_angebotsart != 1 ? 1 : 0);
+
+  /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
+  /// damit man sofort sieht WAS gerade durchgereicht wird.
+  String get _aktiveFilterLabel {
+    const arbeitszeitMap = {'vz': 'Vollzeit', 'tz': 'Teilzeit', 'mj': 'Minijob', 'snw': 'Schicht/Nacht/Wo', 'ho': 'Home-Office'};
+    const angebotMap = {1: 'Arbeit', 2: 'Selbstaendig', 4: 'Ausbildung', 34: 'Praktikum'};
+    final teile = <String>[
+      if (_arbeitszeit != null) arbeitszeitMap[_arbeitszeit] ?? _arbeitszeit!,
+      if (_befristung == 2) 'unbefristet' else if (_befristung == 1) 'befristet',
+      if (_veroeffentlichtSeit == 1) 'letzter Tag'
+      else if (_veroeffentlichtSeit == 7) 'letzte Woche'
+      else if (_veroeffentlichtSeit == 14) 'letzte 2 Wochen'
+      else if (_veroeffentlichtSeit == 28) 'letzte 4 Wochen'
+      else if (_veroeffentlichtSeit != null) 'letzte ${_veroeffentlichtSeit} Tage',
+      if (_angebotsart != 1) angebotMap[_angebotsart] ?? '',
+    ];
+    return teile.where((t) => t.isNotEmpty).join(' · ');
+  }
 
   /// Eindeutige `funktion`-Werte aus berufserfahrung, in der gleichen
   /// Reihenfolge wie der Stellen-Tab sie zeigt (neueste zuerst — sortiert
@@ -204,11 +223,13 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
           Row(children: [
             Icon(Icons.search, size: 18, color: Colors.indigo.shade800),
             const SizedBox(width: 6),
-            Text('Bundesagentur fuer Arbeit – Jobsuche', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
-            const SizedBox(width: 8),
-            Text(_umkreis == 0 ? 'nur ${_woC.text}' : '${_woC.text} +${_umkreis}km',
-                style: TextStyle(fontSize: 11, color: Colors.indigo.shade600, fontStyle: FontStyle.italic)),
-            const Spacer(),
+            Expanded(child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, children: [
+              Text('Bundesagentur – Jobsuche', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+              Text(_umkreis == 0 ? 'nur ${_woC.text}' : '${_woC.text} +${_umkreis}km',
+                  style: TextStyle(fontSize: 11, color: Colors.indigo.shade600, fontStyle: FontStyle.italic)),
+              if (_aktiveFilterLabel.isNotEmpty)
+                Text('· $_aktiveFilterLabel', style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontStyle: FontStyle.italic, fontWeight: FontWeight.w600)),
+            ])),
             if (_total != null) Text('${_total!} Treffer', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700)),
           ]),
           const SizedBox(height: 8),
@@ -240,7 +261,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
                 DropdownMenuItem(value: 50,  child: Text('50 km')),
                 DropdownMenuItem(value: 100, child: Text('100 km')),
               ],
-              onChanged: (v) => setState(() => _umkreis = v ?? 0),
+              onChanged: (v) { setState(() => _umkreis = v ?? 0); _search(); },
             )),
             const SizedBox(width: 6),
             ElevatedButton.icon(
@@ -321,7 +342,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
                   DropdownMenuItem(value: 'snw', child: Text('Schicht/Nacht/Wochenende')),
                   DropdownMenuItem(value: 'ho',  child: Text('Heim-/Telearbeit')),
                 ],
-                onChanged: (v) => setState(() => _arbeitszeit = v),
+                onChanged: (v) { setState(() => _arbeitszeit = v); _search(); },
               )),
               SizedBox(width: 160, child: DropdownButtonFormField<int?>(
                 initialValue: _befristung,
@@ -332,20 +353,22 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
                   DropdownMenuItem(value: 2, child: Text('Unbefristet')),
                   DropdownMenuItem(value: 1, child: Text('Befristet')),
                 ],
-                onChanged: (v) => setState(() => _befristung = v),
+                onChanged: (v) { setState(() => _befristung = v); _search(); },
               )),
               SizedBox(width: 180, child: DropdownButtonFormField<int?>(
                 initialValue: _veroeffentlichtSeit,
                 isDense: true,
                 decoration: const InputDecoration(labelText: 'Veroeffentlicht seit', isDense: true, border: OutlineInputBorder()),
                 items: const [
+                  // Bundesagentur akzeptiert nur fixe Stichtage (1/7/14/28).
+                  // Andere Werte werden serverseitig stillschweigend ignoriert.
                   DropdownMenuItem(value: null, child: Text('Alle')),
-                  DropdownMenuItem(value: 3,    child: Text('Letzte 3 Tage')),
-                  DropdownMenuItem(value: 7,    child: Text('Letzte 7 Tage')),
-                  DropdownMenuItem(value: 14,   child: Text('Letzte 14 Tage')),
-                  DropdownMenuItem(value: 30,   child: Text('Letzte 30 Tage')),
+                  DropdownMenuItem(value: 1,    child: Text('Letzter Tag')),
+                  DropdownMenuItem(value: 7,    child: Text('Letzte Woche')),
+                  DropdownMenuItem(value: 14,   child: Text('Letzte 2 Wochen')),
+                  DropdownMenuItem(value: 28,   child: Text('Letzte 4 Wochen')),
                 ],
-                onChanged: (v) => setState(() => _veroeffentlichtSeit = v),
+                onChanged: (v) { setState(() => _veroeffentlichtSeit = v); _search(); },
               )),
               SizedBox(width: 160, child: DropdownButtonFormField<int>(
                 initialValue: _angebotsart,
@@ -357,7 +380,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
                   DropdownMenuItem(value: 4,  child: Text('Ausbildung')),
                   DropdownMenuItem(value: 34, child: Text('Praktikum')),
                 ],
-                onChanged: (v) => setState(() => _angebotsart = v ?? 1),
+                onChanged: (v) { setState(() => _angebotsart = v ?? 1); _search(); },
               )),
               if (_filterAktivCount > 0) ActionChip(
                 label: const Text('Filter zuruecksetzen', style: TextStyle(fontSize: 11)),
@@ -613,19 +636,66 @@ class _StellenDetailDialogState extends State<_StellenDetailDialog> {
                       ]),
                       const SizedBox(height: 6),
                       Wrap(spacing: 6, runSpacing: 4, children: [
-                        ...emails.map((e) => ActionChip(
-                          avatar: const Icon(Icons.email, size: 14),
-                          label: Text(e, style: const TextStyle(fontSize: 11)),
-                          backgroundColor: Colors.white,
-                          onPressed: () => _launch('mailto:$e?subject=${Uri.encodeComponent("Initiativbewerbung – Ihre Stelle $titel (${widget.refnr})")}'),
+                        // Klick auf E-Mail-Chip kopiert in die Zwischenablage —
+                        // das ist auf Desktop/Linux viel zuverlaessiger als ein
+                        // automatisch geoeffneter Mail-Client. Daneben ein
+                        // kleines Pfeil-Icon, wenn jemand doch lieber Thunderbird
+                        // & Co. aufruft.
+                        ...emails.map((e) => Container(
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.green.shade300)),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () async {
+                                await Clipboard.setData(ClipboardData(text: e));
+                                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e in Zwischenablage kopiert'), duration: const Duration(seconds: 2)));
+                              },
+                              child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(Icons.email, size: 14, color: Colors.green.shade800), const SizedBox(width: 4),
+                                Text(e, style: const TextStyle(fontSize: 11)),
+                                const SizedBox(width: 4),
+                                Icon(Icons.copy, size: 12, color: Colors.grey.shade600),
+                              ])),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.open_in_new, size: 14),
+                              tooltip: 'Mail-Client oeffnen',
+                              padding: const EdgeInsets.all(2),
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _launch('mailto:$e?subject=${Uri.encodeComponent("Initiativbewerbung – Ihre Stelle $titel (${widget.refnr})")}'),
+                            ),
+                          ]),
                         )),
                         ...tels.map((t) {
                           final digits = t.replaceAll(RegExp(r'[^\d+]'), '');
-                          return ActionChip(
-                            avatar: const Icon(Icons.phone, size: 14),
-                            label: Text(t, style: const TextStyle(fontSize: 11)),
-                            backgroundColor: Colors.white,
-                            onPressed: () => _launch('tel:$digits'),
+                          return Container(
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.green.shade300)),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () async {
+                                  await Clipboard.setData(ClipboardData(text: digits));
+                                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$digits in Zwischenablage kopiert'), duration: const Duration(seconds: 2)));
+                                },
+                                child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.phone, size: 14, color: Colors.green.shade800), const SizedBox(width: 4),
+                                  Text(t, style: const TextStyle(fontSize: 11)),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.copy, size: 12, color: Colors.grey.shade600),
+                                ])),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.call, size: 14),
+                                tooltip: 'Anrufen',
+                                padding: const EdgeInsets.all(2),
+                                constraints: const BoxConstraints(),
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _launch('tel:$digits'),
+                              ),
+                            ]),
                           );
                         }),
                       ]),
