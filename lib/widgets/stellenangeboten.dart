@@ -72,6 +72,21 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       (_veroeffentlichtSeit != null ? 1 : 0) +
       (_angebotsart != 1 ? 1 : 0);
 
+  /// Anzahl der nach dem Smart-Filter wirklich sichtbaren Stellen — wird im
+  /// Listenkopf neben dem API-Total ('X von Y Treffer') angezeigt.
+  int get _visibleCount {
+    if (!_nurPassendeStellen) return _results.length;
+    var n = 0;
+    for (final s in _results) {
+      final d = _detailCache[(s['refnr'] ?? '').toString()];
+      if (d == null || d.isEmpty) { n++; continue; } // noch nicht geprueft -> sichtbar
+      final missG = _needsGabelstapler(d) && !_hatGabelstapler;
+      final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
+      if (!(missG || missF)) n++;
+    }
+    return n;
+  }
+
   /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
   /// damit man sofort sieht WAS gerade durchgereicht wird.
   String get _aktiveFilterLabel {
@@ -375,7 +390,15 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               if (_aktiveFilterLabel.isNotEmpty)
                 Text('· $_aktiveFilterLabel', style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontStyle: FontStyle.italic, fontWeight: FontWeight.w600)),
             ])),
-            if (_total != null) Text('${_total!} Treffer', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700)),
+            if (_total != null) Builder(builder: (_) {
+              final visible = _visibleCount;
+              final total = _total!;
+              final showSplit = _nurPassendeStellen && visible != _results.length;
+              return Text(
+                showSplit ? '$visible von $total Treffer' : '$total Treffer',
+                style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w600),
+              );
+            }),
           ]),
           const SizedBox(height: 8),
           Row(children: [
