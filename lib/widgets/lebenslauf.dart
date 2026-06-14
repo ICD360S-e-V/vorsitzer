@@ -142,7 +142,7 @@ class LebenslaufGenerator {
                 else
                   _dataRow('Führerschein', fuehrerschein.map((f) => 'Klasse ${clean(f['klasse'])}').join(', '), greyColor),
               ],
-              if (gabelstaplerschein) _dataRow('Gabelstaplerschein', 'Vorhanden', greyColor),
+              _dataRow('Gabelstaplerschein', gabelstaplerschein ? 'Vorhanden' : 'Keinen', greyColor),
               pw.SizedBox(height: 16),
 
               // === BERUFSERFAHRUNG ===
