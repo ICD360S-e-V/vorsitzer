@@ -65,6 +65,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   /// (bewerbung.jobs, hogapage.de, heyjobs.co usw.) umleitet. Default an —
   /// rund 16% der Treffer leiten extern und kosten Vorsitzer-Zeit.
   bool _nurArbeitsagentur = true;
+  /// Blendet Stellen aus, in deren Beschreibung keine E-Mail-Adresse
+  /// auftaucht — solche Anzeigen sind oft Lead-Generation ohne ernst
+  /// gemeinten Bewerbungsweg.
+  bool _nurMitEmail = true;
   bool _hatFuehrerschein = false;
   bool _hatGabelstapler = false;
   /// Profilwert: true = laut Stellen-Tab keine schweren Lasten heben.
@@ -95,13 +99,26 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     return host.isEmpty ? null : host;
   }
 
+  /// Standard-E-Mail-Regex — Treffer in der Stellen-Beschreibung gilt als
+  /// 'Stelle hat ernsthaften Bewerbungsweg'.
+  static final _emailFindRe = RegExp(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}');
+  bool _detailHatEmail(Map<String, dynamic>? d) {
+    if (d == null || d.isEmpty) return true; // noch nicht geladen → erst mal sichtbar
+    final t = (d['stellenangebotsBeschreibung'] ?? '').toString();
+    return t.isNotEmpty && _emailFindRe.hasMatch(t);
+  }
+
   /// Entscheidet pro Stellenangebot, ob sie nach dem aktuellen Filterzustand
   /// sichtbar bleibt — kapselt die Logik fuer 'nur neue' + 'nur passende' +
-  /// 'nur arbeitsagentur'.
+  /// 'nur arbeitsagentur' + 'nur mit E-Mail'.
   bool _isVisible(Map<String, dynamic> s) {
     final refnr = (s['refnr'] ?? '').toString();
     if (_nurNeueStellen && _bewerbungenByRefnr.containsKey(refnr)) return false;
     if (_nurArbeitsagentur && _externHost(s) != null) return false;
+    if (_nurMitEmail) {
+      final d = _detailCache[refnr];
+      if (d != null && d.isNotEmpty && !_detailHatEmail(d)) return false;
+    }
     if (_nurPassendeStellen) {
       final d = _detailCache[refnr];
       if (d != null && d.isNotEmpty) {
@@ -124,11 +141,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
 
   /// Aufschluesselung wie viele Stellen je Achse vom Filter ausgeblendet
   /// wurden — fuer den orangen Banner unter der Filterleiste.
-  ({int beworben, int extern, int ohneFs, int ohneStapler, int schwer, int total}) get _hiddenBreakdown {
-    if (!_nurPassendeStellen && !_nurNeueStellen && !_nurArbeitsagentur) {
-      return (beworben: 0, extern: 0, ohneFs: 0, ohneStapler: 0, schwer: 0, total: 0);
+  ({int beworben, int extern, int ohneEmail, int ohneFs, int ohneStapler, int schwer, int total}) get _hiddenBreakdown {
+    if (!_nurPassendeStellen && !_nurNeueStellen && !_nurArbeitsagentur && !_nurMitEmail) {
+      return (beworben: 0, extern: 0, ohneEmail: 0, ohneFs: 0, ohneStapler: 0, schwer: 0, total: 0);
     }
-    var beworben = 0, extern = 0, ohneFs = 0, ohneStapler = 0, schwer = 0, total = 0;
+    var beworben = 0, extern = 0, ohneEmail = 0, ohneFs = 0, ohneStapler = 0, schwer = 0, total = 0;
     for (final s in _results) {
       final refnr = (s['refnr'] ?? '').toString();
       if (_nurNeueStellen && _bewerbungenByRefnr.containsKey(refnr)) {
@@ -137,8 +154,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       if (_nurArbeitsagentur && _externHost(s) != null) {
         extern++; total++; continue;
       }
-      if (!_nurPassendeStellen) continue;
       final d = _detailCache[refnr];
+      if (_nurMitEmail && d != null && d.isNotEmpty && !_detailHatEmail(d)) {
+        ohneEmail++; total++; continue;
+      }
+      if (!_nurPassendeStellen) continue;
       if (d == null || d.isEmpty) continue;
       final missG = _needsGabelstapler(d) && !_hatGabelstapler;
       final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
@@ -150,7 +170,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         if (missS) schwer++;
       }
     }
-    return (beworben: beworben, extern: extern, ohneFs: ohneFs, ohneStapler: ohneStapler, schwer: schwer, total: total);
+    return (beworben: beworben, extern: extern, ohneEmail: ohneEmail, ohneFs: ohneFs, ohneStapler: ohneStapler, schwer: schwer, total: total);
   }
 
   /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
@@ -406,6 +426,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         if (m['nurPassendeStellen'] is bool) _nurPassendeStellen = m['nurPassendeStellen'] as bool;
         if (m['nurNeueStellen'] is bool) _nurNeueStellen = m['nurNeueStellen'] as bool;
         if (m['nurArbeitsagentur'] is bool) _nurArbeitsagentur = m['nurArbeitsagentur'] as bool;
+        if (m['nurMitEmail'] is bool) _nurMitEmail = m['nurMitEmail'] as bool;
       });
     } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
   }
@@ -424,6 +445,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       'nurPassendeStellen': _nurPassendeStellen,
       'nurNeueStellen': _nurNeueStellen,
       'nurArbeitsagentur': _nurArbeitsagentur,
+      'nurMitEmail': _nurMitEmail,
     });
   }
 
@@ -724,6 +746,23 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
               ),
             ]),
+            // Vierter Toggle: Stellen ohne E-Mail in der Beschreibung
+            // ausblenden — fast immer Lead-Gen-Anzeigen, an die man sich
+            // nicht serioes bewerben kann.
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Switch(
+                value: _nurMitEmail,
+                activeThumbColor: Colors.indigo.shade700,
+                onChanged: (v) { setState(() => _nurMitEmail = v); _persistSelection(); },
+              ),
+              const SizedBox(width: 4),
+              const Text('Nur mit E-Mail', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Blendet Stellen aus, in deren Beschreibung\nkeine E-Mail-Adresse auftaucht.\nSo gefiltert: Anzeigen ohne ernsten Bewerbungsweg.',
+                child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+              ),
+            ]),
           ]),
           // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
           // nicht ueberladen wirkt; im offenen Zustand vier Dropdowns.
@@ -856,6 +895,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                     final teile = <String>[
                       if (br.beworben > 0) '${br.beworben} bereits beworben',
                       if (br.extern > 0) '${br.extern} extern',
+                      if (br.ohneEmail > 0) '${br.ohneEmail} ohne E-Mail',
                       if (br.ohneFs > 0) '${br.ohneFs} ohne Führerschein',
                       if (br.ohneStapler > 0) '${br.ohneStapler} ohne Gabelstapler',
                       if (br.schwer > 0) '${br.schwer} schwere Arbeit',
