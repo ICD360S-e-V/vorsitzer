@@ -12,7 +12,15 @@ import '../services/api_service.dart';
 class StellenangebotenContent extends StatefulWidget {
   final ApiService apiService;
   final User user;
-  const StellenangebotenContent({super.key, required this.apiService, required this.user});
+  /// Berufserfahrung-Liste des Mitglieds (aus _arbeitgeberFromDB) — daraus
+  /// extrahieren wir die `funktion`-Felder als Such-Vorschlaege.
+  final List<Map<String, dynamic>> berufserfahrung;
+  const StellenangebotenContent({
+    super.key,
+    required this.apiService,
+    required this.user,
+    this.berufserfahrung = const [],
+  });
 
   @override
   State<StellenangebotenContent> createState() => _StellenangebotenContentState();
@@ -29,6 +37,37 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
   int? _total;
   int? _initial;
 
+  /// Eindeutige `funktion`-Werte aus berufserfahrung, in der gleichen
+  /// Reihenfolge wie der Stellen-Tab sie zeigt (neueste zuerst — sortiert
+  /// nach aktuell-Flag und dann von_jahr/von_monat absteigend).
+  List<String> get _vorherigeBerufe {
+    final sorted = List<Map<String, dynamic>>.from(widget.berufserfahrung);
+    bool aktuell(Map<String, dynamic> x) =>
+        x['aktuell'] == true || x['aktuell'] == 'true' || x['aktuell'] == 1 || x['aktuell'] == '1';
+    int sortKey(Map<String, dynamic> x) {
+      final yj = int.tryParse((x['von_jahr'] ?? '').toString()) ?? 0;
+      final ym = int.tryParse((x['von_monat'] ?? '').toString()) ?? 0;
+      return yj * 100 + ym;
+    }
+    sorted.sort((a, b) {
+      final aA = aktuell(a), bA = aktuell(b);
+      if (aA != bA) return aA ? -1 : 1;
+      return sortKey(b).compareTo(sortKey(a));
+    });
+    final seen = <String>{};
+    final out = <String>[];
+    for (final ag in sorted) {
+      final f = (ag['funktion'] ?? ag['position'] ?? '').toString().trim();
+      if (f.isEmpty) continue;
+      // Normalisieren: "(m/w/d)" oder andere Klammer-Suffixe wegwerfen, damit
+      // gleicher Beruf nicht doppelt erscheint und die Jobsuche breiter trifft.
+      final cleaned = f.replaceAll(RegExp(r'\s*\(.*?\)\s*$'), '').trim();
+      final key = cleaned.toLowerCase();
+      if (seen.add(key)) out.add(cleaned);
+    }
+    return out;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +76,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
     final ort = (widget.user.ort ?? '').trim();
     final plz = (widget.user.plz ?? '').trim();
     _woC.text = ort.isNotEmpty ? ort : plz;
+    // Wenn das Mitglied Vorerfahrung hat, befuellen wir 'Was' mit der
+    // zuletzt ausgeuebten Funktion — der Vorsitzer kann sie ueber die
+    // Chip-Leiste schnell tauschen.
+    final berufe = _vorherigeBerufe;
+    if (berufe.isNotEmpty) _wasC.text = berufe.first;
   }
 
   @override
@@ -184,6 +228,24 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
             ),
           ]),
+          if (_vorherigeBerufe.isNotEmpty) Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(padding: const EdgeInsets.only(top: 6), child: Text('Vorherige Berufe:', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w600))),
+              const SizedBox(width: 8),
+              Expanded(child: Wrap(spacing: 6, runSpacing: 4, children: _vorherigeBerufe.map((b) {
+                final selected = _wasC.text.trim().toLowerCase() == b.toLowerCase();
+                return ActionChip(
+                  label: Text(b, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: selected ? Colors.indigo.shade100 : Colors.white,
+                  side: BorderSide(color: selected ? Colors.indigo : Colors.indigo.shade200),
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                  onPressed: _loading ? null : () { _wasC.text = b; _search(); },
+                );
+              }).toList())),
+            ]),
+          ),
         ]),
       ),
       Expanded(child: _loading

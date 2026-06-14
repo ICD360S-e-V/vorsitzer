@@ -2264,7 +2264,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           userId: widget.user.id,
           dbArbeitgeberListe: widget.dbArbeitgeberListe,
         ),
-        StellenangebotenContent(apiService: widget.apiService, user: widget.user),
+        StellenangebotenContent(
+          apiService: widget.apiService,
+          user: widget.user,
+          berufserfahrung: _arbeitgeberFromDB,
+        ),
       ])),
     ]);
   }
