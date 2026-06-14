@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 
 /// Bewerbungsübersicht — applications tracker per (user, arbeitgeber).
@@ -1538,14 +1539,27 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
   Future<void> _saveToDisk() async {
     if (_bytes == null) return;
     try {
-      final dir = await getTemporaryDirectory();
       final safeFirma = widget.firmaName.replaceAll(RegExp(r'[^\w\-]'), '_');
-      final file = File('${dir.path}/Lebenslauf_${safeFirma}_${DateTime.now().millisecondsSinceEpoch}.pdf');
-      await file.writeAsBytes(_bytes!);
-      final uri = Uri.file(file.path);
-      if (!await launchUrl(uri)) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gespeichert: ${file.path}')));
-      }
+      final fileName = 'Lebenslauf_$safeFirma.pdf';
+      final path = await FilePickerHelper.saveFile(
+        dialogTitle: 'Lebenslauf speichern',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (path == null) return; // User abgebrochen
+      final saveAt = path.toLowerCase().endsWith('.pdf') ? path : '$path.pdf';
+      await File(saveAt).writeAsBytes(_bytes!, flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Lebenslauf gespeichert: $saveAt'),
+        backgroundColor: Colors.green.shade700,
+        action: SnackBarAction(
+          label: 'Öffnen',
+          textColor: Colors.white,
+          onPressed: () => launchUrl(Uri.file(saveAt)),
+        ),
+      ));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speicherfehler: $e'), backgroundColor: Colors.red));
     }
@@ -1701,14 +1715,27 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
   Future<void> _saveToDisk() async {
     if (_bytes == null) return;
     try {
-      final dir = await getTemporaryDirectory();
       final safeFirma = widget.firmaName.replaceAll(RegExp(r'[^\w\-]'), '_');
-      final file = File('${dir.path}/Anschreiben_${safeFirma}_${DateTime.now().millisecondsSinceEpoch}.pdf');
-      await file.writeAsBytes(_bytes!);
-      final uri = Uri.file(file.path);
-      if (!await launchUrl(uri)) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gespeichert: ${file.path}')));
-      }
+      final fileName = 'Anschreiben_$safeFirma.pdf';
+      final path = await FilePickerHelper.saveFile(
+        dialogTitle: 'Anschreiben speichern',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (path == null) return; // User abgebrochen
+      final saveAt = path.toLowerCase().endsWith('.pdf') ? path : '$path.pdf';
+      await File(saveAt).writeAsBytes(_bytes!, flush: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Anschreiben gespeichert: $saveAt'),
+        backgroundColor: Colors.green.shade700,
+        action: SnackBarAction(
+          label: 'Öffnen',
+          textColor: Colors.white,
+          onPressed: () => launchUrl(Uri.file(saveAt)),
+        ),
+      ));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speicherfehler: $e'), backgroundColor: Colors.red));
     }
