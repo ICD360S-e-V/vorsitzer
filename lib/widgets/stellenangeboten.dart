@@ -57,6 +57,15 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   // Mehrfachauswahl der Vorerfahrungs-Chips. Leer = nur Freitext aus _wasC.
   final Set<String> _selectedBerufe = {};
 
+  // Smart-Filter: blendet Stellen aus, die eine Qualifikation verlangen,
+  // die das Mitglied laut Profil nicht hat. Pro Card ein lazy fetch des
+  // Vollinhalts (gecacht nach refnr) — danach Keyword-Match auf
+  // titel + beschreibung.
+  bool _nurPassendeStellen = true;
+  bool _hatFuehrerschein = false;
+  bool _hatGabelstapler = false;
+  final Map<String, Map<String, dynamic>?> _detailCache = {};
+
   int get _filterAktivCount =>
       (_arbeitszeit != null ? 1 : 0) +
       (_befristung != null ? 1 : 0) +
@@ -130,6 +139,67 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     // Persistente Auswahl pro Mitglied laden — ueberschreibt die Defaults
     // oben, wenn der Vorsitzer das letzte Mal etwas anderes ausgewaehlt hat.
     _restoreSelection();
+    _loadQualifikationen();
+  }
+
+  Future<void> _loadQualifikationen() async {
+    final res = await widget.apiService.getUserQualifikationen(widget.user.id);
+    if (!mounted || res['success'] != true) return;
+    final fs = List<Map<String, dynamic>>.from(res['fuehrerschein'] ?? []);
+    final hatFs = fs.any((f) => (f['klasse'] ?? '').toString().toLowerCase() != 'keinen');
+    final g = res['gabelstaplerschein'];
+    setState(() {
+      _hatFuehrerschein = hatFs;
+      _hatGabelstapler = g == 1 || g == '1' || g == true;
+    });
+  }
+
+  Future<void> _prefetchDetails(List<Map<String, dynamic>> results) async {
+    for (final s in results) {
+      final r = (s['refnr'] ?? '').toString();
+      if (r.isEmpty || _detailCache.containsKey(r)) continue;
+      _detailCache[r] = null;
+      // Fire and don't await — onboarding-style: each card updates itself
+      // when its detail comes in. Limit through Future.microtask to avoid
+      // hammering the API with 25 simultaneous requests on slow networks.
+      Future<void>(() async {
+        final d = await widget.apiService.getStellenangebotDetail(r);
+        if (!mounted) return;
+        setState(() => _detailCache[r] = d ?? const {});
+      });
+    }
+  }
+
+  static final _kwGabelstapler = RegExp(
+    r'\b(gabelstapler|staplerschein|flurförder|flurfoerder|stapler-?schein|stapler-?führerschein)\b',
+    caseSensitive: false,
+  );
+  static final _kwFuehrerschein = RegExp(
+    r'\b(führerschein|fuehrerschein|fahrerlaubnis|pkw-?schein|klasse [a-z]+)\b',
+    caseSensitive: false,
+  );
+  // Negative context — "Führerschein nicht erforderlich" etc.
+  static final _kwOptional = RegExp(
+    r'(nicht erforderlich|nicht notwendig|von vorteil|wünschenswert|wuenschenswert|wäre|waere)',
+    caseSensitive: false,
+  );
+
+  bool _needsGabelstapler(Map<String, dynamic> d) {
+    final t = '${d['stellenangebotsBeschreibung'] ?? ''} ${d['stellenangebotsTitel'] ?? ''}'.toLowerCase();
+    if (!_kwGabelstapler.hasMatch(t)) return false;
+    // Crude proximity-negation: if "nicht erforderlich" appears within 60 chars of the keyword, treat as optional.
+    final m = _kwGabelstapler.firstMatch(t);
+    if (m == null) return false;
+    final window = t.substring((m.start - 60).clamp(0, t.length), (m.end + 60).clamp(0, t.length));
+    return !_kwOptional.hasMatch(window);
+  }
+
+  bool _needsFuehrerschein(Map<String, dynamic> d) {
+    final t = '${d['stellenangebotsBeschreibung'] ?? ''} ${d['stellenangebotsTitel'] ?? ''}'.toLowerCase();
+    final m = _kwFuehrerschein.firstMatch(t);
+    if (m == null) return false;
+    final window = t.substring((m.start - 60).clamp(0, t.length), (m.end + 60).clamp(0, t.length));
+    return !_kwOptional.hasMatch(window);
   }
 
   Future<void> _restoreSelection() async {
@@ -149,6 +219,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         _befristung = m['befristung'] as int?;
         _veroeffentlichtSeit = m['veroeffentlichtSeit'] as int?;
         _angebotsart = (m['angebotsart'] as int?) ?? 1;
+        if (m['nurPassendeStellen'] is bool) _nurPassendeStellen = m['nurPassendeStellen'] as bool;
       });
     } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
   }
@@ -165,6 +236,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         'befristung': _befristung,
         'veroeffentlichtSeit': _veroeffentlichtSeit,
         'angebotsart': _angebotsart,
+        'nurPassendeStellen': _nurPassendeStellen,
       }));
     } catch (_) {}
   }
@@ -229,11 +301,21 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         _total = wasQueries.length == 1 ? totalSum : merged.length;
         _initial ??= _total;
       });
+      _prefetchDetails(merged);
     } catch (e) {
       if (!mounted) return;
       setState(() { _loading = false; _error = e.toString(); _results = []; });
     }
   }
+
+  Widget _smallBadge(IconData icon, String text, MaterialColor color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 11, color: color.shade800), const SizedBox(width: 3),
+      Text(text, style: TextStyle(fontSize: 10, color: color.shade900, fontWeight: FontWeight.w600)),
+    ]),
+  );
 
   String _arbeitsort(Map<String, dynamic> ag) {
     final ort = (ag['arbeitsort']?['ort'] ?? ag['arbeitsorte']?[0]?['ort'] ?? '').toString();
@@ -364,6 +446,20 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
             ]),
           ),
           const SizedBox(height: 4),
+          // Smart-Filter Toggle: blendet Stellen aus, die Qualifikationen
+          // verlangen, die das Mitglied nicht hat (Gabelstapler/Fuehrerschein).
+          Row(children: [
+            Switch(
+              value: _nurPassendeStellen,
+              activeThumbColor: Colors.indigo.shade700,
+              onChanged: (v) => setState(() => _nurPassendeStellen = v),
+            ),
+            const SizedBox(width: 6),
+            const Text('Nur passende Stellen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 6),
+            Text('(${_hatFuehrerschein ? "FS✓" : "FS✗"} · ${_hatGabelstapler ? "Gabelst.✓" : "Gabelst.✗"})',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          ]),
           // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
           // nicht ueberladen wirkt; im offenen Zustand vier Dropdowns.
           InkWell(
@@ -463,39 +559,78 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 const SizedBox(height: 8),
                 Text(_initial == null ? 'Suche starten' : 'Keine Treffer', style: TextStyle(color: Colors.grey.shade600)),
               ]))
-            : ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: _results.length,
-                itemBuilder: (_, i) {
-                  final s = _results[i];
-                  final titel = (s['titel'] ?? s['beruf'] ?? '(ohne Titel)').toString();
-                  final firma = (s['arbeitgeber'] ?? '').toString();
-                  final ort = _arbeitsort(s);
-                  final eintritt = (s['eintrittsdatum'] ?? '').toString().split('T').first;
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    child: InkWell(
-                      onTap: () => _openDetails(s),
-                      child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(titel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                        if (firma.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
-                          Icon(Icons.business, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
-                          Expanded(child: Text(firma, style: const TextStyle(fontSize: 12))),
+            : Builder(builder: (_) {
+              // Smart-Filter anwenden: pro Card aus Cache entscheiden, ob
+              // sie eine fehlende Qualifikation verlangt. Cards ohne Detail
+              // bleiben sichtbar (mit Spinner-Hint) — Filter wirkt erst,
+              // wenn die Anforderung eindeutig geklärt ist.
+              final visible = _nurPassendeStellen
+                ? _results.where((s) {
+                    final d = _detailCache[(s['refnr'] ?? '').toString()];
+                    if (d == null || d.isEmpty) return true; // nicht geladen -> erstmal anzeigen
+                    final needG = _needsGabelstapler(d);
+                    final needF = _needsFuehrerschein(d);
+                    final missG = needG && !_hatGabelstapler;
+                    final missF = needF && !_hatFuehrerschein;
+                    return !(missG || missF);
+                  }).toList()
+                : _results;
+              final hidden = _results.length - visible.length;
+              return Column(children: [
+                if (hidden > 0) Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  color: Colors.orange.shade50,
+                  child: Row(children: [
+                    Icon(Icons.filter_alt, size: 14, color: Colors.orange.shade800),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('$hidden Stelle(n) ausgeblendet (verlangen Qualifikation, die fehlt)', style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                  ]),
+                ),
+                Expanded(child: ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: visible.length,
+                  itemBuilder: (_, i) {
+                    final s = visible[i];
+                    final titel = (s['titel'] ?? s['beruf'] ?? '(ohne Titel)').toString();
+                    final firma = (s['arbeitgeber'] ?? '').toString();
+                    final ort = _arbeitsort(s);
+                    final eintritt = (s['eintrittsdatum'] ?? '').toString().split('T').first;
+                    final refnr = (s['refnr'] ?? '').toString();
+                    final d = _detailCache[refnr];
+                    final pruefend = d == null && _detailCache.containsKey(refnr);
+                    final needG = d != null && d.isNotEmpty && _needsGabelstapler(d);
+                    final needF = d != null && d.isNotEmpty && _needsFuehrerschein(d);
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      child: InkWell(
+                        onTap: () => _openDetails(s),
+                        child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(titel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                          if (firma.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                            Icon(Icons.business, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                            Expanded(child: Text(firma, style: const TextStyle(fontSize: 12))),
+                          ])),
+                          if (ort.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+                            Icon(Icons.location_on, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                            Text(ort, style: const TextStyle(fontSize: 12)),
+                            if (eintritt.isNotEmpty) ...[
+                              const Spacer(),
+                              Icon(Icons.event, size: 12, color: Colors.grey.shade600), const SizedBox(width: 3),
+                              Text(eintritt, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                            ],
+                          ])),
+                          if (pruefend || needG || needF) Padding(padding: const EdgeInsets.only(top: 6), child: Wrap(spacing: 4, runSpacing: 4, children: [
+                            if (pruefend) _smallBadge(Icons.hourglass_empty, 'wird geprueft', Colors.grey),
+                            if (needG) _smallBadge(Icons.local_shipping, _hatGabelstapler ? 'Gabelstapler ✓' : 'Gabelstapler ✗', _hatGabelstapler ? Colors.green : Colors.red),
+                            if (needF) _smallBadge(Icons.directions_car, _hatFuehrerschein ? 'Führerschein ✓' : 'Führerschein ✗', _hatFuehrerschein ? Colors.green : Colors.red),
+                          ])),
                         ])),
-                        if (ort.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                          Icon(Icons.location_on, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
-                          Text(ort, style: const TextStyle(fontSize: 12)),
-                          if (eintritt.isNotEmpty) ...[
-                            const Spacer(),
-                            Icon(Icons.event, size: 12, color: Colors.grey.shade600), const SizedBox(width: 3),
-                            Text(eintritt, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                          ],
-                        ])),
-                      ])),
-                    ),
-                  );
-                },
-              ),
+                      ),
+                    );
+                  },
+                )),
+              ]);
+            }),
       ),
       if (_total != null && _total! > _results.length && _results.isNotEmpty) Container(
         padding: const EdgeInsets.symmetric(vertical: 6),

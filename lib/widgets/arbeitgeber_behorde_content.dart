@@ -4109,6 +4109,7 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
   List<Map<String, dynamic>> _sprachen = [];
   List<Map<String, dynamic>> _fsKlassen = [];
   List<Map<String, dynamic>> _sprachenDB = [];
+  bool _gabelstaplerschein = false;
   bool _loaded = false;
 
   @override
@@ -4131,6 +4132,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
           if (results[0]['success'] == true) {
             _fuehrerschein = List<Map<String, dynamic>>.from(results[0]['fuehrerschein'] ?? []);
             _sprachen = List<Map<String, dynamic>>.from(results[0]['sprachen'] ?? []);
+            final g = results[0]['gabelstaplerschein'];
+            _gabelstaplerschein = g == 1 || g == '1' || g == true;
           }
           if (results[1]['success'] == true) _fsKlassen = List<Map<String, dynamic>>.from(results[1]['data'] ?? []);
           if (results[2]['success'] == true) _sprachenDB = List<Map<String, dynamic>>.from(results[2]['data'] ?? []);
@@ -4148,6 +4151,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
         setState(() {
           _fuehrerschein = List<Map<String, dynamic>>.from(result['fuehrerschein'] ?? []);
           _sprachen = List<Map<String, dynamic>>.from(result['sprachen'] ?? []);
+          final g = result['gabelstaplerschein'];
+          _gabelstaplerschein = g == 1 || g == '1' || g == true;
         });
       }
     } catch (_) {}
@@ -4187,6 +4192,31 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── GABELSTAPLERSCHEIN (Toggle) ──
+        // Steht bewusst vor Führerschein, weil viele Helfer-Stellen den
+        // Staplerschein voraussetzen und der Stellenangebote-Tab damit
+        // unpassende Treffer ausfiltern kann.
+        _sectionHeader(Icons.local_shipping, 'Gabelstaplerschein', Colors.orange.shade700),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(children: [
+            Switch(
+              value: _gabelstaplerschein,
+              activeThumbColor: Colors.orange.shade700,
+              onChanged: (v) async {
+                setState(() => _gabelstaplerschein = v);
+                final res = await widget.apiService.setUserGabelstaplerschein(widget.userId, v);
+                if (res['success'] != true && mounted) {
+                  setState(() => _gabelstaplerschein = !v);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speichern fehlgeschlagen'), backgroundColor: Colors.red));
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+            Text(_gabelstaplerschein ? 'Vorhanden' : 'Nicht vorhanden',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _gabelstaplerschein ? Colors.green.shade700 : Colors.grey.shade600)),
+          ]),
+        ),
         // ── FÜHRERSCHEIN ──
         _sectionHeader(Icons.directions_car, 'Führerschein', Colors.blue.shade700),
         Wrap(

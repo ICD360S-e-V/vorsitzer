@@ -46,6 +46,7 @@ class LebenslaufGenerator {
       final qualifikationen = results[3];
       final fuehrerschein = qualifikationen['success'] == true ? List<Map<String, dynamic>>.from(qualifikationen['fuehrerschein'] ?? []) : <Map<String, dynamic>>[];
       final sprachen = qualifikationen['success'] == true ? List<Map<String, dynamic>>.from(qualifikationen['sprachen'] ?? []) : <Map<String, dynamic>>[];
+      final gabelstaplerschein = qualifikationen['success'] == true && (qualifikationen['gabelstaplerschein'] == 1 || qualifikationen['gabelstaplerschein'] == '1' || qualifikationen['gabelstaplerschein'] == true);
 
       // Clean invisible Unicode characters
       String clean(String? s) => (s ?? '').replaceAll(RegExp(r'[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]'), '').trim();
@@ -135,6 +136,7 @@ class LebenslaufGenerator {
               _dataRow('Staatsangehörigkeit', staatsangehoerigkeit, greyColor),
               _dataRow('Familienstand', familienstandLabel(familienstand), greyColor),
               _dataRow('Geschlecht', geschlechtLabel(geschlecht), greyColor),
+              if (gabelstaplerschein) _dataRow('Gabelstaplerschein', 'Vorhanden', greyColor),
               if (fuehrerschein.isNotEmpty) ...[
                 if (fuehrerschein.any((f) => (f['klasse'] ?? '').toString().toLowerCase() == 'keinen'))
                   _dataRow('Führerschein', 'Keinen', greyColor)
