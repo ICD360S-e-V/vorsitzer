@@ -62,6 +62,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   // Vollinhalts (gecacht nach refnr) — danach Keyword-Match auf
   // titel + beschreibung.
   bool _nurPassendeStellen = true;
+  bool _nurNeueStellen = true; // blendet bereits beworbene Stellen aus
   bool _hatFuehrerschein = false;
   bool _hatGabelstapler = false;
   final Map<String, Map<String, dynamic>?> _detailCache = {};
@@ -77,19 +78,26 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       (_veroeffentlichtSeit != null ? 1 : 0) +
       (_angebotsart != 1 ? 1 : 0);
 
-  /// Anzahl der nach dem Smart-Filter wirklich sichtbaren Stellen — wird im
-  /// Listenkopf neben dem API-Total ('X von Y Treffer') angezeigt.
-  int get _visibleCount {
-    if (!_nurPassendeStellen) return _results.length;
-    var n = 0;
-    for (final s in _results) {
-      final d = _detailCache[(s['refnr'] ?? '').toString()];
-      if (d == null || d.isEmpty) { n++; continue; } // noch nicht geprueft -> sichtbar
-      final missG = _needsGabelstapler(d) && !_hatGabelstapler;
-      final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
-      if (!(missG || missF)) n++;
+  /// Entscheidet pro Stellenangebot, ob sie nach dem aktuellen Filterzustand
+  /// sichtbar bleibt — kapselt die Logik fuer 'nur neue' + 'nur passende'.
+  bool _isVisible(Map<String, dynamic> s) {
+    final refnr = (s['refnr'] ?? '').toString();
+    if (_nurNeueStellen && _bewerbungenByRefnr.containsKey(refnr)) return false;
+    if (_nurPassendeStellen) {
+      final d = _detailCache[refnr];
+      if (d != null && d.isNotEmpty) {
+        final missG = _needsGabelstapler(d) && !_hatGabelstapler;
+        final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
+        if (missG || missF) return false;
+      }
     }
-    return n;
+    return true;
+  }
+
+  /// Anzahl der nach allen Filtern sichtbaren Stellen — fuer 'X von Y Treffer'.
+  int get _visibleCount {
+    if (!_nurPassendeStellen && !_nurNeueStellen) return _results.length;
+    return _results.where(_isVisible).length;
   }
 
   /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
@@ -306,6 +314,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         _veroeffentlichtSeit = m['veroeffentlichtSeit'] as int?;
         _angebotsart = (m['angebotsart'] as int?) ?? 1;
         if (m['nurPassendeStellen'] is bool) _nurPassendeStellen = m['nurPassendeStellen'] as bool;
+        if (m['nurNeueStellen'] is bool) _nurNeueStellen = m['nurNeueStellen'] as bool;
       });
     } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
   }
@@ -323,6 +332,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         'veroeffentlichtSeit': _veroeffentlichtSeit,
         'angebotsart': _angebotsart,
         'nurPassendeStellen': _nurPassendeStellen,
+        'nurNeueStellen': _nurNeueStellen,
       }));
     } catch (_) {}
   }
@@ -544,17 +554,31 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
           const SizedBox(height: 4),
           // Smart-Filter Toggle: blendet Stellen aus, die Qualifikationen
           // verlangen, die das Mitglied nicht hat (Gabelstapler/Fuehrerschein).
-          Row(children: [
-            Switch(
-              value: _nurPassendeStellen,
-              activeThumbColor: Colors.indigo.shade700,
-              onChanged: (v) => setState(() => _nurPassendeStellen = v),
-            ),
-            const SizedBox(width: 6),
-            const Text('Nur passende Stellen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 6),
-            Text('(${_hatFuehrerschein ? "FS✓" : "FS✗"} · ${_hatGabelstapler ? "Gabelst.✓" : "Gabelst.✗"})',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          Wrap(spacing: 12, runSpacing: 4, children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Switch(
+                value: _nurPassendeStellen,
+                activeThumbColor: Colors.indigo.shade700,
+                onChanged: (v) { setState(() => _nurPassendeStellen = v); _persistSelection(); },
+              ),
+              const SizedBox(width: 4),
+              const Text('Nur passende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              Text('(${_hatFuehrerschein ? "FS✓" : "FS✗"}·${_hatGabelstapler ? "Gabelst.✓" : "Gabelst.✗"})',
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            ]),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Switch(
+                value: _nurNeueStellen,
+                activeThumbColor: Colors.green.shade700,
+                onChanged: (v) { setState(() => _nurNeueStellen = v); _persistSelection(); },
+              ),
+              const SizedBox(width: 4),
+              const Text('Nur neue', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              if (_bewerbungenByRefnr.isNotEmpty) Text('(${_bewerbungenByRefnr.length} beworben)',
+                  style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
+            ]),
           ]),
           // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
           // nicht ueberladen wirkt; im offenen Zustand vier Dropdowns.
@@ -660,17 +684,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               // sie eine fehlende Qualifikation verlangt. Cards ohne Detail
               // bleiben sichtbar (mit Spinner-Hint) — Filter wirkt erst,
               // wenn die Anforderung eindeutig geklärt ist.
-              final visible = _nurPassendeStellen
-                ? _results.where((s) {
-                    final d = _detailCache[(s['refnr'] ?? '').toString()];
-                    if (d == null || d.isEmpty) return true; // nicht geladen -> erstmal anzeigen
-                    final needG = _needsGabelstapler(d);
-                    final needF = _needsFuehrerschein(d);
-                    final missG = needG && !_hatGabelstapler;
-                    final missF = needF && !_hatFuehrerschein;
-                    return !(missG || missF);
-                  }).toList()
-                : _results;
+              final visible = _results.where(_isVisible).toList();
               final hidden = _results.length - visible.length;
               return Column(children: [
                 Builder(builder: (_) {
@@ -691,13 +705,22 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                     );
                   }
                   if (hidden > 0) {
+                    // Aufschlüsseln wie viel an welcher Filter-Achse verloren geht — Vorsitzer sieht direkt warum.
+                    final beworbenCount = _nurNeueStellen
+                        ? _results.where((s) => _bewerbungenByRefnr.containsKey((s['refnr'] ?? '').toString())).length
+                        : 0;
+                    final qualiHidden = hidden - beworbenCount;
+                    final teile = <String>[
+                      if (beworbenCount > 0) '$beworbenCount bereits beworben',
+                      if (qualiHidden > 0) '$qualiHidden ohne passende Qualifikation',
+                    ];
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       color: Colors.orange.shade50,
                       child: Row(children: [
                         Icon(Icons.filter_alt, size: 14, color: Colors.orange.shade800),
                         const SizedBox(width: 6),
-                        Expanded(child: Text('$hidden Stelle(n) ausgeblendet (verlangen Qualifikation, die fehlt)', style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                        Expanded(child: Text('$hidden Stelle(n) ausgeblendet (${teile.join(", ")})', style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
                       ]),
                     );
                   }
