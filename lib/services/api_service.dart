@@ -7070,6 +7070,51 @@ class ApiService {
     } catch (_) { return null; }
   }
 
+  // === ARBEITSAGENTUR JOBSUCHE (öffentliche API der Bundesagentur für Arbeit) ===
+  // Reverse-engineered REST endpoint that powers arbeitsagentur.de/jobsuche.
+  // The "jobboerse-jobsuche" key is the public X-API-Key the frontend itself
+  // uses — no separate account or OAuth handshake is needed for read-only
+  // stellenangebote, which is what a non-profit Vorsitzer-Tool needs here.
+  Future<Map<String, dynamic>> searchArbeitsagenturJobs({
+    String? was,
+    String? wo,
+    int? umkreis,
+    int page = 1,
+    int size = 25,
+  }) async {
+    final params = <String, String>{
+      'page': '$page',
+      'size': '$size',
+      'angebotsart': '1',
+    };
+    if (was != null && was.trim().isNotEmpty)        params['was'] = was.trim();
+    if (wo != null && wo.trim().isNotEmpty)          params['wo']  = wo.trim();
+    if (umkreis != null && umkreis > 0)              params['umkreis'] = '$umkreis';
+    final uri = Uri.https(
+      'rest.arbeitsagentur.de',
+      '/jobboerse/jobsuche-service/pc/v4/jobs',
+      params,
+    );
+    try {
+      final response = await _client.get(uri, headers: {
+        'X-API-Key': 'jobboerse-jobsuche',
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 25));
+      if (response.statusCode != 200) {
+        return {'success': false, 'message': 'HTTP ${response.statusCode}'};
+      }
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return {
+        'success': true,
+        'stellenangebote': body['stellenangebote'] ?? const [],
+        'maxErgebnisse': body['maxErgebnisse'],
+        'page': page,
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   // === SCHWEIGEPFLICHT (Arzt — per arzt-tab medical confidentiality waiver) ===
   Future<Map<String, dynamic>> createSchweigepflicht(Map<String, dynamic> payload) async {
     final response = await _client.post(

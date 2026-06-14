@@ -13,6 +13,7 @@ import 'file_viewer_dialog.dart';
 import 'lebenslauf.dart';
 import '../utils/file_picker_helper.dart';
 import 'arbeitgeber_bewerbungsuebersicht.dart';
+import 'stellenangeboten.dart';
 
 class ArbeitgeberBehoerdeContent extends StatefulWidget {
   final User user;
@@ -60,7 +61,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   @override
   void initState() {
     super.initState();
-    _mainTabC = TabController(length: 3, vsync: this);
+    _mainTabC = TabController(length: 4, vsync: this);
     _loadHausarztData();
     _loadArbeitgeberFromDB();
     _loadBerufsbezeichnungen();
@@ -2249,10 +2250,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       return const Center(child: CircularProgressIndicator());
     }
     return Column(children: [
-      TabBar(controller: _mainTabC, labelColor: Colors.indigo.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo, tabs: const [
+      TabBar(controller: _mainTabC, labelColor: Colors.indigo.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo, isScrollable: true, tabs: const [
         Tab(text: 'Zuständiger Arbeitgeber'),
         Tab(text: 'Stellen'),
         Tab(text: 'Bewerbungsübersicht'),
+        Tab(text: 'Stellenangebote'),
       ]),
       Expanded(child: TabBarView(controller: _mainTabC, children: [
         _buildZustaendigerTab(),
@@ -2262,6 +2264,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           userId: widget.user.id,
           dbArbeitgeberListe: widget.dbArbeitgeberListe,
         ),
+        StellenangebotenContent(apiService: widget.apiService, user: widget.user),
       ])),
     ]);
   }
