@@ -175,40 +175,18 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
     }
   }
 
-  void _openDetails(Map<String, dynamic> ag) {
-    showDialog(context: context, builder: (_) {
-      final titel = (ag['titel'] ?? ag['beruf'] ?? '').toString();
-      final beruf = (ag['beruf'] ?? '').toString();
-      final firma = (ag['arbeitgeber'] ?? '').toString();
-      final ort = _arbeitsort(ag);
-      final eintritt = (ag['eintrittsdatum'] ?? '').toString().split('T').first;
-      final refnr = (ag['refnr'] ?? '').toString();
-      final modi = (ag['modifikationsTimestamp'] ?? '').toString().split('T').first;
-      return AlertDialog(
-        title: Row(children: [
-          Icon(Icons.work_outline, color: Colors.indigo.shade700),
-          const SizedBox(width: 8),
-          Expanded(child: Text(titel.isEmpty ? beruf : titel, style: const TextStyle(fontSize: 15))),
-        ]),
-        content: SizedBox(width: 480, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (beruf.isNotEmpty && beruf != titel) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text('Beruf: $beruf', style: const TextStyle(fontSize: 13))),
-          if (firma.isNotEmpty) _row(Icons.business, firma),
-          if (ort.isNotEmpty) _row(Icons.location_on, ort),
-          if (eintritt.isNotEmpty) _row(Icons.event, 'Eintritt: $eintritt'),
-          if (modi.isNotEmpty) _row(Icons.update, 'Aktualisiert: $modi'),
-          if (refnr.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: SelectableText('Ref-Nr.: $refnr', style: const TextStyle(fontSize: 11, color: Colors.grey))),
-        ])),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schliessen')),
-          if (refnr.isNotEmpty) ElevatedButton.icon(
-            onPressed: () { Navigator.pop(context); _openExtern(refnr); },
-            icon: const Icon(Icons.open_in_new, size: 16),
-            label: const Text('Auf arbeitsagentur.de oeffnen'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
-          ),
-        ],
-      );
-    });
+  Future<void> _openDetails(Map<String, dynamic> ag) async {
+    final refnr = (ag['refnr'] ?? '').toString();
+    await showDialog(
+      context: context,
+      builder: (_) => _StellenDetailDialog(
+        apiService: widget.apiService,
+        suchergebnis: ag,
+        refnr: refnr,
+        arbeitsortLabel: _arbeitsort(ag),
+        onOpenExtern: () { Navigator.pop(context); _openExtern(refnr); },
+      ),
+    );
   }
 
   Widget _row(IconData icon, String text) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -458,4 +436,246 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
       ),
     ]);
   }
+}
+
+/// Detail-Dialog für ein einzelnes Stellenangebot. Lädt beim Öffnen die
+/// vollen Daten via /pc/v4/jobdetails und extrahiert Telefonnummern +
+/// E-Mail-Adressen aus dem Beschreibungstext für 1-Klick-Initiativbewerbung.
+class _StellenDetailDialog extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> suchergebnis;
+  final String refnr;
+  final String arbeitsortLabel;
+  final VoidCallback onOpenExtern;
+  const _StellenDetailDialog({
+    required this.apiService,
+    required this.suchergebnis,
+    required this.refnr,
+    required this.arbeitsortLabel,
+    required this.onOpenExtern,
+  });
+
+  @override
+  State<_StellenDetailDialog> createState() => _StellenDetailDialogState();
+}
+
+class _StellenDetailDialogState extends State<_StellenDetailDialog> {
+  Map<String, dynamic>? _detail;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (widget.refnr.isEmpty) {
+      setState(() { _loading = false; _error = 'Keine Referenznummer'; });
+      return;
+    }
+    final res = await widget.apiService.getStellenangebotDetail(widget.refnr);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _detail = res;
+      if (res == null) _error = 'Details konnten nicht geladen werden';
+    });
+  }
+
+  List<String> _extractEmails(String text) {
+    final re = RegExp(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}');
+    return re.allMatches(text).map((m) => m.group(0)!).toSet().toList();
+  }
+
+  List<String> _extractTelefone(String text) {
+    // German phone numbers: starts +49 or 0, then digits with optional spaces/dashes/slashes/(), 6+ digits
+    final re = RegExp(r'(?:\+49[\s\-/]?|\(?0\)?[\s\-/]?)\d[\d\s\-/()]{6,}\d');
+    final results = <String>[];
+    for (final m in re.allMatches(text)) {
+      final raw = m.group(0)!.trim();
+      final digits = raw.replaceAll(RegExp(r'[^\d+]'), '');
+      if (digits.length >= 7) results.add(raw);
+    }
+    return results.toSet().toList();
+  }
+
+  String _arbeitszeitLabel(Map<String, dynamic> d) {
+    final parts = <String>[];
+    if (d['arbeitszeitVollzeit'] == true) parts.add('Vollzeit');
+    if (d['arbeitszeitTeilzeit'] == true) parts.add('Teilzeit');
+    if (d['arbeitszeitMinijob'] == true) parts.add('Minijob');
+    if (d['arbeitszeitSchichtNachtWochenende'] == true) parts.add('Schicht/Nacht/Wo');
+    if (d['arbeitszeitHeimTelearbeit'] == true) parts.add('Home-Office');
+    if (d['istGeringfuegigeBeschaeftigung'] == true && !parts.contains('Minijob')) parts.add('Minijob');
+    return parts.isEmpty ? '' : parts.join(' · ');
+  }
+
+  String _adresseLabel(Map<String, dynamic>? loc) {
+    if (loc == null) return '';
+    final a = (loc['adresse'] is Map) ? loc['adresse'] as Map : <String, dynamic>{};
+    final strasse = a['strasse']?.toString() ?? '';
+    final hausnr = a['hausnummer']?.toString() ?? '';
+    final plz = a['plz']?.toString() ?? '';
+    final ort = a['ort']?.toString() ?? '';
+    final adr = [
+      if (strasse.isNotEmpty) '$strasse${hausnr.isNotEmpty ? " $hausnr" : ""}',
+      if (plz.isNotEmpty || ort.isNotEmpty) '$plz $ort'.trim(),
+    ].join(', ');
+    return adr;
+  }
+
+  Future<void> _launch(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Konnte $url nicht oeffnen')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = _detail;
+    final s = widget.suchergebnis;
+    final titel = (d?['stellenangebotsTitel'] ?? s['titel'] ?? s['beruf'] ?? '').toString();
+    final firma = (d?['firma'] ?? s['arbeitgeber'] ?? '').toString();
+    final hauptberuf = (d?['hauptberuf'] ?? s['beruf'] ?? '').toString();
+    final alt1 = (d?['alternativBeruf1'] ?? '').toString();
+    final alt2 = (d?['alternativBeruf2'] ?? '').toString();
+    final vertrag = (d?['vertragsdauer'] ?? '').toString();
+    final vergueteung = (d?['verguetungsangabe'] ?? '').toString();
+    final eintritt = ((d?['eintrittszeitraum'] is Map ? d!['eintrittszeitraum']['von'] : null) ?? s['eintrittsdatum'] ?? '').toString().split('T').first;
+    final beschreibung = (d?['stellenangebotsBeschreibung'] ?? '').toString();
+    final loc = (d?['stellenlokationen'] is List && (d!['stellenlokationen'] as List).isNotEmpty)
+        ? (d['stellenlokationen'] as List).first as Map<String, dynamic>
+        : null;
+    final adresse = _adresseLabel(loc);
+    final lat = loc?['breite'];
+    final lon = loc?['laenge'];
+
+    final emails = beschreibung.isEmpty ? <String>[] : _extractEmails(beschreibung);
+    final tels = beschreibung.isEmpty ? <String>[] : _extractTelefone(beschreibung);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 760),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+            child: Row(children: [
+              const Icon(Icons.work_outline, color: Colors.white), const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(titel.isEmpty ? hauptberuf : titel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                if (firma.isNotEmpty) Text(firma, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              ])),
+              IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+            ]),
+          ),
+          Expanded(child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade300, size: 40),
+                  const SizedBox(height: 8),
+                  Text(_error!, textAlign: TextAlign.center),
+                ])))
+              : SingleChildScrollView(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Metadata row
+                Wrap(spacing: 8, runSpacing: 4, children: [
+                  if (_arbeitszeitLabel(d ?? {}).isNotEmpty) _badge(Icons.access_time, _arbeitszeitLabel(d ?? {}), Colors.blue),
+                  if (vertrag.isNotEmpty) _badge(Icons.event_repeat, vertrag, Colors.purple),
+                  if (eintritt.isNotEmpty) _badge(Icons.event, 'ab $eintritt', Colors.green),
+                  if (vergueteung.isNotEmpty && vergueteung != 'KEINE_ANGABEN') _badge(Icons.euro, vergueteung, Colors.orange),
+                  if (d?['quereinstiegGeeignet'] == true) _badge(Icons.swap_horiz, 'Quereinstieg', Colors.teal),
+                ]),
+                const SizedBox(height: 12),
+                if (hauptberuf.isNotEmpty) _row(Icons.work, 'Hauptberuf: $hauptberuf'),
+                if (alt1.isNotEmpty) _row(Icons.alt_route, 'Alternativ: $alt1'),
+                if (alt2.isNotEmpty) _row(Icons.alt_route, 'Alternativ: $alt2'),
+                if (firma.isNotEmpty) _row(Icons.business, firma),
+                if (adresse.isNotEmpty) Row(children: [
+                  Expanded(child: _row(Icons.location_on, adresse)),
+                  if (lat != null && lon != null) TextButton.icon(
+                    onPressed: () => _launch('https://www.google.com/maps/search/?api=1&query=$lat,$lon'),
+                    icon: const Icon(Icons.map, size: 14),
+                    label: const Text('Karte', style: TextStyle(fontSize: 11)),
+                  ),
+                ]),
+                // Bewerbung-Section: extracted emails + phones
+                if (emails.isNotEmpty || tels.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Icon(Icons.contact_mail, size: 16, color: Colors.green.shade800), const SizedBox(width: 6),
+                        Text('Initiativbewerbung — Kontakt aus Anzeige', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                      ]),
+                      const SizedBox(height: 6),
+                      Wrap(spacing: 6, runSpacing: 4, children: [
+                        ...emails.map((e) => ActionChip(
+                          avatar: const Icon(Icons.email, size: 14),
+                          label: Text(e, style: const TextStyle(fontSize: 11)),
+                          backgroundColor: Colors.white,
+                          onPressed: () => _launch('mailto:$e?subject=${Uri.encodeComponent("Initiativbewerbung – Ihre Stelle $titel (${widget.refnr})")}'),
+                        )),
+                        ...tels.map((t) {
+                          final digits = t.replaceAll(RegExp(r'[^\d+]'), '');
+                          return ActionChip(
+                            avatar: const Icon(Icons.phone, size: 14),
+                            label: Text(t, style: const TextStyle(fontSize: 11)),
+                            backgroundColor: Colors.white,
+                            onPressed: () => _launch('tel:$digits'),
+                          );
+                        }),
+                      ]),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                if (beschreibung.isNotEmpty) ...[
+                  Text('Beschreibung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.grey.shade200)),
+                    child: SelectableText(beschreibung, style: const TextStyle(fontSize: 12, height: 1.4)),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                if (widget.refnr.isNotEmpty) SelectableText('Ref-Nr.: ${widget.refnr}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              ])),
+          ),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))),
+            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schliessen')),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: widget.onOpenExtern,
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('Auf arbeitsagentur.de'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _badge(IconData icon, String text, MaterialColor color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.shade200)),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: color.shade800), const SizedBox(width: 4),
+      Text(text, style: TextStyle(fontSize: 11, color: color.shade900)),
+    ]),
+  );
+
+  Widget _row(IconData icon, String text) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
+    Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
+  ]));
 }

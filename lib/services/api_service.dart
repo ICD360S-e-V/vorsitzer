@@ -21,6 +21,10 @@ class ApiService {
   String? _token;
   String? _refreshToken;
   late http.Client _client;
+  /// Separater Client für externe APIs (Bundesagentur, handelsregister.de),
+  /// deren TLS-Zertifikate NICHT von Let's Encrypt sind und damit nicht durch
+  /// das ISRG-Pinning des Haupt-Clients laufen.
+  late http.Client _externalClient;
   final DeviceKeyService _deviceKeyService = DeviceKeyService();
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
     mOptions: MacOsOptions(usesDataProtectionKeychain: false),
@@ -35,6 +39,7 @@ class ApiService {
     // Previous code accepted ALL certificates (including invalid ones) - CRITICAL vulnerability!
     final httpClient = HttpClientFactory.createPinnedHttpClient();
     _client = IOClient(httpClient);
+    _externalClient = IOClient(HttpClientFactory.createDefaultHttpClient());
   }
 
   /// Inițializează API service - TREBUIE apelat la pornirea aplicației
@@ -7114,7 +7119,7 @@ class ApiService {
       params,
     );
     try {
-      final response = await _client.get(uri, headers: {
+      final response = await _externalClient.get(uri, headers: {
         'X-API-Key': 'jobboerse-jobsuche',
         'Accept': 'application/json',
       }).timeout(const Duration(seconds: 25));
@@ -7131,6 +7136,24 @@ class ApiService {
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
+  }
+
+  // Lädt Vollinhalt einer einzelnen Stelle (Beschreibung, Adresse, Vertragsdauer,
+  // Ansprechpartner inline im Text). refnr ist die "refnr" aus searchArbeitsagenturJobs.
+  Future<Map<String, dynamic>?> getStellenangebotDetail(String refnr) async {
+    final b64 = base64Url.encode(utf8.encode(refnr));
+    final uri = Uri.https(
+      'rest.arbeitsagentur.de',
+      '/jobboerse/jobsuche-service/pc/v4/jobdetails/$b64',
+    );
+    try {
+      final response = await _externalClient.get(uri, headers: {
+        'X-API-Key': 'jobboerse-jobsuche',
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 25));
+      if (response.statusCode != 200) return null;
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) { return null; }
   }
 
   // === SCHWEIGEPFLICHT (Arzt — per arzt-tab medical confidentiality waiver) ===
