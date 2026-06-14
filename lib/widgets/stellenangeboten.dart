@@ -65,7 +65,15 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   bool _nurNeueStellen = true; // blendet bereits beworbene Stellen aus
   bool _hatFuehrerschein = false;
   bool _hatGabelstapler = false;
-  bool _koerperlicheEinschraenkung = false; // true = NICHT schwere Lasten heben
+  /// Profilwert: true = laut Stellen-Tab keine schweren Lasten heben.
+  /// Wird in den Status-Badges angezeigt, aber NIEMALS aus diesem Tab
+  /// in die DB zurueckgeschrieben (das macht ausschliesslich der Stellen-Tab).
+  bool _koerperlicheEinschraenkung = false;
+  /// UI-Filter (lokal, persistiert per SharedPreferences) — entscheidet
+  /// ob Schwerlast-Stellen ausgeblendet werden. Default beim ersten Laden
+  /// = Profilwert; danach steuert ihn der Vorsitzer ueber den Toggle.
+  bool _filterSchwerarbeit = false;
+  bool _filterSchwerarbeitInitialized = false;
   final Map<String, Map<String, dynamic>?> _detailCache = {};
 
   // Bereits beworbene BA-Stellen: refnr → bewerbung row (mit arbeitgeber_id,
@@ -89,7 +97,9 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       if (d != null && d.isNotEmpty) {
         final missG = _needsGabelstapler(d) && !_hatGabelstapler;
         final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
-        final missS = _needsSchwerarbeit(d) && _koerperlicheEinschraenkung;
+        // Schwerlast wird nur ausgeblendet, wenn der UI-Toggle hier aktiv ist.
+        // Profil-Bit selbst filtert nichts — es spendet nur den Default.
+        final missS = _needsSchwerarbeit(d) && _filterSchwerarbeit;
         if (missG || missF || missS) return false;
       }
     }
@@ -105,7 +115,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   /// Wie viele Stellen verlangen schwere Arbeit, die der Vorsitzer fuer dieses
   /// Mitglied per koerperliche_einschraenkung ausblenden moechte.
   int get _schwerarbeitHiddenCount {
-    if (!_koerperlicheEinschraenkung) return 0;
+    if (!_filterSchwerarbeit) return 0;
     var n = 0;
     for (final s in _results) {
       final d = _detailCache[(s['refnr'] ?? '').toString()];
@@ -250,10 +260,18 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     final hatFs = fs.any((f) => (f['klasse'] ?? '').toString().toLowerCase() != 'keinen');
     final g = res['gabelstaplerschein'];
     final k = res['koerperliche_einschraenkung'];
+    final koerper = k == 1 || k == '1' || k == true;
     setState(() {
       _hatFuehrerschein = hatFs;
       _hatGabelstapler = g == 1 || g == '1' || g == true;
-      _koerperlicheEinschraenkung = k == 1 || k == '1' || k == true;
+      _koerperlicheEinschraenkung = koerper;
+      // Erstes Laden: Filter spiegelt das Profil. Spaeter steuert ihn nur
+      // noch der lokale Toggle — wir ueberschreiben die Vorsitzer-Auswahl
+      // nicht jedes Mal, wenn _loadQualifikationen laeuft.
+      if (!_filterSchwerarbeitInitialized) {
+        _filterSchwerarbeit = koerper;
+        _filterSchwerarbeitInitialized = true;
+      }
     });
   }
 
@@ -369,6 +387,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         _angebotsart = (m['angebotsart'] as int?) ?? 1;
         if (m['nurPassendeStellen'] is bool) _nurPassendeStellen = m['nurPassendeStellen'] as bool;
         if (m['nurNeueStellen'] is bool) _nurNeueStellen = m['nurNeueStellen'] as bool;
+        if (m['filterSchwerarbeit'] is bool) {
+          _filterSchwerarbeit = m['filterSchwerarbeit'] as bool;
+          _filterSchwerarbeitInitialized = true;
+        }
       });
     } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
   }
@@ -387,6 +409,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         'angebotsart': _angebotsart,
         'nurPassendeStellen': _nurPassendeStellen,
         'nurNeueStellen': _nurNeueStellen,
+        'filterSchwerarbeit': _filterSchwerarbeit,
       }));
     } catch (_) {}
   }
@@ -671,24 +694,16 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               if (_bewerbungenByRefnr.isNotEmpty) Text('(${_bewerbungenByRefnr.length} beworben)',
                   style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
             ]),
-            // Schwerlast-Toggle direkt neben den anderen beiden, damit der
-            // Vorsitzer beim Job-Suchen in Echtzeit ein- und ausschalten kann.
-            // Persistiert sofort ins Profil (users.koerperliche_einschraenkung).
+            // Schwerlast-Toggle ist hier reiner UI-Filter — Profil bleibt
+            // unveraendert (das setzt nur der Stellen-Tab). Default kommt
+            // beim ersten Mal aus dem Profil, danach steuert ihn der Vorsitzer.
             Row(mainAxisSize: MainAxisSize.min, children: [
               Switch(
-                value: _koerperlicheEinschraenkung,
+                value: _filterSchwerarbeit,
                 activeThumbColor: Colors.deepPurple.shade700,
-                onChanged: (v) async {
-                  setState(() => _koerperlicheEinschraenkung = v);
-                  final res = await widget.apiService.setUserKoerperlicheEinschraenkung(widget.user.id, v);
-                  if (res['success'] != true && mounted) {
-                    setState(() => _koerperlicheEinschraenkung = !v);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Speichern im Profil fehlgeschlagen'), backgroundColor: Colors.red,
-                    ));
-                    return;
-                  }
-                  _search();
+                onChanged: (v) {
+                  setState(() => _filterSchwerarbeit = v);
+                  _persistSelection();
                 },
               ),
               const SizedBox(width: 4),
@@ -702,7 +717,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               ),
               const SizedBox(width: 4),
               Tooltip(
-                message: 'Blendet Stellen mit Heben/Tragen ueber 15 kg aus.\nAenderung wird sofort im Mitglieder-Profil gespeichert.',
+                message: 'Blendet Stellen mit Heben/Tragen ueber 15 kg aus.\nNur UI-Filter — Profil wird nicht veraendert.\n(Profilwert setzt der Stellen-Tab.)',
                 child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
               ),
             ]),
