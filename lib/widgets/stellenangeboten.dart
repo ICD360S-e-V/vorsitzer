@@ -21,7 +21,7 @@ class StellenangebotenContent extends StatefulWidget {
 class _StellenangebotenContentState extends State<StellenangebotenContent> {
   final _wasC = TextEditingController();
   final _woC = TextEditingController();
-  int _umkreis = 25;
+  int _umkreis = 0;
   bool _loading = false;
   String? _error;
   List<Map<String, dynamic>> _results = [];
@@ -32,9 +32,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
   @override
   void initState() {
     super.initState();
-    final plz = (widget.user.plz ?? '').trim();
+    // Zuerst Ort (aus Verifizierung Stufe 1) — falls leer fallback auf PLZ.
+    // Damit sucht der Tab standardmaessig nur in der Stadt des Mitglieds.
     final ort = (widget.user.ort ?? '').trim();
-    _woC.text = plz.isNotEmpty ? plz : ort;
+    final plz = (widget.user.plz ?? '').trim();
+    _woC.text = ort.isNotEmpty ? ort : plz;
   }
 
   @override
@@ -135,6 +137,9 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
             Icon(Icons.search, size: 18, color: Colors.indigo.shade800),
             const SizedBox(width: 6),
             Text('Bundesagentur fuer Arbeit – Jobsuche', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+            const SizedBox(width: 8),
+            Text(_umkreis == 0 ? 'nur ${_woC.text}' : '${_woC.text} +${_umkreis}km',
+                style: TextStyle(fontSize: 11, color: Colors.indigo.shade600, fontStyle: FontStyle.italic)),
             const Spacer(),
             if (_total != null) Text('${_total!} Treffer', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700)),
           ]),
@@ -156,11 +161,18 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
               onSubmitted: (_) => _search(),
             )),
             const SizedBox(width: 6),
-            SizedBox(width: 96, child: DropdownButtonFormField<int>(
+            SizedBox(width: 112, child: DropdownButtonFormField<int>(
               initialValue: _umkreis,
               decoration: const InputDecoration(labelText: 'Umkreis', isDense: true, border: OutlineInputBorder()),
-              items: const [10, 25, 50, 100, 200].map((v) => DropdownMenuItem(value: v, child: Text('$v km'))).toList(),
-              onChanged: (v) => setState(() => _umkreis = v ?? 25),
+              items: const [
+                DropdownMenuItem(value: 0,   child: Text('nur Stadt')),
+                DropdownMenuItem(value: 5,   child: Text('5 km')),
+                DropdownMenuItem(value: 10,  child: Text('10 km')),
+                DropdownMenuItem(value: 25,  child: Text('25 km')),
+                DropdownMenuItem(value: 50,  child: Text('50 km')),
+                DropdownMenuItem(value: 100, child: Text('100 km')),
+              ],
+              onChanged: (v) => setState(() => _umkreis = v ?? 0),
             )),
             const SizedBox(width: 6),
             ElevatedButton.icon(

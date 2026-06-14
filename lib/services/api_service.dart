@@ -7089,7 +7089,10 @@ class ApiService {
     };
     if (was != null && was.trim().isNotEmpty)        params['was'] = was.trim();
     if (wo != null && wo.trim().isNotEmpty)          params['wo']  = wo.trim();
-    if (umkreis != null && umkreis > 0)              params['umkreis'] = '$umkreis';
+    // umkreis = 0 ist "nur die Stadt selbst" — der Aufrufer steuert das,
+    // also auch 0 explizit weiterreichen (sonst fällt der Server in den
+    // viel weiteren Default zurück).
+    if (umkreis != null && umkreis >= 0)             params['umkreis'] = '$umkreis';
     final uri = Uri.https(
       'rest.arbeitsagentur.de',
       '/jobboerse/jobsuche-service/pc/v4/jobs',
