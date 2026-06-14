@@ -472,7 +472,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               child: TabBarView(children: [
                 _detailsTab(arbeitgeber, generalNotes, (v) async { generalNotes = v; await persist(); }),
                 _statusJournalTab(statusJournal, (updated) async { setM(() => statusJournal = updated); await persist(); }),
-                _korrespondenzTab(arbeitgeberId, korrespondenz, (updated) async { setM(() => korrespondenz = updated); await persist(); }),
+                _korrespondenzTab(arbeitgeberId, korrespondenz, baRefnr, baTitel, baBeruf, (updated) async { setM(() => korrespondenz = updated); await persist(); }),
                 if (hasBa) _StellenanzeigeTab(
                   apiService: widget.apiService,
                   userId: widget.userId,
@@ -954,7 +954,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
   }
 
   // ─── KORRESPONDENZ TAB ───
-  Widget _korrespondenzTab(int arbeitgeberId, List<Map<String, dynamic>> korr, Future<void> Function(List<Map<String, dynamic>>) onChanged) {
+  Widget _korrespondenzTab(int arbeitgeberId, List<Map<String, dynamic>> korr, String baRefnr, String baTitel, String baBeruf, Future<void> Function(List<Map<String, dynamic>>) onChanged) {
     final sorted = List<Map<String, dynamic>>.from(korr);
     sorted.sort((a, b) => (b['datum']?.toString() ?? '').compareTo(a['datum']?.toString() ?? ''));
 
@@ -965,6 +965,37 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       final betreffC = TextEditingController(text: existing?['betreff']?.toString() ?? '');
       final textC = TextEditingController(text: existing?['text']?.toString() ?? '');
       final isEdit = existing != null;
+      bool generating = false;
+
+      // Auto-Generieren aus Stellenanzeige — nur wenn ba_refnr vorhanden,
+      // kanal=email, richtung=ausgang und es ist ein NEUER Eintrag.
+      Future<void> autoFill(StateSetter setDlg) async {
+        if (baRefnr.isEmpty) return;
+        setDlg(() => generating = true);
+        final tpl = await widget.apiService.generateEmailTemplate(
+          userId: widget.userId, refnr: baRefnr,
+        );
+        if (!mounted) return;
+        setDlg(() {
+          generating = false;
+          if (tpl != null) {
+            betreffC.text = (tpl['betreff'] ?? '').toString();
+            textC.text    = (tpl['text']    ?? '').toString();
+          }
+        });
+        if (tpl == null) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Konnte kein Template erzeugen — Stelle bei BA nicht mehr abrufbar?'),
+            backgroundColor: Colors.red,
+          ));
+        } else if (tpl['empfaenger_email'] != null && (tpl['empfaenger_email'] as String).isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Generiert · Empfaenger: ${tpl['empfaenger_email']}'),
+            backgroundColor: Colors.green.shade700,
+            duration: const Duration(seconds: 4),
+          ));
+        }
+      }
 
       final result = await showDialog<Map<String, dynamic>>(
         context: context,
@@ -1019,6 +1050,39 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               selectedColor: e.value.color.shade600,
               onSelected: (_) => setDlg(() => kanal = e.key),
             )).toList()),
+            // Auto-Generieren nur sinnvoll bei E-Mail-Ausgang fuer BA-Stellen.
+            if (baRefnr.isNotEmpty && kanal == 'email' && richtung == 'ausgang') ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.indigo.shade200),
+                ),
+                child: Row(children: [
+                  Icon(Icons.auto_awesome, size: 16, color: Colors.indigo.shade700),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                    'BA-Stelle Ref. $baRefnr verfuegbar',
+                    style: TextStyle(fontSize: 11, color: Colors.indigo.shade900),
+                  )),
+                  TextButton.icon(
+                    onPressed: generating ? null : () => autoFill(setDlg),
+                    icon: generating
+                        ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.refresh, size: 14),
+                    label: Text(generating ? 'Generiert…' : 'Auto-fuellen', style: const TextStyle(fontSize: 11)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.indigo.shade700,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ]),
+              ),
+            ],
             const SizedBox(height: 10),
             TextField(
               controller: betreffC,
@@ -1028,8 +1092,8 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             const SizedBox(height: 10),
             TextField(
               controller: textC,
-              maxLines: 5,
-              decoration: InputDecoration(labelText: 'Text / Inhalt', hintText: 'Mailtext einkopieren...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              maxLines: 8,
+              decoration: InputDecoration(labelText: 'Text / Inhalt', hintText: 'Mailtext einkopieren oder Auto-fuellen druecken...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
               style: const TextStyle(fontSize: 12),
             ),
           ]))),

@@ -3870,6 +3870,29 @@ class ApiService {
     return r.bodyBytes;
   }
 
+  /// Generiert einen Begleittext fuer eine E-Mail-Bewerbung
+  /// (Betreff + Inhalt als Plain-Text + Empfaenger-Hint).
+  ///
+  /// Wird im Korrespondenz-Dialog der Bewerbungsuebersicht aufgerufen,
+  /// wenn der Vorsitzer Kanal 'E-Mail' + Richtung 'Ausgang' waehlt und
+  /// die Bewerbung eine ba_refnr hat. Quellen wie bei Anschreiben:
+  /// arbeitgeber_db (gepflegt) > BA-API jobdetails > Regex auf Anzeige.
+  Future<Map<String, dynamic>?> generateEmailTemplate({required int userId, required String refnr}) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/bewerbung_email_template.php'),
+        headers: _headers,
+        body: jsonEncode({'user_id': userId, 'ba_refnr': refnr}),
+      ).timeout(const Duration(seconds: 20));
+      if (r.statusCode != 200) return null;
+      final body = jsonDecode(r.body);
+      if (body is Map && body['success'] == true) {
+        return Map<String, dynamic>.from(body);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Generiert ein personalisiertes Anschreiben als PDF auf dem Server.
   /// Kombiniert Stellenanzeige (live BA-API per refnr) + Lebenslauf-Daten
   /// (Berufserfahrung, Fuehrerschein, Stapler, Sprachen) mittels
