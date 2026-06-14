@@ -7081,11 +7081,21 @@ class ApiService {
     int? umkreis,
     int page = 1,
     int size = 25,
+    /// angebotsart: 1=Arbeit, 2=Selbstaendigkeit, 4=Ausbildung, 34=Praktikum
+    int angebotsart = 1,
+    /// Eines von vz, tz, snw (Schicht/Nacht/Wochenende), ho (Heim/Telearbeit),
+    /// mj (Minijob). Die API akzeptiert pro Request nur EINEN Wert — fuer
+    /// Mehrfachauswahl muss der Aufrufer mehrere Requests parallel feuern.
+    String? arbeitszeit,
+    /// 1=befristet, 2=unbefristet
+    int? befristung,
+    /// Tage seit Veroeffentlichung (1, 3, 7, 14, 30 sind die offiziellen Stufen)
+    int? veroeffentlichtSeitTage,
   }) async {
     final params = <String, String>{
       'page': '$page',
       'size': '$size',
-      'angebotsart': '1',
+      'angebotsart': '$angebotsart',
     };
     if (was != null && was.trim().isNotEmpty)        params['was'] = was.trim();
     if (wo != null && wo.trim().isNotEmpty)          params['wo']  = wo.trim();
@@ -7093,6 +7103,11 @@ class ApiService {
     // also auch 0 explizit weiterreichen (sonst fällt der Server in den
     // viel weiteren Default zurück).
     if (umkreis != null && umkreis >= 0)             params['umkreis'] = '$umkreis';
+    if (arbeitszeit != null && arbeitszeit.isNotEmpty) params['arbeitszeit'] = arbeitszeit;
+    if (befristung != null)                          params['befristung'] = '$befristung';
+    if (veroeffentlichtSeitTage != null && veroeffentlichtSeitTage > 0) {
+      params['veroeffentlichtseit'] = '$veroeffentlichtSeitTage';
+    }
     final uri = Uri.https(
       'rest.arbeitsagentur.de',
       '/jobboerse/jobsuche-service/pc/v4/jobs',

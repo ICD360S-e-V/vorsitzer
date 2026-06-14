@@ -36,6 +36,22 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
   int _page = 1;
   int? _total;
   int? _initial;
+  bool _filterOffen = false;
+
+  // Erweiterte Filter
+  String? _arbeitszeit;            // null = alle; sonst vz/tz/snw/ho/mj
+  int? _befristung;                // null = alle; 1 = befristet, 2 = unbefristet
+  int? _veroeffentlichtSeit;       // null = alle; sonst Tage (3/7/14/30)
+  int _angebotsart = 1;            // 1=Arbeit, 2=Selbstaendigkeit, 4=Ausbildung, 34=Praktikum
+
+  // Mehrfachauswahl der Vorerfahrungs-Chips. Leer = nur Freitext aus _wasC.
+  final Set<String> _selectedBerufe = {};
+
+  int get _filterAktivCount =>
+      (_arbeitszeit != null ? 1 : 0) +
+      (_befristung != null ? 1 : 0) +
+      (_veroeffentlichtSeit != null ? 1 : 0) +
+      (_angebotsart != 1 ? 1 : 0);
 
   /// Eindeutige `funktion`-Werte aus berufserfahrung, in der gleichen
   /// Reihenfolge wie der Stellen-Tab sie zeigt (neueste zuerst — sortiert
@@ -89,31 +105,61 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
   Future<void> _search({bool resetPage = true}) async {
     if (resetPage) _page = 1;
     setState(() { _loading = true; _error = null; });
-    final res = await widget.apiService.searchArbeitsagenturJobs(
-      was: _wasC.text,
-      wo: _woC.text,
-      umkreis: _umkreis,
-      page: _page,
-      size: 25,
-    );
-    if (!mounted) return;
-    if (res['success'] != true) {
+
+    // Bei Mehrfach-Berufen feuern wir parallele Requests und vereinigen die
+    // Treffer (dedupe nach refnr/hashId) — die API selbst kennt kein OR.
+    final wasQueries = _selectedBerufe.isNotEmpty
+        ? _selectedBerufe.toList()
+        : [_wasC.text.trim()];
+
+    try {
+      final responses = await Future.wait(wasQueries.map((q) =>
+        widget.apiService.searchArbeitsagenturJobs(
+          was: q,
+          wo: _woC.text,
+          umkreis: _umkreis,
+          page: _page,
+          size: 25,
+          angebotsart: _angebotsart,
+          arbeitszeit: _arbeitszeit,
+          befristung: _befristung,
+          veroeffentlichtSeitTage: _veroeffentlichtSeit,
+        )));
+
+      if (!mounted) return;
+
+      final firstFail = responses.firstWhere((r) => r['success'] != true, orElse: () => {});
+      if (firstFail.isNotEmpty) {
+        setState(() {
+          _loading = false;
+          _error = firstFail['message']?.toString() ?? 'Suche fehlgeschlagen';
+          _results = [];
+        });
+        return;
+      }
+
+      final seen = <String>{};
+      final merged = <Map<String, dynamic>>[];
+      var totalSum = 0;
+      for (final res in responses) {
+        totalSum += (res['maxErgebnisse'] as int?) ?? 0;
+        for (final raw in (res['stellenangebote'] as List? ?? [])) {
+          final item = Map<String, dynamic>.from(raw as Map);
+          final key = (item['refnr'] ?? item['hashId'] ?? item.hashCode).toString();
+          if (seen.add(key)) merged.add(item);
+        }
+      }
+
       setState(() {
         _loading = false;
-        _error = res['message']?.toString() ?? 'Suche fehlgeschlagen';
-        _results = [];
+        _results = merged;
+        _total = wasQueries.length == 1 ? totalSum : merged.length;
+        _initial ??= _total;
       });
-      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString(); _results = []; });
     }
-    final items = List<Map<String, dynamic>>.from(
-      (res['stellenangebote'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
-    );
-    setState(() {
-      _loading = false;
-      _results = items;
-      _total = res['maxErgebnisse'] as int?;
-      _initial ??= _total;
-    });
   }
 
   String _arbeitsort(Map<String, dynamic> ag) {
@@ -231,19 +277,118 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
           if (_vorherigeBerufe.isNotEmpty) Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Padding(padding: const EdgeInsets.only(top: 6), child: Text('Vorherige Berufe:', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w600))),
+              Padding(padding: const EdgeInsets.only(top: 6), child: Text('Berufe (Mehrfach):', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w600))),
               const SizedBox(width: 8),
-              Expanded(child: Wrap(spacing: 6, runSpacing: 4, children: _vorherigeBerufe.map((b) {
-                final selected = _wasC.text.trim().toLowerCase() == b.toLowerCase();
-                return ActionChip(
-                  label: Text(b, style: const TextStyle(fontSize: 11)),
-                  backgroundColor: selected ? Colors.indigo.shade100 : Colors.white,
-                  side: BorderSide(color: selected ? Colors.indigo : Colors.indigo.shade200),
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                  onPressed: _loading ? null : () { _wasC.text = b; _search(); },
-                );
-              }).toList())),
+              Expanded(child: Wrap(spacing: 6, runSpacing: 4, children: [
+                ..._vorherigeBerufe.map((b) {
+                  final selected = _selectedBerufe.contains(b);
+                  return FilterChip(
+                    label: Text(b, style: const TextStyle(fontSize: 11)),
+                    selected: selected,
+                    backgroundColor: Colors.white,
+                    selectedColor: Colors.indigo.shade100,
+                    checkmarkColor: Colors.indigo.shade800,
+                    side: BorderSide(color: selected ? Colors.indigo : Colors.indigo.shade200),
+                    visualDensity: VisualDensity.compact,
+                    onSelected: _loading ? null : (v) {
+                      setState(() {
+                        if (v) { _selectedBerufe.add(b); } else { _selectedBerufe.remove(b); }
+                        if (_selectedBerufe.length == 1) _wasC.text = _selectedBerufe.first;
+                        if (_selectedBerufe.isEmpty) _wasC.clear();
+                      });
+                      _search();
+                    },
+                  );
+                }),
+                if (_selectedBerufe.isNotEmpty) ActionChip(
+                  label: const Text('alle abwaehlen', style: TextStyle(fontSize: 11)),
+                  avatar: const Icon(Icons.clear, size: 14),
+                  backgroundColor: Colors.grey.shade100,
+                  onPressed: _loading ? null : () { setState(() { _selectedBerufe.clear(); _wasC.clear(); }); _search(); },
+                ),
+              ])),
+            ]),
+          ),
+          const SizedBox(height: 4),
+          // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
+          // nicht ueberladen wirkt; im offenen Zustand vier Dropdowns.
+          InkWell(
+            onTap: () => setState(() => _filterOffen = !_filterOffen),
+            child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+              Icon(_filterOffen ? Icons.expand_less : Icons.expand_more, size: 16, color: Colors.indigo.shade700),
+              const SizedBox(width: 4),
+              Text('Erweiterte Filter', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
+              if (_filterAktivCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.orange.shade200, borderRadius: BorderRadius.circular(8)),
+                  child: Text('$_filterAktivCount aktiv', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ])),
+          ),
+          if (_filterOffen) Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Wrap(spacing: 8, runSpacing: 6, children: [
+              SizedBox(width: 180, child: DropdownButtonFormField<String?>(
+                initialValue: _arbeitszeit,
+                isDense: true,
+                decoration: const InputDecoration(labelText: 'Arbeitszeit', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('Alle')),
+                  DropdownMenuItem(value: 'vz',  child: Text('Vollzeit')),
+                  DropdownMenuItem(value: 'tz',  child: Text('Teilzeit')),
+                  DropdownMenuItem(value: 'mj',  child: Text('Minijob')),
+                  DropdownMenuItem(value: 'snw', child: Text('Schicht/Nacht/Wochenende')),
+                  DropdownMenuItem(value: 'ho',  child: Text('Heim-/Telearbeit')),
+                ],
+                onChanged: (v) => setState(() => _arbeitszeit = v),
+              )),
+              SizedBox(width: 160, child: DropdownButtonFormField<int?>(
+                initialValue: _befristung,
+                isDense: true,
+                decoration: const InputDecoration(labelText: 'Befristung', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('Alle')),
+                  DropdownMenuItem(value: 2, child: Text('Unbefristet')),
+                  DropdownMenuItem(value: 1, child: Text('Befristet')),
+                ],
+                onChanged: (v) => setState(() => _befristung = v),
+              )),
+              SizedBox(width: 180, child: DropdownButtonFormField<int?>(
+                initialValue: _veroeffentlichtSeit,
+                isDense: true,
+                decoration: const InputDecoration(labelText: 'Veroeffentlicht seit', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('Alle')),
+                  DropdownMenuItem(value: 3,    child: Text('Letzte 3 Tage')),
+                  DropdownMenuItem(value: 7,    child: Text('Letzte 7 Tage')),
+                  DropdownMenuItem(value: 14,   child: Text('Letzte 14 Tage')),
+                  DropdownMenuItem(value: 30,   child: Text('Letzte 30 Tage')),
+                ],
+                onChanged: (v) => setState(() => _veroeffentlichtSeit = v),
+              )),
+              SizedBox(width: 160, child: DropdownButtonFormField<int>(
+                initialValue: _angebotsart,
+                isDense: true,
+                decoration: const InputDecoration(labelText: 'Angebotsart', isDense: true, border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 1,  child: Text('Arbeit')),
+                  DropdownMenuItem(value: 2,  child: Text('Selbstaendigkeit')),
+                  DropdownMenuItem(value: 4,  child: Text('Ausbildung')),
+                  DropdownMenuItem(value: 34, child: Text('Praktikum')),
+                ],
+                onChanged: (v) => setState(() => _angebotsart = v ?? 1),
+              )),
+              if (_filterAktivCount > 0) ActionChip(
+                label: const Text('Filter zuruecksetzen', style: TextStyle(fontSize: 11)),
+                avatar: const Icon(Icons.replay, size: 14),
+                backgroundColor: Colors.orange.shade50,
+                onPressed: _loading ? null : () { setState(() {
+                  _arbeitszeit = null; _befristung = null; _veroeffentlichtSeit = null; _angebotsart = 1;
+                }); _search(); },
+              ),
             ]),
           ),
         ]),
