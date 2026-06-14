@@ -17,8 +17,8 @@ final _log = LoggerService();
 class UpdateService {
   // Protected API endpoint (requires Device Key)
   static const String versionUrl = 'https://icd360sev.icd360s.de/api/version_vorsitzer.php';
-  static const String currentVersion = '6.14.1';
-  static const int currentBuildNumber = 807;
+  static const String currentVersion = '6.14.2';
+  static const int currentBuildNumber = 808;
   // ✅ SECURITY FIX: Removed hardcoded API key (extractable via reverse engineering)
   // All requests now use dynamic Device Key only
 
