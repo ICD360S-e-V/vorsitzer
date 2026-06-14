@@ -61,6 +61,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   // titel + beschreibung.
   bool _nurPassendeStellen = true;
   bool _nurNeueStellen = true; // blendet bereits beworbene Stellen aus
+  /// Wenn true: blendet Stellen aus, deren Bewerbung auf 3rd-party-Portale
+  /// (bewerbung.jobs, hogapage.de, heyjobs.co usw.) umleitet. Default an —
+  /// rund 16% der Treffer leiten extern und kosten Vorsitzer-Zeit.
+  bool _nurArbeitsagentur = true;
   bool _hatFuehrerschein = false;
   bool _hatGabelstapler = false;
   /// Profilwert: true = laut Stellen-Tab keine schweren Lasten heben.
@@ -80,11 +84,24 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       (_veroeffentlichtSeit != null ? 1 : 0) +
       (_angebotsart != 1 ? 1 : 0);
 
+  /// Liefert den externen Bewerbungs-Host (z.B. 'bewerbung.jobs') wenn die
+  /// Stelle auf ein 3rd-party-Portal umleitet, sonst null. Greift direkt
+  /// aufs Such-Ergebnis zu — kein Detail-Fetch noetig.
+  String? _externHost(Map<String, dynamic> s) {
+    final url = (s['externeUrl'] ?? '').toString().trim();
+    if (url.isEmpty || url.contains('arbeitsagentur.de')) return null;
+    final m = RegExp(r'^https?://([^/]+)').firstMatch(url);
+    final host = (m?.group(1) ?? '').replaceFirst('www.', '');
+    return host.isEmpty ? null : host;
+  }
+
   /// Entscheidet pro Stellenangebot, ob sie nach dem aktuellen Filterzustand
-  /// sichtbar bleibt — kapselt die Logik fuer 'nur neue' + 'nur passende'.
+  /// sichtbar bleibt — kapselt die Logik fuer 'nur neue' + 'nur passende' +
+  /// 'nur arbeitsagentur'.
   bool _isVisible(Map<String, dynamic> s) {
     final refnr = (s['refnr'] ?? '').toString();
     if (_nurNeueStellen && _bewerbungenByRefnr.containsKey(refnr)) return false;
+    if (_nurArbeitsagentur && _externHost(s) != null) return false;
     if (_nurPassendeStellen) {
       final d = _detailCache[refnr];
       if (d != null && d.isNotEmpty) {
@@ -107,15 +124,18 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
 
   /// Aufschluesselung wie viele Stellen je Achse vom Filter ausgeblendet
   /// wurden — fuer den orangen Banner unter der Filterleiste.
-  ({int beworben, int ohneFs, int ohneStapler, int schwer, int total}) get _hiddenBreakdown {
-    if (!_nurPassendeStellen && !_nurNeueStellen) {
-      return (beworben: 0, ohneFs: 0, ohneStapler: 0, schwer: 0, total: 0);
+  ({int beworben, int extern, int ohneFs, int ohneStapler, int schwer, int total}) get _hiddenBreakdown {
+    if (!_nurPassendeStellen && !_nurNeueStellen && !_nurArbeitsagentur) {
+      return (beworben: 0, extern: 0, ohneFs: 0, ohneStapler: 0, schwer: 0, total: 0);
     }
-    var beworben = 0, ohneFs = 0, ohneStapler = 0, schwer = 0, total = 0;
+    var beworben = 0, extern = 0, ohneFs = 0, ohneStapler = 0, schwer = 0, total = 0;
     for (final s in _results) {
       final refnr = (s['refnr'] ?? '').toString();
       if (_nurNeueStellen && _bewerbungenByRefnr.containsKey(refnr)) {
         beworben++; total++; continue;
+      }
+      if (_nurArbeitsagentur && _externHost(s) != null) {
+        extern++; total++; continue;
       }
       if (!_nurPassendeStellen) continue;
       final d = _detailCache[refnr];
@@ -130,7 +150,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         if (missS) schwer++;
       }
     }
-    return (beworben: beworben, ohneFs: ohneFs, ohneStapler: ohneStapler, schwer: schwer, total: total);
+    return (beworben: beworben, extern: extern, ohneFs: ohneFs, ohneStapler: ohneStapler, schwer: schwer, total: total);
   }
 
   /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
@@ -385,6 +405,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         _angebotsart = (m['angebotsart'] as int?) ?? 1;
         if (m['nurPassendeStellen'] is bool) _nurPassendeStellen = m['nurPassendeStellen'] as bool;
         if (m['nurNeueStellen'] is bool) _nurNeueStellen = m['nurNeueStellen'] as bool;
+        if (m['nurArbeitsagentur'] is bool) _nurArbeitsagentur = m['nurArbeitsagentur'] as bool;
       });
     } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
   }
@@ -402,6 +423,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       'angebotsart': _angebotsart,
       'nurPassendeStellen': _nurPassendeStellen,
       'nurNeueStellen': _nurNeueStellen,
+      'nurArbeitsagentur': _nurArbeitsagentur,
     });
   }
 
@@ -685,6 +707,23 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               if (_bewerbungenByRefnr.isNotEmpty) Text('(${_bewerbungenByRefnr.length} beworben)',
                   style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
             ]),
+            // Dritter Toggle: 3rd-party-Plattformen ausblenden. ~16% aller
+            // Treffer leiten extern (bewerbung.jobs, hogapage.de, heyjobs.co
+            // u.a.) — fuer den Vorsitzer ein Zeit-Killer, deshalb default an.
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Switch(
+                value: _nurArbeitsagentur,
+                activeThumbColor: Colors.indigo.shade700,
+                onChanged: (v) { setState(() => _nurArbeitsagentur = v); _persistSelection(); },
+              ),
+              const SizedBox(width: 4),
+              const Text('Nur arbeitsagentur', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Blendet Stellen aus, deren Bewerbung\nauf 3rd-party-Portale umleitet\n(bewerbung.jobs, hogapage.de, heyjobs.co etc.).',
+                child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+              ),
+            ]),
           ]),
           // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
           // nicht ueberladen wirkt; im offenen Zustand vier Dropdowns.
@@ -816,6 +855,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                     final br = _hiddenBreakdown;
                     final teile = <String>[
                       if (br.beworben > 0) '${br.beworben} bereits beworben',
+                      if (br.extern > 0) '${br.extern} extern',
                       if (br.ohneFs > 0) '${br.ohneFs} ohne Führerschein',
                       if (br.ohneStapler > 0) '${br.ohneStapler} ohne Gabelstapler',
                       if (br.schwer > 0) '${br.schwer} schwere Arbeit',
@@ -865,6 +905,26 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                           if (firma.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
                             Icon(Icons.business, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
                             Expanded(child: Text(firma, style: const TextStyle(fontSize: 12))),
+                            // Wenn die Stelle auf ein 3rd-party-Portal umleitet
+                            // (z.B. bewerbung.jobs), zeigen wir hier den Host
+                            // als Mini-Badge. Wenn der Filter 'Nur arbeitsagentur'
+                            // aktiv ist, sind diese Karten sowieso ausgeblendet —
+                            // das Badge erscheint nur wenn der Vorsitzer den
+                            // Filter manuell ausgeschaltet hat.
+                            Builder(builder: (_) {
+                              final host = _externHost(s);
+                              if (host == null) return const SizedBox.shrink();
+                              return Container(
+                                margin: const EdgeInsets.only(left: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade300)),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.link, size: 10, color: Colors.orange.shade900),
+                                  const SizedBox(width: 3),
+                                  Text(host, style: TextStyle(fontSize: 9, color: Colors.orange.shade900, fontWeight: FontWeight.w600)),
+                                ]),
+                              );
+                            }),
                           ])),
                           if (ort.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
                             Icon(Icons.location_on, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
