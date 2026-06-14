@@ -462,6 +462,28 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     }
   }
 
+  /// Kompakter Status-Badge fuer eine Qualifikations-Achse. green=OK,
+  /// red=fehlt/eingeschraenkt. Wird in der Header-Leiste neben dem
+  /// 'Nur passende'-Toggle angezeigt.
+  Widget _qualBadge(IconData icon, String label, bool ok, String tooltip) => Tooltip(
+    message: tooltip,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: ok ? Colors.green.shade50 : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ok ? Colors.green.shade300 : Colors.red.shade300, width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 11, color: ok ? Colors.green.shade800 : Colors.red.shade800),
+        const SizedBox(width: 3),
+        Text(label, style: TextStyle(fontSize: 10, color: ok ? Colors.green.shade900 : Colors.red.shade900, fontWeight: FontWeight.w600)),
+        const SizedBox(width: 3),
+        Text(ok ? '✓' : '✗', style: TextStyle(fontSize: 11, color: ok ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold)),
+      ]),
+    ),
+  );
+
   Widget _smallBadge(IconData icon, String text, MaterialColor color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
@@ -624,9 +646,18 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 message: 'Blendet Stellen aus, die eine Qualifikation\nverlangen, die dem Mitglied fehlt:\n• Fuehrerschein\n• Gabelstaplerschein\n• Koerperliche Belastbarkeit (schweres Heben)',
                 child: const Text('Nur passende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               ),
-              const SizedBox(width: 4),
-              Text('(${_hatFuehrerschein ? "FS✓" : "FS✗"}·${_hatGabelstapler ? "Gabelst.✓" : "Gabelst.✗"}${_koerperlicheEinschraenkung ? "·Schwer✗" : ""})',
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              const SizedBox(width: 6),
+              // Drei sichtbare Status-Badges direkt am Toggle. Klick auf das
+              // Info-Icon erklaert, was 'aktiv' jeweils bedeutet.
+              _qualBadge(Icons.directions_car, 'FS', _hatFuehrerschein,
+                  _hatFuehrerschein ? 'Fuehrerschein vorhanden' : 'Kein Fuehrerschein'),
+              const SizedBox(width: 3),
+              _qualBadge(Icons.local_shipping, 'Stapler', _hatGabelstapler,
+                  _hatGabelstapler ? 'Gabelstaplerschein vorhanden' : 'Kein Gabelstaplerschein'),
+              const SizedBox(width: 3),
+              // Schwerlast: gruen = unbeschraenkt, rot = darf nicht schwer heben
+              _qualBadge(Icons.fitness_center, 'Heben', !_koerperlicheEinschraenkung,
+                  _koerperlicheEinschraenkung ? 'Keine schweren Lasten' : 'Schwere Lasten OK'),
             ]),
             Row(mainAxisSize: MainAxisSize.min, children: [
               Switch(
