@@ -67,11 +67,6 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
   /// Wird in den Status-Badges angezeigt, aber NIEMALS aus diesem Tab
   /// in die DB zurueckgeschrieben (das macht ausschliesslich der Stellen-Tab).
   bool _koerperlicheEinschraenkung = false;
-  /// UI-Filter (lokal, persistiert per SharedPreferences) — entscheidet
-  /// ob Schwerlast-Stellen ausgeblendet werden. Default beim ersten Laden
-  /// = Profilwert; danach steuert ihn der Vorsitzer ueber den Toggle.
-  bool _filterSchwerarbeit = false;
-  bool _filterSchwerarbeitInitialized = false;
   final Map<String, Map<String, dynamic>?> _detailCache = {};
 
   // Bereits beworbene BA-Stellen: refnr → bewerbung row (mit arbeitgeber_id,
@@ -95,9 +90,9 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       if (d != null && d.isNotEmpty) {
         final missG = _needsGabelstapler(d) && !_hatGabelstapler;
         final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
-        // Schwerlast wird nur ausgeblendet, wenn der UI-Toggle hier aktiv ist.
-        // Profil-Bit selbst filtert nichts — es spendet nur den Default.
-        final missS = _needsSchwerarbeit(d) && _filterSchwerarbeit;
+        // Schwerlast steuert das Profil-Bit (Stellen-Tab) — kein lokaler
+        // Toggle mehr. 'Nur passende' umschliesst alle drei Achsen.
+        final missS = _needsSchwerarbeit(d) && _koerperlicheEinschraenkung;
         if (missG || missF || missS) return false;
       }
     }
@@ -110,17 +105,32 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     return _results.where(_isVisible).length;
   }
 
-  /// Wie viele Stellen verlangen schwere Arbeit, die der Vorsitzer fuer dieses
-  /// Mitglied per koerperliche_einschraenkung ausblenden moechte.
-  int get _schwerarbeitHiddenCount {
-    if (!_filterSchwerarbeit) return 0;
-    var n = 0;
-    for (final s in _results) {
-      final d = _detailCache[(s['refnr'] ?? '').toString()];
-      if (d == null || d.isEmpty) continue;
-      if (_needsSchwerarbeit(d)) n++;
+  /// Aufschluesselung wie viele Stellen je Achse vom Filter ausgeblendet
+  /// wurden — fuer den orangen Banner unter der Filterleiste.
+  ({int beworben, int ohneFs, int ohneStapler, int schwer, int total}) get _hiddenBreakdown {
+    if (!_nurPassendeStellen && !_nurNeueStellen) {
+      return (beworben: 0, ohneFs: 0, ohneStapler: 0, schwer: 0, total: 0);
     }
-    return n;
+    var beworben = 0, ohneFs = 0, ohneStapler = 0, schwer = 0, total = 0;
+    for (final s in _results) {
+      final refnr = (s['refnr'] ?? '').toString();
+      if (_nurNeueStellen && _bewerbungenByRefnr.containsKey(refnr)) {
+        beworben++; total++; continue;
+      }
+      if (!_nurPassendeStellen) continue;
+      final d = _detailCache[refnr];
+      if (d == null || d.isEmpty) continue;
+      final missG = _needsGabelstapler(d) && !_hatGabelstapler;
+      final missF = _needsFuehrerschein(d) && !_hatFuehrerschein;
+      final missS = _needsSchwerarbeit(d) && _koerperlicheEinschraenkung;
+      if (missG || missF || missS) {
+        total++;
+        if (missF) ohneFs++;
+        if (missG) ohneStapler++;
+        if (missS) schwer++;
+      }
+    }
+    return (beworben: beworben, ohneFs: ohneFs, ohneStapler: ohneStapler, schwer: schwer, total: total);
   }
 
   /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
@@ -256,18 +266,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     final hatFs = fs.any((f) => (f['klasse'] ?? '').toString().toLowerCase() != 'keinen');
     final g = res['gabelstaplerschein'];
     final k = res['koerperliche_einschraenkung'];
-    final koerper = k == 1 || k == '1' || k == true;
     setState(() {
       _hatFuehrerschein = hatFs;
       _hatGabelstapler = g == 1 || g == '1' || g == true;
-      _koerperlicheEinschraenkung = koerper;
-      // Erstes Laden: Filter spiegelt das Profil. Spaeter steuert ihn nur
-      // noch der lokale Toggle — wir ueberschreiben die Vorsitzer-Auswahl
-      // nicht jedes Mal, wenn _loadQualifikationen laeuft.
-      if (!_filterSchwerarbeitInitialized) {
-        _filterSchwerarbeit = koerper;
-        _filterSchwerarbeitInitialized = true;
-      }
+      _koerperlicheEinschraenkung = k == 1 || k == '1' || k == true;
     });
   }
 
@@ -383,10 +385,6 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         _angebotsart = (m['angebotsart'] as int?) ?? 1;
         if (m['nurPassendeStellen'] is bool) _nurPassendeStellen = m['nurPassendeStellen'] as bool;
         if (m['nurNeueStellen'] is bool) _nurNeueStellen = m['nurNeueStellen'] as bool;
-        if (m['filterSchwerarbeit'] is bool) {
-          _filterSchwerarbeit = m['filterSchwerarbeit'] as bool;
-          _filterSchwerarbeitInitialized = true;
-        }
       });
     } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
   }
@@ -404,7 +402,6 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       'angebotsart': _angebotsart,
       'nurPassendeStellen': _nurPassendeStellen,
       'nurNeueStellen': _nurNeueStellen,
-      'filterSchwerarbeit': _filterSchwerarbeit,
     });
   }
 
@@ -688,33 +685,6 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
               if (_bewerbungenByRefnr.isNotEmpty) Text('(${_bewerbungenByRefnr.length} beworben)',
                   style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
             ]),
-            // Schwerlast-Toggle ist hier reiner UI-Filter — Profil bleibt
-            // unveraendert (das setzt nur der Stellen-Tab). Default kommt
-            // beim ersten Mal aus dem Profil, danach steuert ihn der Vorsitzer.
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Switch(
-                value: _filterSchwerarbeit,
-                activeThumbColor: Colors.deepPurple.shade700,
-                onChanged: (v) {
-                  setState(() => _filterSchwerarbeit = v);
-                  _persistSelection();
-                },
-              ),
-              const SizedBox(width: 4),
-              const Text('Schwere Arbeit ausblenden', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 4),
-              if (_schwerarbeitHiddenCount > 0) Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade200)),
-                child: Text('${_schwerarbeitHiddenCount} ausgeblendet',
-                    style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade900, fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(width: 4),
-              Tooltip(
-                message: 'Blendet Stellen mit Heben/Tragen ueber 15 kg aus.\nNur UI-Filter — Profil wird nicht veraendert.\n(Profilwert setzt der Stellen-Tab.)',
-                child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
-              ),
-            ]),
           ]),
           // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
           // nicht ueberladen wirkt; im offenen Zustand vier Dropdowns.
@@ -841,14 +811,14 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                     );
                   }
                   if (hidden > 0) {
-                    // Aufschlüsseln wie viel an welcher Filter-Achse verloren geht — Vorsitzer sieht direkt warum.
-                    final beworbenCount = _nurNeueStellen
-                        ? _results.where((s) => _bewerbungenByRefnr.containsKey((s['refnr'] ?? '').toString())).length
-                        : 0;
-                    final qualiHidden = hidden - beworbenCount;
+                    // Pro Achse aufschluesseln: Vorsitzer sieht sofort, warum
+                    // Stellen verschwinden (z.B. '2 ohne FS · 1 ohne Stapler').
+                    final br = _hiddenBreakdown;
                     final teile = <String>[
-                      if (beworbenCount > 0) '$beworbenCount bereits beworben',
-                      if (qualiHidden > 0) '$qualiHidden ohne passende Qualifikation',
+                      if (br.beworben > 0) '${br.beworben} bereits beworben',
+                      if (br.ohneFs > 0) '${br.ohneFs} ohne Führerschein',
+                      if (br.ohneStapler > 0) '${br.ohneStapler} ohne Gabelstapler',
+                      if (br.schwer > 0) '${br.schwer} schwere Arbeit',
                     ];
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -856,7 +826,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                       child: Row(children: [
                         Icon(Icons.filter_alt, size: 14, color: Colors.orange.shade800),
                         const SizedBox(width: 6),
-                        Expanded(child: Text('$hidden Stelle(n) ausgeblendet (${teile.join(", ")})', style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                        Expanded(child: Text('$hidden Stelle(n) ausgeblendet${teile.isEmpty ? "" : " (${teile.join(" · ")})"}', style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
                       ]),
                     );
                   }
