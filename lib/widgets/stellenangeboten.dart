@@ -99,6 +99,32 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     return host.isEmpty ? null : host;
   }
 
+  /// Stichworte fuer Ansprechpartner — ausreichend ein Treffer im Text.
+  static final _ansprechRe = RegExp(
+    r'(ansprechpartner|wenden sie sich an|herr\s+\w|frau\s+\w|kontaktperson|ihr\s+kontakt|bewerbung\s+an)',
+    caseSensitive: false,
+  );
+
+  /// 0-3 Punkte: 1) Ansprechpartner in der Beschreibung, 2) Verguetungsangabe
+  /// gepflegt (≠ KEINE_ANGABEN — EU-Entgelttransparenzrichtlinie verlangt das
+  /// inzwischen), 3) Vertragsdauer angegeben. Ab 2 von 3 gilt die Stelle als
+  /// 'serioes'.
+  int _serioesScore(Map<String, dynamic> d) {
+    var score = 0;
+    final beschreibung = (d['stellenangebotsBeschreibung'] ?? '').toString();
+    if (beschreibung.isNotEmpty && _ansprechRe.hasMatch(beschreibung)) score++;
+    final verg = (d['verguetungsangabe'] ?? '').toString();
+    if (verg.isNotEmpty && verg.toUpperCase() != 'KEINE_ANGABEN') score++;
+    final vertrag = (d['vertragsdauer'] ?? '').toString().trim();
+    if (vertrag.isNotEmpty) score++;
+    return score;
+  }
+
+  bool _detailIstSerioes(Map<String, dynamic>? d) {
+    if (d == null || d.isEmpty) return true; // noch nicht geladen → erst mal sichtbar
+    return _serioesScore(d) >= 2;
+  }
+
   /// Standard-E-Mail-Regex — Treffer in der Stellen-Beschreibung gilt als
   /// 'Stelle hat ernsthaften Bewerbungsweg'.
   static final _emailFindRe = RegExp(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}');
@@ -118,6 +144,10 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     if (_nurMitEmail) {
       final d = _detailCache[refnr];
       if (d != null && d.isNotEmpty && !_detailHatEmail(d)) return false;
+    }
+    if (_nurSerioes) {
+      final d = _detailCache[refnr];
+      if (d != null && d.isNotEmpty && !_detailIstSerioes(d)) return false;
     }
     if (_nurPassendeStellen) {
       final d = _detailCache[refnr];
@@ -141,11 +171,11 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
 
   /// Aufschluesselung wie viele Stellen je Achse vom Filter ausgeblendet
   /// wurden — fuer den orangen Banner unter der Filterleiste.
-  ({int beworben, int extern, int ohneEmail, int ohneFs, int ohneStapler, int schwer, int total}) get _hiddenBreakdown {
-    if (!_nurPassendeStellen && !_nurNeueStellen && !_nurArbeitsagentur && !_nurMitEmail) {
-      return (beworben: 0, extern: 0, ohneEmail: 0, ohneFs: 0, ohneStapler: 0, schwer: 0, total: 0);
+  ({int beworben, int extern, int ohneEmail, int unserioes, int ohneFs, int ohneStapler, int schwer, int total}) get _hiddenBreakdown {
+    if (!_nurPassendeStellen && !_nurNeueStellen && !_nurArbeitsagentur && !_nurMitEmail && !_nurSerioes) {
+      return (beworben: 0, extern: 0, ohneEmail: 0, unserioes: 0, ohneFs: 0, ohneStapler: 0, schwer: 0, total: 0);
     }
-    var beworben = 0, extern = 0, ohneEmail = 0, ohneFs = 0, ohneStapler = 0, schwer = 0, total = 0;
+    var beworben = 0, extern = 0, ohneEmail = 0, unserioes = 0, ohneFs = 0, ohneStapler = 0, schwer = 0, total = 0;
     for (final s in _results) {
       final refnr = (s['refnr'] ?? '').toString();
       if (_nurNeueStellen && _bewerbungenByRefnr.containsKey(refnr)) {
@@ -157,6 +187,9 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       final d = _detailCache[refnr];
       if (_nurMitEmail && d != null && d.isNotEmpty && !_detailHatEmail(d)) {
         ohneEmail++; total++; continue;
+      }
+      if (_nurSerioes && d != null && d.isNotEmpty && !_detailIstSerioes(d)) {
+        unserioes++; total++; continue;
       }
       if (!_nurPassendeStellen) continue;
       if (d == null || d.isEmpty) continue;
@@ -170,7 +203,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         if (missS) schwer++;
       }
     }
-    return (beworben: beworben, extern: extern, ohneEmail: ohneEmail, ohneFs: ohneFs, ohneStapler: ohneStapler, schwer: schwer, total: total);
+    return (beworben: beworben, extern: extern, ohneEmail: ohneEmail, unserioes: unserioes, ohneFs: ohneFs, ohneStapler: ohneStapler, schwer: schwer, total: total);
   }
 
   /// Kompakte Beschreibung der aktiven Filter — landet in der Kopfzeile,
@@ -427,6 +460,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
         if (m['nurNeueStellen'] is bool) _nurNeueStellen = m['nurNeueStellen'] as bool;
         if (m['nurArbeitsagentur'] is bool) _nurArbeitsagentur = m['nurArbeitsagentur'] as bool;
         if (m['nurMitEmail'] is bool) _nurMitEmail = m['nurMitEmail'] as bool;
+        if (m['nurSerioes'] is bool) _nurSerioes = m['nurSerioes'] as bool;
       });
     } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
   }
@@ -446,6 +480,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       'nurNeueStellen': _nurNeueStellen,
       'nurArbeitsagentur': _nurArbeitsagentur,
       'nurMitEmail': _nurMitEmail,
+      'nurSerioes': _nurSerioes,
     });
   }
 
@@ -763,6 +798,23 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
               ),
             ]),
+            // Fuenfter Toggle: Seriositaets-Check ueber drei Anti-Spam-Achsen
+            // (Ansprechpartner / Verguetungsangabe / Vertragsdauer).
+            // Mindestens 2 von 3 muessen erfuellt sein, sonst weg.
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Switch(
+                value: _nurSerioes,
+                activeThumbColor: Colors.indigo.shade700,
+                onChanged: (v) { setState(() => _nurSerioes = v); _persistSelection(); },
+              ),
+              const SizedBox(width: 4),
+              const Text('Nur seriös', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Blendet Stellen aus, die mindestens 2 von 3\nSeriositaets-Kriterien NICHT erfuellen:\n• Ansprechpartner in der Beschreibung\n• Gehaltsangabe (EU-Pflicht ab 2026)\n• Vertragsdauer (befristet/unbefristet)',
+                child: Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+              ),
+            ]),
           ]),
           // Toggle fuer erweiterte Filter — eingeklappt, damit der Tab
           // nicht ueberladen wirkt; im offenen Zustand vier Dropdowns.
@@ -896,6 +948,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                       if (br.beworben > 0) '${br.beworben} bereits beworben',
                       if (br.extern > 0) '${br.extern} extern',
                       if (br.ohneEmail > 0) '${br.ohneEmail} ohne E-Mail',
+                      if (br.unserioes > 0) '${br.unserioes} unseriös',
                       if (br.ohneFs > 0) '${br.ohneFs} ohne Führerschein',
                       if (br.ohneStapler > 0) '${br.ohneStapler} ohne Gabelstapler',
                       if (br.schwer > 0) '${br.schwer} schwere Arbeit',
