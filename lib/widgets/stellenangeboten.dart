@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -27,7 +29,14 @@ class StellenangebotenContent extends StatefulWidget {
   State<StellenangebotenContent> createState() => _StellenangebotenContentState();
 }
 
-class _StellenangebotenContentState extends State<StellenangebotenContent> {
+class _StellenangebotenContentState extends State<StellenangebotenContent>
+    with AutomaticKeepAliveClientMixin {
+  // KeepAlive sorgt dafuer, dass das Widget beim Wechsel des Eltern-Tabs
+  // (Zustaendiger / Stellen / Bewerbungs / Stellenangebote) nicht
+  // disposed wird — die Auswahl bleibt zwischen Tab-Klicks erhalten.
+  @override
+  bool get wantKeepAlive => true;
+
   final _wasC = TextEditingController();
   final _woC = TextEditingController();
   int _umkreis = 0;
@@ -103,6 +112,8 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
     return out;
   }
 
+  String get _prefsKey => 'stellen_pref_v1_${widget.user.id}';
+
   @override
   void initState() {
     super.initState();
@@ -116,6 +127,46 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
     // Chip-Leiste schnell tauschen.
     final berufe = _vorherigeBerufe;
     if (berufe.isNotEmpty) _wasC.text = berufe.first;
+    // Persistente Auswahl pro Mitglied laden — ueberschreibt die Defaults
+    // oben, wenn der Vorsitzer das letzte Mal etwas anderes ausgewaehlt hat.
+    _restoreSelection();
+  }
+
+  Future<void> _restoreSelection() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey);
+      if (raw == null) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        final savedBerufe = (m['berufe'] as List?)?.cast<String>() ?? const [];
+        _selectedBerufe..clear()..addAll(savedBerufe);
+        if (m['was'] is String && (m['was'] as String).isNotEmpty) _wasC.text = m['was'];
+        if (m['wo'] is String && (m['wo'] as String).isNotEmpty) _woC.text = m['wo'];
+        _umkreis = (m['umkreis'] as int?) ?? _umkreis;
+        _arbeitszeit = m['arbeitszeit'] as String?;
+        _befristung = m['befristung'] as int?;
+        _veroeffentlichtSeit = m['veroeffentlichtSeit'] as int?;
+        _angebotsart = (m['angebotsart'] as int?) ?? 1;
+      });
+    } catch (_) { /* corrupted prefs — ignore, defaults gelten */ }
+  }
+
+  Future<void> _persistSelection() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, jsonEncode({
+        'berufe': _selectedBerufe.toList(),
+        'was': _wasC.text,
+        'wo': _woC.text,
+        'umkreis': _umkreis,
+        'arbeitszeit': _arbeitszeit,
+        'befristung': _befristung,
+        'veroeffentlichtSeit': _veroeffentlichtSeit,
+        'angebotsart': _angebotsart,
+      }));
+    } catch (_) {}
   }
 
   @override
@@ -124,6 +175,9 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
   Future<void> _search({bool resetPage = true}) async {
     if (resetPage) _page = 1;
     setState(() { _loading = true; _error = null; });
+    // Persist current selection so the next time this user opens the tab
+    // (incl. after an app restart) we land on the same filter/chip set.
+    _persistSelection();
 
     // Bei Mehrfach-Berufen feuern wir parallele Requests und vereinigen die
     // Treffer (dedupe nach refnr/hashId) — die API selbst kennt kein OR.
@@ -215,6 +269,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // KeepAlive contract
     return Column(children: [
       Container(
         padding: const EdgeInsets.all(12),
