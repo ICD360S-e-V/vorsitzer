@@ -65,6 +65,30 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         _bewerbungen = List<Map<String, dynamic>>.from(list.map((e) => Map<String, dynamic>.from(e as Map)));
       }
     });
+    // Im Hintergrund prueft der Server, welche BA-Stellen inzwischen 404
+    // liefern, und setzt ba_stelle_expired_at. Wenn sich etwas geaendert
+    // hat, laden wir die Liste neu — der Benutzer muss nichts manuell tun.
+    _runBaBulkCheck();
+  }
+
+  Future<void> _runBaBulkCheck() async {
+    final res = await widget.apiService.bulkCheckBaStatus(widget.userId);
+    if (!mounted || res['success'] != true) return;
+    final changed = ((res['newly_expired'] as int? ?? 0) + (res['restored'] as int? ?? 0)) > 0;
+    if (!changed) return;
+    final r = await widget.apiService.listBewerbungen(widget.userId);
+    if (!mounted || r['success'] != true) return;
+    final dataField = r['data'] ?? r;
+    final list = dataField['bewerbungen'] ?? [];
+    setState(() {
+      _bewerbungen = List<Map<String, dynamic>>.from(list.map((e) => Map<String, dynamic>.from(e as Map)));
+    });
+    if ((res['newly_expired'] as int? ?? 0) > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${res['newly_expired']} BA-Stelle(n) nicht mehr verfuegbar — markiert in der Liste'),
+        backgroundColor: Colors.orange.shade700,
+      ));
+    }
   }
 
   void _openSearch() {
@@ -262,6 +286,21 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                                 ]),
                               ),
                             ),
+                            if ((b['ba_stelle_expired_at']?.toString() ?? '').isNotEmpty) Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade300)),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(Icons.cloud_off, size: 11, color: Colors.orange.shade800),
+                                  const SizedBox(width: 4),
+                                  Flexible(child: Text(
+                                    'Stelle bei BA nicht mehr verfuegbar (seit ${b['ba_stelle_expired_at'].toString().split(' ').first.split('T').first})',
+                                    style: TextStyle(fontSize: 10, color: Colors.orange.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis,
+                                  )),
+                                ]),
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             Row(children: [
                               _miniBadge(Icons.history, '$statusCount', Colors.blue, 'Status-Einträge'),
@@ -399,6 +438,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                 _korrespondenzTab(arbeitgeberId, korrespondenz, (updated) async { setM(() => korrespondenz = updated); await persist(); }),
                 if (hasBa) _StellenanzeigeTab(
                   apiService: widget.apiService,
+                  userId: widget.userId,
                   refnr: baRefnr,
                   baTitel: baTitel,
                   baBeruf: baBeruf,
@@ -1097,12 +1137,14 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
 // ─────────────────────────────────────────────────────────────────
 class _StellenanzeigeTab extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final String refnr;
   final String baTitel;
   final String baBeruf;
   final String baMarkedAt;
   const _StellenanzeigeTab({
     required this.apiService,
+    required this.userId,
     required this.refnr,
     required this.baTitel,
     required this.baBeruf,
@@ -1132,6 +1174,13 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
       _detail = res;
       if (res == null) _error = 'Stelle nicht mehr verfuegbar bei der Bundesagentur';
     });
+    // Synchronisiere DB-Flag mit Live-Status — so erscheint das orange
+    // Badge in der Bewerbungsuebersicht beim naechsten Reload.
+    widget.apiService.markBewerbungBaExpired(
+      userId: widget.userId,
+      refnr: widget.refnr,
+      expired: res == null,
+    );
   }
 
   Future<void> _launch(String url) async {

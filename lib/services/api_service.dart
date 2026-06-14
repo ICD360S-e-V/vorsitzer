@@ -3870,6 +3870,33 @@ class ApiService {
     return r.bodyBytes;
   }
 
+  /// Markiert einen einzelnen Eintrag als 'BA-Stelle expired' bzw. setzt
+  /// das Flag zurueck — vom Stellenanzeige-Tab aufgerufen, wenn der
+  /// Live-Fetch der Stelle 404 liefert.
+  Future<void> markBewerbungBaExpired({required int userId, required String refnr, required bool expired}) async {
+    try {
+      await _client.post(
+        Uri.parse('$baseUrl/admin/bewerbung_ba_status.php'),
+        headers: _headers,
+        body: jsonEncode({'user_id': userId, 'ba_refnr': refnr, 'expired': expired}),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
+  /// Bulk-Check aller BA-Stellen eines Mitglieds via curl_multi auf dem
+  /// Server. Wird beim Oeffnen der Bewerbungsuebersicht automatisch
+  /// aufgerufen — der Server prueft bis zu 25 Stellen parallel.
+  Future<Map<String, dynamic>> bulkCheckBaStatus(int userId) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/bewerbung_ba_check_bulk.php'),
+        headers: _headers,
+        body: jsonEncode({'user_id': userId}),
+      ).timeout(const Duration(seconds: 45));
+      return jsonDecode(r.body);
+    } catch (e) { return {'success': false, 'message': e.toString()}; }
+  }
+
   /// Markiert eine Stelle aus der Bundesagentur-Jobsuche als beworben:
   /// findet die Firma in arbeitgeber_db (oder legt sie minimal an) und
   /// schreibt die BA-Metadaten (refnr/titel/beruf/eintritt) in
