@@ -170,36 +170,44 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     }
   }
 
-  static final _kwGabelstapler = RegExp(
-    r'\b(gabelstapler|staplerschein|flurförder|flurfoerder|stapler-?schein|stapler-?führerschein)\b',
-    caseSensitive: false,
-  );
-  static final _kwFuehrerschein = RegExp(
-    r'\b(führerschein|fuehrerschein|fahrerlaubnis|pkw-?schein|klasse [a-z]+)\b',
-    caseSensitive: false,
-  );
-  // Negative context — "Führerschein nicht erforderlich" etc.
+  // Substring-Suche statt regex \b — \b ist in Dart auf ASCII-Wortgrenzen
+  // beschränkt und matcht bei umlautlastigen Begriffen (führerschein, gehört)
+  // unzuverlässig. Wir scannen die ersten 60 Zeichen ums Keyword nach
+  // 'nicht erforderlich' / 'wünschenswert' / 'von vorteil' und schalten
+  // den Treffer dann auf 'optional'.
+  static const _kwStapler = ['gabelstapler', 'staplerschein', 'flurförder', 'flurfoerder'];
+  static const _kwFuehrer = ['führerschein', 'fuehrerschein', 'fahrerlaubnis', 'pkw-schein'];
   static final _kwOptional = RegExp(
-    r'(nicht erforderlich|nicht notwendig|von vorteil|wünschenswert|wuenschenswert|wäre|waere)',
+    r'(nicht erforderlich|nicht notwendig|von vorteil|wünschenswert|wuenschenswert|wäre vorteilhaft|waere vorteilhaft)',
     caseSensitive: false,
   );
 
+  bool _matchAny(String text, List<String> keywords) {
+    for (final kw in keywords) {
+      final i = text.indexOf(kw);
+      if (i < 0) continue;
+      final start = (i - 60).clamp(0, text.length);
+      final end = (i + kw.length + 60).clamp(0, text.length);
+      if (!_kwOptional.hasMatch(text.substring(start, end))) return true;
+    }
+    return false;
+  }
+
   bool _needsGabelstapler(Map<String, dynamic> d) {
     final t = '${d['stellenangebotsBeschreibung'] ?? ''} ${d['stellenangebotsTitel'] ?? ''}'.toLowerCase();
-    if (!_kwGabelstapler.hasMatch(t)) return false;
-    // Crude proximity-negation: if "nicht erforderlich" appears within 60 chars of the keyword, treat as optional.
-    final m = _kwGabelstapler.firstMatch(t);
-    if (m == null) return false;
-    final window = t.substring((m.start - 60).clamp(0, t.length), (m.end + 60).clamp(0, t.length));
-    return !_kwOptional.hasMatch(window);
+    return _matchAny(t, _kwStapler);
   }
 
   bool _needsFuehrerschein(Map<String, dynamic> d) {
     final t = '${d['stellenangebotsBeschreibung'] ?? ''} ${d['stellenangebotsTitel'] ?? ''}'.toLowerCase();
-    final m = _kwFuehrerschein.firstMatch(t);
-    if (m == null) return false;
-    final window = t.substring((m.start - 60).clamp(0, t.length), (m.end + 60).clamp(0, t.length));
-    return !_kwOptional.hasMatch(window);
+    if (_matchAny(t, _kwFuehrer)) return true;
+    // 'Klasse B' / 'Klasse C/CE' — kommt manchmal isoliert, ohne dass das Wort
+    // 'Führerschein' im Satz steht.
+    final i = RegExp(r'klasse [a-zäöü]+', caseSensitive: false).firstMatch(t);
+    if (i == null) return false;
+    final start = (i.start - 60).clamp(0, t.length);
+    final end = (i.end + 60).clamp(0, t.length);
+    return !_kwOptional.hasMatch(t.substring(start, end));
   }
 
   Future<void> _restoreSelection() async {
@@ -577,15 +585,36 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 : _results;
               final hidden = _results.length - visible.length;
               return Column(children: [
-                if (hidden > 0) Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  color: Colors.orange.shade50,
-                  child: Row(children: [
-                    Icon(Icons.filter_alt, size: 14, color: Colors.orange.shade800),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text('$hidden Stelle(n) ausgeblendet (verlangen Qualifikation, die fehlt)', style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
-                  ]),
-                ),
+                Builder(builder: (_) {
+                  final geprueft = _results.where((s) {
+                    final d = _detailCache[(s['refnr'] ?? '').toString()];
+                    return d != null;
+                  }).length;
+                  if (geprueft < _results.length) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      color: Colors.blue.shade50,
+                      child: Row(children: [
+                        const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5)),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('Qualifikationen werden geprueft… ($geprueft / ${_results.length})',
+                            style: TextStyle(fontSize: 11, color: Colors.blue.shade900))),
+                      ]),
+                    );
+                  }
+                  if (hidden > 0) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      color: Colors.orange.shade50,
+                      child: Row(children: [
+                        Icon(Icons.filter_alt, size: 14, color: Colors.orange.shade800),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text('$hidden Stelle(n) ausgeblendet (verlangen Qualifikation, die fehlt)', style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                      ]),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
                 Expanded(child: ListView.builder(
                   padding: const EdgeInsets.all(8),
                   itemCount: visible.length,
