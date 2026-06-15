@@ -3858,7 +3858,10 @@ class ApiService {
 
   /// Generiert den Lebenslauf als PDF auf dem Server (mPDF + HTML-Template).
   /// Vorteil: Layout-Aenderungen sind sofort live, ohne Flutter-Rebuild.
-  Future<List<int>?> generateLebenslaufPdfServer(int userId) async {
+  ///
+  /// Returnt bytes + filename (Server liefert via Content-Disposition
+  /// 'Lebenslauf_Vorname_Nachname.pdf' — Standard fuer Bewerbungs-PDFs).
+  Future<({Uint8List bytes, String filename})?> generateLebenslaufPdfServer(int userId) async {
     final r = await _client.post(
       Uri.parse('$baseUrl/admin/lebenslauf_pdf.php'),
       headers: {..._headers, 'Accept': 'application/pdf'},
@@ -3867,7 +3870,7 @@ class ApiService {
     if (r.statusCode != 200) return null;
     final ct = r.headers['content-type'] ?? '';
     if (!ct.startsWith('application/pdf')) return null;
-    return r.bodyBytes;
+    return (bytes: r.bodyBytes, filename: _extractFilename(r.headers, 'Lebenslauf.pdf'));
   }
 
   /// Generiert einen Begleittext fuer eine E-Mail-Bewerbung
@@ -3902,7 +3905,10 @@ class ApiService {
   /// Anti-AI-Sprache: vermeidet 'mit großem Interesse', 'umfangreiche
   /// Erfahrung', 'teamfähig und belastbar' — typische ChatGPT-Marker, die
   /// 2026 von Workday/Personio automatisch geflaggt werden.
-  Future<List<int>?> generateAnschreibenPdfServer({required int userId, required String refnr}) async {
+  ///
+  /// Returnt bytes + filename (Server liefert via Content-Disposition
+  /// 'Anschreiben_Vorname_Nachname_Firma.pdf').
+  Future<({Uint8List bytes, String filename})?> generateAnschreibenPdfServer({required int userId, required String refnr}) async {
     final r = await _client.post(
       Uri.parse('$baseUrl/admin/anschreiben_pdf.php'),
       headers: {..._headers, 'Accept': 'application/pdf'},
@@ -3911,7 +3917,19 @@ class ApiService {
     if (r.statusCode != 200) return null;
     final ct = r.headers['content-type'] ?? '';
     if (!ct.startsWith('application/pdf')) return null;
-    return r.bodyBytes;
+    return (bytes: r.bodyBytes, filename: _extractFilename(r.headers, 'Anschreiben.pdf'));
+  }
+
+  /// Liest filename aus 'Content-Disposition: ...; filename="..."'
+  /// (mit Fallback). Unsere Server-Endpoints liefern immer den Standard
+  /// 'inline; filename="Lebenslauf_Vorname_Nachname.pdf"'.
+  String _extractFilename(Map<String, String> headers, String fallback) {
+    final cd = headers['content-disposition'] ?? headers['Content-Disposition'] ?? '';
+    final mQ = RegExp(r'filename\s*=\s*"([^"]+)"', caseSensitive: false).firstMatch(cd);
+    if (mQ != null) return mQ.group(1)!.trim();
+    final mP = RegExp(r'filename\s*=\s*([^;]+)', caseSensitive: false).firstMatch(cd);
+    if (mP != null) return mP.group(1)!.trim();
+    return fallback;
   }
 
   /// Markiert einen einzelnen Eintrag als 'BA-Stelle expired' bzw. setzt

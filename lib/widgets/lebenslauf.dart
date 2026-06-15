@@ -28,11 +28,11 @@ class LebenslaufGenerator {
     );
 
     try {
-      final bytes = await apiService.generateLebenslaufPdfServer(userId);
+      final res = await apiService.generateLebenslaufPdfServer(userId);
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).maybePop(); // close spinner
 
-      if (bytes == null || bytes.isEmpty) {
+      if (res == null || res.bytes.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Server konnte das PDF nicht erzeugen'), backgroundColor: Colors.red,
         ));
@@ -40,9 +40,10 @@ class LebenslaufGenerator {
       }
 
       final dir = await getTemporaryDirectory();
-      final fileName = 'Lebenslauf_$userId.pdf';
+      // Server liefert 'Lebenslauf_Vorname_Nachname.pdf' via Content-Disposition.
+      final fileName = res.filename;
       final file = File('${dir.path}/$fileName');
-      await file.writeAsBytes(bytes);
+      await file.writeAsBytes(res.bytes);
 
       if (!context.mounted) return;
       final handled = await FileViewerDialog.show(context, file.path, fileName);

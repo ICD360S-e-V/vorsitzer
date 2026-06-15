@@ -1513,6 +1513,7 @@ class _LebenslaufTab extends StatefulWidget {
 
 class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveClientMixin {
   Uint8List? _bytes;
+  String _filename = 'Lebenslauf.pdf';
   bool _loading = true;
   String? _error;
 
@@ -1524,14 +1525,15 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
-    final list = await widget.apiService.generateLebenslaufPdfServer(widget.userId);
+    final res = await widget.apiService.generateLebenslaufPdfServer(widget.userId);
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (list == null || list.isEmpty) {
+      if (res == null || res.bytes.isEmpty) {
         _error = 'PDF konnte nicht erstellt werden — fehlen Stammdaten?';
       } else {
-        _bytes = Uint8List.fromList(list);
+        _bytes = res.bytes;
+        _filename = res.filename;
       }
     });
   }
@@ -1539,11 +1541,11 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
   Future<void> _saveToDisk() async {
     if (_bytes == null) return;
     try {
-      final safeFirma = widget.firmaName.replaceAll(RegExp(r'[^\w\-]'), '_');
-      final fileName = 'Lebenslauf_$safeFirma.pdf';
+      // Server liefert 'Lebenslauf_Vorname_Nachname.pdf' via
+      // Content-Disposition — Standard fuer Bewerbungs-PDFs.
       final path = await FilePickerHelper.saveFile(
         dialogTitle: 'Lebenslauf speichern',
-        fileName: fileName,
+        fileName: _filename,
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
@@ -1686,6 +1688,7 @@ class _AnschreibenTab extends StatefulWidget {
 
 class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliveClientMixin {
   Uint8List? _bytes;
+  String _filename = 'Anschreiben.pdf';
   bool _loading = true;
   String? _error;
 
@@ -1697,17 +1700,18 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
-    final list = await widget.apiService.generateAnschreibenPdfServer(
+    final res = await widget.apiService.generateAnschreibenPdfServer(
       userId: widget.userId,
       refnr: widget.refnr,
     );
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (list == null || list.isEmpty) {
+      if (res == null || res.bytes.isEmpty) {
         _error = 'Anschreiben konnte nicht erzeugt werden — Stelle bei BA nicht abrufbar?';
       } else {
-        _bytes = Uint8List.fromList(list);
+        _bytes = res.bytes;
+        _filename = res.filename;
       }
     });
   }
@@ -1715,11 +1719,11 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
   Future<void> _saveToDisk() async {
     if (_bytes == null) return;
     try {
-      final safeFirma = widget.firmaName.replaceAll(RegExp(r'[^\w\-]'), '_');
-      final fileName = 'Anschreiben_$safeFirma.pdf';
+      // Server liefert 'Anschreiben_Vorname_Nachname_Firma.pdf' via
+      // Content-Disposition — Standard fuer Bewerbungs-PDFs.
       final path = await FilePickerHelper.saveFile(
         dialogTitle: 'Anschreiben speichern',
-        fileName: fileName,
+        fileName: _filename,
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
