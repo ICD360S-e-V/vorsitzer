@@ -44,6 +44,26 @@ class ExternalBrowserService {
       await _ensureBrowser();
 
       final page = await _browser!.newPage();
+
+      // Re-inject auto-fill on EVERY navigation. Go2Doc (and many German
+      // booking portals) navigate full-page from /praxis/... → /buchung/...
+      // → /buchung/person. evaluate() alone fires only once and the form
+      // appears on a later page where our JS is no longer present.
+      // evaluateOnNewDocument hooks into every fresh document the page
+      // loads in this tab.
+      try {
+        await page.evaluateOnNewDocument(autoFillJs);
+      } catch (e) {
+        debugPrint('[CDP] evaluateOnNewDocument failed: $e');
+      }
+
+      // Also listen for load events explicitly — on some sites the form
+      // is injected after DOMContentLoaded by jQuery, so we run again then.
+      page.onLoad.listen((_) async {
+        try { await page.evaluate(autoFillJs); }
+        catch (e) { debugPrint('[CDP] post-load re-eval error: $e'); }
+      });
+
       try {
         await page.goto(url, wait: pup.Until.domContentLoaded)
             .timeout(const Duration(seconds: 30));
@@ -57,6 +77,8 @@ class ExternalBrowserService {
         await page.bringToFront();
       } catch (_) {}
 
+      // Run once now for the initial page (covers Bootstrap forms rendered
+      // server-side that are already in the DOM at DOMContentLoaded).
       try {
         await page.evaluate(autoFillJs);
       } catch (e) {

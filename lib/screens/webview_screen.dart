@@ -436,12 +436,19 @@ class _WebViewScreenState extends State<WebViewScreen> {
       if (el.tagName === 'SELECT' ? setSelect(el, gebJahr) : setVal(el, gebJahr))
         { filled++; fillLog.push('geb_jahr'); dateInputs.push(el); }
     }
-    // Single Geburtsdatum field
-    else if (combined.indexOf('geburtsdatum') >= 0 || combined.indexOf('birthdate') >= 0 || combined.indexOf('date of birth') >= 0 || combined.indexOf('tt.mm') >= 0 || (combined.indexOf('geburt') >= 0 && combined.indexOf('name') < 0)) {
+    // Single Geburtsdatum field — try format derived from placeholder hint
+    else if (combined.indexOf('geburtsdatum') >= 0 || combined.indexOf('birthdate') >= 0 || combined.indexOf('date of birth') >= 0 || combined.indexOf('tt.mm') >= 0 || combined.indexOf('mm/dd') >= 0 || combined.indexOf('mm.dd') >= 0 || (combined.indexOf('geburt') >= 0 && combined.indexOf('name') < 0)) {
       if (gebISO) {
         var ok = false;
-        if (el.type === 'date') ok = setVal(el, gebISO);
-        else ok = setVal(el, gebDE) || setVal(el, gebUS) || setVal(el, gebISO);
+        if (el.type === 'date') {
+          ok = setVal(el, gebISO);
+        } else if (combined.indexOf('mm/dd') >= 0 || combined.indexOf('mm.dd') >= 0) {
+          // Placeholder hints US format (mm/dd/yyyy) — try slash first
+          ok = setVal(el, gebUS) || setVal(el, gebDE) || setVal(el, gebISO);
+        } else {
+          // German default: dd.mm.yyyy
+          ok = setVal(el, gebDE) || setVal(el, gebUS) || setVal(el, gebISO);
+        }
         if (ok) { filled++; fillLog.push('geb_single'); }
       }
     }
