@@ -16316,13 +16316,33 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
 
   Future<void> _generateDialog() async {
     final selectedArzt = (widget.arztData['selected_arzt'] as Map?) ?? {};
+    // aerzte_datenbank hat plz_ort als EIN Feld ('89231 Neu-Ulm') und liefert
+    // praxis_name + arzt_name separat. Wir bauen denselben split wie im
+    // Schweigepflicht-Tab — identische canonical Anzeige.
+    String aName = (selectedArzt['arzt_name'] ?? '').toString().trim();
+    final praxis = (selectedArzt['praxis_name'] ?? '').toString().trim();
+    if (aName.isEmpty) aName = praxis;
+    if (aName.isNotEmpty && praxis.isNotEmpty && aName != praxis) aName = '$aName — $praxis';
+    if (aName.isEmpty) aName = widget.arztTitle;
+    final aStr = (selectedArzt['strasse'] ?? '').toString().trim();
+    final plzOrt = (selectedArzt['plz_ort'] ?? '').toString().trim();
+    String aPlz = '', aOrt = '';
+    if (plzOrt.isNotEmpty) {
+      final parts = plzOrt.split(RegExp(r'\s+'));
+      if (parts.length >= 2 && RegExp(r'^\d{4,5}$').hasMatch(parts.first)) {
+        aPlz = parts.first;
+        aOrt = parts.sublist(1).join(' ');
+      } else {
+        aOrt = plzOrt;
+      }
+    }
     final prefilled = <String, String>{
       'id': (selectedArzt['id'] ?? '').toString(),
-      'name': selectedArzt['praxis_name']?.toString() ?? selectedArzt['arzt_name']?.toString() ?? widget.arztTitle,
-      'strasse': selectedArzt['strasse']?.toString() ?? '',
-      'plz': selectedArzt['plz']?.toString() ?? '',
-      'ort': selectedArzt['ort']?.toString() ?? '',
-      'telefon': selectedArzt['telefon']?.toString() ?? '',
+      'name': aName,
+      'strasse': aStr,
+      'plz': aPlz,
+      'ort': aOrt,
+      'telefon': (selectedArzt['telefon'] ?? '').toString().trim(),
     };
     final changed = await showDialog<bool>(context: context, builder: (_) => _VollmachtArztGenerateDialog(
       apiService: widget.apiService, user: widget.user, arztTyp: widget.arztTyp, arztTitle: widget.arztTitle, prefilledArzt: prefilled,
@@ -16610,13 +16630,33 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
 
   Future<void> _generateDialog() async {
     final selectedArzt = (widget.arztData['selected_arzt'] as Map?) ?? {};
+    // aerzte_datenbank hat plz_ort als EIN Feld ('89231 Neu-Ulm') und liefert
+    // praxis_name + arzt_name separat. Identische Logik wie im Schweige-
+    // pflicht- und Vollmacht-Tab fuer canonical Anzeige.
+    String aName = (selectedArzt['arzt_name'] ?? '').toString().trim();
+    final praxis = (selectedArzt['praxis_name'] ?? '').toString().trim();
+    if (aName.isEmpty) aName = praxis;
+    if (aName.isNotEmpty && praxis.isNotEmpty && aName != praxis) aName = '$aName — $praxis';
+    if (aName.isEmpty) aName = widget.arztTitle;
+    final aStr = (selectedArzt['strasse'] ?? '').toString().trim();
+    final plzOrt = (selectedArzt['plz_ort'] ?? '').toString().trim();
+    String aPlz = '', aOrt = '';
+    if (plzOrt.isNotEmpty) {
+      final parts = plzOrt.split(RegExp(r'\s+'));
+      if (parts.length >= 2 && RegExp(r'^\d{4,5}$').hasMatch(parts.first)) {
+        aPlz = parts.first;
+        aOrt = parts.sublist(1).join(' ');
+      } else {
+        aOrt = plzOrt;
+      }
+    }
     final prefilled = <String, String>{
       'id': (selectedArzt['id'] ?? '').toString(),
-      'name': selectedArzt['praxis_name']?.toString() ?? selectedArzt['arzt_name']?.toString() ?? widget.arztTitle,
-      'strasse': selectedArzt['strasse']?.toString() ?? '',
-      'plz': selectedArzt['plz']?.toString() ?? '',
-      'ort': selectedArzt['ort']?.toString() ?? '',
-      'telefon': selectedArzt['telefon']?.toString() ?? '',
+      'name': aName,
+      'strasse': aStr,
+      'plz': aPlz,
+      'ort': aOrt,
+      'telefon': (selectedArzt['telefon'] ?? '').toString().trim(),
     };
     final changed = await showDialog<bool>(context: context, builder: (_) => _EinwilligungArztGenerateDialog(
       apiService: widget.apiService, user: widget.user, arztTyp: widget.arztTyp, arztTitle: widget.arztTitle, prefilledArzt: prefilled,
