@@ -15011,27 +15011,28 @@ class _SchweigepflichtGenerateDialog extends StatefulWidget {
 class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerateDialog> {
   late TextEditingController _nameC, _strC, _plzC, _ortC, _telC, _notesC, _validUntilC;
   late TextEditingController _validFromC;
+  // Schweigepflichtentbindung erlaubt NUR Informations-Austausch (passive
+  // Auskunft). Aktive Handlungen (Rezept-Abholung, Ueberweisung, AU-
+  // Weiterleitung) gehoeren in die separate VOLLMACHT (§§ 164 ff. BGB).
   final Map<String, bool> _umfang = {
     'akteneinsicht': true,
     'befunde': true,
     'atteste': true,
-    'rezepte': true,
-    'ueberweisungen': true,
-    'krankmeldungen': true,
+    'auskunft_telefon': true,
+    'auskunft_schrift': true,
     'korrespondenz': true,
-    'auskunft_telefon': false,
+    'arzt_zu_arzt': false,
   };
   bool _saving = false;
 
   static const _labels = {
     'akteneinsicht': 'Akteneinsicht (Patientenakte + Kopien)',
     'befunde': 'Befunde / Arztberichte / Untersuchungsergebnisse',
-    'atteste': 'Ärztliche Atteste / Bescheinigungen',
-    'rezepte': 'Rezepte übernehmen (auch Folgerezepte)',
-    'ueberweisungen': 'Überweisungen zu Fachärzten übernehmen',
-    'krankmeldungen': 'Arbeitsunfähigkeitsbescheinigungen',
-    'korrespondenz': 'Korrespondenz mit der Praxis',
+    'atteste': 'Ärztliche Atteste / Bescheinigungen (informativ)',
     'auskunft_telefon': 'Telefonische Auskunft (Behandlung / Diagnose)',
+    'auskunft_schrift': 'Schriftliche / E-Mail Auskunft zum Therapieverlauf',
+    'korrespondenz': 'Informations-Korrespondenz mit der Praxis',
+    'arzt_zu_arzt': 'Datenaustausch mit anderen Ärzten/Gutachtern (MD/MDK/BAD)',
   };
 
   @override
