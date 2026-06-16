@@ -327,6 +327,30 @@ class _WebViewScreenState extends State<WebViewScreen> {
     // retry loops. Auto-disconnects after 5 minutes.
     return '''
 (function() {
+  // evaluateOnNewDocument runs at document_start — document.body is null
+  // and querySelectorAll returns nothing. Defer all DOM work until
+  // DOMContentLoaded. For evaluate() on an already-loaded page, run now.
+  function bootstrap() {
+    if (window.__icd360sBoot) return; // idempotent
+    window.__icd360sBoot = true;
+    actuallyRun();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap, {once: true});
+    return 0;
+  }
+  if (!document.body) {
+    // Extreme early — try again on next tick.
+    setTimeout(bootstrap, 50);
+    return 0;
+  }
+  // For runtime-eval (re-injection after navigation finished), wipe the
+  // boot flag so observer + safety-net can re-run on the fresh document.
+  if (!window.__icd360sBoot) window.__icd360sBoot = true;
+  return actuallyRun();
+
+  function actuallyRun() {
+
   // setVal: react-controlled-input safe setter + jQuery .val() fallback for
   // jQuery/Bootstrap forms (Go2Doc uses jQuery 3.3.1). Triggers input, change,
   // blur — Bootstrap validators listen to blur for "entweder Email/Telefon".
@@ -573,6 +597,34 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  // BRUTE-FORCE last resort: any STILL-EMPTY visible text-input whose
+  // surrounding text mentions 'mail' or 'telefon' gets filled. Idempotent —
+  // skips already-populated and already-filled fields. Logs each attempt
+  // so DevTools shows exactly which field was hit.
+  if ('$email' && filled < 8) {
+    try {
+      var allInps = document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio])');
+      for (var bi = 0; bi < allInps.length; bi++) {
+        var be = allInps[bi];
+        if (be.disabled || be.readOnly) continue;
+        if (be.value && be.value.trim() !== '') continue;
+        if (be.offsetParent === null) continue; // skip hidden
+        // Look at element's own attrs + nearest 200 chars of surrounding text
+        var ctx = (be.placeholder || '') + ' ' + (be.name || '') + ' ' + (be.id || '');
+        var p = be.closest('.form-group') || be.parentElement;
+        if (p) ctx += ' ' + (p.textContent || '').slice(0, 200);
+        var c = ctx.toLowerCase();
+        var isEmail = c.indexOf('e-mail') >= 0 || c.indexOf('email') >= 0 || c.indexOf('mail') >= 0 || c.indexOf('entweder') >= 0;
+        if (isEmail) {
+          var before = be.value;
+          var ok = setVal(be, '$email');
+          try { console.log('[ICD360S brute-email]', {name: be.name, id: be.id, ph: be.placeholder, before: before, after: be.value, setVal_ok: ok}); } catch(e) {}
+          if (ok) { filled++; fillLog.push('email_brute'); }
+        }
+      }
+    } catch(e) { try { console.log('[ICD360S brute-error]', e.message); } catch(e2) {} }
+  }
+
   try { console.log('[ICD360S autofill] filled=' + filled + ' fields=' + JSON.stringify(fillLog)); } catch(e) {}
   return filled;
   }  // end runFill
@@ -597,6 +649,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   return initial;
+  }  // end actuallyRun
 })();
 ''';
   }
