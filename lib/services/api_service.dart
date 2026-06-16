@@ -7530,6 +7530,100 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // === ARZT-EINWILLIGUNG (DSGVO Art. 6 + Art. 9 — consent for storing and
+  //     processing health data. Separate from Schweigepflicht and Vollmacht:
+  //     Schweigepflicht releases the doctor from confidentiality (info flow),
+  //     Vollmacht authorises actions in the patient's name, Einwilligung is
+  //     the DSGVO basis for the Verein to STORE and PROCESS the data.) ===
+  Future<Map<String, dynamic>> createArztEinwilligung(Map<String, dynamic> payload) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/arzt_einwilligung_create.php'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> arztEinwilligungAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/arzt_einwilligung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadArztEinwilligungPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/arzt_einwilligung_pdf.php?id=$id&type=$type'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> uploadArztEinwilligungSignature({
+    required int einwilligungId,
+    required String type,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/arzt_einwilligung_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteArztEinwilligungSignatureById({required int signatureId}) async {
+    return await arztEinwilligungAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> downloadArztEinwilligungSignatureFile(int signatureId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/arzt_einwilligung_pdf.php?type=signature_file&signature_id=$signatureId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> createArztEinwilligungVersand({
+    required int einwilligungId,
+    required String methode,
+    String? datum,
+    String? faxNummer,
+    String? emailAdresse,
+    String? notiz,
+    Uint8List? confirmationBytes,
+    String? confirmationFilename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/arzt_einwilligung_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteArztEinwilligungVersand({required int versandId}) async {
+    return await arztEinwilligungAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> downloadArztEinwilligungVersandConfirmation(int versandId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/arzt_einwilligung_pdf.php?type=versand_confirmation&versand_id=$versandId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // === ARZT-KORRESPONDENZ (per arzt-tab, with attachments) ===
   Future<Map<String, dynamic>> arztKorrespondenzAction(Map<String, dynamic> body) async {
     final response = await _client.post(

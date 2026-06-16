@@ -461,7 +461,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: isZahnarzt ? 15 : 14,
+          length: isZahnarzt ? 16 : 15,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -647,6 +647,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   const Tab(icon: Icon(Icons.medical_information, size: 16), text: 'Medikamente Plan'),
                   const Tab(icon: Icon(Icons.lock_person, size: 16), text: 'Schweigepflicht'),
                   const Tab(icon: Icon(Icons.assignment_ind, size: 16), text: 'Vollmacht'),
+                  const Tab(icon: Icon(Icons.privacy_tip, size: 16), text: 'Einwilligung'),
                   const Tab(icon: Icon(Icons.forum, size: 16), text: 'Korrespondenz'),
                   if (isZahnarzt) const Tab(icon: Icon(Icons.gavel, size: 16), text: 'Härtefall'),
                 ],
@@ -946,10 +947,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     // ===== TAB 15: VOLLMACHT (arzt-spezifisch — Termine, Rezepte, eRezept) =====
                     _VollmachtArztTab(apiService: widget.apiService, user: widget.user, arztTyp: type, arztTitle: arztTitle, arztData: data),
 
-                    // ===== TAB 16: KORRESPONDENZ =====
+                    // ===== TAB 16: EINWILLIGUNG DSGVO (Art. 6 + Art. 9) =====
+                    _EinwilligungArztTab(apiService: widget.apiService, user: widget.user, arztTyp: type, arztTitle: arztTitle, arztData: data),
+
+                    // ===== TAB 17: KORRESPONDENZ =====
                     _ArztKorrespondenzTab(apiService: widget.apiService, user: widget.user, arztTyp: type, arztTitle: arztTitle, arztData: data),
 
-                    // ===== TAB 16: HÄRTEFALL (nur Zahnarzt) =====
+                    // ===== TAB 18: HÄRTEFALL (nur Zahnarzt) =====
                     if (isZahnarzt) _buildHartefallTab(type, data, saveAll, setLocalState),
                   ],
                 ),
@@ -16555,6 +16559,280 @@ class _VollmachtArztGenerateDialogState extends State<_VollmachtArztGenerateDial
       actions: [
         TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
         FilledButton(onPressed: _busy ? null : _submit, style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade700),
+          child: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Generieren')),
+      ],
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  EINWILLIGUNG DSGVO — Art. 9 Abs. 2 lit. a + Art. 6 Abs. 1 lit. a.
+//  Doppelte Einwilligung: separate Zustimmung fuer Stammdaten + Gesundheits-
+//  daten. Speicherdauer default 10 Jahre, Beschwerderecht BayLDA Ansbach.
+// ════════════════════════════════════════════════════════════════════
+class _EinwilligungArztTab extends StatefulWidget {
+  final ApiService apiService;
+  final User user;
+  final String arztTyp;
+  final String arztTitle;
+  final Map<String, dynamic> arztData;
+  const _EinwilligungArztTab({required this.apiService, required this.user, required this.arztTyp, required this.arztTitle, required this.arztData});
+
+  @override
+  State<_EinwilligungArztTab> createState() => _EinwilligungArztTabState();
+}
+
+class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final res = await widget.apiService.arztEinwilligungAction({
+      'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
+    });
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _list = List<Map<String, dynamic>>.from(res['einwilligungen'] ?? res['schweigepflichten'] ?? []);
+    });
+  }
+
+  Future<void> _generateDialog() async {
+    final selectedArzt = (widget.arztData['selected_arzt'] as Map?) ?? {};
+    final prefilled = <String, String>{
+      'name': selectedArzt['praxis_name']?.toString() ?? selectedArzt['arzt_name']?.toString() ?? widget.arztTitle,
+      'strasse': selectedArzt['strasse']?.toString() ?? '',
+      'plz': selectedArzt['plz']?.toString() ?? '',
+      'ort': selectedArzt['ort']?.toString() ?? '',
+      'telefon': selectedArzt['telefon']?.toString() ?? '',
+    };
+    final changed = await showDialog<bool>(context: context, builder: (_) => _EinwilligungArztGenerateDialog(
+      apiService: widget.apiService, user: widget.user, arztTyp: widget.arztTyp, arztTitle: widget.arztTitle, prefilledArzt: prefilled,
+    ));
+    if (changed == true) _load();
+  }
+
+  Future<void> _openPdf(int id, {String type = 'pdf'}) async {
+    final res = await widget.apiService.downloadArztEinwilligungPdf(id, type: type);
+    if (!mounted) return;
+    if (res.statusCode == 200) {
+      FileViewerDialog.showFromBytes(context, res.bodyBytes, type == 'translation' ? 'einwilligung_uebersetzung.pdf' : 'einwilligung.pdf');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler ${res.statusCode}'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _revoke(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Einwilligung widerrufen?'),
+      content: const Text('Art. 7 Abs. 3 DSGVO. Die Daten werden unverzueglich geloescht (soweit keine gesetzliche Aufbewahrungspflicht entgegensteht).'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Widerrufen')),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.arztEinwilligungAction({'action': 'revoke', 'id': id});
+    _load();
+  }
+
+  Color _statusColor(String s) {
+    switch (s) {
+      case 'aktiv': return Colors.green.shade700;
+      case 'draft': return Colors.orange.shade700;
+      case 'revoked': return Colors.red.shade700;
+      case 'expired': return Colors.grey;
+      default: return Colors.blueGrey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        padding: const EdgeInsets.all(10),
+        margin: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+        child: Row(children: [
+          Icon(Icons.privacy_tip, color: Colors.blue.shade700, size: 18),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Einwilligung (DSGVO Art. 9) — ${widget.arztTitle}',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+          )),
+          IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: 'Neu laden', onPressed: _load),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: SizedBox(width: double.infinity, child: ElevatedButton.icon(
+          onPressed: _generateDialog,
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Neue Einwilligung generieren'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+        )),
+      ),
+      const SizedBox(height: 8),
+      Expanded(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _list.isEmpty
+                ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.folder_open, size: 40, color: Colors.grey.shade400),
+                    const SizedBox(height: 8),
+                    Text('Noch keine Einwilligung erstellt', style: TextStyle(color: Colors.grey.shade600)),
+                  ])))
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    itemCount: _list.length,
+                    itemBuilder: (_, i) {
+                      final e = _list[i];
+                      final id = (e['id'] is int) ? e['id'] as int : int.tryParse(e['id'].toString()) ?? 0;
+                      final status = (e['status'] ?? 'draft').toString();
+                      final erteilt = (e['erteilt_am'] ?? '').toString();
+                      final hasTrans = (e['pdf_translation_filename'] ?? '').toString().isNotEmpty;
+                      final speicher = e['speicherdauer_jahre']?.toString() ?? '10';
+                      return Card(margin: const EdgeInsets.only(bottom: 6), child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: _statusColor(status), borderRadius: BorderRadius.circular(10)), child: Text(status.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('Einwilligung #$id', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                            if (status != 'revoked') IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Widerrufen', onPressed: () => _revoke(id)),
+                          ]),
+                          Text('Erteilt: $erteilt · Speicher: $speicher Jahre', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          const SizedBox(height: 6),
+                          Wrap(spacing: 6, children: [
+                            ElevatedButton.icon(onPressed: () => _openPdf(id), icon: const Icon(Icons.picture_as_pdf, size: 14), label: const Text('DE-PDF', style: TextStyle(fontSize: 11)), style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
+                            if (hasTrans) ElevatedButton.icon(onPressed: () => _openPdf(id, type: 'translation'), icon: const Icon(Icons.translate, size: 14), label: const Text('Übersetzung', style: TextStyle(fontSize: 11)), style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple.shade400, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
+                          ]),
+                        ]),
+                      ));
+                    },
+                  ),
+      ),
+    ]);
+  }
+}
+
+class _EinwilligungArztGenerateDialog extends StatefulWidget {
+  final ApiService apiService;
+  final User user;
+  final String arztTyp;
+  final String arztTitle;
+  final Map<String, String> prefilledArzt;
+  const _EinwilligungArztGenerateDialog({required this.apiService, required this.user, required this.arztTyp, required this.arztTitle, required this.prefilledArzt});
+
+  @override
+  State<_EinwilligungArztGenerateDialog> createState() => _EinwilligungArztGenerateDialogState();
+}
+
+class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenerateDialog> {
+  late final TextEditingController _arztName = TextEditingController(text: widget.prefilledArzt['name']);
+  late final TextEditingController _arztStrasse = TextEditingController(text: widget.prefilledArzt['strasse']);
+  late final TextEditingController _arztPlz = TextEditingController(text: widget.prefilledArzt['plz']);
+  late final TextEditingController _arztOrt = TextEditingController(text: widget.prefilledArzt['ort']);
+  late final TextEditingController _arztTel = TextEditingController(text: widget.prefilledArzt['telefon']);
+  final _notesC = TextEditingController();
+  DateTime _erteilt = DateTime.now();
+  DateTime? _bis;
+  int _speicherJahre = 10;
+  bool _busy = false;
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final r = await widget.apiService.createArztEinwilligung({
+      'user_id': widget.user.id,
+      'arzt_typ': widget.arztTyp,
+      'arzt': {
+        'name': _arztName.text.trim(),
+        'strasse': _arztStrasse.text.trim(),
+        'plz': _arztPlz.text.trim(),
+        'ort': _arztOrt.text.trim(),
+        'telefon': _arztTel.text.trim(),
+      },
+      'erteilt_am': DateFormat('yyyy-MM-dd').format(_erteilt),
+      'gueltig_bis': _bis != null ? DateFormat('yyyy-MM-dd').format(_bis!) : null,
+      'speicherdauer_jahre': _speicherJahre,
+      'notes': _notesC.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: ${r['message'] ?? 'unbekannt'}'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(children: [Icon(Icons.privacy_tip, color: Colors.blue.shade700), const SizedBox(width: 8), const Expanded(child: Text('Neue Einwilligung (DSGVO)', style: TextStyle(fontSize: 16)))]),
+      content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+              'Doppelte Einwilligung Art. 6 (Stammdaten) + Art. 9 (Gesundheitsdaten). DSK Kurzpapier Nr. 20.',
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+            )),
+          ]),
+        ),
+        const SizedBox(height: 8),
+        Text('Arzt / Einrichtung', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        TextField(controller: _arztName, decoration: const InputDecoration(labelText: 'Name / Bezeichnung')),
+        TextField(controller: _arztStrasse, decoration: const InputDecoration(labelText: 'Straße + Nr.')),
+        Row(children: [
+          Expanded(flex: 1, child: TextField(controller: _arztPlz, decoration: const InputDecoration(labelText: 'PLZ'))),
+          const SizedBox(width: 8),
+          Expanded(flex: 3, child: TextField(controller: _arztOrt, decoration: const InputDecoration(labelText: 'Ort'))),
+        ]),
+        TextField(controller: _arztTel, decoration: const InputDecoration(labelText: 'Telefon')),
+        const SizedBox(height: 12),
+        Text('Speicherdauer (Jahre nach Mitgliedschafts-Ende)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700, fontSize: 12)),
+        Slider(
+          value: _speicherJahre.toDouble(),
+          min: 1, max: 20, divisions: 19,
+          label: '$_speicherJahre Jahre',
+          activeColor: Colors.blue.shade700,
+          onChanged: (v) => setState(() => _speicherJahre = v.round()),
+        ),
+        Text('$_speicherJahre Jahre (Standard 10, analog § 257 HGB / § 147 AO)', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: const Icon(Icons.event, size: 18),
+            title: const Text('Erteilt am', style: TextStyle(fontSize: 11)),
+            subtitle: Text(DateFormat('dd.MM.yyyy').format(_erteilt), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            onTap: () async {
+              final p = await showDatePicker(context: context, initialDate: _erteilt, firstDate: DateTime(2020), lastDate: DateTime(2099));
+              if (p != null) setState(() => _erteilt = p);
+            },
+          )),
+          Expanded(child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: const Icon(Icons.event_busy, size: 18),
+            title: const Text('Gültig bis', style: TextStyle(fontSize: 11)),
+            subtitle: Text(_bis != null ? DateFormat('dd.MM.yyyy').format(_bis!) : 'bis auf Widerruf', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            onTap: () async {
+              final p = await showDatePicker(context: context, initialDate: _bis ?? DateTime.now().add(const Duration(days: 365)), firstDate: DateTime(2020), lastDate: DateTime(2099));
+              if (p != null) setState(() => _bis = p);
+            },
+          )),
+          if (_bis != null) IconButton(icon: const Icon(Icons.clear, size: 18), tooltip: 'Auf "bis auf Widerruf" zurücksetzen', onPressed: () => setState(() => _bis = null)),
+        ]),
+        TextField(controller: _notesC, maxLines: 2, decoration: const InputDecoration(labelText: 'Anmerkungen (optional)')),
+      ]))),
+      actions: [
+        TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        FilledButton(onPressed: _busy ? null : _submit, style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade700),
           child: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Generieren')),
       ],
     );
