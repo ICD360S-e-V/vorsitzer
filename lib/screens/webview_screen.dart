@@ -509,6 +509,33 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  // Safety-net: any empty email/phone field still uncovered. Go2Doc has
+  // <input name="email" placeholder="E-Mail-Adresse"> which SHOULD match our
+  // heuristic — but some skins use class="email" without name/id, and our
+  // generic loop misses it. Force-fill via direct attribute selectors.
+  if ('$email') {
+    var emailEls = document.querySelectorAll(
+      'input[type="email"], input[name="email"], input[name*="mail" i], input[id*="email" i], input[id*="mail" i], input[placeholder*="mail" i], input[placeholder*="Mail" i]'
+    );
+    for (var ei = 0; ei < emailEls.length; ei++) {
+      var ee = emailEls[ei];
+      if (ee.disabled || ee.readOnly || ee.type === 'hidden') continue;
+      if (ee.value && ee.value.trim() !== '') continue;
+      if (setVal(ee, '$email')) { filled++; fillLog.push('email_force'); }
+    }
+  }
+  if ('$telefon') {
+    var telEls = document.querySelectorAll(
+      'input[type="tel"], input[name="mobil"], input[name="telefon"], input[name*="mobil" i], input[name*="phone" i], input[id*="mobil" i], input[id*="phone" i], input[id*="telefon" i]'
+    );
+    for (var ti = 0; ti < telEls.length; ti++) {
+      var te = telEls[ti];
+      if (te.disabled || te.readOnly || te.type === 'hidden') continue;
+      if (te.value && te.value.trim() !== '') continue;
+      if (setVal(te, '$telefon')) { filled++; fillLog.push('telefon_force'); }
+    }
+  }
+
   // Auto-check Datenschutz / Einwilligung checkboxes
   var checkboxes = document.querySelectorAll('input[type="checkbox"]');
   for (var ci = 0; ci < checkboxes.length; ci++) {
