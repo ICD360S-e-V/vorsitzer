@@ -67,6 +67,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   /// (Go2Doc, Doctolib, custom Hausarzt forms — Dr. Lankes etc.). The Linux
   /// path drives the host Chromium via CDP; Win/macOS/mobile use the same
   /// data via WebViewScreen's _tryGo2DocAutoFill.
+  ///
+  /// E-Mail: bewusst die zentrale Vereins-Adresse icd@icd360s.de — Termin-
+  /// Bestaetigungen, Erinnerungen und Aenderungen sollen NICHT direkt an
+  /// das Mitglied gehen (viele haben keine funktionierende E-Mail oder
+  /// pruefen sie nicht regelmaessig). Der Vorsitzer leitet dann weiter
+  /// oder benachrichtigt persoenlich.
   Map<String, String> _buildPatientAutoFill() {
     String tag = '', monat = '', jahr = '';
     final geb = widget.user.geburtsdatum;
@@ -83,7 +89,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       'geb_tag': tag,
       'geb_monat': monat,
       'geb_jahr': jahr,
-      'email': widget.user.email,
+      'email': 'icd@icd360s.de',
       'telefon': widget.user.telefonMobil ?? widget.user.telefonFix ?? '',
       'plz': widget.user.plz ?? '',
       'ort': widget.user.ort ?? '',
