@@ -320,102 +320,199 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final versNr = (d['versichertennummer'] ?? '').toString().replaceAll("'", "\\'");
     final geburtsname = (d['geburtsname'] ?? '').toString().replaceAll("'", "\\'");
 
+    // The script defines window.__icd360sFill (the fill function) and runs it
+    // once. On first call it ALSO installs a MutationObserver so that when
+    // Go2Doc/Doctolib loads the patient form lazily (after user picks a
+    // calendar slot), the same fill runs again — without needing Flutter
+    // retry loops. Auto-disconnects after 5 minutes.
     return '''
 (function() {
+  // setVal: react-controlled-input safe setter + jQuery .val() fallback for
+  // jQuery/Bootstrap forms (Go2Doc uses jQuery 3.3.1). Triggers input, change,
+  // blur — Bootstrap validators listen to blur for "entweder Email/Telefon".
   function setVal(el, val) {
-    if (!el || !val) return false;
-    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    if (setter) setter.call(el, val);
-    else el.value = val;
-    el.dispatchEvent(new Event('input', {bubbles: true}));
+    if (!el || val == null || val === '') return false;
+    val = String(val);
+    try {
+      var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype
+                : el.tagName === 'SELECT'   ? window.HTMLSelectElement.prototype
+                                            : window.HTMLInputElement.prototype;
+      var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+      if (setter) setter.call(el, val); else el.value = val;
+    } catch (e) { el.value = val; }
+    el.dispatchEvent(new Event('input',  {bubbles: true}));
     el.dispatchEvent(new Event('change', {bubbles: true}));
+    el.dispatchEvent(new Event('blur',   {bubbles: true}));
+    if (window.jQuery) {
+      try { window.jQuery(el).val(val).trigger('input').trigger('change').trigger('blur'); } catch(e) {}
+    }
     return true;
   }
   function setSelect(el, val) {
     if (!el || !val) return false;
+    var lv = String(val).toLowerCase();
     for (var i = 0; i < el.options.length; i++) {
-      if (el.options[i].value == val || el.options[i].text.toLowerCase().indexOf(val.toLowerCase()) >= 0) {
+      var ov = String(el.options[i].value).toLowerCase();
+      var ot = String(el.options[i].text).toLowerCase();
+      if (ov === lv || ov === String(val) || ot.indexOf(lv) >= 0) {
         el.selectedIndex = i;
+        el.dispatchEvent(new Event('input',  {bubbles: true}));
         el.dispatchEvent(new Event('change', {bubbles: true}));
+        if (window.jQuery) { try { window.jQuery(el).trigger('change'); } catch(e) {} }
         return true;
       }
     }
     return false;
   }
-
-  var inputs = document.querySelectorAll('input, select, textarea');
-  var filled = 0;
-  for (var el of inputs) {
+  function getCombined(el) {
     var ph = (el.placeholder || '').toLowerCase();
     var nm = (el.name || '').toLowerCase();
     var id = (el.id || '').toLowerCase();
+    var ac = (el.autocomplete || el.getAttribute('autocomplete') || '').toLowerCase();
     var lbl = '';
-    if (el.id) { var l = document.querySelector('label[for="' + el.id + '"]'); if (l) lbl = l.textContent.toLowerCase(); }
+    if (el.id) { var l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l) lbl = l.textContent.toLowerCase(); }
     var aria = (el.getAttribute('aria-label') || '').toLowerCase();
-    var combined = ph + ' ' + nm + ' ' + id + ' ' + lbl + ' ' + aria;
+    var dataField = (el.getAttribute('data-field') || el.getAttribute('data-key') || '').toLowerCase();
+    return ph + ' | ' + nm + ' | ' + id + ' | ' + lbl + ' | ' + aria + ' | ' + ac + ' | ' + dataField;
+  }
 
-    // Geburtsname check MUST run before the generic "geburt" branch — that
-    // one matches geburtsdatum and would steal the value otherwise.
-    if (combined.indexOf('geburtsname') >= 0 || combined.indexOf('birthname') >= 0 || combined.indexOf('maiden') >= 0 || combined.indexOf('geburtsfamilienname') >= 0) {
-      if (setVal(el, '$geburtsname')) filled++;
-    } else if (combined.indexOf('vorname') >= 0 || combined.indexOf('firstname') >= 0 || combined.indexOf('first name') >= 0) {
-      if (setVal(el, '$vorname')) filled++;
-    } else if (combined.indexOf('nachname') >= 0 || combined.indexOf('familienname') >= 0 || combined.indexOf('lastname') >= 0 || combined.indexOf('surname') >= 0 || combined.indexOf('last name') >= 0) {
-      if (setVal(el, '$nachname')) filled++;
-    } else if (combined.indexOf('geburtsdatum') >= 0 || combined.indexOf('birthdate') >= 0 || combined.indexOf('geburt') >= 0 || combined.indexOf('tt.mm') >= 0 || combined.indexOf('date of birth') >= 0) {
-      if ('$gebDatumISO') {
-        if (el.type === 'date') { if (setVal(el, '$gebDatumISO')) filled++; }
-        else { if (setVal(el, '$gebDatumDE') || setVal(el, '$gebDatumSlash') || setVal(el, '$gebDatumISO')) filled++; }
-        try {
-          var ngEl = window.ng && window.ng.getComponent ? window.ng.getComponent(el) : null;
-          if (!ngEl) { var scope = angular && angular.element && angular.element(el).scope(); if (scope) { scope.Birthdate = '$gebDatumDE'; scope.\$apply(); filled++; } }
-        } catch(e2) {}
+  var gebTag   = '$gebTag';
+  var gebMonat = '$gebMonat';
+  var gebJahr  = '$gebJahr';
+  var gebISO   = '$gebDatumISO';
+  var gebDE    = '$gebDatumDE';
+  var gebUS    = '$gebDatumSlash';
+
+  function runFill() {
+  var inputs = document.querySelectorAll('input, select, textarea');
+  var filled = 0;
+  var fillLog = [];
+  var dateInputs = [];
+
+  for (var i = 0; i < inputs.length; i++) {
+    var el = inputs[i];
+    if (el.disabled || el.readOnly || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
+    var combined = getCombined(el);
+
+    // Geburtsname BEFORE generic geburt (otherwise birthdate steals it)
+    if (combined.indexOf('geburtsname') >= 0 || combined.indexOf('birthname') >= 0 || combined.indexOf('maiden') >= 0) {
+      if (setVal(el, '$geburtsname')) { filled++; fillLog.push('geburtsname'); }
+    }
+    // ── Split-date fields: bday-day, bday-month, bday-year (HTML5 autocomplete)
+    //    or name/id containing tag/monat/jahr/day/month/year + Geburts label
+    else if ((combined.indexOf('bday-day') >= 0 || (combined.indexOf('geburt') >= 0 && (combined.indexOf('tag') >= 0 || combined.indexOf('day') >= 0))) && gebTag) {
+      if (el.tagName === 'SELECT' ? setSelect(el, String(parseInt(gebTag, 10))) || setSelect(el, gebTag.padStart(2,'0')) : setVal(el, gebTag.padStart(2, '0')))
+        { filled++; fillLog.push('geb_tag'); dateInputs.push(el); }
+    }
+    else if ((combined.indexOf('bday-month') >= 0 || (combined.indexOf('geburt') >= 0 && (combined.indexOf('monat') >= 0 || combined.indexOf('month') >= 0))) && gebMonat) {
+      if (el.tagName === 'SELECT' ? setSelect(el, String(parseInt(gebMonat, 10))) || setSelect(el, gebMonat.padStart(2,'0')) : setVal(el, gebMonat.padStart(2, '0')))
+        { filled++; fillLog.push('geb_monat'); dateInputs.push(el); }
+    }
+    else if ((combined.indexOf('bday-year') >= 0 || (combined.indexOf('geburt') >= 0 && (combined.indexOf('jahr') >= 0 || combined.indexOf('year') >= 0))) && gebJahr) {
+      if (el.tagName === 'SELECT' ? setSelect(el, gebJahr) : setVal(el, gebJahr))
+        { filled++; fillLog.push('geb_jahr'); dateInputs.push(el); }
+    }
+    // Single Geburtsdatum field
+    else if (combined.indexOf('geburtsdatum') >= 0 || combined.indexOf('birthdate') >= 0 || combined.indexOf('date of birth') >= 0 || combined.indexOf('tt.mm') >= 0 || (combined.indexOf('geburt') >= 0 && combined.indexOf('name') < 0)) {
+      if (gebISO) {
+        var ok = false;
+        if (el.type === 'date') ok = setVal(el, gebISO);
+        else ok = setVal(el, gebDE) || setVal(el, gebUS) || setVal(el, gebISO);
+        if (ok) { filled++; fillLog.push('geb_single'); }
       }
-    } else if (combined.indexOf('e-mail') >= 0 || combined.indexOf('email') >= 0 || el.type === 'email') {
-      if (setVal(el, '$email')) filled++;
-    } else if (combined.indexOf('telefon') >= 0 || combined.indexOf('telephone') >= 0 || combined.indexOf('phone') >= 0 || combined.indexOf('mobil') >= 0 || el.type === 'tel') {
-      if (setVal(el, '$telefon')) filled++;
-    } else if (combined.indexOf('plz') >= 0 || combined.indexOf('postleitzahl') >= 0 || combined.indexOf('zip') >= 0 || combined.indexOf('postal') >= 0) {
-      if (setVal(el, '$plz')) filled++;
-    } else if (combined.indexOf('ort') >= 0 && combined.indexOf('geburt') < 0) {
-      if (setVal(el, '$ort')) filled++;
-    } else if (combined.indexOf('straße') >= 0 || combined.indexOf('strasse') >= 0 || combined.indexOf('street') >= 0) {
-      if (setVal(el, '$strasse')) filled++;
-    } else if (combined.indexOf('versichertennummer') >= 0 || combined.indexOf('versicherungsnummer') >= 0 || combined.indexOf('kvnr') >= 0 || combined.indexOf('insurance number') >= 0) {
-      if (setVal(el, '$versNr')) filled++;
-    } else if (el.tagName === 'SELECT' && (combined.indexOf('versicher') >= 0 || combined.indexOf('kranken') >= 0 || combined.indexOf('kassenart') >= 0)) {
-      if (setSelect(el, '$versicherung')) filled++;
+    }
+    else if (combined.indexOf('vorname') >= 0 || combined.indexOf('firstname') >= 0 || combined.indexOf('first name') >= 0 || combined.indexOf('given-name') >= 0) {
+      if (setVal(el, '$vorname')) { filled++; fillLog.push('vorname'); }
+    }
+    else if (combined.indexOf('nachname') >= 0 || combined.indexOf('familienname') >= 0 || combined.indexOf('lastname') >= 0 || combined.indexOf('surname') >= 0 || combined.indexOf('last name') >= 0 || combined.indexOf('family-name') >= 0) {
+      if (setVal(el, '$nachname')) { filled++; fillLog.push('nachname'); }
+    }
+    else if (combined.indexOf('e-mail') >= 0 || combined.indexOf('email') >= 0 || el.type === 'email') {
+      if (setVal(el, '$email')) { filled++; fillLog.push('email'); }
+    }
+    else if (combined.indexOf('telefon') >= 0 || combined.indexOf('telephone') >= 0 || combined.indexOf('phone') >= 0 || combined.indexOf('mobil') >= 0 || el.type === 'tel') {
+      if (setVal(el, '$telefon')) { filled++; fillLog.push('telefon'); }
+    }
+    else if (combined.indexOf('plz') >= 0 || combined.indexOf('postleitzahl') >= 0 || combined.indexOf('zip') >= 0 || combined.indexOf('postal') >= 0) {
+      if (setVal(el, '$plz')) { filled++; fillLog.push('plz'); }
+    }
+    else if (combined.indexOf('straße') >= 0 || combined.indexOf('strasse') >= 0 || combined.indexOf('street') >= 0) {
+      if (setVal(el, '$strasse')) { filled++; fillLog.push('strasse'); }
+    }
+    else if ((combined.indexOf('ort') >= 0 || combined.indexOf('stadt') >= 0 || combined.indexOf('city') >= 0) && combined.indexOf('geburt') < 0) {
+      if (setVal(el, '$ort')) { filled++; fillLog.push('ort'); }
+    }
+    else if (combined.indexOf('versichertennummer') >= 0 || combined.indexOf('versicherungsnummer') >= 0 || combined.indexOf('kvnr') >= 0) {
+      if (setVal(el, '$versNr')) { filled++; fillLog.push('versNr'); }
+    }
+    else if (el.tagName === 'SELECT' && (combined.indexOf('versicher') >= 0 || combined.indexOf('kranken') >= 0 || combined.indexOf('kassenart') >= 0)) {
+      if (setSelect(el, '$versicherung')) { filled++; fillLog.push('versicherung'); }
     }
   }
 
-  // Fallback: find Geburtsdatum via label scan (Angular SPA / custom layouts)
-  if ('$gebDatumDE') {
-    var labels = document.querySelectorAll('label');
-    for (var lb of labels) {
-      if (lb.textContent.trim().toLowerCase().indexOf('geburtsdatum') >= 0) {
-        var container = lb.closest('.form-group') || lb.closest('div') || lb.parentElement;
-        if (container) {
-          var inp = container.querySelector('input');
-          if (inp && !inp.value) {
-            var dateVal = inp.type === 'date' ? '$gebDatumISO' : '$gebDatumDE';
-            if (setVal(inp, dateVal)) filled++;
-          }
-        }
+  // Fallback: 3 sequential inputs/selects under a "Geburtsdatum" label without
+  // distinct names — Go2Doc/Bootstrap pattern. Heuristic: first label whose
+  // text contains 'geburtsdatum', then first 3 INPUT/SELECT descendants.
+  if (gebISO && fillLog.indexOf('geb_tag') < 0 && fillLog.indexOf('geb_single') < 0) {
+    var labels = document.querySelectorAll('label, legend, div, span');
+    for (var li = 0; li < labels.length; li++) {
+      var lb = labels[li];
+      if (lb.textContent.trim().toLowerCase().indexOf('geburtsdatum') < 0) continue;
+      var container = lb.closest('.form-group') || lb.closest('fieldset') || lb.parentElement;
+      if (!container) continue;
+      var fields = container.querySelectorAll('input:not([type=hidden]), select');
+      if (fields.length === 1) {
+        var inp = fields[0];
+        var v = inp.type === 'date' ? gebISO : gebDE;
+        if (setVal(inp, v) || setVal(inp, gebUS) || setVal(inp, gebISO)) { filled++; fillLog.push('geb_label_single'); }
+        break;
+      } else if (fields.length === 3) {
+        // Order: tag, monat, jahr (German UI convention)
+        var f0 = fields[0], f1 = fields[1], f2 = fields[2];
+        var ok0 = f0.tagName === 'SELECT' ? setSelect(f0, String(parseInt(gebTag,10))) || setSelect(f0, gebTag) : setVal(f0, gebTag.padStart(2,'0'));
+        var ok1 = f1.tagName === 'SELECT' ? setSelect(f1, String(parseInt(gebMonat,10))) || setSelect(f1, gebMonat) : setVal(f1, gebMonat.padStart(2,'0'));
+        var ok2 = f2.tagName === 'SELECT' ? setSelect(f2, gebJahr) : setVal(f2, gebJahr);
+        if (ok0 && ok1 && ok2) { filled += 3; fillLog.push('geb_label_split'); }
+        break;
       }
     }
   }
 
-  // Auto-check consent checkboxes
+  // Auto-check Datenschutz / Einwilligung checkboxes
   var checkboxes = document.querySelectorAll('input[type="checkbox"]');
-  for (var cb of checkboxes) {
+  for (var ci = 0; ci < checkboxes.length; ci++) {
+    var cb = checkboxes[ci];
     var parent = cb.closest('label') || cb.parentElement;
     var txt = parent ? parent.textContent.toLowerCase() : '';
-    if (txt.indexOf('willige ein') >= 0 || txt.indexOf('einwillig') >= 0 || txt.indexOf('datenschutz') >= 0 || txt.indexOf('akzeptier') >= 0) {
-      if (!cb.checked) { cb.click(); filled++; }
+    if (txt.indexOf('willige ein') >= 0 || txt.indexOf('einwillig') >= 0 || txt.indexOf('datenschutz') >= 0 || txt.indexOf('akzeptier') >= 0 || txt.indexOf('agb') >= 0) {
+      if (!cb.checked) { cb.click(); filled++; fillLog.push('consent'); }
     }
   }
 
+  try { console.log('[ICD360S autofill] filled=' + filled + ' fields=' + JSON.stringify(fillLog)); } catch(e) {}
   return filled;
+  }  // end runFill
+
+  // Run once now.
+  var initial = runFill();
+
+  // Install MutationObserver only once per page (Go2Doc renders the
+  // patient form AFTER the user picks a time slot — purely DOM-driven).
+  if (!window.__icd360sObs) {
+    var lastRun = 0;
+    var stopAt  = (new Date().getTime()) + 300000; // 5 min window
+    var obs = new MutationObserver(function() {
+      var now = new Date().getTime();
+      if (now > stopAt) { obs.disconnect(); window.__icd360sObs = null; return; }
+      if (now - lastRun < 400) return; // throttle 400ms
+      lastRun = now;
+      runFill();
+    });
+    obs.observe(document.body, {childList: true, subtree: true, attributes: false});
+    window.__icd360sObs = obs;
+  }
+
+  return initial;
 })();
 ''';
   }
