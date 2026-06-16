@@ -351,9 +351,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   function actuallyRun() {
 
-  // setVal: react-controlled-input safe setter + jQuery .val() fallback for
-  // jQuery/Bootstrap forms (Go2Doc uses jQuery 3.3.1). Triggers input, change,
-  // blur — Bootstrap validators listen to blur for "entweder Email/Telefon".
+  // setVal: works across React (native-value-setter), Angular (Reactive Forms
+  // ngModel via input event), Vue (v-model via input event), and jQuery /
+  // Bootstrap forms. Dispatches input/change/blur for HTML5 + jQuery for legacy.
   function setVal(el, val) {
     if (!el || val == null || val === '') return false;
     val = String(val);
@@ -364,12 +364,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
       var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
       if (setter) setter.call(el, val); else el.value = val;
     } catch (e) { el.value = val; }
-    el.dispatchEvent(new Event('input',  {bubbles: true}));
-    el.dispatchEvent(new Event('change', {bubbles: true}));
-    el.dispatchEvent(new Event('blur',   {bubbles: true}));
+    // Focus first — many Angular validators only kick in after the field
+    // has been touched (touched=true). Without this, "Pflichtfeld" warnings
+    // remain even with value set.
+    try { el.focus(); } catch(e) {}
+    el.dispatchEvent(new Event('input',     {bubbles: true}));
+    el.dispatchEvent(new Event('change',    {bubbles: true}));
+    el.dispatchEvent(new Event('keyup',     {bubbles: true, cancelable: true}));
+    el.dispatchEvent(new Event('keydown',   {bubbles: true, cancelable: true}));
+    el.dispatchEvent(new Event('blur',      {bubbles: true}));
+    el.dispatchEvent(new Event('focusout',  {bubbles: true}));
     if (window.jQuery) {
       try { window.jQuery(el).val(val).trigger('input').trigger('change').trigger('blur'); } catch(e) {}
     }
+    // Angular Zone.js: if available, run inside the zone so change detection fires
+    try { if (window.ng && window.ng.applyChanges) window.ng.applyChanges(el); } catch(e) {}
     return true;
   }
   function setSelect(el, val) {
@@ -538,10 +547,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
   // Praxis-Konfigurationen <input placeholder="entweder E-Mail oder Telefon">
   // — wir matchen alle plausiblen E-Mail-Marker via Attribut-Selektoren.
   if ('$email') {
+    // Go2Doc Angular-Skin verwendet id='contact' fuer das Single-Field
+    // 'Entweder E-Mail oder Telefon' (plus _ngcontent-* Component-Scope-Attr).
+    // Klassik-Skin verwendet name='email'. Beide abdecken.
     // Case-insensitive Attribut-Selektor (i-Flag) ist erst Chrome 91+ stabil
-    // — wir geben sicherheitshalber sowohl 'Entweder' (gross-E) als auch
-    // 'entweder' (klein) als separate Selektoren mit.
+    // — wir geben sicherheitshalber sowohl gross- als auch kleinschreibung mit.
     var emailEls = document.querySelectorAll(
+      'input#contact, input[name="contact"], input[id*="contact" i], input[name*="contact" i], ' +
       'input[type="email"], input[name="email"], input[name*="mail" i], ' +
       'input[id*="email" i], input[id*="mail" i], ' +
       'input[placeholder*="mail" i], input[placeholder*="Mail"], ' +
