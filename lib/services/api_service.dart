@@ -3843,16 +3843,31 @@ class ApiService {
     final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_list.php'), headers: _headers, body: jsonEncode({'user_id': userId})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
-  Future<Map<String, dynamic>> getBewerbung(int userId, int arbeitgeberId) async {
-    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_get.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'arbeitgeber_id': arbeitgeberId})).timeout(const Duration(seconds: 15));
+  /// Holt eine Bewerbung. Bevorzugt bewerbungId (eindeutig pro Stelle);
+  /// arbeitgeberId nur als Legacy-Fallback (laedt die erste Bewerbung
+  /// dieser Firma — bei mehreren Stellen am gleichen Arbeitgeber muss
+  /// bewerbungId verwendet werden).
+  Future<Map<String, dynamic>> getBewerbung(int userId, {int? bewerbungId, int? arbeitgeberId}) async {
+    final body = <String, dynamic>{'user_id': userId};
+    if (bewerbungId != null) body['bewerbung_id'] = bewerbungId;
+    if (arbeitgeberId != null) body['arbeitgeber_id'] = arbeitgeberId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_get.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
-  Future<Map<String, dynamic>> saveBewerbung(int userId, int arbeitgeberId, Map<String, dynamic> data) async {
-    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_save.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'arbeitgeber_id': arbeitgeberId, 'data': data})).timeout(const Duration(seconds: 15));
+
+  Future<Map<String, dynamic>> saveBewerbung(int userId, Map<String, dynamic> data, {int? bewerbungId, int? arbeitgeberId}) async {
+    final body = <String, dynamic>{'user_id': userId, 'data': data};
+    if (bewerbungId != null) body['bewerbung_id'] = bewerbungId;
+    if (arbeitgeberId != null) body['arbeitgeber_id'] = arbeitgeberId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_save.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
-  Future<Map<String, dynamic>> deleteBewerbung(int userId, int arbeitgeberId) async {
-    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_delete.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'arbeitgeber_id': arbeitgeberId})).timeout(const Duration(seconds: 15));
+
+  Future<Map<String, dynamic>> deleteBewerbung(int userId, {int? bewerbungId, int? arbeitgeberId}) async {
+    final body = <String, dynamic>{'user_id': userId};
+    if (bewerbungId != null) body['bewerbung_id'] = bewerbungId;
+    if (arbeitgeberId != null) body['arbeitgeber_id'] = arbeitgeberId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/bewerbung_delete.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 

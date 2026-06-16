@@ -157,12 +157,12 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                           onTap: alreadyAdded ? null : () async {
                             Navigator.pop(ctx);
                             final aid = int.tryParse(s['id'].toString()) ?? 0;
-                            await widget.apiService.saveBewerbung(widget.userId, aid, {
+                            await widget.apiService.saveBewerbung(widget.userId, {
                               'status_journal': <Map<String, dynamic>>[],
                               'korrespondenz': <Map<String, dynamic>>[],
                               'general_notes': '',
                               'created_at': DateTime.now().toIso8601String(),
-                            });
+                            }, arbeitgeberId: aid);
                             await _load();
                           },
                         ),
@@ -176,12 +176,17 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
     );
   }
 
-  Future<void> _deleteBewerbung(int arbeitgeberId, String firmaName) async {
+  Future<void> _deleteBewerbung(int bewerbungId, String firmaName, String baTitel) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Bewerbung löschen?', style: TextStyle(fontSize: 15)),
-        content: Text('Bewerbung bei "$firmaName" inkl. aller Korrespondenz wirklich löschen?', style: const TextStyle(fontSize: 13)),
+        content: Text(
+          baTitel.isNotEmpty
+              ? 'Bewerbung "$baTitel" bei "$firmaName" inkl. aller Korrespondenz wirklich löschen?'
+              : 'Bewerbung bei "$firmaName" inkl. aller Korrespondenz wirklich löschen?',
+          style: const TextStyle(fontSize: 13),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(
@@ -193,7 +198,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       ),
     );
     if (confirm != true) return;
-    await widget.apiService.deleteBewerbung(widget.userId, arbeitgeberId);
+    await widget.apiService.deleteBewerbung(widget.userId, bewerbungId: bewerbungId);
     await _load();
   }
 
@@ -261,11 +266,13 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                   final korrCount = b['korr_count'] is int ? b['korr_count'] as int : 0;
                   final latest = b['latest_status'] is Map ? Map<String, dynamic>.from(b['latest_status'] as Map) : null;
                   final aid = b['arbeitgeber_id'] is int ? b['arbeitgeber_id'] as int : int.tryParse(b['arbeitgeber_id'].toString()) ?? 0;
+                  final bid = b['id'] is int ? b['id'] as int : int.tryParse(b['id'].toString()) ?? 0;
+                  final baTitel = b['ba_titel']?.toString() ?? '';
 
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: InkWell(
-                      onTap: () => _openDetailModal(aid, firmaName),
+                      onTap: () => _openDetailModal(bid, aid, firmaName),
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
@@ -351,7 +358,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                           IconButton(
                             icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
                             tooltip: 'Bewerbung löschen',
-                            onPressed: () => _deleteBewerbung(aid, firmaName),
+                            onPressed: () => _deleteBewerbung(bid, firmaName, baTitel),
                           ),
                           Icon(Icons.chevron_right, color: Colors.grey.shade400),
                         ]),
@@ -390,10 +397,16 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //   DETAIL MODAL mit 3 Tabs (Details / Status / Korrespondenz)
+  //   DETAIL MODAL mit Tabs (Details / Status / Korrespondenz / ...)
+  //   Identifikation per bewerbungId — eine Firma kann jetzt mehrere
+  //   parallele Bewerbungen haben (verschiedene Stellen).
   // ═══════════════════════════════════════════════════════════════
-  Future<void> _openDetailModal(int arbeitgeberId, String firmaName) async {
-    final res = await widget.apiService.getBewerbung(widget.userId, arbeitgeberId);
+  Future<void> _openDetailModal(int bewerbungId, int arbeitgeberId, String firmaName) async {
+    final res = await widget.apiService.getBewerbung(
+      widget.userId,
+      bewerbungId: bewerbungId > 0 ? bewerbungId : null,
+      arbeitgeberId: bewerbungId > 0 ? null : arbeitgeberId,
+    );
     if (!mounted) return;
     if (res['success'] != true) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fehler beim Laden'), backgroundColor: Colors.red));
@@ -402,6 +415,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
     // PHP jsonResponse uses array_merge — fields are at ROOT level, not nested under 'data'
     final arbeitgeber = res['arbeitgeber'] is Map ? Map<String, dynamic>.from(res['arbeitgeber'] as Map) : <String, dynamic>{};
     final inner = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : <String, dynamic>{};
+    final actualBewerbungId = res['bewerbung_id'] is int ? res['bewerbung_id'] as int : int.tryParse(res['bewerbung_id']?.toString() ?? '') ?? bewerbungId;
     final baRefnr = (res['ba_refnr'] ?? '').toString();
     final baTitel = (res['ba_titel'] ?? '').toString();
     final baBeruf = (res['ba_beruf'] ?? '').toString();
@@ -417,11 +431,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
     String generalNotes = inner['general_notes']?.toString() ?? '';
 
     Future<void> persist() async {
-      await widget.apiService.saveBewerbung(widget.userId, arbeitgeberId, {
+      await widget.apiService.saveBewerbung(widget.userId, {
         'status_journal': statusJournal,
         'korrespondenz': korrespondenz,
         'general_notes': generalNotes,
-      });
+      }, bewerbungId: actualBewerbungId);
     }
 
     if (!mounted) return;
@@ -438,7 +452,10 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               Row(children: [
                 Icon(Icons.business_center, color: Colors.deepPurple.shade700, size: 22),
                 const SizedBox(width: 8),
-                Expanded(child: Text(firmaName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(firmaName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                  if (baTitel.isNotEmpty) Text(baTitel, style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                ])),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade300)),
