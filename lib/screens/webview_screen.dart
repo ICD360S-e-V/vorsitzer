@@ -510,18 +510,44 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   // Safety-net: any empty email/phone field still uncovered. Go2Doc has
-  // <input name="email" placeholder="E-Mail-Adresse"> which SHOULD match our
-  // heuristic — but some skins use class="email" without name/id, and our
-  // generic loop misses it. Force-fill via direct attribute selectors.
+  // <input name="email" placeholder="E-Mail-Adresse"> oder bei manchen
+  // Praxis-Konfigurationen <input placeholder="entweder E-Mail oder Telefon">
+  // — wir matchen alle plausiblen E-Mail-Marker via Attribut-Selektoren.
   if ('$email') {
+    // Case-insensitive Attribut-Selektor (i-Flag) ist erst Chrome 91+ stabil
+    // — wir geben sicherheitshalber sowohl 'Entweder' (gross-E) als auch
+    // 'entweder' (klein) als separate Selektoren mit.
     var emailEls = document.querySelectorAll(
-      'input[type="email"], input[name="email"], input[name*="mail" i], input[id*="email" i], input[id*="mail" i], input[placeholder*="mail" i], input[placeholder*="Mail" i]'
+      'input[type="email"], input[name="email"], input[name*="mail" i], ' +
+      'input[id*="email" i], input[id*="mail" i], ' +
+      'input[placeholder*="mail" i], input[placeholder*="Mail"], ' +
+      'input[placeholder*="entweder" i], input[placeholder*="Entweder"], ' +
+      'input[aria-label*="Entweder"], input[aria-label*="entweder" i]'
     );
     for (var ei = 0; ei < emailEls.length; ei++) {
       var ee = emailEls[ei];
       if (ee.disabled || ee.readOnly || ee.type === 'hidden') continue;
       if (ee.value && ee.value.trim() !== '') continue;
       if (setVal(ee, '$email')) { filled++; fillLog.push('email_force'); }
+    }
+    // Fallback: scan labels containing "entweder e-mail" / "e-mail oder
+    // telefon" — for Praxis-Skins ohne placeholder/name-Hinweis.
+    var allLabels = document.querySelectorAll('label, legend, span, div, small');
+    for (var lli = 0; lli < allLabels.length; lli++) {
+      var llb = allLabels[lli];
+      var ltxt = (llb.textContent || '').toLowerCase();
+      if (ltxt.indexOf('entweder') < 0 && ltxt.indexOf('e-mail oder') < 0 && ltxt.indexOf('email oder') < 0) continue;
+      // Find associated input — either via for=, or first input inside container
+      var inp = null;
+      var forAttr = llb.getAttribute('for');
+      if (forAttr) { try { inp = document.querySelector('#' + CSS.escape(forAttr)); } catch(e) {} }
+      if (!inp) {
+        var cont = llb.closest('.form-group') || llb.parentElement;
+        if (cont) inp = cont.querySelector('input:not([type=hidden]):not([type=submit]):not([type=checkbox])');
+      }
+      if (inp && (!inp.value || inp.value.trim() === '')) {
+        if (setVal(inp, '$email')) { filled++; fillLog.push('email_label_entweder'); }
+      }
     }
   }
   if ('$telefon') {
