@@ -46,6 +46,35 @@ class GesundheitTabContent extends StatefulWidget {
 }
 
 class _GesundheitTabContentState extends State<GesundheitTabContent> {
+  // Frische users-Row (vorname/nachname/geburtsdatum/...) — wird einmalig in
+  // initState geladen, weil widget.user beim Oeffnen des Mitglieder-Dialogs
+  // gecached und teils unvollstaendig sein kann. Wir brauchen die kanonische
+  // DB-Version (Verifizierung Stufe 1 = vom Vorsitzer am Ausweis abgeglichen)
+  // damit Arzt-Portal-Auto-Fill die richtigen Daten injiziert.
+  Map<String, dynamic>? _freshUserData;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFreshUserData();
+  }
+
+  Future<void> _loadFreshUserData() async {
+    try {
+      final r = await widget.apiService.getUserDetails(widget.user.id);
+      if (!mounted) return;
+      if (r['success'] == true && r['user'] is Map) {
+        setState(() => _freshUserData = Map<String, dynamic>.from(r['user'] as Map));
+      }
+    } catch (_) {/* ignore — fallback auf widget.user */}
+  }
+
+  String _userField(String key, String fallback) {
+    final v = _freshUserData?[key];
+    if (v != null && v.toString().isNotEmpty) return v.toString();
+    return fallback;
+  }
+
   // ============= PHYSIOTHERAPIE PRAXIS DATENBANK =============
   static const List<Map<String, String>> _physioPraxenDB = [
     {
@@ -74,28 +103,47 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   /// pruefen sie nicht regelmaessig). Der Vorsitzer leitet dann weiter
   /// oder benachrichtigt persoenlich.
   Map<String, String> _buildPatientAutoFill() {
+    // Bevorzugt _freshUserData (frisch aus user_details.php geladen), Fallback
+    // auf widget.user (sync-verfuegbar). Wenn beide leer sind → Mitglied hat
+    // keine Stammdaten in der Verifizierung Stufe 1.
+    final vorname  = _userField('vorname',  widget.user.vorname  ?? '');
+    final vorname2 = _userField('vorname2', widget.user.vorname2 ?? '');
+    final nachname = _userField('nachname', widget.user.nachname ?? '');
+    final geb      = _userField('geburtsdatum', widget.user.geburtsdatum ?? '');
+    final email    = _userField('email',    widget.user.email);
+    final telMobil = _userField('telefon_mobil', widget.user.telefonMobil ?? '');
+    final telFix   = _userField('telefon_fix',   widget.user.telefonFix   ?? '');
+    final plz      = _userField('plz',      widget.user.plz      ?? '');
+    final ort      = _userField('ort',      widget.user.ort      ?? '');
+    final strasse  = _userField('strasse',  widget.user.strasse  ?? '');
+    final hausnr   = _userField('hausnummer', widget.user.hausnummer ?? '');
+
     String tag = '', monat = '', jahr = '';
-    final geb = widget.user.geburtsdatum;
-    if (geb != null && geb.isNotEmpty) {
-      final parts = geb.toString().split(RegExp(r'[-./]'));
-      if (parts.length == 3) {
-        if (parts[0].length == 4) { jahr = parts[0]; monat = parts[1]; tag = parts[2]; }
+    if (geb.isNotEmpty) {
+      final parts = geb.split(RegExp(r'[-./T ]'));
+      if (parts.length >= 3) {
+        if (parts[0].length == 4) { jahr = parts[0]; monat = parts[1]; tag = parts[2].substring(0, parts[2].length > 2 ? 2 : parts[2].length); }
         else { tag = parts[0]; monat = parts[1]; jahr = parts[2]; }
       }
     }
-    return {
-      'vorname': widget.user.vorname ?? '',
-      'nachname': widget.user.nachname ?? '',
+    // Vollnamen aus vorname + vorname2 zusammenbauen (Beata Maria etc.)
+    final fullVorname = [vorname, vorname2].where((s) => s.isNotEmpty).join(' ');
+
+    final result = {
+      'vorname': fullVorname,
+      'nachname': nachname,
       'geb_tag': tag,
       'geb_monat': monat,
       'geb_jahr': jahr,
       'email': 'icd@icd360s.de',
-      'telefon': widget.user.telefonMobil ?? widget.user.telefonFix ?? '',
-      'plz': widget.user.plz ?? '',
-      'ort': widget.user.ort ?? '',
-      'strasse': [widget.user.strasse ?? '', widget.user.hausnummer ?? ''].where((s) => s.isNotEmpty).join(' '),
+      'telefon': telMobil.isNotEmpty ? telMobil : telFix,
+      'plz': plz,
+      'ort': ort,
+      'strasse': [strasse, hausnr].where((s) => s.isNotEmpty).join(' '),
       'versicherung': 'gesetzlich',
     };
+    debugPrint('[Go2Doc auto-fill] $result  (email_user=$email)');
+    return result;
   }
 
   int _berechneAlter() {

@@ -389,6 +389,30 @@ class _WebViewScreenState extends State<WebViewScreen> {
   var fillLog = [];
   var dateInputs = [];
 
+  // DEBUG: dump every visible form field with its combined match-string so we
+  // can see in DevTools why a match did not fire on Go2Doc/Doctolib forms.
+  // Only logs once per page (after that, dom changes still trigger fill but
+  // no spam).
+  if (!window.__icd360sDumped && inputs.length > 0) {
+    window.__icd360sDumped = true;
+    var dump = [];
+    for (var di = 0; di < inputs.length; di++) {
+      var de = inputs[di];
+      if (de.type === 'hidden' || de.type === 'submit' || de.type === 'button') continue;
+      dump.push({
+        tag: de.tagName,
+        type: de.type || '',
+        name: de.name || '',
+        id: de.id || '',
+        ph: de.placeholder || '',
+        lbl: (function() { try { var l = de.id ? document.querySelector('label[for="' + CSS.escape(de.id) + '"]') : null; return l ? l.textContent.trim() : ''; } catch(e) { return ''; } })(),
+        aria: de.getAttribute('aria-label') || '',
+        ac: de.autocomplete || de.getAttribute('autocomplete') || '',
+      });
+    }
+    try { console.log('[ICD360S dump]', JSON.stringify(dump, null, 2)); } catch(e) {}
+  }
+
   for (var i = 0; i < inputs.length; i++) {
     var el = inputs[i];
     if (el.disabled || el.readOnly || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
