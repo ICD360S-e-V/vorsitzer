@@ -14868,6 +14868,8 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
 
     final arzt = <String, String>{
       'name': aName, 'strasse': aStr, 'plz': aPlz, 'ort': aOrt, 'telefon': aTel,
+      // ID din aerzte_datenbank — server-ul face lookup canonical pe acest ID
+      'id': (selArzt['id'] ?? '').toString(),
     };
     if (arzt['name']!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erst Arzt im Tab "Arzt" auswählen oder unter "Behandelnder Arzt" eintragen'), backgroundColor: Colors.orange));
@@ -15072,9 +15074,11 @@ class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerate
       return;
     }
     setState(() => _saving = true);
+    final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
     final res = await widget.apiService.createSchweigepflicht({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
+      if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
       'arzt': {
         'name': _nameC.text.trim(),
         'strasse': _strC.text.trim(),
@@ -16313,6 +16317,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
   Future<void> _generateDialog() async {
     final selectedArzt = (widget.arztData['selected_arzt'] as Map?) ?? {};
     final prefilled = <String, String>{
+      'id': (selectedArzt['id'] ?? '').toString(),
       'name': selectedArzt['praxis_name']?.toString() ?? selectedArzt['arzt_name']?.toString() ?? widget.arztTitle,
       'strasse': selectedArzt['strasse']?.toString() ?? '',
       'plz': selectedArzt['plz']?.toString() ?? '',
@@ -16481,9 +16486,11 @@ class _VollmachtArztGenerateDialogState extends State<_VollmachtArztGenerateDial
   Future<void> _submit() async {
     if (_busy) return;
     setState(() => _busy = true);
+    final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
     final r = await widget.apiService.createArztVollmacht({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
+      if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
       'arzt': {
         'name': _arztName.text.trim(),
         'strasse': _arztStrasse.text.trim(),
@@ -16604,6 +16611,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
   Future<void> _generateDialog() async {
     final selectedArzt = (widget.arztData['selected_arzt'] as Map?) ?? {};
     final prefilled = <String, String>{
+      'id': (selectedArzt['id'] ?? '').toString(),
       'name': selectedArzt['praxis_name']?.toString() ?? selectedArzt['arzt_name']?.toString() ?? widget.arztTitle,
       'strasse': selectedArzt['strasse']?.toString() ?? '',
       'plz': selectedArzt['plz']?.toString() ?? '',
@@ -16747,9 +16755,11 @@ class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenera
   Future<void> _submit() async {
     if (_busy) return;
     setState(() => _busy = true);
+    final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
     final r = await widget.apiService.createArztEinwilligung({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
+      if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
       'arzt': {
         'name': _arztName.text.trim(),
         'strasse': _arztStrasse.text.trim(),
