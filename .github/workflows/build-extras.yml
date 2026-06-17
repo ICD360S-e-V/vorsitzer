@@ -1,0 +1,745 @@
+name: Build & Release (extras)
+
+# ───────────────────────────────────────────────────────────────
+# EXTRAS WORKFLOW — Android + Windows + macOS + iOS (slow runners)
+#
+# Runs in parallel with build.yml (priority). The priority workflow
+# is what creates the GitHub Release and uploads Linux + Flatpak
+# assets. This workflow waits for that Release to exist on tag push,
+# then appends Android / Windows / macOS / iOS assets to it via
+# `gh release upload --clobber`.
+#
+# Why this split: GitHub's UI gates the artifact Download button on
+# the WHOLE workflow run finishing. Keeping macOS / Windows runners
+# inside the priority workflow used to delay the Download button on
+# Linux + Flatpak artifacts by 20+ minutes. Now priority artifacts
+# are downloadable as soon as the priority workflow itself finishes.
+# ───────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      flutter_version:
+        description: 'Flutter version'
+        required: false
+        default: '3.38.4'
+      build_number:
+        description: 'Build number override (leave empty for auto)'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*'
+
+env:
+  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.38.4' }}
+  JAVA_VERSION: '17'
+  APP_NAME: vorsitzer
+
+permissions:
+  contents: read
+
+# Independent concurrency group from the priority workflow — extras
+# can queue / run separately without blocking or being blocked.
+concurrency:
+  group: release-extras-${{ github.ref }}
+  cancel-in-progress: false
+
+# ============================================================
+# SECRETS REQUIRED (in addition to the priority workflow's set):
+# ============================================================
+# Android signing:
+#   KEYSTORE_BASE64        - Base64-encoded .jks keystore
+#   KEYSTORE_PASSWORD      - Keystore password
+#   KEY_ALIAS              - Key alias name
+#   KEY_PASSWORD           - Key password
+#
+# Apple signing (iOS + macOS):
+#   APPLE_CERTIFICATE_BASE64    - Base64 .p12 distribution cert
+#   APPLE_CERTIFICATE_PASSWORD  - Certificate password
+#   APPLE_PROVISIONING_PROFILE  - Base64 provisioning profile (iOS)
+#   MACOS_CERTIFICATE_BASE64    - Base64 .p12 Developer ID cert
+#   MACOS_CERTIFICATE_PASSWORD  - Certificate password
+#   MACOS_PROVISIONING_PROFILE  - Base64 provisioning profile (macOS)
+# ============================================================
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Determine version info (duplicated from priority workflow
+  # because cross-workflow `needs:` is not a GH Actions feature)
+  # ──────────────────────────────────────────────
+  version:
+    name: "📋 Version Info"
+    runs-on: ubuntu-latest
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      build_number: ${{ steps.version.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Extract version from pubspec.yaml
+        id: version
+        run: |
+          VERSION_LINE=$(grep '^version:' pubspec.yaml)
+          VERSION_NAME=$(echo "$VERSION_LINE" | sed 's/version: //' | cut -d'+' -f1)
+          BUILD_NUMBER_DEFAULT=$(echo "$VERSION_LINE" | sed 's/version: //' | cut -d'+' -f2)
+          BUILD_NUMBER="${{ github.event.inputs.build_number }}"
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="$BUILD_NUMBER_DEFAULT"
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "📦 Version: $VERSION_NAME+$BUILD_NUMBER"
+
+  # ══════════════════════════════════════════════
+  #  ANDROID BUILDS
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 1. Android Universal APK (fat APK, all ABIs)
+  # ──────────────────────────────────────────────
+  android-universal:
+    name: "🤖 Android Universal APK"
+    if: false  # PAUSED — only Linux active
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build Universal APK
+        run: |
+          flutter build apk \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Rename artifact
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-universal.apk
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: android-universal-apk
+          path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-universal.apk
+
+  # ──────────────────────────────────────────────
+  # 2. Samsung Galaxy Store APK (per-ABI splits)
+  # ──────────────────────────────────────────────
+  android-samsung:
+    name: "📱 Samsung Galaxy Store"
+    if: false  # PAUSED — only Android Universal active
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build split APKs per ABI
+        run: |
+          flutter build apk \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --split-per-abi \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Rename artifacts
+        run: |
+          cd build/app/outputs/flutter-apk
+          for f in app-*-release.apk; do
+            ABI=$(echo "$f" | sed 's/app-\(.*\)-release.apk/\1/')
+            mv "$f" "${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-samsung-${ABI}.apk"
+          done
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: samsung-apks
+          path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-samsung-*.apk
+
+  # ──────────────────────────────────────────────
+  # 3. Google Play AAB
+  # ──────────────────────────────────────────────
+  android-googleplay:
+    name: "▶️ Google Play AAB"
+    if: false  # PAUSED — only Android Universal active
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build AAB
+        run: |
+          flutter build appbundle \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Rename artifact
+        run: |
+          mv build/app/outputs/bundle/release/app-release.aab \
+             build/app/outputs/bundle/release/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-googleplay.aab
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: googleplay-aab
+          path: build/app/outputs/bundle/release/${{ env.APP_NAME }}-*-googleplay.aab
+
+  # ──────────────────────────────────────────────
+  # 4. F-Droid APK (no proprietary dependencies)
+  # ──────────────────────────────────────────────
+  android-fdroid:
+    name: "🔓 F-Droid APK"
+    if: false  # PAUSED — only Android Universal active
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build F-Droid APK
+        run: |
+          flutter build apk \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --dart-define=STORE=fdroid \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Rename artifact
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-fdroid.apk
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: fdroid-apk
+          path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-fdroid.apk
+
+  # ──────────────────────────────────────────────
+  # 5. Huawei AppGallery APK
+  # ──────────────────────────────────────────────
+  android-huawei:
+    name: "📲 Huawei AppGallery"
+    if: false  # PAUSED — only Android Universal active
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build Huawei APK
+        run: |
+          flutter build apk \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --dart-define=STORE=huawei \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Rename artifact
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ needs.version.outputs.version_name }}-huawei.apk
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: huawei-apk
+          path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-huawei.apk
+
+  # ══════════════════════════════════════════════
+  #  DESKTOP BUILDS
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 6. Windows (MSIX + ZIP)
+  # ──────────────────────────────────────────────
+  windows:
+    name: "🪟 Windows"
+    if: false  # PAUSED — only Linux active
+    needs: version
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write       # mint OIDC token for Sigstore signing of attestation
+      attestations: write   # write the attestation to the repo's attestation log
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows
+        run: flutter build windows --release --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} --dart-define=TURN_USER=${{ secrets.TURN_USER }} --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} --build-name=${{ needs.version.outputs.version_name }} --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Create ZIP archive
+        shell: pwsh
+        run: |
+          $version = "${{ needs.version.outputs.version_name }}"
+          Compress-Archive `
+            -Path "build\windows\x64\runner\Release\*" `
+            -DestinationPath "build\${{ env.APP_NAME }}-${version}-windows-x64.zip"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: windows-zip
+          path: build/${{ env.APP_NAME }}-*-windows-x64.zip
+
+      # SLSA build provenance: signs the ZIP with Sigstore + records the build
+      # context in the repo's attestation log. End users can verify the ZIP they
+      # downloaded was produced by this exact workflow with:
+      #   gh attestation verify vorsitzer-windows-x64.zip --repo ICD360S-e-V/vorsitzer
+      # Defends against the "user downloaded a tampered installer" scenario.
+      - name: Attest Windows ZIP build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3
+        with:
+          subject-path: 'build/${{ env.APP_NAME }}-*-windows-x64.zip'
+
+  # ──────────────────────────────────────────────
+  # 7. macOS (DMG)
+  # ──────────────────────────────────────────────
+  macos:
+    name: "🍎 macOS"
+    if: false  # PAUSED
+    needs: version
+    runs-on: macos-latest
+    env:
+      HAS_MACOS_CERT: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90  # v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Cache CocoaPods
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ~/.cocoapods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('macos/Podfile') }}
+          restore-keys: ${{ runner.os }}-cocoapods-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Refresh CocoaPods
+        run: |
+          cd macos
+          rm -f Podfile.lock
+          pod install --repo-update
+
+      - name: Setup macOS signing
+        if: env.HAS_MACOS_CERT == 'true'
+        run: |
+          echo "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" | base64 -d > certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import certificate.p12 -P "${{ secrets.MACOS_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          rm certificate.p12
+
+      - name: Disable code signing for CI (when no certs)
+        if: env.HAS_MACOS_CERT == 'false'
+        run: |
+          # Disable signing during the Xcode build phase so it doesn't look
+          # for certificates / provisioning profiles we don't have in CI.
+          cat >> macos/Runner/Configs/Release.xcconfig <<'EOF'
+
+          // CI: disable code signing during build — we ad-hoc sign post-build
+          CODE_SIGN_IDENTITY =
+          CODE_SIGNING_REQUIRED = NO
+          CODE_SIGNING_ALLOWED = NO
+          DEVELOPMENT_TEAM =
+          PROVISIONING_PROFILE_SPECIFIER =
+          EOF
+
+      - name: Build macOS
+        run: |
+          flutter build macos \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Ad-hoc sign macOS app
+        if: env.HAS_MACOS_CERT == 'false'
+        run: |
+          APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" -type d | head -1)
+          echo "Ad-hoc signing: $APP_PATH"
+          codesign --force --deep --sign - "$APP_PATH"
+          echo "Verifying signature..."
+          codesign -dvv "$APP_PATH" 2>&1 | head -10
+
+      - name: Create DMG
+        run: |
+          VERSION="${{ needs.version.outputs.version_name }}"
+          DMG_NAME="${{ env.APP_NAME }}-${VERSION}-macos.dmg"
+          APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app bundle found in build/macos/Build/Products/Release"
+            ls -la build/macos/Build/Products/Release/ || true
+            exit 1
+          fi
+          echo "Packaging: $APP_PATH"
+          hdiutil create -volname "${{ env.APP_NAME }}" \
+            -srcfolder "$APP_PATH" \
+            -ov -format UDZO \
+            "build/${DMG_NAME}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: macos-dmg
+          path: build/${{ env.APP_NAME }}-*-macos.dmg
+
+  # ══════════════════════════════════════════════
+  #  iOS BUILD
+  # ══════════════════════════════════════════════
+
+  # ──────────────────────────────────────────────
+  # 8. iOS (IPA)
+  # ──────────────────────────────────────────────
+  ios:
+    name: "📱 iOS IPA"
+    if: false  # PAUSED — only Android Universal active
+    needs: version
+    runs-on: macos-latest
+    env:
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90  # v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Cache CocoaPods
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ~/.cocoapods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('ios/Podfile') }}
+          restore-keys: ${{ runner.os }}-cocoapods-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Refresh CocoaPods
+        run: |
+          cd ios
+          rm -f Podfile.lock
+          pod install --repo-update
+
+      - name: Setup iOS signing
+        if: env.HAS_APPLE_CERT == 'true'
+        run: |
+          echo "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 -d > certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import certificate.p12 -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          rm certificate.p12
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.APPLE_PROVISIONING_PROFILE }}" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+      - name: Build iOS (signed)
+        if: env.HAS_APPLE_CERT == 'true'
+        run: |
+          flutter build ipa \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }} \
+            --export-options-plist=ios/ExportOptions.plist
+
+      - name: Build iOS (unsigned)
+        if: env.HAS_APPLE_CERT == 'false'
+        run: |
+          flutter build ios \
+            --release \
+            --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
+            --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
+            --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
+            --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
+            --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
+            --no-codesign \
+            --build-name=${{ needs.version.outputs.version_name }} \
+            --build-number=${{ needs.version.outputs.build_number }}
+
+      - name: Package IPA
+        run: |
+          VERSION="${{ needs.version.outputs.version_name }}"
+          if ls build/ios/ipa/*.ipa 1>/dev/null 2>&1; then
+            mv build/ios/ipa/*.ipa "build/${{ env.APP_NAME }}-${VERSION}-ios.ipa"
+          else
+            mkdir -p Payload
+            cp -r build/ios/iphoneos/Runner.app Payload/
+            zip -r "build/${{ env.APP_NAME }}-${VERSION}-ios-unsigned.ipa" Payload
+            rm -rf Payload
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: ios-ipa
+          path: build/${{ env.APP_NAME }}-*-ios*.ipa
+
+  # ══════════════════════════════════════════════
+  #  RELEASE UPLOAD (only on tag push)
+  # ══════════════════════════════════════════════
+  #
+  # Waits for the priority workflow (build.yml) to publish the
+  # GitHub Release, then appends extras' artifacts to it via
+  # `gh release upload --clobber`. Cross-workflow `needs:` is not
+  # supported by GH Actions — the polling step is the bridge.
+  release-upload-extras:
+    name: "📎 Append extras to Release"
+    needs:
+      - version
+      - android-universal
+      - android-samsung
+      - android-googleplay
+      - android-fdroid
+      - android-huawei
+      - windows
+      - macos
+      - ios
+    if: always() && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          path: artifacts
+
+      - name: Stage upload set
+        id: stage
+        run: |
+          mkdir -p upload
+          # Copy each extras artifact into upload/ using the same naming
+          # convention as the original release step in build.yml — these
+          # filenames are referenced by version_vorsitzer.json (download_url_*).
+          if [ -d artifacts ]; then
+            find artifacts -type f -name "*.apk" -exec cp {} upload/ \; 2>/dev/null || true
+            find artifacts -type f -name "*.aab" -exec cp {} upload/ \; 2>/dev/null || true
+            find artifacts -type f -name "*.zip" -exec cp {} upload/ \; 2>/dev/null || true
+            find artifacts -type f -name "*.dmg" -exec cp {} upload/ \; 2>/dev/null || true
+            find artifacts -type f -name "*.ipa" -exec cp {} upload/ \; 2>/dev/null || true
+          fi
+          count=$(find upload/ -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -eq 0 ]; then
+            echo "::notice::No extras artifacts to upload — all extras jobs were paused/skipped"
+          else
+            echo "Will upload $count files:"
+            ls -lah upload/
+          fi
+
+      - name: Wait for priority release to exist
+        if: steps.stage.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # The priority workflow (build.yml) creates the Release with
+          # auto-generated notes. Poll until it appears (cap at 25 min —
+          # beyond that priority almost certainly failed and we want this
+          # run to go red so the failure is visible).
+          for i in $(seq 1 150); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "✓ Release $TAG present, proceeding"
+              exit 0
+            fi
+            echo "  release $TAG not yet present (attempt $i/150), sleeping 10s"
+            sleep 10
+          done
+          echo "::error::Release $TAG did not appear in 25 min — priority workflow likely failed"
+          exit 1
+
+      - name: Upload extras to release
+        if: steps.stage.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload "$TAG" upload/* --clobber --repo "$GITHUB_REPOSITORY"
