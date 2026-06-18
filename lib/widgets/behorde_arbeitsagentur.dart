@@ -2543,7 +2543,11 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
           ),
           const Divider(height: 8),
           const Padding(padding: EdgeInsets.only(top: 4, bottom: 4), child: Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-          ..._methodOptions(),
+          RadioGroup<String>(
+            groupValue: _submitMethod,
+            onChanged: (v) => setState(() => _submitMethod = v),
+            child: Column(children: _methodOptions()),
+          ),
           const SizedBox(height: 8),
           TextField(controller: _refCtrl, decoration: const InputDecoration(labelText: 'Aktenzeichen / Sendungsnummer (optional)', isDense: true, border: OutlineInputBorder()), style: const TextStyle(fontSize: 12)),
           const SizedBox(height: 8),
@@ -2709,9 +2713,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
       dense: true,
       contentPadding: EdgeInsets.zero,
       value: o.$1,
-      groupValue: _submitMethod,
       title: Row(children: [Icon(o.$2, size: 16, color: Colors.indigo.shade600), const SizedBox(width: 6), Text(o.$3, style: const TextStyle(fontSize: 12))]),
-      onChanged: (v) => setState(() => _submitMethod = v),
     )).toList();
   }
 

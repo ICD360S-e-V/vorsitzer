@@ -1154,12 +1154,15 @@ ICD360S e.V. Vorstand''';
         content: SizedBox(
           width: 500,
           child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            ...TerminService.nichtWahrgenommenGruende.entries.map((e) => RadioListTile<String>(
-              value: e.key, groupValue: selectedKey,
+            RadioGroup<String>(
+              groupValue: selectedKey,
               onChanged: (v) => setS(() => selectedKey = v),
-              title: Text(e.value, style: const TextStyle(fontSize: 12)),
-              dense: true, contentPadding: EdgeInsets.zero, visualDensity: VisualDensity.compact,
-            )),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: TerminService.nichtWahrgenommenGruende.entries.map((e) => RadioListTile<String>(
+                value: e.key,
+                title: Text(e.value, style: const TextStyle(fontSize: 12)),
+                dense: true, contentPadding: EdgeInsets.zero, visualDensity: VisualDensity.compact,
+              )).toList()),
+            ),
             if (selectedKey == 'sonstiges') ...[
               const SizedBox(height: 8),
               TextField(controller: freitextC, maxLines: 2,

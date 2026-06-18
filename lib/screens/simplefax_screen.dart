@@ -1299,19 +1299,21 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         const SizedBox(height: 14),
         Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
         const SizedBox(height: 6),
-        Column(children: _verifMethodeMap.entries.map((e) => RadioListTile<String>(
-          dense: true,
-          value: e.key,
+        RadioGroup<String>(
           groupValue: methodeSel,
-          onChanged: (v) => setDlg(() => methodeSel = v!),
-          title: Row(children: [
-            Icon(e.value['icon'] as IconData, size: 14, color: Colors.blue.shade700),
-            const SizedBox(width: 6),
-            Text(e.value['label'] as String, style: const TextStyle(fontSize: 12)),
-          ]),
-          subtitle: Text(e.value['hint'] as String, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-          contentPadding: EdgeInsets.zero,
-        )).toList()),
+          onChanged: (v) => setDlg(() => methodeSel = v ?? methodeSel),
+          child: Column(children: _verifMethodeMap.entries.map((e) => RadioListTile<String>(
+            dense: true,
+            value: e.key,
+            title: Row(children: [
+              Icon(e.value['icon'] as IconData, size: 14, color: Colors.blue.shade700),
+              const SizedBox(width: 6),
+              Text(e.value['label'] as String, style: const TextStyle(fontSize: 12)),
+            ]),
+            subtitle: Text(e.value['hint'] as String, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            contentPadding: EdgeInsets.zero,
+          )).toList()),
+        ),
         const SizedBox(height: 10),
         TextField(controller: datumC,
           decoration: InputDecoration(labelText: 'Eingereicht am (TT.MM.JJJJ)', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
