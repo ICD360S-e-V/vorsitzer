@@ -123,13 +123,20 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      # Cache apt packages between runs. Before: `apt-get install libmpv-dev mpv`
-      # pulled ~500 MB of multimedia dependencies through azure.archive.ubuntu.com,
-      # which intermittently froze for 60–80 min (e.g. v6.14.52 → 1h22m, v6.14.54
-      # hung > 10 min before being cancelled). awalsh128/cache-apt-pkgs-action
-      # snapshots the installed package set into GitHub's cache after the first
-      # build, so subsequent runs restore it in ~10 s without hitting the mirror.
-      # --no-install-recommends keeps the tree small and the cache portable.
+      # Cache apt packages between runs. awalsh128/cache-apt-pkgs-action
+      # snapshots the installed package set into GitHub's cache after the
+      # first build, so subsequent runs restore it in ~10 s without hitting
+      # the mirror (defends against azure.archive.ubuntu.com freezes that
+      # used to lock the job for 60–80 min — see v6.14.52, v6.14.54).
+      #
+      # libmpv/mpv intentionally NOT in this list any more: the Flatpak
+      # bundle (de.icd360s.Vorsitzer.yml) builds libmpv inline and pulls
+      # FFmpeg from the runtime extension at install time. The Linux
+      # Flutter build itself just dynamically opens libmpv.so at runtime
+      # through media_kit, so no build-time linking against libmpv-dev
+      # is needed on the runner. Dropping mpv shrinks the apt cache by
+      # ~70 % (256 MB → ~85 MB) and removes ~200 MB of GStreamer/codec
+      # tail dependencies that pulled in a long mirror roundtrip on miss.
       - name: Install Linux build deps
         uses: awalsh128/cache-apt-pkgs-action@681749ae568c81c2037cb9185e38b709b261bd2f  # v1.6.1
         with:
@@ -138,7 +145,6 @@ jobs:
             libgtk-3-dev liblzma-dev libstdc++-12-dev
             libsecret-1-dev libsecret-1-0 libjsoncpp-dev
             libayatana-appindicator3-dev
-            libmpv-dev mpv
           version: 1.0
           execute_install_scripts: true
 
@@ -223,7 +229,15 @@ jobs:
         with:
           bundle: vorsitzer-${{ needs.version.outputs.version_name }}.flatpak
           manifest-path: flatpak/de.icd360s.Vorsitzer.yml
-          cache-key: flatpak-builder-${{ github.sha }}
+          # Cache key is now derived from the manifest + patch contents instead
+          # of github.sha. That means: if neither the Flatpak manifest nor the
+          # libplacebo patch changes, every subsequent build hits the cache and
+          # libass / libplacebo / uchardet / libmpv are NOT rebuilt — only the
+          # `vorsitzer` simple module (cp bundle/* → /app/bin/) runs, which is
+          # seconds. Before this change, cache-key included ${{ github.sha }}
+          # so every commit invalidated the cache and rebuilt the entire mpv
+          # stack from source (~3.5 min wasted per build).
+          cache-key: flatpak-builder-${{ hashFiles('flatpak/de.icd360s.Vorsitzer.yml', 'flatpak/*.patch') }}
 
       # ── OSTree repo for auto-update via `flatpak update` ──
       - name: Update repo metadata + generate static deltas
