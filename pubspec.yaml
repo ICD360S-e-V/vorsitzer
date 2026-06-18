@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 6.14.57+863
+version: 6.14.58+864
 
 environment:
   sdk: ^3.6.1
@@ -77,6 +77,12 @@ dependencies:
 
   # AES-256 encryption for routine data (client-side encryption)
   encrypt: ^5.0.3
+
+  # AES-256-GCM (pure Dart, no native plugin — works in Flatpak sandbox).
+  # Used by StartupDiagnostics to encrypt the startup transcript before
+  # POSTing it to /api/logs/vorsitzer_*.php. `encrypt: ^5.0.3` doesn't
+  # ship GCM, only CBC — so a second package is unavoidable here.
+  cryptography: ^2.7.0
 
   # Date formatting and week number calculation
   intl: ^0.20.2
