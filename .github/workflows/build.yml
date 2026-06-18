@@ -69,7 +69,7 @@ jobs:
   # ──────────────────────────────────────────────
   version:
     name: "📋 Version Info"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -119,45 +119,22 @@ jobs:
   linux:
     name: "🐧 Linux"
     needs: version
-    runs-on: ubuntu-latest
+    # Self-hosted runner on 10.10.10.60 (Ubuntu 26.04 LTS, 8 vCPU/30 GB/97 GB).
+    # All apt deps, Flutter SDK (/opt/flutter), Android SDK, JDK 17, flatpak +
+    # runtime, libmpv-dev/mpv are pre-installed on the VM. No cache actions
+    # needed — the NVMe disk IS the cache. See README §self-hosted-runner.
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      # Cache apt packages between runs. awalsh128/cache-apt-pkgs-action
-      # snapshots the installed package set into GitHub's cache after the
-      # first build, so subsequent runs restore it in ~10 s without hitting
-      # the mirror (defends against azure.archive.ubuntu.com freezes that
-      # used to lock the job for 60–80 min — see v6.14.52, v6.14.54).
-      #
-      # libmpv/mpv intentionally NOT in this list any more: the Flatpak
-      # bundle (de.icd360s.Vorsitzer.yml) builds libmpv inline and pulls
-      # FFmpeg from the runtime extension at install time. The Linux
-      # Flutter build itself just dynamically opens libmpv.so at runtime
-      # through media_kit, so no build-time linking against libmpv-dev
-      # is needed on the runner. Dropping mpv shrinks the apt cache by
-      # ~70 % (256 MB → ~85 MB) and removes ~200 MB of GStreamer/codec
-      # tail dependencies that pulled in a long mirror roundtrip on miss.
-      - name: Install Linux build deps
-        uses: awalsh128/cache-apt-pkgs-action@681749ae568c81c2037cb9185e38b709b261bd2f  # v1.6.1
-        with:
-          packages: >-
-            clang cmake git ninja-build pkg-config
-            libgtk-3-dev liblzma-dev libstdc++-12-dev
-            libsecret-1-dev libsecret-1-0 libjsoncpp-dev
-            libayatana-appindicator3-dev
-          version: 1.0
-          execute_install_scripts: true
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
+          flutter pub get
 
       - name: Build Linux
         run: |
+          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
           flutter config --enable-linux-desktop
           flutter build linux \
             --release \
@@ -182,10 +159,11 @@ jobs:
   flatpak:
     name: "📦 Flatpak"
     needs: [version, linux]
-    runs-on: ubuntu-latest
-    container:
-      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
-      options: --privileged
+    # Self-hosted runner. flatpak + flatpak-builder + org.freedesktop.{Platform,Sdk}//24.08
+    # already installed on the VM. Cache (~/.cache/flatpak-builder/) lives on
+    # NVMe — libass/libplacebo/uchardet/libmpv stay compiled across builds,
+    # rebuild only when flatpak/de.icd360s.Vorsitzer.yml or *.patch change.
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -198,7 +176,9 @@ jobs:
         run: chmod +x flatpak/bundle/icd360sev_vorsitzer
 
       - name: Clone Flathub shared-modules
-        run: git clone --depth 1 --branch master https://github.com/flathub/shared-modules.git flatpak/shared-modules
+        run: |
+          rm -rf flatpak/shared-modules
+          git clone --depth 1 --branch master https://github.com/flathub/shared-modules.git flatpak/shared-modules
 
       - name: Inject current version into AppStream metainfo
         run: |
@@ -225,24 +205,30 @@ jobs:
           cat flatpak/de.icd360s.Vorsitzer.metainfo.xml
 
       - name: Build Flatpak
-        uses: flatpak/flatpak-github-actions/flatpak-builder@401fe28a8384095fc1531b9d320b292f0ee45adb  # v6.7
+        # Direct flatpak-builder call instead of the GitHub action wrapper —
+        # on a self-hosted runner the action's cache-key / state-dir / repo-dir
+        # are irrelevant (NVMe is persistent). flatpak-builder's own cache
+        # under ~/.cache/flatpak-builder/build/ skips libass/libplacebo/
+        # uchardet/libmpv when manifest is unchanged → ~30 s for Dart-only
+        # changes vs full rebuild only on manifest/patch edits.
+        working-directory: flatpak
+        run: |
+          flatpak-builder --force-clean --user --install-deps-from=flathub \
+            --repo=../repo --ccache \
+            ../build de.icd360s.Vorsitzer.yml
+          flatpak build-bundle ../repo \
+            ../vorsitzer-${{ needs.version.outputs.version_name }}.flatpak \
+            de.icd360s.Vorsitzer
+
+      - name: Upload Flatpak bundle artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          bundle: vorsitzer-${{ needs.version.outputs.version_name }}.flatpak
-          manifest-path: flatpak/de.icd360s.Vorsitzer.yml
-          # Cache key is now derived from the manifest + patch contents instead
-          # of github.sha. That means: if neither the Flatpak manifest nor the
-          # libplacebo patch changes, every subsequent build hits the cache and
-          # libass / libplacebo / uchardet / libmpv are NOT rebuilt — only the
-          # `vorsitzer` simple module (cp bundle/* → /app/bin/) runs, which is
-          # seconds. Before this change, cache-key included ${{ github.sha }}
-          # so every commit invalidated the cache and rebuilt the entire mpv
-          # stack from source (~3.5 min wasted per build).
-          cache-key: flatpak-builder-${{ hashFiles('flatpak/de.icd360s.Vorsitzer.yml', 'flatpak/*.patch') }}
+          name: linux-flatpak-bundle
+          path: vorsitzer-*.flatpak
 
       # ── OSTree repo for auto-update via `flatpak update` ──
       - name: Update repo metadata + generate static deltas
         run: |
-          # The flatpak-builder action leaves the OSTree repo at ./repo
           flatpak build-update-repo --generate-static-deltas --prune --prune-depth=3 \
             --title="ICD360S Internal Apps" repo
           ls -la repo/
@@ -283,7 +269,7 @@ jobs:
       - version
       - linux
       - flatpak
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     permissions:
       contents: write   # softprops/action-gh-release creates a Release object on the tag
     steps:

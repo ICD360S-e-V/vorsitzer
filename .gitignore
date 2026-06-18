@@ -53,6 +53,8 @@ vps_icd360sev_icd360s.de.pub
 icd360sev_new_*
 # gateway SSH key (migration 2026-06-02)
 icd360sev_gateway_*
+# self-hosted runner VM SSH key (2026-06-18, 10.10.10.60)
+builder_linux_android*
 id_rsa
 id_rsa.pub
 id_ed25519
