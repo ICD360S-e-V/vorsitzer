@@ -110,6 +110,32 @@ jobs:
           echo "  ✅ versions match"
 
   # ══════════════════════════════════════════════
+  #  STATIC ANALYSIS
+  # ══════════════════════════════════════════════
+  #
+  # Run flutter analyze BEFORE the Linux build. If analyze finds errors,
+  # we fail in ~30 s instead of wasting 1-2 min on a build whose artifact
+  # would be thrown away. Pub cache is on NVMe so this is effectively free
+  # after the first run.
+  analyze:
+    name: "🔍 Static analysis"
+    needs: version
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: flutter pub get
+        run: |
+          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
+          flutter pub get
+
+      - name: flutter analyze
+        run: |
+          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
+          # --no-fatal-infos: warnings ok, only errors fail the build.
+          flutter analyze --no-fatal-infos
+
+  # ══════════════════════════════════════════════
   #  LINUX BUILDS
   # ══════════════════════════════════════════════
 
@@ -118,7 +144,7 @@ jobs:
   # ──────────────────────────────────────────────
   linux:
     name: "🐧 Linux"
-    needs: version
+    needs: [version, analyze]
     # Self-hosted runner on 10.10.10.60 (Ubuntu 26.04 LTS, 8 vCPU/30 GB/97 GB).
     # All apt deps, Flutter SDK (/opt/flutter), Android SDK, JDK 17, flatpak +
     # runtime, libmpv-dev/mpv are pre-installed on the VM. No cache actions
