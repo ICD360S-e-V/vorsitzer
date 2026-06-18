@@ -1281,19 +1281,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return;
     }
 
-    // Determine whether the optimistic ticket still passes the active filter.
-    // If not (e.g. filter='open' and we just marked it 'done'), remove it from
-    // the list so the user sees a natural "ticket leaves the column" effect
-    // instead of an inconsistent badge. 'all' keeps everything.
-    final passesFilter = _ticketFilter == 'all' || optimistic.status == _ticketFilter;
-
+    // Replace ticket in-place. We deliberately do NOT remove tickets that no
+    // longer match the active filter (e.g. filter='open' and new status='done')
+    // — the Vorsitzer wants instant visual confirmation on the card itself
+    // (badge goes green / scheduled date updates) without anything vanishing.
+    // The list re-aligns on the next manual refresh or filter change.
     setState(() {
       final mutable = List<Ticket>.from(_tickets);
-      if (passesFilter) {
-        mutable[idx] = optimistic;
-      } else {
-        mutable.removeAt(idx);
-      }
+      mutable[idx] = optimistic;
       _tickets = mutable;
       _ticketStats = newStats;
     });
@@ -1309,17 +1304,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     if (!mounted) return;
 
     if (result != null) {
-      // Silent merge: replace optimistic with server-truth where the ticket
-      // is still in the list. No spinner, no full reload — scroll preserved.
-      if (passesFilter) {
-        final newIdx = _tickets.indexWhere((t) => t.id == ticketId);
-        if (newIdx >= 0) {
-          setState(() {
-            final mutable = List<Ticket>.from(_tickets);
-            mutable[newIdx] = result;
-            _tickets = mutable;
-          });
-        }
+      // Silent merge: replace optimistic with server-truth. No spinner, no
+      // full reload — scroll preserved.
+      final newIdx = _tickets.indexWhere((t) => t.id == ticketId);
+      if (newIdx >= 0) {
+        setState(() {
+          final mutable = List<Ticket>.from(_tickets);
+          mutable[newIdx] = result;
+          _tickets = mutable;
+        });
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1335,11 +1328,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         final stillIdx = mutable.indexWhere((t) => t.id == ticketId);
         if (stillIdx >= 0) {
           mutable[stillIdx] = original;
-        } else {
-          // We removed it (filter mismatch) — re-insert at the original position
-          // if possible, otherwise at the end.
-          final insertAt = idx.clamp(0, mutable.length);
-          mutable.insert(insertAt, original);
         }
         _tickets = mutable;
         _ticketStats = originalStats;
