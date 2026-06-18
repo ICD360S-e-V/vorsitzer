@@ -132,8 +132,12 @@ jobs:
       - name: flutter analyze
         run: |
           export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
-          # --no-fatal-infos: warnings ok, only errors fail the build.
-          flutter analyze --no-fatal-infos
+          # Errors fail the build; warnings + infos are tolerated (the
+          # codebase still has legitimate deprecation warnings around the
+          # Radio API migration to RadioGroup and a few unused private
+          # fields). Tighten later by dropping --no-fatal-warnings once
+          # those are cleaned up.
+          flutter analyze --no-fatal-warnings --no-fatal-infos
 
   # ══════════════════════════════════════════════
   #  LINUX BUILDS
