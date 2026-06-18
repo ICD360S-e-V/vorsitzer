@@ -51,8 +51,10 @@ class StartupDiagnostics {
     }
     if (Platform.isWindows) return '$_reportBase/${_appSlug}_windows.php';
     if (Platform.isAndroid) return '$_reportBase/${_appSlug}_android.php';
-    if (Platform.isMacOS) return '$_reportBase/${_appSlug}_macos.php';
-    if (Platform.isIOS) return '$_reportBase/${_appSlug}_ios.php';
+    if (Platform.isMacOS)   return '$_reportBase/${_appSlug}_macos.php';
+    if (Platform.isIOS)     return '$_reportBase/${_appSlug}_ios.php';
+    // Linux without FLATPAK_ID — direct binary run, AppImage, etc.
+    if (Platform.isLinux)   return '$_reportBase/${_appSlug}_linux.php';
     return '$_reportBase/${_appSlug}_startup.php';
   }
 
