@@ -1196,16 +1196,25 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   Future<void> _updateTicket(int ticketId, String action, {String? scheduledDate}) async {
-    final result = await _ticketService.updateTicket(
-      mitgliedernummer: widget.currentMitgliedernummer,
-      ticketId: ticketId,
-      action: action,
-      scheduledDate: scheduledDate,
-    );
+    // Quick actions (✓ Erledigen, → +1 Woche) must NOT trigger a full
+    // _loadTickets() — that flips _isLoadingTickets, repaints the entire
+    // ListView, and resets scroll position to the top. Instead we apply the
+    // change optimistically to _tickets / _ticketStats in place, then fire the
+    // API in the background and either silently merge the server response or
+    // roll back on failure. The user keeps their scroll position and sees the
+    // card update instantly.
 
-    if (result != null) {
-      _loadTickets();
-      if (mounted) {
+    final idx = _tickets.indexWhere((t) => t.id == ticketId);
+    if (idx < 0) {
+      // Ticket not in current view (filter changed since the button was
+      // drawn). Fall back to plain API call without optimistic UI.
+      final result = await _ticketService.updateTicket(
+        mitgliedernummer: widget.currentMitgliedernummer,
+        ticketId: ticketId,
+        action: action,
+        scheduledDate: scheduledDate,
+      );
+      if (result != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_getActionMessage(action, scheduledDate: scheduledDate)),
@@ -1213,6 +1222,135 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
         );
       }
+      return;
+    }
+
+    final original = _tickets[idx];
+    final originalStats = _ticketStats;
+
+    // Compute optimistic ticket + stats delta.
+    Ticket optimistic;
+    TicketStats? newStats = _ticketStats;
+    switch (action) {
+      case 'done':
+        optimistic = original.copyWith(status: 'done', closedAt: DateTime.now());
+        if (originalStats != null && original.status != 'done') {
+          newStats = originalStats.copyWith(
+            open: original.status == 'open' ? (originalStats.open - 1).clamp(0, originalStats.total) : originalStats.open,
+            inProgress: original.status == 'in_progress' ? (originalStats.inProgress - 1).clamp(0, originalStats.total) : originalStats.inProgress,
+            waitingMember: original.status == 'waiting_member' ? (originalStats.waitingMember - 1).clamp(0, originalStats.total) : originalStats.waitingMember,
+            waitingStaff: original.status == 'waiting_staff' ? (originalStats.waitingStaff - 1).clamp(0, originalStats.total) : originalStats.waitingStaff,
+            waitingAuthority: original.status == 'waiting_authority' ? (originalStats.waitingAuthority - 1).clamp(0, originalStats.total) : originalStats.waitingAuthority,
+            done: originalStats.done + 1,
+          );
+        }
+        break;
+      case 'set_scheduled_date':
+        if (scheduledDate != null) {
+          try {
+            final parsed = DateTime.parse(scheduledDate.replaceAll(' ', 'T'));
+            optimistic = original.copyWith(scheduledDate: parsed);
+          } catch (_) {
+            optimistic = original;
+          }
+        } else {
+          optimistic = original;
+        }
+        break;
+      default:
+        // Other actions (assign, reopen, set_in_progress, set_waiting_*) come
+        // from the details dialog — leave their existing reload behavior
+        // intact for now by falling back to the old path.
+        final result = await _ticketService.updateTicket(
+          mitgliedernummer: widget.currentMitgliedernummer,
+          ticketId: ticketId,
+          action: action,
+          scheduledDate: scheduledDate,
+        );
+        if (result != null) {
+          _loadTickets();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(_getActionMessage(action, scheduledDate: scheduledDate)),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+        return;
+    }
+
+    // Determine whether the optimistic ticket still passes the active filter.
+    // If not (e.g. filter='open' and we just marked it 'done'), remove it from
+    // the list so the user sees a natural "ticket leaves the column" effect
+    // instead of an inconsistent badge. 'all' keeps everything.
+    final passesFilter = _ticketFilter == 'all' || optimistic.status == _ticketFilter;
+
+    setState(() {
+      final mutable = List<Ticket>.from(_tickets);
+      if (passesFilter) {
+        mutable[idx] = optimistic;
+      } else {
+        mutable.removeAt(idx);
+      }
+      _tickets = mutable;
+      _ticketStats = newStats;
+    });
+
+    // Fire API in background.
+    final result = await _ticketService.updateTicket(
+      mitgliedernummer: widget.currentMitgliedernummer,
+      ticketId: ticketId,
+      action: action,
+      scheduledDate: scheduledDate,
+    );
+
+    if (!mounted) return;
+
+    if (result != null) {
+      // Silent merge: replace optimistic with server-truth where the ticket
+      // is still in the list. No spinner, no full reload — scroll preserved.
+      if (passesFilter) {
+        final newIdx = _tickets.indexWhere((t) => t.id == ticketId);
+        if (newIdx >= 0) {
+          setState(() {
+            final mutable = List<Ticket>.from(_tickets);
+            mutable[newIdx] = result;
+            _tickets = mutable;
+          });
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_getActionMessage(action, scheduledDate: scheduledDate)),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // Rollback: restore original ticket + stats.
+      setState(() {
+        final mutable = List<Ticket>.from(_tickets);
+        final stillIdx = mutable.indexWhere((t) => t.id == ticketId);
+        if (stillIdx >= 0) {
+          mutable[stillIdx] = original;
+        } else {
+          // We removed it (filter mismatch) — re-insert at the original position
+          // if possible, otherwise at the end.
+          final insertAt = idx.clamp(0, mutable.length);
+          mutable.insert(insertAt, original);
+        }
+        _tickets = mutable;
+        _ticketStats = originalStats;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Aktion fehlgeschlagen — Ticket wiederhergestellt'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 

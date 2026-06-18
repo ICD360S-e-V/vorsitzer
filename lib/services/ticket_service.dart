@@ -520,6 +520,45 @@ class Ticket {
     if (h > 0) return '${h}h ${m.toString().padLeft(2, '0')}m';
     return '${m}m';
   }
+
+  Ticket copyWith({
+    String? status,
+    String? priority,
+    DateTime? scheduledDate,
+    DateTime? updatedAt,
+    DateTime? closedAt,
+    bool clearScheduledDate = false,
+  }) {
+    return Ticket(
+      id: id,
+      subject: subject,
+      originalSubject: originalSubject,
+      subjectIsTranslated: subjectIsTranslated,
+      message: message,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      categoryId: categoryId,
+      categoryName: categoryName,
+      adminName: adminName,
+      memberName: memberName,
+      memberNummer: memberNummer,
+      memberVorname: memberVorname,
+      memberNachname: memberNachname,
+      memberGeburtsdatum: memberGeburtsdatum,
+      memberStrasse: memberStrasse,
+      memberHausnummer: memberHausnummer,
+      memberPlz: memberPlz,
+      memberOrt: memberOrt,
+      memberTelefon: memberTelefon,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      closedAt: closedAt ?? this.closedAt,
+      lastReplyAt: lastReplyAt,
+      scheduledDate: clearScheduledDate ? null : (scheduledDate ?? this.scheduledDate),
+      isUnread: isUnread,
+      totalTimeSeconds: totalTimeSeconds,
+    );
+  }
 }
 
 /// Translation data for ticket subject/message
@@ -1448,6 +1487,25 @@ class TicketStats {
       waitingStaff: json['waiting_staff'] ?? 0,
       waitingAuthority: json['waiting_authority'] ?? 0,
       done: json['done'] ?? 0,
+    );
+  }
+
+  TicketStats copyWith({
+    int? open,
+    int? inProgress,
+    int? waitingMember,
+    int? waitingStaff,
+    int? waitingAuthority,
+    int? done,
+  }) {
+    return TicketStats(
+      total: total,
+      open: open ?? this.open,
+      inProgress: inProgress ?? this.inProgress,
+      waitingMember: waitingMember ?? this.waitingMember,
+      waitingStaff: waitingStaff ?? this.waitingStaff,
+      waitingAuthority: waitingAuthority ?? this.waitingAuthority,
+      done: done ?? this.done,
     );
   }
 }
