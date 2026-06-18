@@ -1195,11 +1195,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
-  Future<void> _updateTicket(int ticketId, String action) async {
+  Future<void> _updateTicket(int ticketId, String action, {String? scheduledDate}) async {
     final result = await _ticketService.updateTicket(
       mitgliedernummer: widget.currentMitgliedernummer,
       ticketId: ticketId,
       action: action,
+      scheduledDate: scheduledDate,
     );
 
     if (result != null) {
@@ -1207,7 +1208,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_getActionMessage(action)),
+            content: Text(_getActionMessage(action, scheduledDate: scheduledDate)),
             backgroundColor: Colors.green,
           ),
         );
@@ -1215,7 +1216,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
-  String _getActionMessage(String action) {
+  String _getActionMessage(String action, {String? scheduledDate}) {
     switch (action) {
       case 'assign':
         return 'Ticket übernommen';
@@ -1231,6 +1232,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return 'Warten auf Mitarbeiter';
       case 'set_waiting_authority':
         return 'Warten auf Behörde';
+      case 'set_scheduled_date':
+        if (scheduledDate != null) {
+          try {
+            final dt = DateTime.parse(scheduledDate.replaceAll(' ', 'T'));
+            return 'Ticket verschoben auf ${DateFormat('dd.MM.yyyy').format(dt)}';
+          } catch (_) {}
+        }
+        return 'Ticket verschoben';
       default:
         return 'Ticket aktualisiert';
     }

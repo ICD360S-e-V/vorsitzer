@@ -5794,7 +5794,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       builder: (context) => TicketDetailsDialog(
                         ticket: ticket,
                         mitgliedernummer: widget.adminMitgliedernummer,
-                        onTicketAction: (ticketId, action) {
+                        onTicketAction: (ticketId, action, {String? scheduledDate}) {
                           _loadMemberTickets();
                         },
                       ),

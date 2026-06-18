@@ -22,7 +22,7 @@ final _log = LoggerService();
 class TicketDetailsDialog extends StatefulWidget {
   final Ticket ticket;
   final String mitgliedernummer;
-  final Function(int, String) onTicketAction;
+  final Function(int, String, {String? scheduledDate}) onTicketAction;
 
   const TicketDetailsDialog({
     super.key,

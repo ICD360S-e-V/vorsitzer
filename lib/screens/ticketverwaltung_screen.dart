@@ -15,7 +15,7 @@ class TicketverwaltungScreen extends StatefulWidget {
   final List<User> users;
   final Function() onRefresh;
   final Function(String) onFilterChanged;
-  final Function(int, String) onTicketAction;
+  final Function(int, String, {String? scheduledDate}) onTicketAction;
 
   const TicketverwaltungScreen({
     super.key,
@@ -607,6 +607,10 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                           ),
                       ],
                     ),
+                    if (ticket.status != 'done') ...[
+                      const SizedBox(height: 8),
+                      _buildQuickActionRow(ticket, compact: false),
+                    ],
                   ],
                 ),
               ),
@@ -826,6 +830,10 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                 ],
               ],
             ),
+            if (ticket.status != 'done') ...[
+              const SizedBox(height: 6),
+              _buildQuickActionRow(ticket, compact: true),
+            ],
           ],
         ),
       ),
@@ -864,6 +872,90 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
       default:
         return Colors.grey;
     }
+  }
+
+  String _calcSnoozeDate(Ticket ticket) {
+    final now = DateTime.now();
+    final target = DateTime(now.year, now.month, now.day).add(const Duration(days: 7));
+    final existing = ticket.scheduledDate;
+    final hour = existing?.hour ?? now.hour;
+    final minute = existing?.minute ?? now.minute;
+    final dt = DateTime(target.year, target.month, target.day, hour, minute);
+    return DateFormat('yyyy-MM-dd HH:mm:ss').format(dt);
+  }
+
+  Widget _buildQuickActionRow(Ticket ticket, {required bool compact}) {
+    if (ticket.status == 'done') return const SizedBox.shrink();
+    final iconSize = compact ? 14.0 : 16.0;
+    final btnPadding = compact
+        ? const EdgeInsets.symmetric(horizontal: 6, vertical: 2)
+        : const EdgeInsets.symmetric(horizontal: 8, vertical: 4);
+    final btnFontSize = compact ? 10.0 : 12.0;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Tooltip(
+          message: 'Erledigt',
+          child: InkWell(
+            onTap: () => widget.onTicketAction(ticket.id, 'done'),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: btnPadding,
+              decoration: BoxDecoration(
+                color: Colors.green.withAlpha(30),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.green.withAlpha(120)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, size: iconSize, color: Colors.green.shade700),
+                  if (!compact) ...[
+                    const SizedBox(width: 4),
+                    Text('Erledigt',
+                        style: TextStyle(
+                            color: Colors.green.shade700, fontSize: btnFontSize, fontWeight: FontWeight.w600)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Tooltip(
+          message: '+1 Woche verschieben',
+          child: InkWell(
+            onTap: () => widget.onTicketAction(
+              ticket.id,
+              'set_scheduled_date',
+              scheduledDate: _calcSnoozeDate(ticket),
+            ),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: btnPadding,
+              decoration: BoxDecoration(
+                color: Colors.blue.withAlpha(30),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.blue.withAlpha(120)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.east, size: iconSize, color: Colors.blue.shade700),
+                  if (!compact) ...[
+                    const SizedBox(width: 4),
+                    Text('+1 Woche',
+                        style: TextStyle(
+                            color: Colors.blue.shade700, fontSize: btnFontSize, fontWeight: FontWeight.w600)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   void _showTicketDetailsDialog(BuildContext context, Ticket ticket) {
