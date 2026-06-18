@@ -1463,7 +1463,8 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
                   visualDensity: VisualDensity.compact,
                   onPressed: () async {
                     await Clipboard.setData(ClipboardData(text: e));
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e kopiert'), duration: const Duration(seconds: 1)));
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e kopiert'), duration: const Duration(seconds: 1)));
                   },
                 )),
                 ...tels.map((t) {
@@ -1474,7 +1475,8 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
                     visualDensity: VisualDensity.compact,
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: digits));
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$digits kopiert'), duration: const Duration(seconds: 1)));
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$digits kopiert'), duration: const Duration(seconds: 1)));
                     },
                   );
                 }),

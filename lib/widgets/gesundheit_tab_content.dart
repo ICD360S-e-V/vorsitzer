@@ -14634,8 +14634,8 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
             bezahlt: bezahlt, bezahltAm: bezahltAmC.text,
             zahlungsmethode: bezahlt ? zahlungsmethode : null, notiz: notizC.text,
           );
-          if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          if (!mounted) return;
+          ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
             content: Text(res['success'] == true ? 'Rechnung hochgeladen' : (res['message']?.toString() ?? 'Fehler')),
             backgroundColor: res['success'] == true ? Colors.green.shade700 : Colors.red.shade600,
           ));
@@ -15628,6 +15628,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
   Future<void> _pickDate() async {
     final d = await showDatePicker(context: context, initialDate: _datum, firstDate: DateTime(2020), lastDate: DateTime(2099));
     if (d == null) return;
+    if (!context.mounted) return;
     final t = await showTimePicker(context: context, initialTime: TimeOfDay(hour: _datum.hour, minute: _datum.minute));
     setState(() => _datum = DateTime(d.year, d.month, d.day, t?.hour ?? _datum.hour, t?.minute ?? _datum.minute));
   }
@@ -15947,6 +15948,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
   Future<void> _pickDate() async {
     final d = await showDatePicker(context: context, initialDate: _datum, firstDate: DateTime(2020), lastDate: DateTime(2099));
     if (d == null) return;
+    if (!context.mounted) return;
     final t = await showTimePicker(context: context, initialTime: TimeOfDay(hour: _datum.hour, minute: _datum.minute));
     setState(() => _datum = DateTime(d.year, d.month, d.day, t?.hour ?? _datum.hour, t?.minute ?? _datum.minute));
   }

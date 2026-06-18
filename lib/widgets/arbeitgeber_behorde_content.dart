@@ -4211,7 +4211,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
               onChanged: (v) async {
                 setState(() => _gabelstaplerschein = v);
                 final res = await widget.apiService.setUserGabelstaplerschein(widget.userId, v);
-                if (res['success'] != true && mounted) {
+                if (!context.mounted) return;
+                if (res['success'] != true) {
                   setState(() => _gabelstaplerschein = !v);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speichern fehlgeschlagen'), backgroundColor: Colors.red));
                 }
@@ -4236,7 +4237,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
               onChanged: (v) async {
                 setState(() => _koerperlicheEinschraenkung = v);
                 final res = await widget.apiService.setUserKoerperlicheEinschraenkung(widget.userId, v);
-                if (res['success'] != true && mounted) {
+                if (!context.mounted) return;
+                if (res['success'] != true) {
                   setState(() => _koerperlicheEinschraenkung = !v);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speichern fehlgeschlagen'), backgroundColor: Colors.red));
                 }

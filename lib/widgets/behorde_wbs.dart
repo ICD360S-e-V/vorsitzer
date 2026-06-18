@@ -414,10 +414,10 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
                 'gewuenschte_zimmerzahl': zimmer.text.trim(),
                 'notiz': notizC.text.trim(),
               });
-              if (mounted) Navigator.pop(ctx);
+              if (ctx.mounted) Navigator.pop(ctx);
               _load();
             } catch (e) {
-              if (mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
             }
             setD(() => _saving = false);
           },

@@ -4292,6 +4292,7 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> {
     final d = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2020), lastDate: DateTime(2099));
     if (d == null) return;
     if (withTime) {
+      if (!context.mounted) return;
       final t = await showTimePicker(context: context, initialTime: TimeOfDay(hour: init.hour, minute: init.minute));
       final hh = (t?.hour ?? 9).toString().padLeft(2, '0');
       final mm = (t?.minute ?? 0).toString().padLeft(2, '0');

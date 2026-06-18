@@ -324,6 +324,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     if (!mounted) return;
     if (res['success'] == true) {
       await _loadBewerbungen();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Als Bewerbung markiert — Status in Bewerbungsuebersicht setzen'),
         backgroundColor: Colors.green.shade700,
@@ -1274,7 +1275,8 @@ class _StellenDetailDialogState extends State<_StellenDetailDialog> {
                               borderRadius: BorderRadius.circular(12),
                               onTap: () async {
                                 await Clipboard.setData(ClipboardData(text: e));
-                                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e in Zwischenablage kopiert'), duration: const Duration(seconds: 2)));
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e in Zwischenablage kopiert'), duration: const Duration(seconds: 2)));
                               },
                               child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: Row(mainAxisSize: MainAxisSize.min, children: [
                                 Icon(Icons.email, size: 14, color: Colors.green.shade800), const SizedBox(width: 4),
@@ -1303,7 +1305,8 @@ class _StellenDetailDialogState extends State<_StellenDetailDialog> {
                                 borderRadius: BorderRadius.circular(12),
                                 onTap: () async {
                                   await Clipboard.setData(ClipboardData(text: digits));
-                                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$digits in Zwischenablage kopiert'), duration: const Duration(seconds: 2)));
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$digits in Zwischenablage kopiert'), duration: const Duration(seconds: 2)));
                                 },
                                 child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: Row(mainAxisSize: MainAxisSize.min, children: [
                                   Icon(Icons.phone, size: 14, color: Colors.green.shade800), const SizedBox(width: 4),

@@ -379,7 +379,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
           };
           final resp = await widget.apiService.vermieterAction(widget.userId, {'action': 'save_mietvertrag', 'mietvertrag': body});
           await widget.onReload();
-          if (!mounted) return;
+          if (!ctx.mounted) return;
           Navigator.pop(ctx);
           final newId = resp['id'] is int ? resp['id'] as int : int.tryParse(resp['id']?.toString() ?? '');
           if (newId != null && newId > 0) {
