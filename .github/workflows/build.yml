@@ -280,29 +280,85 @@ jobs:
       - name: Update repo metadata + generate static deltas
         run: |
           flatpak build-update-repo --generate-static-deltas --prune --prune-depth=3 \
-            --title="ICD360S Internal Apps" repo
-          ls -la repo/
+            --title="ICD360S e.V. Vorsitzer" repo
+          du -sh repo
 
-      - name: Generate .flatpakrepo descriptor
+      - name: Assemble gh-pages publish tree
         run: |
-          cat > icd360s.flatpakrepo <<'EOF'
+          mkdir -p pages-out
+          cp -r repo pages-out/repo
+          cat > pages-out/icd360s-vorsitzer.flatpakrepo <<'EOF'
           [Flatpak Repo]
-          Title=ICD360S Internal Apps
-          Url=https://icd360sev.icd360s.de/flatpak/repo/
-          Homepage=https://icd360sev.icd360s.de/
+          Title=ICD360S e.V. Vorsitzer
+          Url=https://icd360s-e-v.github.io/vorsitzer/repo/
+          Homepage=https://github.com/ICD360S-e-V/vorsitzer
           Comment=Vorsitzer Portal Auto-Update Repository
-          Description=Self-hosted Flatpak repository for ICD360S e.V. internal applications.
+          Description=Auto-update Flatpak repository for the ICD360S e.V. Vorsitzer portal app.
           NoDeps=true
           EOF
-          cat icd360s.flatpakrepo
-
-      - name: Tar OSTree repo + descriptor for deploy job
-        run: tar -czf flatpak-repo.tar.gz repo/ icd360s.flatpakrepo
+          cat > pages-out/index.html <<'EOF'
+          <!doctype html>
+          <html lang="de">
+          <head>
+            <meta charset="utf-8">
+            <title>ICD360S e.V. Vorsitzer — Flatpak Repo</title>
+            <style>
+              body { font-family: -apple-system, system-ui, sans-serif; max-width: 720px; margin: 4rem auto; padding: 0 1rem; line-height: 1.55; color: #222; }
+              code, pre { background: #f4f4f4; border-radius: 4px; font-size: 0.9rem; }
+              code { padding: 0.1rem 0.35rem; }
+              pre { padding: 1rem; overflow-x: auto; }
+              a { color: #1a73e8; }
+            </style>
+          </head>
+          <body>
+            <h1>ICD360S e.V. Vorsitzer — Flatpak Repository</h1>
+            <p>Auto-Update für die Vorsitzer-App. Einmal hinzufügen, danach läuft <code>flatpak update</code> automatisch beim nächsten Release.</p>
+            <h2>Installation</h2>
+            <pre>flatpak remote-add --user --if-not-exists icd360s-vorsitzer \
+            https://icd360s-e-v.github.io/vorsitzer/icd360s-vorsitzer.flatpakrepo
+          flatpak install --user icd360s-vorsitzer de.icd360s.Vorsitzer</pre>
+            <h2>Update</h2>
+            <pre>flatpak update --user</pre>
+            <p>Quellcode: <a href="https://github.com/ICD360S-e-V/vorsitzer">github.com/ICD360S-e-V/vorsitzer</a></p>
+          </body>
+          </html>
+          EOF
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          name: linux-flatpak-repo
-          path: flatpak-repo.tar.gz
+          name: flatpak-pages
+          path: pages-out
+          if-no-files-found: error
+
+  # ══════════════════════════════════════════════
+  #  FLATPAK auto-update repo → GitHub Pages
+  # ══════════════════════════════════════════════
+  #
+  # Publishes the OSTree repo so KDE Discover / `flatpak update` can pull
+  # new releases without the user having to uninstall + install the
+  # bundle by hand every time.
+  deploy-flatpak-pages:
+    name: "📤 Publish Flatpak repo to GitHub Pages"
+    needs: flatpak
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          name: flatpak-pages
+          path: pages-out
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e  # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages-out
+          publish_branch: gh-pages
+          keep_files: false
+          enable_jekyll: false
+          commit_message: "deploy: flatpak repo ${{ github.ref_name }}"
 
   # ══════════════════════════════════════════════
   #  GITHUB RELEASE (only on tag push)
