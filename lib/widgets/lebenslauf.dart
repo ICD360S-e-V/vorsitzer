@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 

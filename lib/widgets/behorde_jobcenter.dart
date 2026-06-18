@@ -1167,8 +1167,9 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
         ? await widget.apiService.jobcenterSanktionAction({'action': 'create', 'antrag_id': widget.antragId, 'user_id': widget.userId, 'sanktion': payload})
         : await widget.apiService.jobcenterSanktionAction({'action': 'update', 'id': widget.existing!['id'], 'sanktion': payload});
     if (mounted) {
-      if (res['success'] == true) Navigator.pop(context, true);
-      else { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Unbekannt'}'), backgroundColor: Colors.red)); }
+      if (res['success'] == true) {
+        Navigator.pop(context, true);
+      } else { setState(() => _saving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Unbekannt'}'), backgroundColor: Colors.red)); }
     }
   }
 
@@ -1330,8 +1331,9 @@ class _SanktionDetailsTabState extends State<_SanktionDetailsTab> {
 
   Future<void> _viewFile(int fileId, String name) async {
     final r = await widget.apiService.downloadJobcenterSanktionFile(fileId);
-    if (r.statusCode == 200 && mounted) await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
-    else if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konnte Datei nicht laden')));
+    if (r.statusCode == 200 && mounted) {
+      await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+    } else if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konnte Datei nicht laden')));
   }
 
   Future<void> _deleteFile(int fileId) async {
@@ -1397,7 +1399,7 @@ class _SanktionDetailsTabState extends State<_SanktionDetailsTab> {
             const Icon(Icons.attach_file, size: 16, color: Colors.indigo),
             const SizedBox(width: 6),
             Expanded(child: Text(shown, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-            Text('${sizeKb} KB', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            Text('$sizeKb KB', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
             const SizedBox(width: 6),
             IconButton(icon: const Icon(Icons.visibility, size: 16), tooltip: 'Ansehen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _viewFile(fid, shown)),
             IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _deleteFile(fid)),
@@ -1691,7 +1693,7 @@ class _SanktionWiderspruchTabState extends State<_SanktionWiderspruchTab> {
   Future<void> _generatePdf() async {
     final r = await widget.apiService.downloadJobcenterSanktionWiderspruchPdf(_sId);
     if (r.statusCode == 200 && mounted) {
-      await FileViewerDialog.showFromBytes(context, r.bodyBytes, 'widerspruch_sanktion_${_sId}.pdf');
+      await FileViewerDialog.showFromBytes(context, r.bodyBytes, 'widerspruch_sanktion_$_sId.pdf');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Konnte PDF nicht laden (${r.statusCode})')));
     }
@@ -2366,8 +2368,11 @@ class _AddAvDialogState extends State<_AddAvDialog> with SingleTickerProviderSta
     });
     if (!mounted) return;
     setState(() => _saving = false);
-    if (res['success'] == true) Navigator.pop(context, res['user_av_id'] as int?);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, res['user_av_id'] as int?);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _createAndAssign() async {
@@ -2402,13 +2407,15 @@ class _AddAvDialogState extends State<_AddAvDialog> with SingleTickerProviderSta
   Widget _poolList() {
     if (_loadingPool) return const Center(child: CircularProgressIndicator());
     final filtered = _pool.where((p) => !widget.existingPersonalIds.contains(p['id'])).toList();
-    if (filtered.isEmpty) return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+    if (filtered.isEmpty) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(Icons.person_search, size: 48, color: Colors.grey.shade400),
       const SizedBox(height: 12),
       Text(widget.jobcenterName.isEmpty ? 'Bitte erst Jobcenter wählen' : 'Noch keine Mitarbeiter im Pool für ${widget.jobcenterName}', style: TextStyle(color: Colors.grey.shade600), textAlign: TextAlign.center),
       const SizedBox(height: 8),
       const Text('→ Tab "Neu anlegen" verwenden', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
     ])));
+    }
     return ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
       final p = filtered[i];
       return ListTile(
@@ -3459,8 +3466,11 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
     if (ok != true) return;
     final res = await widget.apiService.deleteVollmachtSignatureById(vollmachtId: vollmachtId, signer: signer, signatureId: signatureId);
     if (!mounted) return;
-    if (res['success'] == true) _loadAll();
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      _loadAll();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   List<Widget> _methodOptions() {
@@ -3498,8 +3508,9 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
     );
     if (result == null || result.files.isEmpty) return;
     setState(() {
-      if (signer == 'member') _uploadingMember = true;
-      else if (signer == 'vorstand') _uploadingVorstand = true;
+      if (signer == 'member') {
+        _uploadingMember = true;
+      } else if (signer == 'vorstand') _uploadingVorstand = true;
       else if (signer == 'receipt') _uploadingReceipt = true;
     });
     int ok = 0, fail = 0;
@@ -3508,14 +3519,18 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
       final res = await widget.apiService.uploadVollmachtSignature(
         vollmachtId: vollmachtId, signer: signer, bytes: f.bytes!, filename: f.name,
       );
-      if (res['success'] == true) ok++; else fail++;
+      if (res['success'] == true) {
+        ok++;
+      } else {
+        fail++;
+      }
     }
     if (!mounted) return;
     setState(() {
       _uploadingMember = false; _uploadingVorstand = false; _uploadingReceipt = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('$ok hochgeladen' + (fail > 0 ? ', $fail fehlgeschlagen' : '')),
+      content: Text('$ok hochgeladen${fail > 0 ? ', $fail fehlgeschlagen' : ''}'),
       backgroundColor: fail > 0 ? Colors.orange : Colors.green,
     ));
     if (ok > 0) _loadAll();
@@ -4320,8 +4335,11 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> {
         : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_einladung', 'einladung_id': widget.existing!['id']});
     if (!mounted) return;
     setState(() => _saving = false);
-    if (res['success'] == true) Navigator.pop(context, true);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _delete() async {
@@ -4549,8 +4567,11 @@ class _TerminEditDialogState extends State<_TerminEditDialog> {
         : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_termin', 'termin_id': widget.existing!['id']});
     if (!mounted) return;
     setState(() => _saving = false);
-    if (res['success'] == true) Navigator.pop(context, true);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _delete() async {

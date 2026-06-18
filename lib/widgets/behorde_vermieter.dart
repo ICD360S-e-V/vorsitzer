@@ -340,7 +340,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
               final t = faelligC.text.trim();
               if (t.isEmpty) return null;
               final m = RegExp(r'(\d{1,2})').firstMatch(t);
-              return m != null ? m.group(1) : null;
+              return m?.group(1);
             })(),
             isExpanded: true,
             decoration: InputDecoration(
@@ -693,7 +693,7 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
         Expanded(child: Text(value.isEmpty ? '–' : value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       ]),
     );
-    final s = (k) => (m[k] ?? '').toString();
+    String s(k) => (m[k] ?? '').toString();
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
@@ -722,7 +722,7 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
   Widget _zahltagRow(Map<String, dynamic> m) {
     final current = (m['faelligkeit'] ?? '').toString();
     final m1 = RegExp(r'(\d{1,2})').firstMatch(current);
-    final selected = m1 != null ? m1.group(1) : null;
+    final selected = m1?.group(1);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -913,7 +913,9 @@ class _NkaTab extends StatelessWidget {
   List<int> get _selectableYears {
     final now = DateTime.now().year;
     final ys = <int>{};
-    for (int y = 2025; y <= now + 2; y++) ys.add(y);
+    for (int y = 2025; y <= now + 2; y++) {
+      ys.add(y);
+    }
     for (final d in docs) { final j = d['jahr']; if (j is int) ys.add(j); }
     return ys.toList()..sort((a, b) => b.compareTo(a));
   }

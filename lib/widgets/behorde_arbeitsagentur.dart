@@ -2693,8 +2693,11 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     if (ok != true) return;
     final res = await widget.apiService.deleteVollmachtSignatureById(vollmachtId: vollmachtId, signer: signer, signatureId: signatureId);
     if (!mounted) return;
-    if (res['success'] == true) _loadAll();
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      _loadAll();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   List<Widget> _methodOptions() {
@@ -2732,8 +2735,9 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     );
     if (result == null || result.files.isEmpty) return;
     setState(() {
-      if (signer == 'member') _uploadingMember = true;
-      else if (signer == 'vorstand') _uploadingVorstand = true;
+      if (signer == 'member') {
+        _uploadingMember = true;
+      } else if (signer == 'vorstand') _uploadingVorstand = true;
       else if (signer == 'receipt') _uploadingReceipt = true;
     });
     int ok = 0, fail = 0;
@@ -2742,14 +2746,18 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
       final res = await widget.apiService.uploadVollmachtSignature(
         vollmachtId: vollmachtId, signer: signer, bytes: f.bytes!, filename: f.name,
       );
-      if (res['success'] == true) ok++; else fail++;
+      if (res['success'] == true) {
+        ok++;
+      } else {
+        fail++;
+      }
     }
     if (!mounted) return;
     setState(() {
       _uploadingMember = false; _uploadingVorstand = false; _uploadingReceipt = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('$ok hochgeladen' + (fail > 0 ? ', $fail fehlgeschlagen' : '')),
+      content: Text('$ok hochgeladen${fail > 0 ? ', $fail fehlgeschlagen' : ''}'),
       backgroundColor: fail > 0 ? Colors.orange : Colors.green,
     ));
     if (ok > 0) _loadAll();

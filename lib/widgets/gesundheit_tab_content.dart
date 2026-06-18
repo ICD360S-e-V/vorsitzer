@@ -10834,7 +10834,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       icon = Icons.notifications_active;
       final monthsAgo = ((DateTime.now().difference(lastDate!).inDays) / 30).floor();
       title = 'Karenz vorbei — Arzt kontaktieren';
-      subtitle = 'Letzte Verordnung vor ${monthsAgo} Monaten (am ${df.format(lastDate)}). '
+      subtitle = 'Letzte Verordnung vor $monthsAgo Monaten (am ${df.format(lastDate)}). '
           'Sie können den Arzt erneut um eine Physio-Verordnung bitten.';
     }
 
@@ -15354,22 +15354,36 @@ class _ManagementViewState extends State<_ManagementView> {
       allowMultiple: true,
     );
     if (picked == null || picked.files.isEmpty) return;
-    setState(() { if (type == 'de') _uploadingDe = true; else _uploadingUeb = true; });
+    setState(() { if (type == 'de') {
+      _uploadingDe = true;
+    } else {
+      _uploadingUeb = true;
+    } });
     int ok = 0, fail = 0;
     for (final f in picked.files) {
       if (f.bytes == null) { fail++; continue; }
       final res = await widget.apiService.uploadSchweigepflichtSignature(
         schweigepflichtId: _id, type: type, bytes: f.bytes!, filename: f.name,
       );
-      if (res['success'] == true) ok++; else fail++;
+      if (res['success'] == true) {
+        ok++;
+      } else {
+        fail++;
+      }
     }
     if (!mounted) return;
-    setState(() { if (type == 'de') _uploadingDe = false; else _uploadingUeb = false; });
+    setState(() { if (type == 'de') {
+      _uploadingDe = false;
+    } else {
+      _uploadingUeb = false;
+    } });
     await widget.onRefresh();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('$ok Datei(en) hochgeladen' + (fail > 0 ? ', $fail fehlgeschlagen' : '')),
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('$ok Datei(en) hochgeladen${fail > 0 ? ', $fail fehlgeschlagen' : ''}'),
       backgroundColor: fail > 0 ? Colors.orange : Colors.green,
     ));
+    }
   }
 
   Future<void> _deleteOne(int signatureId, String filename) async {
@@ -15384,8 +15398,11 @@ class _ManagementViewState extends State<_ManagementView> {
     if (ok != true) return;
     final res = await widget.apiService.deleteSchweigepflichtSignatureById(signatureId: signatureId);
     if (!mounted) return;
-    if (res['success'] == true) await widget.onRefresh();
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      await widget.onRefresh();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _openSignature(int signatureId, String filename) async {
@@ -15407,7 +15424,7 @@ class _ManagementViewState extends State<_ManagementView> {
   }
 
   String _fmtSize(int bytes) {
-    if (bytes < 1024) return '${bytes} B';
+    if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
   }
@@ -15531,8 +15548,11 @@ class _ManagementViewState extends State<_ManagementView> {
     if (ok != true) return;
     final res = await widget.apiService.deleteSchweigepflichtVersand(versandId: versandId);
     if (!mounted) return;
-    if (res['success'] == true) await widget.onRefresh();
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      await widget.onRefresh();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _openVersandConfirmation(int versandId, String filename) async {
@@ -15670,8 +15690,11 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
     );
     if (!mounted) return;
     setState(() => _saving = false);
-    if (res['success'] == true) Navigator.pop(context, true);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   @override
@@ -15993,14 +16016,20 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
     for (final f in _pendingFiles) {
       if (f.bytes == null) { fail++; continue; }
       final ur = await widget.apiService.uploadArztKorrespondenzAnhang(korrespondenzId: kid, bytes: f.bytes!, filename: f.name);
-      if (ur['success'] == true) ok++; else fail++;
+      if (ur['success'] == true) {
+        ok++;
+      } else {
+        fail++;
+      }
     }
     if (!mounted) return;
     setState(() => _saving = false);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Gespeichert' + (_pendingFiles.isNotEmpty ? ' (Anhänge: $ok' + (fail > 0 ? ', $fail fehlgeschlagen' : '') + ')' : '')),
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Gespeichert${_pendingFiles.isNotEmpty ? ' (Anhänge: $ok${fail > 0 ? ', $fail fehlgeschlagen' : ''})' : ''}'),
       backgroundColor: fail > 0 ? Colors.orange : Colors.green,
     ));
+    }
     Navigator.pop(context, true);
   }
 
@@ -16136,8 +16165,11 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     if (ok != true) return;
     final res = await widget.apiService.arztKorrespondenzAction({'action': 'delete', 'id': _id});
     if (!mounted) return;
-    if (res['success'] == true) Navigator.pop(context, true);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _addAttachments() async {
@@ -16151,10 +16183,14 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     for (final f in picked.files) {
       if (f.bytes == null) { fail++; continue; }
       final r = await widget.apiService.uploadArztKorrespondenzAnhang(korrespondenzId: _id, bytes: f.bytes!, filename: f.name);
-      if (r['success'] == true) ok++; else fail++;
+      if (r['success'] == true) {
+        ok++;
+      } else {
+        fail++;
+      }
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$ok hochgeladen' + (fail > 0 ? ', $fail fehlgeschlagen' : '')), backgroundColor: fail > 0 ? Colors.orange : Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$ok hochgeladen${fail > 0 ? ', $fail fehlgeschlagen' : ''}'), backgroundColor: fail > 0 ? Colors.orange : Colors.green));
     await _refresh();
   }
 
@@ -16185,7 +16221,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     return '${two(d.day)}.${two(d.month)}.${d.year}  ${two(d.hour)}:${two(d.minute)}';
   }
   String _fmtSize(int bytes) {
-    if (bytes < 1024) return '${bytes} B';
+    if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
   }

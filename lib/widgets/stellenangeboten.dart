@@ -222,7 +222,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       else if (_veroeffentlichtSeit == 7) 'letzte Woche'
       else if (_veroeffentlichtSeit == 14) 'letzte 2 Wochen'
       else if (_veroeffentlichtSeit == 28) 'letzte 4 Wochen'
-      else if (_veroeffentlichtSeit != null) 'letzte ${_veroeffentlichtSeit} Tage',
+      else if (_veroeffentlichtSeit != null) 'letzte $_veroeffentlichtSeit Tage',
       if (_angebotsart != 1) angebotMap[_angebotsart] ?? '',
     ];
     return teile.where((t) => t.isNotEmpty).join(' · ');

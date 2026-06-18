@@ -6014,7 +6014,7 @@ class ApiService {
       final j = jsonDecode(r.body);
       if (j['success'] != true) return null;
       final p = j['prefs'];
-      return p is Map ? Map<String, dynamic>.from(p as Map) : null;
+      return p is Map ? Map<String, dynamic>.from(p) : null;
     } catch (_) { return null; }
   }
 

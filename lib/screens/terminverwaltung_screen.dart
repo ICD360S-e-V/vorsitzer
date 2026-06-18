@@ -1087,7 +1087,7 @@ class _NachbearbeitungStatsBarState extends State<_NachbearbeitungStatsBar> {
         Row(children: [
           Icon(Icons.bar_chart, size: 18, color: Colors.indigo.shade700),
           const SizedBox(width: 6),
-          Text('Diese Woche (${_gesamt} Termine)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade900)),
+          Text('Diese Woche ($_gesamt Termine)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade900)),
           const Spacer(),
           Wrap(spacing: 6, runSpacing: 6, children: [
             _chip(Icons.check_circle, 'wahrgenommen', _wahr, Colors.green.shade700),
