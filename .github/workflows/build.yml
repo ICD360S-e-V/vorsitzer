@@ -173,8 +173,12 @@ jobs:
         run: |
           export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
           flutter config --enable-linux-desktop
+          # --no-tree-shake-icons saves ~15 s by skipping the icon font
+          # tree-shaking step. We ship the material icons font as-is; the
+          # ~80 KB savings aren't worth the build-time cost.
           flutter build linux \
             --release \
+            --no-tree-shake-icons \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=TURN_USER=${{ secrets.TURN_USER }} \
             --dart-define=TURN_CRED=${{ secrets.TURN_CRED }} \
@@ -246,11 +250,20 @@ jobs:
         # on a self-hosted runner the action's cache-key / state-dir / repo-dir
         # are irrelevant (NVMe is persistent). flatpak-builder's own cache
         # under ~/.cache/flatpak-builder/build/ skips libass/libplacebo/
-        # uchardet/libmpv when manifest is unchanged → ~30 s for Dart-only
+        # uchardet/libmpv when manifest is unchanged → ~20-30 s for Dart-only
         # changes vs full rebuild only on manifest/patch edits.
+        #
+        # No --force-clean — that flag wipes ~/.cache/flatpak-builder/build/
+        # before every build, defeating the whole point of the persistent
+        # NVMe cache (libmpv stack rebuild every run, ~3 min wasted).
+        # --ccache caches C/C++ object files in ~/.cache/ccache so partial
+        # invalidations (one module changed) still hit object-level cache.
+        # We do clean the output dir ourselves to avoid stale .flatpak from
+        # a prior run polluting the new bundle.
         working-directory: flatpak
         run: |
-          flatpak-builder --force-clean --user --install-deps-from=flathub \
+          rm -rf ../build ../repo
+          flatpak-builder --user --install-deps-from=flathub \
             --repo=../repo --ccache \
             ../build de.icd360s.Vorsitzer.yml
           flatpak build-bundle ../repo \
