@@ -5,9 +5,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'screens/login_with_code_screen.dart';
 import 'services/api_service.dart';
+import 'services/device_key_service.dart';
 import 'services/notification_service.dart';
 import 'services/logger_service.dart';
+import 'services/startup_diagnostics.dart';
 import 'services/startup_service.dart';
+import 'services/update_service.dart';
 import 'services/platform_service.dart';
 import 'utils/keyboard_rdp_fix.dart';
 
@@ -21,9 +24,19 @@ import 'package:windows_single_instance/windows_single_instance.dart';
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ──────────────────────────────────────────────────────────────────
+  // StartupDiagnostics: open the on-disk transcript at the FIRST line of
+  // main() so a startup that never reaches runApp() is still debuggable
+  // via ~/.cache/vorsitzer/startup.log. The transcript is also POSTed
+  // (AES-256-GCM-encrypted) to /api/logs/vorsitzer_*.php three seconds
+  // after runApp(), once the first frame has rendered.
+  // ──────────────────────────────────────────────────────────────────
+  StartupDiagnostics.init();
+
   // Pre-empt the AltGr-phantom-Ctrl bug that drops Z/Y/X/C/V keystrokes
   // under Windows RDP. Must install before any widget receives input.
   if (Platform.isWindows) {
+    StartupDiagnostics.log('→ KeyboardRdpFix.install (Windows)');
     KeyboardRdpFix.install();
   }
 
@@ -31,36 +44,40 @@ void main(List<String> args) async {
   // radio streams actually produce sound. Must run before any AudioPlayer is
   // constructed (RadioService creates one at field-init time).
   if (Platform.isWindows || Platform.isLinux) {
-    try {
-      JustAudioMediaKit.title = 'Vorsitzer Portal';
-      JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
-    } catch (e, st) {
-      // libmpv may be missing inside Flatpak sandbox until bundled as a module.
-      // Don't crash the whole app — live radio is non-essential.
-      // ignore: avoid_print
-      print('JustAudioMediaKit init failed (live radio disabled): $e\n$st');
-    }
+    await StartupDiagnostics.stepWithTimeout(
+      'JustAudioMediaKit.ensureInitialized',
+      const Duration(seconds: 5),
+      () async {
+        JustAudioMediaKit.title = 'Vorsitzer Portal';
+        JustAudioMediaKit.ensureInitialized(windows: true, linux: true);
+        return null;
+      },
+    );
   }
 
   // ============================================================
   // DESKTOP-ONLY INITIALIZATION
   // ============================================================
   if (PlatformService.isDesktop) {
-    // Windows: Ensure only one instance of the app runs at a time
     if (Platform.isWindows) {
-      await WindowsSingleInstance.ensureSingleInstance(
-        [],
-        'icd360sev_vorsitzer_single_instance',
-        onSecondWindow: (args) {
-          // This callback runs when a second instance tries to start
-          // Show the existing window
-          TrayService().showWindow();
-        },
+      await StartupDiagnostics.stepWithTimeout(
+        'WindowsSingleInstance.ensureSingleInstance',
+        const Duration(seconds: 5),
+        () => WindowsSingleInstance.ensureSingleInstance(
+          [],
+          'icd360sev_vorsitzer_single_instance',
+          onSecondWindow: (args) {
+            TrayService().showWindow();
+          },
+        ),
       );
     }
 
-    // Initialize window manager and maximize window
-    await windowManager.ensureInitialized();
+    await StartupDiagnostics.stepWithTimeout(
+      'windowManager.ensureInitialized',
+      const Duration(seconds: 5),
+      () => windowManager.ensureInitialized(),
+    );
 
     WindowOptions windowOptions = const WindowOptions(
       minimumSize: Size(800, 600),
@@ -68,27 +85,33 @@ void main(List<String> args) async {
       title: 'ICD360S e.V - Vorsitzer Portal',
     );
 
-    await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.maximize();
-      await windowManager.show();
-      await windowManager.focus();
-    });
+    await StartupDiagnostics.stepWithTimeout(
+      'windowManager.waitUntilReadyToShow+maximize',
+      const Duration(seconds: 8),
+      () => windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.maximize();
+        await windowManager.show();
+        await windowManager.focus();
+      }),
+    );
 
-    // Initialize system tray (desktop only).
     // libayatana-appindicator may be missing inside Flatpak sandbox until
     // bundled as a module — guard so we don't crash if tray init fails.
-    try {
-      await TrayService().initialize();
-    } catch (e, st) {
-      // ignore: avoid_print
-      print('TrayService init failed (system tray disabled): $e\n$st');
-    }
+    await StartupDiagnostics.stepWithTimeout(
+      'TrayService.initialize',
+      const Duration(seconds: 5),
+      () => TrayService().initialize(),
+    );
   }
 
-  // Fix Flutter keyboard desync bug on desktop
+  // Fix Flutter keyboard desync bug on desktop + funnel FlutterError into
+  // the diagnostics transcript so render-time crashes show up alongside
+  // init failures.
   FlutterError.onError = (FlutterErrorDetails details) {
     final message = details.exceptionAsString();
-    if (message.contains('KeyDownEvent') || message.contains('KeyUpEvent') || message.contains('KeyRepeatEvent')) {
+    if (message.contains('KeyDownEvent') ||
+        message.contains('KeyUpEvent') ||
+        message.contains('KeyRepeatEvent')) {
       if (message.contains('physical key is already pressed') ||
           message.contains('physical key is not pressed') ||
           message.contains('pressed on a different logical key')) {
@@ -97,21 +120,64 @@ void main(List<String> args) async {
         return;
       }
     }
+    StartupDiagnostics.log('FlutterError: ${details.exception}');
     FlutterError.presentError(details);
   };
 
   // Start app IMMEDIATELY (no black screen), init services in background
+  StartupDiagnostics.log('→ runApp()');
   runApp(const VorsitzerApp());
 
-  // Initialize services in background (after UI is showing)
-  try {
-    LoggerService().init();
-    ApiService().initialize();
-    NotificationService().initialize();
-    StartupService().initialize();
-  } catch (e) {
-    debugPrint('[INIT] Background service initialization error: $e');
-  }
+  // Background service init — wrapped per service so a single hang is
+  // visible in the transcript instead of swallowing everything in one
+  // try/catch. None of these block runApp().
+  // ignore: unawaited_futures
+  () async {
+    await StartupDiagnostics.stepWithTimeout(
+      'LoggerService.init',
+      const Duration(seconds: 5),
+      () async {
+        LoggerService().init();
+        return null;
+      },
+    );
+    await StartupDiagnostics.stepWithTimeout(
+      'ApiService.initialize',
+      const Duration(seconds: 5),
+      () async {
+        ApiService().initialize();
+        return null;
+      },
+    );
+    await StartupDiagnostics.stepWithTimeout(
+      'NotificationService.initialize',
+      const Duration(seconds: 5),
+      () async {
+        NotificationService().initialize();
+        return null;
+      },
+    );
+    await StartupDiagnostics.stepWithTimeout(
+      'StartupService.initialize',
+      const Duration(seconds: 5),
+      () async {
+        StartupService().initialize();
+        return null;
+      },
+    );
+  }();
+
+  // Three seconds after runApp() — first frame is rendered, network stack
+  // is warm, device_id should be readable. Fire-and-forget; never blocks
+  // the UI.
+  // ignore: unawaited_futures
+  Future<void>.delayed(const Duration(seconds: 3), () async {
+    await StartupDiagnostics.uploadToServer(
+      appVersion:
+          '${UpdateService.currentVersion}+${UpdateService.currentBuildNumber}',
+      deviceId: DeviceKeyService().deviceId ?? 'pre-login',
+    );
+  });
 }
 
 class VorsitzerApp extends StatefulWidget {
