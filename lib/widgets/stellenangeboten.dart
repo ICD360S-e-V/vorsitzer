@@ -619,11 +619,6 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
     );
   }
 
-  Widget _row(IconData icon, String text) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
-    Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
-  ]));
-
   @override
   Widget build(BuildContext context) {
     super.build(context); // KeepAlive contract

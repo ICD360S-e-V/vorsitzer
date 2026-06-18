@@ -909,17 +909,6 @@ class _NkaTab extends StatelessWidget {
     required this.onReload,
   });
 
-  /// Years available — explicitly 2025..2030 plus any year already in docs (extends to 2999 if needed).
-  List<int> get _selectableYears {
-    final now = DateTime.now().year;
-    final ys = <int>{};
-    for (int y = 2025; y <= now + 2; y++) {
-      ys.add(y);
-    }
-    for (final d in docs) { final j = d['jahr']; if (j is int) ys.add(j); }
-    return ys.toList()..sort((a, b) => b.compareTo(a));
-  }
-
   /// Group docs by jahr (desc). Years with no docs are shown only if present in selectableYears via "+ Neue NKA".
   Map<int, List<Map<String, dynamic>>> get _byYear {
     final out = <int, List<Map<String, dynamic>>>{};

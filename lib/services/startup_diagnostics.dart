@@ -13,7 +13,7 @@ import 'package:http/http.dart' as http;
 /// first frame has rendered.
 ///
 /// Wire format (POST body, application/json):
-///   { "v": 1, "iv": "<base64 12B>", "data": "<base64 ct||tag>" }
+///   `{ "v": 1, "iv": "<base64 12B>", "data": "<base64 ct||tag>" }`
 ///
 /// Server decrypts with openssl_decrypt(ct, "aes-256-gcm", $key,
 /// OPENSSL_RAW_DATA, $iv, $tag) after substr(-16) split.

@@ -32,7 +32,7 @@ class BehordeEinwohnermeldeamtContent extends StatefulWidget {
 
 class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderStateMixin {
   late final TabController _tabCtrl;
-  bool _loaded = false, _loading = false, _saving = false;
+  bool _loaded = false, _loading = false;
   Map<String, dynamic> _data = {};
   List<Map<String, dynamic>> _vorfaelle = [];
 

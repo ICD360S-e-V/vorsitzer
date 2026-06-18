@@ -1333,7 +1333,9 @@ class _SanktionDetailsTabState extends State<_SanktionDetailsTab> {
     final r = await widget.apiService.downloadJobcenterSanktionFile(fileId);
     if (r.statusCode == 200 && mounted) {
       await FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
-    } else if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konnte Datei nicht laden')));
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konnte Datei nicht laden')));
+    }
   }
 
   Future<void> _deleteFile(int fileId) async {
@@ -3510,8 +3512,11 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
     setState(() {
       if (signer == 'member') {
         _uploadingMember = true;
-      } else if (signer == 'vorstand') _uploadingVorstand = true;
-      else if (signer == 'receipt') _uploadingReceipt = true;
+      } else if (signer == 'vorstand') {
+        _uploadingVorstand = true;
+      } else if (signer == 'receipt') {
+        _uploadingReceipt = true;
+      }
     });
     int ok = 0, fail = 0;
     for (final f in result.files) {
@@ -3534,25 +3539,6 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
       backgroundColor: fail > 0 ? Colors.orange : Colors.green,
     ));
     if (ok > 0) _loadAll();
-  }
-
-  Future<void> _deleteSignature(int vollmachtId, String signer) async {
-    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Unterschrift entfernen?'),
-      content: const Text('Die hochgeladene Datei wird gelöscht.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Entfernen')),
-      ],
-    ));
-    if (ok != true) return;
-    final res = await widget.apiService.deleteVollmachtSignature(vollmachtId: vollmachtId, signer: signer);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(res['success'] == true ? 'Gelöscht' : (res['message'] ?? 'Fehler')),
-      backgroundColor: res['success'] == true ? Colors.orange : Colors.red,
-    ));
-    if (res['success'] == true) _loadAll();
   }
 
   Future<void> _saveSubmission(int vollmachtId) async {
@@ -4029,7 +4015,6 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
   bool _changed = false;
 
   int get _userAvId => widget.userAv['id'] as int;
-  int get _personalId => widget.userAv['personal_id'] as int;
 
   @override
   void initState() {

@@ -14881,30 +14881,6 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
     if (changed == true) _load();
   }
 
-  Future<void> _openPdf(int id, {String type = 'pdf'}) async {
-    final res = await widget.apiService.downloadSchweigepflichtPdf(id, type: type);
-    if (!mounted) return;
-    if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-      FileViewerDialog.showFromBytes(context, res.bodyBytes, type == 'translation' ? 'schweigepflicht_uebersetzung.pdf' : 'schweigepflicht.pdf');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler (${res.statusCode})'), backgroundColor: Colors.red));
-    }
-  }
-
-  Future<void> _revoke(int id) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Widerrufen?'),
-      content: const Text('Die Schweigepflichtentbindung wird als widerrufen markiert. Das PDF bleibt zur Dokumentation erhalten.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Widerrufen', style: TextStyle(color: Colors.red))),
-      ],
-    ));
-    if (ok != true) return;
-    await widget.apiService.schweigepflichtAction({'action': 'revoke', 'id': id});
-    _load();
-  }
-
   Widget _headerBar() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     decoration: BoxDecoration(color: Colors.purple.shade50, border: Border(bottom: BorderSide(color: Colors.purple.shade200))),
