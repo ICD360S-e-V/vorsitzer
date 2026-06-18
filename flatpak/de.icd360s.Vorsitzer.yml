@@ -5,6 +5,16 @@ sdk: org.freedesktop.Sdk
 command: icd360sev_vorsitzer
 separate-locales: false
 
+# FFmpeg-full extension provides codec set libmpv links against (h264, aac,
+# opus, vorbis, etc.). Without it, libmpv loads but every stream fails with
+# "no codec found". autodelete=false keeps it on disk between updates.
+add-extensions:
+  org.freedesktop.Platform.ffmpeg-full:
+    directory: lib/ffmpeg
+    add-ld-path: .
+    version: '24.08'
+    autodelete: false
+
 finish-args:
   # GUI (Wayland-first, X11 fallback)
   - --share=ipc
@@ -56,6 +66,82 @@ modules:
 
   # Secret storage (flutter_secure_storage needs libsecret on Linux)
   - shared-modules/libsecret/libsecret.json
+
+  # ──────────────────────────────────────────────────────────────────
+  # libmpv stack for just_audio_media_kit (live radio streaming on Linux).
+  # The freedesktop runtime does NOT ship libmpv, and shared-modules has
+  # no mpv module either — so we build the full stack inline, mirroring
+  # the production Flathub manifest of musicpod (org.feichtmeier.Musicpod
+  # — the most active Flutter+media_kit consumer on Flathub).
+  #
+  # Dependency order: libass → libplacebo → uchardet → libmpv.
+  # Codecs come from the ffmpeg-full add-extension above, not bundled.
+  # ──────────────────────────────────────────────────────────────────
+  - name: libass
+    config-opts:
+      - --disable-static
+    sources:
+      - type: archive
+        url: https://github.com/libass/libass/releases/download/0.17.4/libass-0.17.4.tar.xz
+        sha256: 78f1179b838d025e9c26e8fef33f8092f65611444ffa1bfc0cfac6a33511a05a
+
+  - name: libplacebo
+    buildsystem: meson
+    config-opts:
+      - -Dglslang=disabled
+    sources:
+      - type: git
+        url: https://github.com/haasn/libplacebo.git
+        tag: v7.351.0
+        commit: 3188549fba13bbdf3a5a98de2a38c2e71f04e21e
+      # libplacebo's vulkan utils generator regressed on python ≥3.13.6;
+      # backports broke find_registry_xml. Patch sourced from upstream
+      # commit 12509c0 via Gentoo bug 960115, mirrored from the Flathub
+      # MusicPod packaging.
+      - type: patch
+        path: fix-libplacebo-vulkan-python-xml.patch
+
+  - name: uchardet
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_STATIC=0
+      - -DBUILD_BINARY=OFF
+      - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+    sources:
+      - type: archive
+        url: https://www.freedesktop.org/software/uchardet/releases/uchardet-0.0.8.tar.xz
+        sha256: e97a60cfc00a1c147a674b097bb1422abd9fa78a2d9ce3f3fdcc2e78a34ac5f0
+
+  - name: libmpv
+    buildsystem: meson
+    # -Dcplayer=false: we don't ship the `mpv` CLI tool, only the library.
+    # -Dlibmpv=true:    explicitly enable the shared library target.
+    # -Dalsa=disabled:  pulse goes through pipewire/pulseaudio sockets
+    #                   (--socket=pulseaudio in finish-args). ALSA build
+    #                   pulls in alsa-lib headers that aren't in the SDK.
+    config-opts:
+      - -Dbuild-date=false
+      - -Dlibmpv=true
+      - -Dcplayer=false
+      - -Dmanpage-build=disabled
+      - -Dalsa=disabled
+    cleanup:
+      - /share/applications
+      - /share/bash-completion
+      - /share/icons
+      - /share/zsh
+    sources:
+      - type: archive
+        url: https://github.com/mpv-player/mpv/archive/v0.41.0.tar.gz
+        sha256: ee21092a5ee427353392360929dc64645c54479aefdb5babc5cfbb5fad626209
+
+  # The ffmpeg-full extension mount-point — empty dir created at build time,
+  # populated at runtime when the user `flatpak install` the extension.
+  - name: ffmpeg-extension-mountpoint
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/lib/ffmpeg
 
   - name: vorsitzer
     buildsystem: simple
