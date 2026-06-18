@@ -163,6 +163,13 @@ jobs:
           flutter pub get
 
       - name: Build Linux
+        env:
+          # Ubuntu 26.04 ships clang-21 with -Werror on deprecated-declarations
+          # by default. The tray_manager plugin calls app_indicator_new() which
+          # libayatana-appindicator has marked deprecated upstream; that's a
+          # warning we can't fix without forking the plugin. Demote to warning.
+          CFLAGS: "-Wno-error=deprecated-declarations"
+          CXXFLAGS: "-Wno-error=deprecated-declarations"
         run: |
           export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
           flutter config --enable-linux-desktop
