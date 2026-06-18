@@ -90,9 +90,75 @@ Jede Behörde mit eigenen Registerkarten: **Amt** · **Termine** · **Korrespond
 | **macOS** | `.dmg` (signed + notarized) | Direkt-Download |
 | **Windows** | `.zip` portable | Direkt-Download |
 | **Linux** | `.tar.gz` | Direkt-Download |
+| **Linux Flatpak (Auto-Update)** | OSTree-Repo | `flatpak update` via GitHub Pages |
 | **Web** | statisches `build/web/` | – |
 
 **Alle Binaries:** [github.com/ICD360S-e-V/vorsitzer/releases/latest](https://github.com/ICD360S-e-V/vorsitzer/releases/latest)
+
+---
+
+## 📦 Linux Flatpak — Auto-Update via GitHub Pages
+
+Auf **Fedora Kinoite / Silverblue · KDE Plasma · GNOME Software** kannst du die App
+einmal installieren und danach automatisch aktualisieren — KDE Discover / GNOME
+Software erkennen neue Versionen, oder `flatpak update --user` aus der Konsole.
+
+Der Flatpak-OSTree-Repo wird vom CI bei jedem Release-Tag automatisch nach
+GitHub Pages gepusht (`gh-pages` Branch):
+
+> 🔗 [`https://icd360s-e-v.github.io/vorsitzer/icd360s-vorsitzer.flatpakrepo`](https://icd360s-e-v.github.io/vorsitzer/icd360s-vorsitzer.flatpakrepo)
+
+### 1. Remote hinzufügen (einmalig)
+
+```bash
+flatpak remote-add --user --if-not-exists icd360s-vorsitzer \
+  https://icd360s-e-v.github.io/vorsitzer/icd360s-vorsitzer.flatpakrepo
+```
+
+### 2. Installation
+
+```bash
+flatpak install --user icd360s-vorsitzer de.icd360s.Vorsitzer
+```
+
+### 3. Manuelles Update
+
+```bash
+flatpak update --user
+```
+
+### 4. Auto-Check alle 60 Sekunden (systemd User-Timer)
+
+```bash
+mkdir -p ~/.config/systemd/user
+
+cat > ~/.config/systemd/user/flatpak-update-vorsitzer.service <<'SVC'
+[Unit]
+Description=Flatpak update for ICD360S Vorsitzer
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flatpak update --user --noninteractive -y icd360s-vorsitzer
+SVC
+
+cat > ~/.config/systemd/user/flatpak-update-vorsitzer.timer <<'TIM'
+[Unit]
+Description=Check Vorsitzer Flatpak update every 1 minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TIM
+
+systemctl --user daemon-reload
+systemctl --user enable --now flatpak-update-vorsitzer.timer
+```
+
+Timer-Status prüfen: `systemctl --user list-timers | grep vorsitzer`
 
 ---
 
