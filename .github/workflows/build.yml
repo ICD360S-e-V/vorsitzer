@@ -266,15 +266,41 @@ jobs:
           flatpak-builder --user --install-deps-from=flathub \
             --repo=../repo --ccache \
             ../build de.icd360s.Vorsitzer.yml
-          flatpak build-bundle ../repo \
+          # --runtime-repo lets a sideloaded .flatpak at least know where
+          # the runtime came from. For the actual app-update path we ship
+          # the .flatpakref companion below — installing the .flatpakref
+          # auto-adds the SuggestRemoteName remote pointing at the Pages
+          # OSTree repo, after which `flatpak update` picks up new tags
+          # automatically. A bare .flatpak bundle install can never be
+          # updated in place (see flatpak/flatpak#552).
+          flatpak build-bundle \
+            --runtime-repo=https://icd360s-e-v.github.io/vorsitzer/icd360s-vorsitzer.flatpakrepo \
+            ../repo \
             ../vorsitzer-${{ needs.version.outputs.version_name }}.flatpak \
             de.icd360s.Vorsitzer
+          cat > ../de.icd360s.Vorsitzer.flatpakref <<'REFEOF'
+          [Flatpak Ref]
+          Title=ICD360S e.V. Vorsitzer
+          Name=de.icd360s.Vorsitzer
+          Branch=master
+          Url=https://icd360s-e-v.github.io/vorsitzer/repo/
+          SuggestRemoteName=icd360s-vorsitzer
+          Homepage=https://github.com/ICD360S-e-V/vorsitzer
+          Description=ICD360S e.V. Vorsitzer-Portal — installs with auto-update wired to the GitHub Pages OSTree repo.
+          IsRuntime=false
+          REFEOF
 
       - name: Upload Flatpak bundle artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: linux-flatpak-bundle
           path: vorsitzer-*.flatpak
+
+      - name: Upload Flatpak ref descriptor
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: linux-flatpakref
+          path: de.icd360s.Vorsitzer.flatpakref
 
       # ── OSTree repo for auto-update via `flatpak update` ──
       - name: Update repo metadata + generate static deltas
@@ -397,8 +423,11 @@ jobs:
           # Only the priority workflow's artifacts are uploaded here.
           # Extras (apk/aab/zip/dmg/ipa) are appended by build-extras.yml
           # via `gh release upload --clobber` after this job finishes.
+          # The .flatpakref is the update-capable installer; users should
+          # prefer it over the .flatpak bundle (which is offline-only).
           files: |
             artifacts/**/*.flatpak
+            artifacts/**/*.flatpakref
 
   # ══════════════════════════════════════════════
   #  DEPLOY TO SERVER (only on tag push)
