@@ -308,6 +308,7 @@ jobs:
           Homepage=https://github.com/ICD360S-e-V/vorsitzer
           Description=ICD360S e.V. Vorsitzer-Portal — installs with auto-update wired to the GitHub Pages OSTree repo.
           IsRuntime=false
+          RuntimeRepo=https://flathub.org/repo/flathub.flatpakrepo
           GPGKey=$PUBKEY
           REFEOF
 
