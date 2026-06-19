@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/anonymous_chat_helper.dart';
 
 /// A single conversation item in the admin chat list
 class ConversationListItem extends StatelessWidget {
@@ -28,23 +29,36 @@ class ConversationListItem extends StatelessWidget {
     final unreadCount = conversation['unread_count'] ?? 0;
     final status = conversation['status'] ?? 'open';
     final memberNr = conversation['mitgliedernummer']?.toString() ?? conversation['member_nr']?.toString() ?? '';
-    final displayName = memberNr.isNotEmpty ? memberNr : (conversation['member_name'] ?? 'Unbekannt');
+    final isAnonymous = AnonymousChatHelper.isAnonymousConversation(conversation);
+    final displayName = isAnonymous
+        ? AnonymousChatHelper.displayName(conversation)
+        : (memberNr.isNotEmpty ? memberNr : (conversation['member_name'] ?? 'Unbekannt'));
     final lastSeenStr = conversation['last_seen'] as String?;
+    final anonMeta = isAnonymous ? AnonymousChatHelper.metadataFrom(conversation) : null;
+
+    final selectedBg = const Color(0xFF1a1a2e).withValues(alpha: 0.1);
+    final anonBg = const Color(0xFFFB8C00).withValues(alpha: 0.06);
 
     return Container(
-      color: isSelected ? const Color(0xFF1a1a2e).withValues(alpha: 0.1) : null,
+      decoration: BoxDecoration(
+        color: isSelected ? selectedBg : (isAnonymous ? anonBg : null),
+        border: isAnonymous
+            ? const Border(left: BorderSide(color: Color(0xFFFB8C00), width: 3))
+            : null,
+      ),
       child: ListTile(
         dense: true,
-        leading: _buildAvatar(displayName, status),
-        title: _buildTitle(displayName, unreadCount),
+        leading: _buildAvatar(displayName, status, isAnonymous: isAnonymous),
+        title: _buildTitle(displayName, unreadCount, isAnonymous: isAnonymous),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Network status row (connection type, ping, battery)
-            if (networkData != null || hasActiveCall)
+            if (isAnonymous && anonMeta != null) _buildAnonymousMetaRow(anonMeta),
+            // Network status row (connection type, ping, battery) — only for real members
+            if (!isAnonymous && (networkData != null || hasActiveCall))
               _buildNetworkRow(),
-            // Last seen (offline only)
-            if (!isOnline && !hasActiveCall && lastSeenStr != null)
+            // Last seen (offline only) — only for real members
+            if (!isAnonymous && !isOnline && !hasActiveCall && lastSeenStr != null)
               Text(
                 _formatLastSeen(lastSeenStr),
                 style: TextStyle(
@@ -189,23 +203,29 @@ class ConversationListItem extends StatelessWidget {
     }
   }
 
-  Widget _buildAvatar(String memberName, String status) {
+  Widget _buildAvatar(String memberName, String status, {bool isAnonymous = false}) {
     return Stack(
       children: [
         CircleAvatar(
           radius: 18,
-          backgroundColor: hasActiveCall ? Colors.green.shade100 : Colors.blue.shade100,
+          backgroundColor: hasActiveCall
+              ? Colors.green.shade100
+              : (isAnonymous ? Colors.orange.shade100 : Colors.blue.shade100),
           child: hasActiveCall
               ? Icon(Icons.call, color: Colors.green.shade700, size: 20)
-              : Text(
-                  memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
-                  style: TextStyle(
-                    color: Colors.blue.shade700,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              : isAnonymous
+                  ? Icon(Icons.help_outline, color: Colors.orange.shade800, size: 20)
+                  : Text(
+                      memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
         ),
-        // Show online/offline indicator (green for online, red for offline)
+        // Status dot:
+        //  • real member: green (online) / red (offline)
+        //  • anonymous visitor: orange (always — "Vizitator")
         if (!hasActiveCall)
           Positioned(
             right: 0,
@@ -214,7 +234,9 @@ class ConversationListItem extends StatelessWidget {
               width: 10,
               height: 10,
               decoration: BoxDecoration(
-                color: isOnline ? Colors.green : Colors.red,
+                color: isAnonymous
+                    ? Colors.orange
+                    : (isOnline ? Colors.green : Colors.red),
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 1.5),
               ),
@@ -224,7 +246,33 @@ class ConversationListItem extends StatelessWidget {
     );
   }
 
-  Widget _buildTitle(String memberName, int unreadCount) {
+  Widget _buildAnonymousMetaRow(AnonymousMetadata m) {
+    final parts = <Widget>[];
+
+    void add(IconData icon, String text) {
+      if (parts.isNotEmpty) {
+        parts.add(Text(' · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)));
+      }
+      parts.add(Icon(icon, size: 11, color: Colors.orange.shade700));
+      parts.add(const SizedBox(width: 2));
+      parts.add(Text(text,
+          style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.w500)));
+    }
+
+    if (m.language != null) add(Icons.language, m.languageLabel);
+    if (m.platform != null) {
+      final version = m.appVersion != null ? ' v${m.appVersion}' : '';
+      add(Icons.devices, '${m.platform}$version');
+    }
+    if (parts.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(mainAxisSize: MainAxisSize.min, children: parts),
+    );
+  }
+
+  Widget _buildTitle(String memberName, int unreadCount, {bool isAnonymous = false}) {
     return Row(
       children: [
         Expanded(
@@ -233,10 +281,32 @@ class ConversationListItem extends StatelessWidget {
             style: TextStyle(
               fontWeight: isSelected || unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
               fontSize: 13,
+              color: isAnonymous ? Colors.orange.shade900 : null,
             ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (isAnonymous) ...[
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'VIZITATOR',
+                style: TextStyle(
+                  color: Colors.orange.shade800,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ),
+        ],
         if (isMuted)
           Padding(
             padding: const EdgeInsets.only(right: 4),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/anonymous_chat_helper.dart';
 
 /// Header for the selected conversation showing member info
 class ConversationHeader extends StatelessWidget {
@@ -38,39 +39,60 @@ class ConversationHeader extends StatelessWidget {
     final mitgliedernummer = conversation['mitgliedernummer']?.toString()
         ?? conversation['member_nr']?.toString()
         ?? '';
+    final isAnonymous = AnonymousChatHelper.isAnonymousConversation(conversation);
+    final anonMeta = isAnonymous ? AnonymousChatHelper.metadataFrom(conversation) : null;
+    final displayName = isAnonymous
+        ? AnonymousChatHelper.displayName(conversation)
+        : (mitgliedernummer.isNotEmpty ? mitgliedernummer : 'Unbekannt');
 
-    return Container(
+    final container = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1a1a2e),
+        color: isAnonymous ? const Color(0xFFE65100) : const Color(0xFF1a1a2e),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: Colors.blue,
-            child: const Icon(Icons.person, color: Colors.white, size: 20),
+            backgroundColor: isAnonymous ? Colors.orange.shade200 : Colors.blue,
+            child: Icon(
+              isAnonymous ? Icons.help_outline : Icons.person,
+              color: isAnonymous ? Colors.orange.shade900 : Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              mitgliedernummer.isNotEmpty ? mitgliedernummer : 'Unbekannt',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                if (isAnonymous)
+                  const Text(
+                    'Vizitator anonim',
+                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+              ],
             ),
           ),
-          // Member info button
-          IconButton(
-            icon: const Icon(Icons.info_outline, color: Colors.lightBlueAccent),
-            onPressed: onInfoTap,
-            tooltip: 'Mitglied-Informationen',
-          ),
-          // Aufgaben button with badge
-          if (onAufgabenTap != null)
+          // Member info — disabled for anonymous (no profile to view)
+          if (!isAnonymous)
+            IconButton(
+              icon: const Icon(Icons.info_outline, color: Colors.lightBlueAccent),
+              onPressed: onInfoTap,
+              tooltip: 'Mitglied-Informationen',
+            ),
+          // Aufgaben — only for real members (anonymous users have no record/Akte)
+          if (!isAnonymous && onAufgabenTap != null)
             Stack(
               children: [
                 IconButton(
@@ -96,8 +118,8 @@ class ConversationHeader extends StatelessWidget {
                   ),
               ],
             ),
-          // Scheduled messages settings
-          if (isOpen && onScheduledSettings != null)
+          // Scheduled messages — anonymous chat is reactive only, no auto-replies
+          if (!isAnonymous && isOpen && onScheduledSettings != null)
             IconButton(
               icon: Icon(
                 Icons.schedule_send,
@@ -108,7 +130,7 @@ class ConversationHeader extends StatelessWidget {
                   ? 'Automatische Nachrichten (aktiv)'
                   : 'Automatische Nachrichten',
             ),
-          // Mute toggle button
+          // Mute toggle (works for both)
           if (isOpen)
             IconButton(
               icon: Icon(
@@ -118,8 +140,8 @@ class ConversationHeader extends StatelessWidget {
               onPressed: onMuteToggle,
               tooltip: isMuted ? 'Stummschaltung aufheben' : 'Stummschalten',
             ),
-          // Call button (only when idle and connected)
-          if (isOpen && canCall)
+          // Voice/video call — text-only for anonymous visitors by design
+          if (!isAnonymous && isOpen && canCall)
             IconButton(
               icon: const Icon(Icons.call, color: Colors.green),
               onPressed: onCall,
@@ -131,6 +153,98 @@ class ConversationHeader extends StatelessWidget {
               onPressed: onClose,
               tooltip: 'Konversation schließen',
             ),
+        ],
+      ),
+    );
+
+    if (!isAnonymous) return container;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        container,
+        const SizedBox(height: 6),
+        _AnonymousMetadataPanel(metadata: anonMeta),
+      ],
+    );
+  }
+}
+
+class _AnonymousMetadataPanel extends StatelessWidget {
+  final AnonymousMetadata? metadata;
+  const _AnonymousMetadataPanel({this.metadata});
+
+  String _relative(DateTime when) {
+    final d = DateTime.now().difference(when);
+    if (d.inMinutes < 1) return 'gerade eben';
+    if (d.inMinutes < 60) return 'vor ${d.inMinutes} Min';
+    if (d.inHours < 24) return 'vor ${d.inHours} Std';
+    if (d.inDays < 7) return 'vor ${d.inDays} Tag${d.inDays > 1 ? 'en' : ''}';
+    return 'vor ${(d.inDays / 7).floor()} Wochen';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = metadata;
+    final rows = <Widget>[];
+
+    Widget row(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              Icon(icon, size: 14, color: Colors.orange.shade800),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 130,
+                child: Text(label,
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.w600)),
+              ),
+              Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
+            ],
+          ),
+        );
+
+    if (m?.language != null) rows.add(row(Icons.language, 'Gewählte Sprache', m!.languageLabel));
+    if (m?.platform != null) {
+      final v = m!.appVersion != null ? ' (v${m.appVersion})' : '';
+      rows.add(row(Icons.devices, 'System', '${m.platform}$v'));
+    }
+    if (m?.lastActive != null) {
+      rows.add(row(Icons.access_time, 'Aktiv', _relative(m!.lastActive!)));
+    }
+    if (m?.firstOpenAt != null) {
+      rows.add(row(Icons.event, 'Erste Nutzung', _relative(m!.firstOpenAt!)));
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.shade300, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...rows,
+          if (rows.isNotEmpty) const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Kein Mitglied — keine sensiblen Dokumente senden, keine persönlichen Daten erfragen.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Colors.red.shade800,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

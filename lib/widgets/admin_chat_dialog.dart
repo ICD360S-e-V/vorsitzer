@@ -20,6 +20,7 @@ import 'chat_header.dart';
 import 'file_viewer_dialog.dart';
 import 'eastern.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/anonymous_chat_helper.dart';
 
 final _log = LoggerService();
 
@@ -62,6 +63,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   Map<String, dynamic>? _selectedConversation;
   List<Map<String, dynamic>> _messages = [];
   Map<String, dynamic>? _stats;
+
+  // 'all' | 'members' | 'anonymous'
+  String _participantFilter = 'all';
 
   bool _isLoadingConversations = true;
   bool _isLoadingMessages = false;
@@ -1944,46 +1948,111 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_conversations.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              'Keine Konversationen',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
+    final anonCount =
+        _conversations.where(AnonymousChatHelper.isAnonymousConversation).length;
+    final memberCount = _conversations.length - anonCount;
+
+    final filtered = switch (_participantFilter) {
+      'members' => _conversations.where((c) => !AnonymousChatHelper.isAnonymousConversation(c)).toList(),
+      'anonymous' => _conversations.where(AnonymousChatHelper.isAnonymousConversation).toList(),
+      _ => _conversations,
+    };
+
+    return Column(
+      children: [
+        _buildParticipantFilterBar(memberCount: memberCount, anonCount: anonCount),
+        const Divider(height: 1),
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        _participantFilter == 'anonymous'
+                            ? 'Keine anonymen Besucher'
+                            : (_participantFilter == 'members'
+                                ? 'Keine Mitglieder-Konversationen'
+                                : 'Keine Konversationen'),
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final conv = filtered[index];
+                    final isSelected = _selectedConversation != null &&
+                        _parseConvId(_selectedConversation!['id']) == _parseConvId(conv['id']);
+                    final hasActiveCall = _incomingCallConvId == _parseConvId(conv['id']) &&
+                        _voiceCallService.callState != CallState.idle;
+
+                    // Check if member is actually online via WebSocket
+                    final memberNumber = conv['mitgliedernummer']?.toString() ?? '';
+                    final isOnline = _chatService.isUserOnline(memberNumber);
+
+                    return ConversationListItem(
+                      conversation: conv,
+                      isSelected: isSelected,
+                      hasActiveCall: hasActiveCall,
+                      isOnline: isOnline,
+                      isMuted: conv['is_muted'] == true,
+                      networkData: _memberNetworkCache[memberNumber],
+                      onTap: () => _selectConversation(conv),
+                      onDelete: () => _confirmDeleteConversation(conv),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParticipantFilterBar({required int memberCount, required int anonCount}) {
+    Widget chip(String key, String label, int count, Color accent) {
+      final selected = _participantFilter == key;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: ChoiceChip(
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11)),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text('$count',
+                      style: TextStyle(color: accent, fontWeight: FontWeight.bold, fontSize: 10)),
+                ),
+              ],
+            ],
+          ),
+          selected: selected,
+          showCheckmark: false,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onSelected: (_) => setState(() => _participantFilter = key),
         ),
       );
     }
 
-    return ListView.builder(
-      itemCount: _conversations.length,
-      itemBuilder: (context, index) {
-        final conv = _conversations[index];
-        final isSelected = _selectedConversation != null &&
-            _parseConvId(_selectedConversation!['id']) == _parseConvId(conv['id']);
-        final hasActiveCall = _incomingCallConvId == _parseConvId(conv['id']) &&
-            _voiceCallService.callState != CallState.idle;
-
-        // Check if member is actually online via WebSocket
-        final memberNumber = conv['mitgliedernummer']?.toString() ?? '';
-        final isOnline = _chatService.isUserOnline(memberNumber);
-
-        return ConversationListItem(
-          conversation: conv,
-          isSelected: isSelected,
-          hasActiveCall: hasActiveCall,
-          isOnline: isOnline,
-          isMuted: conv['is_muted'] == true,
-          networkData: _memberNetworkCache[memberNumber],
-          onTap: () => _selectConversation(conv),
-          onDelete: () => _confirmDeleteConversation(conv),
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+      child: Row(
+        children: [
+          chip('all', 'Alle', memberCount + anonCount, Colors.blueGrey),
+          chip('members', 'Mitglieder', memberCount, Colors.blue),
+          chip('anonymous', 'Anonim', anonCount, Colors.orange),
+        ],
+      ),
     );
   }
 

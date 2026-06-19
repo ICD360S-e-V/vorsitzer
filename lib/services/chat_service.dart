@@ -469,9 +469,15 @@ class ChatService {
 
           if (!isOwnMessage && !isMuted) {
             // Message from anyone else → show notification
-            _log.info('TRIGGERING notification for: ${chatMsg.senderName} (isAdmin=${chatMsg.isAdmin})', tag: 'NOTIF');
+            _log.info('TRIGGERING notification for: ${chatMsg.senderName} (isAdmin=${chatMsg.isAdmin}, role=${chatMsg.senderRole})', tag: 'NOTIF');
+            // Anonymous visitors get a distinct prefix so the operator can
+            // tell at a glance this is not a member and adjust the tone.
+            final isAnonymous = chatMsg.senderRole == 'anonymous';
+            final notifSender = isAnonymous
+                ? 'Anonim · ${chatMsg.senderName}'
+                : chatMsg.senderName;
             NotificationService().showChatMessage(
-              senderName: chatMsg.senderName,
+              senderName: notifSender,
               message: chatMsg.message,
               conversationId: chatMsg.conversationId,
             );
