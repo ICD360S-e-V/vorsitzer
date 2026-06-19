@@ -64,8 +64,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   List<Map<String, dynamic>> _messages = [];
   Map<String, dynamic>? _stats;
 
-  // 'all' | 'members' | 'anonymous'
-  String _participantFilter = 'all';
+  // 'members' | 'anonymous' — "Alle" entfernt auf User-Wunsch,
+  // Default zeigt Mitglieder (alltäglicher Use-Case).
+  String _participantFilter = 'members';
 
   bool _isLoadingConversations = true;
   bool _isLoadingMessages = false;
@@ -1952,11 +1953,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         _conversations.where(AnonymousChatHelper.isAnonymousConversation).length;
     final memberCount = _conversations.length - anonCount;
 
-    final filtered = switch (_participantFilter) {
-      'members' => _conversations.where((c) => !AnonymousChatHelper.isAnonymousConversation(c)).toList(),
-      'anonymous' => _conversations.where(AnonymousChatHelper.isAnonymousConversation).toList(),
-      _ => _conversations,
-    };
+    final filtered = _participantFilter == 'anonymous'
+        ? _conversations.where(AnonymousChatHelper.isAnonymousConversation).toList()
+        : _conversations.where((c) => !AnonymousChatHelper.isAnonymousConversation(c)).toList();
 
     return Column(
       children: [
@@ -1973,9 +1972,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                       Text(
                         _participantFilter == 'anonymous'
                             ? 'Keine anonymen Besucher'
-                            : (_participantFilter == 'members'
-                                ? 'Keine Mitglieder-Konversationen'
-                                : 'Keine Konversationen'),
+                            : 'Keine Mitglieder-Konversationen',
                         style: TextStyle(color: Colors.grey.shade600),
                       ),
                     ],
@@ -2048,7 +2045,6 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
       child: Row(
         children: [
-          chip('all', 'Alle', memberCount + anonCount, Colors.blueGrey),
           chip('members', 'Mitglieder', memberCount, Colors.blue),
           chip('anonymous', 'Anonim', anonCount, Colors.orange),
         ],
