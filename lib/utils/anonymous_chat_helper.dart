@@ -58,6 +58,7 @@ class AnonymousChatHelper {
 }
 
 class AnonymousMetadata {
+  final String? anonymousId;
   final String? language;
   final String? platform;
   final String? appVersion;
@@ -65,6 +66,7 @@ class AnonymousMetadata {
   final DateTime? lastActive;
 
   const AnonymousMetadata({
+    this.anonymousId,
     this.language,
     this.platform,
     this.appVersion,
@@ -79,6 +81,7 @@ class AnonymousMetadata {
     }
 
     return AnonymousMetadata(
+      anonymousId: (json['anonymous_id'] ?? json['anonymousId'])?.toString(),
       language: json['language']?.toString(),
       platform: json['platform']?.toString(),
       appVersion: (json['app_version'] ?? json['appVersion'])?.toString(),
@@ -88,6 +91,7 @@ class AnonymousMetadata {
   }
 
   bool get isEmpty =>
+      anonymousId == null &&
       language == null &&
       platform == null &&
       appVersion == null &&

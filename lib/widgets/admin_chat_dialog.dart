@@ -21,6 +21,7 @@ import 'file_viewer_dialog.dart';
 import 'eastern.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/anonymous_chat_helper.dart';
+import '../services/anonymous_chat_service.dart';
 
 final _log = LoggerService();
 
@@ -340,6 +341,35 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     }
   }
 
+  // ── Anonymous-visitor metadata fetch ──
+  // Pulls the language/platform/version row from anonymous_chat_users
+  // and merges it into the selected conversation under
+  // `anonymous_metadata`. The header's `_AnonymousMetadataPanel` reads
+  // from there via AnonymousChatHelper.metadataFrom, so a simple
+  // setState is enough to repaint with real values.
+  Future<void> _loadAnonymousMetadata(int userId, Map<String, dynamic> targetConv) async {
+    final meta = await AnonymousChatService().fetchMetadata(
+      callerMitgliedernummer: widget.mitgliedernummer,
+      userId: userId,
+    );
+    if (!mounted || meta == null) return;
+    // Only apply if the operator is still on the same conversation.
+    if (_selectedConversation == null ||
+        _parseConvId(_selectedConversation!['id']) != _parseConvId(targetConv['id'])) {
+      return;
+    }
+    _safeSetState(() {
+      _selectedConversation!['anonymous_metadata'] = {
+        'anonymous_id': meta.anonymousId,
+        'language': meta.language,
+        'platform': meta.platform,
+        'app_version': meta.appVersion,
+        if (meta.firstOpenAt != null) 'first_open_at': meta.firstOpenAt!.toIso8601String(),
+        if (meta.lastActive != null) 'last_active': meta.lastActive!.toIso8601String(),
+      };
+    });
+  }
+
   // ── Network Status Polling ──
   void _startNetworkPolling(String? mitgliedernummer) {
     _networkPollTimer?.cancel();
@@ -424,6 +454,21 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     // Start network status polling for this member
     _startNetworkPolling(conversation['mitgliedernummer']?.toString());
+
+    // For anonymous visitors, fetch the per-visitor metadata (language,
+    // platform, app version, first_open/last_active) and merge it into
+    // the conversation map so the orange header panel can render real
+    // values. The server endpoint returns success+nulls if the row
+    // doesn't exist yet, so this never blocks selection.
+    if (AnonymousChatHelper.isAnonymousConversation(conversation)) {
+      final memberId = conversation['member_id'];
+      final userId = memberId is int
+          ? memberId
+          : int.tryParse(memberId?.toString() ?? '');
+      if (userId != null && userId > 0) {
+        _loadAnonymousMetadata(userId, conversation);
+      }
+    }
 
     try {
       final result = await _apiService.getChatMessages(
