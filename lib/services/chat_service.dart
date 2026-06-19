@@ -56,6 +56,9 @@ class ChatService {
   // Stream controller for ticket notifications
   final _ticketNotificationController = StreamController<TicketNotificationEvent>.broadcast();
 
+  // Stream controller for new bug reports (broadcast to vorstand only)
+  final _bugReportController = StreamController<int>.broadcast();
+
   // Set to track online users by mitgliedernummer
   final Set<String> _onlineUsers = {};
 
@@ -97,6 +100,9 @@ class ChatService {
 
   // Public stream - Ticket Notifications
   Stream<TicketNotificationEvent> get ticketNotificationStream => _ticketNotificationController.stream;
+
+  // Public stream - New bug reports (emits report id on each push)
+  Stream<int> get bugReportStream => _bugReportController.stream;
 
   bool get isConnected => _isConnected;
 
@@ -619,6 +625,16 @@ class ChatService {
           _loginApprovalController.add(json);
           break;
 
+        case 'bug_report_new':
+          final id = json['id'] is int ? json['id'] : int.tryParse('${json['id']}') ?? 0;
+          _bugReportController.add(id);
+          NotificationService().show(
+            title: 'Neuer Bugbericht',
+            body: 'Ein Mitglied hat ein Problem gemeldet.',
+          );
+          _log.info('Bug report received: #$id', tag: 'BUGREPORT');
+          break;
+
         default:
           _log.warning('UNKNOWN WS message type: $type', tag: 'WS-UNKNOWN');
           break;
@@ -647,6 +663,7 @@ class ChatService {
     _onlineUsersController.close();
     _newDeviceLoginController.close();
     _ticketNotificationController.close();
+    _bugReportController.close();
   }
 }
 
