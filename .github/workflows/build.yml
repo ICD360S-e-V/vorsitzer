@@ -216,6 +216,23 @@ jobs:
       - name: Make binary executable
         run: chmod +x flatpak/bundle/icd360sev_vorsitzer
 
+      - name: Import Flatpak signing GPG key (idempotent)
+        # The key (ID 244C2F8A661420E8, "ICD360S e.V. Flatpak Builds") is
+        # already on the self-hosted runner's keyring. We re-import the
+        # secret on every run so a fresh VM / rebuilt runner image can
+        # sign without manual intervention. gpg --import is idempotent.
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::error::FLATPAK_GPG_PRIVATE_KEY secret missing"
+            exit 1
+          fi
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import 2>&1 | tail -5
+          gpg --list-secret-keys --keyid-format LONG 244C2F8A661420E8 | head -3
+
       - name: Clone Flathub shared-modules
         run: |
           rm -rf flatpak/shared-modules
@@ -263,22 +280,25 @@ jobs:
         working-directory: flatpak
         run: |
           rm -rf ../build ../repo
+          # --gpg-sign on flatpak-builder + build-bundle signs every commit
+          # and the bundle metadata with the ICD360S key. Without these,
+          # modern Flatpak refuses to install from custom remotes ("Can't
+          # pull from untrusted non-gpg verified remote").
           flatpak-builder --user --install-deps-from=flathub \
             --repo=../repo --ccache \
+            --gpg-sign=244C2F8A661420E8 \
             ../build de.icd360s.Vorsitzer.yml
-          # --runtime-repo lets a sideloaded .flatpak at least know where
-          # the runtime came from. For the actual app-update path we ship
-          # the .flatpakref companion below — installing the .flatpakref
-          # auto-adds the SuggestRemoteName remote pointing at the Pages
-          # OSTree repo, after which `flatpak update` picks up new tags
-          # automatically. A bare .flatpak bundle install can never be
-          # updated in place (see flatpak/flatpak#552).
           flatpak build-bundle \
             --runtime-repo=https://icd360s-e-v.github.io/vorsitzer/icd360s-vorsitzer.flatpakrepo \
+            --gpg-sign=244C2F8A661420E8 \
             ../repo \
             ../vorsitzer-${{ needs.version.outputs.version_name }}.flatpak \
             de.icd360s.Vorsitzer
-          cat > ../de.icd360s.Vorsitzer.flatpakref <<'REFEOF'
+          # Embed the public-key base64 (committed at .github/flatpak-pubkey.b64)
+          # so Flatpak auto-configures gpg-verify=true with this exact key
+          # when a user installs via the descriptor.
+          PUBKEY=$(tr -d '\n' < "$GITHUB_WORKSPACE/.github/flatpak-pubkey.b64")
+          cat > ../de.icd360s.Vorsitzer.flatpakref <<REFEOF
           [Flatpak Ref]
           Title=ICD360S e.V. Vorsitzer
           Name=de.icd360s.Vorsitzer
@@ -288,6 +308,7 @@ jobs:
           Homepage=https://github.com/ICD360S-e-V/vorsitzer
           Description=ICD360S e.V. Vorsitzer-Portal — installs with auto-update wired to the GitHub Pages OSTree repo.
           IsRuntime=false
+          GPGKey=$PUBKEY
           REFEOF
 
       - name: Upload Flatpak bundle artifact
@@ -306,6 +327,7 @@ jobs:
       - name: Update repo metadata + generate static deltas
         run: |
           flatpak build-update-repo --generate-static-deltas --prune --prune-depth=3 \
+            --gpg-sign=244C2F8A661420E8 \
             --title="ICD360S e.V. Vorsitzer" repo
           du -sh repo
 
@@ -313,7 +335,8 @@ jobs:
         run: |
           mkdir -p pages-out
           cp -r repo pages-out/repo
-          cat > pages-out/icd360s-vorsitzer.flatpakrepo <<'EOF'
+          PUBKEY=$(tr -d '\n' < "$GITHUB_WORKSPACE/.github/flatpak-pubkey.b64")
+          cat > pages-out/icd360s-vorsitzer.flatpakrepo <<EOF
           [Flatpak Repo]
           Title=ICD360S e.V. Vorsitzer
           Url=https://icd360s-e-v.github.io/vorsitzer/repo/
@@ -321,6 +344,7 @@ jobs:
           Comment=Vorsitzer Portal Auto-Update Repository
           Description=Auto-update Flatpak repository for the ICD360S e.V. Vorsitzer portal app.
           NoDeps=true
+          GPGKey=$PUBKEY
           EOF
           cat > pages-out/index.html <<'EOF'
           <!doctype html>
