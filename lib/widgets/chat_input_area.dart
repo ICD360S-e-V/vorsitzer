@@ -17,6 +17,10 @@ class ChatInputArea extends StatelessWidget {
   final ValueChanged<bool>? onUrgentChanged;
   final bool showUrgentCheckbox;
 
+  // Hides the paperclip on anonymous-visitor chats — operators must not
+  // ship documents to a stateless visitor (GDPR + accidental leak risk).
+  final bool disableAttachments;
+
   const ChatInputArea({
     super.key,
     required this.controller,
@@ -30,6 +34,7 @@ class ChatInputArea extends StatelessWidget {
     this.isUrgent,
     this.onUrgentChanged,
     this.showUrgentCheckbox = false,
+    this.disableAttachments = false,
   });
 
   @override
@@ -38,18 +43,19 @@ class ChatInputArea extends StatelessWidget {
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: [
-          // Attachment button
-          IconButton(
-            icon: isUploading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.attach_file, color: Color(0xFF1a1a2e)),
-            onPressed: isUploading ? null : onPickFiles,
-            tooltip: 'Dateien anhängen (max. 10, 100MB)',
-          ),
+          // Attachment button — hidden entirely for anonymous chats
+          if (!disableAttachments)
+            IconButton(
+              icon: isUploading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.attach_file, color: Color(0xFF1a1a2e)),
+              onPressed: isUploading ? null : onPickFiles,
+              tooltip: 'Dateien anhängen (max. 10, 100MB)',
+            ),
           Expanded(
             child: TextField(
               controller: controller,

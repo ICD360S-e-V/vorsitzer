@@ -3144,6 +3144,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   Widget _buildChatArea() {
     final isOpen = _selectedConversation!['status'] == 'open';
     final canCall = _voiceCallService.callState == CallState.idle && _isConnected;
+    final isAnonymous = AnonymousChatHelper.isAnonymousConversation(_selectedConversation);
 
     return Column(
       children: [
@@ -3194,6 +3195,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             showUrgentCheckbox: true,
             isUrgent: _isUrgent,
             onUrgentChanged: (value) => _safeSetState(() => _isUrgent = value),
+            // Anonymous visitors: hide attachment paperclip — see ChatInputArea doc.
+            disableAttachments: isAnonymous,
           )
         else
           const ClosedConversationIndicator(),

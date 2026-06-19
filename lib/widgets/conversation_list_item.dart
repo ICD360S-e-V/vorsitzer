@@ -37,13 +37,13 @@ class ConversationListItem extends StatelessWidget {
     final anonMeta = isAnonymous ? AnonymousChatHelper.metadataFrom(conversation) : null;
 
     final selectedBg = const Color(0xFF1a1a2e).withValues(alpha: 0.1);
-    final anonBg = const Color(0xFFFB8C00).withValues(alpha: 0.06);
+    final anonBg = const Color(0xFFFFB74D).withValues(alpha: 0.10);
 
     return Container(
       decoration: BoxDecoration(
         color: isSelected ? selectedBg : (isAnonymous ? anonBg : null),
         border: isAnonymous
-            ? const Border(left: BorderSide(color: Color(0xFFFB8C00), width: 3))
+            ? const Border(left: BorderSide(color: Color(0xFFFFB74D), width: 4))
             : null,
       ),
       child: ListTile(
@@ -210,11 +210,11 @@ class ConversationListItem extends StatelessWidget {
           radius: 18,
           backgroundColor: hasActiveCall
               ? Colors.green.shade100
-              : (isAnonymous ? Colors.orange.shade100 : Colors.blue.shade100),
+              : (isAnonymous ? const Color(0xFFFFB74D) : Colors.blue.shade100),
           child: hasActiveCall
               ? Icon(Icons.call, color: Colors.green.shade700, size: 20)
               : isAnonymous
-                  ? Icon(Icons.help_outline, color: Colors.orange.shade800, size: 20)
+                  ? const Icon(Icons.help_outline, color: Colors.white, size: 22)
                   : Text(
                       memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
                       style: TextStyle(

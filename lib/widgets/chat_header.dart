@@ -55,11 +55,11 @@ class ConversationHeader extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: isAnonymous ? Colors.orange.shade200 : Colors.blue,
+            backgroundColor: isAnonymous ? const Color(0xFFFFB74D) : Colors.blue,
             child: Icon(
               isAnonymous ? Icons.help_outline : Icons.person,
-              color: isAnonymous ? Colors.orange.shade900 : Colors.white,
-              size: 20,
+              color: Colors.white,
+              size: 22,
             ),
           ),
           const SizedBox(width: 12),
