@@ -451,6 +451,11 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   // for (justizportal.justiz-bw.de + service.justiz.de). Each entry
   // {key,label,found,hint}.
   List<Map<String, dynamic>> _relatedChecklist = [];
+  // Per-section Behörde filter — key = section key (e.g. 'korrespondenz'),
+  // value = selected behoerde or null for all. Multiple Behörden often
+  // surface Widerspruch-Belege (Jobcenter, Arbeitsagentur, Sozialamt,
+  // Versorgungsamt, …) and the operator wants to pick one to focus on.
+  final Map<String, String?> _relatedSectionFilter = {};
 
   @override
   void initState() { super.initState(); _load(); }
@@ -647,13 +652,31 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   }
 
   Widget _buildRelatedSection(Map<String, dynamic> section) {
-    final items = (section['items'] as List?) ?? const [];
-    if (items.isEmpty) return const SizedBox.shrink();
+    final allItems = (section['items'] as List?) ?? const [];
+    if (allItems.isEmpty) return const SizedBox.shrink();
     final title = (section['title'] ?? '').toString();
     final key   = (section['key'] ?? '').toString();
+    final widerspruchCount = (section['widerspruch_count'] is int)
+        ? section['widerspruch_count'] as int
+        : 0;
+    // Unique Behörden in this section. If >1, show filter chips so the
+    // operator can narrow down to a single Behörde (jobcenter / sozialamt
+    // / versorgungsamt / arbeitsagentur / finanzamt / krankenkasse / rfb).
+    final behoerden = <String>{};
+    for (final raw in allItems) {
+      final b = (raw is Map ? raw['behoerde'] : null)?.toString() ?? '';
+      if (b.isNotEmpty) behoerden.add(b);
+    }
+    final selected = _relatedSectionFilter[key];
+    final items = selected == null
+        ? allItems
+        : allItems.where((r) =>
+            (r is Map ? r['behoerde'] : null)?.toString() == selected).toList();
     final icon  = key == 'einkommen'
         ? Icons.account_balance_wallet
-        : key == 'wohnen' ? Icons.home : Icons.folder_special;
+        : key == 'wohnen' ? Icons.home
+        : key == 'korrespondenz' ? Icons.gavel
+        : Icons.folder_special;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -672,13 +695,48 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             Icon(icon, size: 18, color: Colors.indigo.shade700),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('$title (${items.length})',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+              Text(
+                selected != null
+                    ? '$title (${items.length} von ${allItems.length})'
+                    : '$title (${allItems.length})',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+              ),
+              if (widerspruchCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.deepOrange.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.deepOrange.shade400),
+                    ),
+                    child: Text(
+                      '⚖ $widerspruchCount im aktiven Widerspruchsverfahren',
+                      style: TextStyle(fontSize: 10, color: Colors.deepOrange.shade900, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
               Text('Aus anderer Akte — read-only Link, kein Datei-Kopie',
                 style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
             ])),
           ]),
         ),
+        if (behoerden.length > 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 8, 2),
+            child: Wrap(
+              spacing: 6, runSpacing: 4,
+              children: [
+                _behoerdeChip(key, null, 'Alle (${allItems.length})', selected == null),
+                ...behoerden.map((b) {
+                  final n = allItems.where((r) =>
+                      (r is Map ? r['behoerde'] : null)?.toString() == b).length;
+                  return _behoerdeChip(key, b, '${_behoerdeLabel(b)} ($n)', selected == b);
+                }),
+              ],
+            ),
+          ),
         ...items.map<Widget>((raw) {
           final it = Map<String, dynamic>.from(raw as Map);
           final source = (it['source'] ?? '').toString();
@@ -687,8 +745,26 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
               : (it['filename'] ?? '?').toString();
           final kb = it['kb'] is int ? it['kb'] as int : 0;
           final behoerde = (it['behoerde'] ?? '').toString();
+          final kategorie = (it['kategorie'] ?? '').toString();
+          final richtung = (it['richtung'] ?? '').toString();
+          // Active Widerspruchsverfahren: server marks via
+          // widerspruch_eingelegt=true OR kategorie starts with
+          // 'widerspruch_'. Treat as the strongest signal for the
+          // Beratungshilfe operator.
+          final widerspruchEingelegt = it['widerspruch_eingelegt'] == true;
+          final isWiderspruch = widerspruchEingelegt
+              || kategorie == 'widerspruch'
+              || kategorie == 'widerspruch_bescheid'
+              || kategorie == 'widerspruch_korrespondenz';
           final subline = [
             if (behoerde.isNotEmpty) behoerde,
+            if (kategorie == 'widerspruch_bescheid') 'Widerspruchsverfahren · Sanktion-Bescheid',
+            if (kategorie == 'widerspruch_korrespondenz') 'Widerspruchsverfahren · Korr.',
+            if (kategorie == 'widerspruch') 'Widerspruch',
+            if (kategorie == 'sanktion_bescheid') 'Sanktion-Bescheid',
+            if (kategorie == 'sanktion_korrespondenz') 'Sanktion-Korr.',
+            if (richtung.isNotEmpty) (richtung == 'ausgang' ? '→ raus' : '← rein'),
+            if (it['sanktion_id'] != null) 'Sanktion #${it['sanktion_id']}',
             if (it['antrag_id'] != null) 'Antrag ${it['antrag_id']}',
             if (kb > 0) '$kb KB',
             if (it['uploaded_at'] != null) it['uploaded_at'].toString(),
@@ -696,10 +772,21 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           return Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
             child: Row(children: [
-              Icon(Icons.link, size: 16, color: Colors.indigo.shade600),
+              Icon(
+                isWiderspruch ? Icons.gavel : Icons.link,
+                size: 16,
+                color: isWiderspruch ? Colors.deepOrange.shade700 : Colors.indigo.shade600,
+              ),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(fname, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(
+                  fname,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isWiderspruch ? Colors.deepOrange.shade900 : null,
+                  ),
+                ),
                 if (subline.isNotEmpty)
                   Text(subline, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
               ])),
@@ -725,6 +812,41 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     );
   }
 
+  Widget _behoerdeChip(String sectionKey, String? value, String label, bool isSelected) {
+    return ChoiceChip(
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      selected: isSelected,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onSelected: (_) {
+        setState(() {
+          _relatedSectionFilter[sectionKey] = value;
+        });
+      },
+      selectedColor: Colors.indigo.shade200,
+      backgroundColor: Colors.grey.shade100,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.indigo.shade900 : Colors.grey.shade700,
+        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+      ),
+    );
+  }
+
+  String _behoerdeLabel(String key) {
+    switch (key) {
+      case 'jobcenter':       return 'Jobcenter';
+      case 'arbeitsagentur':  return 'Arbeitsagentur';
+      case 'sozialamt':       return 'Sozialamt';
+      case 'versorgungsamt':  return 'Versorgungsamt';
+      case 'finanzamt':       return 'Finanzamt';
+      case 'krankenkasse':    return 'Krankenkasse';
+      case 'rundfunkbeitrag': return 'Rundfunkbeitrag';
+      case 'rentenversicherung': return 'Rentenversicherung';
+      case 'bundesagentur':   return 'Bundesagentur';
+      default: return key.isEmpty ? '?' : '${key[0].toUpperCase()}${key.substring(1)}';
+    }
+  }
+
   Future<void> _openRelatedDoc(String source, Map<String, dynamic> it, {bool openInApp = false}) async {
     try {
       final id = it['id'] is int ? it['id'] as int : int.tryParse('${it['id']}') ?? 0;
@@ -748,6 +870,36 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         final m = RegExp(r'filename\*?=(?:UTF-8\x27\x27)?"?([^";]+)"?').firstMatch(cd);
         fname = m?.group(1)
             ?? 'mietvertrag_${it['mietvertrag_id']}_${it['dokument_typ'] ?? "anhang"}.pdf';
+      } else if (source == 'jobcenter_sanktion_file') {
+        resp = await widget.apiService.downloadJobcenterSanktionFile(id);
+        fname = (it['filename'] ?? 'sanktion_bescheid.pdf').toString();
+      } else if (source == 'jobcenter_sanktion_korr') {
+        resp = await widget.apiService.downloadJobcenterSanktionKorrAnhang(id);
+        fname = (it['filename'] ?? 'sanktion_korrespondenz.pdf').toString();
+      } else if (source == 'arbeitsagentur_korrespondenz') {
+        resp = await widget.apiService.downloadAAKorrespondenzDoc(id);
+        fname = (it['filename'] ?? 'arbeitsagentur_korr.pdf').toString();
+      } else if (source == 'sozialamt_bewilligung_doc' || source == 'sozialamt_bewilligung') {
+        resp = await widget.apiService.downloadBewilligungDoc(id);
+        fname = (it['filename'] ?? 'sozialamt_bewilligung.pdf').toString();
+      } else if (source == 'sozialamt_antrag_doc' || source == 'sozialamt_antrag') {
+        resp = await widget.apiService.downloadAntragDoc(id);
+        fname = (it['filename'] ?? 'sozialamt_antrag.pdf').toString();
+      } else if (source == 'versorgungsamt_antrag_doc') {
+        resp = await widget.apiService.downloadVaAntragDoc(id);
+        fname = (it['filename'] ?? 'versorgungsamt_antrag.pdf').toString();
+      } else if (source == 'versorgungsamt_korr_doc') {
+        resp = await widget.apiService.downloadVersorgungsamtKorrDoc(id);
+        fname = (it['filename'] ?? 'versorgungsamt_korr.pdf').toString();
+      } else if (source == 'finanzamt_korrespondenz') {
+        resp = await widget.apiService.downloadFinanzamtKorrespondenz(id);
+        fname = (it['filename'] ?? 'finanzamt.pdf').toString();
+      } else if (source == 'krankenkasse_korrespondenz') {
+        resp = await widget.apiService.downloadKKKorrespondenzDoc(id);
+        fname = (it['filename'] ?? 'krankenkasse.pdf').toString();
+      } else if (source == 'rfb_antrag_doc') {
+        resp = await widget.apiService.downloadRfbAntragDoc(id);
+        fname = (it['filename'] ?? 'rundfunkbeitrag.pdf').toString();
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
