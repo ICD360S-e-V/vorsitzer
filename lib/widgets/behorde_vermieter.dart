@@ -273,6 +273,9 @@ class _MietvertragTabState extends State<_MietvertragTab> {
     final kautionC = TextEditingController(text: e?['kaution'] ?? '');
     // Wohnfläche in m² — relevant für Beratungshilfe §6 BerHG D2 + WBS.
     final qmC = TextEditingController(text: e?['wohnflaeche_qm'] ?? '');
+    // Etage / Stockwerk — Freitext: "EG", "1. OG", "2. OG", "DG",
+    // "UG", "Souterrain", "Maisonette" usw.
+    final etageC = TextEditingController(text: e?['etage'] ?? '');
     final faelligC = TextEditingController(text: e?['faelligkeit'] ?? '');
     final beginnC = TextEditingController(text: e?['mietbeginn'] ?? '');
     final endeC = TextEditingController(text: e?['mietende'] ?? '');
@@ -348,6 +351,16 @@ class _MietvertragTabState extends State<_MietvertragTab> {
             ),
           )),
           const SizedBox(width: 8),
+          SizedBox(width: 120, child: TextField(
+            controller: etageC,
+            decoration: InputDecoration(
+              labelText: 'Etage',
+              hintText: 'z. B. 2. OG',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          )),
+          const SizedBox(width: 8),
           Expanded(child: DropdownButtonFormField<String>(
             initialValue: (() {
               final t = faelligC.text.trim();
@@ -387,7 +400,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
           final body = {
             if (isEdit) 'id': e['id'], 'vertragsart': vertragsart, 'mietobjekt': mietobjekt, 'strasse': strasseC.text, 'hausnummer': hausnrC.text,
             'plz': plzC.text, 'ort': ortC.text, 'kaltmiete': kaltC.text, 'warmmiete': warmC.text, 'nebenkosten': nkC.text,
-            'kaution': kautionC.text, 'wohnflaeche_qm': qmC.text, 'faelligkeit': faelligC.text, 'zahlungsart': zahlungsart, 'mietbeginn': beginnC.text,
+            'kaution': kautionC.text, 'wohnflaeche_qm': qmC.text, 'etage': etageC.text, 'faelligkeit': faelligC.text, 'zahlungsart': zahlungsart, 'mietbeginn': beginnC.text,
             'mietende': endeC.text, 'kuendigungsfrist': kuendC.text, 'status': status, 'notiz': notizC.text,
           };
           final resp = await widget.apiService.vermieterAction(widget.userId, {'action': 'save_mietvertrag', 'mietvertrag': body});
@@ -726,6 +739,7 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
         s('wohnflaeche_qm').isEmpty ? '' : '${s('wohnflaeche_qm')} m²',
         icon: Icons.square_foot,
       ),
+      row('Etage', s('etage'), icon: Icons.stairs),
       _zahltagRow(m),
       row('Zahlungsart', s('zahlungsart'), icon: Icons.payments),
       row('Mietbeginn', s('mietbeginn'), icon: Icons.event_available),
