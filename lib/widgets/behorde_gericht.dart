@@ -52,6 +52,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
     ('betreuungsgericht', 'Betreuungsgericht', Icons.family_restroom, Colors.deepPurple),
     ('insolvenzgericht', 'Insolvenzgericht', Icons.account_balance_wallet, Colors.red),
     ('strafverfahren', 'Strafverfahren', Icons.shield, Colors.brown),
+    ('beratungshilfe', 'Beratungshilfe', Icons.gavel, Colors.indigo),
   ];
 
   // Gerichte Datenbank — loaded from server
@@ -235,7 +236,9 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
                 ? ['Verbraucherinsolvenz (Privatinsolvenz)', 'Außergerichtlicher Einigungsversuch', 'Schuldenbereinigungsplan', 'Restschuldbefreiung', 'Prozesskostenhilfe', 'Sonstiges']
                 : typ == 'strafverfahren'
                     ? ['Vorermittlungsverfahren', 'Ermittlungsverfahren', 'Einstellung (§170 Abs. 2 StPO)', 'Strafbefehl', 'Hauptverhandlung', 'Berufung/Revision', 'Verkehrsunfall', 'Körperverletzung', 'Diebstahl', 'Betrug', 'Ordnungswidrigkeit', 'Sonstiges']
-                    : ['Kündigungsschutzklage', 'Lohnklage', 'Mahnbescheid (Lohnüberzahlung)', 'Zeugnis einklagen', 'Einstweilige Verfügung', 'Prozesskostenhilfe', 'Sonstiges'];
+                    : typ == 'beratungshilfe'
+                        ? ['Beratungshilfeschein beantragen', 'Mietrecht', 'Arbeitsrecht', 'Familienrecht', 'Sozialrecht', 'Verbraucherrecht', 'Ausländerrecht', 'Strafrecht (Verteidigung)', 'Erbrecht', 'Schulden / Inkasso', 'Sonstiges']
+                        : ['Kündigungsschutzklage', 'Lohnklage', 'Mahnbescheid (Lohnüberzahlung)', 'Zeugnis einklagen', 'Einstweilige Verfügung', 'Prozesskostenhilfe', 'Sonstiges'];
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.report_problem, size: 20, color: color.shade700), const SizedBox(width: 8),
