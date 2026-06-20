@@ -1989,7 +1989,7 @@ class _MitgliedPickerDialogState extends State<_MitgliedPickerDialog> {
 // (justizportal.justiz-bw.de). Pre-fills Stammdaten from the
 // member's master row, lets the operator add Sachverhalt +
 // Finanzangaben, then asks the server to render the AcroForm
-// via /api/admin/beratungshilfe_pdf.php (pdftk fill_form).
+// via /api/admin/beratungshilfe_pdf.php (pdfcpu form fill).
 // ═══════════════════════════════════════════════════════
 class _BeratungshilfeGeneratorTab extends StatefulWidget {
   final ApiService apiService;
@@ -2128,7 +2128,7 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       if (bytes == null) {
         setState(() {
           _generating = false;
-          _lastError = 'Server lieferte kein PDF zurück. pdftk- oder Template-Fehler — Logs prüfen.';
+          _lastError = 'Server lieferte kein PDF zurück. pdfcpu- oder Template-Fehler — Logs prüfen.';
         });
         return;
       }
