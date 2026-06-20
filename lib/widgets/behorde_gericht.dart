@@ -447,6 +447,10 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   // (Jobcenter Bescheid scans, Vermieter Mietvertrag anhänge, etc.).
   // Populated from /api/admin/related_docs.php — NO files are copied.
   List<Map<String, dynamic>> _relatedSections = [];
+  // Pflicht-Checkliste of Belege the Antrag auf Beratungshilfe asks
+  // for (justizportal.justiz-bw.de + service.justiz.de). Each entry
+  // {key,label,found,hint}.
+  List<Map<String, dynamic>> _relatedChecklist = [];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -465,6 +469,11 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (rR != null && rR['sections'] is List) {
         _relatedSections = (rR['sections'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+      if (rR != null && rR['checklist'] is List) {
+        _relatedChecklist = (rR['checklist'] as List)
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
       }
@@ -567,7 +576,12 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   Widget _buildDokumente() {
     final antragDocs   = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'antrag').toList();
     final sonstigeDocs = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'sonstiges').toList();
+    final isBeratungshilfe = widget.gerichtTyp == 'beratungshilfe';
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Pflicht-Belege-Checkliste — only for Beratungshilfe, where
+      // justizportal explicitly lists what's required.
+      if (isBeratungshilfe && _relatedChecklist.isNotEmpty)
+        _buildChecklistCard(),
       _buildDokSection('Antrag', Icons.assignment, antragDocs, 'antrag',
         hint: 'Generierter Anregung-Antrag, Anlagen zum Antrag (Vollmachten, ärztliche Stellungnahme, Kopien)'),
       // Read-only sections sourced from sibling Behörden modules — no
@@ -577,6 +591,58 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       _buildDokSection('Sonstiges', Icons.folder, sonstigeDocs, 'sonstiges',
         hint: 'Alle anderen Dokumente ohne feste Kategorie'),
     ]));
+  }
+
+  Widget _buildChecklistCard() {
+    final missing = _relatedChecklist.where((c) => c['found'] != true).toList();
+    final foundCount = _relatedChecklist.length - missing.length;
+    final headerColor = missing.isEmpty ? Colors.green : Colors.amber;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: (missing.isEmpty ? Colors.green : Colors.amber).shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: headerColor.shade300),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(missing.isEmpty ? Icons.check_circle : Icons.checklist,
+            size: 18, color: headerColor.shade800),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Pflicht-Belege für Beratungshilfe ($foundCount von ${_relatedChecklist.length})',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: headerColor.shade900),
+          )),
+        ]),
+        const SizedBox(height: 6),
+        ..._relatedChecklist.map((c) {
+          final found = c['found'] == true;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(found ? Icons.check_circle : Icons.radio_button_unchecked,
+                size: 14, color: found ? Colors.green.shade700 : Colors.grey.shade500),
+              const SizedBox(width: 6),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  (c['label'] ?? '').toString(),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: found ? FontWeight.w600 : FontWeight.normal,
+                    color: found ? Colors.green.shade900 : Colors.grey.shade800,
+                    decoration: null,
+                  ),
+                ),
+                if (!found && (c['hint'] != null) && (c['hint'] as String).isNotEmpty)
+                  Text(c['hint'].toString(),
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+              ])),
+            ]),
+          );
+        }),
+      ]),
+    );
   }
 
   Widget _buildRelatedSection(Map<String, dynamic> section) {
