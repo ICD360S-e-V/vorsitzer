@@ -2902,8 +2902,9 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           Icon(Icons.gavel, size: 16, color: Colors.grey.shade700),
           const SizedBox(width: 6),
           Expanded(child: Text(
-            'Abschnitt G — Zahlungsverpflichtungen: G1 wird definitiv auf '
-            'NEIN gesetzt (keine Kreditraten / Verbindlichkeiten im Antrag).',
+            'Abschnitt G — beide Fragen werden auf NEIN gesetzt: G1 '
+            '(Zahlungsverpflichtungen / Kreditraten) und G9 (sonstige '
+            'besondere Belastungen wie Krankheits- / Pflegekosten).',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
           )),
         ]),
