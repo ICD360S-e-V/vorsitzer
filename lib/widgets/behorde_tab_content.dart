@@ -4182,7 +4182,18 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final briefErhaltenC = TextEditingController(text: existing?['brief_erhalten']?.toString() ?? '');
     final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
     final uhrzeitC = TextEditingController(text: existing?['uhrzeit']?.toString() ?? '');
-    final ansprechpartnerC = TextEditingController(text: existing?['ansprechpartner']?.toString() ?? '');
+    // Auto-fill ansprechpartner with the Arbeitsvermittler when it's a
+    // new termin for AA/JC and the user hasn't typed anything. The data
+    // map carries arbeitsvermittler/_tel/_email straight from
+    // Mitgliederverwaltung → Behörde → Arbeitsagentur → Vermittler.
+    final existingAnsprechpartner = existing?['ansprechpartner']?.toString() ?? '';
+    final hasVermittlerSlot = const ['arbeitsagentur', 'bundesagentur', 'jobcenter'].contains(behoerdeType);
+    final vermittlerName = hasVermittlerSlot ? (data['arbeitsvermittler']?.toString() ?? '') : '';
+    final vermittlerTel = hasVermittlerSlot ? (data['arbeitsvermittler_tel']?.toString() ?? '') : '';
+    final vermittlerEmail = hasVermittlerSlot ? (data['arbeitsvermittler_email']?.toString() ?? '') : '';
+    final ansprechpartnerC = TextEditingController(
+      text: existingAnsprechpartner.isNotEmpty ? existingAnsprechpartner : vermittlerName,
+    );
     final grundC = TextEditingController(text: existing?['grund']?.toString() ?? '');
     // Auto-fill ort from zuständige Dienststelle or Krankenkasse name
     String defaultOrt = existing?['ort']?.toString() ?? '';
@@ -4407,7 +4418,26 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     decoration: InputDecoration(
                       labelText: 'Bei wem? (Ansprechpartner/Sachbearbeiter)',
                       prefixIcon: const Icon(Icons.person, size: 18),
+                      // Quick-fill button: re-apply the Vermittler-Daten if the
+                      // operator cleared the field by accident. Only shown when
+                      // a Vermittler is on file for this Behörde.
+                      suffixIcon: vermittlerName.isNotEmpty
+                          ? Tooltip(
+                              message: 'Vermittler-Daten übernehmen',
+                              child: IconButton(
+                                icon: Icon(Icons.contact_phone, size: 18, color: Colors.deepPurple.shade600),
+                                onPressed: () => setDlgState(() => ansprechpartnerC.text = vermittlerName),
+                              ),
+                            )
+                          : null,
                       isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      helperText: vermittlerName.isNotEmpty
+                          ? [
+                              if (vermittlerTel.isNotEmpty) '📞 $vermittlerTel',
+                              if (vermittlerEmail.isNotEmpty) '✉ $vermittlerEmail',
+                            ].join(' · ')
+                          : null,
+                      helperStyle: TextStyle(fontSize: 10, color: Colors.deepPurple.shade400),
                     ),
                   ),
                   const SizedBox(height: 12),
