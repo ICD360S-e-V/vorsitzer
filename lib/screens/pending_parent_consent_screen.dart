@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../services/pending_parent_consent_service.dart';
@@ -865,17 +866,24 @@ class _SignatureDialogState extends State<_SignatureDialog> {
           ),
         ),
         const SizedBox(height: 12),
-        const Text('Unterschrift:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        Row(children: [
+          const Text('Unterschrift:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 6),
+          if (svg.isNotEmpty)
+            Text('(${svg.length} Bytes SVG)',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+        ]),
         const SizedBox(height: 4),
         Container(
-          height: 110,
+          height: 140,
+          width: double.infinity,
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
-          child: svg.isEmpty
-              ? Center(child: Text('— kein SVG hinterlegt', style: TextStyle(color: Colors.grey.shade500, fontSize: 11)))
-              : Center(child: Text('[SVG-Vorschau — ${svg.length} Bytes]\nÖffne dezvoltare browser für Render',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11, fontStyle: FontStyle.italic))),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: _renderSignature(svg),
         ),
         const SizedBox(height: 12),
         Container(
@@ -924,6 +932,37 @@ class _SignatureDialogState extends State<_SignatureDialog> {
         style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
       ),
     ];
+  }
+
+  Widget _renderSignature(String svgSource) {
+    if (svgSource.trim().isEmpty) {
+      return Center(child: Text(
+        '— keine Unterschrift hinterlegt',
+        style: TextStyle(color: Colors.grey.shade500, fontSize: 11, fontStyle: FontStyle.italic),
+      ));
+    }
+    // Quick sanity check — must begin with <svg or <?xml + <svg.
+    final looksLikeSvg = svgSource.trimLeft().toLowerCase().contains('<svg');
+    if (!looksLikeSvg) {
+      return Center(child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, color: Colors.red.shade400, size: 24),
+          const SizedBox(height: 4),
+          Text(
+            'Ungültiges SVG-Format (${svgSource.length} Bytes)',
+            style: TextStyle(color: Colors.red.shade700, fontSize: 11),
+          ),
+        ],
+      ));
+    }
+    return SvgPicture.string(
+      svgSource,
+      fit: BoxFit.contain,
+      placeholderBuilder: (_) => const Center(
+        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+    );
   }
 
   Widget _row(String label, String value, {bool isMonospace = false}) => Padding(

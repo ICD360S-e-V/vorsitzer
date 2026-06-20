@@ -106,6 +106,10 @@ dependencies:
   # Handwritten signature capture (pure Dart, cross-platform)
   signature: ^6.3.0
 
+  # SVG render (parent consent signature preview in _SignatureDialog).
+  # Already pulled in transitively, declared here so the import is stable.
+  flutter_svg: ^2.0.10
+
   # URL launcher for opening downloaded files
   url_launcher: ^6.2.0
 
