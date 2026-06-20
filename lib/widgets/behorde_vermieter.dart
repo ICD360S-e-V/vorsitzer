@@ -721,8 +721,11 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
       row('Nebenkosten', '${s('nebenkosten')} €', icon: Icons.receipt_long),
       row('Warmmiete', '${s('warmmiete')} €', icon: Icons.functions),
       row('Kaution', '${s('kaution')} €', icon: Icons.savings),
-      if (s('wohnflaeche_qm').isNotEmpty)
-        row('Wohnfläche', '${s('wohnflaeche_qm')} m²', icon: Icons.square_foot),
+      row(
+        'Wohnfläche',
+        s('wohnflaeche_qm').isEmpty ? '' : '${s('wohnflaeche_qm')} m²',
+        icon: Icons.square_foot,
+      ),
       _zahltagRow(m),
       row('Zahlungsart', s('zahlungsart'), icon: Icons.payments),
       row('Mietbeginn', s('mietbeginn'), icon: Icons.event_available),
