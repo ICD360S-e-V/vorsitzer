@@ -2583,6 +2583,26 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
         ]),
       ),
 
+      // Abschnitt G — Zahlungsverpflichtungen (immer NEIN)
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(children: [
+          Icon(Icons.gavel, size: 16, color: Colors.grey.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Abschnitt G — Zahlungsverpflichtungen: G1 wird definitiv auf '
+            'NEIN gesetzt (keine Kreditraten / Verbindlichkeiten im Antrag).',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+          )),
+        ]),
+      ),
+
       // Motiv für den Antrag
       const SizedBox(height: 16),
       Text('Motiv für den Beratungshilfe-Antrag',
