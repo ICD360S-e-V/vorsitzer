@@ -2049,10 +2049,16 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   static const bool _bNichtBewilligt    = true;
   static const bool _bKeinGerichtlich   = true;
 
+  // Section C input: operator types the Auszahlbetrag 1:1 from the
+  // Bürgergeld-Bescheid the member shows. C1 (Brutto) = C2 (Netto)
+  // for Bürgergeld since no Steuern/Sozialversicherung are withheld.
+  // KdU + Wohnfläche come from a dedicated module later (D-section).
+  final _auszahlbetragC = TextEditingController();
+
   // Tab now exposes: Amtsgericht selector + auto-arbeitslos banner +
   // Motiv dropdown (auto-detected aus Jobcenter Sanktion / Widerspruch,
-  // oder freier Text). Sachverhalt-Text wird mit dem ausgewählten
-  // Motiv vorbefüllt und bleibt editierbar.
+  // oder freier Text) + Auszahlbetrag aus Bescheid.
+  // Sachverhalt-Text wird mit dem ausgewählten Motiv vorbefüllt.
 
   @override
   void initState() {
@@ -2063,6 +2069,7 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   @override
   void dispose() {
     _sachverhaltC.dispose();
+    _auszahlbetragC.dispose();
     super.dispose();
   }
 
@@ -2185,6 +2192,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       'keine_moeglichkeit': _bKeineMoeglichkeit,
       'nicht_bewilligt':    _bNichtBewilligt,
       'kein_gerichtlich':   _bKeinGerichtlich,
+      // Section C — Bescheid 1:1: Auszahlbetrag → both C1 (Brutto) and
+      // C2 (Netto). Bürgergeld hat keine Abzüge. KdU/Wohnfläche werden
+      // später aus einem dedizierten Modul gefüllt.
+      'brutto': _auszahlbetragC.text.trim(),
+      'netto':  _auszahlbetragC.text.trim(),
     };
     try {
       final bytes = await widget.apiService.generateBeratungshilfePdf(payload);
@@ -2334,6 +2346,45 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
               'B2/B3/B4 werden immer angekreuzt: keine andere kostenlose Beratung, '
               'noch nicht bewilligt/versagt, kein gerichtliches Verfahren.',
               style: TextStyle(fontSize: 10, color: Colors.grey.shade600, height: 1.3),
+            ),
+          ),
+        ]),
+      ),
+
+      // Abschnitt C — Einkommen aus Jobcenter-Bescheid (1:1)
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.amber.shade300),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.euro, size: 16, color: Colors.amber.shade800),
+            const SizedBox(width: 6),
+            Text('Abschnitt C — Einkünfte (aus Bescheid)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            'Auszahlbetrag aus dem Bürgergeld-/ALG-Bescheid 1:1 eintragen. '
+            'Wird sowohl in C1 (Brutto) als auch C2 (Netto) übernommen — '
+            'Bürgergeld hat keine Abzüge.',
+            style: TextStyle(fontSize: 10.5, color: Colors.amber.shade900, height: 1.4),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _auszahlbetragC,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Auszahlbetrag (€/Monat)',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.account_balance_wallet, size: 18),
+              suffixText: '€',
+              hintText: 'z. B. 1722.68',
             ),
           ),
         ]),
