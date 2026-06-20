@@ -726,30 +726,44 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
 
   Future<void> _openRelatedDoc(String source, Map<String, dynamic> it, {bool openInApp = false}) async {
     try {
-      // Both behoerde_antrag_dokumente IDs go through the same
-      // download endpoint; vermieter_mietvertrag_dokumente needs the
-      // dedicated /api/admin/vermieter_dokument_download.php endpoint
-      // which doesn't have a typed wrapper yet — for the read-only
-      // section we just preview the behoerde-source docs for now.
-      if (source != 'behoerde_antrag') {
+      final id = it['id'] is int ? it['id'] as int : int.tryParse('${it['id']}') ?? 0;
+      if (id <= 0) return;
+
+      late final dynamic resp;
+      late final String fname;
+
+      if (source == 'behoerde_antrag') {
+        resp = await widget.apiService.downloadAntragDokument(id);
+        fname = (it['filename'] ?? 'dokument').toString();
+      } else if (source == 'vermieter_mietvertrag') {
+        // Server decrypts file + filename in memory and streams the
+        // bytes; we recover the human filename from the Content-
+        // Disposition header (or fall back to dokument_typ).
+        resp = await widget.apiService.downloadVermieterDokument(
+          docId: id,
+          userId: widget.userId,
+        );
+        final cd = (resp.headers['content-disposition'] ?? '').toString();
+        final m = RegExp(r'filename\*?=(?:UTF-8\x27\x27)?"?([^";]+)"?').firstMatch(cd);
+        fname = m?.group(1)
+            ?? 'mietvertrag_${it['mietvertrag_id']}_${it['dokument_typ'] ?? "anhang"}.pdf';
+      } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Mietvertrag-Anhänge bitte im Vermieter-Tab öffnen'),
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Source nicht unterstützt: $source'),
           ));
         }
         return;
       }
-      final id = it['id'] is int ? it['id'] as int : int.tryParse('${it['id']}') ?? 0;
-      if (id <= 0) return;
-      final resp = await widget.apiService.downloadAntragDokument(id);
+
       if (resp.statusCode != 200 || !mounted) return;
       final dir = await getTemporaryDirectory();
-      final f = File('${dir.path}/${it['filename']}');
+      final f = File('${dir.path}/$fname');
       await f.writeAsBytes(resp.bodyBytes);
       if (openInApp) {
         await OpenFilex.open(f.path);
       } else if (mounted) {
-        await FileViewerDialog.show(context, f.path, it['filename'].toString());
+        await FileViewerDialog.show(context, f.path, fname);
       }
     } catch (_) {}
   }
