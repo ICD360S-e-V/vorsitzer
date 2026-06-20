@@ -4872,6 +4872,29 @@ class ApiService {
     ).timeout(const Duration(seconds: 15));
   }
 
+  /// Lists documents from sibling Behörden modules (Jobcenter,
+  /// Arbeitsagentur, Vermieter) that may be relevant to the
+  /// Beratungshilfe-Vorfall, so the operator can preview them
+  /// without leaving the Gericht-tab. NO copy is made — the doc
+  /// stays in its original module; the client opens it via the
+  /// per-module download endpoint.
+  ///
+  /// Server: /api/admin/related_docs.php?user_id=<int>
+  Future<Map<String, dynamic>?> listRelatedDocs(int userId) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/related_docs.php?user_id=$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return null;
+      final data = jsonDecode(r.body);
+      if (data is! Map || data['success'] != true) return null;
+      return Map<String, dynamic>.from(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> deleteAntragDokument(int docId) async {
     final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/behoerde_antrag_docs.php'));
     request.headers.addAll(_headers);

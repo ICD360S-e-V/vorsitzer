@@ -443,6 +443,10 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   List<Map<String, dynamic>> _termine = [];
   List<Map<String, dynamic>> _korr = [];
   bool _loaded = false;
+  // Read-only listing of docs sitting in sibling Behörden modules
+  // (Jobcenter Bescheid scans, Vermieter Mietvertrag anhänge, etc.).
+  // Populated from /api/admin/related_docs.php — NO files are copied.
+  List<Map<String, dynamic>> _relatedSections = [];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -452,12 +456,18 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final dR = await widget.apiService.listGerichtVorfallDocs(widget.vorfallId);
     final tR = await widget.apiService.listGerichtVorfallTermine(widget.vorfallId);
     final kR = await widget.apiService.listGerichtVorfallKorr(widget.vorfallId);
+    final rR = await widget.apiService.listRelatedDocs(widget.userId);
     if (!mounted) return;
     setState(() {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (tR['success'] == true && tR['data'] is List) _termine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (rR != null && rR['sections'] is List) {
+        _relatedSections = (rR['sections'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
       _loaded = true;
     });
   }
@@ -560,9 +570,122 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _buildDokSection('Antrag', Icons.assignment, antragDocs, 'antrag',
         hint: 'Generierter Anregung-Antrag, Anlagen zum Antrag (Vollmachten, ärztliche Stellungnahme, Kopien)'),
+      // Read-only sections sourced from sibling Behörden modules — no
+      // file copy, the doc stays in its original place; click opens it
+      // through the per-module download endpoint.
+      ..._relatedSections.map(_buildRelatedSection),
       _buildDokSection('Sonstiges', Icons.folder, sonstigeDocs, 'sonstiges',
         hint: 'Alle anderen Dokumente ohne feste Kategorie'),
     ]));
+  }
+
+  Widget _buildRelatedSection(Map<String, dynamic> section) {
+    final items = (section['items'] as List?) ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    final title = (section['title'] ?? '').toString();
+    final key   = (section['key'] ?? '').toString();
+    final icon  = key == 'einkommen'
+        ? Icons.account_balance_wallet
+        : key == 'wohnen' ? Icons.home : Icons.folder_special;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.indigo.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade50,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+          ),
+          child: Row(children: [
+            Icon(icon, size: 18, color: Colors.indigo.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('$title (${items.length})',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+              Text('Aus anderer Akte — read-only Link, kein Datei-Kopie',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            ])),
+          ]),
+        ),
+        ...items.map<Widget>((raw) {
+          final it = Map<String, dynamic>.from(raw as Map);
+          final source = (it['source'] ?? '').toString();
+          final fname = source == 'vermieter_mietvertrag'
+              ? 'Mietvertrag #${it['mietvertrag_id']} — ${it['dokument_typ'] ?? "Dokument"}'
+              : (it['filename'] ?? '?').toString();
+          final kb = it['kb'] is int ? it['kb'] as int : 0;
+          final behoerde = (it['behoerde'] ?? '').toString();
+          final subline = [
+            if (behoerde.isNotEmpty) behoerde,
+            if (it['antrag_id'] != null) 'Antrag ${it['antrag_id']}',
+            if (kb > 0) '$kb KB',
+            if (it['uploaded_at'] != null) it['uploaded_at'].toString(),
+          ].join(' · ');
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
+            child: Row(children: [
+              Icon(Icons.link, size: 16, color: Colors.indigo.shade600),
+              const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(fname, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                if (subline.isNotEmpty)
+                  Text(subline, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ])),
+              IconButton(
+                icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600),
+                tooltip: 'Anzeigen',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () => _openRelatedDoc(source, it),
+              ),
+              IconButton(
+                icon: Icon(Icons.download, size: 18, color: Colors.green.shade700),
+                tooltip: 'Herunterladen',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () => _openRelatedDoc(source, it, openInApp: true),
+              ),
+            ]),
+          );
+        }),
+        const SizedBox(height: 6),
+      ]),
+    );
+  }
+
+  Future<void> _openRelatedDoc(String source, Map<String, dynamic> it, {bool openInApp = false}) async {
+    try {
+      // Both behoerde_antrag_dokumente IDs go through the same
+      // download endpoint; vermieter_mietvertrag_dokumente needs the
+      // dedicated /api/admin/vermieter_dokument_download.php endpoint
+      // which doesn't have a typed wrapper yet — for the read-only
+      // section we just preview the behoerde-source docs for now.
+      if (source != 'behoerde_antrag') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Mietvertrag-Anhänge bitte im Vermieter-Tab öffnen'),
+          ));
+        }
+        return;
+      }
+      final id = it['id'] is int ? it['id'] as int : int.tryParse('${it['id']}') ?? 0;
+      if (id <= 0) return;
+      final resp = await widget.apiService.downloadAntragDokument(id);
+      if (resp.statusCode != 200 || !mounted) return;
+      final dir = await getTemporaryDirectory();
+      final f = File('${dir.path}/${it['filename']}');
+      await f.writeAsBytes(resp.bodyBytes);
+      if (openInApp) {
+        await OpenFilex.open(f.path);
+      } else if (mounted) {
+        await FileViewerDialog.show(context, f.path, it['filename'].toString());
+      }
+    } catch (_) {}
   }
 
   Widget _buildDokSection(String title, IconData icon, List<Map<String, dynamic>> docs, String kategorie, {String? hint}) {
