@@ -2367,6 +2367,83 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
         ),
       ],
 
+      // Abschnitt A — Sachverhalt (Motiv-Vorschlag + Freitext)
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: Colors.teal.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.teal.shade300),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.subject, size: 16, color: Colors.teal.shade800),
+            const SizedBox(width: 6),
+            Text('Abschnitt A — Sachverhalt',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+          ]),
+          const SizedBox(height: 6),
+          if (_motiveOptions.isNotEmpty)
+            DropdownButtonFormField<String>(
+              initialValue: _selectedMotivId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Vorschlag aus Akten oder freier Text',
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                prefixIcon: Icon(Icons.assignment, size: 18, color: Colors.teal.shade700),
+              ),
+              items: [
+                ..._motiveOptions.map((m) => DropdownMenuItem<String>(
+                  value: m['id'].toString(),
+                  child: Text((m['label'] ?? '').toString(),
+                    style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                )),
+                const DropdownMenuItem<String>(
+                  value: 'free',
+                  child: Text('— Anders / freier Text —', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                ),
+              ],
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  _selectedMotivId = v;
+                  if (v == 'free') {
+                    _sachverhaltC.text = '';
+                  } else {
+                    final m = _motiveOptions.firstWhere((o) => o['id'].toString() == v, orElse: () => const {});
+                    _sachverhaltC.text = (m['text'] ?? '').toString();
+                  }
+                });
+              },
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+              child: Row(children: [
+                Icon(Icons.info_outline, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  'Keine automatischen Motiv-Vorschläge — bitte Sachverhalt unten frei eingeben.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                )),
+              ]),
+            ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _sachverhaltC,
+            maxLines: 4,
+            decoration: InputDecoration(
+              labelText: 'Sachverhalt (geht in Abschnitt A des Antrags)',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ]),
+      ),
+
       // Abschnitt B: Erklärungen — only B1 is operator-driven, the
       // other three are constants in our flow.
       const SizedBox(height: 16),
@@ -2601,69 +2678,6 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
             style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
           )),
         ]),
-      ),
-
-      // Motiv für den Antrag
-      const SizedBox(height: 16),
-      Text('Motiv für den Beratungshilfe-Antrag',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
-      const SizedBox(height: 6),
-      if (_motiveOptions.isNotEmpty)
-        DropdownButtonFormField<String>(
-          initialValue: _selectedMotivId,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: 'Vorschlag aus Akten oder freier Text',
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            prefixIcon: Icon(Icons.assignment, size: 18, color: c.shade700),
-          ),
-          items: [
-            ..._motiveOptions.map((m) => DropdownMenuItem<String>(
-              value: m['id'].toString(),
-              child: Text((m['label'] ?? '').toString(),
-                style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-            )),
-            const DropdownMenuItem<String>(
-              value: 'free',
-              child: Text('— Anders / freier Text —', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-            ),
-          ],
-          onChanged: (v) {
-            if (v == null) return;
-            setState(() {
-              _selectedMotivId = v;
-              if (v == 'free') {
-                _sachverhaltC.text = '';
-              } else {
-                final m = _motiveOptions.firstWhere((o) => o['id'].toString() == v, orElse: () => const {});
-                _sachverhaltC.text = (m['text'] ?? '').toString();
-              }
-            });
-          },
-        )
-      else
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
-          child: Row(children: [
-            Icon(Icons.info_outline, size: 14, color: Colors.grey.shade600),
-            const SizedBox(width: 6),
-            Expanded(child: Text(
-              'Keine automatischen Motiv-Vorschläge — bitte Sachverhalt unten frei eingeben.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
-            )),
-          ]),
-        ),
-      const SizedBox(height: 8),
-      TextField(
-        controller: _sachverhaltC,
-        maxLines: 4,
-        decoration: InputDecoration(
-          labelText: 'Sachverhalt (geht in Abschnitt A des Antrags)',
-          isDense: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        ),
       ),
 
       const SizedBox(height: 20),
