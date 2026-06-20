@@ -4695,14 +4695,25 @@ class ApiService {
 
   // ========== BERATUNGSHILFE PDF ==========
 
-  Future<http.Response?> generateBeratungshilfePdf(Map<String, dynamic> formData) async {
+  /// Fill the bundeseinheitliches Beratungshilfe-Antragsformular (pdftk
+  /// AcroForm) with the supplied payload. Caller composes the body from
+  /// the member's master data + Vorfall metadata + financial inputs.
+  /// Returns raw PDF bytes (binary, %PDF-magic verified) or null on error.
+  ///
+  /// Server: /api/admin/beratungshilfe_pdf.php (POST JSON).
+  Future<List<int>?> generateBeratungshilfePdf(Map<String, dynamic> payload) async {
     try {
-      return await _client.post(
+      final r = await _client.post(
         Uri.parse('$baseUrl/admin/beratungshilfe_pdf.php'),
         headers: _headers,
-        body: jsonEncode(formData),
+        body: jsonEncode(payload),
       ).timeout(const Duration(seconds: 120));
-    } catch (_) { return null; }
+      if (r.statusCode == 200 && r.bodyBytes.length > 1000 &&
+          r.bodyBytes[0] == 0x25 && r.bodyBytes[1] == 0x50 && r.bodyBytes[2] == 0x44 && r.bodyBytes[3] == 0x46) {
+        return r.bodyBytes;
+      }
+    } catch (_) {}
+    return null;
   }
 
   // ========== DEUTSCHLANDTICKET RECHNUNGEN & KORRESPONDENZ ==========
@@ -5613,27 +5624,6 @@ class ApiService {
       if (r.statusCode == 200 && r.bodyBytes.length > 1000 &&
           r.bodyBytes[0] == 0x25 && r.bodyBytes[1] == 0x50 && r.bodyBytes[2] == 0x44 && r.bodyBytes[3] == 0x46) {
         // %PDF magic ok
-        return r.bodyBytes;
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  /// Fill the bundeseinheitliches Beratungshilfe-Antragsformular (pdftk
-  /// AcroForm) with the supplied payload. Caller composes the body from
-  /// the member's master data + Vorfall metadata + financial inputs.
-  /// Returns raw PDF bytes (binary) or null on error.
-  ///
-  /// Server: /api/admin/beratungshilfe_pdf.php (POST JSON).
-  Future<List<int>?> generateBeratungshilfePdf(Map<String, dynamic> payload) async {
-    try {
-      final r = await _client.post(
-        Uri.parse('$baseUrl/admin/beratungshilfe_pdf.php'),
-        headers: _headers,
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 30));
-      if (r.statusCode == 200 && r.bodyBytes.length > 1000 &&
-          r.bodyBytes[0] == 0x25 && r.bodyBytes[1] == 0x50 && r.bodyBytes[2] == 0x44 && r.bodyBytes[3] == 0x46) {
         return r.bodyBytes;
       }
     } catch (_) {}
