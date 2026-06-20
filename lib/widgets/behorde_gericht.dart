@@ -2021,6 +2021,13 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   // Pre-filled from user master row
   Map<String, dynamic> _user = {};
 
+  // Court catalogue + selection — every Amtsgericht has its own address
+  // that the form's "Name des Amtsgerichts" + "Postleitzahl Ort" fields
+  // get filled with. Loaded from gericht_datenbank where
+  // gericht_typ = 'beratungshilfe'.
+  List<Map<String, dynamic>> _gerichte = [];
+  Map<String, dynamic>? _selectedGericht;
+
   // Editable on this screen
   final _sachverhaltC = TextEditingController();
   final _bruttoC = TextEditingController();
@@ -2062,11 +2069,30 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
         _user = Map<String, dynamic>.from(r['user'] as Map);
       }
     } catch (_) {}
+    // Court catalogue — every Amtsgericht / Bundesland may ship its
+    // own PDF template (BW v14, Bayern avr070, Berlin avr77 etc.)
+    // referenced by gericht_datenbank.pdf_template.
+    try {
+      final g = await widget.apiService.getGerichtDatenbank('beratungshilfe');
+      if (g['success'] == true && g['gerichte'] is List) {
+        _gerichte = List<Map<String, dynamic>>.from(g['gerichte']);
+        if (_gerichte.isNotEmpty) _selectedGericht = _gerichte.first;
+      }
+    } catch (_) {}
     // Pre-fill Sachverhalt from Vorfall titel + notiz
     final titel = widget.vorfall['titel']?.toString() ?? '';
     final notiz = widget.vorfall['notiz']?.toString() ?? '';
     _sachverhaltC.text = [titel, notiz].where((s) => s.isNotEmpty).join('\n\n');
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// Extract "89073 Ulm" from an address line like
+  /// "Zeughausgasse 14, 89073 Ulm (Justizzentrum Zeughaus, EG)".
+  /// Used to fill the form's "Postleitzahl Ort" field from the chosen
+  /// gericht_datenbank row.
+  String _plzOrtFromAddress(String addr) {
+    final m = RegExp(r'(\d{5}\s+[A-Za-zÄÖÜäöüß\-]+)').firstMatch(addr);
+    return m?.group(1) ?? '';
   }
 
   String _antragsteller() {
@@ -2099,9 +2125,18 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       _lastError = null;
       _lastGeneratedPath = null;
     });
+    if (_selectedGericht == null) {
+      setState(() {
+        _generating = false;
+        _lastError = 'Kein Amtsgericht ausgewählt — bitte oben einen Eintrag wählen.';
+      });
+      return;
+    }
+    final g = _selectedGericht!;
     final payload = <String, dynamic>{
-      'amtsgericht': 'Amtsgericht Ulm — Rechtsantragstelle',
-      'amtsgericht_plz_ort': '89073 Ulm',
+      'amtsgericht': (g['name'] ?? '').toString(),
+      'amtsgericht_plz_ort': _plzOrtFromAddress((g['adresse'] ?? '').toString()),
+      'pdf_template': (g['pdf_template'] ?? '').toString(),
       'antragsteller': _antragsteller(),
       'beruf': (_user['beruf'] ?? '').toString(),
       'geburtsdatum': (_user['geburtsdatum'] ?? '').toString(),
@@ -2176,8 +2211,51 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
            style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4)),
       const SizedBox(height: 16),
 
+      // Amtsgericht selector — every entry carries its own PDF template
+      // (Bundesland-specific form). Default = first row from DB.
+      if (_gerichte.isEmpty)
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade300)),
+          child: Row(children: [
+            Icon(Icons.warning_amber, size: 18, color: Colors.amber.shade800),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Kein Amtsgericht in der Datenbank für "Beratungshilfe". Vorsitzer muss zuerst einen Eintrag in der Gericht-Datenbank anlegen.',
+              style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+          ]),
+        )
+      else
+        DropdownButtonFormField<Map<String, dynamic>>(
+          initialValue: _selectedGericht,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: 'Amtsgericht (bestimmt das Formular)',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            prefixIcon: Icon(Icons.account_balance, size: 18, color: c.shade700),
+          ),
+          items: _gerichte.map((g) {
+            final bl = (g['bundesland'] ?? '').toString();
+            final tpl = (g['pdf_template'] ?? '').toString();
+            return DropdownMenuItem(value: g, child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text((g['name'] ?? '').toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  [if (bl.isNotEmpty) bl, if (tpl.isNotEmpty) 'Formular: $tpl', if (tpl.isEmpty) 'kein Formular hinterlegt'].join(' · '),
+                  style: TextStyle(fontSize: 10, color: tpl.isEmpty ? Colors.red.shade700 : Colors.grey.shade600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ));
+          }).toList(),
+          onChanged: (v) => setState(() => _selectedGericht = v),
+        ),
+      const SizedBox(height: 12),
+
       // Pre-filled (read-only display)
-      _readonlyRow('Amtsgericht', 'Amtsgericht Ulm — Rechtsantragstelle, 89073 Ulm', c),
       _readonlyRow('Antragsteller', _antragsteller(), c),
       _readonlyRow('Geburtsdatum', _user['geburtsdatum']?.toString() ?? '', c),
       _readonlyRow('Familienstand', _user['familienstand']?.toString() ?? '', c),
