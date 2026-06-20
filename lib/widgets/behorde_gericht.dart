@@ -2060,6 +2060,7 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   final _wohnflaecheC = TextEditingController();
   final _warmmieteC   = TextEditingController();
   String? _wohnungAdresse; // caption-only hint, not in PDF payload
+  int _kinderAnzahl = 0;   // Bedarfsgemeinschaft size driver for D5/D6
 
   // Tab now exposes: Amtsgericht selector + auto-arbeitslos banner +
   // Motiv dropdown (auto-detected aus Jobcenter Sanktion / Widerspruch,
@@ -2127,6 +2128,9 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           if (qm != null && qm.isNotEmpty) _wohnflaecheC.text = qm;
           if (warm != null && warm.isNotEmpty) _warmmieteC.text = warm;
           if (adr != null && adr.isNotEmpty) _wohnungAdresse = adr;
+          final ka = w['kinder_anzahl'];
+          if (ka is int) _kinderAnzahl = ka;
+          else if (ka != null) _kinderAnzahl = int.tryParse(ka.toString()) ?? 0;
         }
       }
     } catch (_) {}
@@ -2225,7 +2229,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       // + Heizung) total monthly rent including everything.
       'wohnung_groesse': _wohnflaecheC.text.trim(),
       'wohnkosten':      _warmmieteC.text.trim(),
-      'allein_bewohner': true, // sensible default; D-section toggle TBD
+      // D4/D5/D6: if the member has Kinder/Familienangehörige linked
+      // via vormund_user_id, mark "gemeinsam bewohnt" + write the
+      // count into D6 ("weitere Personen"). Otherwise allein.
+      'allein_bewohner': _kinderAnzahl == 0,
+      'mit_bewohner':    _kinderAnzahl > 0 ? '$_kinderAnzahl' : '',
     };
     try {
       final bytes = await widget.apiService.generateBeratungshilfePdf(payload);
@@ -2451,6 +2459,25 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
             const SizedBox(height: 4),
             Text('Mietobjekt: $_wohnungAdresse',
               style: TextStyle(fontSize: 10.5, color: Colors.blue.shade800, fontStyle: FontStyle.italic)),
+          ],
+          if (_kinderAnzahl > 0) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.indigo.shade100,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.family_restroom, size: 14, color: Colors.indigo.shade700),
+                const SizedBox(width: 4),
+                Text(
+                  '$_kinderAnzahl ${_kinderAnzahl == 1 ? "Kind/Angehörige/r" : "Kinder/Angehörige"} im Haushalt — '
+                  'D5 (gemeinsam bewohnt) wird automatisch angekreuzt, D6 = $_kinderAnzahl',
+                  style: TextStyle(fontSize: 10.5, color: Colors.indigo.shade900, fontWeight: FontWeight.w600),
+                ),
+              ]),
+            ),
           ],
           const SizedBox(height: 8),
           Row(children: [
