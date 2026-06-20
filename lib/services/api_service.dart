@@ -4871,20 +4871,9 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 15));
   }
-
-  /// Download a vermieter_mietvertrag attachment (Mietvertrag-Scan,
-  /// Nebenkostenabrechnung etc.). Server decrypts file + filename in
-  /// memory and streams the bytes. user_id is required so the server
-  /// can verify the doc actually belongs to that member.
-  Future<http.Response> downloadVermieterDokument({
-    required int docId,
-    required int userId,
-  }) async {
-    return await _client.get(
-      Uri.parse('$baseUrl/admin/vermieter_dokument_download.php?dokument_id=$docId&user_id=$userId'),
-      headers: _headers,
-    ).timeout(const Duration(seconds: 30));
-  }
+  // (downloadVermieterDokument lives further down at line ~7133 — see
+  //  there. Re-uses {dokumentId, userId} pattern as the existing call
+  //  sites in the Vermieter tab.)
 
   /// Lists documents from sibling Behörden modules (Jobcenter,
   /// Arbeitsagentur, Vermieter) that may be relevant to the

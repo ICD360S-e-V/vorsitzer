@@ -740,7 +740,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         // bytes; we recover the human filename from the Content-
         // Disposition header (or fall back to dokument_typ).
         resp = await widget.apiService.downloadVermieterDokument(
-          docId: id,
+          dokumentId: id,
           userId: widget.userId,
         );
         final cd = (resp.headers['content-disposition'] ?? '').toString();
