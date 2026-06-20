@@ -26,6 +26,17 @@ class GesundheitsProfilTab extends StatefulWidget {
 class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
   final _gewichtC = TextEditingController();
   final _groesseC = TextEditingController();
+
+  // Medical-alert fields (all decrypted by server before reaching the
+  // client — see /api/admin/gesundheits_profil.php).
+  bool _schwanger = false;
+  final _schwangerETTC = TextEditingController(); // YYYY-MM-DD
+  bool _herzschrittmacher = false;
+  final _herzschrittmacherModellC = TextEditingController();
+  final _implantateC = TextEditingController();
+  bool _hoergeraete = false;
+  String _hoergeraeteSeite = ''; // '', 'rechts', 'links', 'beide'
+
   bool _loading = true;
   bool _showBack = false;
 
@@ -39,6 +50,9 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
   void dispose() {
     _gewichtC.dispose();
     _groesseC.dispose();
+    _schwangerETTC.dispose();
+    _herzschrittmacherModellC.dispose();
+    _implantateC.dispose();
     super.dispose();
   }
 
@@ -48,6 +62,13 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
       if (res['success'] == true) {
         _gewichtC.text = res['gewicht_kg']?.toString() ?? '';
         _groesseC.text = res['groesse_cm']?.toString() ?? '';
+        _schwanger = (res['schwanger']?.toString() == '1');
+        _schwangerETTC.text = res['schwanger_voraussichtlich']?.toString() ?? '';
+        _herzschrittmacher = (res['herzschrittmacher']?.toString() == '1');
+        _herzschrittmacherModellC.text = res['herzschrittmacher_modell']?.toString() ?? '';
+        _implantateC.text = res['implantate']?.toString() ?? '';
+        _hoergeraete = (res['hoergeraete']?.toString() == '1');
+        _hoergeraeteSeite = res['hoergeraete_seite']?.toString() ?? '';
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
@@ -57,6 +78,14 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     await widget.apiService.saveGesundheitsProfil(widget.userId, {
       'gewicht_kg': double.tryParse(_gewichtC.text) ?? 0,
       'groesse_cm': int.tryParse(_groesseC.text) ?? 0,
+      // Medical alerts — empty string = clear, '1'/'0' = flag.
+      'schwanger': _schwanger ? '1' : '0',
+      'schwanger_voraussichtlich': _schwangerETTC.text.trim(),
+      'herzschrittmacher': _herzschrittmacher ? '1' : '0',
+      'herzschrittmacher_modell': _herzschrittmacherModellC.text.trim(),
+      'implantate': _implantateC.text.trim(),
+      'hoergeraete': _hoergeraete ? '1' : '0',
+      'hoergeraete_seite': _hoergeraeteSeite,
     });
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
   }
@@ -176,6 +205,199 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
           const SizedBox(height: 16),
           _buildGesundheitsCriteria(bmi, age, isMale),
         ],
+        const SizedBox(height: 16),
+        _buildMedicalAlerts(isMale),
+      ]),
+    );
+  }
+
+  Widget _buildMedicalAlerts(bool isMale) {
+    final hasAny = _schwanger || _herzschrittmacher || _hoergeraete || _implantateC.text.trim().isNotEmpty;
+    final headerColor = hasAny ? Colors.red.shade700 : Colors.amber.shade800;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: hasAny ? Colors.red.shade50 : Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: hasAny ? Colors.red.shade300 : Colors.amber.shade300, width: 1.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(hasAny ? Icons.warning_amber_rounded : Icons.medical_information, color: headerColor, size: 22),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            'Medizinische Hinweise',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: headerColor),
+          )),
+          Icon(Icons.lock_outline, size: 14, color: Colors.grey.shade600),
+          const SizedBox(width: 4),
+          Text('verschlüsselt', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Relevant für Anästhesie, MRT, Medikation, Rettungsdienst. Alle Felder sind AES-256-GCM verschlüsselt gespeichert.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 12),
+
+        // Schwangerschaft — only relevant for female members
+        if (!isMale) ...[
+          _alertRow(
+            icon: Icons.pregnant_woman,
+            iconColor: Colors.pink.shade600,
+            label: 'Schwangerschaft',
+            child: Row(children: [
+              Switch(
+                value: _schwanger,
+                activeThumbColor: Colors.pink.shade600,
+                onChanged: (v) => setState(() => _schwanger = v),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _schwanger
+                    ? TextField(
+                        controller: _schwangerETTC,
+                        decoration: InputDecoration(
+                          labelText: 'Voraussichtlicher Geburtstermin (YYYY-MM-DD)',
+                          isDense: true,
+                          prefixIcon: const Icon(Icons.calendar_today, size: 16),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.event, size: 18),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.tryParse(_schwangerETTC.text) ?? DateTime.now().add(const Duration(days: 200)),
+                                firstDate: DateTime.now().subtract(const Duration(days: 280)),
+                                lastDate: DateTime.now().add(const Duration(days: 320)),
+                              );
+                              if (picked != null) {
+                                setState(() => _schwangerETTC.text =
+                                    '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
+                              }
+                            },
+                          ),
+                        ),
+                      )
+                    : const Text('Nicht schwanger', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // Herzschrittmacher
+        _alertRow(
+          icon: Icons.favorite,
+          iconColor: Colors.red.shade600,
+          label: 'Herzschrittmacher / ICD',
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Switch(
+                value: _herzschrittmacher,
+                activeThumbColor: Colors.red.shade600,
+                onChanged: (v) => setState(() => _herzschrittmacher = v),
+              ),
+              const SizedBox(width: 8),
+              Text(_herzschrittmacher ? 'Ja' : 'Nein', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            ]),
+            if (_herzschrittmacher) ...[
+              const SizedBox(height: 6),
+              TextField(
+                controller: _herzschrittmacherModellC,
+                decoration: InputDecoration(
+                  labelText: 'Modell / Hersteller (z. B. Biotronik Edora 8 SR-T)',
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.qr_code, size: 16),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 8),
+
+        // Implantate — free text (knee/hip/dental TEP, screws, plates, stents…)
+        _alertRow(
+          icon: Icons.medical_services,
+          iconColor: Colors.blueGrey.shade600,
+          label: 'Implantate (Metall / Titan / Silikon)',
+          child: TextField(
+            controller: _implantateC,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'z. B. Knie-TEP rechts 2020, Hüft-TEP links 2018, Zahnimplantate Front 2022',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Hörgeräte
+        _alertRow(
+          icon: Icons.hearing,
+          iconColor: Colors.indigo.shade600,
+          label: 'Hörgeräte',
+          child: Row(children: [
+            Switch(
+              value: _hoergeraete,
+              activeThumbColor: Colors.indigo.shade600,
+              onChanged: (v) => setState(() {
+                _hoergeraete = v;
+                if (!v) _hoergeraeteSeite = '';
+              }),
+            ),
+            const SizedBox(width: 8),
+            if (_hoergeraete)
+              Expanded(
+                child: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'rechts', label: Text('Rechts', style: TextStyle(fontSize: 11))),
+                    ButtonSegment(value: 'links', label: Text('Links', style: TextStyle(fontSize: 11))),
+                    ButtonSegment(value: 'beide', label: Text('Beide', style: TextStyle(fontSize: 11))),
+                  ],
+                  selected: _hoergeraeteSeite.isEmpty ? {} : {_hoergeraeteSeite},
+                  emptySelectionAllowed: true,
+                  showSelectedIcon: false,
+                  onSelectionChanged: (s) => setState(() => _hoergeraeteSeite = s.isEmpty ? '' : s.first),
+                ),
+              )
+            else
+              const Text('Keine', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _save,
+            icon: const Icon(Icons.save, size: 16),
+            label: const Text('Hinweise speichern', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: headerColor),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _alertRow({required IconData icon, required Color iconColor, required String label, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 18, color: iconColor),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        ]),
+        const SizedBox(height: 6),
+        child,
       ]),
     );
   }
