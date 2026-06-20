@@ -529,6 +529,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           userName: widget.userName,
           userNachname: widget.userNachname,
           color: widget.color,
+          onAntragUploaded: _load, // refresh _docs so new PDF shows up
         ),
         _buildDokumente(),
         _buildVerlaufUnified(v),
@@ -2202,6 +2203,10 @@ class _BeratungshilfeGeneratorTab extends StatefulWidget {
   final String userName;
   final String userNachname;
   final MaterialColor color;
+  // Fired after a freshly generated PDF was uploaded to the Vorfall's
+  // 'antrag' bucket — parent reloads its docs list so the new file
+  // shows up in the Dokumente tab right away.
+  final VoidCallback? onAntragUploaded;
   const _BeratungshilfeGeneratorTab({
     required this.apiService,
     required this.userId,
@@ -2210,6 +2215,7 @@ class _BeratungshilfeGeneratorTab extends StatefulWidget {
     required this.userName,
     required this.userNachname,
     required this.color,
+    this.onAntragUploaded,
   });
   @override
   State<_BeratungshilfeGeneratorTab> createState() => _BeratungshilfeGeneratorTabState();
@@ -2503,8 +2509,13 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
         );
         if (r['success'] == true) {
           uploadHint = ' · zur Vorfall-Akte unter „Antrag" hinzugefügt';
+          widget.onAntragUploaded?.call();
+        } else {
+          uploadHint = ' · Upload-Fehler: ${r['message'] ?? "unbekannt"}';
         }
-      } catch (_) {}
+      } catch (e) {
+        uploadHint = ' · Upload-Fehler: $e';
+      }
 
       if (!mounted) return;
       setState(() {
