@@ -457,6 +457,14 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   // surface Widerspruch-Belege (Jobcenter, Arbeitsagentur, Sozialamt,
   // Versorgungsamt, …) and the operator wants to pick one to focus on.
   final Map<String, String?> _relatedSectionFilter = {};
+  // All "cases" the member has across Behörden — surfaced by the server
+  // so the operator can choose which ones belong to this Beratungshilfe-
+  // Vorfall. Each entry: {behoerde, case_type, case_id, label,
+  // files_count, widerspruch}.
+  List<Map<String, dynamic>> _availableCases = [];
+  // Currently linked cases on this vorfall (subset of _availableCases).
+  // Each entry only carries {behoerde, case_type, case_id}.
+  List<Map<String, dynamic>> _linkedCases = [];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -466,7 +474,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final dR = await widget.apiService.listGerichtVorfallDocs(widget.vorfallId);
     final tR = await widget.apiService.listGerichtVorfallTermine(widget.vorfallId);
     final kR = await widget.apiService.listGerichtVorfallKorr(widget.vorfallId);
-    final rR = await widget.apiService.listRelatedDocs(widget.userId);
+    final rR = await widget.apiService.listRelatedDocs(widget.userId, vorfallId: widget.vorfallId);
     if (!mounted) return;
     setState(() {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -483,8 +491,142 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
       }
+      if (rR != null && rR['cases'] is List) {
+        _availableCases = (rR['cases'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } else {
+        _availableCases = [];
+      }
+      if (rR != null && rR['linked_cases'] is List) {
+        _linkedCases = (rR['linked_cases'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } else {
+        _linkedCases = [];
+      }
       _loaded = true;
     });
+  }
+
+  bool _caseIsLinked(Map<String, dynamic> c) {
+    final beh = (c['behoerde'] ?? '').toString();
+    final ct  = (c['case_type'] ?? '').toString();
+    final cid = c['case_id'] is int ? c['case_id'] as int : int.tryParse('${c['case_id']}') ?? 0;
+    for (final l in _linkedCases) {
+      if ((l['behoerde'] ?? '') == beh
+          && (l['case_type'] ?? '') == ct
+          && (l['case_id'] is int ? l['case_id'] : int.tryParse('${l['case_id']}')) == cid) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _openCasePicker() async {
+    if (_availableCases.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Keine Fälle verfügbar — keine Widerspruch-Belege im System.'),
+        ));
+      }
+      return;
+    }
+    // Build a local mutable set keyed by "beh|ct|cid".
+    String key(Map c) => '${c['behoerde']}|${c['case_type']}|${c['case_id']}';
+    final selected = <String>{for (final c in _availableCases) if (_caseIsLinked(c)) key(c)};
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        // Group cases per Behörde.
+        final groups = <String, List<Map<String, dynamic>>>{};
+        for (final c in _availableCases) {
+          (groups[(c['behoerde'] ?? '').toString()] ??= []).add(c);
+        }
+        final keys = groups.keys.toList()..sort();
+        return AlertDialog(
+          title: const Text('Fälle für Beratungshilfe wählen'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    selected.isEmpty
+                        ? 'Keine Auswahl → in der Korrespondenz-Sektion erscheinen ALLE Fälle.'
+                        : '${selected.length} Fall/Fälle gewählt → nur diese erscheinen in der Korrespondenz-Sektion.',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ),
+                Row(children: [
+                  TextButton.icon(
+                    icon: const Icon(Icons.select_all, size: 16),
+                    label: const Text('Alle wählen', style: TextStyle(fontSize: 12)),
+                    onPressed: () => setD(() => selected
+                      ..clear()
+                      ..addAll(_availableCases.map(key))),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.deselect, size: 16),
+                    label: const Text('Auswahl löschen', style: TextStyle(fontSize: 12)),
+                    onPressed: () => setD(() => selected.clear()),
+                  ),
+                ]),
+                const Divider(),
+                for (final b in keys) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 4),
+                    child: Text(_behoerdeLabel(b),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                  ),
+                  for (final c in groups[b]!)
+                    CheckboxListTile(
+                      dense: true,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      value: selected.contains(key(c)),
+                      onChanged: (v) => setD(() {
+                        if (v == true) selected.add(key(c)); else selected.remove(key(c));
+                      }),
+                      title: Text((c['label'] ?? '').toString(), style: const TextStyle(fontSize: 12)),
+                      subtitle: Text(
+                        '${c['files_count']} Datei(en)'
+                            '${(c['widerspruch'] == true) ? ' · ⚖ Widerspruchsverfahren' : ''}',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                      ),
+                    ),
+                ],
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            ElevatedButton(
+              onPressed: () async {
+                final picked = _availableCases.where((c) => selected.contains(key(c))).map((c) => {
+                  'behoerde':  c['behoerde'],
+                  'case_type': c['case_type'],
+                  'case_id':   c['case_id'],
+                }).toList();
+                final ok = await widget.apiService.setVorfallLinkedCases(
+                  vorfallId: widget.vorfallId,
+                  userId: widget.userId,
+                  cases: picked,
+                );
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx, ok);
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        );
+      }),
+    );
+    if (saved == true) {
+      await _load();
+    }
   }
 
   @override
@@ -721,6 +863,32 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
               Text('Aus anderer Akte — read-only Link, kein Datei-Kopie',
                 style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
             ])),
+            // Case-Picker — nur für die Korrespondenz-Sektion. Zeigt
+            // einen Dialog mit allen Fällen (Sanktionen, Anträge,
+            // Bewilligungen, Korr-Einträge) gruppiert nach Behörde, mit
+            // Multi-Select. Auswahl wird auf gericht_vorfaelle.linked_cases
+            // gespeichert und filtert anschließend die Korrespondenz.
+            if (key == 'korrespondenz' && _availableCases.isNotEmpty)
+              Tooltip(
+                message: _linkedCases.isEmpty
+                    ? 'Alle ${_availableCases.length} Fälle aktiv — klicken um auszuwählen'
+                    : '${_linkedCases.length} von ${_availableCases.length} Fällen gewählt',
+                child: TextButton.icon(
+                  onPressed: _openCasePicker,
+                  icon: const Icon(Icons.checklist, size: 16),
+                  label: Text(
+                    _linkedCases.isEmpty
+                        ? 'Fälle (alle)'
+                        : 'Fälle (${_linkedCases.length}/${_availableCases.length})',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _linkedCases.isEmpty ? Colors.indigo.shade700 : Colors.deepOrange.shade800,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
           ]),
         ),
         if (behoerden.length > 1)

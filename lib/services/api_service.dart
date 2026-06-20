@@ -4882,11 +4882,19 @@ class ApiService {
   /// stays in its original module; the client opens it via the
   /// per-module download endpoint.
   ///
-  /// Server: /api/admin/related_docs.php?user_id=<int>
-  Future<Map<String, dynamic>?> listRelatedDocs(int userId) async {
+  /// Server: /api/admin/related_docs.php?user_id=<int>&vorfall_id=<int>
+  /// When vorfall_id is set, the server reads gericht_vorfaelle.linked_cases
+  /// for that vorfall and only returns Korrespondenz items that match one
+  /// of those (behoerde, case_type, case_id) triples. Without it (or when
+  /// linked_cases is empty), all items are returned. The response always
+  /// includes the full 'cases' list so the UI can show the case picker.
+  Future<Map<String, dynamic>?> listRelatedDocs(int userId, {int? vorfallId}) async {
     try {
+      final qs = vorfallId != null && vorfallId > 0
+          ? '?user_id=$userId&vorfall_id=$vorfallId'
+          : '?user_id=$userId';
       final r = await _client.get(
-        Uri.parse('$baseUrl/admin/related_docs.php?user_id=$userId'),
+        Uri.parse('$baseUrl/admin/related_docs.php$qs'),
         headers: _headers,
       ).timeout(const Duration(seconds: 15));
       if (r.statusCode != 200) return null;
@@ -4895,6 +4903,33 @@ class ApiService {
       return Map<String, dynamic>.from(data);
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Persist the selection of "linked cases" for a Beratungshilfe-Vorfall.
+  /// Each entry: {behoerde, case_type, case_id}. Pass an empty list to
+  /// clear (= show all cases again).
+  Future<bool> setVorfallLinkedCases({
+    required int vorfallId,
+    required int userId,
+    required List<Map<String, dynamic>> cases,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/gericht_vorfaelle.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'action': 'set_linked_cases',
+          'id': vorfallId,
+          'user_id': userId,
+          'linked_cases': cases,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return false;
+      final data = jsonDecode(r.body);
+      return data is Map && data['success'] == true;
+    } catch (_) {
+      return false;
     }
   }
 
