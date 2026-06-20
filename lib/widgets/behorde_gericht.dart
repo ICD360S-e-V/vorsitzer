@@ -2028,38 +2028,16 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   List<Map<String, dynamic>> _gerichte = [];
   Map<String, dynamic>? _selectedGericht;
 
-  // Editable on this screen
-  final _sachverhaltC = TextEditingController();
-  final _bruttoC = TextEditingController();
-  final _nettoC = TextEditingController();
-  final _ehegatteNettoC = TextEditingController();
-  final _wohnungGroesseC = TextEditingController();
-  final _wohnkostenC = TextEditingController();
-  bool _alleinBewohner = true;
-  bool _keineRechtsschutz = true;
-  bool _keineMoeglichkeit = true;
-  bool _nichtBewilligt = true;
-  bool _keinGerichtlich = true;
-  bool _hatBankkonten = false;
-  bool _hatGrundeigentum = false;
-  bool _hatKfz = false;
-  bool _hatSonstigeVermoegen = false;
+  // Keine Bearbeitungs-Felder hier. Tab is intentionally minimal: pick
+  // the Amtsgericht, hit Generieren. Stammdaten kommen aus `users`,
+  // Sachverhalt aus dem Vorfall (titel + notiz). Restliche Felder
+  // (Einkommen, Wohnkosten, Vermögen, B-Erklärungen) bleiben im PDF
+  // leer und werden später aus dedizierten Modulen befüllt.
 
   @override
   void initState() {
     super.initState();
     _load();
-  }
-
-  @override
-  void dispose() {
-    _sachverhaltC.dispose();
-    _bruttoC.dispose();
-    _nettoC.dispose();
-    _ehegatteNettoC.dispose();
-    _wohnungGroesseC.dispose();
-    _wohnkostenC.dispose();
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -2133,6 +2111,9 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       return;
     }
     final g = _selectedGericht!;
+    final titel = (widget.vorfall['titel'] ?? '').toString();
+    final notiz = (widget.vorfall['notiz'] ?? '').toString();
+    final sachverhalt = [titel, notiz].where((s) => s.isNotEmpty).join('\n\n');
     final payload = <String, dynamic>{
       'amtsgericht': (g['name'] ?? '').toString(),
       'amtsgericht_plz_ort': _plzOrtFromAddress((g['adresse'] ?? '').toString()),
@@ -2143,21 +2124,7 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       'familienstand': (_user['familienstand'] ?? '').toString(),
       'anschrift': _anschrift(),
       'telefon': _telefon(),
-      'sachverhalt': _sachverhaltC.text.trim(),
-      'brutto': _bruttoC.text.trim(),
-      'netto': _nettoC.text.trim(),
-      'ehegatte_netto': _ehegatteNettoC.text.trim(),
-      'wohnung_groesse': _wohnungGroesseC.text.trim(),
-      'wohnkosten': _wohnkostenC.text.trim(),
-      'allein_bewohner': _alleinBewohner,
-      'keine_rechtsschutz': _keineRechtsschutz,
-      'keine_moeglichkeit': _keineMoeglichkeit,
-      'nicht_bewilligt': _nichtBewilligt,
-      'kein_gerichtlich': _keinGerichtlich,
-      'hat_bankkonten': _hatBankkonten,
-      'hat_grundeigentum': _hatGrundeigentum,
-      'hat_kfz': _hatKfz,
-      'hat_sonstige_vermoegen': _hatSonstigeVermoegen,
+      'sachverhalt': sachverhalt,
     };
     try {
       final bytes = await widget.apiService.generateBeratungshilfePdf(payload);
@@ -2198,21 +2165,16 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     final c = widget.color;
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         Icon(Icons.picture_as_pdf, color: c.shade700),
         const SizedBox(width: 8),
-        const Expanded(child: Text('Beratungshilfe — Bundeseinheitliches Antragsformular',
+        const Expanded(child: Text('Beratungshilfe-Antrag generieren',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
       ]),
-      const SizedBox(height: 4),
-      Text('Pre-fill aus Mitgliedsstammdaten; Felder unten überprüfen / ergänzen. '
-           'Server rendert das amtliche PDF (pdftk fill_form), Vorsitzer druckt + unterschreibt + reicht beim AG Ulm ein.',
-           style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4)),
       const SizedBox(height: 16),
 
-      // Amtsgericht selector — every entry carries its own PDF template
-      // (Bundesland-specific form). Default = first row from DB.
+      // Single court → no dropdown needed; multiple → pick one.
       if (_gerichte.isEmpty)
         Container(
           padding: const EdgeInsets.all(10),
@@ -2220,8 +2182,19 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           child: Row(children: [
             Icon(Icons.warning_amber, size: 18, color: Colors.amber.shade800),
             const SizedBox(width: 8),
-            Expanded(child: Text('Kein Amtsgericht in der Datenbank für "Beratungshilfe". Vorsitzer muss zuerst einen Eintrag in der Gericht-Datenbank anlegen.',
-              style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+            Expanded(child: Text('Kein Amtsgericht für Beratungshilfe in der Datenbank.',
+              style: TextStyle(fontSize: 12, color: Colors.amber.shade900))),
+          ]),
+        )
+      else if (_gerichte.length == 1)
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: c.shade300)),
+          child: Row(children: [
+            Icon(Icons.account_balance, size: 18, color: c.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text((_selectedGericht?['name'] ?? '').toString(),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade800))),
           ]),
         )
       else
@@ -2229,99 +2202,30 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           initialValue: _selectedGericht,
           isExpanded: true,
           decoration: InputDecoration(
-            labelText: 'Amtsgericht (bestimmt das Formular)',
+            labelText: 'Amtsgericht',
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             prefixIcon: Icon(Icons.account_balance, size: 18, color: c.shade700),
           ),
-          items: _gerichte.map((g) {
-            final bl = (g['bundesland'] ?? '').toString();
-            final tpl = (g['pdf_template'] ?? '').toString();
-            return DropdownMenuItem(value: g, child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text((g['name'] ?? '').toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(
-                  [if (bl.isNotEmpty) bl, if (tpl.isNotEmpty) 'Formular: $tpl', if (tpl.isEmpty) 'kein Formular hinterlegt'].join(' · '),
-                  style: TextStyle(fontSize: 10, color: tpl.isEmpty ? Colors.red.shade700 : Colors.grey.shade600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ));
-          }).toList(),
+          items: _gerichte.map((g) => DropdownMenuItem(
+            value: g,
+            child: Text((g['name'] ?? '').toString(),
+              style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+          )).toList(),
           onChanged: (v) => setState(() => _selectedGericht = v),
         ),
-      const SizedBox(height: 12),
-
-      // Pre-filled (read-only display)
-      _readonlyRow('Antragsteller', _antragsteller(), c),
-      _readonlyRow('Geburtsdatum', _user['geburtsdatum']?.toString() ?? '', c),
-      _readonlyRow('Familienstand', _user['familienstand']?.toString() ?? '', c),
-      _readonlyRow('Anschrift', _anschrift(), c),
-      _readonlyRow('Telefon', _telefon(), c),
-      _readonlyRow('Beruf', _user['beruf']?.toString() ?? '', c),
-
-      const SizedBox(height: 14),
-      TextField(controller: _sachverhaltC, maxLines: 4, decoration: InputDecoration(
-        labelText: 'Sachverhalt (Rechtsbereich + kurze Beschreibung) *',
-        isDense: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      )),
-      const SizedBox(height: 12),
-
-      Text('Einkommen (€/Monat)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
-      const SizedBox(height: 6),
-      Row(children: [
-        Expanded(child: TextField(controller: _bruttoC, keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Brutto', isDense: true, border: OutlineInputBorder()))),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(controller: _nettoC, keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Netto', isDense: true, border: OutlineInputBorder()))),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(controller: _ehegatteNettoC, keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Partner netto', isDense: true, border: OutlineInputBorder()))),
-      ]),
-
-      const SizedBox(height: 12),
-      Text('Wohnung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
-      const SizedBox(height: 6),
-      Row(children: [
-        Expanded(child: TextField(controller: _wohnungGroesseC, keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Wohnfläche (m²)', isDense: true, border: OutlineInputBorder()))),
-        const SizedBox(width: 8),
-        Expanded(child: TextField(controller: _wohnkostenC, keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Wohnkosten €/Mt', isDense: true, border: OutlineInputBorder()))),
-      ]),
-      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero,
-        title: const Text('Allein bewohnt', style: TextStyle(fontSize: 12)),
-        value: _alleinBewohner, onChanged: (v) => setState(() => _alleinBewohner = v)),
-
-      const SizedBox(height: 12),
-      Text('Erklärungen (Standard: angekreuzt)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
-      const SizedBox(height: 6),
-      _checkRow('Keine Rechtsschutzversicherung', _keineRechtsschutz, (v) => setState(() => _keineRechtsschutz = v)),
-      _checkRow('Keine andere Möglichkeit kostenloser Beratung', _keineMoeglichkeit, (v) => setState(() => _keineMoeglichkeit = v)),
-      _checkRow('Beratungshilfe bisher weder bewilligt noch versagt', _nichtBewilligt, (v) => setState(() => _nichtBewilligt = v)),
-      _checkRow('Kein gerichtliches Verfahren in dieser Sache', _keinGerichtlich, (v) => setState(() => _keinGerichtlich = v)),
-
-      const SizedBox(height: 12),
-      Text('Vermögen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
-      const SizedBox(height: 6),
-      _checkRow('Bankkonten vorhanden', _hatBankkonten, (v) => setState(() => _hatBankkonten = v)),
-      _checkRow('Grundeigentum', _hatGrundeigentum, (v) => setState(() => _hatGrundeigentum = v)),
-      _checkRow('Kraftfahrzeug', _hatKfz, (v) => setState(() => _hatKfz = v)),
-      _checkRow('Sonstige Vermögenswerte', _hatSonstigeVermoegen, (v) => setState(() => _hatSonstigeVermoegen = v)),
 
       const SizedBox(height: 20),
       FilledButton.icon(
         onPressed: _generating ? null : _generate,
         icon: _generating
-            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.download, size: 18),
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.picture_as_pdf, size: 18),
         label: Text(_generating ? 'Wird erstellt…' : 'PDF generieren'),
-        style: FilledButton.styleFrom(backgroundColor: c.shade700),
+        style: FilledButton.styleFrom(
+          backgroundColor: c.shade700,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
       ),
 
       if (_lastGeneratedPath != null) ...[
@@ -2350,30 +2254,6 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           ]),
         ),
       ],
-      const SizedBox(height: 12),
-      Text(
-        'Hinweis: Bank-, Grundeigentum-, Kfz-, Vermögens-, Unterhaltspersonen-Details bleiben '
-        'leer und müssen vom Vorsitzer/Mitglied auf dem ausgedruckten PDF von Hand ergänzt '
-        'werden (kommt im nächsten Schritt als eigene Maske).',
-        style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
-      ),
     ]));
-  }
-
-  Widget _readonlyRow(String label, String value, MaterialColor c) {
-    return Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: c.shade700, fontWeight: FontWeight.w600))),
-      Expanded(child: Text(value.isEmpty ? '—' : value, style: const TextStyle(fontSize: 12))),
-    ]));
-  }
-
-  Widget _checkRow(String label, bool value, ValueChanged<bool> onChanged) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
-        SizedBox(width: 28, child: Checkbox(value: value, onChanged: (v) => onChanged(v ?? false), visualDensity: VisualDensity.compact)),
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 12))),
-      ])),
-    );
   }
 }
