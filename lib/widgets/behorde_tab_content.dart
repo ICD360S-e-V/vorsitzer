@@ -3496,7 +3496,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             final terminId = t['termin_id'];
             final tArt = t['terminart']?.toString() ?? 'selbst';
             final isEinladung = tArt == 'einladung';
-            final isPast = datum.isNotEmpty && (DateTime.tryParse(datum)?.isBefore(DateTime.now()) ?? false);
+            // Variant B: bordură stângă groasă în culoarea status-ului
+            // + chip mare cu label (WAHRGENOMMEN / OFFEN / etc.). Status
+            // e derivat din verlauf (single source of truth) — vezi
+            // _deriveTerminStatus.
+            final status = _deriveTerminStatus(t);
+            final info = _terminStatusInfo(status);
+            final color = info['color'] as MaterialColor;
             return InkWell(
               borderRadius: BorderRadius.circular(8),
               onTap: () => _showBehoerdeTerminViewDialog(
@@ -3511,18 +3517,23 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               ),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
                 decoration: BoxDecoration(
-                  color: isPast ? Colors.grey.shade50 : (isEinladung ? Colors.orange.shade50 : Colors.deepPurple.shade50),
+                  color: color.shade50,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isPast ? Colors.grey.shade300 : (isEinladung ? Colors.orange.shade200 : Colors.deepPurple.shade200)),
+                  border: Border(
+                    left:  BorderSide(color: color.shade600, width: 5),
+                    top:   BorderSide(color: color.shade200),
+                    right: BorderSide(color: color.shade200),
+                    bottom:BorderSide(color: color.shade200),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(isEinladung ? Icons.mail : Icons.event, size: 16, color: isPast ? Colors.grey : (isEinladung ? Colors.orange.shade700 : Colors.deepPurple.shade700)),
+                        Icon(isEinladung ? Icons.mail : Icons.event, size: 16, color: color.shade800),
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -3539,16 +3550,29 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         Expanded(
                           child: Text(
                             datum.isNotEmpty ? '${_formatDateDisplay(datum)}${uhrzeit.isNotEmpty ? ' um $uhrzeit Uhr' : ''}' : 'Kein Datum',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade600 : Colors.deepPurple.shade800),
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900),
                           ),
                         ),
-                        if (terminId != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
-                            child: Text('Im Kalender', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+                        // Status-Chip — varianta B, vizibil pe titlu
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: color.shade600,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: color.shade300, offset: const Offset(0, 1), blurRadius: 2)],
                           ),
-                        const SizedBox(width: 4),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(info['icon'] as IconData, size: 13, color: Colors.white),
+                            const SizedBox(width: 4),
+                            Text(info['label'] as String,
+                              style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 0.4)),
+                          ]),
+                        ),
+                        if (terminId != null) ...[
+                          const SizedBox(width: 4),
+                          Tooltip(message: 'Im Kalender', child: Icon(Icons.event_available, size: 14, color: Colors.green.shade600)),
+                        ],
+                        const SizedBox(width: 2),
                         Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
                       ],
                     ),
@@ -3584,6 +3608,56 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final d = DateTime.tryParse(dateStr);
     if (d == null) return dateStr;
     return DateFormat('dd.MM.yyyy').format(d);
+  }
+
+  // Derive the termin's effective status. Priority:
+  //   1. last outcome-event in t['verlauf'] (single source of truth —
+  //      server uses the same logic)
+  //   2. t['ergebnis'] from DB (fallback for legacy rows)
+  //   3. 'offen' if datum is in the future, 'unbekannt' otherwise
+  String _deriveTerminStatus(Map<String, dynamic> t) {
+    const outcomes = {'wahrgenommen', 'nicht_erschienen', 'verschoben', 'abgesagt', 'bestaetigt'};
+    final verlauf = (t['verlauf'] is List) ? (t['verlauf'] as List) : const [];
+    if (verlauf.isNotEmpty) {
+      final sorted = List<Map<String, dynamic>>.from(
+          verlauf.map((e) => Map<String, dynamic>.from(e as Map)));
+      sorted.sort((a, b) {
+        final ka = '${a['datum'] ?? ''} ${a['zeit'] ?? ''}';
+        final kb = '${b['datum'] ?? ''} ${b['zeit'] ?? ''}';
+        return kb.compareTo(ka);
+      });
+      for (final v in sorted) {
+        final s = v['status']?.toString() ?? '';
+        if (outcomes.contains(s)) return s;
+      }
+    }
+    final erg = t['ergebnis']?.toString() ?? '';
+    if (outcomes.contains(erg)) return erg;
+    final dStr = t['datum']?.toString() ?? '';
+    final d = DateTime.tryParse(dStr);
+    if (d != null && d.isAfter(DateTime.now())) return 'offen';
+    return 'unbekannt';
+  }
+
+  // {label, icon, color} for a derived termin status — used by both the
+  // card chip and the dialog header.
+  Map<String, dynamic> _terminStatusInfo(String status) {
+    switch (status) {
+      case 'wahrgenommen':
+        return {'label': 'WAHRGENOMMEN', 'icon': Icons.check_circle, 'color': Colors.green};
+      case 'bestaetigt':
+        return {'label': 'BESTÄTIGT', 'icon': Icons.event_available, 'color': Colors.teal};
+      case 'nicht_erschienen':
+        return {'label': 'NICHT DA', 'icon': Icons.person_off, 'color': Colors.red};
+      case 'verschoben':
+        return {'label': 'VERSCHOBEN', 'icon': Icons.schedule, 'color': Colors.orange};
+      case 'abgesagt':
+        return {'label': 'ABGESAGT', 'icon': Icons.cancel, 'color': Colors.grey};
+      case 'offen':
+        return {'label': 'OFFEN', 'icon': Icons.access_time, 'color': Colors.amber};
+      default:
+        return {'label': 'UNBEKANNT', 'icon': Icons.help_outline, 'color': Colors.blueGrey};
+    }
   }
 
   void _showBehoerdeTerminViewDialog({
@@ -3991,6 +4065,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         };
                         final updatedVerlauf = List<Map<String, dynamic>>.from(verlauf)..insert(0, entry);
                         termin['verlauf'] = updatedVerlauf;
+                        // Derive new ergebnis from verlauf so the
+                        // card-status chip updates immediately, without
+                        // waiting for the server roundtrip. Server uses
+                        // the same logic — values stay in sync.
+                        termin['ergebnis'] = _deriveTerminStatus(termin);
                         final updatedTermine = List<Map<String, dynamic>>.from(termine);
                         updatedTermine[terminIndex] = Map<String, dynamic>.from(termin);
                         onChanged(updatedTermine);
@@ -4054,6 +4133,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                             onTap: () {
                               final updatedVerlauf = List<Map<String, dynamic>>.from(verlauf)..removeAt(i);
                               termin['verlauf'] = updatedVerlauf;
+                              // Recompute derived ergebnis after delete.
+                              termin['ergebnis'] = _deriveTerminStatus(termin);
                               final updatedTermine = List<Map<String, dynamic>>.from(termine);
                               updatedTermine[terminIndex] = Map<String, dynamic>.from(termin);
                               onChanged(updatedTermine);
