@@ -2485,17 +2485,36 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       Directory? dir;
       try { dir = await getDownloadsDirectory(); } catch (_) {}
       dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
-      final filename = 'Beratungshilfe_Antrag_${widget.userId}_${widget.vorfallId}.pdf';
+      final ts = DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-');
+      final filename = 'Beratungshilfe_Antrag_${widget.userId}_${widget.vorfallId}_$ts.pdf';
       final path = '${dir.path}${Platform.pathSeparator}$filename';
       await File(path).writeAsBytes(bytes);
+
+      // Auto-upload to the Vorfall's Dokumente tab (kategorie='antrag')
+      // so the operator finds the generated Antrag listed there next
+      // time they open the tab — no manual re-upload needed.
+      String uploadHint = '';
+      try {
+        final r = await widget.apiService.uploadGerichtVorfallDoc(
+          vorfallId: widget.vorfallId,
+          filePath: path,
+          fileName: filename,
+          kategorie: 'antrag',
+        );
+        if (r['success'] == true) {
+          uploadHint = ' · zur Vorfall-Akte unter „Antrag" hinzugefügt';
+        }
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
         _generating = false;
         _lastGeneratedPath = path;
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('PDF gespeichert: $path'),
+        content: Text('PDF gespeichert$uploadHint'),
         backgroundColor: Colors.green,
+        duration: const Duration(seconds: 5),
         action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
       ));
     } catch (e) {
