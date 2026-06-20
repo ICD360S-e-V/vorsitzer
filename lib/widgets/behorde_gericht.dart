@@ -2062,6 +2062,13 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   String? _wohnungAdresse; // caption-only hint, not in PDF payload
   int _kinderAnzahl = 0;   // Bedarfsgemeinschaft size driver for D5/D6
 
+  // Section F — Bankkonten (aus Finanzen-Modul). When the member has
+  // a bank row, F1-Konten2 + F1-InhaberA + F3-Bank1 are auto-filled.
+  bool _hatBankkonten = false;
+  String? _bankName;
+  String? _bankIban;
+  String? _bankKontoart;
+
   // Tab now exposes: Amtsgericht selector + auto-arbeitslos banner +
   // Motiv dropdown (auto-detected aus Jobcenter Sanktion / Widerspruch,
   // oder freier Text) + Auszahlbetrag aus Bescheid.
@@ -2131,6 +2138,15 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           final ka = w['kinder_anzahl'];
           if (ka is int) _kinderAnzahl = ka;
           else if (ka != null) _kinderAnzahl = int.tryParse(ka.toString()) ?? 0;
+        }
+        // Section F — bank block from Finanzen-Modul.
+        final bank = s['bank'];
+        if (bank is Map) {
+          final b = Map<String, dynamic>.from(bank);
+          _hatBankkonten = b['hat_bankkonten'] == true;
+          _bankName     = b['name']?.toString();
+          _bankIban     = b['iban']?.toString();
+          _bankKontoart = b['kontoart']?.toString();
         }
       }
     } catch (_) {}
@@ -2234,6 +2250,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       // count into D6 ("weitere Personen"). Otherwise allein.
       'allein_bewohner': _kinderAnzahl == 0,
       'mit_bewohner':    _kinderAnzahl > 0 ? '$_kinderAnzahl' : '',
+      // Section F — Bankkonten. Server flips F1-Konten2 +
+      // F1-InhaberA automatically when hat_bankkonten=true; F3-Bank1
+      // is bank_name.
+      'hat_bankkonten': _hatBankkonten,
+      'bank_name':      _bankName ?? '',
     };
     try {
       final bytes = await widget.apiService.generateBeratungshilfePdf(payload);
@@ -2514,6 +2535,48 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
                 'Automatisch übernommen aus aktivem Mietvertrag '
                 '(vermieter_mietvertraege). Bei Bedarf überschreiben.',
                 style: TextStyle(fontSize: 10, color: Colors.green.shade800, fontStyle: FontStyle.italic),
+              )),
+            ]),
+          ],
+        ]),
+      ),
+
+      // Abschnitt F — Bankkonto (aus Finanzen-Modul)
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: Colors.purple.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.purple.shade300),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.account_balance, size: 16, color: Colors.purple.shade800),
+            const SizedBox(width: 6),
+            Text('Abschnitt F — Bankkonto (aus Finanzen)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+          ]),
+          const SizedBox(height: 6),
+          if (_hatBankkonten) ...[
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.check_circle, size: 14, color: Colors.green.shade700),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                'F1 = JA (Konto vorhanden) angekreuzt · F1-Inhaber = A (Antragsteller) angekreuzt · '
+                'F3-Bank1 = ${_bankName ?? "(kein Name)"}'
+                '${_bankKontoart != null && _bankKontoart!.isNotEmpty ? " · Kontoart: $_bankKontoart" : ""}'
+                '${_bankIban != null && _bankIban!.length >= 4 ? " · IBAN endet auf ${_bankIban!.substring(_bankIban!.length - 4)}" : ""}',
+                style: TextStyle(fontSize: 11, color: Colors.purple.shade900),
+              )),
+            ]),
+          ] else ...[
+            Row(children: [
+              Icon(Icons.info_outline, size: 14, color: Colors.grey.shade600),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                'Kein Bankkonto im Finanzen-Modul hinterlegt — F1 wird auf NEIN gesetzt.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
               )),
             ]),
           ],
