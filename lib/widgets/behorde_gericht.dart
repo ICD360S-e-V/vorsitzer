@@ -2057,10 +2057,6 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
         if (_gerichte.isNotEmpty) _selectedGericht = _gerichte.first;
       }
     } catch (_) {}
-    // Pre-fill Sachverhalt from Vorfall titel + notiz
-    final titel = widget.vorfall['titel']?.toString() ?? '';
-    final notiz = widget.vorfall['notiz']?.toString() ?? '';
-    _sachverhaltC.text = [titel, notiz].where((s) => s.isNotEmpty).join('\n\n');
     if (mounted) setState(() => _loading = false);
   }
 
