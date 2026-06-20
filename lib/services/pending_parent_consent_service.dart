@@ -120,4 +120,240 @@ class PendingParentConsentService {
       return [];
     }
   }
+
+  // ── Call log ──
+
+  Future<List<ParentCallLogEntry>> listCalls({
+    required String callerMitgliedernummer,
+    required int childUserId,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/vorstand/parent_call_log.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'action': 'list',
+          'mitgliedernummer': callerMitgliedernummer,
+          'child_user_id': childUserId,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return [];
+      final data = jsonDecode(r.body);
+      if (data is! Map || data['success'] != true) return [];
+      final items = (data['items'] as List?) ?? [];
+      return items.map((j) => ParentCallLogEntry.fromJson(Map<String, dynamic>.from(j as Map))).toList();
+    } catch (e) {
+      _log.error('PendingParentConsentService.listCalls: $e', tag: 'PARENT-CONSENT');
+      return [];
+    }
+  }
+
+  Future<bool> logCall({
+    required String callerMitgliedernummer,
+    required int childUserId,
+    required String result,
+    int durationMin = 0,
+    String? meetingScheduledAt,
+    String? note,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/vorstand/parent_call_log.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'action': 'create',
+          'mitgliedernummer': callerMitgliedernummer,
+          'child_user_id': childUserId,
+          'result': result,
+          'duration_min': durationMin,
+          if (meetingScheduledAt != null) 'meeting_scheduled_at': meetingScheduledAt,
+          if (note != null && note.isNotEmpty) 'note': note,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return false;
+      final data = jsonDecode(r.body);
+      return data is Map && data['success'] == true;
+    } catch (e) {
+      _log.error('PendingParentConsentService.logCall: $e', tag: 'PARENT-CONSENT');
+      return false;
+    }
+  }
+
+  // ── Parent search + link (re-uses /api/admin/admin_vormund_link.php) ──
+
+  Future<List<Map<String, dynamic>>> searchParent(String query) async {
+    if (query.trim().isEmpty) return [];
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/admin_vormund_link.php?action=search&q=${Uri.encodeQueryComponent(query)}'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return [];
+      final data = jsonDecode(r.body);
+      if (data is! Map || data['success'] != true) return [];
+      final items = (data['results'] as List?) ?? (data['members'] as List?) ?? [];
+      return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (e) {
+      _log.error('PendingParentConsentService.searchParent: $e', tag: 'PARENT-CONSENT');
+      return [];
+    }
+  }
+
+  /// Derive vormund_typ from parent_hint_relation. mutter/vater/
+  /// sorgeberechtigter → 'sorgeberechtigter'; andere → 'familienangehoeriger'.
+  static String deriveVormundTyp(String? relation) {
+    switch (relation) {
+      case 'mutter':
+      case 'vater':
+      case 'sorgeberechtigter':
+        return 'sorgeberechtigter';
+      default:
+        return 'familienangehoeriger';
+    }
+  }
+
+  Future<Map<String, dynamic>?> linkExistingParent({
+    required int childUserId,
+    required int parentUserId,
+    required String vormundTyp,
+    bool forceOverwrite = false,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/admin_vormund_link.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'action': 'link_existing',
+          'target_user_id': childUserId,
+          'vormund_user_id': parentUserId,
+          'vormund_typ': vormundTyp,
+          if (forceOverwrite) 'force_overwrite': true,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      final data = jsonDecode(r.body);
+      if (data is! Map) return null;
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      _log.error('PendingParentConsentService.linkExistingParent: $e', tag: 'PARENT-CONSENT');
+      return null;
+    }
+  }
+
+  // ── Signature inspect + validate / reject ──
+
+  Future<Map<String, dynamic>?> getSignature({
+    required String callerMitgliedernummer,
+    required int childUserId,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/vorstand/get_parent_signature.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'mitgliedernummer': callerMitgliedernummer,
+          'child_user_id': childUserId,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return null;
+      final data = jsonDecode(r.body);
+      if (data is! Map || data['success'] != true) return null;
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      _log.error('PendingParentConsentService.getSignature: $e', tag: 'PARENT-CONSENT');
+      return null;
+    }
+  }
+
+  Future<bool> validateSignature({
+    required String callerMitgliedernummer,
+    required int signatureId,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/vorstand/validate_parent_signature.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'mitgliedernummer': callerMitgliedernummer,
+          'signature_id': signatureId,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return false;
+      final data = jsonDecode(r.body);
+      return data is Map && data['success'] == true;
+    } catch (e) {
+      _log.error('PendingParentConsentService.validateSignature: $e', tag: 'PARENT-CONSENT');
+      return false;
+    }
+  }
+
+  Future<bool> rejectSignature({
+    required String callerMitgliedernummer,
+    required int signatureId,
+    required String reason,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/vorstand/reject_parent_signature.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'mitgliedernummer': callerMitgliedernummer,
+          'signature_id': signatureId,
+          'reason': reason,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return false;
+      final data = jsonDecode(r.body);
+      return data is Map && data['success'] == true;
+    } catch (e) {
+      _log.error('PendingParentConsentService.rejectSignature: $e', tag: 'PARENT-CONSENT');
+      return false;
+    }
+  }
+}
+
+class ParentCallLogEntry {
+  final int id;
+  final DateTime? calledAt;
+  final int durationMin;
+  final String result;
+  final DateTime? meetingScheduledAt;
+  final String? note;
+  final String? calledByName;
+
+  ParentCallLogEntry({
+    required this.id,
+    this.calledAt,
+    this.durationMin = 0,
+    required this.result,
+    this.meetingScheduledAt,
+    this.note,
+    this.calledByName,
+  });
+
+  factory ParentCallLogEntry.fromJson(Map<String, dynamic> j) => ParentCallLogEntry(
+        id: j['id'] is int ? j['id'] : int.parse(j['id'].toString()),
+        calledAt: j['called_at'] != null ? DateTime.tryParse(j['called_at'].toString()) : null,
+        durationMin: j['duration_min'] is int ? j['duration_min'] : int.tryParse('${j['duration_min']}') ?? 0,
+        result: (j['result'] ?? '').toString(),
+        meetingScheduledAt: j['meeting_scheduled_at'] != null ? DateTime.tryParse(j['meeting_scheduled_at'].toString()) : null,
+        note: j['note']?.toString(),
+        calledByName: j['called_by_name']?.toString(),
+      );
+
+  String get resultLabel {
+    switch (result) {
+      case 'stabilit_intalnire':
+        return 'Termin vereinbart';
+      case 'stabilit_videoapel':
+        return 'Videoanruf vereinbart';
+      case 'refuz':
+        return 'Abgelehnt';
+      case 'nu_raspunde':
+        return 'Nicht erreicht';
+      case 'gresit_numar':
+        return 'Falsche Nummer';
+      default:
+        return result;
+    }
+  }
 }
