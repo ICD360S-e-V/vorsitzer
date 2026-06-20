@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/user.dart';
@@ -847,69 +848,112 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     }
   }
 
+  // Pick the best human filename for a downloaded related doc. The
+  // server-side endpoints decrypt the original name and put it in
+  // Content-Disposition — so the network header is the source of truth.
+  // Fall back to the per-item filename only if it isn't empty and
+  // doesn't look like a base64 blob (encrypted leftover).
+  String _bestFilename(http.Response resp, Map<String, dynamic> it, String fallback) {
+    final cd = (resp.headers['content-disposition'] ?? '').toString();
+    final m = RegExp(r'filename\*?=(?:UTF-8\x27\x27)?"?([^";]+)"?').firstMatch(cd);
+    String name = (m?.group(1) ?? '').trim();
+    if (name.isEmpty) {
+      final raw = (it['filename'] ?? '').toString().trim();
+      // base64-Müll erkennen: kein Punkt, nur base64-Zeichen, lang.
+      final looksB64 = raw.length > 32 && !raw.contains('.') &&
+          RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(raw);
+      name = (raw.isEmpty || looksB64) ? fallback : raw;
+    }
+    // .enc-Suffix entfernen (Jobcenter-Sanktion legt das encrypted-Blob
+    // mit .enc auf der Platte; der entschlüsselte Inhalt ist z. B. PDF).
+    if (name.toLowerCase().endsWith('.enc')) {
+      name = name.substring(0, name.length - 4);
+    }
+    // Filesystem-unsichere Zeichen ersetzen.
+    name = name.replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
+    // Wenn keine Extension erkennbar ist, eine aus mime_type ableiten.
+    if (!name.contains('.')) {
+      final mt = (it['mime_type'] ?? '').toString().toLowerCase();
+      final ext = mt.contains('pdf') ? '.pdf'
+          : mt.contains('jpeg') || mt.contains('jpg') ? '.jpg'
+          : mt.contains('png') ? '.png'
+          : '';
+      name = '$name$ext';
+    }
+    return name;
+  }
+
   Future<void> _openRelatedDoc(String source, Map<String, dynamic> it, {bool openInApp = false}) async {
     try {
       final id = it['id'] is int ? it['id'] as int : int.tryParse('${it['id']}') ?? 0;
       if (id <= 0) return;
 
-      late final dynamic resp;
-      late final String fname;
+      late final http.Response resp;
+      String fallback;
 
-      if (source == 'behoerde_antrag') {
-        resp = await widget.apiService.downloadAntragDokument(id);
-        fname = (it['filename'] ?? 'dokument').toString();
-      } else if (source == 'vermieter_mietvertrag') {
-        // Server decrypts file + filename in memory and streams the
-        // bytes; we recover the human filename from the Content-
-        // Disposition header (or fall back to dokument_typ).
-        resp = await widget.apiService.downloadVermieterDokument(
-          dokumentId: id,
-          userId: widget.userId,
-        );
-        final cd = (resp.headers['content-disposition'] ?? '').toString();
-        final m = RegExp(r'filename\*?=(?:UTF-8\x27\x27)?"?([^";]+)"?').firstMatch(cd);
-        fname = m?.group(1)
-            ?? 'mietvertrag_${it['mietvertrag_id']}_${it['dokument_typ'] ?? "anhang"}.pdf';
-      } else if (source == 'jobcenter_sanktion_file') {
-        resp = await widget.apiService.downloadJobcenterSanktionFile(id);
-        fname = (it['filename'] ?? 'sanktion_bescheid.pdf').toString();
-      } else if (source == 'jobcenter_sanktion_korr') {
-        resp = await widget.apiService.downloadJobcenterSanktionKorrAnhang(id);
-        fname = (it['filename'] ?? 'sanktion_korrespondenz.pdf').toString();
-      } else if (source == 'arbeitsagentur_korrespondenz') {
-        resp = await widget.apiService.downloadAAKorrespondenzDoc(id);
-        fname = (it['filename'] ?? 'arbeitsagentur_korr.pdf').toString();
-      } else if (source == 'sozialamt_bewilligung_doc' || source == 'sozialamt_bewilligung') {
-        resp = await widget.apiService.downloadBewilligungDoc(id);
-        fname = (it['filename'] ?? 'sozialamt_bewilligung.pdf').toString();
-      } else if (source == 'sozialamt_antrag_doc' || source == 'sozialamt_antrag') {
-        resp = await widget.apiService.downloadAntragDoc(id);
-        fname = (it['filename'] ?? 'sozialamt_antrag.pdf').toString();
-      } else if (source == 'versorgungsamt_antrag_doc') {
-        resp = await widget.apiService.downloadVaAntragDoc(id);
-        fname = (it['filename'] ?? 'versorgungsamt_antrag.pdf').toString();
-      } else if (source == 'versorgungsamt_korr_doc') {
-        resp = await widget.apiService.downloadVersorgungsamtKorrDoc(id);
-        fname = (it['filename'] ?? 'versorgungsamt_korr.pdf').toString();
-      } else if (source == 'finanzamt_korrespondenz') {
-        resp = await widget.apiService.downloadFinanzamtKorrespondenz(id);
-        fname = (it['filename'] ?? 'finanzamt.pdf').toString();
-      } else if (source == 'krankenkasse_korrespondenz') {
-        resp = await widget.apiService.downloadKKKorrespondenzDoc(id);
-        fname = (it['filename'] ?? 'krankenkasse.pdf').toString();
-      } else if (source == 'rfb_antrag_doc') {
-        resp = await widget.apiService.downloadRfbAntragDoc(id);
-        fname = (it['filename'] ?? 'rundfunkbeitrag.pdf').toString();
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Source nicht unterstützt: $source'),
-          ));
-        }
-        return;
+      switch (source) {
+        case 'behoerde_antrag':
+          resp = await widget.apiService.downloadAntragDokument(id);
+          fallback = 'dokument_$id.pdf';
+          break;
+        case 'vermieter_mietvertrag':
+          resp = await widget.apiService.downloadVermieterDokument(
+            dokumentId: id, userId: widget.userId);
+          fallback = 'mietvertrag_${it['mietvertrag_id']}_${it['dokument_typ'] ?? "anhang"}.pdf';
+          break;
+        case 'jobcenter_sanktion_file':
+          resp = await widget.apiService.downloadJobcenterSanktionFile(id);
+          fallback = 'sanktion_${it['sanktion_id'] ?? id}_bescheid.pdf';
+          break;
+        case 'jobcenter_sanktion_korr':
+          resp = await widget.apiService.downloadJobcenterSanktionKorrAnhang(id);
+          fallback = 'sanktion_korr_$id.pdf';
+          break;
+        case 'arbeitsagentur_korrespondenz':
+          resp = await widget.apiService.downloadAAKorrespondenzDoc(id);
+          fallback = 'arbeitsagentur_korr_$id.pdf';
+          break;
+        case 'sozialamt_bewilligung_doc':
+        case 'sozialamt_bewilligung':
+          resp = await widget.apiService.downloadBewilligungDoc(id);
+          fallback = 'sozialamt_bewilligung_$id.pdf';
+          break;
+        case 'sozialamt_antrag_doc':
+        case 'sozialamt_antrag':
+          resp = await widget.apiService.downloadAntragDoc(id);
+          fallback = 'sozialamt_antrag_$id.pdf';
+          break;
+        case 'versorgungsamt_antrag_doc':
+          resp = await widget.apiService.downloadVaAntragDoc(id);
+          fallback = 'versorgungsamt_antrag_$id.pdf';
+          break;
+        case 'versorgungsamt_korr_doc':
+          resp = await widget.apiService.downloadVersorgungsamtKorrDoc(id);
+          fallback = 'versorgungsamt_korr_$id.pdf';
+          break;
+        case 'finanzamt_korrespondenz':
+          resp = await widget.apiService.downloadFinanzamtKorrespondenz(id);
+          fallback = 'finanzamt_$id.pdf';
+          break;
+        case 'krankenkasse_korrespondenz':
+          resp = await widget.apiService.downloadKKKorrespondenzDoc(id);
+          fallback = 'krankenkasse_$id.pdf';
+          break;
+        case 'rfb_antrag_doc':
+          resp = await widget.apiService.downloadRfbAntragDoc(id);
+          fallback = 'rundfunkbeitrag_$id.pdf';
+          break;
+        default:
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Source nicht unterstützt: $source'),
+            ));
+          }
+          return;
       }
 
       if (resp.statusCode != 200 || !mounted) return;
+      final fname = _bestFilename(resp, it, fallback);
       final dir = await getTemporaryDirectory();
       final f = File('${dir.path}/$fname');
       await f.writeAsBytes(resp.bodyBytes);
