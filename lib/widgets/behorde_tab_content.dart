@@ -3152,18 +3152,31 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
 
                       final result = await widget.terminService.createTermin(
                         title: title,
-                        category: 'sonstiges',
+                        category: 'arzt',
                         description: desc,
                         terminDate: terminDate,
                         durationMinutes: 30,
                         location: hausarztPraxisC.text.trim(),
                         participantIds: [widget.user.id],
                       );
-                      if (result.containsKey('termin')) {
-                        entry['hausarzt_termin_id'] = result['termin']['id'];
+                      // termine_create.php returns termin_id flat (not nested).
+                      final tid = result['termin_id'] ?? (result['termin'] is Map ? (result['termin'] as Map)['id'] : null);
+                      if (result['success'] == true && tid != null) {
+                        entry['hausarzt_termin_id'] = tid;
+                      } else if (mounted) {
+                        final msg = (result['message'] ?? 'Unbekannter Fehler').toString();
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('Hausarzttermin-Kalender: $msg'),
+                          backgroundColor: Colors.orange.shade700,
+                        ));
                       }
                     } catch (e) {
-                      debugPrint('Begutachtung hausarzt termin error: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('Hausarzttermin-Sync Fehler: $e'),
+                          backgroundColor: Colors.red.shade700,
+                        ));
+                      }
                     }
                   }
 
@@ -4500,35 +4513,72 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   entry['termin_id'] = existing!['termin_id'];
                 }
 
-                // Create/update in Terminverwaltung
+                // Create/update in Terminverwaltung (global termine table).
+                // Always tag with behoerdeType so the Vorsitzer can filter
+                // per Behörde in the calendar; 'sonstiges' was hiding all
+                // AA/JC/etc. termine under the same generic bucket.
                 if (addToCalendar) {
                   try {
                     final timeParts = uhrzeitC.text.split(':');
                     final h = int.tryParse(timeParts[0]) ?? 9;
                     final m = timeParts.length > 1 ? int.tryParse(timeParts[1]) ?? 0 : 0;
-                    final terminDate = DateTime.parse(datumC.text).add(Duration(hours: h, minutes: m));
-                    final title = '$behoerdeLabel-Termin${ansprechpartnerC.text.trim().isNotEmpty ? ' bei ${ansprechpartnerC.text.trim()}' : ''}';
+                    final parsedDate = DateTime.tryParse(datumC.text);
+                    if (parsedDate == null) {
+                      if (dlgCtx.mounted) {
+                        ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(
+                          content: Text('Datum „${datumC.text}" konnte nicht erkannt werden (ISO erwartet).'),
+                          backgroundColor: Colors.red.shade700,
+                        ));
+                      }
+                      return;
+                    }
+                    final terminDate = parsedDate.add(Duration(hours: h, minutes: m));
+                    final grundText = grundC.text.trim();
+                    final title = '$behoerdeLabel-Termin'
+                        '${grundText.isNotEmpty ? ' · $grundText' : ''}'
+                        '${ansprechpartnerC.text.trim().isNotEmpty ? ' bei ${ansprechpartnerC.text.trim()}' : ''}';
                     final desc = [
-                      if (grundC.text.trim().isNotEmpty) 'Grund: ${grundC.text.trim()}',
+                      if (grundText.isNotEmpty) 'Grund: $grundText',
                       if (ortC.text.trim().isNotEmpty) 'Ort: ${ortC.text.trim()}',
                       if (notizC.text.trim().isNotEmpty) 'Notiz: ${notizC.text.trim()}',
                       'Mitglied: ${widget.user.name} (${widget.user.mitgliedernummer})',
                     ].join('\n');
 
+                    // Server whitelist: vorstandssitzung / mitgliederversammlung /
+                    // schulung / kindergarten / behoerde / arzt / gericht / sonstiges.
+                    // 'arbeitsagentur' & co aren't accepted → use 'behoerde'
+                    // (generic) and put the specific type in title + description.
                     final result = await widget.terminService.createTermin(
                       title: title,
-                      category: 'sonstiges',
-                      description: desc,
+                      category: 'behoerde',
+                      description: '[$behoerdeType] $desc',
                       terminDate: terminDate,
                       durationMinutes: 60,
                       location: ortC.text.trim(),
                       participantIds: [widget.user.id],
                     );
-                    if (result.containsKey('termin')) {
-                      entry['termin_id'] = result['termin']['id'];
+                    // termine_create.php returns {success, message, termin_id}
+                    // (flat, NOT nested under 'termin'). Read termin_id direct.
+                    final tid = result['termin_id'] ?? (result['termin'] is Map ? (result['termin'] as Map)['id'] : null);
+                    if (result['success'] == true && tid != null) {
+                      entry['termin_id'] = tid;
+                    } else {
+                      // Surface API errors instead of debugPrint silence.
+                      final msg = (result['message'] ?? 'Unbekannter Fehler').toString();
+                      if (dlgCtx.mounted) {
+                        ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(
+                          content: Text('Terminverwaltung: $msg'),
+                          backgroundColor: Colors.orange.shade700,
+                        ));
+                      }
                     }
                   } catch (e) {
-                    debugPrint('Behoerde termin create error: $e');
+                    if (dlgCtx.mounted) {
+                      ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(
+                        content: Text('Terminverwaltung-Sync fehlgeschlagen: $e'),
+                        backgroundColor: Colors.red.shade700,
+                      ));
+                    }
                   }
                 }
 
