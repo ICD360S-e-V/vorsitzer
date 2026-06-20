@@ -4700,14 +4700,17 @@ class ApiService {
   /// the member's master data + Vorfall metadata + financial inputs.
   /// Returns raw PDF bytes (binary, %PDF-magic verified) or null on error.
   ///
-  /// Server: /api/admin/beratungshilfe_pdf.php (POST JSON).
+  /// Server: /api/admin/beratungshilfe_pdf.php (POST JSON). pdftk-java
+  /// + JVM startup auf einem 624 KB AcroForm-Template ist ungewöhnlich
+  /// langsam (~35-40 s gemessen), deshalb 180 s Timeout statt der
+  /// üblichen 30/60 s. nginx fastcgi_read_timeout ist 300 s.
   Future<List<int>?> generateBeratungshilfePdf(Map<String, dynamic> payload) async {
     try {
       final r = await _client.post(
         Uri.parse('$baseUrl/admin/beratungshilfe_pdf.php'),
         headers: _headers,
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 120));
+      ).timeout(const Duration(seconds: 180));
       if (r.statusCode == 200 && r.bodyBytes.length > 1000 &&
           r.bodyBytes[0] == 0x25 && r.bodyBytes[1] == 0x50 && r.bodyBytes[2] == 0x44 && r.bodyBytes[3] == 0x46) {
         return r.bodyBytes;

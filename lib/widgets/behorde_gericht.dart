@@ -2106,6 +2106,15 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       });
       return;
     }
+    // pdftk-java startup + form-fill auf dem 624-KB-Template dauert
+    // gemessen ~35-40 s. Kurze Nutzer-Rückmeldung sofort beim Klick,
+    // sonst sieht der Spinner aus wie ein Hänger.
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('PDF wird auf dem Server gerendert (kann bis zu 45 s dauern)…'),
+        duration: Duration(seconds: 4),
+      ));
+    }
     final g = _selectedGericht!;
     final titel = (widget.vorfall['titel'] ?? '').toString();
     final notiz = (widget.vorfall['notiz'] ?? '').toString();
