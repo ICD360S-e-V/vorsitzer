@@ -2039,6 +2039,16 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   String _selectedMotivId = 'free';
   final _sachverhaltC = TextEditingController();
 
+  // Section B of the Antrag: 4 declarations the applicant signs.
+  // B1 (Rechtsschutzversicherung): operator toggles based on what
+  //     the member has on file. Default = false (most members don't).
+  // B2/B3/B4 are virtually always true for our flow — kept as
+  //     constants but exposed should the operator ever need to flip.
+  bool _hasRechtsschutz = false;
+  static const bool _bKeineMoeglichkeit = true;
+  static const bool _bNichtBewilligt    = true;
+  static const bool _bKeinGerichtlich   = true;
+
   // Tab now exposes: Amtsgericht selector + auto-arbeitslos banner +
   // Motiv dropdown (auto-detected aus Jobcenter Sanktion / Widerspruch,
   // oder freier Text). Sachverhalt-Text wird mit dem ausgewählten
@@ -2168,6 +2178,13 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       'anschrift': _anschrift(),
       // telefon intentionally not sent — operator-side decision.
       'sachverhalt': sachverhalt,
+      // Section B declarations: B1 driven by the operator toggle,
+      // B2/B3/B4 are constants for our flow (no other free help, never
+      // applied for Beratungshilfe in this matter, no court case yet).
+      'keine_rechtsschutz': !_hasRechtsschutz,
+      'keine_moeglichkeit': _bKeineMoeglichkeit,
+      'nicht_bewilligt':    _bNichtBewilligt,
+      'kein_gerichtlich':   _bKeinGerichtlich,
     };
     try {
       final bytes = await widget.apiService.generateBeratungshilfePdf(payload);
@@ -2279,6 +2296,48 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           ]),
         ),
       ],
+
+      // Abschnitt B: Erklärungen — only B1 is operator-driven, the
+      // other three are constants in our flow.
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.fact_check, size: 16, color: c.shade700),
+            const SizedBox(width: 6),
+            Text('Abschnitt B — Erklärungen',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
+          ]),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+            title: Text(
+              _hasRechtsschutz
+                  ? 'Rechtsschutzversicherung vorhanden (B1 NICHT angekreuzt)'
+                  : 'Keine Rechtsschutzversicherung (B1 angekreuzt)',
+              style: const TextStyle(fontSize: 11.5),
+            ),
+            value: _hasRechtsschutz,
+            onChanged: (v) => setState(() => _hasRechtsschutz = v),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 4),
+            child: Text(
+              'B2/B3/B4 werden immer angekreuzt: keine andere kostenlose Beratung, '
+              'noch nicht bewilligt/versagt, kein gerichtliches Verfahren.',
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade600, height: 1.3),
+            ),
+          ),
+        ]),
+      ),
 
       // Motiv für den Antrag
       const SizedBox(height: 16),
