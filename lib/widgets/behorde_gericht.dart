@@ -2295,7 +2295,7 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     final c = widget.color;
-    return Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    return SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         Icon(Icons.picture_as_pdf, color: c.shade700),
         const SizedBox(width: 8),
