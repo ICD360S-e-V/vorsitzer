@@ -467,7 +467,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final v = widget.vorfall;
     final status = v['status']?.toString() ?? 'offen';
     final isBetreuung = widget.gerichtTyp == 'betreuungsgericht';
-    final tabCount = isBetreuung ? 8 : 7;
+    final isBeratungshilfe = widget.gerichtTyp == 'beratungshilfe';
+    final tabCount = (isBetreuung || isBeratungshilfe) ? 8 : 7;
     return DefaultTabController(length: tabCount, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -485,6 +486,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       TabBar(labelColor: widget.color.shade700, indicatorColor: widget.color.shade700, isScrollable: true, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         if (isBetreuung) const Tab(icon: Icon(Icons.assignment, size: 18), text: 'Antrag Generator'),
+        if (isBeratungshilfe) const Tab(icon: Icon(Icons.picture_as_pdf, size: 18), text: 'PDF-Generator'),
         const Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
         const Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         const Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
@@ -498,6 +500,15 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           apiService: widget.apiService,
           vorfallId: widget.vorfallId,
           userId: widget.userId,
+          color: widget.color,
+        ),
+        if (isBeratungshilfe) _BeratungshilfeGeneratorTab(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          vorfallId: widget.vorfallId,
+          vorfall: v,
+          userName: widget.userName,
+          userNachname: widget.userNachname,
           color: widget.color,
         ),
         _buildDokumente(),
@@ -1968,6 +1979,323 @@ class _MitgliedPickerDialogState extends State<_MitgliedPickerDialog> {
             )),
       ])),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen'))],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// BERATUNGSHILFE PDF-GENERATOR
+// Bundeseinheitliches Antragsformular nebst Hinweisblatt
+// (justizportal.justiz-bw.de). Pre-fills Stammdaten from the
+// member's master row, lets the operator add Sachverhalt +
+// Finanzangaben, then asks the server to render the AcroForm
+// via /api/admin/beratungshilfe_pdf.php (pdftk fill_form).
+// ═══════════════════════════════════════════════════════
+class _BeratungshilfeGeneratorTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int vorfallId;
+  final Map<String, dynamic> vorfall;
+  final String userName;
+  final String userNachname;
+  final MaterialColor color;
+  const _BeratungshilfeGeneratorTab({
+    required this.apiService,
+    required this.userId,
+    required this.vorfallId,
+    required this.vorfall,
+    required this.userName,
+    required this.userNachname,
+    required this.color,
+  });
+  @override
+  State<_BeratungshilfeGeneratorTab> createState() => _BeratungshilfeGeneratorTabState();
+}
+
+class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab> {
+  bool _loading = true;
+  bool _generating = false;
+  String? _lastError;
+  String? _lastGeneratedPath;
+
+  // Pre-filled from user master row
+  Map<String, dynamic> _user = {};
+
+  // Editable on this screen
+  final _sachverhaltC = TextEditingController();
+  final _bruttoC = TextEditingController();
+  final _nettoC = TextEditingController();
+  final _ehegatteNettoC = TextEditingController();
+  final _wohnungGroesseC = TextEditingController();
+  final _wohnkostenC = TextEditingController();
+  bool _alleinBewohner = true;
+  bool _keineRechtsschutz = true;
+  bool _keineMoeglichkeit = true;
+  bool _nichtBewilligt = true;
+  bool _keinGerichtlich = true;
+  bool _hatBankkonten = false;
+  bool _hatGrundeigentum = false;
+  bool _hatKfz = false;
+  bool _hatSonstigeVermoegen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _sachverhaltC.dispose();
+    _bruttoC.dispose();
+    _nettoC.dispose();
+    _ehegatteNettoC.dispose();
+    _wohnungGroesseC.dispose();
+    _wohnkostenC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await widget.apiService.getUserDetails(widget.userId);
+      if (r['success'] == true && r['user'] is Map) {
+        _user = Map<String, dynamic>.from(r['user'] as Map);
+      }
+    } catch (_) {}
+    // Pre-fill Sachverhalt from Vorfall titel + notiz
+    final titel = widget.vorfall['titel']?.toString() ?? '';
+    final notiz = widget.vorfall['notiz']?.toString() ?? '';
+    _sachverhaltC.text = [titel, notiz].where((s) => s.isNotEmpty).join('\n\n');
+    if (mounted) setState(() => _loading = false);
+  }
+
+  String _antragsteller() {
+    final v1 = (_user['vorname'] ?? widget.userName).toString();
+    final v2 = (_user['vorname2'] ?? '').toString();
+    final n  = (_user['nachname'] ?? widget.userNachname).toString();
+    final gn = (_user['geburtsname'] ?? '').toString();
+    final base = [v1, v2, n].where((s) => s.isNotEmpty).join(' ');
+    return gn.isNotEmpty ? '$base (geb. $gn)' : base;
+  }
+
+  String _anschrift() {
+    final s = (_user['strasse'] ?? '').toString();
+    final h = (_user['hausnummer'] ?? '').toString();
+    final p = (_user['plz'] ?? '').toString();
+    final o = (_user['ort'] ?? '').toString();
+    return '${[s, h].where((x) => x.isNotEmpty).join(' ')}, ${[p, o].where((x) => x.isNotEmpty).join(' ')}'
+        .replaceAll(RegExp(r'^,\s*|\s*,$'), '');
+  }
+
+  String _telefon() {
+    final m = (_user['telefon_mobil'] ?? '').toString();
+    final f = (_user['telefon_fix'] ?? '').toString();
+    return m.isNotEmpty ? m : f;
+  }
+
+  Future<void> _generate() async {
+    setState(() {
+      _generating = true;
+      _lastError = null;
+      _lastGeneratedPath = null;
+    });
+    final payload = <String, dynamic>{
+      'amtsgericht': 'Amtsgericht Ulm — Rechtsantragstelle',
+      'amtsgericht_plz_ort': '89073 Ulm',
+      'antragsteller': _antragsteller(),
+      'beruf': (_user['beruf'] ?? '').toString(),
+      'geburtsdatum': (_user['geburtsdatum'] ?? '').toString(),
+      'familienstand': (_user['familienstand'] ?? '').toString(),
+      'anschrift': _anschrift(),
+      'telefon': _telefon(),
+      'sachverhalt': _sachverhaltC.text.trim(),
+      'brutto': _bruttoC.text.trim(),
+      'netto': _nettoC.text.trim(),
+      'ehegatte_netto': _ehegatteNettoC.text.trim(),
+      'wohnung_groesse': _wohnungGroesseC.text.trim(),
+      'wohnkosten': _wohnkostenC.text.trim(),
+      'allein_bewohner': _alleinBewohner,
+      'keine_rechtsschutz': _keineRechtsschutz,
+      'keine_moeglichkeit': _keineMoeglichkeit,
+      'nicht_bewilligt': _nichtBewilligt,
+      'kein_gerichtlich': _keinGerichtlich,
+      'hat_bankkonten': _hatBankkonten,
+      'hat_grundeigentum': _hatGrundeigentum,
+      'hat_kfz': _hatKfz,
+      'hat_sonstige_vermoegen': _hatSonstigeVermoegen,
+    };
+    try {
+      final bytes = await widget.apiService.generateBeratungshilfePdf(payload);
+      if (!mounted) return;
+      if (bytes == null) {
+        setState(() {
+          _generating = false;
+          _lastError = 'Server lieferte kein PDF zurück. pdftk- oder Template-Fehler — Logs prüfen.';
+        });
+        return;
+      }
+      Directory? dir;
+      try { dir = await getDownloadsDirectory(); } catch (_) {}
+      dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
+      final filename = 'Beratungshilfe_Antrag_${widget.userId}_${widget.vorfallId}.pdf';
+      final path = '${dir.path}${Platform.pathSeparator}$filename';
+      await File(path).writeAsBytes(bytes);
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        _lastGeneratedPath = path;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('PDF gespeichert: $path'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        _lastError = 'Fehler: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final c = widget.color;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.picture_as_pdf, color: c.shade700),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Beratungshilfe — Bundeseinheitliches Antragsformular',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+      ]),
+      const SizedBox(height: 4),
+      Text('Pre-fill aus Mitgliedsstammdaten; Felder unten überprüfen / ergänzen. '
+           'Server rendert das amtliche PDF (pdftk fill_form), Vorsitzer druckt + unterschreibt + reicht beim AG Ulm ein.',
+           style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4)),
+      const SizedBox(height: 16),
+
+      // Pre-filled (read-only display)
+      _readonlyRow('Amtsgericht', 'Amtsgericht Ulm — Rechtsantragstelle, 89073 Ulm', c),
+      _readonlyRow('Antragsteller', _antragsteller(), c),
+      _readonlyRow('Geburtsdatum', _user['geburtsdatum']?.toString() ?? '', c),
+      _readonlyRow('Familienstand', _user['familienstand']?.toString() ?? '', c),
+      _readonlyRow('Anschrift', _anschrift(), c),
+      _readonlyRow('Telefon', _telefon(), c),
+      _readonlyRow('Beruf', _user['beruf']?.toString() ?? '', c),
+
+      const SizedBox(height: 14),
+      TextField(controller: _sachverhaltC, maxLines: 4, decoration: InputDecoration(
+        labelText: 'Sachverhalt (Rechtsbereich + kurze Beschreibung) *',
+        isDense: true,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      )),
+      const SizedBox(height: 12),
+
+      Text('Einkommen (€/Monat)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
+      const SizedBox(height: 6),
+      Row(children: [
+        Expanded(child: TextField(controller: _bruttoC, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Brutto', isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _nettoC, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Netto', isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _ehegatteNettoC, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Partner netto', isDense: true, border: OutlineInputBorder()))),
+      ]),
+
+      const SizedBox(height: 12),
+      Text('Wohnung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
+      const SizedBox(height: 6),
+      Row(children: [
+        Expanded(child: TextField(controller: _wohnungGroesseC, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Wohnfläche (m²)', isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _wohnkostenC, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Wohnkosten €/Mt', isDense: true, border: OutlineInputBorder()))),
+      ]),
+      SwitchListTile(dense: true, contentPadding: EdgeInsets.zero,
+        title: const Text('Allein bewohnt', style: TextStyle(fontSize: 12)),
+        value: _alleinBewohner, onChanged: (v) => setState(() => _alleinBewohner = v)),
+
+      const SizedBox(height: 12),
+      Text('Erklärungen (Standard: angekreuzt)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
+      const SizedBox(height: 6),
+      _checkRow('Keine Rechtsschutzversicherung', _keineRechtsschutz, (v) => setState(() => _keineRechtsschutz = v)),
+      _checkRow('Keine andere Möglichkeit kostenloser Beratung', _keineMoeglichkeit, (v) => setState(() => _keineMoeglichkeit = v)),
+      _checkRow('Beratungshilfe bisher weder bewilligt noch versagt', _nichtBewilligt, (v) => setState(() => _nichtBewilligt = v)),
+      _checkRow('Kein gerichtliches Verfahren in dieser Sache', _keinGerichtlich, (v) => setState(() => _keinGerichtlich = v)),
+
+      const SizedBox(height: 12),
+      Text('Vermögen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
+      const SizedBox(height: 6),
+      _checkRow('Bankkonten vorhanden', _hatBankkonten, (v) => setState(() => _hatBankkonten = v)),
+      _checkRow('Grundeigentum', _hatGrundeigentum, (v) => setState(() => _hatGrundeigentum = v)),
+      _checkRow('Kraftfahrzeug', _hatKfz, (v) => setState(() => _hatKfz = v)),
+      _checkRow('Sonstige Vermögenswerte', _hatSonstigeVermoegen, (v) => setState(() => _hatSonstigeVermoegen = v)),
+
+      const SizedBox(height: 20),
+      FilledButton.icon(
+        onPressed: _generating ? null : _generate,
+        icon: _generating
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.download, size: 18),
+        label: Text(_generating ? 'Wird erstellt…' : 'PDF generieren'),
+        style: FilledButton.styleFrom(backgroundColor: c.shade700),
+      ),
+
+      if (_lastGeneratedPath != null) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+          child: Row(children: [
+            Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_lastGeneratedPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'),
+              onPressed: () => OpenFilex.open(_lastGeneratedPath!)),
+          ]),
+        ),
+      ],
+      if (_lastError != null) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade300)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_lastError!, style: TextStyle(fontSize: 11, color: Colors.red.shade800))),
+          ]),
+        ),
+      ],
+      const SizedBox(height: 12),
+      Text(
+        'Hinweis: Bank-, Grundeigentum-, Kfz-, Vermögens-, Unterhaltspersonen-Details bleiben '
+        'leer und müssen vom Vorsitzer/Mitglied auf dem ausgedruckten PDF von Hand ergänzt '
+        'werden (kommt im nächsten Schritt als eigene Maske).',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+      ),
+    ]));
+  }
+
+  Widget _readonlyRow(String label, String value, MaterialColor c) {
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: c.shade700, fontWeight: FontWeight.w600))),
+      Expanded(child: Text(value.isEmpty ? '—' : value, style: const TextStyle(fontSize: 12))),
+    ]));
+  }
+
+  Widget _checkRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
+        SizedBox(width: 28, child: Checkbox(value: value, onChanged: (v) => onChanged(v ?? false), visualDensity: VisualDensity.compact)),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 12))),
+      ])),
     );
   }
 }
