@@ -2052,8 +2052,14 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   // Section C input: operator types the Auszahlbetrag 1:1 from the
   // Bürgergeld-Bescheid the member shows. C1 (Brutto) = C2 (Netto)
   // for Bürgergeld since no Steuern/Sozialversicherung are withheld.
-  // KdU + Wohnfläche come from a dedicated module later (D-section).
   final _auszahlbetragC = TextEditingController();
+
+  // Section D inputs: pre-filled from the most recent aktiver Mietvertrag
+  // (vermieter_mietvertraege via beratungshilfe_sources.php > wohnung).
+  // Operator can still override before generating.
+  final _wohnflaecheC = TextEditingController();
+  final _warmmieteC   = TextEditingController();
+  String? _wohnungAdresse; // caption-only hint, not in PDF payload
 
   // Tab now exposes: Amtsgericht selector + auto-arbeitslos banner +
   // Motiv dropdown (auto-detected aus Jobcenter Sanktion / Widerspruch,
@@ -2070,6 +2076,8 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   void dispose() {
     _sachverhaltC.dispose();
     _auszahlbetragC.dispose();
+    _wohnflaecheC.dispose();
+    _warmmieteC.dispose();
     super.dispose();
   }
 
@@ -2108,6 +2116,17 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
         final betrag = s['auszahlbetrag']?.toString();
         if (betrag != null && betrag.isNotEmpty) {
           _auszahlbetragC.text = betrag;
+        }
+        // Section D pre-fill from the most recent aktiver Mietvertrag.
+        final wohnung = s['wohnung'];
+        if (wohnung is Map) {
+          final w = Map<String, dynamic>.from(wohnung);
+          final qm = w['wohnflaeche_qm']?.toString();
+          final warm = w['warmmiete']?.toString();
+          final adr = w['adresse']?.toString();
+          if (qm != null && qm.isNotEmpty) _wohnflaecheC.text = qm;
+          if (warm != null && warm.isNotEmpty) _warmmieteC.text = warm;
+          if (adr != null && adr.isNotEmpty) _wohnungAdresse = adr;
         }
       }
     } catch (_) {}
@@ -2198,10 +2217,15 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       'nicht_bewilligt':    _bNichtBewilligt,
       'kein_gerichtlich':   _bKeinGerichtlich,
       // Section C — Bescheid 1:1: Auszahlbetrag → both C1 (Brutto) and
-      // C2 (Netto). Bürgergeld hat keine Abzüge. KdU/Wohnfläche werden
-      // später aus einem dedizierten Modul gefüllt.
+      // C2 (Netto). Bürgergeld hat keine Abzüge.
       'brutto': _auszahlbetragC.text.trim(),
       'netto':  _auszahlbetragC.text.trim(),
+      // Section D — Wohnung. Pre-fill from active Mietvertrag,
+      // operator can override. wohnkosten = Warmmiete (= Kalt + NK
+      // + Heizung) total monthly rent including everything.
+      'wohnung_groesse': _wohnflaecheC.text.trim(),
+      'wohnkosten':      _warmmieteC.text.trim(),
+      'allein_bewohner': true, // sensible default; D-section toggle TBD
     };
     try {
       final bytes = await widget.apiService.generateBeratungshilfePdf(payload);
@@ -2402,6 +2426,68 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
                 '(bescheid_betrag). Bei Bedarf überschreiben.',
                 style: TextStyle(fontSize: 10, color: Colors.green.shade800, fontStyle: FontStyle.italic),
               ),
+            ]),
+          ],
+        ]),
+      ),
+
+      // Abschnitt D — Wohnung (aus aktivem Mietvertrag)
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blue.shade300),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.home, size: 16, color: Colors.blue.shade800),
+            const SizedBox(width: 6),
+            Text('Abschnitt D — Wohnung (aus Mietvertrag)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+          ]),
+          if (_wohnungAdresse != null) ...[
+            const SizedBox(height: 4),
+            Text('Mietobjekt: $_wohnungAdresse',
+              style: TextStyle(fontSize: 10.5, color: Colors.blue.shade800, fontStyle: FontStyle.italic)),
+          ],
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(
+              controller: _wohnflaecheC,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Wohnfläche',
+                suffixText: 'm²',
+                isDense: true,
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.square_foot, size: 18),
+              ),
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(
+              controller: _warmmieteC,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Warmmiete (Kalt + NK + Heizung)',
+                suffixText: '€',
+                isDense: true,
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.euro, size: 18),
+              ),
+            )),
+          ]),
+          if (_wohnflaecheC.text.isNotEmpty || _warmmieteC.text.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              Icon(Icons.auto_fix_high, size: 12, color: Colors.green.shade700),
+              const SizedBox(width: 4),
+              Expanded(child: Text(
+                'Automatisch übernommen aus aktivem Mietvertrag '
+                '(vermieter_mietvertraege). Bei Bedarf überschreiben.',
+                style: TextStyle(fontSize: 10, color: Colors.green.shade800, fontStyle: FontStyle.italic),
+              )),
             ]),
           ],
         ]),
