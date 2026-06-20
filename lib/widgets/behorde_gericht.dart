@@ -2104,6 +2104,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           _selectedMotivId = _motiveOptions.first['id'].toString();
           _sachverhaltC.text = _motiveOptions.first['text']?.toString() ?? '';
         }
+        // Auszahlbetrag pre-fill from Jobcenter bescheid_betrag.
+        final betrag = s['auszahlbetrag']?.toString();
+        if (betrag != null && betrag.isNotEmpty) {
+          _auszahlbetragC.text = betrag;
+        }
       }
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
@@ -2387,6 +2392,18 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
               hintText: 'z. B. 1722.68',
             ),
           ),
+          if (_auszahlbetragC.text.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              Icon(Icons.auto_fix_high, size: 12, color: Colors.green.shade700),
+              const SizedBox(width: 4),
+              Text(
+                'Automatisch übernommen aus aktivem Jobcenter-Bewilligungsbescheid '
+                '(bescheid_betrag). Bei Bedarf überschreiben.',
+                style: TextStyle(fontSize: 10, color: Colors.green.shade800, fontStyle: FontStyle.italic),
+              ),
+            ]),
+          ],
         ]),
       ),
 
