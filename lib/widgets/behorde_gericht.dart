@@ -2059,6 +2059,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   // Operator can still override before generating.
   final _wohnflaecheC = TextEditingController();
   final _warmmieteC   = TextEditingController();
+  // D3 — "Von den gesamten Wohnkosten zahle ich: ___ EUR". Defaults to
+  // the same value as Warmmiete (D2), because the applicant is the
+  // sole tenant on the Mietvertrag and pays the rent in full (even
+  // when Jobcenter reimburses KdU later). Operator can override.
+  final _wohnkostenAnteilC = TextEditingController();
   String? _wohnungAdresse; // caption-only hint, not in PDF payload
   int _kinderAnzahl = 0;   // Bedarfsgemeinschaft size driver for D5/D6
 
@@ -2086,6 +2091,7 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
     _auszahlbetragC.dispose();
     _wohnflaecheC.dispose();
     _warmmieteC.dispose();
+    _wohnkostenAnteilC.dispose();
     super.dispose();
   }
 
@@ -2133,7 +2139,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           final warm = w['warmmiete']?.toString();
           final adr = w['adresse']?.toString();
           if (qm != null && qm.isNotEmpty) _wohnflaecheC.text = qm;
-          if (warm != null && warm.isNotEmpty) _warmmieteC.text = warm;
+          if (warm != null && warm.isNotEmpty) {
+            _warmmieteC.text = warm;
+            // D3 = D2 by default (applicant pays the full rent).
+            _wohnkostenAnteilC.text = warm;
+          }
           if (adr != null && adr.isNotEmpty) _wohnungAdresse = adr;
           final ka = w['kinder_anzahl'];
           if (ka is int) _kinderAnzahl = ka;
@@ -2242,9 +2252,12 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       'netto':  _auszahlbetragC.text.trim(),
       // Section D — Wohnung. Pre-fill from active Mietvertrag,
       // operator can override. wohnkosten = Warmmiete (= Kalt + NK
-      // + Heizung) total monthly rent including everything.
-      'wohnung_groesse': _wohnflaecheC.text.trim(),
-      'wohnkosten':      _warmmieteC.text.trim(),
+      // + Heizung) total monthly rent including everything;
+      // wohnkosten_anteil (D3) = the part the applicant pays out of
+      // pocket (0 € for full-Bürgergeld recipients).
+      'wohnung_groesse':    _wohnflaecheC.text.trim(),
+      'wohnkosten':         _warmmieteC.text.trim(),
+      'wohnkosten_anteil':  _wohnkostenAnteilC.text.trim(),
       // D4/D5/D6: if the member has Kinder/Familienangehörige linked
       // via vormund_user_id, mark "gemeinsam bewohnt" + write the
       // count into D6 ("weitere Personen"). Otherwise allein.
@@ -2603,6 +2616,19 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
               ),
             )),
           ]),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _wohnkostenAnteilC,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Davon zahle ich (D3)',
+              hintText: 'Standard: gleicher Betrag wie Warmmiete',
+              suffixText: '€',
+              isDense: true,
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.payments, size: 18),
+            ),
+          ),
           if (_wohnflaecheC.text.isNotEmpty || _warmmieteC.text.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(children: [
