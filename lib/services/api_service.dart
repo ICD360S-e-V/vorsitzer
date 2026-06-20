@@ -4695,6 +4695,27 @@ class ApiService {
 
   // ========== BERATUNGSHILFE PDF ==========
 
+  /// Fetch auto-detected data the Beratungshilfe-Antrag can pull from
+  /// other Behörden-Akten (Jobcenter, Arbeitsagentur, Sanktionen).
+  /// Returns { is_arbeitslos, arbeitslos_quelle, motive_options: [...] }
+  /// or null on failure.
+  ///
+  /// Server: /api/admin/beratungshilfe_sources.php?user_id=<int>
+  Future<Map<String, dynamic>?> getBeratungshilfeSources(int userId) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/beratungshilfe_sources.php?user_id=$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return null;
+      final data = jsonDecode(r.body);
+      if (data is! Map || data['success'] != true) return null;
+      return Map<String, dynamic>.from(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fill the bundeseinheitliches Beratungshilfe-Antragsformular with
   /// the supplied payload via `pdfcpu form fill` on the server (Go
   /// native, ~0.3 s end-to-end). Returns raw PDF bytes (binary,

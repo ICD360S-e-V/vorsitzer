@@ -2028,16 +2028,32 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   List<Map<String, dynamic>> _gerichte = [];
   Map<String, dynamic>? _selectedGericht;
 
-  // Keine Bearbeitungs-Felder hier. Tab is intentionally minimal: pick
-  // the Amtsgericht, hit Generieren. Stammdaten kommen aus `users`,
-  // Sachverhalt aus dem Vorfall (titel + notiz). Restliche Felder
-  // (Einkommen, Wohnkosten, Vermögen, B-Erklärungen) bleiben im PDF
-  // leer und werden später aus dedizierten Modulen befüllt.
+  // Auto-detected from /api/admin/beratungshilfe_sources.php — drives
+  // the Motiv dropdown and the Beruf = arbeitslos override.
+  bool _isArbeitslos = false;
+  String? _arbeitslosQuelle;
+  List<Map<String, dynamic>> _motiveOptions = [];
+
+  // Motiv: 'free' = operator types the Sachverhalt manually; any other
+  // value = id of a motive_options row (jobcenter_sanktion_<id> etc.).
+  String _selectedMotivId = 'free';
+  final _sachverhaltC = TextEditingController();
+
+  // Tab now exposes: Amtsgericht selector + auto-arbeitslos banner +
+  // Motiv dropdown (auto-detected aus Jobcenter Sanktion / Widerspruch,
+  // oder freier Text). Sachverhalt-Text wird mit dem ausgewählten
+  // Motiv vorbefüllt und bleibt editierbar.
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _sachverhaltC.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -2057,6 +2073,22 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
         if (_gerichte.isNotEmpty) _selectedGericht = _gerichte.first;
       }
     } catch (_) {}
+    // Auto-detection: arbeitslos status + Motiv-Vorschläge from other
+    // Behörden-Akten (Jobcenter, Arbeitsagentur, Sanktionen).
+    try {
+      final s = await widget.apiService.getBeratungshilfeSources(widget.userId);
+      if (s != null) {
+        _isArbeitslos = s['is_arbeitslos'] == true;
+        _arbeitslosQuelle = s['arbeitslos_quelle']?.toString();
+        _motiveOptions = ((s['motive_options'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        if (_motiveOptions.isNotEmpty) {
+          _selectedMotivId = _motiveOptions.first['id'].toString();
+          _sachverhaltC.text = _motiveOptions.first['text']?.toString() ?? '';
+        }
+      }
+    } catch (_) {}
     if (mounted) setState(() => _loading = false);
   }
 
@@ -2066,6 +2098,15 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   /// gericht_datenbank row.
   String _plzOrtFromAddress(String addr) {
     final m = RegExp(r'(\d{5}\s+[A-Za-zÄÖÜäöüß\-]+)').firstMatch(addr);
+    return m?.group(1) ?? '';
+  }
+
+  /// Extract just the city ("Ulm") from a court-address line. The PDF
+  /// already prints "An das Amtsgericht" before the field, so we don't
+  /// want to write "Amtsgericht Ulm" there — the result would read
+  /// "An das Amtsgericht Amtsgericht Ulm".
+  String _ortFromAddress(String addr) {
+    final m = RegExp(r'\d{5}\s+([A-Za-zÄÖÜäöüß\-]+)').firstMatch(addr);
     return m?.group(1) ?? '';
   }
 
@@ -2107,19 +2148,25 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       return;
     }
     final g = _selectedGericht!;
-    final titel = (widget.vorfall['titel'] ?? '').toString();
-    final notiz = (widget.vorfall['notiz'] ?? '').toString();
-    final sachverhalt = [titel, notiz].where((s) => s.isNotEmpty).join('\n\n');
+    final addr = (g['adresse'] ?? '').toString();
+    // City-only for "An das Amtsgericht ___" — full name would
+    // duplicate the printed prefix.
+    final ort = _ortFromAddress(addr);
+    final sachverhalt = _sachverhaltC.text.trim();
     final payload = <String, dynamic>{
-      'amtsgericht': (g['name'] ?? '').toString(),
-      'amtsgericht_plz_ort': _plzOrtFromAddress((g['adresse'] ?? '').toString()),
+      'ort': ort,                                       // → "Name des Amtsgerichts"
+      'amtsgericht': (g['name'] ?? '').toString(),      // fallback / audit
+      'amtsgericht_plz_ort': _plzOrtFromAddress(addr),
       'pdf_template': (g['pdf_template'] ?? '').toString(),
       'antragsteller': _antragsteller(),
-      'beruf': (_user['beruf'] ?? '').toString(),
+      // Beruf: arbeitslos override is set server-side from this flag
+      // (auto-detected via Jobcenter / Arbeitsagentur sources).
+      'beruf': _isArbeitslos ? 'arbeitslos' : (_user['beruf'] ?? '').toString(),
+      'beruf_arbeitslos': _isArbeitslos,
       'geburtsdatum': (_user['geburtsdatum'] ?? '').toString(),
       'familienstand': (_user['familienstand'] ?? '').toString(),
       'anschrift': _anschrift(),
-      'telefon': _telefon(),
+      // telefon intentionally not sent — operator-side decision.
       'sachverhalt': sachverhalt,
     };
     try {
@@ -2210,6 +2257,91 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           )).toList(),
           onChanged: (v) => setState(() => _selectedGericht = v),
         ),
+
+      // Auto-detected arbeitslos indicator
+      if (_isArbeitslos) ...[
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.green.shade300),
+          ),
+          child: Row(children: [
+            Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              'Beruf wird automatisch auf "arbeitslos" gesetzt — Quelle: '
+              '${_arbeitslosQuelle == "jobcenter" ? "Jobcenter (Hartz IV bewilligt)" : "Arbeitsagentur (ALG bewilligt)"}.',
+              style: TextStyle(fontSize: 11, color: Colors.green.shade900),
+            )),
+          ]),
+        ),
+      ],
+
+      // Motiv für den Antrag
+      const SizedBox(height: 16),
+      Text('Motiv für den Beratungshilfe-Antrag',
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
+      const SizedBox(height: 6),
+      if (_motiveOptions.isNotEmpty)
+        DropdownButtonFormField<String>(
+          initialValue: _selectedMotivId,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: 'Vorschlag aus Akten oder freier Text',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            prefixIcon: Icon(Icons.assignment, size: 18, color: c.shade700),
+          ),
+          items: [
+            ..._motiveOptions.map((m) => DropdownMenuItem<String>(
+              value: m['id'].toString(),
+              child: Text((m['label'] ?? '').toString(),
+                style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+            )),
+            const DropdownMenuItem<String>(
+              value: 'free',
+              child: Text('— Anders / freier Text —', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+            ),
+          ],
+          onChanged: (v) {
+            if (v == null) return;
+            setState(() {
+              _selectedMotivId = v;
+              if (v == 'free') {
+                _sachverhaltC.text = '';
+              } else {
+                final m = _motiveOptions.firstWhere((o) => o['id'].toString() == v, orElse: () => const {});
+                _sachverhaltC.text = (m['text'] ?? '').toString();
+              }
+            });
+          },
+        )
+      else
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+          child: Row(children: [
+            Icon(Icons.info_outline, size: 14, color: Colors.grey.shade600),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+              'Keine automatischen Motiv-Vorschläge — bitte Sachverhalt unten frei eingeben.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            )),
+          ]),
+        ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _sachverhaltC,
+        maxLines: 4,
+        decoration: InputDecoration(
+          labelText: 'Sachverhalt (geht in Abschnitt A des Antrags)',
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
 
       const SizedBox(height: 20),
       FilledButton.icon(
