@@ -54,6 +54,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   // damit Arzt-Portal-Auto-Fill die richtigen Daten injiziert.
   Map<String, dynamic>? _freshUserData;
 
+  // Multi-file upload progress per analyse-id (Blutanalyse Dokumente).
+  // Keyed by analyseId so multiple simultaneous Blutanalyse dialogs don't
+  // bleed progress into each other.
+  final Map<String, bool> _blutUploadActive = {};
+  final Map<String, int>  _blutUploadDone   = {};
+  final Map<String, int>  _blutUploadTotal  = {};
+
   @override
   void initState() {
     super.initState();
@@ -2311,70 +2318,100 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Upload button
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.cloud_upload_outlined, size: 36, color: Colors.blue.shade400),
-                const SizedBox(height: 8),
-                Text('Analyseergebnis hochladen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
-                const SizedBox(height: 4),
-                Text('PDF oder Bild vom Arzt/Labor (AES-256 verschlüsselt)', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
-                const SizedBox(height: 10),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    try {
-                      final filePath = await _pickGesundheitFile();
-                      if (filePath != null && filePath.isNotEmpty) {
-                        setD(() {});
-                        final fileName = filePath.split('/').last;
-                        final uploadResult = await widget.apiService.uploadGesundheitDokument(
-                          userId: widget.user.id,
-                          gesundheitType: type,
-                          analyseId: analyseId,
-                          filePath: filePath,
-                          fileName: fileName,
-                        );
-                        if (uploadResult['success'] == true) {
-                          reloadDocs();
-                          onDocUploaded(fileName);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Dokument "$fileName" hochgeladen (verschlüsselt)'), backgroundColor: Colors.green),
+          // Upload button — multi-file (up to 20)
+          StatefulBuilder(builder: (uctx, setU) {
+            bool uploading = (_blutUploadActive[analyseId] ?? false);
+            int done = _blutUploadDone[analyseId] ?? 0;
+            int total = _blutUploadTotal[analyseId] ?? 0;
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.cloud_upload_outlined, size: 36, color: Colors.blue.shade400),
+                  const SizedBox(height: 8),
+                  Text('Analyseergebnisse hochladen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+                  const SizedBox(height: 4),
+                  Text('PDF oder Bilder vom Arzt/Labor (AES-256 verschlüsselt) — bis zu 20 gleichzeitig', style: TextStyle(fontSize: 11, color: Colors.blue.shade600), textAlign: TextAlign.center),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: uploading ? null : () async {
+                      try {
+                        final paths = await _pickGesundheitFiles();
+                        if (paths.isEmpty) return;
+                        if (paths.length > 20) {
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Max 20 Dateien gleichzeitig')));
+                          return;
+                        }
+                        _blutUploadActive[analyseId] = true;
+                        _blutUploadDone[analyseId]   = 0;
+                        _blutUploadTotal[analyseId]  = paths.length;
+                        setU(() {});
+                        final errors = <String>[];
+                        String? lastName;
+                        for (final p in paths) {
+                          final fileName = p.split('/').last;
+                          try {
+                            final res = await widget.apiService.uploadGesundheitDokument(
+                              userId: widget.user.id,
+                              gesundheitType: type,
+                              analyseId: analyseId,
+                              filePath: p,
+                              fileName: fileName,
                             );
+                            if (res['success'] == true) {
+                              lastName = fileName;
+                              onDocUploaded(fileName);
+                            } else {
+                              errors.add('$fileName: ${res['message'] ?? 'Fehler'}');
+                            }
+                          } catch (e) {
+                            errors.add('$fileName: $e');
                           }
-                        } else {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(uploadResult['message'] ?? 'Upload fehlgeschlagen'), backgroundColor: Colors.red),
-                            );
-                          }
+                          _blutUploadDone[analyseId] = (_blutUploadDone[analyseId] ?? 0) + 1;
+                          if (mounted) setU(() {});
+                        }
+                        _blutUploadActive[analyseId] = false;
+                        if (mounted) setU(() {});
+                        reloadDocs();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(errors.isEmpty
+                              ? '${paths.length} Datei(en) hochgeladen${lastName != null ? ' (zuletzt: $lastName)' : ''}'
+                              : '${paths.length - errors.length} OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
+                            backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+                            duration: const Duration(seconds: 4),
+                          ));
+                        }
+                      } catch (e) {
+                        _blutUploadActive[analyseId] = false;
+                        if (mounted) setU(() {});
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                          );
                         }
                       }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.upload_file, size: 16),
-                  label: const Text('Datei hochladen'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade600,
-                    foregroundColor: Colors.white,
+                    },
+                    icon: uploading
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.upload_file, size: 16),
+                    label: Text(uploading
+                        ? (total > 0 ? '$done / $total …' : 'Lädt…')
+                        : 'Dateien hochladen (bis 20)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          }),
           const SizedBox(height: 16),
 
           // Document list
@@ -2602,19 +2639,19 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
-  // File picker helper using file_picker package
-  Future<String?> _pickGesundheitFile() async {
+  // File picker helper using file_picker package — multi-file capable
+  Future<List<String>> _pickGesundheitFiles() async {
     try {
       final result = await FilePickerHelper.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
-        allowMultiple: false,
+        allowMultiple: true,
       );
       if (result != null && result.files.isNotEmpty) {
-        return result.files.first.path;
+        return result.files.where((f) => f.path != null).map((f) => f.path!).toList();
       }
     } catch (_) {}
-    return null;
+    return const [];
   }
 
   // ── Tab 3: Termin (Besprechungstermin) ──
