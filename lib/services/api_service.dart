@@ -3199,6 +3199,49 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ─── Zahnarzt Härtefall docs (Antrag + Bewilligung) ─────────
+  // Two doc-buckets per Härtefall dossier identified by an UUID stored
+  // in the JSON entry. type param selects which table+folder.
+  Future<Map<String, dynamic>> listZahnarztHaertefallDocs({
+    required String type, required int userId, required String haertefallUuid,
+  }) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/zahnarzt_haertefall_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'list', 'type': type, 'user_id': userId, 'haertefall_uuid': haertefallUuid}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteZahnarztHaertefallDoc({required String type, required int id}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/zahnarzt_haertefall_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'type': type, 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadZahnarztHaertefallDoc({
+    required String type, required int userId, required String haertefallUuid,
+    required String filePath, required String fileName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/zahnarzt_haertefall_docs_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['type'] = type;
+    request.fields['user_id'] = userId.toString();
+    request.fields['haertefall_uuid'] = haertefallUuid;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<http.Response> downloadZahnarztHaertefallDoc({required String type, required int id}) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/zahnarzt_haertefall_docs_download.php?type=$type&id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_download.php?id=$docId'),

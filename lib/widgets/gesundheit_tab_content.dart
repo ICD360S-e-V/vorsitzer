@@ -7,6 +7,7 @@ import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -13196,6 +13197,17 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   static const _hfKorrMitIcons = {'krankenkasse': Icons.health_and_safety, 'praxis': Icons.medical_services};
 
   void _showHartefallDetailModal(Map<String, dynamic> a, int i, MaterialColor color, String artKey, Map<String, String> artLabels, String st, String type, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, void Function({Map<String, dynamic>? existing, int? editIndex}) addOrEdit) {
+    // Make sure this dossier has a stable UUID so attached docs (Antrag,
+    // Bewilligung) can be linked to it. Older records created before this
+    // change won't have one — we backfill at first open and persist.
+    if ((a['uuid'] ?? '').toString().isEmpty) {
+      a['uuid'] = '${DateTime.now().millisecondsSinceEpoch}_${a['erstellt_am'] ?? ''}_${(1000 + (a.hashCode % 9000)).toString()}';
+      final outer = List<dynamic>.from(data['haertefall'] as List);
+      outer[i] = a;
+      data['haertefall'] = outer;
+      saveAll();
+    }
+    final dossierUuid = a['uuid'].toString();
     showDialog(context: context, builder: (detCtx) => StatefulBuilder(builder: (detCtx2, setModal) {
       final korr = a['korrespondenz'] is List
           ? List<Map<String, dynamic>>.from((a['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
@@ -13208,8 +13220,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade500), tooltip: 'Bearbeiten',
             onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
         ]),
-        content: SizedBox(width: 560, height: 560, child: DefaultTabController(
-          length: 2,
+        content: SizedBox(width: 620, height: 620, child: DefaultTabController(
+          length: 4,
           child: Column(children: [
             Container(
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
@@ -13217,15 +13229,20 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 labelColor: color.shade800,
                 unselectedLabelColor: Colors.grey.shade500,
                 indicatorColor: color.shade800,
+                isScrollable: true,
                 tabs: [
                   const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
                   Tab(icon: const Icon(Icons.mail, size: 16), text: 'Korrespondenz (${korr.length})'),
+                  const Tab(icon: Icon(Icons.description, size: 16), text: 'Antrag'),
+                  const Tab(icon: Icon(Icons.fact_check, size: 16), text: 'Bewilligung'),
                 ],
               ),
             ),
             Expanded(child: TabBarView(children: [
               _buildHartefallDetailsView(a, st, type, color, i),
               _buildHartefallKorrespondenzView(a, i, color, korr, data, saveAll, setLocal, setModal, type),
+              _HfDocsSection(apiService: widget.apiService, type: 'antrag', userId: widget.user.id, haertefallUuid: dossierUuid, color: color),
+              _HfDocsSection(apiService: widget.apiService, type: 'bewilligung', userId: widget.user.id, haertefallUuid: dossierUuid, color: color),
             ])),
           ]),
         )),
@@ -16905,5 +16922,184 @@ class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenera
           child: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Generieren')),
       ],
     );
+  }
+}
+
+// ─── Zahnarzt Härtefall — Antrag / Bewilligung docs section ───
+// Multi-file uploader (up to 20) anchored to a Härtefall dossier UUID.
+// type='antrag' or 'bewilligung' picks the table + folder server-side.
+
+class _HfDocsSection extends StatefulWidget {
+  final ApiService apiService;
+  final String type;            // 'antrag' | 'bewilligung'
+  final int userId;
+  final String haertefallUuid;
+  final MaterialColor color;
+  const _HfDocsSection({
+    required this.apiService,
+    required this.type,
+    required this.userId,
+    required this.haertefallUuid,
+    required this.color,
+  });
+  @override
+  State<_HfDocsSection> createState() => _HfDocsSectionState();
+}
+
+class _HfDocsSectionState extends State<_HfDocsSection> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false, _uploading = false;
+  int _doneCount = 0, _totalCount = 0;
+
+  String get _label => widget.type == 'antrag' ? 'Antrag' : 'Bewilligung';
+  String get _hint => widget.type == 'antrag'
+      ? 'Antragsunterlagen — HKP, Einkommensnachweis, Belege, KV-Antrag, etc.'
+      : 'Bewilligungsbescheid, Festzuschuss-Bestätigung, Anlagen der Krankenkasse, etc.';
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listZahnarztHaertefallDocs(
+      type: widget.type, userId: widget.userId, haertefallUuid: widget.haertefallUuid,
+    );
+    if (!mounted) return;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _upload() async {
+    final r = await FilePickerHelper.pickFiles(
+      allowMultiple: true, type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
+    );
+    if (r == null || r.files.isEmpty) return;
+    var files = r.files.where((f) => f.path != null).toList();
+    final scaffold = ScaffoldMessenger.of(context);
+    if (files.length > 20) {
+      scaffold.showSnackBar(SnackBar(content: Text('Max. 20 Dateien — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));
+      files = files.sublist(0, 20);
+    }
+    setState(() { _uploading = true; _doneCount = 0; _totalCount = files.length; });
+    final errors = <String>[];
+    for (final f in files) {
+      final res = await widget.apiService.uploadZahnarztHaertefallDoc(
+        type: widget.type, userId: widget.userId, haertefallUuid: widget.haertefallUuid,
+        filePath: f.path!, fileName: f.name,
+      );
+      if (res['success'] == true) { _doneCount++; } else { errors.add('${f.name}: ${res['message'] ?? '?'}'); }
+      if (mounted) setState(() {});
+    }
+    if (!mounted) return;
+    setState(() => _uploading = false);
+    scaffold.showSnackBar(SnackBar(
+      content: Text(errors.isEmpty
+        ? '$_doneCount/$_totalCount Datei(en) hochgeladen'
+        : '$_doneCount OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
+      backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+      duration: const Duration(seconds: 4),
+    ));
+    _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Datei löschen?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.deleteZahnarztHaertefallDoc(type: widget.type, id: id);
+    if (res['success'] == true) _load();
+  }
+
+  Future<void> _open(Map<String, dynamic> d, {bool externalApp = false}) async {
+    try {
+      final resp = await widget.apiService.downloadZahnarztHaertefallDoc(type: widget.type, id: d['id'] as int);
+      if (resp.statusCode != 200 || !mounted) return;
+      final dir = await getTemporaryDirectory();
+      final safeName = (d['datei_name']?.toString() ?? 'hf_${widget.type}_${d['id']}.pdf').replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
+      final f = File('${dir.path}/$safeName');
+      await f.writeAsBytes(resp.bodyBytes);
+      if (externalApp) {
+        await OpenFilex.open(f.path);
+      } else if (mounted) {
+        await FileViewerDialog.show(context, f.path, safeName);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    final cs = widget.color;
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Row(children: [
+          Icon(widget.type == 'antrag' ? Icons.description : Icons.fact_check, size: 18, color: cs.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('$_label-Dokumente (${_items.length})',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: cs.shade800))),
+          ElevatedButton.icon(
+            onPressed: _uploading ? null : _upload,
+            icon: _uploading
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.upload_file, size: 14),
+            label: Text(
+              _uploading
+                ? (_totalCount > 0 ? '$_doneCount / $_totalCount …' : 'Lädt…')
+                : 'Hochladen (bis 20)',
+              style: const TextStyle(fontSize: 11),
+            ),
+            style: ElevatedButton.styleFrom(backgroundColor: cs.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+          ),
+        ]),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        color: Colors.amber.shade50,
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800),
+          const SizedBox(width: 6),
+          Expanded(child: Text(_hint, style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(child: _items.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(widget.type == 'antrag' ? Icons.description_outlined : Icons.fact_check_outlined, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            Text('Noch keine $_label-Dokumente', style: TextStyle(color: Colors.grey.shade500)),
+          ]))
+        : ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: _items.length,
+            itemBuilder: (_, i) {
+              final d = _items[i];
+              final kb = ((d['file_size'] as num?) ?? 0).toInt() ~/ 1024;
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 2),
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.description, color: cs.shade400),
+                  title: Text(d['datei_name']?.toString() ?? '?', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                  subtitle: Text('$kb KB · ${d['mime_type'] ?? ''} · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(icon: const Icon(Icons.visibility, size: 18), tooltip: 'Anzeigen', onPressed: () => _open(d)),
+                    IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
+                    IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), onPressed: () => _delete(d['id'] as int)),
+                  ]),
+                ),
+              );
+            },
+          )),
+    ]);
   }
 }
