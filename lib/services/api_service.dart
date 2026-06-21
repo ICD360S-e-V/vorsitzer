@@ -7615,6 +7615,21 @@ class ApiService {
     } catch (_) { return null; }
   }
 
+  /// Returnează DOAR datele necesare pentru a genera client-side PDF-ul
+  /// Eigenbemühungen (layout 6 coloane, generat în Flutter cu `pdf` package).
+  Future<Map<String, dynamic>?> getEigenbemPdfData({required int userAvId, required String monat}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'eigenbem_pdf_data', 'user_av_id': userAvId, 'monat': monat}),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      final j = jsonDecode(response.body);
+      if (j['success'] != true) return null;
+      return Map<String, dynamic>.from(j['data'] ?? j);
+    } catch (_) { return null; }
+  }
+
   // === ARBEITSAGENTUR JOBSUCHE (öffentliche API der Bundesagentur für Arbeit) ===
   // Reverse-engineered REST endpoint that powers arbeitsagentur.de/jobsuche.
   // The "jobboerse-jobsuche" key is the public X-API-Key the frontend itself

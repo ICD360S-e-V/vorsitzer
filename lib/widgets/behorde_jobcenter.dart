@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/brief_pdf_generator.dart';
+import '../utils/eigenbem_pdf_generator.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
@@ -5094,18 +5095,36 @@ class _AvEigenbemTabState extends State<_AvEigenbemTab> {
       return;
     }
     setState(() => _generating = true);
-    final bytes = await widget.apiService.generateEigenbemPdf(userAvId: widget.userAvId, monat: _monat);
+    // Cere serverul DOAR datele (name/kundennr/eintraege) — PDF-ul îl
+    // generăm local cu layout 6-coloane Rhein-Lahn style via pdf package.
+    final data = await widget.apiService.getEigenbemPdfData(userAvId: widget.userAvId, monat: _monat);
     if (!mounted) return;
-    setState(() => _generating = false);
-    if (bytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF-Generierung fehlgeschlagen'), backgroundColor: Colors.red));
+    if (data == null) {
+      setState(() => _generating = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Daten konnten nicht geladen werden'), backgroundColor: Colors.red));
       return;
     }
-    await FileViewerDialog.showFromBytes(
-      context,
-      Uint8List.fromList(bytes),
-      'Nachweis_Eigenbemuehungen_$_monat.pdf',
-    );
+    try {
+      final bytes = await EigenbemPdfGenerator.build(
+        vorname:      (data['vorname']      ?? '').toString(),
+        nachname:     (data['nachname']     ?? '').toString(),
+        geburtsdatum: data['geburtsdatum']?.toString(),
+        kundennummer: (data['kundennummer'] ?? '').toString(),
+        monat:        (data['monat']        ?? _monat).toString(),
+        eintraege:    List<Map<String, dynamic>>.from(data['eintraege'] ?? const []),
+      );
+      if (!mounted) return;
+      setState(() => _generating = false);
+      await FileViewerDialog.showFromBytes(
+        context,
+        bytes,
+        'Nachweis_Eigenbemuehungen_$_monat.pdf',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _generating = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF-Generierung fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    }
   }
 
   String _monatLabel(String ym) {
