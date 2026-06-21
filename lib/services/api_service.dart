@@ -3266,6 +3266,53 @@ class ApiService {
   Future<Map<String, dynamic>> deleteHaertefallKorr(int id) =>
       _hfPost({'action': 'delete_korr', 'id': id});
 
+  // ─── Mitglied Einkaufen (column-level encrypted) ───────────────
+  // Pilot: Vorsitzer-only digital inventory per member. Backend rejects
+  // any other admin role with 403.
+  Future<Map<String, dynamic>> _ekPost(Map<String, dynamic> body) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/mitglied_einkauf_manage.php'),
+      headers: _headers, body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<Map<String, dynamic>> listMitgliedEinkauf(int userId) =>
+      _ekPost({'action': 'list', 'user_id': userId});
+  Future<Map<String, dynamic>> saveMitgliedEinkauf(int userId, Map<String, dynamic> einkauf) =>
+      _ekPost({'action': 'save', 'user_id': userId, 'einkauf': einkauf});
+  Future<Map<String, dynamic>> deleteMitgliedEinkauf(int id) =>
+      _ekPost({'action': 'delete', 'id': id});
+  Future<Map<String, dynamic>> listMitgliedEinkaufDocs({required int einkaufId}) =>
+      _ekPost({'action': 'list_docs', 'einkauf_id': einkaufId});
+  Future<Map<String, dynamic>> deleteMitgliedEinkaufDoc(int docId) =>
+      _ekPost({'action': 'delete_doc', 'doc_id': docId});
+
+  Future<Map<String, dynamic>> uploadMitgliedEinkaufDoc({
+    required int einkaufId, required int userId, required String einkaufUuid,
+    required String docType,
+    required String filePath, required String fileName,
+    String? notiz,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/mitglied_einkauf_doc_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['einkauf_id']   = einkaufId.toString();
+    request.fields['user_id']      = userId.toString();
+    request.fields['einkauf_uuid'] = einkaufUuid;
+    request.fields['doc_type']     = docType;
+    if (notiz != null && notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<http.Response> downloadMitgliedEinkaufDoc(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/mitglied_einkauf_doc_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_download.php?id=$docId'),
