@@ -13285,6 +13285,34 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       final korr = a['korrespondenz'] is List
           ? List<Map<String, dynamic>>.from((a['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
           : <Map<String, dynamic>>[];
+      // Antrag + Bewilligung doc counts. Lazy-load once per modal-open
+      // so the tab labels can show '(N)' just like Korrespondenz. The
+      // children update these via the onCountChanged callback when a
+      // file is added / deleted, so the labels stay live.
+      if (a['_antrag_count_loaded'] != true) {
+        a['_antrag_count_loaded'] = true;
+        widget.apiService.listZahnarztHaertefallDocs(
+          type: 'antrag', userId: widget.user.id, haertefallUuid: dossierUuid,
+        ).then((res) {
+          if (res['success'] == true && res['items'] is List) {
+            a['_antrag_count'] = (res['items'] as List).length;
+            if (mounted) setModal(() {});
+          }
+        });
+      }
+      if (a['_bewilligung_count_loaded'] != true) {
+        a['_bewilligung_count_loaded'] = true;
+        widget.apiService.listZahnarztHaertefallDocs(
+          type: 'bewilligung', userId: widget.user.id, haertefallUuid: dossierUuid,
+        ).then((res) {
+          if (res['success'] == true && res['items'] is List) {
+            a['_bewilligung_count'] = (res['items'] as List).length;
+            if (mounted) setModal(() {});
+          }
+        });
+      }
+      final antragCount = a['_antrag_count'] is int ? a['_antrag_count'] as int : 0;
+      final bewilligungCount = a['_bewilligung_count'] is int ? a['_bewilligung_count'] as int : 0;
       return AlertDialog(
         title: Row(children: [
           Icon(Icons.gavel, size: 20, color: color.shade700),
@@ -13306,16 +13334,30 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 tabs: [
                   const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
                   Tab(icon: const Icon(Icons.mail, size: 16), text: 'Korrespondenz (${korr.length})'),
-                  const Tab(icon: Icon(Icons.description, size: 16), text: 'Antrag'),
-                  const Tab(icon: Icon(Icons.fact_check, size: 16), text: 'Bewilligung'),
+                  Tab(icon: const Icon(Icons.description, size: 16), text: 'Antrag ($antragCount)'),
+                  Tab(icon: const Icon(Icons.fact_check, size: 16), text: 'Bewilligung ($bewilligungCount)'),
                 ],
               ),
             ),
             Expanded(child: TabBarView(children: [
               _buildHartefallDetailsView(a, st, type, color, i),
               _buildHartefallKorrespondenzView(a, i, color, korr, data, saveAll, setLocal, setModal, type),
-              _HfDocsSection(apiService: widget.apiService, type: 'antrag', userId: widget.user.id, haertefallUuid: dossierUuid, color: color),
-              _HfDocsSection(apiService: widget.apiService, type: 'bewilligung', userId: widget.user.id, haertefallUuid: dossierUuid, color: color),
+              _HfDocsSection(
+                apiService: widget.apiService, type: 'antrag',
+                userId: widget.user.id, haertefallUuid: dossierUuid, color: color,
+                onCountChanged: (n) {
+                  a['_antrag_count'] = n;
+                  if (mounted) setModal(() {});
+                },
+              ),
+              _HfDocsSection(
+                apiService: widget.apiService, type: 'bewilligung',
+                userId: widget.user.id, haertefallUuid: dossierUuid, color: color,
+                onCountChanged: (n) {
+                  a['_bewilligung_count'] = n;
+                  if (mounted) setModal(() {});
+                },
+              ),
             ])),
           ]),
         )),
@@ -17021,12 +17063,16 @@ class _HfDocsSection extends StatefulWidget {
   final int userId;
   final String haertefallUuid;
   final MaterialColor color;
+  // Notifies the parent (modal) each time the list reloads so the tab
+  // label '(N)' stays in sync after upload / delete.
+  final ValueChanged<int>? onCountChanged;
   const _HfDocsSection({
     required this.apiService,
     required this.type,
     required this.userId,
     required this.haertefallUuid,
     required this.color,
+    this.onCountChanged,
   });
   @override
   State<_HfDocsSection> createState() => _HfDocsSectionState();
@@ -17054,6 +17100,7 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
       _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
       _loaded = true;
     });
+    widget.onCountChanged?.call(_items.length);
   }
 
   Future<void> _upload() async {
