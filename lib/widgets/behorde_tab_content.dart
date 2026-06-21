@@ -4211,6 +4211,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final ortC = TextEditingController(text: defaultOrt);
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
     bool addToCalendar = existing?['termin_id'] != null || editIndex == null;
+    // Re-entry guard: blocks double-tap on Speichern while the
+    // createTermin call is in flight (otherwise 2-5 rapid taps fan out
+    // 2-5 duplicate inserts before the dialog has a chance to close).
+    bool isSaving = false;
 
     showDialog(
       context: context,
@@ -4515,11 +4519,34 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Abbrechen')),
             FilledButton.icon(
-              icon: const Icon(Icons.save, size: 16),
+              icon: isSaving
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.save, size: 16),
               label: Text(editIndex != null ? 'Speichern' : 'Termin erstellen'),
               style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade600),
-              onPressed: () async {
+              onPressed: isSaving ? null : () async {
                 if (datumC.text.isEmpty || uhrzeitC.text.isEmpty) return;
+
+                // Dedup: refuse to create a second termin with the same
+                // datum+uhrzeit (per Behörde). Edits are allowed —
+                // editIndex is excluded from the check. Catches the
+                // "double-click on Speichern" + "press Termin erstellen
+                // five times" foot-guns.
+                final dupIdx = termine.indexWhere((other) {
+                  final i = termine.indexOf(other);
+                  if (editIndex != null && i == editIndex) return false;
+                  return (other['datum']?.toString() ?? '') == datumC.text
+                      && (other['uhrzeit']?.toString() ?? '') == uhrzeitC.text;
+                });
+                if (dupIdx >= 0) {
+                  ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(
+                    content: Text('Es existiert bereits ein Termin am ${datumC.text} um ${uhrzeitC.text} Uhr für $behoerdeLabel.'),
+                    backgroundColor: Colors.orange.shade700,
+                  ));
+                  return;
+                }
+                // Past basic validation + dedup — lock the button.
+                setDlgState(() => isSaving = true);
 
                 final entry = <String, dynamic>{
                   'terminart': terminart,
@@ -4559,6 +4586,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           content: Text('Datum „${datumC.text}" konnte nicht erkannt werden (ISO erwartet).'),
                           backgroundColor: Colors.red.shade700,
                         ));
+                        setDlgState(() => isSaving = false);
                       }
                       return;
                     }
