@@ -5444,11 +5444,12 @@ class _AntragBescheideTab extends StatefulWidget {
 }
 
 class _AntragBescheideTabState extends State<_AntragBescheideTab> {
-  Map<int, Map<String, dynamic>> _byJahr = {};
+  Map<int, List<Map<String, dynamic>>> _byJahr = {};
   bool _loading = true;
   String? _error;
   bool _busyJahr = false;
   int? _activeJahr;
+  int _doneCount = 0, _totalCount = 0;
   int _minJahr = 2020;
   late int _maxJahr;
 
@@ -5470,12 +5471,12 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
       if (!mounted) return;
       if (r['success'] == true) {
         final items = List<Map<String, dynamic>>.from(r['items'] ?? const []);
-        final map = <int, Map<String, dynamic>>{};
+        final map = <int, List<Map<String, dynamic>>>{};
         int extremes = _maxJahr;
         for (final it in items) {
           final j = (it['jahr'] is int) ? it['jahr'] as int : int.tryParse('${it['jahr']}') ?? 0;
           if (j > 0) {
-            map[j] = it;
+            map.putIfAbsent(j, () => <Map<String, dynamic>>[]).add(it);
             if (j > extremes) extremes = j;
             if (j < _minJahr) _minJahr = j;
           }
@@ -5491,37 +5492,48 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
   }
 
   Future<void> _upload(int jahr) async {
-    final pick = await FilePicker.platform.pickFiles(allowMultiple: false);
-    if (pick == null || pick.files.isEmpty || pick.files.first.path == null) return;
-    final f = pick.files.first;
-    setState(() { _busyJahr = true; _activeJahr = jahr; });
-    try {
-      final r = await widget.apiService.uploadRenteBescheid(
-        antragId: widget.antragId,
-        behoerdeType: widget.behoerdeType,
-        userId: widget.userId,
-        jahr: jahr,
-        filePath: f.path!,
-        fileName: f.name,
-      );
-      if (!mounted) return;
-      if (r['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Bescheid $jahr hochgeladen'), backgroundColor: Colors.green));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(r['message']?.toString() ?? 'Upload fehlgeschlagen'), backgroundColor: Colors.red));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
-    } finally {
-      if (mounted) setState(() { _busyJahr = false; _activeJahr = null; });
-      _load();
+    final pick = await FilePicker.platform.pickFiles(allowMultiple: true);
+    if (pick == null || pick.files.isEmpty) return;
+    final files = pick.files.where((f) => f.path != null).toList();
+    if (files.isEmpty) return;
+    if (files.length > 20) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Max 20 Dateien gleichzeitig')));
+      return;
     }
+    setState(() { _busyJahr = true; _activeJahr = jahr; _doneCount = 0; _totalCount = files.length; });
+    final errors = <String>[];
+    for (final f in files) {
+      try {
+        final r = await widget.apiService.uploadRenteBescheid(
+          antragId: widget.antragId,
+          behoerdeType: widget.behoerdeType,
+          userId: widget.userId,
+          jahr: jahr,
+          filePath: f.path!,
+          fileName: f.name,
+        );
+        if (r['success'] != true) errors.add('${f.name}: ${r['message'] ?? 'Fehler'}');
+      } catch (e) {
+        errors.add('${f.name}: $e');
+      }
+      if (mounted) setState(() => _doneCount++);
+    }
+    if (!mounted) return;
+    setState(() { _busyJahr = false; _activeJahr = null; });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(errors.isEmpty
+        ? '$_doneCount/$_totalCount Datei(en) für $jahr hochgeladen'
+        : '$_doneCount OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
+      backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+      duration: const Duration(seconds: 4),
+    ));
+    _load();
   }
 
-  Future<void> _delete(int id, int jahr) async {
+  Future<void> _delete(int id, String filename) async {
     final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: Text('Bescheid $jahr löschen?'),
-      content: const Text('Diese Aktion ist endgültig.'),
+      title: const Text('Datei löschen?'),
+      content: Text(filename, style: const TextStyle(fontSize: 12)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
         TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
@@ -5587,7 +5599,7 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
     }
     final years = <int>[];
     for (int y = _maxJahr; y >= _minJahr; y--) { years.add(y); }
-    final uploadedTotal = _byJahr.length;
+    final uploadedTotal = _byJahr.values.fold<int>(0, (sum, list) => sum + list.length);
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
@@ -5616,78 +5628,103 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
           Icon(Icons.info_outline, size: 12, color: Colors.purple.shade800),
           const SizedBox(width: 4),
           Expanded(child: Text(
-            'Jährlicher Bescheid (Rentenanpassungsmitteilung). Max. 1 pro Jahr.',
+            'Jährliche Bescheide (Rentenanpassungsmitteilung + Anhänge). Mehrere Dateien pro Jahr möglich.',
             style: TextStyle(fontSize: 10, color: Colors.purple.shade900),
           )),
         ]),
       ),
-      Expanded(child: ListView.separated(
+      Expanded(child: ListView.builder(
         padding: const EdgeInsets.all(8),
         itemCount: years.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 4),
         itemBuilder: (_, i) {
           final jahr = years[i];
-          final d = _byJahr[jahr];
+          final files = _byJahr[jahr] ?? const <Map<String, dynamic>>[];
+          final hasFiles = files.isNotEmpty;
           final isBusy = _busyJahr && _activeJahr == jahr;
           return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 6),
             decoration: BoxDecoration(
-              color: d != null ? Colors.green.shade50 : Colors.grey.shade50,
+              color: hasFiles ? Colors.green.shade50 : Colors.grey.shade50,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: d != null ? Colors.green.shade200 : Colors.grey.shade300),
+              border: Border.all(color: hasFiles ? Colors.green.shade200 : Colors.grey.shade300),
             ),
-            child: Row(children: [
-              Container(
-                width: 56,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                decoration: BoxDecoration(
-                  color: d != null ? Colors.green.shade100 : Colors.white,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: d != null ? Colors.green.shade300 : Colors.grey.shade300),
-                ),
-                child: Text('$jahr', textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
-                      color: d != null ? Colors.green.shade800 : Colors.grey.shade700)),
+            child: Column(children: [
+              // Year header row
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(children: [
+                  Container(
+                    width: 56,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      color: hasFiles ? Colors.green.shade100 : Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: hasFiles ? Colors.green.shade300 : Colors.grey.shade300),
+                    ),
+                    child: Text('$jahr', textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
+                          color: hasFiles ? Colors.green.shade800 : Colors.grey.shade700)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: hasFiles
+                    ? Text('${files.length} Datei(en)',
+                        style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w600))
+                    : Text('Keine Datei hochgeladen',
+                        style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600))),
+                  ElevatedButton.icon(
+                    onPressed: isBusy ? null : () => _upload(jahr),
+                    icon: isBusy
+                        ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.upload_file, size: 14),
+                    label: Text(
+                      isBusy
+                        ? (_totalCount > 0 ? '$_doneCount / $_totalCount' : '…')
+                        : (hasFiles ? 'Weitere Datei' : 'Hochladen'),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      minimumSize: Size.zero,
+                    ),
+                  ),
+                ]),
               ),
-              const SizedBox(width: 10),
-              Expanded(child: d != null
-                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // File list (if any)
+              if (hasFiles) ...files.map((d) => Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 8, 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade100)),
+                child: Row(children: [
+                  Icon(Icons.description, size: 14, color: Colors.green.shade700),
+                  const SizedBox(width: 6),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(d['filename']?.toString() ?? '—',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text('${_fmtSize(d['size_bytes'] as int? ?? 0)} · ${d['uploaded_at']?.toString().substring(0, 10) ?? ''}',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
-                  ])
-                : Text('Kein Bescheid hochgeladen',
-                    style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600))),
-              const SizedBox(width: 6),
-              if (d != null) ...[
-                IconButton(
-                  icon: const Icon(Icons.visibility, size: 18),
-                  tooltip: 'Anzeigen',
-                  onPressed: () => _open(d),
-                  visualDensity: VisualDensity.compact,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                  tooltip: 'Löschen',
-                  onPressed: () => _delete(d['id'] as int, jahr),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ] else
-                ElevatedButton.icon(
-                  onPressed: isBusy ? null : () => _upload(jahr),
-                  icon: isBusy
-                      ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.upload_file, size: 14),
-                  label: Text(isBusy ? '…' : 'Hochladen', style: const TextStyle(fontSize: 11)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple.shade600,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    minimumSize: Size.zero,
+                      style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                  ])),
+                  IconButton(
+                    icon: const Icon(Icons.visibility, size: 16),
+                    tooltip: 'Anzeigen',
+                    onPressed: () => _open(d),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(2),
+                    constraints: const BoxConstraints(),
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                    tooltip: 'Löschen',
+                    onPressed: () => _delete(d['id'] as int, d['filename']?.toString() ?? '—'),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(2),
+                    constraints: const BoxConstraints(),
+                  ),
+                ]),
+              )),
             ]),
           );
         },
