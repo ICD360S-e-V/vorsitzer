@@ -2861,6 +2861,24 @@ class _AktenzeichenKorrTabState extends State<_AktenzeichenKorrTab> {
     if (saved == true) _load();
   }
 
+  // Read-only view dialog. Shows the full Korr content + attached docs.
+  // From here the operator can choose to Edit or Delete — but the
+  // common case (just read what came in) needs zero extra clicks.
+  Future<void> _openView(Map<String, dynamic> k) async {
+    final changed = await showDialog<String>(
+      context: context,
+      builder: (_) => _KorrViewDialog(apiService: widget.apiService, korr: k),
+    );
+    if (changed == 'edit') {
+      // user pressed "Bearbeiten" in the view dialog
+      await _addOrEdit(existing: k);
+    } else if (changed == 'delete') {
+      await _delete(k['id'] as int);
+    } else if (changed == 'docs_changed') {
+      _load();
+    }
+  }
+
   Future<void> _delete(int id) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -2920,6 +2938,12 @@ class _AktenzeichenKorrTabState extends State<_AktenzeichenKorrTab> {
                   final eingehend = k['richtung'] == 'eingehend';
                   return Card(
                     child: ListTile(
+                      // Tap anywhere on the card opens the full read-only
+                      // view (Betreff + Text + Anhang-Hinweis + Notizen
+                      // + attached files). The pencil icon was a foot-gun
+                      // — operators thought they had to enter "edit" mode
+                      // just to read the content.
+                      onTap: () => _openView(k),
                       leading: CircleAvatar(
                         backgroundColor: (eingehend ? Colors.blue : Colors.green).shade50,
                         child: Icon(_mediumIcon(k['medium']?.toString()), color: eingehend ? Colors.blue : Colors.green, size: 18),
@@ -2938,10 +2962,7 @@ class _AktenzeichenKorrTabState extends State<_AktenzeichenKorrTab> {
                         if ((k['text'] ?? '').toString().isNotEmpty)
                           Padding(padding: const EdgeInsets.only(top: 4), child: Text(k['text'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
                       ]),
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        IconButton(icon: const Icon(Icons.edit_outlined, size: 16), onPressed: () => _addOrEdit(existing: k)),
-                        IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(k['id'] as int)),
-                      ]),
+                      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                     ),
                   );
                 },
@@ -3118,6 +3139,137 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
   }
 }
 
+// ─── Read-only Korrespondenz view dialog ───
+// Shows the full Korrespondenz content + the file attachments in one
+// glance, with Bearbeiten / Löschen buttons. Returns one of: 'edit',
+// 'delete', 'docs_changed', or null on close. The 'docs_changed' signal
+// is used when the user adds/removes attachments from inside the view
+// so the parent list refreshes.
+
+class _KorrViewDialog extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> korr;
+  const _KorrViewDialog({required this.apiService, required this.korr});
+  @override
+  State<_KorrViewDialog> createState() => _KorrViewDialogState();
+}
+
+class _KorrViewDialogState extends State<_KorrViewDialog> {
+  bool _docsTouched = false;
+
+  IconData _mediumIcon(String? m) {
+    switch (m) {
+      case 'email':    return Icons.email;
+      case 'brief':    return Icons.markunread_mailbox;
+      case 'fax':      return Icons.fax;
+      case 'telefon':  return Icons.phone;
+      case 'online':   return Icons.language;
+      case 'sms':      return Icons.sms;
+      default:         return Icons.notes;
+    }
+  }
+
+  String _mediumLabel(String? m) => {
+    'email': 'E-Mail', 'brief': 'Brief', 'fax': 'Fax',
+    'telefon': 'Telefon', 'online': 'Online', 'sms': 'SMS',
+    'sonstiges': 'Sonstiges',
+  }[m] ?? (m ?? '');
+
+  Widget _kv(IconData icon, String label, String? value, {bool multiline = false}) {
+    if (value == null || value.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+      Expanded(child: Text(value,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        maxLines: multiline ? null : 3,
+        overflow: multiline ? null : TextOverflow.ellipsis,
+      )),
+    ]));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final k = widget.korr;
+    final eingehend = k['richtung'] == 'eingehend';
+    final medium = k['medium']?.toString();
+    final isErledigt = k['erledigt'] == 1 || k['erledigt'] == true;
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(width: 620, height: 640, child: Column(children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.purple.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+          child: Row(children: [
+            Icon(_mediumIcon(medium), color: Colors.white), const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(k['betreff']?.toString().isNotEmpty == true ? k['betreff'].toString() : '(ohne Betreff)',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              Text('${k['datum'] ?? ''} · ${eingehend ? "eingehend" : "ausgehend"} · ${_mediumLabel(medium)}',
+                style: TextStyle(color: Colors.purple.shade100, fontSize: 11)),
+            ])),
+            if (isErledigt) Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(8)),
+              child: const Text('Erledigt', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _docsTouched ? 'docs_changed' : null)),
+          ]),
+        ),
+        Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if ((k['text'] ?? '').toString().trim().isNotEmpty) ...[
+            Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.purple.shade700, letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+              child: Text(k['text'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)),
+            ),
+            const SizedBox(height: 12),
+          ],
+          _kv(Icons.link, 'Anhang-Hinweis', k['anhang_pfad']?.toString(), multiline: true),
+          _kv(Icons.sticky_note_2, 'Notizen', k['notizen']?.toString(), multiline: true),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 6),
+          Text('Anhänge', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.purple.shade700, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          _InkassoDocsSection(
+            apiService: widget.apiService,
+            type: 'korr',
+            parentId: k['id'] as int,
+            colorScheme: Colors.purple,
+            hintText: 'Dateien zu diesem Korrespondenz-Eintrag — bis 20 gleichzeitig.',
+            onChanged: () => _docsTouched = true,
+          ),
+        ]))),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+          child: Row(children: [
+            TextButton.icon(
+              onPressed: () => Navigator.pop(context, 'delete'),
+              icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+              label: const Text('Löschen', style: TextStyle(color: Colors.red)),
+            ),
+            const Spacer(),
+            TextButton(onPressed: () => Navigator.pop(context, _docsTouched ? 'docs_changed' : null), child: const Text('Schließen')),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context, 'edit'),
+              icon: const Icon(Icons.edit, size: 16),
+              label: const Text('Bearbeiten'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white),
+            ),
+          ]),
+        ),
+      ])),
+    );
+  }
+}
+
 // ─── Reusable Inkasso docs section: works for both 'akteneinsicht'
 // (parent = aktenzeichen_id) and 'korr' (parent = korr_id). Same
 // list + multi-file upload (up to 20) + view/download/delete.
@@ -3127,12 +3279,16 @@ class _InkassoDocsSection extends StatefulWidget {
   final int parentId;
   final MaterialColor colorScheme;
   final String hintText;
+  // Notifies the parent that something changed (added or removed),
+  // so it can refresh its own list view if needed. Optional.
+  final VoidCallback? onChanged;
   const _InkassoDocsSection({
     required this.apiService,
     required this.type,
     required this.parentId,
     this.colorScheme = Colors.purple,
     this.hintText = '',
+    this.onChanged,
   });
   @override
   State<_InkassoDocsSection> createState() => _InkassoDocsSectionState();
@@ -3190,6 +3346,7 @@ class _InkassoDocsSectionState extends State<_InkassoDocsSection> {
       backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
       duration: const Duration(seconds: 4),
     ));
+    widget.onChanged?.call();
     _load();
   }
 
@@ -3205,7 +3362,10 @@ class _InkassoDocsSectionState extends State<_InkassoDocsSection> {
     final res = widget.type == 'akteneinsicht'
       ? await widget.apiService.deleteInkassoAkteneinsichtDoc(id)
       : await widget.apiService.deleteInkassoKorrDoc(id);
-    if (res['success'] == true) _load();
+    if (res['success'] == true) {
+      widget.onChanged?.call();
+      _load();
+    }
   }
 
   Future<void> _open(Map<String, dynamic> d, {bool externalApp = false}) async {
