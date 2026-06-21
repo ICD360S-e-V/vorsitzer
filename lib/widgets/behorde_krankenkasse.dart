@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
@@ -2630,9 +2631,27 @@ class _KgKorrTabState extends State<_KgKorrTab> {
     if (ok == true) { widget.onChanged(); _load(); }
   }
 
+  // Read-only view: shows content + attached files. Tap-anywhere replaces
+  // the pencil-icon foot-gun (consistent with Inkasso-Korr).
+  Future<void> _openView(Map<String, dynamic> k) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _KgKorrViewDialog(apiService: widget.apiService, korr: k),
+    );
+    if (result == 'edit') {
+      await _openEdit(existing: k);
+    } else if (result == 'delete') {
+      await _delete(k['id'] as int);
+    } else if (result == 'docs_changed') {
+      widget.onChanged();
+      _load();
+    }
+  }
+
   Future<void> _delete(int id) async {
     final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Eintrag löschen?'),
+      content: const Text('Der Eintrag und alle Anhänge werden unwiderruflich entfernt.'),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
     ));
     if (ok != true) return;
@@ -2657,7 +2676,7 @@ class _KgKorrTabState extends State<_KgKorrTab> {
             final k = _items[i];
             final eingang = k['richtung'] == 'eingang';
             return Card(child: ListTile(
-              onTap: () => _openEdit(existing: k),
+              onTap: () => _openView(k),
               leading: CircleAvatar(backgroundColor: (eingang ? Colors.blue : Colors.green).shade50,
                 child: Icon(eingang ? Icons.south_west : Icons.north_east, size: 18, color: eingang ? Colors.blue : Colors.green)),
               title: Text(k['betreff']?.toString().isNotEmpty == true ? k['betreff'].toString() : '(ohne Betreff)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -2674,7 +2693,7 @@ class _KgKorrTabState extends State<_KgKorrTab> {
                 if ((k['text'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
                   child: Text(k['text'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
               ]),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(k['id'] as int)),
+              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             ));
           })),
     ]);
@@ -3137,5 +3156,245 @@ class _KgTerminEditDialogState extends State<_KgTerminEditDialog> {
         style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
     ],
   );
+}
+
+// ─── Read-only view dialog for a Krankengeld-Korr entry ───
+// Shows full content + attached files. Footer offers Edit / Delete.
+
+class _KgKorrViewDialog extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> korr;
+  const _KgKorrViewDialog({required this.apiService, required this.korr});
+  @override
+  State<_KgKorrViewDialog> createState() => _KgKorrViewDialogState();
+}
+
+class _KgKorrViewDialogState extends State<_KgKorrViewDialog> {
+  bool _docsTouched = false;
+
+  Widget _kv(IconData icon, String label, String? value, {bool multiline = false}) {
+    if (value == null || value.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+      Expanded(child: Text(value,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        maxLines: multiline ? null : 3,
+        overflow: multiline ? null : TextOverflow.ellipsis,
+      )),
+    ]));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final k = widget.korr;
+    final eingang = k['richtung'] == 'eingang';
+    final isErledigt = k['erledigt'] == 1 || k['erledigt'] == true;
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(width: 620, height: 640, child: Column(children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+          child: Row(children: [
+            Icon(eingang ? Icons.south_west : Icons.north_east, color: Colors.white), const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(k['betreff']?.toString().isNotEmpty == true ? k['betreff'].toString() : '(ohne Betreff)',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              Text('${k['datum'] ?? ''} · ${eingang ? "eingang" : "ausgang"} · ${k['medium'] ?? ''}',
+                style: TextStyle(color: Colors.teal.shade100, fontSize: 11)),
+            ])),
+            if (isErledigt) Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(8)),
+              child: const Text('Erledigt', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _docsTouched ? 'docs_changed' : null)),
+          ]),
+        ),
+        Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if ((k['text'] ?? '').toString().trim().isNotEmpty) ...[
+            Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700, letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+              child: Text(k['text'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)),
+            ),
+            const SizedBox(height: 12),
+          ],
+          _kv(Icons.sticky_note_2, 'Notiz', k['notiz']?.toString(), multiline: true),
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 6),
+          Text('Anhänge', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          _KgKorrDocsSection(
+            apiService: widget.apiService,
+            korrId: k['id'] as int,
+            onChanged: () => _docsTouched = true,
+          ),
+        ]))),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+          child: Row(children: [
+            TextButton.icon(
+              onPressed: () => Navigator.pop(context, 'delete'),
+              icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+              label: const Text('Löschen', style: TextStyle(color: Colors.red)),
+            ),
+            const Spacer(),
+            TextButton(onPressed: () => Navigator.pop(context, _docsTouched ? 'docs_changed' : null), child: const Text('Schließen')),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context, 'edit'),
+              icon: const Icon(Icons.edit, size: 16),
+              label: const Text('Bearbeiten'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+            ),
+          ]),
+        ),
+      ])),
+    );
+  }
+}
+
+// ─── Multi-file uploader for one Krankengeld-Korr entry (up to 20) ───
+
+class _KgKorrDocsSection extends StatefulWidget {
+  final ApiService apiService;
+  final int korrId;
+  final VoidCallback? onChanged;
+  const _KgKorrDocsSection({required this.apiService, required this.korrId, this.onChanged});
+  @override
+  State<_KgKorrDocsSection> createState() => _KgKorrDocsSectionState();
+}
+
+class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+  bool _uploading = false;
+  int _doneCount = 0, _totalCount = 0;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listKrankengeldKorrDocs(widget.korrId);
+    if (!mounted) return;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _upload() async {
+    final r = await FilePickerHelper.pickFiles(
+      allowMultiple: true, type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
+    );
+    if (r == null || r.files.isEmpty) return;
+    var files = r.files.where((f) => f.path != null).toList();
+    final scaffold = ScaffoldMessenger.of(context);
+    if (files.length > 20) {
+      scaffold.showSnackBar(SnackBar(content: Text('Max. 20 Dateien — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));
+      files = files.sublist(0, 20);
+    }
+    setState(() { _uploading = true; _doneCount = 0; _totalCount = files.length; });
+    final errors = <String>[];
+    for (final f in files) {
+      final res = await widget.apiService.uploadKrankengeldKorrDoc(
+        korrId: widget.korrId, filePath: f.path!, fileName: f.name,
+      );
+      if (res['success'] == true) { _doneCount++; } else { errors.add('${f.name}: ${res['message'] ?? '?'}'); }
+      if (mounted) setState(() {});
+    }
+    if (!mounted) return;
+    setState(() => _uploading = false);
+    scaffold.showSnackBar(SnackBar(
+      content: Text(errors.isEmpty
+        ? '$_doneCount/$_totalCount Datei(en) hochgeladen'
+        : '$_doneCount OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
+      backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+      duration: const Duration(seconds: 4),
+    ));
+    widget.onChanged?.call();
+    _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Datei löschen?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.deleteKrankengeldKorrDoc(id);
+    if (res['success'] == true) { widget.onChanged?.call(); _load(); }
+  }
+
+  Future<void> _open(Map<String, dynamic> d, {bool externalApp = false}) async {
+    try {
+      final resp = await widget.apiService.downloadKrankengeldKorrDoc(d['id'] as int);
+      if (resp.statusCode != 200 || !mounted) return;
+      final dir = await getTemporaryDirectory();
+      final safeName = (d['datei_name']?.toString() ?? 'kg_korr_${d['id']}.pdf').replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
+      final f = File('${dir.path}/$safeName');
+      await f.writeAsBytes(resp.bodyBytes);
+      if (externalApp) {
+        await OpenFilex.open(f.path);
+      } else if (mounted) {
+        await FileViewerDialog.show(context, f.path, safeName);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator()));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Icon(Icons.folder_zip, size: 16, color: Colors.teal.shade700), const SizedBox(width: 6),
+        Expanded(child: Text('${_items.length} Datei(en)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        ElevatedButton.icon(
+          onPressed: _uploading ? null : _upload,
+          icon: _uploading
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.upload_file, size: 14),
+          label: Text(
+            _uploading
+              ? (_totalCount > 0 ? '$_doneCount / $_totalCount …' : 'Lädt…')
+              : 'Hochladen (bis 20)',
+            style: const TextStyle(fontSize: 11),
+          ),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+        ),
+      ]),
+      const SizedBox(height: 6),
+      if (_items.isEmpty)
+        Padding(padding: const EdgeInsets.all(8), child: Text('Keine Dateien', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)))
+      else
+        ..._items.map((d) {
+          final kb = ((d['file_size'] as num?) ?? 0).toInt() ~/ 1024;
+          return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
+            Icon(Icons.description, size: 16, color: Colors.teal.shade400), const SizedBox(width: 6),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(d['datei_name']?.toString() ?? '?', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+              Text('$kb KB · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+            ])),
+            IconButton(icon: const Icon(Icons.visibility, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), tooltip: 'Anzeigen', onPressed: () => _open(d)),
+            IconButton(icon: Icon(Icons.download, size: 16, color: Colors.green.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
+            IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(d['id'] as int)),
+          ]));
+        }),
+    ]);
+  }
 }
 

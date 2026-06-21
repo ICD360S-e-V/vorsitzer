@@ -3173,6 +3173,32 @@ class ApiService {
   Future<Map<String, dynamic>> deleteKrankengeldTermin(int id) =>
       _kgPost({'action': 'delete_termin', 'id': id});
 
+  // ─── Krankengeld Korr docs (multi-file attachments) ──────────
+  Future<Map<String, dynamic>> listKrankengeldKorrDocs(int korrId) =>
+      _kgPost({'action': 'list_korr_docs', 'korr_id': korrId});
+  Future<Map<String, dynamic>> deleteKrankengeldKorrDoc(int id) =>
+      _kgPost({'action': 'delete_korr_doc', 'id': id});
+
+  Future<Map<String, dynamic>> uploadKrankengeldKorrDoc({
+    required int korrId, required String filePath, required String fileName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/krankenkasse_krankengeld_doc_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['korr_id'] = korrId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> downloadKrankengeldKorrDoc(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/krankenkasse_krankengeld_doc_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_download.php?id=$docId'),
