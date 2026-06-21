@@ -3627,6 +3627,50 @@ class ApiService {
   Future<Map<String, dynamic>> deleteVertragInkassoKorrespondenz(int id) =>
       _vinkasso({'action': 'delete_korrespondenz', 'id': id});
 
+  // ─── Inkasso docs (Akteneinsicht + Korrespondenz attachments) ────
+  // Two row-types, same shape — endpoint takes type=akteneinsicht|korr.
+  // Server stores files AES-256-CBC encrypted under
+  // /uploads/inkasso_akteneinsicht/ resp. /uploads/inkasso_korr/.
+  Future<Map<String, dynamic>> listInkassoAkteneinsichtDocs(int aktenzeichenId) =>
+      _vinkasso({'action': 'list_akteneinsicht_docs', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> deleteInkassoAkteneinsichtDoc(int id) =>
+      _vinkasso({'action': 'delete_akteneinsicht_doc', 'id': id});
+
+  Future<Map<String, dynamic>> listInkassoKorrDocs(int korrId) =>
+      _vinkasso({'action': 'list_korr_docs', 'korr_id': korrId});
+
+  Future<Map<String, dynamic>> deleteInkassoKorrDoc(int id) =>
+      _vinkasso({'action': 'delete_korr_doc', 'id': id});
+
+  /// Upload one file for either akteneinsicht (parent = aktenzeichen_id)
+  /// or korr (parent = korr_id). Caller loops for multi-file batches.
+  Future<Map<String, dynamic>> uploadInkassoDoc({
+    required String type,            // 'akteneinsicht' | 'korr'
+    required int parentId,
+    required String filePath,
+    required String fileName,
+    String notiz = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/vertrag_inkasso_docs_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['type'] = type;
+    request.fields['parent_id'] = parentId.toString();
+    if (notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> downloadInkassoDoc({required String type, required int id}) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/vertrag_inkasso_docs_download.php?type=$type&id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<http.Response> downloadVertragDokument(int id) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/vertraege_dok_download.php?id=$id'),

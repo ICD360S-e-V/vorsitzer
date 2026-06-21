@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
@@ -2586,7 +2587,7 @@ class _AktenzeichenDetailDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -2607,14 +2608,175 @@ class _AktenzeichenDetailDialog extends StatelessWidget {
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
             Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+            Tab(icon: Icon(Icons.fact_check, size: 18), text: 'Akteneinsicht'),
           ],
         ),
         Expanded(child: TabBarView(children: [
           _AktenzeichenDetailsView(aktenzeichen: aktenzeichen),
           _AktenzeichenKorrTab(apiService: apiService, aktenzeichenId: aktenzeichen['id'] as int),
+          _AktenzeichenAkteneinsichtTab(apiService: apiService, aktenzeichenId: aktenzeichen['id'] as int),
         ])),
       ]),
     );
+  }
+}
+
+// ─── Akteneinsicht tab — multi-file uploader for documents requested ───
+//     via Akteneinsicht. Up to 20 files at once, shown as a list with
+//     individual delete/preview/download buttons. Each file is AES-CBC
+//     encrypted server-side.
+class _AktenzeichenAkteneinsichtTab extends StatefulWidget {
+  final ApiService apiService;
+  final int aktenzeichenId;
+  const _AktenzeichenAkteneinsichtTab({required this.apiService, required this.aktenzeichenId});
+  @override
+  State<_AktenzeichenAkteneinsichtTab> createState() => _AktenzeichenAkteneinsichtTabState();
+}
+
+class _AktenzeichenAkteneinsichtTabState extends State<_AktenzeichenAkteneinsichtTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listInkassoAkteneinsichtDocs(widget.aktenzeichenId);
+    if (!mounted) return;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _upload() async {
+    final r = await FilePickerHelper.pickFiles(
+      allowMultiple: true, type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
+    );
+    if (r == null || r.files.isEmpty) return;
+    var files = r.files.where((f) => f.path != null).toList();
+    if (files.length > 20) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Max. 20 Dateien gleichzeitig — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));
+      files = files.sublist(0, 20);
+    }
+    int done = 0;
+    final errors = <String>[];
+    final scaffold = ScaffoldMessenger.of(context);
+    for (final f in files) {
+      final res = await widget.apiService.uploadInkassoDoc(
+        type: 'akteneinsicht', parentId: widget.aktenzeichenId,
+        filePath: f.path!, fileName: f.name,
+      );
+      if (res['success'] == true) { done++; } else { errors.add('${f.name}: ${res['message'] ?? '?'}'); }
+    }
+    if (!mounted) return;
+    scaffold.showSnackBar(SnackBar(
+      content: Text(errors.isEmpty
+        ? '$done Datei(en) hochgeladen'
+        : '$done OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
+      backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+      duration: const Duration(seconds: 4),
+    ));
+    _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Dokument löschen?'),
+      content: const Text('Die Datei wird unwiderruflich entfernt.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteInkassoAkteneinsichtDoc(id);
+    _load();
+  }
+
+  Future<void> _open(Map<String, dynamic> d, {bool externalApp = false}) async {
+    try {
+      final resp = await widget.apiService.downloadInkassoDoc(type: 'akteneinsicht', id: d['id'] as int);
+      if (resp.statusCode != 200 || !mounted) return;
+      final dir = await getTemporaryDirectory();
+      final safeName = (d['datei_name']?.toString() ?? 'akteneinsicht_${d['id']}.pdf').replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
+      final f = File('${dir.path}/$safeName');
+      await f.writeAsBytes(resp.bodyBytes);
+      if (externalApp) {
+        await OpenFilex.open(f.path);
+      } else if (mounted) {
+        await FileViewerDialog.show(context, f.path, safeName);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Row(children: [
+          Icon(Icons.fact_check, size: 18, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          Text('${_items.length} Dokument(e)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+          const Spacer(),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.upload_file, size: 16),
+            label: const Text('Hochladen (bis 20)'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+            onPressed: _upload,
+          ),
+        ]),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        color: Colors.amber.shade50,
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Hier werden die Dokumente abgelegt, die bei der Inkasso-Firma '
+            'per Akteneinsicht angefordert wurden (Forderungsunterlagen, '
+            'Mahnungen, Verträge, Vollmachten, etc.).',
+            style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(
+        child: _items.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.fact_check_outlined, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 10),
+              Text('Noch keine Akteneinsicht-Dokumente', style: TextStyle(color: Colors.grey.shade500)),
+            ]))
+          : ListView.builder(
+              padding: const EdgeInsets.all(8),
+              itemCount: _items.length,
+              itemBuilder: (ctx, i) {
+                final d = _items[i];
+                final kb = ((d['file_size'] as num?) ?? 0).toInt() ~/ 1024;
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.description, color: Colors.purple.shade400),
+                    title: Text(d['datei_name']?.toString() ?? '?', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                    subtitle: Text('$kb KB · ${d['mime_type'] ?? ''} · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(icon: const Icon(Icons.visibility, size: 18), tooltip: 'Anzeigen', onPressed: () => _open(d)),
+                      IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
+                      IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), onPressed: () => _delete(d['id'] as int)),
+                    ]),
+                  ),
+                );
+              },
+            ),
+      ),
+    ]);
   }
 }
 
@@ -2904,7 +3066,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
           const SizedBox(height: 12),
           TextField(controller: _textC, maxLines: 5, decoration: const InputDecoration(labelText: 'Text / Inhalt', border: OutlineInputBorder())),
           const SizedBox(height: 12),
-          TextField(controller: _anhangC, decoration: const InputDecoration(labelText: 'Anhang (Pfad / URL)', prefixIcon: Icon(Icons.attach_file), border: OutlineInputBorder())),
+          TextField(controller: _anhangC, decoration: const InputDecoration(labelText: 'Anhang-Hinweis (Pfad / URL — Dateien siehe unten)', prefixIcon: Icon(Icons.link, size: 18), border: OutlineInputBorder())),
           const SizedBox(height: 8),
           CheckboxListTile(
             value: _erledigt,
@@ -2915,6 +3077,32 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
           ),
           const SizedBox(height: 4),
           TextField(controller: _notizenC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notizen', border: OutlineInputBorder())),
+          // Inline file attachments for this Korr entry. Available only
+          // after the entry has been saved at least once (so we have an
+          // id to attach files to). On a new entry we ask the user to
+          // save first, then reopen to add files.
+          if (widget.existing != null) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            _InkassoDocsSection(
+              apiService: widget.apiService,
+              type: 'korr',
+              parentId: widget.existing!['id'] as int,
+              colorScheme: Colors.purple,
+              hintText: 'Anhänge zu diesem Korrespondenz-Eintrag (E-Mail-PDF, Brief-Scan, Quittung, …)',
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
+              child: Row(children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800), const SizedBox(width: 6),
+                const Expanded(child: Text('Anhänge können nach dem ersten Speichern hinzugefügt werden.', style: TextStyle(fontSize: 11))),
+              ]),
+            ),
+          ],
         ])),
       ),
       actions: [
@@ -2927,5 +3115,161 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
         ),
       ],
     );
+  }
+}
+
+// ─── Reusable Inkasso docs section: works for both 'akteneinsicht'
+// (parent = aktenzeichen_id) and 'korr' (parent = korr_id). Same
+// list + multi-file upload (up to 20) + view/download/delete.
+class _InkassoDocsSection extends StatefulWidget {
+  final ApiService apiService;
+  final String type; // 'akteneinsicht' | 'korr'
+  final int parentId;
+  final MaterialColor colorScheme;
+  final String hintText;
+  const _InkassoDocsSection({
+    required this.apiService,
+    required this.type,
+    required this.parentId,
+    this.colorScheme = Colors.purple,
+    this.hintText = '',
+  });
+  @override
+  State<_InkassoDocsSection> createState() => _InkassoDocsSectionState();
+}
+
+class _InkassoDocsSectionState extends State<_InkassoDocsSection> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+  bool _uploading = false;
+  int _doneCount = 0;
+  int _totalCount = 0;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = widget.type == 'akteneinsicht'
+      ? await widget.apiService.listInkassoAkteneinsichtDocs(widget.parentId)
+      : await widget.apiService.listInkassoKorrDocs(widget.parentId);
+    if (!mounted) return;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _upload() async {
+    final r = await FilePickerHelper.pickFiles(
+      allowMultiple: true, type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
+    );
+    if (r == null || r.files.isEmpty) return;
+    var files = r.files.where((f) => f.path != null).toList();
+    final scaffold = ScaffoldMessenger.of(context);
+    if (files.length > 20) {
+      scaffold.showSnackBar(SnackBar(content: Text('Max. 20 Dateien — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));
+      files = files.sublist(0, 20);
+    }
+    setState(() { _uploading = true; _doneCount = 0; _totalCount = files.length; });
+    final errors = <String>[];
+    for (final f in files) {
+      final res = await widget.apiService.uploadInkassoDoc(
+        type: widget.type, parentId: widget.parentId,
+        filePath: f.path!, fileName: f.name,
+      );
+      if (res['success'] == true) { _doneCount++; } else { errors.add('${f.name}: ${res['message'] ?? '?'}'); }
+      if (mounted) setState(() {});
+    }
+    if (!mounted) return;
+    setState(() => _uploading = false);
+    scaffold.showSnackBar(SnackBar(
+      content: Text(errors.isEmpty
+        ? '$_doneCount/$_totalCount Datei(en) hochgeladen'
+        : '$_doneCount OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
+      backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+      duration: const Duration(seconds: 4),
+    ));
+    _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Datei löschen?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = widget.type == 'akteneinsicht'
+      ? await widget.apiService.deleteInkassoAkteneinsichtDoc(id)
+      : await widget.apiService.deleteInkassoKorrDoc(id);
+    if (res['success'] == true) _load();
+  }
+
+  Future<void> _open(Map<String, dynamic> d, {bool externalApp = false}) async {
+    try {
+      final resp = await widget.apiService.downloadInkassoDoc(type: widget.type, id: d['id'] as int);
+      if (resp.statusCode != 200 || !mounted) return;
+      final dir = await getTemporaryDirectory();
+      final safeName = (d['datei_name']?.toString() ?? '${widget.type}_${d['id']}.pdf')
+          .replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
+      final f = File('${dir.path}/$safeName');
+      await f.writeAsBytes(resp.bodyBytes);
+      if (externalApp) {
+        await OpenFilex.open(f.path);
+      } else if (mounted) {
+        await FileViewerDialog.show(context, f.path, safeName);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator()));
+    final cs = widget.colorScheme;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Icon(Icons.folder_zip, size: 16, color: cs.shade700), const SizedBox(width: 6),
+        Expanded(child: Text('${_items.length} Datei(en)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cs.shade800))),
+        ElevatedButton.icon(
+          onPressed: _uploading ? null : _upload,
+          icon: _uploading
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.upload_file, size: 14),
+          label: Text(
+            _uploading
+              ? (_totalCount > 0 ? '$_doneCount / $_totalCount …' : 'Lädt…')
+              : 'Hochladen (bis 20)',
+            style: const TextStyle(fontSize: 11),
+          ),
+          style: ElevatedButton.styleFrom(backgroundColor: cs.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+        ),
+      ]),
+      if (widget.hintText.isNotEmpty) Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(widget.hintText, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      ),
+      const SizedBox(height: 6),
+      if (_items.isEmpty)
+        Padding(padding: const EdgeInsets.all(8), child: Text('Keine Dateien', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)))
+      else
+        ..._items.map((d) {
+          final kb = ((d['file_size'] as num?) ?? 0).toInt() ~/ 1024;
+          return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
+            Icon(Icons.description, size: 16, color: cs.shade400), const SizedBox(width: 6),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(d['datei_name']?.toString() ?? '?', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+              Text('$kb KB · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+            ])),
+            IconButton(icon: const Icon(Icons.visibility, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), tooltip: 'Anzeigen', onPressed: () => _open(d)),
+            IconButton(icon: Icon(Icons.download, size: 16, color: Colors.green.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
+            IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(d['id'] as int)),
+          ]));
+        }),
+    ]);
   }
 }
