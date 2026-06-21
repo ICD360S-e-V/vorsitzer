@@ -284,7 +284,7 @@ class _EinkaufEditDialog extends StatefulWidget {
   State<_EinkaufEditDialog> createState() => _EinkaufEditDialogState();
 }
 
-class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
+class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTickerProviderStateMixin {
   late final TextEditingController _haendler;
   late final TextEditingController _betrag;
   late final TextEditingController _waehrung;
@@ -294,6 +294,7 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
   late DateTime? _datum;
   late DateTime? _garantieBis;
   late String _kategorie;
+  late final TabController _tabCtl;
 
   int? _id;
   String? _uuid;
@@ -320,12 +321,14 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
     for (final c in [_haendler, _betrag, _waehrung, _beschreibung, _seriennummer, _notiz]) {
       c.addListener(() { if (!_dirty) setState(() => _dirty = true); });
     }
+    _tabCtl = TabController(length: 2, vsync: this);
   }
 
   @override
   void dispose() {
     _haendler.dispose(); _betrag.dispose(); _waehrung.dispose();
     _beschreibung.dispose(); _seriennummer.dispose(); _notiz.dispose();
+    _tabCtl.dispose();
     super.dispose();
   }
 
@@ -335,7 +338,7 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
   }
   String? _fmtIso(DateTime? d) => d == null ? null : DateFormat('yyyy-MM-dd').format(d);
 
-  Future<void> _save() async {
+  Future<void> _save({bool closeAfter = true}) async {
     setState(() => _saving = true);
     final body = {
       if (_id != null) 'id': _id,
@@ -357,9 +360,14 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
       _id ??= r['id'] as int?;
       _uuid ??= r['uuid'] as String?;
       _dirty = false;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
-      // Allow user to continue adding files; only pop on explicit close.
-      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 2)));
+      if (closeAfter) {
+        Navigator.pop(context, true);
+      } else {
+        setState(() {});
+        // Switch to Belege tab so user can immediately attach files
+        _tabCtl.animateTo(1);
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(r['message']?.toString() ?? 'Fehler beim Speichern'), backgroundColor: Colors.red),
@@ -411,12 +419,10 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
       },
       child: Dialog(
         insetPadding: const EdgeInsets.all(20),
-        child: DefaultTabController(
-          length: 2,
-          child: SizedBox(
-            width: 700,
-            height: 640,
-            child: Column(children: [
+        child: SizedBox(
+          width: 700,
+          height: 640,
+          child: Column(children: [
               // Title bar
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
@@ -432,6 +438,7 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
                 ]),
               ),
               TabBar(
+                controller: _tabCtl,
                 labelColor: Colors.indigo.shade700,
                 unselectedLabelColor: Colors.grey.shade600,
                 indicatorColor: Colors.indigo.shade700,
@@ -440,7 +447,7 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
                   Tab(icon: const Icon(Icons.attach_file, size: 18), text: 'Belege (${_docCount})'),
                 ],
               ),
-              Expanded(child: TabBarView(children: [
+              Expanded(child: TabBarView(controller: _tabCtl, children: [
                 _buildDetails(),
                 _buildDocs(),
               ])),
@@ -455,8 +462,14 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
                     const Spacer(),
                   TextButton(onPressed: _saving ? null : () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, child: const Text('Schließen')),
                   const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : () => _save(closeAfter: false),
+                    icon: const Icon(Icons.attach_file, size: 16),
+                    label: const Text('Speichern + Belege'),
+                  ),
+                  const SizedBox(width: 6),
                   ElevatedButton.icon(
-                    onPressed: _saving ? null : _save,
+                    onPressed: _saving ? null : () => _save(closeAfter: true),
                     icon: _saving
                         ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.save, size: 16),
@@ -468,8 +481,7 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> {
             ]),
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildDetails() {
