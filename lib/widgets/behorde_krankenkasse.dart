@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -76,6 +77,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   String _versichertenstatus = '';
   bool _befreiungskarte = false;
   String _befreiungJahr = '';
+  // Krankengeld dossier count — surfaced by the new tab via callback,
+  // shown in the tab title so the operator sees at a glance whether
+  // the member has open KG cases.
+  int _krankengeldCount = 0;
   String _pflegegrad = '';
   String _pflegeboxVersandart = '';
   String _pflegeboxStatus = '';
@@ -431,7 +436,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _initControllers(data);
 
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Column(
         children: [
           TabBar(
@@ -446,6 +451,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['pflegegrad']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.elderly, size: 16), const SizedBox(width: 4), const Text('Pflegegrad')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['versicherungsart']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.shield, size: 16), const SizedBox(width: 4), const Text('Versicherung')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1') ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.card_membership, size: 16), const SizedBox(width: 4), const Text('Befreiungskarte')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _krankengeldCount > 0 ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.medical_information, size: 16), const SizedBox(width: 4), Text('Krankengeld${_krankengeldCount > 0 ? " ($_krankengeldCount)" : ""}')])),
             ],
           ),
           Expanded(
@@ -457,6 +463,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 _buildPflegegradTab(data),
                 _buildVersicherungTab(data),
                 _buildBefreiungskarteTab(data),
+                _KrankengeldTab(apiService: widget.apiService, userId: widget.user.id, onCountChanged: (n) => setState(() => _krankengeldCount = n)),
               ],
             ),
           ),
@@ -2183,3 +2190,952 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     );
   }
 }
+
+// ════════════════ KRANKENGELD ════════════════════════════════════
+// Sub-system mirroring the Inkasso layout: list of dossiers per user,
+// tap a dossier to open a 4-tab modal (Details / Korrespondenz /
+// Auszahlungen / Termine). All fields go through column-level AES-CBC
+// encryption server-side.
+
+const _kgStatusLabel = {
+  'beantragt': 'Beantragt',
+  'laeuft': 'Läuft',
+  'ausgesetzt': 'Ausgesetzt',
+  'abgelehnt': 'Abgelehnt',
+  'beendet': 'Beendet',
+  'widerspruch': 'Widerspruch',
+};
+const _kgStatusColor = {
+  'beantragt': Colors.amber,
+  'laeuft': Colors.green,
+  'ausgesetzt': Colors.orange,
+  'abgelehnt': Colors.red,
+  'beendet': Colors.grey,
+  'widerspruch': Colors.purple,
+};
+
+class _KrankengeldTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final ValueChanged<int> onCountChanged;
+  const _KrankengeldTab({required this.apiService, required this.userId, required this.onCountChanged});
+  @override
+  State<_KrankengeldTab> createState() => _KrankengeldTabState();
+}
+
+class _KrankengeldTabState extends State<_KrankengeldTab> {
+  List<Map<String, dynamic>> _dossiers = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listKrankengeldDossier(widget.userId);
+    if (!mounted) return;
+    setState(() {
+      _dossiers = List<Map<String, dynamic>>.from(res['dossiers'] as List? ?? []);
+      _loaded = true;
+    });
+    widget.onCountChanged(_dossiers.length);
+  }
+
+  Future<void> _addOrEdit({Map<String, dynamic>? existing}) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _KrankengeldDossierEditDialog(
+        apiService: widget.apiService, userId: widget.userId, existing: existing,
+      ),
+    );
+    if (saved == true) _load();
+  }
+
+  Future<void> _openDossier(Map<String, dynamic> d) async {
+    final changed = await showDialog<bool>(
+      context: context, barrierDismissible: false,
+      builder: (_) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
+        child: SizedBox(width: 720, height: 720,
+          child: _KrankengeldDossierModal(apiService: widget.apiService, dossier: d)),
+      ),
+    );
+    if (changed == true) _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Dossier löschen?'),
+      content: const Text('Alle Korrespondenz-, Auszahlungs- und Termin-Einträge werden mitgelöscht.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteKrankengeldDossier(id);
+    _load();
+  }
+
+  String _fmtDate(String? s) {
+    if (s == null || s.isEmpty) return '–';
+    final d = DateTime.tryParse(s);
+    return d == null ? s : DateFormat('dd.MM.yyyy').format(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        color: Colors.teal.shade50,
+        child: Row(children: [
+          Icon(Icons.medical_information, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+          Expanded(child: Text('Krankengeld-Dossiers (${_dossiers.length})',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+          ElevatedButton.icon(
+            onPressed: () => _addOrEdit(),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neues Dossier', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+          ),
+        ]),
+      ),
+      Expanded(child: _dossiers.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.folder_off, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 12),
+            Text('Noch kein Krankengeld-Dossier', style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            Text('Ein Dossier umfasst Zeitraum, Status, Diagnose, Korrespondenz, Auszahlungen und MDK-Termine.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500), textAlign: TextAlign.center),
+          ]))
+        : ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: _dossiers.length,
+            itemBuilder: (_, i) {
+              final d = _dossiers[i];
+              final status = (d['status'] ?? 'beantragt').toString();
+              final col = _kgStatusColor[status] ?? Colors.grey;
+              final period = '${_fmtDate(d['perioda_von']?.toString())} – ${_fmtDate(d['perioda_bis']?.toString())}';
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: () => _openDossier(d),
+                  child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.folder, color: col.shade700, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(period, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: col.shade600, borderRadius: BorderRadius.circular(8)),
+                        child: Text(_kgStatusLabel[status] ?? status, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700))),
+                      IconButton(icon: Icon(Icons.edit_outlined, size: 16, color: Colors.blue.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _addOrEdit(existing: d)),
+                      IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(d['id'] as int)),
+                    ]),
+                    if ((d['diagnose'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                      Icon(Icons.medical_services, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                      Expanded(child: Text(d['diagnose'].toString(), style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    ])),
+                    if ((d['arzt_name'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+                      Icon(Icons.person, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                      Text(d['arzt_name'].toString(), style: const TextStyle(fontSize: 11)),
+                    ])),
+                    if ((d['aktenzeichen'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+                      Icon(Icons.tag, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                      Text('Az: ${d['aktenzeichen']}', style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                    ])),
+                    Padding(padding: const EdgeInsets.only(top: 4), child: Text('Tippen zum Öffnen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey.shade400, fontStyle: FontStyle.italic))),
+                  ])),
+                ),
+              );
+            },
+          )),
+    ]);
+  }
+}
+
+// ─── Dossier edit dialog (only Stammdaten — sub-content via modal) ───
+
+class _KrankengeldDossierEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final Map<String, dynamic>? existing;
+  const _KrankengeldDossierEditDialog({required this.apiService, required this.userId, this.existing});
+  @override
+  State<_KrankengeldDossierEditDialog> createState() => _KrankengeldDossierEditDialogState();
+}
+
+class _KrankengeldDossierEditDialogState extends State<_KrankengeldDossierEditDialog> {
+  late TextEditingController _vonC, _bisC, _diagnoseC, _arztC, _aktenC, _bruttoC, _nettoC, _sbC, _sbTelC, _sbEmailC, _notizC;
+  String _status = 'beantragt';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? <String, dynamic>{};
+    _vonC      = TextEditingController(text: e['perioda_von']?.toString() ?? '');
+    _bisC      = TextEditingController(text: e['perioda_bis']?.toString() ?? '');
+    _diagnoseC = TextEditingController(text: e['diagnose']?.toString() ?? '');
+    _arztC     = TextEditingController(text: e['arzt_name']?.toString() ?? '');
+    _aktenC    = TextEditingController(text: e['aktenzeichen']?.toString() ?? '');
+    _bruttoC   = TextEditingController(text: e['taegliches_brutto']?.toString() ?? '');
+    _nettoC    = TextEditingController(text: e['taegliches_netto']?.toString() ?? '');
+    _sbC       = TextEditingController(text: e['sachbearbeiter']?.toString() ?? '');
+    _sbTelC    = TextEditingController(text: e['sachbearbeiter_tel']?.toString() ?? '');
+    _sbEmailC  = TextEditingController(text: e['sachbearbeiter_email']?.toString() ?? '');
+    _notizC    = TextEditingController(text: e['notiz']?.toString() ?? '');
+    _status    = e['status']?.toString() ?? 'beantragt';
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_vonC, _bisC, _diagnoseC, _arztC, _aktenC, _bruttoC, _nettoC, _sbC, _sbTelC, _sbEmailC, _notizC]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _pick(TextEditingController c) async {
+    final init = DateTime.tryParse(c.text) ?? DateTime.now();
+    final p = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2010), lastDate: DateTime(2050), locale: const Locale('de'));
+    if (p != null) setState(() => c.text = DateFormat('yyyy-MM-dd').format(p));
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final dossier = {
+      if (widget.existing != null) 'id': widget.existing!['id'],
+      'perioda_von': _vonC.text.trim().isEmpty ? null : _vonC.text.trim(),
+      'perioda_bis': _bisC.text.trim().isEmpty ? null : _bisC.text.trim(),
+      'status': _status,
+      'diagnose': _diagnoseC.text.trim(),
+      'arzt_name': _arztC.text.trim(),
+      'aktenzeichen': _aktenC.text.trim(),
+      'taegliches_brutto': _bruttoC.text.trim(),
+      'taegliches_netto': _nettoC.text.trim(),
+      'sachbearbeiter': _sbC.text.trim(),
+      'sachbearbeiter_tel': _sbTelC.text.trim(),
+      'sachbearbeiter_email': _sbEmailC.text.trim(),
+      'notiz': _notizC.text.trim(),
+    };
+    final res = await widget.apiService.saveKrankengeldDossier(widget.userId, dossier);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existing == null ? 'Neues Krankengeld-Dossier' : 'Dossier bearbeiten'),
+    content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(child: TextField(controller: _vonC, readOnly: true, onTap: () => _pick(_vonC),
+          decoration: const InputDecoration(labelText: 'Zeitraum von', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _bisC, readOnly: true, onTap: () => _pick(_bisC),
+          decoration: const InputDecoration(labelText: 'Zeitraum bis', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: _status,
+        decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
+        items: _kgStatusLabel.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+        onChanged: (v) => setState(() => _status = v ?? 'beantragt'),
+      ),
+      const SizedBox(height: 10),
+      TextField(controller: _diagnoseC, decoration: const InputDecoration(labelText: 'Diagnose', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: TextField(controller: _arztC, decoration: const InputDecoration(labelText: 'Arzt', isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _aktenC, decoration: const InputDecoration(labelText: 'Aktenzeichen', isDense: true, border: OutlineInputBorder()))),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: TextField(controller: _bruttoC, decoration: const InputDecoration(labelText: 'Tgl. brutto €', isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _nettoC, decoration: const InputDecoration(labelText: 'Tgl. netto €', isDense: true, border: OutlineInputBorder()))),
+      ]),
+      const SizedBox(height: 10),
+      TextField(controller: _sbC, decoration: const InputDecoration(labelText: 'Sachbearbeiter', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: TextField(controller: _sbTelC, decoration: const InputDecoration(labelText: 'Telefon', isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _sbEmailC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder()))),
+      ]),
+      const SizedBox(height: 10),
+      TextField(controller: _notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+    ]))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+      ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+      ),
+    ],
+  );
+}
+
+// ─── 4-tab modal: Details / Korrespondenz / Auszahlungen / Termine ──
+
+class _KrankengeldDossierModal extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> dossier;
+  const _KrankengeldDossierModal({required this.apiService, required this.dossier});
+  @override
+  State<_KrankengeldDossierModal> createState() => _KrankengeldDossierModalState();
+}
+
+class _KrankengeldDossierModalState extends State<_KrankengeldDossierModal> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  bool _dataChanged = false;
+
+  @override
+  void initState() { super.initState(); _tab = TabController(length: 4, vsync: this); }
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
+  void _mark() { if (!_dataChanged) _dataChanged = true; }
+
+  String _fmt(String? s) {
+    if (s == null || s.isEmpty) return '–';
+    final d = DateTime.tryParse(s);
+    return d == null ? s : DateFormat('dd.MM.yyyy').format(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.dossier;
+    final status = (d['status'] ?? 'beantragt').toString();
+    final col = _kgStatusColor[status] ?? Colors.grey;
+    final period = '${_fmt(d['perioda_von']?.toString())} – ${_fmt(d['perioda_bis']?.toString())}';
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+        child: Row(children: [
+          const Icon(Icons.medical_information, color: Colors.white), const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Krankengeld-Dossier · $period', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            if ((d['diagnose'] ?? '').toString().isNotEmpty) Text(d['diagnose'].toString(), style: TextStyle(color: Colors.teal.shade100, fontSize: 11)),
+          ])),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: col.shade600, borderRadius: BorderRadius.circular(8)),
+            child: Text(_kgStatusLabel[status] ?? status, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700))),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _dataChanged)),
+        ]),
+      ),
+      Container(color: Colors.teal.shade50, child: TabBar(
+        controller: _tab,
+        labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey.shade600,
+        indicatorColor: Colors.teal.shade700,
+        tabs: const [
+          Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+          Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+          Tab(icon: Icon(Icons.payments, size: 18), text: 'Auszahlungen'),
+          Tab(icon: Icon(Icons.event, size: 18), text: 'Termine'),
+        ],
+      )),
+      Expanded(child: TabBarView(controller: _tab, children: [
+        _KgDetailsTab(dossier: d),
+        _KgKorrTab(apiService: widget.apiService, dossierId: d['id'] as int, onChanged: _mark),
+        _KgAuszahlungenTab(apiService: widget.apiService, dossierId: d['id'] as int, onChanged: _mark),
+        _KgTermineTab(apiService: widget.apiService, dossierId: d['id'] as int, onChanged: _mark),
+      ])),
+    ]);
+  }
+}
+
+class _KgDetailsTab extends StatelessWidget {
+  final Map<String, dynamic> dossier;
+  const _KgDetailsTab({required this.dossier});
+
+  Widget _kv(IconData icon, String label, String? value, {bool multiline = false}) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+      Expanded(child: Text(value,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        maxLines: multiline ? null : 3,
+        overflow: multiline ? null : TextOverflow.ellipsis,
+      )),
+    ]));
+  }
+
+  String _fmt(String? s) {
+    if (s == null || s.isEmpty) return '';
+    final d = DateTime.tryParse(s);
+    return d == null ? s : DateFormat('dd.MM.yyyy').format(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = dossier;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _kv(Icons.event, 'Von',  _fmt(d['perioda_von']?.toString())),
+      _kv(Icons.event, 'Bis',  _fmt(d['perioda_bis']?.toString())),
+      _kv(Icons.flag, 'Status', _kgStatusLabel[(d['status'] ?? '').toString()]),
+      _kv(Icons.medical_services, 'Diagnose', d['diagnose']?.toString(), multiline: true),
+      _kv(Icons.person, 'Arzt', d['arzt_name']?.toString()),
+      _kv(Icons.tag, 'Aktenzeichen', d['aktenzeichen']?.toString()),
+      _kv(Icons.euro, 'Tgl. brutto', d['taegliches_brutto']?.toString()),
+      _kv(Icons.euro, 'Tgl. netto',  d['taegliches_netto']?.toString()),
+      const SizedBox(height: 10),
+      Divider(color: Colors.teal.shade100),
+      const SizedBox(height: 10),
+      _kv(Icons.support_agent, 'Sachbearbeiter', d['sachbearbeiter']?.toString()),
+      _kv(Icons.phone, 'Telefon', d['sachbearbeiter_tel']?.toString()),
+      _kv(Icons.email, 'E-Mail',  d['sachbearbeiter_email']?.toString()),
+      _kv(Icons.sticky_note_2, 'Notiz', d['notiz']?.toString(), multiline: true),
+    ]));
+  }
+}
+
+class _KgKorrTab extends StatefulWidget {
+  final ApiService apiService;
+  final int dossierId;
+  final VoidCallback onChanged;
+  const _KgKorrTab({required this.apiService, required this.dossierId, required this.onChanged});
+  @override
+  State<_KgKorrTab> createState() => _KgKorrTabState();
+}
+
+class _KgKorrTabState extends State<_KgKorrTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listKrankengeldKorr(widget.dossierId);
+    if (!mounted) return;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _openEdit({Map<String, dynamic>? existing}) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _KgKorrEditDialog(
+      apiService: widget.apiService, dossierId: widget.dossierId, existing: existing));
+    if (ok == true) { widget.onChanged(); _load(); }
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Eintrag löschen?'),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteKrankengeldKorr(id);
+    widget.onChanged(); _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Row(children: [
+        Icon(Icons.mail_outline, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Expanded(child: Text('${_items.length} Eintrag/Einträge', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'), onPressed: () => _openEdit(),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
+      ])),
+      const Divider(height: 1),
+      Expanded(child: _items.isEmpty
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade600)))
+        : ListView.builder(padding: const EdgeInsets.all(8), itemCount: _items.length, itemBuilder: (_, i) {
+            final k = _items[i];
+            final eingang = k['richtung'] == 'eingang';
+            return Card(child: ListTile(
+              onTap: () => _openEdit(existing: k),
+              leading: CircleAvatar(backgroundColor: (eingang ? Colors.blue : Colors.green).shade50,
+                child: Icon(eingang ? Icons.south_west : Icons.north_east, size: 18, color: eingang ? Colors.blue : Colors.green)),
+              title: Text(k['betreff']?.toString().isNotEmpty == true ? k['betreff'].toString() : '(ohne Betreff)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Text(k['datum']?.toString() ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  const SizedBox(width: 8),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(color: (eingang ? Colors.blue : Colors.green).shade50, borderRadius: BorderRadius.circular(4)),
+                    child: Text(eingang ? 'eingang' : 'ausgang', style: TextStyle(fontSize: 10, color: eingang ? Colors.blue : Colors.green))),
+                  if (k['medium'] != null) ...[const SizedBox(width: 4), Text(k['medium'].toString(), style: const TextStyle(fontSize: 10, color: Colors.grey))],
+                  if (k['erledigt'] == 1 || k['erledigt'] == true) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)), child: Text('Erledigt', style: TextStyle(fontSize: 9, color: Colors.green.shade900)))],
+                ]),
+                if ((k['text'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
+                  child: Text(k['text'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
+              ]),
+              trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(k['id'] as int)),
+            ));
+          })),
+    ]);
+  }
+}
+
+class _KgKorrEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int dossierId;
+  final Map<String, dynamic>? existing;
+  const _KgKorrEditDialog({required this.apiService, required this.dossierId, this.existing});
+  @override
+  State<_KgKorrEditDialog> createState() => _KgKorrEditDialogState();
+}
+
+class _KgKorrEditDialogState extends State<_KgKorrEditDialog> {
+  late TextEditingController _datumC, _betreffC, _textC, _notizC;
+  String _richtung = 'eingang', _medium = 'post';
+  bool _erledigt = false, _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? <String, dynamic>{};
+    _datumC = TextEditingController(text: e['datum']?.toString() ?? DateFormat('yyyy-MM-dd').format(DateTime.now()));
+    _betreffC = TextEditingController(text: e['betreff']?.toString() ?? '');
+    _textC = TextEditingController(text: e['text']?.toString() ?? '');
+    _notizC = TextEditingController(text: e['notiz']?.toString() ?? '');
+    _richtung = e['richtung']?.toString() ?? 'eingang';
+    _medium = e['medium']?.toString() ?? 'post';
+    _erledigt = e['erledigt'] == 1 || e['erledigt'] == true;
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_datumC, _betreffC, _textC, _notizC]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final init = DateTime.tryParse(_datumC.text) ?? DateTime.now();
+    final p = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2010), lastDate: DateTime(2050), locale: const Locale('de'));
+    if (p != null) setState(() => _datumC.text = DateFormat('yyyy-MM-dd').format(p));
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final korr = {
+      if (widget.existing != null) 'id': widget.existing!['id'],
+      'datum': _datumC.text.trim(),
+      'richtung': _richtung, 'medium': _medium,
+      'betreff': _betreffC.text.trim(), 'text': _textC.text.trim(), 'notiz': _notizC.text.trim(),
+      'erledigt': _erledigt,
+    };
+    final res = await widget.apiService.saveKrankengeldKorr(widget.dossierId, korr);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) Navigator.pop(context, true);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existing == null ? 'Neue Korrespondenz' : 'Korrespondenz bearbeiten'),
+    content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(child: TextField(controller: _datumC, readOnly: true, onTap: _pickDate,
+          decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+        const SizedBox(width: 8),
+        Expanded(child: DropdownButtonFormField<String>(initialValue: _richtung,
+          decoration: const InputDecoration(labelText: 'Richtung', isDense: true, border: OutlineInputBorder()),
+          items: const [DropdownMenuItem(value: 'eingang', child: Text('Eingang')), DropdownMenuItem(value: 'ausgang', child: Text('Ausgang'))],
+          onChanged: (v) => setState(() => _richtung = v ?? 'eingang'))),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(initialValue: _medium,
+        decoration: const InputDecoration(labelText: 'Medium', isDense: true, border: OutlineInputBorder()),
+        items: const ['post', 'email', 'fax', 'telefon', 'persoenlich', 'online'].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+        onChanged: (v) => setState(() => _medium = v ?? 'post')),
+      const SizedBox(height: 10),
+      TextField(controller: _betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _textC, maxLines: 5, decoration: const InputDecoration(labelText: 'Text / Inhalt', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      CheckboxListTile(value: _erledigt, onChanged: (v) => setState(() => _erledigt = v ?? false),
+        title: const Text('Erledigt'), controlAffinity: ListTileControlAffinity.leading, contentPadding: EdgeInsets.zero),
+    ]))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+      ElevatedButton.icon(onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
+    ],
+  );
+}
+
+class _KgAuszahlungenTab extends StatefulWidget {
+  final ApiService apiService;
+  final int dossierId;
+  final VoidCallback onChanged;
+  const _KgAuszahlungenTab({required this.apiService, required this.dossierId, required this.onChanged});
+  @override
+  State<_KgAuszahlungenTab> createState() => _KgAuszahlungenTabState();
+}
+
+class _KgAuszahlungenTabState extends State<_KgAuszahlungenTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listKrankengeldAuszahlungen(widget.dossierId);
+    if (!mounted) return;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _openEdit({Map<String, dynamic>? existing}) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _KgAuszahlungEditDialog(
+      apiService: widget.apiService, dossierId: widget.dossierId, existing: existing));
+    if (ok == true) { widget.onChanged(); _load(); }
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Auszahlung löschen?'),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteKrankengeldAuszahlung(id);
+    widget.onChanged(); _load();
+  }
+
+  String _fmt(String? s) {
+    if (s == null || s.isEmpty) return '–';
+    final d = DateTime.tryParse(s);
+    return d == null ? s : DateFormat('dd.MM.yyyy').format(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    double total = 0;
+    for (final a in _items) {
+      total += double.tryParse((a['betrag'] ?? '').toString().replaceAll(',', '.')) ?? 0;
+    }
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Row(children: [
+        Icon(Icons.payments, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Expanded(child: Text('${_items.length} Zahlung(en) · Σ ${total.toStringAsFixed(2)} €',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'), onPressed: () => _openEdit(),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
+      ])),
+      const Divider(height: 1),
+      Expanded(child: _items.isEmpty
+        ? Center(child: Text('Noch keine Auszahlungen', style: TextStyle(color: Colors.grey.shade600)))
+        : ListView.builder(padding: const EdgeInsets.all(8), itemCount: _items.length, itemBuilder: (_, i) {
+            final a = _items[i];
+            final betrag = (a['betrag'] ?? '').toString();
+            return Card(child: ListTile(
+              onTap: () => _openEdit(existing: a),
+              leading: CircleAvatar(backgroundColor: Colors.green.shade50, child: Icon(Icons.euro, color: Colors.green.shade700, size: 18)),
+              title: Text(betrag.isEmpty ? '–' : '$betrag €', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${_fmt(a['zeitraum_von']?.toString())} – ${_fmt(a['zeitraum_bis']?.toString())}', style: const TextStyle(fontSize: 11)),
+                if ((a['zahlung_datum'] ?? '').toString().isNotEmpty) Text('Gezahlt am ${a['zahlung_datum']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                if ((a['ueberweisungsart'] ?? '').toString().isNotEmpty) Text((a['ueberweisungsart']).toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ]),
+              trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(a['id'] as int)),
+            ));
+          })),
+    ]);
+  }
+}
+
+class _KgAuszahlungEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int dossierId;
+  final Map<String, dynamic>? existing;
+  const _KgAuszahlungEditDialog({required this.apiService, required this.dossierId, this.existing});
+  @override
+  State<_KgAuszahlungEditDialog> createState() => _KgAuszahlungEditDialogState();
+}
+
+class _KgAuszahlungEditDialogState extends State<_KgAuszahlungEditDialog> {
+  late TextEditingController _zahlungDatumC, _vonC, _bisC, _betragC, _notizC;
+  String _art = 'ueberweisung';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? <String, dynamic>{};
+    _zahlungDatumC = TextEditingController(text: e['zahlung_datum']?.toString() ?? DateFormat('yyyy-MM-dd').format(DateTime.now()));
+    _vonC    = TextEditingController(text: e['zeitraum_von']?.toString() ?? '');
+    _bisC    = TextEditingController(text: e['zeitraum_bis']?.toString() ?? '');
+    _betragC = TextEditingController(text: e['betrag']?.toString() ?? '');
+    _notizC  = TextEditingController(text: e['notiz']?.toString() ?? '');
+    _art     = e['ueberweisungsart']?.toString() ?? 'ueberweisung';
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_zahlungDatumC, _vonC, _bisC, _betragC, _notizC]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _pick(TextEditingController c) async {
+    final init = DateTime.tryParse(c.text) ?? DateTime.now();
+    final p = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2010), lastDate: DateTime(2050), locale: const Locale('de'));
+    if (p != null) setState(() => c.text = DateFormat('yyyy-MM-dd').format(p));
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final body = {
+      if (widget.existing != null) 'id': widget.existing!['id'],
+      'zahlung_datum': _zahlungDatumC.text.trim(),
+      'zeitraum_von': _vonC.text.trim().isEmpty ? null : _vonC.text.trim(),
+      'zeitraum_bis': _bisC.text.trim().isEmpty ? null : _bisC.text.trim(),
+      'betrag': _betragC.text.trim(),
+      'ueberweisungsart': _art,
+      'notiz': _notizC.text.trim(),
+    };
+    final res = await widget.apiService.saveKrankengeldAuszahlung(widget.dossierId, body);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) Navigator.pop(context, true);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existing == null ? 'Neue Auszahlung' : 'Auszahlung bearbeiten'),
+    content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(child: TextField(controller: _vonC, readOnly: true, onTap: () => _pick(_vonC),
+          decoration: const InputDecoration(labelText: 'Zeitraum von', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _bisC, readOnly: true, onTap: () => _pick(_bisC),
+          decoration: const InputDecoration(labelText: 'Zeitraum bis', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: TextField(controller: _zahlungDatumC, readOnly: true, onTap: () => _pick(_zahlungDatumC),
+          decoration: const InputDecoration(labelText: 'Gezahlt am', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Betrag €', isDense: true, border: OutlineInputBorder()))),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(initialValue: _art,
+        decoration: const InputDecoration(labelText: 'Überweisungsart', isDense: true, border: OutlineInputBorder()),
+        items: const ['ueberweisung', 'scheck', 'bar', 'sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: (v) => setState(() => _art = v ?? 'ueberweisung')),
+      const SizedBox(height: 10),
+      TextField(controller: _notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+    ]))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+      ElevatedButton.icon(onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
+    ],
+  );
+}
+
+class _KgTermineTab extends StatefulWidget {
+  final ApiService apiService;
+  final int dossierId;
+  final VoidCallback onChanged;
+  const _KgTermineTab({required this.apiService, required this.dossierId, required this.onChanged});
+  @override
+  State<_KgTermineTab> createState() => _KgTermineTabState();
+}
+
+class _KgTermineTabState extends State<_KgTermineTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  static const _artLabel = {
+    'mdk': 'MDK',
+    'reha_antrag': 'Reha-Antrag',
+    'wba': 'WBA',
+    'gutachten': 'Gutachten',
+    'beratung': 'Beratung',
+    'sonstige': 'Sonstige',
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.listKrankengeldTermine(widget.dossierId);
+    if (!mounted) return;
+    setState(() {
+      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _loaded = true;
+    });
+  }
+
+  Future<void> _openEdit({Map<String, dynamic>? existing}) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _KgTerminEditDialog(
+      apiService: widget.apiService, dossierId: widget.dossierId, existing: existing));
+    if (ok == true) { widget.onChanged(); _load(); }
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Termin löschen?'),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteKrankengeldTermin(id);
+    widget.onChanged(); _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Row(children: [
+        Icon(Icons.event, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Expanded(child: Text('${_items.length} Termin(e)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'), onPressed: () => _openEdit(),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
+      ])),
+      const Divider(height: 1),
+      Expanded(child: _items.isEmpty
+        ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade600)))
+        : ListView.builder(padding: const EdgeInsets.all(8), itemCount: _items.length, itemBuilder: (_, i) {
+            final t = _items[i];
+            return Card(child: ListTile(
+              onTap: () => _openEdit(existing: t),
+              leading: CircleAvatar(backgroundColor: Colors.amber.shade50, child: Icon(Icons.event_note, color: Colors.amber.shade800, size: 18)),
+              title: Text('${t['termin_datum'] ?? '?'}${(t['termin_uhrzeit'] ?? '').toString().isNotEmpty ? " · ${t['termin_uhrzeit']}" : ""}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  margin: const EdgeInsets.only(top: 2),
+                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3)),
+                  child: Text(_artLabel[(t['art'] ?? 'sonstige').toString()] ?? (t['art'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.indigo.shade800))),
+                if ((t['ort'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
+                  child: Row(children: [const Icon(Icons.place, size: 12, color: Colors.grey), const SizedBox(width: 4), Expanded(child: Text(t['ort'].toString(), style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))])),
+                if ((t['grund'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2),
+                  child: Text(t['grund'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11))),
+                if ((t['ergebnis'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2),
+                  child: Text('→ ${t['ergebnis']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontStyle: FontStyle.italic))),
+              ]),
+              trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(t['id'] as int)),
+            ));
+          })),
+    ]);
+  }
+}
+
+class _KgTerminEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int dossierId;
+  final Map<String, dynamic>? existing;
+  const _KgTerminEditDialog({required this.apiService, required this.dossierId, this.existing});
+  @override
+  State<_KgTerminEditDialog> createState() => _KgTerminEditDialogState();
+}
+
+class _KgTerminEditDialogState extends State<_KgTerminEditDialog> {
+  late TextEditingController _datumC, _zeitC, _ortC, _grundC, _ergebnisC, _notizC;
+  String _art = 'mdk';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? <String, dynamic>{};
+    _datumC    = TextEditingController(text: e['termin_datum']?.toString() ?? DateFormat('yyyy-MM-dd').format(DateTime.now()));
+    _zeitC     = TextEditingController(text: e['termin_uhrzeit']?.toString() ?? '');
+    _ortC      = TextEditingController(text: e['ort']?.toString() ?? '');
+    _grundC    = TextEditingController(text: e['grund']?.toString() ?? '');
+    _ergebnisC = TextEditingController(text: e['ergebnis']?.toString() ?? '');
+    _notizC    = TextEditingController(text: e['notiz']?.toString() ?? '');
+    _art       = e['art']?.toString() ?? 'mdk';
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_datumC, _zeitC, _ortC, _grundC, _ergebnisC, _notizC]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final init = DateTime.tryParse(_datumC.text) ?? DateTime.now();
+    final p = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2010), lastDate: DateTime(2050), locale: const Locale('de'));
+    if (p != null) setState(() => _datumC.text = DateFormat('yyyy-MM-dd').format(p));
+  }
+
+  Future<void> _pickTime() async {
+    final parts = _zeitC.text.split(':');
+    final init = parts.length == 2 ? TimeOfDay(hour: int.tryParse(parts[0]) ?? 9, minute: int.tryParse(parts[1]) ?? 0) : const TimeOfDay(hour: 9, minute: 0);
+    final p = await showTimePicker(context: context, initialTime: init);
+    if (p != null) setState(() => _zeitC.text = '${p.hour.toString().padLeft(2,'0')}:${p.minute.toString().padLeft(2,'0')}');
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final body = {
+      if (widget.existing != null) 'id': widget.existing!['id'],
+      'termin_datum': _datumC.text.trim(),
+      'termin_uhrzeit': _zeitC.text.trim(),
+      'art': _art,
+      'ort': _ortC.text.trim(),
+      'grund': _grundC.text.trim(),
+      'ergebnis': _ergebnisC.text.trim(),
+      'notiz': _notizC.text.trim(),
+    };
+    final res = await widget.apiService.saveKrankengeldTermin(widget.dossierId, body);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) Navigator.pop(context, true);
+    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existing == null ? 'Neuer Termin' : 'Termin bearbeiten'),
+    content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(child: TextField(controller: _datumC, readOnly: true, onTap: _pickDate,
+          decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _zeitC, readOnly: true, onTap: _pickTime,
+          decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.access_time, size: 16)))),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(initialValue: _art,
+        decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+        items: const ['mdk', 'reha_antrag', 'wba', 'gutachten', 'beratung', 'sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: (v) => setState(() => _art = v ?? 'mdk')),
+      const SizedBox(height: 10),
+      TextField(controller: _ortC, decoration: const InputDecoration(labelText: 'Ort', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _grundC, maxLines: 2, decoration: const InputDecoration(labelText: 'Grund / Thema', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _ergebnisC, maxLines: 2, decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+    ]))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+      ElevatedButton.icon(onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
+    ],
+  );
+}
+

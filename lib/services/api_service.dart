@@ -3140,6 +3140,39 @@ class ApiService {
     }
   }
 
+  // ─── Krankenkasse → Krankengeld dossiers (column-level encrypted) ─
+  Future<Map<String, dynamic>> _kgPost(Map<String, dynamic> body) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/krankenkasse_krankengeld_manage.php'),
+      headers: _headers, body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<Map<String, dynamic>> listKrankengeldDossier(int userId) =>
+      _kgPost({'action': 'list_dossier', 'user_id': userId});
+  Future<Map<String, dynamic>> saveKrankengeldDossier(int userId, Map<String, dynamic> dossier) =>
+      _kgPost({'action': 'save_dossier', 'user_id': userId, 'dossier': dossier});
+  Future<Map<String, dynamic>> deleteKrankengeldDossier(int id) =>
+      _kgPost({'action': 'delete_dossier', 'id': id});
+  Future<Map<String, dynamic>> listKrankengeldKorr(int dossierId) =>
+      _kgPost({'action': 'list_korr', 'dossier_id': dossierId});
+  Future<Map<String, dynamic>> saveKrankengeldKorr(int dossierId, Map<String, dynamic> korr) =>
+      _kgPost({'action': 'save_korr', 'dossier_id': dossierId, 'korr': {...korr, 'dossier_id': dossierId}});
+  Future<Map<String, dynamic>> deleteKrankengeldKorr(int id) =>
+      _kgPost({'action': 'delete_korr', 'id': id});
+  Future<Map<String, dynamic>> listKrankengeldAuszahlungen(int dossierId) =>
+      _kgPost({'action': 'list_auszahlungen', 'dossier_id': dossierId});
+  Future<Map<String, dynamic>> saveKrankengeldAuszahlung(int dossierId, Map<String, dynamic> a) =>
+      _kgPost({'action': 'save_auszahlung', 'dossier_id': dossierId, 'auszahlung': {...a, 'dossier_id': dossierId}});
+  Future<Map<String, dynamic>> deleteKrankengeldAuszahlung(int id) =>
+      _kgPost({'action': 'delete_auszahlung', 'id': id});
+  Future<Map<String, dynamic>> listKrankengeldTermine(int dossierId) =>
+      _kgPost({'action': 'list_termine', 'dossier_id': dossierId});
+  Future<Map<String, dynamic>> saveKrankengeldTermin(int dossierId, Map<String, dynamic> t) =>
+      _kgPost({'action': 'save_termin', 'dossier_id': dossierId, 'termin': {...t, 'dossier_id': dossierId}});
+  Future<Map<String, dynamic>> deleteKrankengeldTermin(int id) =>
+      _kgPost({'action': 'delete_termin', 'id': id});
+
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_download.php?id=$docId'),
