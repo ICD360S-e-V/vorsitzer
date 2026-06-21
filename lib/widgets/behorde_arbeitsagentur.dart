@@ -3422,19 +3422,77 @@ class _AaAvDetailModal extends StatefulWidget {
   State<_AaAvDetailModal> createState() => _AaAvDetailModalState();
 }
 
-class _AaAvDetailModalState extends State<_AaAvDetailModal> {
-  late TextEditingController _vornameC;
-  late TextEditingController _nachnameC;
-  late TextEditingController _telC;
-  late TextEditingController _emC;
-  late TextEditingController _ziC;
-  late TextEditingController _personalNotizC;
-  late TextEditingController _linkNotizC;
-  late TextEditingController _seitC;
-  late TextEditingController _bisC;
+class _AaAvDetailModalState extends State<_AaAvDetailModal> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  bool _dataChanged = false; // tracks if anything in any sub-tab changed
+
+  @override
+  void initState() { super.initState(); _tab = TabController(length: 3, vsync: this); }
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
+  void _markChanged() { if (!_dataChanged) _dataChanged = true; }
+
+  @override
+  Widget build(BuildContext context) {
+    final av = widget.userAv;
+    final aaName = (av['arbeitsagentur_name'] ?? '').toString();
+    final fullName = '${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim();
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(width: 680, height: 700, child: Column(children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+          child: Row(children: [
+            const Icon(Icons.support_agent, color: Colors.white), const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(fullName.isEmpty ? 'Arbeitsvermittler' : fullName,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              if (aaName.isNotEmpty) Text(aaName, style: TextStyle(color: Colors.blue.shade100, fontSize: 11)),
+            ])),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _dataChanged)),
+          ]),
+        ),
+        Container(
+          color: Colors.blue.shade50,
+          child: TabBar(
+            controller: _tab,
+            labelColor: Colors.blue.shade800,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Colors.blue.shade700,
+            tabs: const [
+              Tab(icon: Icon(Icons.person, size: 18), text: 'Details'),
+              Tab(icon: Icon(Icons.event, size: 18), text: 'Termine'),
+              Tab(icon: Icon(Icons.work_history, size: 18), text: 'Eigenbemühungen'),
+            ],
+          ),
+        ),
+        Expanded(child: TabBarView(controller: _tab, children: [
+          _AaAvDetailsTab(apiService: widget.apiService, userAv: widget.userAv, onChanged: _markChanged),
+          _AaAvTermineTab(apiService: widget.apiService, userAv: widget.userAv, onChanged: _markChanged),
+          _AaAvEigenbemTab(apiService: widget.apiService, userAv: widget.userAv, onChanged: _markChanged),
+        ])),
+      ])),
+    );
+  }
+}
+
+// ─────────────── Details sub-tab (Stammdaten + Zuordnung) ───────────────
+
+class _AaAvDetailsTab extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> userAv;
+  final VoidCallback onChanged;
+  const _AaAvDetailsTab({required this.apiService, required this.userAv, required this.onChanged});
+  @override
+  State<_AaAvDetailsTab> createState() => _AaAvDetailsTabState();
+}
+
+class _AaAvDetailsTabState extends State<_AaAvDetailsTab> {
+  late TextEditingController _vornameC, _nachnameC, _telC, _emC, _ziC, _personalNotizC, _linkNotizC, _seitC, _bisC;
   late String _rolle;
-  bool _saving = false;
-  bool _dirty = false;
+  bool _saving = false, _dirty = false;
 
   static const _rollen = [
     'Arbeitsvermittler', 'Berufsberater', 'Reha_SB', 'SB_Leistung',
@@ -3488,7 +3546,6 @@ class _AaAvDetailModalState extends State<_AaAvDetailModal> {
     setState(() => _saving = true);
     final personalId = (widget.userAv['personal_id'] as num).toInt();
     final userAvId   = (widget.userAv['id'] as num).toInt();
-    // 1) update pool entry
     final pRes = await widget.apiService.arbeitsagenturAvAction({
       'action': 'update_personal',
       'personal_id': personalId,
@@ -3508,7 +3565,6 @@ class _AaAvDetailModalState extends State<_AaAvDetailModal> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pRes['message'] ?? 'Pool-Update fehlgeschlagen'), backgroundColor: Colors.red));
       return;
     }
-    // 2) update user-av link
     final uRes = await widget.apiService.arbeitsagenturAvAction({
       'action': 'update_user_av',
       'user_av_id': userAvId,
@@ -3518,9 +3574,10 @@ class _AaAvDetailModalState extends State<_AaAvDetailModal> {
       'notiz': _linkNotizC.text.trim(),
     });
     if (!mounted) return;
-    setState(() => _saving = false);
+    setState(() { _saving = false; _dirty = false; });
     if (uRes['success'] == true) {
-      Navigator.pop(context, true);
+      widget.onChanged();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(uRes['message'] ?? 'Zuordnung-Update fehlgeschlagen'), backgroundColor: Colors.red));
     }
@@ -3528,88 +3585,657 @@ class _AaAvDetailModalState extends State<_AaAvDetailModal> {
 
   @override
   Widget build(BuildContext context) {
-    final av = widget.userAv;
-    final aaName = (av['arbeitsagentur_name'] ?? '').toString();
-    return Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(width: 620, height: 620, child: Column(children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
-          child: Row(children: [
-            const Icon(Icons.support_agent, color: Colors.white), const SizedBox(width: 8),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Arbeitsvermittler bearbeiten', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-              if (aaName.isNotEmpty) Text(aaName, style: TextStyle(color: Colors.blue.shade100, fontSize: 11)),
-            ])),
-            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, false)),
-          ]),
+    return Column(children: [
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Stammdaten (Pool)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: TextField(controller: _vornameC, decoration: const InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder()))),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: _nachnameC, decoration: const InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder()))),
+        ]),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          initialValue: _rolle,
+          decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
+          items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+          onChanged: (v) => setState(() { _rolle = v ?? 'sonstige'; _dirty = true; }),
         ),
-        Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Stammdaten (Pool)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: TextField(controller: _vornameC, decoration: const InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder()))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: _nachnameC, decoration: const InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder()))),
-          ]),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            initialValue: _rolle,
-            decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
-            items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-            onChanged: (v) => setState(() { _rolle = v ?? 'sonstige'; _dirty = true; }),
-          ),
-          const SizedBox(height: 10),
-          TextField(controller: _telC, decoration: const InputDecoration(labelText: 'Telefon', isDense: true, border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          TextField(controller: _emC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          TextField(controller: _ziC, decoration: const InputDecoration(labelText: 'Zimmer', isDense: true, border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          TextField(controller: _personalNotizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz zur Person (Pool)', isDense: true, border: OutlineInputBorder())),
-          const SizedBox(height: 20),
-          Divider(color: Colors.blue.shade100),
-          const SizedBox(height: 8),
-          Text('Zuordnung zu diesem Mitglied', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: TextField(
-              controller: _seitC, readOnly: true,
-              decoration: InputDecoration(
-                labelText: 'Zuständig seit', isDense: true, border: const OutlineInputBorder(),
-                suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () => _pickDate(_seitC)),
-              ),
-            )),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(
-              controller: _bisC, readOnly: true,
-              decoration: InputDecoration(
-                labelText: 'Zuständig bis (leer = aktiv)', isDense: true, border: const OutlineInputBorder(),
-                suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () => _pickDate(_bisC)),
-              ),
-            )),
-          ]),
-          const SizedBox(height: 10),
-          TextField(controller: _linkNotizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz zur Zuordnung', isDense: true, border: OutlineInputBorder())),
-        ]))),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
-          child: Row(children: [
-            TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Schließen')),
-            const Spacer(),
-            ElevatedButton.icon(
-              onPressed: (_saving || !_dirty) ? null : _save,
-              icon: _saving
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.save, size: 16),
-              label: const Text('Speichern'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+        const SizedBox(height: 10),
+        TextField(controller: _telC, decoration: const InputDecoration(labelText: 'Telefon', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: _emC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: _ziC, decoration: const InputDecoration(labelText: 'Zimmer', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: _personalNotizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz zur Person (Pool)', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 20),
+        Divider(color: Colors.blue.shade100),
+        const SizedBox(height: 8),
+        Text('Zuordnung zu diesem Mitglied', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: TextField(
+            controller: _seitC, readOnly: true,
+            decoration: InputDecoration(
+              labelText: 'Zuständig seit', isDense: true, border: const OutlineInputBorder(),
+              suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () => _pickDate(_seitC)),
             ),
-          ]),
-        ),
-      ])),
-    );
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(
+            controller: _bisC, readOnly: true,
+            decoration: InputDecoration(
+              labelText: 'Zuständig bis (leer = aktiv)', isDense: true, border: const OutlineInputBorder(),
+              suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () => _pickDate(_bisC)),
+            ),
+          )),
+        ]),
+        const SizedBox(height: 10),
+        TextField(controller: _linkNotizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz zur Zuordnung', isDense: true, border: OutlineInputBorder())),
+      ]))),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+        child: Row(children: [
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: (_saving || !_dirty) ? null : _save,
+            icon: _saving
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.save, size: 16),
+            label: const Text('Speichern'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+          ),
+        ]),
+      ),
+    ]);
   }
+}
+
+// ─────────────── Termine sub-tab (per-AV termine list + add/edit) ───────────────
+
+class _AaAvTermineTab extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> userAv;
+  final VoidCallback onChanged;
+  const _AaAvTermineTab({required this.apiService, required this.userAv, required this.onChanged});
+  @override
+  State<_AaAvTermineTab> createState() => _AaAvTermineTabState();
+}
+
+class _AaAvTermineTabState extends State<_AaAvTermineTab> {
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+
+  static const _typLabel = {
+    'erstgespraech': 'Erstgespräch',
+    'folgegespraech': 'Folgegespräch',
+    'vermittlung': 'Vermittlung',
+    'beratung': 'Beratung',
+    'meldetermin': 'Meldetermin',
+    'reha': 'Reha',
+    'sonstige': 'Sonstige',
+  };
+  static const _statusLabel = {
+    'geplant': 'Geplant',
+    'durchgefuehrt': 'Durchgeführt',
+    'versaeumt': 'Versäumt',
+    'abgesagt_kunde': 'Abgesagt (Kunde)',
+    'abgesagt_aa':    'Abgesagt (AA)',
+    'verschoben': 'Verschoben',
+  };
+  static const _statusColor = {
+    'geplant': Colors.amber,
+    'durchgefuehrt': Colors.green,
+    'versaeumt': Colors.red,
+    'abgesagt_kunde': Colors.grey,
+    'abgesagt_aa': Colors.grey,
+    'verschoben': Colors.orange,
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final res = await widget.apiService.arbeitsagenturAvAction({
+      'action': 'list_av_termine', 'user_av_id': widget.userAv['id'],
+    });
+    if (!mounted) return;
+    setState(() {
+      _list = List<Map<String, dynamic>>.from(res['termine'] ?? []);
+      _loading = false;
+    });
+  }
+
+  Future<void> _openEdit({Map<String, dynamic>? existing}) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _AaAvTerminEditDialog(
+        apiService: widget.apiService,
+        userId: (widget.userAv['user_id'] as num).toInt(),
+        userAvId: (widget.userAv['id'] as num).toInt(),
+        existing: existing,
+      ),
+    );
+    if (changed == true) {
+      widget.onChanged();
+      _load();
+    }
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Termin löschen?'),
+      content: const Text('Der Eintrag wird unwiderruflich entfernt.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.arbeitsagenturAvAction({'action': 'delete_av_termin', 'termin_id': id});
+    if (res['success'] == true) { widget.onChanged(); _load(); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        color: Colors.blue.shade50,
+        child: Row(children: [
+          Expanded(child: Text('${_list.length} Termin(e)', style: TextStyle(fontSize: 12, color: Colors.blue.shade700))),
+          ElevatedButton.icon(
+            onPressed: () => _openEdit(),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neuer Termin', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+          ),
+        ]),
+      ),
+      Expanded(child: _list.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.event_busy, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            Text('Noch keine Termine mit diesem Vermittler', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          ]))
+        : ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: _list.length,
+            itemBuilder: (_, i) {
+              final t = _list[i];
+              final status = (t['status'] ?? 'geplant').toString();
+              final col = _statusColor[status] ?? Colors.grey;
+              final dt = DateTime.tryParse(t['termin_datum']?.toString() ?? '');
+              final dtStr = dt != null ? '${dt.day.toString().padLeft(2,'0')}.${dt.month.toString().padLeft(2,'0')}.${dt.year} ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}' : '?';
+              return Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                elevation: 1,
+                child: InkWell(
+                  onTap: () => _openEdit(existing: t),
+                  child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.event, size: 14, color: col.shade700), const SizedBox(width: 6),
+                      Expanded(child: Text(dtStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: col.shade600, borderRadius: BorderRadius.circular(8)),
+                        child: Text(_statusLabel[status] ?? status, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                      ),
+                      IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete((t['id'] as num).toInt())),
+                    ]),
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3)),
+                        child: Text(_typLabel[(t['termin_typ'] ?? 'sonstige').toString()] ?? (t['termin_typ'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.indigo.shade800))),
+                      const SizedBox(width: 6),
+                      Text((t['modus'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    ]),
+                    if ((t['thema'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text((t['thema']).toString(), style: const TextStyle(fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                    if ((t['ergebnis'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('→ ${t['ergebnis']}', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.green.shade800), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  ])),
+                ),
+              );
+            },
+          )),
+    ]);
+  }
+}
+
+class _AaAvTerminEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final Map<String, dynamic>? existing;
+  const _AaAvTerminEditDialog({required this.apiService, required this.userId, required this.userAvId, this.existing});
+  @override
+  State<_AaAvTerminEditDialog> createState() => _AaAvTerminEditDialogState();
+}
+
+class _AaAvTerminEditDialogState extends State<_AaAvTerminEditDialog> {
+  late TextEditingController _datumC, _zeitC, _ortC, _themaC, _verlaufC, _ergebnisC, _notizC;
+  String _typ = 'folgegespraech', _initiator = 'arbeitsagentur', _modus = 'persoenlich', _status = 'geplant';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    final dt = e != null ? DateTime.tryParse(e['termin_datum']?.toString() ?? '') : null;
+    _datumC = TextEditingController(text: dt != null ? dt.toIso8601String().substring(0, 10) : '');
+    _zeitC  = TextEditingController(text: dt != null ? '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}' : '');
+    _ortC      = TextEditingController(text: e?['ort']?.toString() ?? '');
+    _themaC    = TextEditingController(text: e?['thema']?.toString() ?? '');
+    _verlaufC  = TextEditingController(text: e?['verlauf']?.toString() ?? '');
+    _ergebnisC = TextEditingController(text: e?['ergebnis']?.toString() ?? '');
+    _notizC    = TextEditingController(text: e?['notiz']?.toString() ?? '');
+    if (e != null) {
+      _typ       = e['termin_typ']?.toString() ?? 'folgegespraech';
+      _initiator = e['initiator']?.toString()  ?? 'arbeitsagentur';
+      _modus     = e['modus']?.toString()      ?? 'persoenlich';
+      _status    = e['status']?.toString()     ?? 'geplant';
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_datumC, _zeitC, _ortC, _themaC, _verlaufC, _ergebnisC, _notizC]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_datumC.text.isEmpty || _zeitC.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Datum + Uhrzeit erforderlich'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _saving = true);
+    final terminPayload = {
+      'user_av_id': widget.userAvId,
+      'termin_datum': '${_datumC.text} ${_zeitC.text}:00',
+      'termin_typ': _typ,
+      'initiator': _initiator,
+      'modus': _modus,
+      'ort': _ortC.text.trim(),
+      'status': _status,
+      'thema': _themaC.text.trim(),
+      'verlauf': _verlaufC.text.trim(),
+      'ergebnis': _ergebnisC.text.trim(),
+      'notiz': _notizC.text.trim(),
+    };
+    final res = widget.existing == null
+      ? await widget.apiService.arbeitsagenturAvAction({'action': 'create_av_termin', 'user_id': widget.userId, 'termin': terminPayload})
+      : await widget.apiService.arbeitsagenturAvAction({'action': 'update_av_termin', 'termin_id': widget.existing!['id'], 'termin': terminPayload});
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final init = DateTime.tryParse(_datumC.text) ?? DateTime.now();
+    final p = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2010), lastDate: DateTime(2050), locale: const Locale('de'));
+    if (p != null) setState(() => _datumC.text = p.toIso8601String().substring(0, 10));
+  }
+
+  Future<void> _pickTime() async {
+    final parts = _zeitC.text.split(':');
+    final init = parts.length == 2 ? TimeOfDay(hour: int.tryParse(parts[0]) ?? 9, minute: int.tryParse(parts[1]) ?? 0) : const TimeOfDay(hour: 9, minute: 0);
+    final p = await showTimePicker(context: context, initialTime: init);
+    if (p != null) setState(() => _zeitC.text = '${p.hour.toString().padLeft(2,'0')}:${p.minute.toString().padLeft(2,'0')}');
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existing == null ? 'Neuer Termin' : 'Termin bearbeiten'),
+    content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(child: TextField(controller: _datumC, readOnly: true, onTap: _pickDate, decoration: const InputDecoration(labelText: 'Datum', suffixIcon: Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _zeitC, readOnly: true, onTap: _pickTime, decoration: const InputDecoration(labelText: 'Uhrzeit', suffixIcon: Icon(Icons.access_time, size: 16), isDense: true, border: OutlineInputBorder()))),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: _typ,
+        decoration: const InputDecoration(labelText: 'Termin-Typ', isDense: true, border: OutlineInputBorder()),
+        items: const ['erstgespraech','folgegespraech','vermittlung','beratung','meldetermin','reha','sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: (v) => setState(() => _typ = v ?? 'folgegespraech'),
+      ),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: _initiator,
+          decoration: const InputDecoration(labelText: 'Initiator', isDense: true, border: OutlineInputBorder()),
+          items: const ['arbeitsagentur','kunde','verein','sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+          onChanged: (v) => setState(() => _initiator = v ?? 'arbeitsagentur'),
+        )),
+        const SizedBox(width: 8),
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: _modus,
+          decoration: const InputDecoration(labelText: 'Modus', isDense: true, border: OutlineInputBorder()),
+          items: const ['persoenlich','telefonisch','video','schriftlich'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+          onChanged: (v) => setState(() => _modus = v ?? 'persoenlich'),
+        )),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: _status,
+        decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
+        items: const ['geplant','durchgefuehrt','versaeumt','abgesagt_kunde','abgesagt_aa','verschoben'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: (v) => setState(() => _status = v ?? 'geplant'),
+      ),
+      const SizedBox(height: 10),
+      TextField(controller: _ortC, decoration: const InputDecoration(labelText: 'Ort', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _themaC, maxLines: 2, decoration: const InputDecoration(labelText: 'Thema', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _verlaufC, maxLines: 3, decoration: const InputDecoration(labelText: 'Verlauf', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _ergebnisC, maxLines: 2, decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+    ]))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+      ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+      ),
+    ],
+  );
+}
+
+// ─────────────── Eigenbemühungen sub-tab ───────────────
+
+class _AaAvEigenbemTab extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> userAv;
+  final VoidCallback onChanged;
+  const _AaAvEigenbemTab({required this.apiService, required this.userAv, required this.onChanged});
+  @override
+  State<_AaAvEigenbemTab> createState() => _AaAvEigenbemTabState();
+}
+
+class _AaAvEigenbemTabState extends State<_AaAvEigenbemTab> {
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+
+  static const _artLabel = {
+    'stellenangebot_ba': 'Stellenangebot BA',
+    'initiativbewerbung': 'Initiativbewerbung',
+    'online_portal': 'Online-Portal',
+    'zeitung': 'Zeitung',
+    'vermittlung': 'Vermittlung',
+    'sonstige': 'Sonstige',
+  };
+  static const _ergebnisColor = {
+    'offen': Colors.amber,
+    'laeuft': Colors.blue,
+    'absage': Colors.red,
+    'vorstellungsgespraech': Colors.purple,
+    'einstellung': Colors.green,
+    'keine_rueckmeldung': Colors.grey,
+  };
+  static const _ergebnisLabel = {
+    'offen': 'Offen',
+    'laeuft': 'Läuft',
+    'absage': 'Absage',
+    'vorstellungsgespraech': 'Vorstellungsgespräch',
+    'einstellung': 'Einstellung',
+    'keine_rueckmeldung': 'Keine Rückmeldung',
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final res = await widget.apiService.arbeitsagenturAvAction({
+      'action': 'list_av_eigenbem', 'user_av_id': widget.userAv['id'],
+    });
+    if (!mounted) return;
+    setState(() {
+      _list = List<Map<String, dynamic>>.from(res['eigenbem'] ?? []);
+      _loading = false;
+    });
+  }
+
+  Future<void> _openEdit({Map<String, dynamic>? existing}) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _AaAvEigenbemEditDialog(
+        apiService: widget.apiService,
+        userId: (widget.userAv['user_id'] as num).toInt(),
+        userAvId: (widget.userAv['id'] as num).toInt(),
+        existing: existing,
+      ),
+    );
+    if (changed == true) {
+      widget.onChanged();
+      _load();
+    }
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Eintrag löschen?'),
+      content: const Text('Der Eintrag wird unwiderruflich entfernt.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.arbeitsagenturAvAction({'action': 'delete_av_eigenbem', 'eigenbem_id': id});
+    if (res['success'] == true) { widget.onChanged(); _load(); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    // Group by month for visual sectioning.
+    final byMonat = <String, List<Map<String, dynamic>>>{};
+    for (final e in _list) {
+      final m = (e['monat'] ?? '').toString();
+      (byMonat[m] ??= []).add(e);
+    }
+    final monate = byMonat.keys.toList()..sort((a, b) => b.compareTo(a));
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        color: Colors.blue.shade50,
+        child: Row(children: [
+          Expanded(child: Text('${_list.length} Bewerbung(en) insgesamt', style: TextStyle(fontSize: 12, color: Colors.blue.shade700))),
+          ElevatedButton.icon(
+            onPressed: () => _openEdit(),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neue Bewerbung', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+          ),
+        ]),
+      ),
+      Expanded(child: _list.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.work_off, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            Text('Noch keine Eigenbemühungen erfasst', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          ]))
+        : ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: monate.length,
+            itemBuilder: (_, mi) {
+              final monat = monate[mi];
+              final entries = byMonat[monat]!;
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(padding: const EdgeInsets.fromLTRB(4, 8, 4, 4), child: Text('📅 $monat (${entries.length})',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade800))),
+                ...entries.map((e) {
+                  final erg = (e['ergebnis'] ?? 'offen').toString();
+                  final col = _ergebnisColor[erg] ?? Colors.grey;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    elevation: 1,
+                    child: InkWell(
+                      onTap: () => _openEdit(existing: e),
+                      child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Expanded(child: Text((e['arbeitgeber'] ?? '').toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: col.shade600, borderRadius: BorderRadius.circular(8)),
+                            child: Text(_ergebnisLabel[erg] ?? erg, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700))),
+                          IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete((e['id'] as num).toInt())),
+                        ]),
+                        if ((e['taetigkeit'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text((e['taetigkeit']).toString(), style: const TextStyle(fontSize: 11))),
+                        Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3)),
+                            child: Text(_artLabel[(e['art'] ?? 'sonstige').toString()] ?? (e['art'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.indigo.shade800))),
+                          const SizedBox(width: 6),
+                          if ((e['datum_bewerbung'] ?? '').toString().isNotEmpty) Text((e['datum_bewerbung']).toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        ])),
+                      ])),
+                    ),
+                  );
+                }),
+              ]);
+            },
+          )),
+    ]);
+  }
+}
+
+class _AaAvEigenbemEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final Map<String, dynamic>? existing;
+  const _AaAvEigenbemEditDialog({required this.apiService, required this.userId, required this.userAvId, this.existing});
+  @override
+  State<_AaAvEigenbemEditDialog> createState() => _AaAvEigenbemEditDialogState();
+}
+
+class _AaAvEigenbemEditDialogState extends State<_AaAvEigenbemEditDialog> {
+  late TextEditingController _monatC, _arbeitgeberC, _taetigkeitC, _adresseC, _datumBewC, _notizC;
+  String _art = 'sonstige', _ergebnis = 'offen';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    final now = DateTime.now();
+    _monatC = TextEditingController(text: e?['monat']?.toString() ?? '${now.year}-${now.month.toString().padLeft(2,'0')}');
+    _arbeitgeberC = TextEditingController(text: e?['arbeitgeber']?.toString() ?? '');
+    _taetigkeitC  = TextEditingController(text: e?['taetigkeit']?.toString() ?? '');
+    _adresseC     = TextEditingController(text: e?['adresse']?.toString() ?? '');
+    _datumBewC    = TextEditingController(text: e?['datum_bewerbung']?.toString() ?? '');
+    _notizC       = TextEditingController(text: e?['notiz']?.toString() ?? '');
+    if (e != null) {
+      _art      = e['art']?.toString()      ?? 'sonstige';
+      _ergebnis = e['ergebnis']?.toString() ?? 'offen';
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_monatC, _arbeitgeberC, _taetigkeitC, _adresseC, _datumBewC, _notizC]) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _pickMonth() async {
+    final now = DateTime.tryParse('${_monatC.text}-01') ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(2010), lastDate: DateTime(2050),
+      locale: const Locale('de'),
+      helpText: 'Monat wählen (Tag wird ignoriert)',
+    );
+    if (picked != null) setState(() => _monatC.text = '${picked.year}-${picked.month.toString().padLeft(2,'0')}');
+  }
+
+  Future<void> _pickBewDate() async {
+    final init = DateTime.tryParse(_datumBewC.text) ?? DateTime.now();
+    final p = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2010), lastDate: DateTime(2050), locale: const Locale('de'));
+    if (p != null) setState(() => _datumBewC.text = p.toIso8601String().substring(0, 10));
+  }
+
+  Future<void> _save() async {
+    if (_arbeitgeberC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Arbeitgeber erforderlich'), backgroundColor: Colors.red));
+      return;
+    }
+    if (!RegExp(r'^\d{4}-\d{2}$').hasMatch(_monatC.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Monat im Format YYYY-MM angeben'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _saving = true);
+    final payload = {
+      'user_av_id': widget.userAvId,
+      'monat': _monatC.text.trim(),
+      'arbeitgeber': _arbeitgeberC.text.trim(),
+      'taetigkeit': _taetigkeitC.text.trim(),
+      'adresse': _adresseC.text.trim(),
+      'datum_bewerbung': _datumBewC.text.trim().isEmpty ? null : _datumBewC.text.trim(),
+      'art': _art,
+      'ergebnis': _ergebnis,
+      'notiz': _notizC.text.trim(),
+    };
+    final res = widget.existing == null
+      ? await widget.apiService.arbeitsagenturAvAction({'action': 'create_av_eigenbem', 'user_id': widget.userId, 'eigenbem': payload})
+      : await widget.apiService.arbeitsagenturAvAction({'action': 'update_av_eigenbem', 'eigenbem_id': widget.existing!['id'], 'eigenbem': payload});
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existing == null ? 'Neue Eigenbemühung' : 'Eigenbemühung bearbeiten'),
+    content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(child: TextField(controller: _monatC, readOnly: true, onTap: _pickMonth, decoration: const InputDecoration(labelText: 'Monat (YYYY-MM)', suffixIcon: Icon(Icons.calendar_month, size: 16), isDense: true, border: OutlineInputBorder()))),
+        const SizedBox(width: 8),
+        Expanded(child: TextField(controller: _datumBewC, readOnly: true, onTap: _pickBewDate, decoration: const InputDecoration(labelText: 'Datum Bewerbung', suffixIcon: Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder()))),
+      ]),
+      const SizedBox(height: 10),
+      TextField(controller: _arbeitgeberC, decoration: const InputDecoration(labelText: 'Arbeitgeber *', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _taetigkeitC, maxLines: 2, decoration: const InputDecoration(labelText: 'Tätigkeit / Stelle', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      TextField(controller: _adresseC, maxLines: 2, decoration: const InputDecoration(labelText: 'Adresse', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: _art,
+        decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+        items: const ['stellenangebot_ba','initiativbewerbung','online_portal','zeitung','vermittlung','sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: (v) => setState(() => _art = v ?? 'sonstige'),
+      ),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: _ergebnis,
+        decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder()),
+        items: const ['offen','laeuft','absage','vorstellungsgespraech','einstellung','keine_rueckmeldung'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: (v) => setState(() => _ergebnis = v ?? 'offen'),
+      ),
+      const SizedBox(height: 10),
+      TextField(controller: _notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+    ]))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+      ElevatedButton.icon(
+        onPressed: _saving ? null : _save,
+        icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+        label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+      ),
+    ],
+  );
 }
