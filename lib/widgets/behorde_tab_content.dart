@@ -1933,7 +1933,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     );
     final wegLabel = weg == 'vor_ort' ? 'Vor Ort' : weg == 'online' ? 'Online' : weg == 'post' ? 'Per Post' : weg == 'telefonisch' ? 'Telefonisch' : weg;
 
-    showDialog(context: context, builder: (dlgCtx) => DefaultTabController(length: 3, child: AlertDialog(
+    final isRente = behoerdeType == 'rentenversicherung';
+    showDialog(context: context, builder: (dlgCtx) => DefaultTabController(length: isRente ? 4 : 3, child: AlertDialog(
       titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
       contentPadding: EdgeInsets.zero,
       title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1957,10 +1958,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx)),
         ]),
         const SizedBox(height: 4),
-        TabBar(labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700, tabs: const [
-          Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
-          Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Dokumente'),
-          Tab(icon: Icon(Icons.history, size: 16), text: 'Verlauf'),
+        TabBar(labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700, tabs: [
+          const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+          const Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Dokumente'),
+          if (isRente) const Tab(icon: Icon(Icons.assignment_turned_in, size: 16), text: 'Bescheide'),
+          const Tab(icon: Icon(Icons.history, size: 16), text: 'Verlauf'),
         ]),
       ]),
       content: SizedBox(width: 550, height: 400, child: TabBarView(children: [
@@ -1987,7 +1989,15 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           _buildAntragDokumente(antragId: antrag['id']?.toString() ?? '', behoerdeType: behoerdeType),
         ])),
 
-        // ═══ TAB 3: Verlauf ═══
+        // ═══ TAB 3: Bescheide (only for Rente) ═══
+        if (isRente) _AntragBescheideTab(
+          apiService: widget.apiService,
+          userId: widget.user.id,
+          antragId: antrag['id']?.toString() ?? '',
+          behoerdeType: behoerdeType,
+        ),
+
+        // ═══ TAB 4: Verlauf ═══
         StatefulBuilder(builder: (vCtx, setVerlauf) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.history, size: 16, color: Colors.blue.shade700), const SizedBox(width: 6),
@@ -5409,5 +5419,279 @@ class _AntragUploadProgressDialogState extends State<_AntragUploadProgressDialog
         ),
       ),
     );
+  }
+}
+
+// ─── Bescheide tab (Rente only) ───────────────────────────────
+//
+// Per fiecare an (descending de la anul curent până la 2020) afișează un
+// rând cu Bescheidul anual. Maximum 1 Bescheid per (antrag_id, jahr) —
+// unique constraint în DB. Pentru ani în afara range-ului (sub 2020 sau
+// peste anul curent) avem buton "+ Anderes Jahr".
+class _AntragBescheideTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String antragId;
+  final String behoerdeType;
+  const _AntragBescheideTab({
+    required this.apiService,
+    required this.userId,
+    required this.antragId,
+    required this.behoerdeType,
+  });
+  @override
+  State<_AntragBescheideTab> createState() => _AntragBescheideTabState();
+}
+
+class _AntragBescheideTabState extends State<_AntragBescheideTab> {
+  Map<int, Map<String, dynamic>> _byJahr = {};
+  bool _loading = true;
+  String? _error;
+  bool _busyJahr = false;
+  int? _activeJahr;
+  int _minJahr = 2020;
+  late int _maxJahr;
+
+  @override
+  void initState() {
+    super.initState();
+    _maxJahr = DateTime.now().year;
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (widget.antragId.isEmpty) {
+      setState(() { _loading = false; _error = 'Antrag noch nicht gespeichert'; });
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      final r = await widget.apiService.listRenteBescheide(antragId: widget.antragId);
+      if (!mounted) return;
+      if (r['success'] == true) {
+        final items = List<Map<String, dynamic>>.from(r['items'] ?? const []);
+        final map = <int, Map<String, dynamic>>{};
+        int extremes = _maxJahr;
+        for (final it in items) {
+          final j = (it['jahr'] is int) ? it['jahr'] as int : int.tryParse('${it['jahr']}') ?? 0;
+          if (j > 0) {
+            map[j] = it;
+            if (j > extremes) extremes = j;
+            if (j < _minJahr) _minJahr = j;
+          }
+        }
+        setState(() { _byJahr = map; _maxJahr = extremes; _loading = false; });
+      } else {
+        setState(() { _error = r['message']?.toString() ?? 'Laden fehlgeschlagen'; _loading = false; });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _upload(int jahr) async {
+    final pick = await FilePicker.platform.pickFiles(allowMultiple: false);
+    if (pick == null || pick.files.isEmpty || pick.files.first.path == null) return;
+    final f = pick.files.first;
+    setState(() { _busyJahr = true; _activeJahr = jahr; });
+    try {
+      final r = await widget.apiService.uploadRenteBescheid(
+        antragId: widget.antragId,
+        behoerdeType: widget.behoerdeType,
+        userId: widget.userId,
+        jahr: jahr,
+        filePath: f.path!,
+        fileName: f.name,
+      );
+      if (!mounted) return;
+      if (r['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Bescheid $jahr hochgeladen'), backgroundColor: Colors.green));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(r['message']?.toString() ?? 'Upload fehlgeschlagen'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() { _busyJahr = false; _activeJahr = null; });
+      _load();
+    }
+  }
+
+  Future<void> _delete(int id, int jahr) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: Text('Bescheid $jahr löschen?'),
+      content: const Text('Diese Aktion ist endgültig.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    final r = await widget.apiService.deleteRenteBescheid(id: id);
+    if (r['success'] == true && mounted) _load();
+  }
+
+  Future<void> _open(Map<String, dynamic> d) async {
+    try {
+      final resp = await widget.apiService.downloadRenteBescheid(d['id'] as int);
+      if (resp.statusCode != 200 || !mounted) return;
+      final dir = await getTemporaryDirectory();
+      final raw = (d['filename']?.toString() ?? 'bescheid_${d['jahr']}_${d['id']}');
+      final safeName = raw.replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
+      final file = io.File('${dir.path}/$safeName');
+      await file.writeAsBytes(resp.bodyBytes);
+      if (mounted) await FileViewerDialog.show(context, file.path, safeName);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _pickOtherYear() async {
+    int picked = _maxJahr + 1;
+    final res = await showDialog<int>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) => AlertDialog(
+      title: const Text('Anderes Jahr'),
+      content: SizedBox(width: 300, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('Jahr für neuen Bescheid wählen:'),
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(icon: const Icon(Icons.remove), onPressed: () { if (picked > 2000) setLocal(() => picked--); }),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(6)),
+            child: Text('$picked', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+          IconButton(icon: const Icon(Icons.add), onPressed: () { if (picked < 2099) setLocal(() => picked++); }),
+        ]),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, picked), child: const Text('Hochladen')),
+      ],
+    )));
+    if (res != null) await _upload(res);
+  }
+
+  String _fmtSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / 1024 / 1024).toStringAsFixed(2)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(child: Padding(padding: const EdgeInsets.all(16),
+        child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))));
+    }
+    final years = <int>[];
+    for (int y = _maxJahr; y >= _minJahr; y--) { years.add(y); }
+    final uploadedTotal = _byJahr.length;
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+        child: Row(children: [
+          Icon(Icons.assignment_turned_in, size: 16, color: Colors.purple.shade700),
+          const SizedBox(width: 6),
+          Text('Renten-Bescheide', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text('$uploadedTotal', style: TextStyle(fontSize: 10, color: Colors.purple.shade800, fontWeight: FontWeight.bold)),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            icon: const Icon(Icons.add, size: 14),
+            label: const Text('Anderes Jahr', style: TextStyle(fontSize: 11)),
+            onPressed: _busyJahr ? null : _pickOtherYear,
+          ),
+        ]),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        color: Colors.purple.shade50,
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 12, color: Colors.purple.shade800),
+          const SizedBox(width: 4),
+          Expanded(child: Text(
+            'Jährlicher Bescheid (Rentenanpassungsmitteilung). Max. 1 pro Jahr.',
+            style: TextStyle(fontSize: 10, color: Colors.purple.shade900),
+          )),
+        ]),
+      ),
+      Expanded(child: ListView.separated(
+        padding: const EdgeInsets.all(8),
+        itemCount: years.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 4),
+        itemBuilder: (_, i) {
+          final jahr = years[i];
+          final d = _byJahr[jahr];
+          final isBusy = _busyJahr && _activeJahr == jahr;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: d != null ? Colors.green.shade50 : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: d != null ? Colors.green.shade200 : Colors.grey.shade300),
+            ),
+            child: Row(children: [
+              Container(
+                width: 56,
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  color: d != null ? Colors.green.shade100 : Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: d != null ? Colors.green.shade300 : Colors.grey.shade300),
+                ),
+                child: Text('$jahr', textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
+                      color: d != null ? Colors.green.shade800 : Colors.grey.shade700)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: d != null
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(d['filename']?.toString() ?? '—',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('${_fmtSize(d['size_bytes'] as int? ?? 0)} · ${d['uploaded_at']?.toString().substring(0, 10) ?? ''}',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                  ])
+                : Text('Kein Bescheid hochgeladen',
+                    style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600))),
+              const SizedBox(width: 6),
+              if (d != null) ...[
+                IconButton(
+                  icon: const Icon(Icons.visibility, size: 18),
+                  tooltip: 'Anzeigen',
+                  onPressed: () => _open(d),
+                  visualDensity: VisualDensity.compact,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  tooltip: 'Löschen',
+                  onPressed: () => _delete(d['id'] as int, jahr),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ] else
+                ElevatedButton.icon(
+                  onPressed: isBusy ? null : () => _upload(jahr),
+                  icon: isBusy
+                      ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.upload_file, size: 14),
+                  label: Text(isBusy ? '…' : 'Hochladen', style: const TextStyle(fontSize: 11)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: Size.zero,
+                  ),
+                ),
+            ]),
+          );
+        },
+      )),
+    ]);
   }
 }

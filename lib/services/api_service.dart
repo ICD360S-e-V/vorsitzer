@@ -3313,6 +3313,49 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ─── Rente Bescheide (annual pension notification per antrag) ──
+  Future<Map<String, dynamic>> listRenteBescheide({required String antragId}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/rente_bescheide_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'list', 'antrag_id': antragId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteRenteBescheid({required int id}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/rente_bescheide_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadRenteBescheid({
+    required String antragId, required String behoerdeType,
+    required int userId, required int jahr,
+    required String filePath, required String fileName,
+    String? notiz,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/rente_bescheide_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['antrag_id']     = antragId;
+    request.fields['behoerde_type'] = behoerdeType;
+    request.fields['user_id']       = userId.toString();
+    request.fields['jahr']          = jahr.toString();
+    if (notiz != null && notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<http.Response> downloadRenteBescheid(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/rente_bescheide_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_download.php?id=$docId'),
