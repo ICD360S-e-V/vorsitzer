@@ -1902,10 +1902,14 @@ class _InkassoTabState extends State<_InkassoTab> {
   Future<void> _load() async {
     final res = await widget.apiService.getVertragInkasso(widget.vertragId);
     if (!mounted) return;
-    final data = res['data'] as Map<String, dynamic>? ?? res;
-    final exists = data['exists'] == true;
+    // Server returns the JSON flat: {success, exists, data: {…}, message}.
+    // The previous code unwrapped res['data'] first, then checked
+    // data['exists'] — which always missed because 'exists' lives on the
+    // root. Result: _inkassoRow stayed null, the sub-tabs initialised
+    // empty controllers, and the operator saw "nothing was saved" even
+    // though the server had persisted the row.
     setState(() {
-      _inkassoRow = exists ? (data['data'] as Map<String, dynamic>?) : null;
+      _inkassoRow = (res['exists'] == true) ? (res['data'] as Map<String, dynamic>?) : null;
       _loaded = true;
     });
   }
