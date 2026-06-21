@@ -3242,6 +3242,30 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ─── Zahnarzt Härtefall dossier + korr (column-level encrypted) ─
+  // Replaces the old JSON-blob storage in user_behoerde_data.
+  // Each text field is encrypted on its own column server-side; the
+  // client just shuffles maps.
+  Future<Map<String, dynamic>> _hfPost(Map<String, dynamic> body) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/zahnarzt_haertefall_manage.php'),
+      headers: _headers, body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<Map<String, dynamic>> listHaertefallDossier(int userId) =>
+      _hfPost({'action': 'list_dossier', 'user_id': userId});
+  Future<Map<String, dynamic>> saveHaertefallDossier(int userId, Map<String, dynamic> dossier) =>
+      _hfPost({'action': 'save_dossier', 'user_id': userId, 'dossier': dossier});
+  Future<Map<String, dynamic>> deleteHaertefallDossier(int id) =>
+      _hfPost({'action': 'delete_dossier', 'id': id});
+  Future<Map<String, dynamic>> listHaertefallKorr(int dossierId) =>
+      _hfPost({'action': 'list_korr', 'dossier_id': dossierId});
+  Future<Map<String, dynamic>> saveHaertefallKorr(int dossierId, Map<String, dynamic> korr) =>
+      _hfPost({'action': 'save_korr', 'dossier_id': dossierId, 'korr': {...korr, 'dossier_id': dossierId}});
+  Future<Map<String, dynamic>> deleteHaertefallKorr(int id) =>
+      _hfPost({'action': 'delete_korr', 'id': id});
+
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_download.php?id=$docId'),

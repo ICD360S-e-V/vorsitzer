@@ -12964,6 +12964,35 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   }
 
   // ===== HÄRTEFALL (Zahnersatz) =====
+  // Fetches the Härtefall dossiers from the server-side endpoint and
+  // mirrors them into data['haertefall'] so the existing UI code (which
+  // reads the list via setLocal callbacks) doesn't need to be rewritten.
+  Future<void> _reloadHaertefallList(Map<String, dynamic> data) async {
+    final res = await widget.apiService.listHaertefallDossier(widget.user.id);
+    if (res['success'] == true && res['dossiers'] is List) {
+      data['haertefall'] = (res['dossiers'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } else {
+      data['haertefall'] = <Map<String, dynamic>>[];
+    }
+  }
+
+  // Accepts both 'dd.MM.yyyy' (UI date picker output) and 'yyyy-MM-dd'
+  // (ISO). Returns ISO or empty string for the API.
+  String _hfIsoDate(String s) {
+    if (s.isEmpty) return '';
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}').hasMatch(s)) return s.substring(0, 10);
+    final m = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(s);
+    if (m != null) {
+      final d = m.group(1)!.padLeft(2, '0');
+      final mo = m.group(2)!.padLeft(2, '0');
+      final y = m.group(3)!;
+      return '$y-$mo-$d';
+    }
+    return s;
+  }
+
   Widget _buildHartefallTab(String type, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
 
     const statusList = ['Offen', 'Eingereicht', 'Bewilligt', 'Gleitend bewilligt', 'Abgelehnt'];
@@ -13073,15 +13102,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           ]))),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-            FilledButton(onPressed: () {
-              // Start from the existing entry (when editing) so we
-              // preserve sibling fields like 'korrespondenz' that this
-              // dialog doesn't know about. Without this merge, every
-              // edit-save wiped the korrespondenz array.
-              final entry = <String, dynamic>{
-                if (existing != null) ...existing,
+            FilledButton(onPressed: () async {
+              // Persist through the dedicated endpoint (column-level
+              // encrypted) instead of the old JSON-blob path. The id +
+              // uuid come back from the server.
+              final dossier = <String, dynamic>{
+                if (existing?['id'] != null) 'id': existing!['id'],
+                if (existing?['uuid'] != null) 'uuid': existing!['uuid'],
                 'art': art,
-                'datum': datumC.text.trim(),
+                'datum': _hfIsoDate(datumC.text.trim()),
                 'zahnarzt': zahnarztC.text.trim(),
                 'hkp_nr': hkpNrC.text.trim(),
                 'krankenkasse': krankenkasseC.text.trim(),
@@ -13094,10 +13123,14 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 'notiz': notizC.text.trim(),
                 'erstellt_am': existing?['erstellt_am'] ?? DateTime.now().toIso8601String(),
               };
-              final list = data['haertefall'] is List ? List<dynamic>.from(data['haertefall'] as List) : <dynamic>[];
-              if (editIndex != null && editIndex < list.length) { list[editIndex] = entry; } else { list.insert(0, entry); }
-              data['haertefall'] = list;
-              saveAll();
+              final res = await widget.apiService.saveHaertefallDossier(widget.user.id, dossier);
+              if (!mounted) return;
+              if (res['success'] != true) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler beim Speichern'), backgroundColor: Colors.red));
+                return;
+              }
+              await _reloadHaertefallList(data);
+              if (!mounted) return;
               Navigator.pop(ctx);
               setLocalState(() {});
             }, child: Text(existing != null ? 'Speichern' : 'Hinzufügen')),
@@ -13110,6 +13143,16 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     final artIcons = {'zahnersatz': Icons.mood, 'zahnkrone': Icons.circle, 'bruecke': Icons.compare_arrows, 'prothese': Icons.settings_accessibility, 'implantat': Icons.hardware};
 
     return StatefulBuilder(builder: (ctx, setLocal) {
+      // First time this tab is built for the current data map, fetch
+      // dossiers from the dedicated endpoint and cache them locally
+      // under data['haertefall']. The endpoint storage replaces the
+      // old JSON-blob; no more saveAll() for haertefall.
+      if (data['_haertefall_loaded'] != true) {
+        data['_haertefall_loaded'] = true;
+        _reloadHaertefallList(data).then((_) {
+          if (mounted) setLocal(() {});
+        });
+      }
       final current = data['haertefall'] is List
           ? List<Map<String, dynamic>>.from((data['haertefall'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
           : <Map<String, dynamic>>[];
@@ -13181,8 +13224,23 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
                     child: Text(st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
                   const SizedBox(width: 4),
-                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () {
-                    final list = List<dynamic>.from(data['haertefall'] as List)..removeAt(i); data['haertefall'] = list; saveAll(); setLocal(() {});
+                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
+                    final id = a['id'];
+                    if (id is! int) return;
+                    final ok = await showDialog<bool>(context: context, builder: (dctx) => AlertDialog(
+                      title: const Text('Härtefall löschen?'),
+                      content: const Text('Dossier und alle Korrespondenz-Einträge werden unwiderruflich entfernt.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Abbrechen')),
+                        TextButton(onPressed: () => Navigator.pop(dctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+                      ],
+                    ));
+                    if (ok != true) return;
+                    final res = await widget.apiService.deleteHaertefallDossier(id);
+                    if (res['success'] == true) {
+                      await _reloadHaertefallList(data);
+                      if (mounted) setLocal(() {});
+                    }
                   }),
                 ])),
               ));
@@ -13197,18 +13255,33 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   static const _hfKorrMitIcons = {'krankenkasse': Icons.health_and_safety, 'praxis': Icons.medical_services};
 
   void _showHartefallDetailModal(Map<String, dynamic> a, int i, MaterialColor color, String artKey, Map<String, String> artLabels, String st, String type, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocal, void Function({Map<String, dynamic>? existing, int? editIndex}) addOrEdit) {
-    // Make sure this dossier has a stable UUID so attached docs (Antrag,
-    // Bewilligung) can be linked to it. Older records created before this
-    // change won't have one — we backfill at first open and persist.
-    if ((a['uuid'] ?? '').toString().isEmpty) {
-      a['uuid'] = '${DateTime.now().millisecondsSinceEpoch}_${a['erstellt_am'] ?? ''}_${(1000 + (a.hashCode % 9000)).toString()}';
-      final outer = List<dynamic>.from(data['haertefall'] as List);
-      outer[i] = a;
-      data['haertefall'] = outer;
-      saveAll();
+    // Server-side row already guarantees an UUID (assigned at INSERT),
+    // so a['uuid'] is always populated for dossiers loaded from the
+    // endpoint. If by chance it's missing (e.g. stale local cache from
+    // the legacy JSON-blob path), bail with a message.
+    final dossierUuid = (a['uuid'] ?? '').toString();
+    final dossierDbId = a['id'] is int ? a['id'] as int : int.tryParse('${a['id']}') ?? 0;
+    if (dossierUuid.isEmpty || dossierDbId == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Dossier ist noch nicht persistiert — bitte Seite neu laden.'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
     }
-    final dossierUuid = a['uuid'].toString();
     showDialog(context: context, builder: (detCtx) => StatefulBuilder(builder: (detCtx2, setModal) {
+      // Lazy-load korr from the new endpoint on first build of the modal
+      // (cached on the dossier map as a normal list). Subsequent rebuilds
+      // (after add/edit/delete) reuse the cache and only reload after
+      // changes.
+      if (a['_korr_loaded'] != true) {
+        a['_korr_loaded'] = true;
+        widget.apiService.listHaertefallKorr(dossierDbId).then((res) {
+          if (res['success'] == true && res['items'] is List) {
+            a['korrespondenz'] = (res['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            if (mounted) setModal(() {});
+          }
+        });
+      }
       final korr = a['korrespondenz'] is List
           ? List<Map<String, dynamic>>.from((a['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
           : <Map<String, dynamic>>[];
@@ -13359,15 +13432,21 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  onPressed: () {
-                    final list = List<Map<String, dynamic>>.from(korr)..removeAt(ki);
-                    a['korrespondenz'] = list;
-                    final outer = List<dynamic>.from(data['haertefall'] as List);
-                    outer[i] = a;
-                    data['haertefall'] = outer;
-                    saveAll();
-                    setModal(() {});
-                    setLocal(() {});
+                  onPressed: () async {
+                    final id = k['id'];
+                    if (id is int) {
+                      final res = await widget.apiService.deleteHaertefallKorr(id);
+                      if (res['success'] != true) return;
+                    }
+                    // Refresh from server so cache stays consistent.
+                    final dossierId = a['id'] is int ? a['id'] as int : 0;
+                    if (dossierId > 0) {
+                      final r2 = await widget.apiService.listHaertefallKorr(dossierId);
+                      if (r2['success'] == true && r2['items'] is List) {
+                        a['korrespondenz'] = (r2['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+                      }
+                    }
+                    if (mounted) { setModal(() {}); setLocal(() {}); }
                   },
                 ),
                 onTap: () => _showHartefallKorrDetail(k, type),
@@ -13429,26 +13508,33 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () {
+        FilledButton(onPressed: () async {
+          final dossierId = a['id'] is int ? a['id'] as int : 0;
+          if (dossierId == 0) {
+            ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Dossier nicht persistiert'), backgroundColor: Colors.red));
+            return;
+          }
           final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
-          final newKorr = {
-            'id': DateTime.now().millisecondsSinceEpoch,
+          final res = await widget.apiService.saveHaertefallKorr(dossierId, {
             'betreff': betreffC.text.trim(),
-            'notiz': notizC.text.trim(),
-            'datum': today,
-            'richtung': richtung,
-            'mit': mit,
+            'notiz':   notizC.text.trim(),
+            'text':    notizC.text.trim(),       // server also has a 'text' col
+            'datum':   today,
+            'richtung': richtung == 'ausgehend' ? 'ausgang' : 'eingang',
+            'mit':     mit,
             'kategorie': kategorie,
-          };
-          final existing = a['korrespondenz'] is List
-              ? List<Map<String, dynamic>>.from((a['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
-              : <Map<String, dynamic>>[];
-          existing.insert(0, newKorr);
-          a['korrespondenz'] = existing;
-          final outer = List<dynamic>.from(data['haertefall'] as List);
-          outer[i] = a;
-          data['haertefall'] = outer;
-          saveAll();
+          });
+          if (!mounted) return;
+          if (res['success'] != true) {
+            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+            return;
+          }
+          // Reload korr list from server so we get the real id.
+          final r2 = await widget.apiService.listHaertefallKorr(dossierId);
+          if (r2['success'] == true && r2['items'] is List) {
+            a['korrespondenz'] = (r2['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          }
+          if (!mounted) return;
           Navigator.pop(ctx);
           setModal(() {});
           setLocal(() {});
