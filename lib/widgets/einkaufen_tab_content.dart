@@ -300,7 +300,9 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
   String? _uuid;
   bool _saving = false;
   bool _dirty = false;
+  bool _editMode = true;
   int _docCount = 0;
+  Map<String, dynamic> _snapshot = const {};
 
   @override
   void initState() {
@@ -318,10 +320,46 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
     _datum       = _parseDate(e['datum']?.toString());
     _garantieBis = _parseDate(e['garantie_bis']?.toString());
     _docCount    = (e['doc_count'] is int) ? e['doc_count'] as int : 0;
+    // Existing entries open in view mode; new entries start in edit mode.
+    _editMode = widget.einkauf == null;
     for (final c in [_haendler, _betrag, _waehrung, _beschreibung, _seriennummer, _notiz]) {
-      c.addListener(() { if (!_dirty) setState(() => _dirty = true); });
+      c.addListener(() { if (_editMode && !_dirty) setState(() => _dirty = true); });
     }
     _tabCtl = TabController(length: 2, vsync: this);
+  }
+
+  void _snapshotForm() {
+    _snapshot = {
+      'haendler'    : _haendler.text,
+      'betrag'      : _betrag.text,
+      'waehrung'    : _waehrung.text,
+      'beschreibung': _beschreibung.text,
+      'seriennummer': _seriennummer.text,
+      'notiz'       : _notiz.text,
+      'kategorie'   : _kategorie,
+      'datum'       : _datum,
+      'garantieBis' : _garantieBis,
+    };
+  }
+  void _restoreFromSnapshot() {
+    if (_snapshot.isEmpty) return;
+    _haendler.text     = _snapshot['haendler']     as String;
+    _betrag.text       = _snapshot['betrag']       as String;
+    _waehrung.text     = _snapshot['waehrung']     as String;
+    _beschreibung.text = _snapshot['beschreibung'] as String;
+    _seriennummer.text = _snapshot['seriennummer'] as String;
+    _notiz.text        = _snapshot['notiz']        as String;
+    _kategorie   = _snapshot['kategorie']   as String;
+    _datum       = _snapshot['datum']       as DateTime?;
+    _garantieBis = _snapshot['garantieBis'] as DateTime?;
+  }
+  void _enterEdit() {
+    _snapshotForm();
+    setState(() { _editMode = true; _dirty = false; });
+  }
+  void _cancelEdit() {
+    _restoreFromSnapshot();
+    setState(() { _editMode = false; _dirty = false; });
   }
 
   @override
@@ -364,8 +402,9 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
       if (closeAfter) {
         Navigator.pop(context, true);
       } else {
-        setState(() {});
-        // Switch to Belege tab so user can immediately attach files
+        // Switch out of edit mode (back to view) so user sees the saved state,
+        // and jump to Belege tab so they can attach files immediately.
+        setState(() { _editMode = false; });
         _tabCtl.animateTo(1);
       }
     } else {
@@ -430,9 +469,20 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
                 child: Row(children: [
                   Icon(Icons.shopping_bag, color: Colors.indigo.shade700),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(isNew ? 'Neuer Einkauf' : 'Einkauf bearbeiten',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade900))),
-                  if (_id != null)
+                  Expanded(child: Text(
+                    isNew
+                      ? 'Neuer Einkauf'
+                      : (_editMode ? 'Einkauf bearbeiten' : 'Einkauf-Details'),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+                  )),
+                  if (_id != null && !_editMode)
+                    IconButton(
+                      onPressed: _enterEdit,
+                      icon: const Icon(Icons.edit),
+                      color: Colors.indigo.shade700,
+                      tooltip: 'Bearbeiten',
+                    ),
+                  if (_id != null && _editMode)
                     IconButton(onPressed: _delete, icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Löschen'),
                   IconButton(onPressed: () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, icon: const Icon(Icons.close)),
                 ]),
@@ -460,22 +510,27 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
                     Expanded(child: Text('UUID: ${_uuid!}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis))
                   else
                     const Spacer(),
-                  TextButton(onPressed: _saving ? null : () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, child: const Text('Schließen')),
-                  const SizedBox(width: 6),
-                  OutlinedButton.icon(
-                    onPressed: _saving ? null : () => _save(closeAfter: false),
-                    icon: const Icon(Icons.attach_file, size: 16),
-                    label: const Text('Speichern + Belege'),
-                  ),
-                  const SizedBox(width: 6),
-                  ElevatedButton.icon(
-                    onPressed: _saving ? null : () => _save(closeAfter: true),
-                    icon: _saving
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.save, size: 16),
-                    label: Text(_saving ? 'Speichert…' : 'Speichern'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white),
-                  ),
+                  if (_editMode && !isNew)
+                    TextButton(onPressed: _saving ? null : _cancelEdit, child: const Text('Abbrechen'))
+                  else
+                    TextButton(onPressed: _saving ? null : () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, child: const Text('Schließen')),
+                  if (_editMode) ...[
+                    const SizedBox(width: 6),
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : () => _save(closeAfter: false),
+                      icon: const Icon(Icons.attach_file, size: 16),
+                      label: const Text('Speichern + Belege'),
+                    ),
+                    const SizedBox(width: 6),
+                    ElevatedButton.icon(
+                      onPressed: _saving ? null : () => _save(closeAfter: true),
+                      icon: _saving
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.save, size: 16),
+                      label: Text(_saving ? 'Speichert…' : 'Speichern'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white),
+                    ),
+                  ],
                 ]),
               ),
             ]),
@@ -485,6 +540,16 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
   }
 
   Widget _buildDetails() {
+    final ro = !_editMode;
+    final fillColor = ro ? Colors.grey.shade50 : null;
+    InputDecoration deco(String label, {IconData? icon, String? hint, bool alignTop = false}) => InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: icon != null ? Icon(icon) : null,
+      border: const OutlineInputBorder(),
+      filled: ro, fillColor: fillColor,
+      alignLabelWithHint: alignTop,
+    );
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -494,71 +559,70 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
             label: 'Datum',
             icon: Icons.calendar_today,
             value: _datum,
+            enabled: !ro,
             onPick: (d) => setState(() { _datum = d; _dirty = true; }),
           )),
           const SizedBox(width: 10),
           Expanded(child: DropdownButtonFormField<String>(
             initialValue: _kategorie,
-            decoration: const InputDecoration(labelText: 'Kategorie', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
+            decoration: deco('Kategorie', icon: Icons.category),
             items: widget.kategorien.entries.map((e) => DropdownMenuItem(
               value: e.key,
               child: Row(children: [Icon(e.value.$2, size: 16, color: e.value.$3.shade600), const SizedBox(width: 6), Text(e.value.$1)]),
             )).toList(),
-            onChanged: (v) { if (v != null) setState(() { _kategorie = v; _dirty = true; }); },
+            onChanged: ro ? null : (v) { if (v != null) setState(() { _kategorie = v; _dirty = true; }); },
           )),
         ]),
         const SizedBox(height: 12),
         TextField(
           controller: _haendler,
-          decoration: const InputDecoration(labelText: 'Händler / Geschäft', border: OutlineInputBorder(), prefixIcon: Icon(Icons.storefront)),
+          readOnly: ro,
+          decoration: deco('Händler / Geschäft', icon: Icons.storefront),
         ),
         const SizedBox(height: 12),
         // Betrag + Währung
         Row(children: [
           Expanded(flex: 3, child: TextField(
             controller: _betrag,
+            readOnly: ro,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Gesamtbetrag', border: OutlineInputBorder(), prefixIcon: Icon(Icons.euro)),
+            decoration: deco('Gesamtbetrag', icon: Icons.euro),
           )),
           const SizedBox(width: 10),
           Expanded(flex: 1, child: TextField(
             controller: _waehrung,
-            decoration: const InputDecoration(labelText: 'Währung', border: OutlineInputBorder()),
+            readOnly: ro,
+            decoration: deco('Währung'),
             textCapitalization: TextCapitalization.characters,
           )),
         ]),
         const SizedBox(height: 12),
         TextField(
           controller: _beschreibung,
+          readOnly: ro,
           minLines: 3, maxLines: 8,
-          decoration: const InputDecoration(
-            labelText: 'Beschreibung / Produkte',
-            hintText: '1× Samsung TV 55"\n1× Sony Soundbar HT-S400',
-            border: OutlineInputBorder(),
-            alignLabelWithHint: true,
-          ),
+          decoration: deco('Beschreibung / Produkte', hint: '1× Samsung TV 55"\n1× Sony Soundbar HT-S400', alignTop: true),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _seriennummer,
-          decoration: const InputDecoration(
-            labelText: 'Seriennummer(n)',
-            hintText: 'z. B. SN1234567890 — wichtig im Diebstahlfall',
-            border: OutlineInputBorder(), prefixIcon: Icon(Icons.qr_code_2),
-          ),
+          readOnly: ro,
+          decoration: deco('Seriennummer(n)', icon: Icons.qr_code_2, hint: 'z. B. SN1234567890 — wichtig im Diebstahlfall'),
         ),
         const SizedBox(height: 12),
         _DateField(
           label: 'Garantie bis',
           icon: Icons.shield_outlined,
           value: _garantieBis,
+          enabled: !ro,
           onPick: (d) => setState(() { _garantieBis = d; _dirty = true; }),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _notiz,
+          readOnly: ro,
           minLines: 2, maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Notiz', border: OutlineInputBorder(), prefixIcon: Icon(Icons.sticky_note_2_outlined)),
+          decoration: deco('Notiz', icon: Icons.sticky_note_2_outlined),
         ),
       ]),
     );
@@ -596,12 +660,13 @@ class _DateField extends StatelessWidget {
   final IconData icon;
   final DateTime? value;
   final ValueChanged<DateTime?> onPick;
-  const _DateField({required this.label, required this.icon, required this.value, required this.onPick});
+  final bool enabled;
+  const _DateField({required this.label, required this.icon, required this.value, required this.onPick, this.enabled = true});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () async {
+      onTap: !enabled ? null : () async {
         final picked = await showDatePicker(
           context: context,
           initialDate: value ?? DateTime.now(),
@@ -615,7 +680,9 @@ class _DateField extends StatelessWidget {
           labelText: label,
           border: const OutlineInputBorder(),
           prefixIcon: Icon(icon),
-          suffixIcon: value != null
+          filled: !enabled,
+          fillColor: !enabled ? Colors.grey.shade50 : null,
+          suffixIcon: (enabled && value != null)
               ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => onPick(null))
               : null,
         ),
