@@ -1223,9 +1223,13 @@ class _DokTabState extends State<_DokTab> {
   Future<void> _uploadDialog() async {
     final titelC = TextEditingController();
     final notizC = TextEditingController();
-    String? filePath;
-    String? fileName;
+    // Multi-file: same metadata (Rechnungsnr, Zeitraum, Betrag, etc.)
+    // applied to every selected file. One POST per file — server stores
+    // each as its own dokument row.
+    final selectedFiles = <PlatformFile>[];
     bool uploading = false;
+    int uploadProgressDone = 0;
+    int uploadProgressTotal = 0;
     // Rechnung fields
     final rechnungNrC = TextEditingController();
     final zeitraumC = TextEditingController();
@@ -1295,55 +1299,115 @@ class _DokTabState extends State<_DokTab> {
             TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
             const SizedBox(height: 8),
             InkWell(
-              onTap: () async {
-                final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
-                if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
-                  setD(() { filePath = r.files.first.path; fileName = r.files.first.name; });
+              onTap: uploading ? null : () async {
+                final r = await FilePickerHelper.pickFiles(
+                  allowMultiple: true,
+                  type: FileType.custom,
+                  allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+                );
+                if (r != null && r.files.isNotEmpty) {
+                  setD(() {
+                    for (final f in r.files) {
+                      if (f.path == null) continue;
+                      if (selectedFiles.any((s) => s.path == f.path)) continue;
+                      selectedFiles.add(f);
+                    }
+                  });
                 }
               },
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 width: double.infinity, padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: filePath != null ? Colors.green.shade50 : Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: filePath != null ? Colors.green.shade300 : Colors.grey.shade300)),
+                decoration: BoxDecoration(
+                  color: selectedFiles.isNotEmpty ? Colors.green.shade50 : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: selectedFiles.isNotEmpty ? Colors.green.shade300 : Colors.grey.shade300),
+                ),
                 child: Row(children: [
-                  Icon(filePath != null ? Icons.check_circle : Icons.upload_file, size: 22, color: filePath != null ? Colors.green.shade700 : Colors.grey.shade500),
+                  Icon(selectedFiles.isNotEmpty ? Icons.check_circle : Icons.upload_file,
+                    size: 22, color: selectedFiles.isNotEmpty ? Colors.green.shade700 : Colors.grey.shade500),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(fileName ?? 'Datei auswählen *', style: TextStyle(fontSize: 13, color: filePath != null ? Colors.green.shade900 : Colors.grey.shade600))),
+                  Expanded(child: Text(
+                    selectedFiles.isEmpty
+                        ? 'Datei(en) auswählen * — Mehrfachauswahl möglich'
+                        : '${selectedFiles.length} Datei(en) ausgewählt — klicken zum Hinzufügen',
+                    style: TextStyle(fontSize: 13, color: selectedFiles.isNotEmpty ? Colors.green.shade900 : Colors.grey.shade600),
+                  )),
                 ]),
               ),
             ),
+            if (selectedFiles.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...selectedFiles.asMap().entries.map((e) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(children: [
+                  Icon(Icons.insert_drive_file, size: 16, color: Colors.indigo.shade400),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+                  Text(
+                    '${(e.value.size / 1024).toStringAsFixed(0)} KB',
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 16, color: Colors.red.shade400),
+                    onPressed: uploading ? null : () => setD(() => selectedFiles.removeAt(e.key)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  ),
+                ]),
+              )),
+            ],
           ])),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          TextButton(onPressed: uploading ? null : () => Navigator.pop(ctx), child: const Text('Abbrechen')),
           FilledButton.icon(
-            icon: uploading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
-            label: Text(uploading ? 'Wird hochgeladen...' : 'Hochladen'),
-            onPressed: (filePath == null || uploading) ? null : () async {
-              setD(() => uploading = true);
-              final res = await widget.apiService.uploadVertragDokument(
-                vertragId: widget.vertragId,
-                kategorie: widget.kategorie,
-                filePath: filePath!,
-                fileName: fileName!,
-                titel: titelC.text.trim(),
-                rechnungsnummer: rechnungNrC.text.trim(),
-                abrechnungszeitraum: zeitraumC.text.trim(),
-                betrag: double.tryParse(betragC.text.trim()),
-                kuendigungDatum: kundDatumC.text.isNotEmpty ? kundDatumC.text.trim() : null,
-                kuendigungBestaetigt: bestaetigt,
-                kuendigungBestaetigungsDatum: bestDatumC.text.isNotEmpty ? bestDatumC.text.trim() : null,
-                rufnummernmitnahme: rufnummer,
-                kuendigungGrund: grundC.text.trim(),
-                notiz: notizC.text.trim(),
-              );
+            icon: uploading
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.upload_file, size: 16),
+            label: Text(uploading
+                ? (uploadProgressTotal > 0 ? '$uploadProgressDone / $uploadProgressTotal …' : 'Wird hochgeladen...')
+                : (selectedFiles.length > 1 ? 'Alle ${selectedFiles.length} hochladen' : 'Hochladen')),
+            onPressed: (selectedFiles.isEmpty || uploading) ? null : () async {
+              setD(() {
+                uploading = true;
+                uploadProgressTotal = selectedFiles.length;
+                uploadProgressDone = 0;
+              });
+              final errors = <String>[];
+              for (final f in selectedFiles) {
+                final res = await widget.apiService.uploadVertragDokument(
+                  vertragId: widget.vertragId,
+                  kategorie: widget.kategorie,
+                  filePath: f.path!,
+                  fileName: f.name,
+                  titel: titelC.text.trim(),
+                  rechnungsnummer: rechnungNrC.text.trim(),
+                  abrechnungszeitraum: zeitraumC.text.trim(),
+                  betrag: double.tryParse(betragC.text.trim()),
+                  kuendigungDatum: kundDatumC.text.isNotEmpty ? kundDatumC.text.trim() : null,
+                  kuendigungBestaetigt: bestaetigt,
+                  kuendigungBestaetigungsDatum: bestDatumC.text.isNotEmpty ? bestDatumC.text.trim() : null,
+                  rufnummernmitnahme: rufnummer,
+                  kuendigungGrund: grundC.text.trim(),
+                  notiz: notizC.text.trim(),
+                );
+                if (res['success'] != true) {
+                  errors.add('${f.name}: ${res['message']?.toString() ?? 'unbekannter Fehler'}');
+                }
+                if (ctx.mounted) setD(() => uploadProgressDone++);
+              }
               if (!ctx.mounted) return;
-              if (res['success'] == true) {
+              if (errors.isEmpty) {
                 Navigator.pop(ctx);
                 _load();
               } else {
                 setD(() => uploading = false);
-                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                  content: Text('${errors.length} Datei(en) fehlgeschlagen:\n${errors.join("\n")}'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 6),
+                ));
               }
             },
           ),
