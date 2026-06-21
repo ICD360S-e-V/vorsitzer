@@ -552,12 +552,54 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
       Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
         : ListView.builder(itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingehend';
-            return ListTile(leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.green),
+            return ListTile(
+              leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.green),
               title: Text(k['betreff'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
-              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async { await widget.apiService.telekomAction({'action': 'delete_korr', 'id': k['id']}); _loadDetail(); }));
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async { await widget.apiService.telekomAction({'action': 'delete_korr', 'id': k['id']}); _loadDetail(); }),
+              onTap: () => _showKorrDetailDialog(k),
+            );
           })),
     ]);
+  }
+
+  void _showKorrDetailDialog(Map<String, dynamic> k) {
+    final isEin = k['richtung'] == 'eingehend';
+    final kId = (k['id'] is int) ? k['id'] as int : int.tryParse('${k['id']}') ?? 0;
+    if (kId <= 0) return;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+      contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      title: Row(children: [
+        Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.blue : Colors.green, size: 20),
+        const SizedBox(width: 8),
+        Expanded(child: Text(k['betreff']?.toString().isNotEmpty == true ? k['betreff'] : '(ohne Betreff)',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+        IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx)),
+      ]),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4),
+          Text(k['datum']?.toString() ?? '—', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          const SizedBox(width: 12),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: (isEin ? Colors.blue : Colors.green).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isEin ? Colors.blue.shade800 : Colors.green.shade800))),
+        ]),
+        if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('Notiz', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Container(width: double.infinity, padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+        ],
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 8),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_korr', korrespondenzId: kId),
+      ]))),
+    ));
   }
 
   Widget _buildVorfallTab() {
