@@ -5046,64 +5046,31 @@ class _AvEigenbemTabState extends State<_AvEigenbemTab> {
     _load();
   }
 
+  // Cache pentru meta + entries — sursa unică (server derivă din user_bewerbungen)
+  Map<String, dynamic>? _pdfData;
+
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.jobcenterAvAction({
-      'action': 'list_eigenbem',
-      'user_av_id': widget.userAvId,
-      'monat': _monat,
-    });
+    // Trage atât eintraege cât şi metadata într-un singur call. Server
+    // derivă entries din user_bewerbungen (Bewerbungsübersicht), nu din
+    // jobcenter_av_eigenbem — Vorsitzer nu mai trebuie să introducă manual.
+    final res = await widget.apiService.getEigenbemPdfData(userAvId: widget.userAvId, monat: _monat);
     if (!mounted) return;
     setState(() {
-      _eintraege = List<Map<String, dynamic>>.from(res['data']?['eintraege'] ?? res['eintraege'] ?? []);
-      _monateStats = List<Map<String, dynamic>>.from(res['data']?['monate'] ?? res['monate'] ?? []);
+      _pdfData = res;
+      _eintraege = List<Map<String, dynamic>>.from(res?['eintraege'] ?? const []);
+      _monateStats = List<Map<String, dynamic>>.from(res?['monate'] ?? const []);
       _loading = false;
     });
   }
 
-  Future<void> _openEditDialog([Map<String, dynamic>? existing]) async {
-    final changed = await showDialog<bool>(
-      context: context,
-      builder: (_) => _EigenbemEditDialog(
-        apiService: widget.apiService,
-        userId: widget.userId,
-        userAvId: widget.userAvId,
-        defaultMonat: _monat,
-        existing: existing,
-      ),
-    );
-    if (changed == true) _load();
-  }
-
-  Future<void> _delete(int id) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Eintrag löschen?'),
-      content: const Text('Dieser Bewerbungs-Nachweis wird endgültig entfernt.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
-      ],
-    ));
-    if (ok != true) return;
-    await widget.apiService.jobcenterAvAction({'action': 'delete_eigenbem', 'eigenbem_id': id});
-    _load();
-  }
-
   Future<void> _generatePdf() async {
-    if (_eintraege.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Keine Einträge für diesen Monat')));
+    final data = _pdfData;
+    if (data == null || _eintraege.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Keine Bewerbungen für diesen Monat in der Bewerbungsübersicht')));
       return;
     }
     setState(() => _generating = true);
-    // Cere serverul DOAR datele (name/kundennr/eintraege) — PDF-ul îl
-    // generăm local cu layout 6-coloane Rhein-Lahn style via pdf package.
-    final data = await widget.apiService.getEigenbemPdfData(userAvId: widget.userAvId, monat: _monat);
-    if (!mounted) return;
-    if (data == null) {
-      setState(() => _generating = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Daten konnten nicht geladen werden'), backgroundColor: Colors.red));
-      return;
-    }
     try {
       final bytes = await EigenbemPdfGenerator.build(
         vorname:      (data['vorname']      ?? '').toString(),
@@ -5111,7 +5078,7 @@ class _AvEigenbemTabState extends State<_AvEigenbemTab> {
         geburtsdatum: data['geburtsdatum']?.toString(),
         kundennummer: (data['kundennummer'] ?? '').toString(),
         monat:        (data['monat']        ?? _monat).toString(),
-        eintraege:    List<Map<String, dynamic>>.from(data['eintraege'] ?? const []),
+        eintraege:    _eintraege,
       );
       if (!mounted) return;
       setState(() => _generating = false);
@@ -5174,21 +5141,38 @@ class _AvEigenbemTabState extends State<_AvEigenbemTab> {
           ),
           const Spacer(),
           ElevatedButton.icon(
-            onPressed: () => _openEditDialog(),
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 12)),
+            onPressed: (_generating || _eintraege.isEmpty) ? null : _generatePdf,
+            icon: _generating
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.picture_as_pdf, size: 16),
+            label: Text(_generating ? 'Erstelle…' : 'PDF generieren', style: const TextStyle(fontSize: 12)),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
           ),
+        ]),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        color: Colors.amber.shade50,
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 12, color: Colors.amber.shade800),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Einträge werden automatisch aus der Bewerbungsübersicht (Arbeitgeber-Modul) übernommen. Bearbeitung dort.',
+            style: TextStyle(fontSize: 10, color: Colors.amber.shade900),
+          )),
         ]),
       ),
       Expanded(child: _loading
           ? const Center(child: CircularProgressIndicator())
           : _eintraege.isEmpty
-              ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.fact_check_outlined, size: 64, color: Colors.grey.shade300),
                   const SizedBox(height: 12),
-                  Text('Noch keine Einträge für ${_monatLabel(_monat)}', style: TextStyle(color: Colors.grey.shade600)),
-                ]))
+                  Text('Keine Bewerbungen für ${_monatLabel(_monat)}', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Text('Einträge werden aus der Bewerbungsübersicht\nim Arbeitgeber-Modul übernommen.',
+                      textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                ])))
               : ListView.builder(
                   padding: const EdgeInsets.all(8),
                   itemCount: _eintraege.length,
@@ -5201,46 +5185,29 @@ class _AvEigenbemTabState extends State<_AvEigenbemTab> {
                     final datum = (e['datum_bewerbung'] ?? '').toString();
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: InkWell(
-                        onTap: () => _openEditDialog(e),
-                        child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Expanded(child: Text(ag, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
-                            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), onPressed: () => _delete(e['id']), tooltip: 'Löschen'),
-                          ]),
-                          if (tat.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                            const Icon(Icons.work_outline, size: 13, color: Colors.grey), const SizedBox(width: 4),
-                            Expanded(child: Text(tat, style: TextStyle(fontSize: 12, color: Colors.grey.shade800))),
-                          ])),
-                          const SizedBox(height: 6),
-                          Wrap(spacing: 6, runSpacing: 4, children: [
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)), child: Text(_artLabels[art] ?? art, style: TextStyle(fontSize: 10, color: Colors.blue.shade800))),
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(4)), child: Text(_ergLabels[erg] ?? erg, style: TextStyle(fontSize: 10, color: Colors.purple.shade800))),
-                            if (datum.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.calendar_today, size: 10), const SizedBox(width: 3), Text(datum, style: const TextStyle(fontSize: 10))])),
-                          ]),
+                      child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Expanded(child: Text(ag.isEmpty ? '(ohne Firma)' : ag, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
+                          Tooltip(message: 'Quelle: Bewerbungsübersicht', child: Icon(Icons.link, size: 14, color: Colors.indigo.shade300)),
+                        ]),
+                        if (tat.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+                          const Icon(Icons.work_outline, size: 13, color: Colors.grey), const SizedBox(width: 4),
+                          Expanded(child: Text(tat, style: TextStyle(fontSize: 12, color: Colors.grey.shade800))),
                         ])),
-                      ),
+                        const SizedBox(height: 6),
+                        Wrap(spacing: 6, runSpacing: 4, children: [
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)), child: Text(_artLabels[art] ?? art, style: TextStyle(fontSize: 10, color: Colors.blue.shade800))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(4)), child: Text(_ergLabels[erg] ?? erg, style: TextStyle(fontSize: 10, color: Colors.purple.shade800))),
+                          if (datum.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.calendar_today, size: 10), const SizedBox(width: 3), Text(datum, style: const TextStyle(fontSize: 10))])),
+                        ]),
+                      ])),
                     );
                   },
                 )),
       Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
-        child: Row(children: [
-          Expanded(child: Text('${_eintraege.length} Eintrag/e — max. 10 passen auf das Formular', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
-          ElevatedButton.icon(
-            onPressed: (_generating || _eintraege.isEmpty) ? null : _generatePdf,
-            icon: _generating
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.picture_as_pdf, size: 16),
-            label: const Text('PDF generieren'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo.shade700,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: Colors.grey.shade300,
-            ),
-          ),
-        ]),
+        child: Text('${_eintraege.length} Bewerbung(en) für ${_monatLabel(_monat)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
       ),
     ]);
   }
