@@ -13073,7 +13073,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
             FilledButton(onPressed: () {
-              final entry = {
+              // Start from the existing entry (when editing) so we
+              // preserve sibling fields like 'korrespondenz' that this
+              // dialog doesn't know about. Without this merge, every
+              // edit-save wiped the korrespondenz array.
+              final entry = <String, dynamic>{
+                if (existing != null) ...existing,
                 'art': art,
                 'datum': datumC.text.trim(),
                 'zahnarzt': zahnarztC.text.trim(),
