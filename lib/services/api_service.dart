@@ -7327,6 +7327,19 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Same dispatcher pattern as jobcenterAvAction but talks to the
+  // Arbeitsagentur-specific endpoint. Supports: list_personal /
+  // create_personal / update_personal / delete_personal /
+  // list_user_av / assign_user_av / update_user_av / unassign_user_av.
+  Future<Map<String, dynamic>> arbeitsagenturAvAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/arbeitsagentur_av_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Generate the official 'Nachweis von Eigenbemuehungen' PDF on the server.
   // Returns the decoded bytes on success or null on failure (caller shows error).
   Future<List<int>?> generateEigenbemPdf({required int userAvId, required String monat}) async {

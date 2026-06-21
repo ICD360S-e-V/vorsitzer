@@ -280,33 +280,17 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     ]));
   }
 
-  // ──── TAB: Mein Arbeitsvermittler ────
+  // ──── TAB: Arbeitsvermittler — JC-style multi-AV pool ────
+  // Replaced the old single-AV form with a per-Dienststelle pool +
+  // per-user assignment (mirrors the Jobcenter UX). Pool entries live
+  // in arbeitsagentur_personal; assignments in arbeitsagentur_user_av.
   Widget _buildVermittlerTab() {
-    final nameC = TextEditingController(text: _v('arbeitsvermittler'));
-    final telC = TextEditingController(text: _v('arbeitsvermittler_tel'));
-    final emailC = TextEditingController(text: _v('arbeitsvermittler_email'));
-    String anrede = _v('arbeitsvermittler_anrede');
-    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionHeader(Icons.person_pin, 'Mein Arbeitsvermittler', const Color(0xFF003F7D)),
-      const SizedBox(height: 12),
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Anrede', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          Row(children: [
-            ChoiceChip(label: const Text('Frau', style: TextStyle(fontSize: 12)), selected: anrede == 'Frau', selectedColor: Colors.pink.shade100, onSelected: (_) => setLocal(() => anrede = 'Frau')),
-            const SizedBox(width: 8),
-            ChoiceChip(label: const Text('Herr', style: TextStyle(fontSize: 12)), selected: anrede == 'Herr', selectedColor: Colors.blue.shade100, onSelected: (_) => setLocal(() => anrede = 'Herr')),
-          ]),
-          const SizedBox(height: 12),
-          _textField('Name', nameC, hint: 'Vor- und Nachname', icon: Icons.person),
-          const SizedBox(height: 12),
-          _textField('Telefon', telC, hint: 'Durchwahl', icon: Icons.phone),
-          const SizedBox(height: 12),
-          _textField('E-Mail', emailC, hint: 'E-Mail-Adresse', icon: Icons.email),
-        ])),
-      _saveBtn(() => _saveTab({'arbeitsvermittler_anrede': anrede, 'arbeitsvermittler': nameC.text.trim(), 'arbeitsvermittler_tel': telC.text.trim(), 'arbeitsvermittler_email': emailC.text.trim()})),
-    ])));
+    return _ArbeitsagenturArbeitsvermittlerTab(
+      apiService: widget.apiService,
+      userId: widget.userId,
+      arbeitsagenturName: _dbData['dienststelle']?.toString() ?? '',
+      arbeitsagenturOrt: '',
+    );
   }
 
   // ──── TAB: Arbeitssuchendmeldung ────
@@ -3014,6 +2998,618 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
           ]),
         ],
       ]),
+    );
+  }
+}
+
+// ==================== Arbeitsvermittler — multi-AV, pool per AA ====================
+// Mirrors _JobcenterArbeitsvermittlerTab from behorde_jobcenter.dart but
+// hits the arbeitsagentur_av_manage endpoint. Pool entries live in
+// arbeitsagentur_personal; assignments in arbeitsagentur_user_av.
+
+class _ArbeitsagenturArbeitsvermittlerTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String arbeitsagenturName;
+  final String arbeitsagenturOrt;
+  const _ArbeitsagenturArbeitsvermittlerTab({
+    required this.apiService,
+    required this.userId,
+    required this.arbeitsagenturName,
+    required this.arbeitsagenturOrt,
+  });
+  @override
+  State<_ArbeitsagenturArbeitsvermittlerTab> createState() => _ArbeitsagenturArbeitsvermittlerTabState();
+}
+
+class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbeitsvermittlerTab> with SingleTickerProviderStateMixin {
+  List<Map<String, dynamic>> _avList = [];
+  bool _loading = true;
+  late TabController _subTab;
+
+  List<Map<String, dynamic>> get _aktivAv => _avList.where((e) => ((e['zustaendig_bis'] ?? '').toString().trim().isEmpty)).toList();
+  List<Map<String, dynamic>> get _historieAv => _avList.where((e) => ((e['zustaendig_bis'] ?? '').toString().trim().isNotEmpty)).toList();
+
+  @override
+  void initState() { super.initState(); _subTab = TabController(length: 2, vsync: this); _load(); }
+
+  @override
+  void dispose() { _subTab.dispose(); super.dispose(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final res = await widget.apiService.arbeitsagenturAvAction({'action': 'list_user_av', 'user_id': widget.userId});
+    if (!mounted) return;
+    setState(() {
+      _avList = List<Map<String, dynamic>>.from(res['av_list'] ?? []);
+      _loading = false;
+    });
+  }
+
+  Future<void> _openAddDialog() async {
+    final addedId = await showDialog<int>(
+      context: context,
+      builder: (_) => _AaAddAvDialog(
+        apiService: widget.apiService,
+        userId: widget.userId,
+        arbeitsagenturName: widget.arbeitsagenturName,
+        arbeitsagenturOrt: widget.arbeitsagenturOrt,
+        existingPersonalIds: _avList.map((e) => e['personal_id'] as int).toSet(),
+      ),
+    );
+    if (addedId != null) _load();
+  }
+
+  Future<void> _openAvModal(Map<String, dynamic> av) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _AaAvDetailModal(apiService: widget.apiService, userAv: av),
+    );
+    if (changed == true) _load();
+  }
+
+  Future<void> _unassign(int userAvId) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Arbeitsvermittler entfernen?'),
+      content: const Text('Die Zuordnung wird gelöscht. Der Mitarbeiter bleibt im Pool der Arbeitsagentur.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Entfernen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.arbeitsagenturAvAction({'action': 'unassign_user_av', 'user_av_id': userAvId});
+    _load();
+  }
+
+  Widget _avCard(Map<String, dynamic> av, int displayIndex) {
+    final pos = av['position'] as int? ?? (displayIndex + 1);
+    final rolle = (av['rolle'] ?? 'sonstige').toString();
+    final tel = (av['telefon'] ?? '').toString();
+    final email = (av['email'] ?? '').toString();
+    final zimmer = (av['zimmer'] ?? '').toString();
+    final aaCached = (av['arbeitsagentur_name'] ?? '').toString();
+    final seit = (av['zustaendig_seit'] ?? '').toString();
+    final bis  = (av['zustaendig_bis']  ?? '').toString();
+    final aktiv = bis.isEmpty;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: () => _openAvModal(av),
+        child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: const Color(0xFF003F7D), borderRadius: BorderRadius.circular(10)),
+              child: Text('$pos.', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text('${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
+              child: Text(aktiv ? 'Aktiv' : 'Inaktiv', style: TextStyle(fontSize: 10, color: aktiv ? Colors.green.shade900 : Colors.grey.shade700)),
+            ),
+            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), tooltip: 'Zuordnung entfernen', onPressed: () => _unassign(av['id'])),
+          ]),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+            child: Text(rolle, style: TextStyle(fontSize: 11, color: Colors.indigo.shade800, fontWeight: FontWeight.w600)),
+          ),
+          if (aaCached.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+            Icon(Icons.business, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4),
+            Expanded(child: Text(aaCached, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          ])),
+          if (tel.isNotEmpty || email.isNotEmpty || zimmer.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [
+            if (tel.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.phone, size: 11), const SizedBox(width: 2), Text(tel, style: const TextStyle(fontSize: 11))]),
+            if (email.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.email, size: 11), const SizedBox(width: 2), Text(email, style: const TextStyle(fontSize: 11))]),
+            if (zimmer.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.meeting_room, size: 11), const SizedBox(width: 2), Text('Zi. $zimmer', style: const TextStyle(fontSize: 11))]),
+          ])),
+          if (seit.isNotEmpty || bis.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Row(children: [
+            if (seit.isNotEmpty) Text('seit $seit', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            if (!aktiv && bis.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 8), child: Text('bis $bis', style: TextStyle(fontSize: 10, color: Colors.grey.shade600))),
+          ])),
+          const SizedBox(height: 4),
+          const Text('Tippen zum Öffnen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+        ])),
+      ),
+    );
+  }
+
+  Widget _avListView(List<Map<String, dynamic>> list, {required String emptyMsg, required bool showAddBtn}) {
+    if (list.isEmpty) {
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.person_off, size: 64, color: Colors.grey.shade400),
+        const SizedBox(height: 16),
+        Text(emptyMsg, style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+        const SizedBox(height: 8),
+        if (showAddBtn) ...[
+          if (widget.arbeitsagenturName.isEmpty)
+            Text('Erst Zuständige Dienststelle setzen (Tab BAA)', style: TextStyle(fontSize: 11, color: Colors.orange.shade700))
+          else
+            TextButton.icon(onPressed: _openAddDialog, icon: const Icon(Icons.add, size: 14), label: const Text('Hinzufügen', style: TextStyle(fontSize: 12))),
+        ],
+      ]));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: list.length,
+      itemBuilder: (_, i) => _avCard(list[i], i),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(bottom: BorderSide(color: Colors.blue.shade200))),
+        child: Row(children: [
+          Icon(Icons.support_agent, size: 20, color: Colors.blue.shade800),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Arbeitsvermittler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+            if (widget.arbeitsagenturName.isNotEmpty) Text('@ ${widget.arbeitsagenturName}', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+          ])),
+        ]),
+      ),
+      TabBar(
+        controller: _subTab,
+        labelColor: Colors.blue.shade800,
+        unselectedLabelColor: Colors.grey.shade600,
+        indicatorColor: Colors.blue.shade700,
+        tabs: [
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.support_agent, size: 16),
+            const SizedBox(width: 6),
+            Text('Zuständige Arbeitsvermittler${_aktivAv.isNotEmpty ? " (${_aktivAv.length})" : ""}', style: const TextStyle(fontSize: 12)),
+          ])),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.history, size: 16),
+            const SizedBox(width: 6),
+            Text('Historie${_historieAv.isNotEmpty ? " (${_historieAv.length})" : ""}', style: const TextStyle(fontSize: 12)),
+          ])),
+        ],
+      ),
+      Expanded(child: TabBarView(controller: _subTab, children: [
+        Column(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            color: Colors.blue.shade50.withValues(alpha: 0.5),
+            child: Row(children: [
+              Expanded(child: Text('Aktuell zugeordnete Arbeitsvermittler', style: TextStyle(fontSize: 11, color: Colors.blue.shade700))),
+              ElevatedButton.icon(
+                onPressed: _openAddDialog,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Neuer Arbeitsvermittler', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+              ),
+            ]),
+          ),
+          Expanded(child: _avListView(_aktivAv, emptyMsg: 'Noch kein Arbeitsvermittler zugeordnet', showAddBtn: true)),
+        ]),
+        _avListView(_historieAv, emptyMsg: 'Keine früheren Arbeitsvermittler', showAddBtn: false),
+      ])),
+    ]);
+  }
+}
+
+// ==================== Add AV dialog (pick from pool or create new) ====================
+
+class _AaAddAvDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String arbeitsagenturName;
+  final String arbeitsagenturOrt;
+  final Set<int> existingPersonalIds;
+  const _AaAddAvDialog({
+    required this.apiService,
+    required this.userId,
+    required this.arbeitsagenturName,
+    required this.arbeitsagenturOrt,
+    required this.existingPersonalIds,
+  });
+  @override
+  State<_AaAddAvDialog> createState() => _AaAddAvDialogState();
+}
+
+class _AaAddAvDialogState extends State<_AaAddAvDialog> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  List<Map<String, dynamic>> _pool = [];
+  bool _loadingPool = true;
+
+  final _vornameC = TextEditingController();
+  final _nachnameC = TextEditingController();
+  final _telC = TextEditingController();
+  final _emC = TextEditingController();
+  final _ziC = TextEditingController();
+  String _rolle = 'Arbeitsvermittler';
+  bool _saving = false;
+
+  // Matches arbeitsagentur_personal.rolle ENUM in DB.
+  static const _rollen = [
+    'Arbeitsvermittler', 'Berufsberater', 'Reha_SB', 'SB_Leistung',
+    'SB_Geldleistung', 'Teamleiter', 'Eingangszone', 'sonstige',
+  ];
+
+  @override
+  void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); _loadPool(); }
+  @override
+  void dispose() { _tab.dispose(); _vornameC.dispose(); _nachnameC.dispose(); _telC.dispose(); _emC.dispose(); _ziC.dispose(); super.dispose(); }
+
+  Future<void> _loadPool() async {
+    final res = await widget.apiService.arbeitsagenturAvAction({'action': 'list_personal', 'arbeitsagentur_name': widget.arbeitsagenturName});
+    if (!mounted) return;
+    setState(() {
+      _pool = List<Map<String, dynamic>>.from(res['personal'] ?? []);
+      _loadingPool = false;
+    });
+  }
+
+  Future<void> _assign(int personalId) async {
+    setState(() => _saving = true);
+    final res = await widget.apiService.arbeitsagenturAvAction({
+      'action': 'assign_user_av', 'user_id': widget.userId, 'personal_id': personalId,
+      'zustaendig_seit': DateTime.now().toIso8601String().substring(0, 10),
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) {
+      Navigator.pop(context, res['user_av_id'] as int?);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _createAndAssign() async {
+    if (_vornameC.text.trim().isEmpty && _nachnameC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name erforderlich'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _saving = true);
+    final createRes = await widget.apiService.arbeitsagenturAvAction({
+      'action': 'create_personal',
+      'personal': {
+        'arbeitsagentur_name': widget.arbeitsagenturName,
+        'arbeitsagentur_ort': widget.arbeitsagenturOrt,
+        'vorname': _vornameC.text.trim(),
+        'nachname': _nachnameC.text.trim(),
+        'rolle': _rolle,
+        'telefon': _telC.text.trim(),
+        'email': _emC.text.trim(),
+        'zimmer': _ziC.text.trim(),
+      },
+    });
+    if (!mounted) return;
+    if (createRes['success'] != true) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(createRes['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+      return;
+    }
+    final personalId = createRes['id'] as int;
+    await _assign(personalId);
+  }
+
+  Widget _poolList() {
+    if (_loadingPool) return const Center(child: CircularProgressIndicator());
+    final filtered = _pool.where((p) => !widget.existingPersonalIds.contains(p['id'])).toList();
+    if (filtered.isEmpty) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.person_search, size: 48, color: Colors.grey.shade400),
+        const SizedBox(height: 12),
+        Text(widget.arbeitsagenturName.isEmpty
+            ? 'Bitte erst Dienststelle wählen'
+            : 'Noch keine Mitarbeiter im Pool für ${widget.arbeitsagenturName}',
+          style: TextStyle(color: Colors.grey.shade600), textAlign: TextAlign.center),
+        const SizedBox(height: 8),
+        const Text('→ Tab "Neu anlegen" verwenden', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+      ])));
+    }
+    return ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
+      final p = filtered[i];
+      final vor = (p['vorname'] ?? '?').toString();
+      return ListTile(
+        dense: true,
+        leading: CircleAvatar(backgroundColor: Colors.blue.shade100, child: Text(vor.isNotEmpty ? vor[0] : '?', style: TextStyle(color: Colors.blue.shade900, fontSize: 14))),
+        title: Text('${p['vorname'] ?? ''} ${p['nachname'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text('${p['rolle'] ?? ''}${(p['zimmer']?.toString() ?? '').isNotEmpty ? " • Zi. ${p['zimmer']}" : ""}'),
+        trailing: ElevatedButton(
+          onPressed: _saving ? null : () => _assign(p['id']),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
+          child: const Text('Zuordnen', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    });
+  }
+
+  Widget _newForm() => SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
+    Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.amber.shade200)),
+      child: Row(children: [
+        Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800), const SizedBox(width: 6),
+        Expanded(child: Text(
+          'Wird im Pool der Arbeitsagentur ${widget.arbeitsagenturName.isEmpty ? "(?)" : widget.arbeitsagenturName} angelegt und allen Mitgliedern dort sichtbar.',
+          style: const TextStyle(fontSize: 11),
+        )),
+      ]),
+    ),
+    const SizedBox(height: 12),
+    Row(children: [
+      Expanded(child: TextField(controller: _vornameC, decoration: const InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder()))),
+      const SizedBox(width: 8),
+      Expanded(child: TextField(controller: _nachnameC, decoration: const InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder()))),
+    ]),
+    const SizedBox(height: 10),
+    DropdownButtonFormField<String>(
+      initialValue: _rolle,
+      decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
+      items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+      onChanged: (v) => setState(() => _rolle = v ?? 'sonstige'),
+    ),
+    const SizedBox(height: 10),
+    TextField(controller: _telC, decoration: const InputDecoration(labelText: 'Telefon / Durchwahl', isDense: true, border: OutlineInputBorder())),
+    const SizedBox(height: 10),
+    TextField(controller: _emC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder())),
+    const SizedBox(height: 10),
+    TextField(controller: _ziC, decoration: const InputDecoration(labelText: 'Zimmer', isDense: true, border: OutlineInputBorder())),
+    const SizedBox(height: 16),
+    Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+      onPressed: _saving ? null : _createAndAssign,
+      icon: _saving
+          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+          : const Icon(Icons.add, size: 16),
+      label: const Text('Anlegen + Zuordnen'),
+      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+    )),
+  ]));
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.all(24),
+    child: SizedBox(width: 600, height: 520, child: Column(children: [
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+        child: Row(children: [
+          const Icon(Icons.person_add, color: Colors.white), const SizedBox(width: 8),
+          const Expanded(child: Text('Arbeitsvermittler hinzufügen', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(controller: _tab, labelColor: Colors.blue, tabs: const [
+        Tab(icon: Icon(Icons.group, size: 18), text: 'Aus Pool wählen'),
+        Tab(icon: Icon(Icons.person_add, size: 18), text: 'Neu anlegen'),
+      ]),
+      Expanded(child: TabBarView(controller: _tab, children: [_poolList(), _newForm()])),
+    ])),
+  );
+}
+
+// ==================== AV detail modal (edit stammdaten + assignment) ====================
+
+class _AaAvDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> userAv;
+  const _AaAvDetailModal({required this.apiService, required this.userAv});
+  @override
+  State<_AaAvDetailModal> createState() => _AaAvDetailModalState();
+}
+
+class _AaAvDetailModalState extends State<_AaAvDetailModal> {
+  late TextEditingController _vornameC;
+  late TextEditingController _nachnameC;
+  late TextEditingController _telC;
+  late TextEditingController _emC;
+  late TextEditingController _ziC;
+  late TextEditingController _personalNotizC;
+  late TextEditingController _linkNotizC;
+  late TextEditingController _seitC;
+  late TextEditingController _bisC;
+  late String _rolle;
+  bool _saving = false;
+  bool _dirty = false;
+
+  static const _rollen = [
+    'Arbeitsvermittler', 'Berufsberater', 'Reha_SB', 'SB_Leistung',
+    'SB_Geldleistung', 'Teamleiter', 'Eingangszone', 'sonstige',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final av = widget.userAv;
+    _vornameC  = TextEditingController(text: av['vorname']?.toString() ?? '');
+    _nachnameC = TextEditingController(text: av['nachname']?.toString() ?? '');
+    _telC      = TextEditingController(text: av['telefon']?.toString() ?? '');
+    _emC       = TextEditingController(text: av['email']?.toString() ?? '');
+    _ziC       = TextEditingController(text: av['zimmer']?.toString() ?? '');
+    _personalNotizC = TextEditingController(text: av['personal_notiz']?.toString() ?? '');
+    _linkNotizC     = TextEditingController(text: av['link_notiz']?.toString() ?? '');
+    _seitC = TextEditingController(text: av['zustaendig_seit']?.toString() ?? '');
+    _bisC  = TextEditingController(text: av['zustaendig_bis']?.toString()  ?? '');
+    final r = (av['rolle'] ?? 'sonstige').toString();
+    _rolle = _rollen.contains(r) ? r : 'sonstige';
+    for (final c in [_vornameC, _nachnameC, _telC, _emC, _ziC, _personalNotizC, _linkNotizC, _seitC, _bisC]) {
+      c.addListener(() { if (!_dirty) setState(() => _dirty = true); });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_vornameC, _nachnameC, _telC, _emC, _ziC, _personalNotizC, _linkNotizC, _seitC, _bisC]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _pickDate(TextEditingController c) async {
+    final init = DateTime.tryParse(c.text) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: init,
+      firstDate: DateTime(2010),
+      lastDate: DateTime(2050),
+      locale: const Locale('de'),
+    );
+    if (picked != null) {
+      c.text = picked.toIso8601String().substring(0, 10);
+      setState(() => _dirty = true);
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final personalId = (widget.userAv['personal_id'] as num).toInt();
+    final userAvId   = (widget.userAv['id'] as num).toInt();
+    // 1) update pool entry
+    final pRes = await widget.apiService.arbeitsagenturAvAction({
+      'action': 'update_personal',
+      'personal_id': personalId,
+      'personal': {
+        'vorname': _vornameC.text.trim(),
+        'nachname': _nachnameC.text.trim(),
+        'rolle': _rolle,
+        'telefon': _telC.text.trim(),
+        'email': _emC.text.trim(),
+        'zimmer': _ziC.text.trim(),
+        'notiz': _personalNotizC.text.trim(),
+      },
+    });
+    if (!mounted) return;
+    if (pRes['success'] != true) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pRes['message'] ?? 'Pool-Update fehlgeschlagen'), backgroundColor: Colors.red));
+      return;
+    }
+    // 2) update user-av link
+    final uRes = await widget.apiService.arbeitsagenturAvAction({
+      'action': 'update_user_av',
+      'user_av_id': userAvId,
+      'position': widget.userAv['position'] ?? 1,
+      'zustaendig_seit': _seitC.text.trim().isEmpty ? null : _seitC.text.trim(),
+      'zustaendig_bis':  _bisC.text.trim().isEmpty  ? null : _bisC.text.trim(),
+      'notiz': _linkNotizC.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (uRes['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(uRes['message'] ?? 'Zuordnung-Update fehlgeschlagen'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final av = widget.userAv;
+    final aaName = (av['arbeitsagentur_name'] ?? '').toString();
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(width: 620, height: 620, child: Column(children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+          child: Row(children: [
+            const Icon(Icons.support_agent, color: Colors.white), const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Arbeitsvermittler bearbeiten', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              if (aaName.isNotEmpty) Text(aaName, style: TextStyle(color: Colors.blue.shade100, fontSize: 11)),
+            ])),
+            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, false)),
+          ]),
+        ),
+        Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Stammdaten (Pool)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: _vornameC, decoration: const InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder()))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: _nachnameC, decoration: const InputDecoration(labelText: 'Nachname', isDense: true, border: OutlineInputBorder()))),
+          ]),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: _rolle,
+            decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
+            items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+            onChanged: (v) => setState(() { _rolle = v ?? 'sonstige'; _dirty = true; }),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: _telC, decoration: const InputDecoration(labelText: 'Telefon', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: _emC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: _ziC, decoration: const InputDecoration(labelText: 'Zimmer', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: _personalNotizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz zur Person (Pool)', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 20),
+          Divider(color: Colors.blue.shade100),
+          const SizedBox(height: 8),
+          Text('Zuordnung zu diesem Mitglied', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(
+              controller: _seitC, readOnly: true,
+              decoration: InputDecoration(
+                labelText: 'Zuständig seit', isDense: true, border: const OutlineInputBorder(),
+                suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () => _pickDate(_seitC)),
+              ),
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(
+              controller: _bisC, readOnly: true,
+              decoration: InputDecoration(
+                labelText: 'Zuständig bis (leer = aktiv)', isDense: true, border: const OutlineInputBorder(),
+                suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 16), onPressed: () => _pickDate(_bisC)),
+              ),
+            )),
+          ]),
+          const SizedBox(height: 10),
+          TextField(controller: _linkNotizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz zur Zuordnung', isDense: true, border: OutlineInputBorder())),
+        ]))),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+          child: Row(children: [
+            TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Schließen')),
+            const Spacer(),
+            ElevatedButton.icon(
+              onPressed: (_saving || !_dirty) ? null : _save,
+              icon: _saving
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.save, size: 16),
+              label: const Text('Speichern'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white),
+            ),
+          ]),
+        ),
+      ])),
     );
   }
 }
