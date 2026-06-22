@@ -167,7 +167,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         bereich = 'egv';
       } else if (e.key.startsWith('bgs') || e.key == 'has_bgs') {
         bereich = 'bildungsgutschein';
-      } else if (['has_online_account','online_email','has_passkey','passkey_access'].contains(e.key)) {
+      } else if (['has_online_account','online_email','online_password','has_passkey','passkey_access'].contains(e.key)) {
         bereich = 'online';
       }
       final val = e.value is bool ? (e.value ? 'true' : 'false') : e.value?.toString() ?? '';
@@ -520,14 +520,43 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   Widget _buildOnlineTab() {
     bool has = _bv('has_online_account'), hasPasskey = _bv('has_passkey');
     final emailC = TextEditingController(text: _v('online_email'));
+    final passwordC = TextEditingController(text: _v('online_password'));
     final passkeyC = TextEditingController(text: _v('passkey_access'));
+    // Edit-mode flags: when a value is already saved, render as read-only with
+    // pencil; pencil click switches to edit mode. New (empty) values open
+    // directly in edit mode.
+    bool emailEdit = emailC.text.isEmpty;
+    bool passwordEdit = passwordC.text.isEmpty;
+    bool passwordVisible = false;
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [Icon(Icons.cloud, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8), Text('Online-Konto (arbeitsagentur.de)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.blue)]),
           if (has) ...[
             const SizedBox(height: 12),
-            _textField('E-Mail', emailC, hint: 'E-Mail des Online-Kontos', icon: Icons.email),
+            // E-Mail — read-only with pencil after save
+            _credentialField(
+              label: 'E-Mail',
+              icon: Icons.email,
+              hint: 'E-Mail des Online-Kontos',
+              controller: emailC,
+              editMode: emailEdit,
+              isSecret: false,
+              onEdit: () => setLocal(() => emailEdit = true),
+            ),
+            const SizedBox(height: 12),
+            // Passwort — masked with eye toggle, read-only with pencil after save
+            _credentialField(
+              label: 'Passwort',
+              icon: Icons.lock,
+              hint: 'Passwort des Online-Kontos',
+              controller: passwordC,
+              editMode: passwordEdit,
+              isSecret: true,
+              visible: passwordVisible,
+              onToggleVisible: () => setLocal(() => passwordVisible = !passwordVisible),
+              onEdit: () => setLocal(() => passwordEdit = true),
+            ),
             const SizedBox(height: 12),
             Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -539,8 +568,91 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             _AaTotp2FAWidget(apiService: widget.apiService, userId: widget.userId),
           ],
         ])),
-      _saveBtn(() => _saveTab({'has_online_account': has, 'online_email': emailC.text.trim(), 'has_passkey': hasPasskey, 'passkey_access': passkeyC.text.trim()})),
+      _saveBtn(() async {
+        await _saveTab({
+          'has_online_account': has,
+          'online_email': emailC.text.trim(),
+          'online_password': passwordC.text,
+          'has_passkey': hasPasskey,
+          'passkey_access': passkeyC.text.trim(),
+        });
+        // After save, switch back to read-only for both credential fields
+        if (mounted) setLocal(() {
+          if (emailC.text.isNotEmpty) emailEdit = false;
+          if (passwordC.text.isNotEmpty) { passwordEdit = false; passwordVisible = false; }
+        });
+      }),
     ])));
+  }
+
+  /// Renders a credential field with two modes:
+  /// - read-only: shows label + value (or "••••••••" for secrets) + pencil icon
+  /// - edit: shows label + TextField (+ eye toggle for secrets) — no pencil
+  Widget _credentialField({
+    required String label,
+    required IconData icon,
+    required String hint,
+    required TextEditingController controller,
+    required bool editMode,
+    required bool isSecret,
+    bool visible = false,
+    VoidCallback? onToggleVisible,
+    required VoidCallback onEdit,
+  }) {
+    if (editMode) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        TextField(
+          controller: controller,
+          obscureText: isSecret && !visible,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, size: 20),
+            suffixIcon: isSecret
+                ? IconButton(
+                    icon: Icon(visible ? Icons.visibility_off : Icons.visibility, size: 18),
+                    onPressed: onToggleVisible,
+                    tooltip: visible ? 'Verbergen' : 'Anzeigen',
+                  )
+                : null,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          style: const TextStyle(fontSize: 14),
+        ),
+      ]);
+    }
+    final shown = isSecret ? '•' * (controller.text.isEmpty ? 0 : 8) : controller.text;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+          color: Colors.grey.shade50,
+        ),
+        child: Row(children: [
+          Icon(icon, size: 20, color: Colors.grey.shade600),
+          const SizedBox(width: 12),
+          Expanded(child: Text(
+            shown.isEmpty ? '— nicht gesetzt —' : shown,
+            style: TextStyle(fontSize: 14, color: shown.isEmpty ? Colors.grey.shade400 : Colors.black87),
+            overflow: TextOverflow.ellipsis,
+          )),
+          IconButton(
+            icon: Icon(Icons.edit, size: 18, color: Colors.blue.shade600),
+            onPressed: onEdit,
+            tooltip: 'Bearbeiten',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ]),
+      ),
+    ]);
   }
 
   // ──── TAB: Med. Begutachtung ────
