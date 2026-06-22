@@ -5750,6 +5750,17 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  /// Returnează credențialele decryptate (email + parolă) + cod TOTP curent
+  /// pentru auto-login pe sso.arbeitsagentur.de. Server-side audit logged.
+  Future<Map<String, dynamic>> getArbeitsagenturLoginCredentials(int userId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/arbeitsagentur/2fa/get_login_credentials.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 10));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   Future<Map<String, dynamic>> saveArbeitsagenturMeldung(int userId, Map<String, dynamic> meldung) async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_meldung', 'meldung': meldung})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }

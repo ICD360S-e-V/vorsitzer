@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
 import '../services/api_service.dart';
+import '../services/aa_auto_login_service.dart';
 import '../services/ticket_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
@@ -3014,6 +3015,34 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
     }
   }
 
+  bool _busyAutoLogin = false;
+
+  Future<void> _runAutoLogin() async {
+    setState(() => _busyAutoLogin = true);
+    try {
+      final err = await AaAutoLoginService.autoLogin(
+        apiService: widget.apiService,
+        userId: widget.userId,
+      );
+      if (!mounted) return;
+      if (err == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Chromium gestartet — Auto-Login läuft im Hintergrund'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 4),
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(err),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _busyAutoLogin = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -3083,6 +3112,24 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
             ),
           ]),
           if (_label != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_label!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+          const SizedBox(height: 10),
+          // Auto-Login Online — preia email + parolă + cod TOTP curent şi
+          // injectează în Chromium extern pe sso.arbeitsagentur.de.
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _busyAutoLogin ? null : _runAutoLogin,
+              icon: _busyAutoLogin
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.rocket_launch, size: 18),
+              label: Text(_busyAutoLogin ? 'Login läuft…' : 'Auto-Login Online'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
         ],
         if (_showSecretInput && !_configured) ...[
           const SizedBox(height: 12),
