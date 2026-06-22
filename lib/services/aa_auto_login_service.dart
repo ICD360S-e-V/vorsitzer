@@ -17,7 +17,11 @@ import 'api_service.dart';
 /// niciodată în afara serverului propriu + browserului local. JS-ul polling
 /// rulează în pagina vizată direct, fără relay extern.
 class AaAutoLoginService {
-  static const String _ssoUrl = 'https://www.arbeitsagentur.de/anmelden/anmeldenstart';
+  // Entry-point pentru flow-ul BA Online. Navigarea la web.arbeitsagentur.de/profil
+  // forțează redirect-ul către Keycloak SSO (sso.arbeitsagentur.de/auth/realms/OCP/...).
+  // BA folosește Keycloak ca identity broker — selectoarele formularului sunt
+  // standard Keycloak (#username, #password, #kc-login, #otp).
+  static const String _ssoUrl = 'https://web.arbeitsagentur.de/profil/profil-ui/pd/';
 
   /// Lansează auto-login pentru [userId]. Returnează `null` la succes sau
   /// mesaj de eroare german pentru SnackBar.
@@ -55,6 +59,19 @@ class AaAutoLoginService {
     final passwordJs = jsonEncode(password);
     final totpJs     = jsonEncode(totpCode);
     // language=js
+    // BA Online folosește Keycloak SSO (sso.arbeitsagentur.de/auth/realms/OCP).
+    // Pagina de login Keycloak are HTML standard:
+    //   <form id="kc-form-login">
+    //     <input id="username" name="username" type="text" autocomplete="username">
+    //     <input id="password" name="password" type="password" autocomplete="current-password">
+    //     <input id="kc-login" type="submit">
+    //   </form>
+    // Pagina TOTP Keycloak:
+    //   <form id="kc-otp-login-form">
+    //     <input id="otp" name="otp" type="text">
+    //     <input id="kc-login" type="submit">
+    //   </form>
+    // Selectoare hardcodate pentru fiabilitate maximă, cu generic-fallback la final.
     return '''
 (() => {
   if (window.__icd_aa_auto_login_running) return;
@@ -64,8 +81,8 @@ class AaAutoLoginService {
   const TOTP = $totpJs;
   const log = (...a) => { try { console.log('[ICD-AutoLogin]', ...a); } catch (_) {} };
 
-  // Setează valoarea propriu-zis cu evenimente input/change ca să satisfacă
-  // framework-uri reactive (Angular/React detectează doar prin native setter).
+  // Setează valoarea propriu-zis cu evenimente input/change/blur ca să
+  // satisfacă Angular/React/Keycloak's own JS validators.
   const setNativeValue = (el, value) => {
     if (!el) return false;
     const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -73,72 +90,71 @@ class AaAutoLoginService {
     if (setter) setter.call(el, value); else el.value = value;
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
     return true;
   };
 
-  // Caută primul input vizibil + interactiv (nu hidden, nu disabled).
-  const findInput = (predicates) => {
-    const inputs = Array.from(document.querySelectorAll('input,textarea'));
-    for (const i of inputs) {
-      if (i.disabled || i.readOnly) continue;
-      const style = window.getComputedStyle(i);
-      if (style.display === 'none' || style.visibility === 'hidden') continue;
-      if (i.offsetParent === null && style.position !== 'fixed') continue;
-      for (const p of predicates) { if (p(i)) return i; }
-    }
-    return null;
+  // Verifică că un element e vizibil şi interactiv.
+  const isUsable = (el) => {
+    if (!el || el.disabled || el.readOnly) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (el.offsetParent === null && style.position !== 'fixed') return false;
+    return true;
   };
 
-  const emailPredicates = [
-    (i) => i.type === 'email',
-    (i) => i.autocomplete === 'username' || i.autocomplete === 'email',
-    (i) => /^(username|email|user|login|benutzer|emailaddress|e-mail|userid)\$/i.test(i.name || ''),
-    (i) => /^(username|email|user|login|benutzer|emailaddress|e-mail|userid|j_username)\$/i.test(i.id || ''),
-    (i) => /(email|user|benutzer|login)/i.test(i.placeholder || ''),
-  ];
-  const passwordPredicates = [
-    (i) => i.type === 'password',
-    (i) => i.autocomplete === 'current-password' || i.autocomplete === 'new-password',
-    (i) => /password|passwort|kennwort|j_password/i.test(i.name || i.id || ''),
-  ];
-  const totpPredicates = [
-    (i) => i.autocomplete === 'one-time-code',
-    (i) => i.inputMode === 'numeric' && (i.maxLength === 6 || i.maxLength === 8),
-    (i) => /totp|otp|code|2fa|einmalcode|tan|verification/i.test(i.name || i.id || i.placeholder || ''),
-    (i) => /^[0-9]\$/.test((i.placeholder || '').trim()) && (i.maxLength === 1 || i.maxLength === 6),
-  ];
+  // Keycloak primary: caută EXACT după id-urile standard #username, #password, #otp.
+  // Dacă lipsesc, fallback la pattern-uri generice.
+  const findUsername = () => {
+    const k = document.getElementById('username');
+    if (isUsable(k)) return k;
+    const inputs = Array.from(document.querySelectorAll('input')).filter(isUsable);
+    return inputs.find(i =>
+      i.type === 'email' ||
+      i.autocomplete === 'username' ||
+      i.autocomplete === 'email' ||
+      /^(username|email|user|login|benutzer|userid)\$/i.test(i.name || i.id || '')
+    ) || null;
+  };
+  const findPassword = () => {
+    const k = document.getElementById('password');
+    if (isUsable(k)) return k;
+    const inputs = Array.from(document.querySelectorAll('input')).filter(isUsable);
+    return inputs.find(i =>
+      i.type === 'password' ||
+      i.autocomplete === 'current-password' ||
+      /password|passwort|kennwort/i.test(i.name || i.id || '')
+    ) || null;
+  };
+  const findTotp = () => {
+    const k = document.getElementById('otp');
+    if (isUsable(k)) return k;
+    const inputs = Array.from(document.querySelectorAll('input')).filter(isUsable);
+    return inputs.find(i =>
+      i.autocomplete === 'one-time-code' ||
+      (i.inputMode === 'numeric' && (i.maxLength === 6 || i.maxLength === 8)) ||
+      /totp|otp|code|2fa|einmalcode|tan|verification/i.test(i.name || i.id || i.placeholder || '')
+    ) || null;
+  };
 
-  // Click pe primul buton de submit / login vizibil.
-  const clickSubmit = () => {
-    const btns = Array.from(document.querySelectorAll('button,input[type=submit],a[role=button]'));
-    for (const b of btns) {
-      if (b.disabled) continue;
+  // Keycloak submit: primary #kc-login. Fallback: form.submit() sau primul button[type=submit].
+  const submitForm = (formEl) => {
+    const kc = document.getElementById('kc-login');
+    if (isUsable(kc)) { log('clicking #kc-login'); kc.click(); return true; }
+    if (formEl) {
+      // HTMLFormElement.requestSubmit() trigger-uiește handler-ele Keycloak corect.
+      try { log('formEl.requestSubmit()'); formEl.requestSubmit(); return true; }
+      catch (_) { try { formEl.submit(); return true; } catch (_) {} }
+    }
+    const btn = Array.from(document.querySelectorAll('button[type=submit],input[type=submit],button')).find(b => {
+      if (!isUsable(b)) return false;
       const txt = (b.innerText || b.value || b.textContent || '').toLowerCase().trim();
-      const style = window.getComputedStyle(b);
-      if (style.display === 'none' || style.visibility === 'hidden') continue;
-      if (b.offsetParent === null && style.position !== 'fixed') continue;
-      if (/anmelden|einloggen|sign[\\s-]*in|log[\\s-]*in|weiter|bestätigen|absenden|continue/i.test(txt)) {
-        log('clicking submit:', txt);
-        b.click();
-        return true;
-      }
-      // Fallback: typul submit fără text relevant — îl luăm dacă nu găsim cu text.
-      if (b.type === 'submit') {
-        // marcheaza ca rezerva
-        if (!window.__icd_fallback_submit) window.__icd_fallback_submit = b;
-      }
-    }
-    if (window.__icd_fallback_submit) {
-      log('clicking fallback submit');
-      window.__icd_fallback_submit.click();
-      return true;
-    }
+      return /anmelden|einloggen|sign[\\s-]*in|log[\\s-]*in|weiter|bestätigen|absenden|continue/i.test(txt) || b.type === 'submit';
+    });
+    if (btn) { log('clicking fallback submit:', btn.innerText || btn.value); btn.click(); return true; }
     return false;
   };
 
-  // Polling state-machine: așteaptă să apară câmpurile, le completează, dă submit,
-  // apoi așteaptă pagina TOTP. Max 90 sec total ca să nu rulăm la nesfârșit.
+  // Polling state-machine.
   let stage = 'login'; // 'login' → 'totp' → 'done'
   let loginAttempted = false;
   let totpAttempted = false;
@@ -148,45 +164,53 @@ class AaAutoLoginService {
   const tick = () => {
     if (Date.now() - startedAt > MAX_MS) { log('timeout, giving up'); return; }
     try {
+      // Detectează stage curent după prezența form-urilor Keycloak.
+      const loginForm = document.getElementById('kc-form-login');
+      const otpForm = document.getElementById('kc-otp-login-form') || document.querySelector('form[action*="otp"]');
+
+      if (otpForm && !totpAttempted) stage = 'totp';
+
       if (stage === 'login') {
-        const emailInput = findInput(emailPredicates);
-        const passwordInput = findInput(passwordPredicates);
-        if (emailInput && passwordInput) {
-          if (!loginAttempted) {
-            log('filling email + password');
-            setNativeValue(emailInput, EMAIL);
-            setNativeValue(passwordInput, PASSWORD);
-            loginAttempted = true;
-            setTimeout(() => { clickSubmit(); stage = 'totp'; }, 350);
-          }
-        } else if (emailInput && !passwordInput) {
-          // Unele portaluri arată email pe pagina 1, parola pe pagina 2 după click.
-          if (!loginAttempted) {
-            log('filling email only (two-step page)');
-            setNativeValue(emailInput, EMAIL);
-            loginAttempted = true;
-            setTimeout(() => { clickSubmit(); loginAttempted = false; }, 350);
-          }
+        const u = findUsername();
+        const p = findPassword();
+        if (u && p && !loginAttempted) {
+          log('filling username + password (Keycloak #username/#password)');
+          setNativeValue(u, EMAIL);
+          setNativeValue(p, PASSWORD);
+          loginAttempted = true;
+          setTimeout(() => {
+            submitForm(loginForm || u.closest('form'));
+            stage = 'totp';
+          }, 400);
+        } else if (u && !p && !loginAttempted) {
+          // Two-step layout (eventual): doar username, apoi password pe pagina următoare.
+          log('two-step? filling username only');
+          setNativeValue(u, EMAIL);
+          loginAttempted = true;
+          setTimeout(() => { submitForm(loginForm || u.closest('form')); loginAttempted = false; }, 400);
         }
       } else if (stage === 'totp') {
-        if (!TOTP) { log('no TOTP code available — stopping'); stage = 'done'; return; }
-        const totpInput = findInput(totpPredicates);
-        if (totpInput && !totpAttempted) {
-          // Variante UI: un singur input sau 6 box-uri separate.
-          const splitBoxes = Array.from(document.querySelectorAll('input[maxlength="1"]'))
-            .filter(i => !i.disabled && i.offsetParent !== null);
-          if (splitBoxes.length >= TOTP.length && splitBoxes.length >= 6) {
-            log('filling TOTP into', splitBoxes.length, 'boxes');
+        if (!TOTP) { log('no TOTP code in payload — stopping at TOTP page'); stage = 'done'; return; }
+        const t = findTotp();
+        if (t && !totpAttempted) {
+          // Keycloak typically single input #otp, dar verificăm și split-boxes.
+          const splitBoxes = Array.from(document.querySelectorAll('input[maxlength="1"]')).filter(isUsable);
+          if (splitBoxes.length >= 6) {
+            log('filling TOTP into', splitBoxes.length, 'split boxes');
             for (let k = 0; k < TOTP.length && k < splitBoxes.length; k++) {
               setNativeValue(splitBoxes[k], TOTP[k]);
               splitBoxes[k].focus();
             }
           } else {
-            log('filling TOTP into single input');
-            setNativeValue(totpInput, TOTP);
+            log('filling TOTP into single #otp input');
+            setNativeValue(t, TOTP);
           }
           totpAttempted = true;
-          setTimeout(() => { clickSubmit(); stage = 'done'; }, 350);
+          setTimeout(() => {
+            submitForm(otpForm || t.closest('form'));
+            stage = 'done';
+            log('done — Auto-Login complete');
+          }, 400);
         }
       }
     } catch (e) {
@@ -194,6 +218,7 @@ class AaAutoLoginService {
     }
     setTimeout(tick, 600);
   };
+  log('starting Auto-Login polling (Keycloak BA Online)');
   tick();
 })();
 ''';
