@@ -312,11 +312,12 @@ class AaAutoLoginService {
           'totp_submitted=' + !!ss(SS_TOTP_SUBMITTED));
       }
 
-      // STAGE TOTP — dacă vede form-ul OTP SAU detectează context TOTP din alte semnale
-      const totpInput = findTotp();
-      const totpContext = otpForm || totpInput ||
-        /otp|totp|2fa|einmalcode|authenticator|6[-_ ]?stellig/i.test(document.body?.innerText?.substring(0, 500) || '');
-      if (totpContext) {
+      // STAGE TOTP — STRICT: doar dacă vede explicit form-ul OTP Keycloak.
+      // (NU folosim body-text scan ca să nu confundăm pagina de login,
+      // care are text "Anmeldung mit TOTP / Authenticator" → ne băga în
+      // stage TOTP cu early-return și nu mai fillam login.)
+      const totpInput = otpForm ? findTotp() : null;
+      if (otpForm) {
         if (ss(SS_TOTP_SUBMITTED)) {
           if (tickCount === 1 || tickCount % 5 === 0) log('totp already submitted — skip');
           return;
