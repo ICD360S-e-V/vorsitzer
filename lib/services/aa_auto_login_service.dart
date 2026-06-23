@@ -390,11 +390,31 @@ class AaAutoLoginService {
       // STAGE LOGIN
       if (ss(SS_LOGIN_SUBMITTED)) {
         // Login a fost submited într-o navigare anterioară — aşteptăm pagina TOTP
-        log('login deja submitted — waiting for TOTP page');
+        if (tickCount === 1 || tickCount % 10 === 0) log('login deja submitted — waiting for TOTP page');
         return;
       }
-      const u = findUsername();
-      const p = findPassword();
+      // STAGE METHOD-PICKER: BA Keycloak arată o pagină cu 3 butoane:
+      // "Mit BundID anmelden" / "Mit Passkey anmelden" / "Bundesagentur für Arbeit"
+      // (sau "Mit Benutzername und Passwort"). Click-uim "Bundesagentur für Arbeit"
+      // ca să mergem la formul username+password.
+      let u = findUsername();
+      let p = findPassword();
+      if (!u && !p && !ss('__icd_aa_method_picked')) {
+        const candidates = Array.from(document.querySelectorAll('button,a,div[role=button],input[type=button],input[type=submit]'))
+          .filter(isUsable);
+        const methodBtn = candidates.find(b => {
+          const txt = (b.innerText || b.value || b.textContent || '').toLowerCase().trim();
+          // Match pe denumiri tipice BA: "Bundesagentur für Arbeit", "Mit Benutzername und Passwort"
+          return /bundesagentur\\s+f[üu]r\\s+arbeit|benutzername.*passwort|mit benutzername/i.test(txt);
+        });
+        if (methodBtn) {
+          log('method picker detected — clicking:', (methodBtn.innerText || methodBtn.value || '').substring(0, 60));
+          ss('__icd_aa_method_picked', String(Date.now()));
+          methodBtn.click();
+          // After click, page may navigate — wait next tick to re-detect form
+          return;
+        }
+      }
       if (u && p && !loginFilling) {
         loginFilling = true;
         log('filling username + password — u.id=' + (u.id || '?') + ' p.id=' + (p.id || '?'));
