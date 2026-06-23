@@ -191,14 +191,53 @@ class AaAutoLoginService {
     ) || null;
   };
   const findTotp = () => {
+    // Primary: standard Keycloak #otp
     const k = document.getElementById('otp');
     if (isUsable(k)) return k;
     const inputs = Array.from(document.querySelectorAll('input')).filter(isUsable);
-    return inputs.find(i =>
-      i.autocomplete === 'one-time-code' ||
-      (i.inputMode === 'numeric' && (i.maxLength === 6 || i.maxLength === 8)) ||
-      /totp|otp|code|2fa|einmalcode|tan|verification/i.test(i.name || i.id || i.placeholder || '')
-    ) || null;
+    // 1) autocomplete one-time-code (WebAuthn / OS-suggested)
+    let hit = inputs.find(i => i.autocomplete === 'one-time-code');
+    if (hit) return hit;
+    // 2) inputMode numeric + short maxLength (typical 6-digit input)
+    hit = inputs.find(i =>
+      (i.inputMode === 'numeric' || i.inputMode === 'decimal') &&
+      (i.maxLength === 6 || i.maxLength === 8)
+    );
+    if (hit) return hit;
+    // 3) name/id/placeholder/aria match
+    hit = inputs.find(i => {
+      const blob = (i.name || '') + ' ' + (i.id || '') + ' ' + (i.placeholder || '') +
+                   ' ' + (i.getAttribute('aria-label') || '') + ' ' + (i.className || '');
+      return /\\botp\\b|\\btotp\\b|einmalcode|einmal[_-]?code|verification[_-]?code|2fa|two[_-]?factor|6[-_ ]?stellig|six[-_ ]?digit|authenticator/i.test(blob);
+    });
+    if (hit) return hit;
+    // 4) Fallback: single text input cu maxLength 6-8 (foarte permisiv, ultima opțiune)
+    hit = inputs.find(i => i.type !== 'password' && i.type !== 'hidden' && i.type !== 'checkbox' && i.type !== 'radio' &&
+      (i.maxLength === 6 || i.maxLength === 7 || i.maxLength === 8) &&
+      (i.value || '').length === 0);
+    return hit || null;
+  };
+
+  // Logger pentru când avem otpForm dar nu găsim input — listă toate inputurile.
+  const logInputsForDiagnostic = () => {
+    const inputs = Array.from(document.querySelectorAll('input'));
+    log('=== DIAGNOSTIC: ' + inputs.length + ' inputs on page ===');
+    inputs.forEach((i, idx) => {
+      log('  [' + idx + ']',
+        'type=' + i.type,
+        'id=' + (i.id || '?'),
+        'name=' + (i.name || '?'),
+        'maxLength=' + i.maxLength,
+        'inputMode=' + (i.inputMode || '?'),
+        'autocomplete=' + (i.autocomplete || '?'),
+        'placeholder=' + (i.placeholder || '?').substring(0, 40),
+        'visible=' + isUsable(i));
+    });
+    const forms = Array.from(document.querySelectorAll('form'));
+    log('=== ' + forms.length + ' forms on page ===');
+    forms.forEach((f, idx) => {
+      log('  form[' + idx + ']', 'id=' + (f.id || '?'), 'action=' + (f.action || '?').substring(0, 80));
+    });
   };
 
   // Keycloak submit: primary #kc-login. Fallback: form.submit() sau primul button[type=submit].
@@ -254,35 +293,76 @@ class AaAutoLoginService {
           'totp_submitted=' + !!ss(SS_TOTP_SUBMITTED));
       }
 
-      // STAGE TOTP — dacă vede form-ul OTP, încearcă să-l completeze
-      if (otpForm) {
-        if (ss(SS_TOTP_SUBMITTED)) { log('totp deja submitted in acest session — skip'); return; }
-        if (!TOTP) { log('no TOTP code in payload — user trebuie să introducă manual'); return; }
-        const t = findTotp();
-        if (t && !totpFilling) {
+      // STAGE TOTP — dacă vede form-ul OTP SAU detectează context TOTP din alte semnale
+      const totpInput = findTotp();
+      const totpContext = otpForm || totpInput ||
+        /otp|totp|2fa|einmalcode|authenticator|6[-_ ]?stellig/i.test(document.body?.innerText?.substring(0, 500) || '');
+      if (totpContext) {
+        if (ss(SS_TOTP_SUBMITTED)) {
+          if (tickCount === 1 || tickCount % 5 === 0) log('totp already submitted — skip');
+          return;
+        }
+        if (!TOTP) {
+          if (tickCount === 1) log('no TOTP code in payload — user must enter manually');
+          return;
+        }
+        if (!totpInput) {
+          // Diagnostic: vedem ce inputuri sunt pe pagină dacă nu match-uiește nimic
+          if (tickCount === 1 || tickCount === 5) {
+            log('!!! TOTP context detected but no input matched any predicate');
+            logInputsForDiagnostic();
+          }
+          return;
+        }
+        if (!totpFilling) {
           totpFilling = true;
-          log('filling TOTP into #otp');
+          log('filling TOTP — input.id=' + (totpInput.id || '?') + ' name=' + (totpInput.name || '?') + ' code=' + TOTP);
+          // Type per character cu keydown/keyup pentru Keycloak validators
+          const typeChar = (el, ch) => {
+            el.focus();
+            el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+            setNativeValue(el, (el.value || '') + ch);
+            el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+          };
           const splitBoxes = Array.from(document.querySelectorAll('input[maxlength="1"]')).filter(isUsable);
           if (splitBoxes.length >= 6) {
-            log('detected', splitBoxes.length, 'split boxes for TOTP');
+            log('detected', splitBoxes.length, 'split boxes — using per-box fill');
             for (let k = 0; k < TOTP.length && k < splitBoxes.length; k++) {
-              setNativeValue(splitBoxes[k], TOTP[k]);
-              splitBoxes[k].focus();
+              setNativeValue(splitBoxes[k], '');
+              typeChar(splitBoxes[k], TOTP[k]);
             }
           } else {
-            setNativeValue(t, TOTP);
+            setNativeValue(totpInput, '');
+            for (const ch of TOTP) typeChar(totpInput, ch);
+            totpInput.dispatchEvent(new Event('blur', { bubbles: true }));
           }
-          // Așteaptă ca Keycloak să activeze butonul (validatori interni).
+          // Așteaptă Keycloak să activeze submit + extra retry dacă disabled
           setTimeout(() => {
-            if (submitForm(otpForm || t.closest('form'))) {
+            const formEl = otpForm || totpInput.closest('form');
+            const kc = document.getElementById('kc-login');
+            if (kc && kc.disabled) {
+              log('kc-login încă disabled după 1.5s — așteptăm încă 1.5s');
+              setTimeout(() => {
+                if (submitForm(formEl)) {
+                  ss(SS_TOTP_SUBMITTED, String(Date.now()));
+                  log('TOTP submitted (after extra wait) — done');
+                  window.__icd_aa_done = true;
+                } else {
+                  log('!!! TOTP submit FAILED definitiv');
+                  totpFilling = false;
+                }
+              }, 1500);
+              return;
+            }
+            if (submitForm(formEl)) {
               ss(SS_TOTP_SUBMITTED, String(Date.now()));
               log('TOTP submitted — done');
               window.__icd_aa_done = true;
             } else {
-              log('TOTP submit failed — kc-login encă disabled?');
+              log('!!! TOTP submit FAILED — form?');
               totpFilling = false;
             }
-          }, 800);
+          }, 1500);
         }
         return; // pe TOTP page nu mai încercăm login
       }
