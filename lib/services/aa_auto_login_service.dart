@@ -213,7 +213,8 @@ class AaAutoLoginService {
     // Primary: standard Keycloak #otp
     const k = document.getElementById('otp');
     if (isUsable(k)) return k;
-    const inputs = Array.from(document.querySelectorAll('input')).filter(isUsable);
+    const allInputs = Array.from(document.querySelectorAll('input'));
+    const inputs = allInputs.filter(isUsable);
     // 1) autocomplete one-time-code (WebAuthn / OS-suggested)
     let hit = inputs.find(i => i.autocomplete === 'one-time-code');
     if (hit) return hit;
@@ -223,18 +224,48 @@ class AaAutoLoginService {
       (i.maxLength === 6 || i.maxLength === 8)
     );
     if (hit) return hit;
-    // 3) name/id/placeholder/aria match
+    // 3) name/id/placeholder/aria/class match
+    const otpRegex = /\\botp\\b|\\btotp\\b|einmalcode|einmal[_-]?code|verification[_-]?code|2fa|two[_-]?factor|6[-_ ]?stellig|six[-_ ]?digit|authenticator|\\bcode\\b/i;
     hit = inputs.find(i => {
       const blob = (i.name || '') + ' ' + (i.id || '') + ' ' + (i.placeholder || '') +
                    ' ' + (i.getAttribute('aria-label') || '') + ' ' + (i.className || '');
-      return /\\botp\\b|\\btotp\\b|einmalcode|einmal[_-]?code|verification[_-]?code|2fa|two[_-]?factor|6[-_ ]?stellig|six[-_ ]?digit|authenticator/i.test(blob);
+      return otpRegex.test(blob);
     });
     if (hit) return hit;
-    // 4) Fallback: single text input cu maxLength 6-8 (foarte permisiv, ultima opțiune)
-    hit = inputs.find(i => i.type !== 'password' && i.type !== 'hidden' && i.type !== 'checkbox' && i.type !== 'radio' &&
-      (i.maxLength === 6 || i.maxLength === 7 || i.maxLength === 8) &&
-      (i.value || '').length === 0);
-    return hit || null;
+    // 4) Label-text scan: <label for=ID>6-stelliger Code</label> + <input id=ID>
+    //    BA pune label vizibil deasupra input-ului. Match-uim input prin asociere.
+    const labels = Array.from(document.querySelectorAll('label'));
+    for (const lab of labels) {
+      const labTxt = (lab.innerText || lab.textContent || '').trim();
+      if (otpRegex.test(labTxt)) {
+        const forId = lab.getAttribute('for');
+        if (forId) {
+          const linked = document.getElementById(forId);
+          if (linked && linked.tagName === 'INPUT' && isUsable(linked)) return linked;
+        }
+        // Sau input direct înăuntrul label-ului
+        const nested = lab.querySelector('input');
+        if (nested && isUsable(nested)) return nested;
+      }
+    }
+    // 5) Single text input on page (TOTP page de obicei are doar 1 input vizibil
+    //    care nu e parolă) — aplicabil DOAR post-login ca să nu false-match pe alte pagini
+    if (ss(SS_LOGIN_SUBMITTED)) {
+      const textInputs = inputs.filter(i =>
+        i.type !== 'password' && i.type !== 'hidden' && i.type !== 'checkbox' &&
+        i.type !== 'radio' && i.type !== 'submit' && i.type !== 'button'
+      );
+      if (textInputs.length === 1) return textInputs[0];
+      // Sau primul empty cu maxLength 6-8
+      const filtered = textInputs.find(i =>
+        (i.maxLength === 6 || i.maxLength === 7 || i.maxLength === 8) &&
+        (i.value || '').length === 0);
+      if (filtered) return filtered;
+      // Last resort: primul empty input vizibil (post-login putem fi agresivi)
+      const first = textInputs.find(i => (i.value || '').length === 0);
+      if (first) return first;
+    }
+    return null;
   };
 
   // Logger pentru când avem otpForm dar nu găsim input — listă toate inputurile.
@@ -310,6 +341,19 @@ class AaAutoLoginService {
           'totp=' + !!findTotp(),
           'login_submitted=' + !!ss(SS_LOGIN_SUBMITTED),
           'totp_submitted=' + !!ss(SS_TOTP_SUBMITTED));
+      }
+      // Dacă suntem post-login dar nu găsim TOTP input, dump full diagnostic pe tick #3
+      // ca user-ul să vadă exact ce există pe pagină.
+      if (tickCount === 3 && ss(SS_LOGIN_SUBMITTED) && !findTotp()) {
+        log('!!! POST-LOGIN dar TOTP input NEDETECTAT — dump diagnostic complet');
+        logInputsForDiagnostic();
+        log('=== HEADERS / LABELS ===');
+        Array.from(document.querySelectorAll('label, h1, h2, h3, h4, legend')).forEach((el, idx) => {
+          const txt = (el.innerText || el.textContent || '').trim().substring(0, 100);
+          if (txt) log('  [' + idx + ']', el.tagName.toLowerCase(),
+            el.getAttribute('for') ? 'for=' + el.getAttribute('for') : '',
+            'text="' + txt + '"');
+        });
       }
 
       // STAGE TOTP — semnale:
