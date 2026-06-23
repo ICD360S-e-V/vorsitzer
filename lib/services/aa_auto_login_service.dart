@@ -29,11 +29,30 @@ class AaAutoLoginService {
     required ApiService apiService,
     required int userId,
   }) async {
-    final res = await apiService.getArbeitsagenturLoginCredentials(userId);
+    Map<String, dynamic> res = await apiService.getArbeitsagenturLoginCredentials(userId);
     if (res['success'] != true) {
       return res['message']?.toString() ?? 'Anmeldedaten konnten nicht geladen werden';
     }
-    final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+    Map<String, dynamic> data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+    // Dacă codul TOTP curent are < 15s rămase din fereastra de 30s,
+    // auto-login-ul (Chromium start + form fill + validate + navigate)
+    // va lua mai mult decât asta → codul expiră înainte de submit.
+    // Așteaptă următoarea fereastră TOTP și re-cere credentials cu cod fresh.
+    final secondsRemaining = (data['totp_seconds_remaining'] is num)
+        ? (data['totp_seconds_remaining'] as num).toInt()
+        : 30;
+    final totpConfigured0 = data['totp_configured'] == true;
+    if (totpConfigured0 && secondsRemaining < 15) {
+      // ignore: avoid_print
+      // Așteaptă până la următoarea fereastră (+ 1s buffer ca să nu prinzi limit-ul).
+      await Future.delayed(Duration(seconds: secondsRemaining + 1));
+      // Re-cere credentials cu cod proaspăt (full 30s fereastră).
+      res = await apiService.getArbeitsagenturLoginCredentials(userId);
+      if (res['success'] != true) {
+        return res['message']?.toString() ?? 'Anmeldedaten konnten nicht geladen werden';
+      }
+      data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+    }
     final email    = (data['email']     ?? '').toString();
     final password = (data['password']  ?? '').toString();
     final totpCode = (data['totp_code'] ?? '').toString();
