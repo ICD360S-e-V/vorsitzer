@@ -79,6 +79,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   List<Map<String, dynamic>> _dbTermine = [];
   List<Map<String, dynamic>> _dbBegutachtungen = [];
   List<Map<String, dynamic>> _dbVorschlaege = [];
+  // Auto-Login button vizibil DOAR când TOTP e configurat + email + parolă există.
+  // Status propagat din _AaTotp2FAWidget via callback onConfiguredChange.
+  bool _totpConfigured = false;
 
   static const _tabs = [
     (Icons.account_balance, 'BAA'),
@@ -566,60 +569,59 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                 if (hasPasskey) ...[const SizedBox(height: 12), _textField('Wer hat Zugang?', passkeyC, hint: 'Name / Rolle', icon: Icons.person_pin)],
               ])),
             const SizedBox(height: 12),
-            // 2FA / TOTP Section — server-side encrypted (AES-256-GCM)
-            _AaTotp2FAWidget(apiService: widget.apiService, userId: widget.userId),
-            const SizedBox(height: 12),
-            // Auto-Login Online — preia email + parolă + cod TOTP curent
-            // şi injectează în Chromium extern (Keycloak BA SSO).
-            // Buton VISIBLE mereu (chiar dacă lipsesc credențiale, user-ul vede tooltip-ul).
-            Builder(builder: (btnCtx) {
-              final hasCreds = emailC.text.trim().isNotEmpty && passwordC.text.isNotEmpty;
-              return Tooltip(
-                message: hasCreds
-                  ? 'Öffnet Chromium und meldet sich automatisch an'
-                  : 'Bitte zuerst E-Mail und Passwort speichern',
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: (!hasCreds || busyLogin) ? null : () async {
-                      setLocal(() => busyLogin = true);
-                      try {
-                        final err = await AaAutoLoginService.autoLogin(
-                          apiService: widget.apiService,
-                          userId: widget.userId,
-                        );
-                        if (!mounted) return;
-                        if (err == null) {
-                          ScaffoldMessenger.of(btnCtx).showSnackBar(const SnackBar(
-                            content: Text('Chromium gestartet — Auto-Login läuft im Hintergrund'),
-                            backgroundColor: Colors.green,
-                            duration: Duration(seconds: 4),
-                          ));
-                        } else {
-                          ScaffoldMessenger.of(btnCtx).showSnackBar(SnackBar(
-                            content: Text(err),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 6),
-                          ));
-                        }
-                      } finally {
-                        if (mounted) setLocal(() => busyLogin = false);
+            // 2FA / TOTP Section — server-side encrypted (AES-256-GCM).
+            // Notifică parent (State principal) când TOTP se configurează / se șterge.
+            _AaTotp2FAWidget(
+              apiService: widget.apiService,
+              userId: widget.userId,
+              onConfiguredChange: (c) {
+                if (mounted) setState(() => _totpConfigured = c);
+              },
+            ),
+            // Auto-Login Online — VIZIBIL DOAR cand email + parolă + TOTP toate setate.
+            // (Nu apare deloc dacă lipsește vreun element — păstrăm UI curat.)
+            if (emailC.text.trim().isNotEmpty && passwordC.text.isNotEmpty && _totpConfigured) ...[
+              const SizedBox(height: 12),
+              Builder(builder: (btnCtx) => SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: busyLogin ? null : () async {
+                    setLocal(() => busyLogin = true);
+                    try {
+                      final err = await AaAutoLoginService.autoLogin(
+                        apiService: widget.apiService,
+                        userId: widget.userId,
+                      );
+                      if (!mounted) return;
+                      if (err == null) {
+                        ScaffoldMessenger.of(btnCtx).showSnackBar(const SnackBar(
+                          content: Text('Chromium gestartet — Auto-Login läuft im Hintergrund'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 4),
+                        ));
+                      } else {
+                        ScaffoldMessenger.of(btnCtx).showSnackBar(SnackBar(
+                          content: Text(err),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 6),
+                        ));
                       }
-                    },
-                    icon: busyLogin
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.rocket_launch, size: 18),
-                    label: Text(busyLogin ? 'Login läuft…' : 'Auto-Login Online'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo.shade700,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade300,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
+                    } finally {
+                      if (mounted) setLocal(() => busyLogin = false);
+                    }
+                  },
+                  icon: busyLogin
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.rocket_launch, size: 18),
+                  label: Text(busyLogin ? 'Login läuft…' : 'Auto-Login Online'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
-              );
-            }),
+              )),
+            ],
           ],
         ])),
       _saveBtn(() async {
@@ -2946,7 +2948,10 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
 class _AaTotp2FAWidget extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  const _AaTotp2FAWidget({required this.apiService, required this.userId});
+  /// Notifică parinte (Online tab) când statusul TOTP se schimbă — folosit
+  /// pentru a arăta sau ascunde butonul Auto-Login Online.
+  final ValueChanged<bool>? onConfiguredChange;
+  const _AaTotp2FAWidget({required this.apiService, required this.userId, this.onConfiguredChange});
 
   @override
   State<_AaTotp2FAWidget> createState() => _AaTotp2FAWidgetState();
@@ -2989,6 +2994,7 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
       _label = data['label'] as String?;
       _period = (data['period'] as int?) ?? 30;
     });
+    widget.onConfiguredChange?.call(configured);
     if (configured) _startCodeRefresh();
   }
 
@@ -3065,6 +3071,7 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
         _configured = false;
         _currentCode = null;
       });
+      widget.onConfiguredChange?.call(false);
     }
   }
 

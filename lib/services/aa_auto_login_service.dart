@@ -81,6 +81,27 @@ class AaAutoLoginService {
   const TOTP = $totpJs;
   const log = (...a) => { try { console.log('[ICD-AutoLogin]', ...a); } catch (_) {} };
 
+  // CRITICAL: sessionStorage persistă peste navigări în acelaşi tab.
+  // Folosit ca să nu re-submit login form după redirect (cauza erorii
+  // "Ihre Anmeldung ist nicht mehr aktiv" — Keycloak invalid token la al 2-lea submit).
+  const ss = (k, v) => {
+    try {
+      if (v === undefined) return window.sessionStorage.getItem(k);
+      window.sessionStorage.setItem(k, v);
+    } catch (_) {}
+  };
+
+  // Detectează pagini de eroare BA Keycloak şi opreşte tot.
+  const detectError = () => {
+    const body = (document.body && document.body.innerText) || '';
+    if (/ihre anmeldung ist nicht mehr aktiv|anmeldung abgelaufen|session expired|invalid_grant/i.test(body)) {
+      log('ERROR PAGE detected — stopping');
+      window.__icd_aa_done = true;
+      return true;
+    }
+    return false;
+  };
+
   // Setează valoarea propriu-zis cu evenimente input/change/blur ca să
   // satisfacă Angular/React/Keycloak's own JS validators.
   const setNativeValue = (el, value) => {
@@ -137,16 +158,16 @@ class AaAutoLoginService {
   };
 
   // Keycloak submit: primary #kc-login. Fallback: form.submit() sau primul button[type=submit].
+  // Verifică că butonul nu e disabled (Keycloak îl disable-uiește cât timp form-ul nu e valid).
   const submitForm = (formEl) => {
     const kc = document.getElementById('kc-login');
-    if (isUsable(kc)) { log('clicking #kc-login'); kc.click(); return true; }
+    if (kc && !kc.disabled && isUsable(kc)) { log('clicking #kc-login'); kc.click(); return true; }
     if (formEl) {
-      // HTMLFormElement.requestSubmit() trigger-uiește handler-ele Keycloak corect.
       try { log('formEl.requestSubmit()'); formEl.requestSubmit(); return true; }
       catch (_) { try { formEl.submit(); return true; } catch (_) {} }
     }
     const btn = Array.from(document.querySelectorAll('button[type=submit],input[type=submit],button')).find(b => {
-      if (!isUsable(b)) return false;
+      if (!isUsable(b) || b.disabled) return false;
       const txt = (b.innerText || b.value || b.textContent || '').toLowerCase().trim();
       return /anmelden|einloggen|sign[\\s-]*in|log[\\s-]*in|weiter|bestätigen|absenden|continue/i.test(txt) || b.type === 'submit';
     });
@@ -154,72 +175,102 @@ class AaAutoLoginService {
     return false;
   };
 
-  // Polling state-machine.
-  let stage = 'login'; // 'login' → 'totp' → 'done'
-  let loginAttempted = false;
-  let totpAttempted = false;
-  const startedAt = Date.now();
-  const MAX_MS = 90_000;
+  // Polling state-machine — folosește sessionStorage ca să nu re-submit
+  // pe redirect-uri (cauza erorii "Ihre Anmeldung ist nicht mehr aktiv").
+  const SS_LOGIN_SUBMITTED = '__icd_aa_login_submitted_at';
+  const SS_TOTP_SUBMITTED  = '__icd_aa_totp_submitted_at';
+  const SS_STARTED         = '__icd_aa_started_at';
+  if (!ss(SS_STARTED)) ss(SS_STARTED, String(Date.now()));
+
+  let loginFilling = false;
+  let totpFilling = false;
+  const localStart = Date.now();
+  const MAX_MS = 120_000;
 
   const tick = () => {
-    if (Date.now() - startedAt > MAX_MS) { log('timeout, giving up'); return; }
+    if (Date.now() - localStart > MAX_MS) { log('timeout, giving up'); return; }
+    if (window.__icd_aa_done) return;
+    if (detectError()) return;
     try {
-      // Detectează stage curent după prezența form-urilor Keycloak.
       const loginForm = document.getElementById('kc-form-login');
       const otpForm = document.getElementById('kc-otp-login-form') || document.querySelector('form[action*="otp"]');
 
-      if (otpForm && !totpAttempted) stage = 'totp';
-
-      if (stage === 'login') {
-        const u = findUsername();
-        const p = findPassword();
-        if (u && p && !loginAttempted) {
-          log('filling username + password (Keycloak #username/#password)');
-          setNativeValue(u, EMAIL);
-          setNativeValue(p, PASSWORD);
-          loginAttempted = true;
-          setTimeout(() => {
-            submitForm(loginForm || u.closest('form'));
-            stage = 'totp';
-          }, 400);
-        } else if (u && !p && !loginAttempted) {
-          // Two-step layout (eventual): doar username, apoi password pe pagina următoare.
-          log('two-step? filling username only');
-          setNativeValue(u, EMAIL);
-          loginAttempted = true;
-          setTimeout(() => { submitForm(loginForm || u.closest('form')); loginAttempted = false; }, 400);
-        }
-      } else if (stage === 'totp') {
-        if (!TOTP) { log('no TOTP code in payload — stopping at TOTP page'); stage = 'done'; return; }
+      // STAGE TOTP — dacă vede form-ul OTP, încearcă să-l completeze
+      if (otpForm) {
+        if (ss(SS_TOTP_SUBMITTED)) { log('totp deja submitted in acest session — skip'); return; }
+        if (!TOTP) { log('no TOTP code in payload — user trebuie să introducă manual'); return; }
         const t = findTotp();
-        if (t && !totpAttempted) {
-          // Keycloak typically single input #otp, dar verificăm și split-boxes.
+        if (t && !totpFilling) {
+          totpFilling = true;
+          log('filling TOTP into #otp');
           const splitBoxes = Array.from(document.querySelectorAll('input[maxlength="1"]')).filter(isUsable);
           if (splitBoxes.length >= 6) {
-            log('filling TOTP into', splitBoxes.length, 'split boxes');
+            log('detected', splitBoxes.length, 'split boxes for TOTP');
             for (let k = 0; k < TOTP.length && k < splitBoxes.length; k++) {
               setNativeValue(splitBoxes[k], TOTP[k]);
               splitBoxes[k].focus();
             }
           } else {
-            log('filling TOTP into single #otp input');
             setNativeValue(t, TOTP);
           }
-          totpAttempted = true;
+          // Așteaptă ca Keycloak să activeze butonul (validatori interni).
           setTimeout(() => {
-            submitForm(otpForm || t.closest('form'));
-            stage = 'done';
-            log('done — Auto-Login complete');
-          }, 400);
+            if (submitForm(otpForm || t.closest('form'))) {
+              ss(SS_TOTP_SUBMITTED, String(Date.now()));
+              log('TOTP submitted — done');
+              window.__icd_aa_done = true;
+            } else {
+              log('TOTP submit failed — kc-login encă disabled?');
+              totpFilling = false;
+            }
+          }, 800);
         }
+        return; // pe TOTP page nu mai încercăm login
+      }
+
+      // STAGE LOGIN
+      if (ss(SS_LOGIN_SUBMITTED)) {
+        // Login a fost submited într-o navigare anterioară — aşteptăm pagina TOTP
+        log('login deja submitted — waiting for TOTP page');
+        return;
+      }
+      const u = findUsername();
+      const p = findPassword();
+      if (u && p && !loginFilling) {
+        loginFilling = true;
+        log('filling username + password (Keycloak #username/#password)');
+        setNativeValue(u, EMAIL);
+        setNativeValue(p, PASSWORD);
+        // Așteaptă ca Keycloak să-şi valideze inputurile + activeze submit.
+        // 1500ms e un compromis sigur: suficient pentru Keycloak's onkeyup
+        // validators, nu prea mult cât să expire tab_id token-ul.
+        setTimeout(() => {
+          if (submitForm(loginForm || u.closest('form'))) {
+            ss(SS_LOGIN_SUBMITTED, String(Date.now()));
+            log('login submitted — waiting for next page');
+          } else {
+            log('login submit failed — kc-login disabled?');
+            loginFilling = false;
+          }
+        }, 1500);
+      } else if (u && !p && !loginFilling) {
+        // Two-step layout (rar la Keycloak BA, dar posibil).
+        loginFilling = true;
+        log('two-step? filling username only');
+        setNativeValue(u, EMAIL);
+        setTimeout(() => {
+          submitForm(loginForm || u.closest('form'));
+          loginFilling = false;
+        }, 800);
       }
     } catch (e) {
       log('tick error:', e.message);
     }
-    setTimeout(tick, 600);
+    setTimeout(tick, 700);
   };
-  log('starting Auto-Login polling (Keycloak BA Online)');
-  tick();
+  log('starting Auto-Login polling (Keycloak BA Online), url=' + location.href);
+  // Wait 800ms initial ca Keycloak SPA să-şi rendereze form-ul.
+  setTimeout(tick, 800);
 })();
 ''';
   }
