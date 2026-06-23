@@ -49,16 +49,12 @@ class AaAutoLoginService {
     return ExternalBrowserService.openWithAutoFill(
       url: _ssoUrl,
       autoFillJs: js,
-      // CRITICAL: șterge cookie-urile arbeitsagentur.de înainte de navigare.
-      // Sesiunile vechi cu tab_id expirat cauzează "Ihre Anmeldung ist nicht
-      // mehr aktiv" la prima încărcare a paginii — fără my JS să fi rulat.
-      clearCookiesFor: const [
-        'arbeitsagentur.de',
-        'www.arbeitsagentur.de',
-        'web.arbeitsagentur.de',
-        'sso.arbeitsagentur.de',
-        'con.arbeitsagentur.de',
-      ],
+      // CRITICAL: golește cookie-urile browser-ului înainte de navigare.
+      // Sesiunile vechi cu tab_id Keycloak expirat cauzează "Ihre Anmeldung
+      // ist nicht mehr aktiv" la prima încărcare — fără ca JS-ul nostru să
+      // fi rulat. Curățarea totală e acceptabilă: browserul nostru CDP nu
+      // păstrează sesiuni utile între auto-login-uri.
+      clearCookies: true,
     );
   }
 
@@ -92,6 +88,31 @@ class AaAutoLoginService {
   // a apărea evidențiat în consolă.
   try {
     console.warn('[ICD-AutoLogin] INJECTED url=' + location.href + ' time=' + new Date().toISOString());
+  } catch (_) {}
+  // Curăță cookie-urile Keycloak/SSO de pe domeniul curent (sso/web/www).
+  // evaluateOnNewDocument rulează la document_start, deci înainte ca pagina
+  // să facă XHR-uri folosind cookie-urile vechi. Asta ajută cu "Ihre Anmeldung
+  // ist nicht mehr aktiv" cauzat de sesiuni Keycloak vechi.
+  try {
+    const host = location.hostname || '';
+    if (/arbeitsagentur\\.de\$/.test(host)) {
+      const all = document.cookie.split(';');
+      let cleared = 0;
+      for (const c of all) {
+        const eq = c.indexOf('=');
+        const name = (eq > -1 ? c.substr(0, eq) : c).trim();
+        if (!name) continue;
+        // KEYCLOAK_*, KC_*, AUTH_*, JSESSIONID — sesiunile potențial expirate.
+        if (/^(KEYCLOAK_|KC_|AUTH_|kc-|JSESSION)/i.test(name)) {
+          for (const d of ['', '.' + host, host, '.arbeitsagentur.de']) {
+            const domain = d ? '; domain=' + d : '';
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/' + domain;
+          }
+          cleared++;
+        }
+      }
+      if (cleared > 0) console.warn('[ICD-AutoLogin] cleared ' + cleared + ' stale Keycloak cookies on ' + host);
+    }
   } catch (_) {}
   if (window.__icd_aa_auto_login_running) {
     try { console.warn('[ICD-AutoLogin] already running on this document — skip re-init'); } catch (_) {}
