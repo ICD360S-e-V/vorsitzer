@@ -529,6 +529,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     bool emailEdit = emailC.text.isEmpty;
     bool passwordEdit = passwordC.text.isEmpty;
     bool passwordVisible = false;
+    bool busyLogin = false;
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -567,6 +568,58 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             const SizedBox(height: 12),
             // 2FA / TOTP Section — server-side encrypted (AES-256-GCM)
             _AaTotp2FAWidget(apiService: widget.apiService, userId: widget.userId),
+            const SizedBox(height: 12),
+            // Auto-Login Online — preia email + parolă + cod TOTP curent
+            // şi injectează în Chromium extern (Keycloak BA SSO).
+            // Buton VISIBLE mereu (chiar dacă lipsesc credențiale, user-ul vede tooltip-ul).
+            Builder(builder: (btnCtx) {
+              final hasCreds = emailC.text.trim().isNotEmpty && passwordC.text.isNotEmpty;
+              return Tooltip(
+                message: hasCreds
+                  ? 'Öffnet Chromium und meldet sich automatisch an'
+                  : 'Bitte zuerst E-Mail und Passwort speichern',
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (!hasCreds || busyLogin) ? null : () async {
+                      setLocal(() => busyLogin = true);
+                      try {
+                        final err = await AaAutoLoginService.autoLogin(
+                          apiService: widget.apiService,
+                          userId: widget.userId,
+                        );
+                        if (!mounted) return;
+                        if (err == null) {
+                          ScaffoldMessenger.of(btnCtx).showSnackBar(const SnackBar(
+                            content: Text('Chromium gestartet — Auto-Login läuft im Hintergrund'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 4),
+                          ));
+                        } else {
+                          ScaffoldMessenger.of(btnCtx).showSnackBar(SnackBar(
+                            content: Text(err),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 6),
+                          ));
+                        }
+                      } finally {
+                        if (mounted) setLocal(() => busyLogin = false);
+                      }
+                    },
+                    icon: busyLogin
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.rocket_launch, size: 18),
+                    label: Text(busyLogin ? 'Login läuft…' : 'Auto-Login Online'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo.shade700,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ],
         ])),
       _saveBtn(() async {
@@ -3015,33 +3068,6 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
     }
   }
 
-  bool _busyAutoLogin = false;
-
-  Future<void> _runAutoLogin() async {
-    setState(() => _busyAutoLogin = true);
-    try {
-      final err = await AaAutoLoginService.autoLogin(
-        apiService: widget.apiService,
-        userId: widget.userId,
-      );
-      if (!mounted) return;
-      if (err == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Chromium gestartet — Auto-Login läuft im Hintergrund'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 4),
-        ));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(err),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 6),
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _busyAutoLogin = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -3112,24 +3138,6 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
             ),
           ]),
           if (_label != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_label!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-          const SizedBox(height: 10),
-          // Auto-Login Online — preia email + parolă + cod TOTP curent şi
-          // injectează în Chromium extern pe sso.arbeitsagentur.de.
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _busyAutoLogin ? null : _runAutoLogin,
-              icon: _busyAutoLogin
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.rocket_launch, size: 18),
-              label: Text(_busyAutoLogin ? 'Login läuft…' : 'Auto-Login Online'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo.shade700,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
         ],
         if (_showSecretInput && !_configured) ...[
           const SizedBox(height: 12),
