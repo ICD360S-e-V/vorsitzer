@@ -248,22 +248,45 @@ class AaAutoLoginService {
         if (nested && isUsable(nested)) return nested;
       }
     }
-    // 5) Single text input on page (TOTP page de obicei are doar 1 input vizibil
+    // 5) document.activeElement — Keycloak typically autofocus-uiește input-ul OTP
+    //    când pagina se încarcă. Dacă post-login şi activeEl e un input non-password
+    //    empty → e TOTP (independent de selector).
+    if (ss(SS_LOGIN_SUBMITTED)) {
+      const ae = document.activeElement;
+      if (ae && ae.tagName === 'INPUT' && isUsable(ae) &&
+          ae.type !== 'password' && ae.type !== 'hidden' &&
+          ae.type !== 'checkbox' && ae.type !== 'radio' &&
+          ae.type !== 'submit' && ae.type !== 'button' &&
+          (ae.value || '').length === 0) {
+        log('  ↳ TOTP found via document.activeElement (id=' + (ae.id || '?') + ' name=' + (ae.name || '?') + ')');
+        return ae;
+      }
+    }
+    // 6) Single text input on page (TOTP page de obicei are doar 1 input vizibil
     //    care nu e parolă) — aplicabil DOAR post-login ca să nu false-match pe alte pagini
     if (ss(SS_LOGIN_SUBMITTED)) {
       const textInputs = inputs.filter(i =>
         i.type !== 'password' && i.type !== 'hidden' && i.type !== 'checkbox' &&
         i.type !== 'radio' && i.type !== 'submit' && i.type !== 'button'
       );
-      if (textInputs.length === 1) return textInputs[0];
+      if (textInputs.length === 1) {
+        log('  ↳ TOTP found via single-text-input fallback');
+        return textInputs[0];
+      }
       // Sau primul empty cu maxLength 6-8
       const filtered = textInputs.find(i =>
         (i.maxLength === 6 || i.maxLength === 7 || i.maxLength === 8) &&
         (i.value || '').length === 0);
-      if (filtered) return filtered;
+      if (filtered) {
+        log('  ↳ TOTP found via maxLength 6-8 fallback');
+        return filtered;
+      }
       // Last resort: primul empty input vizibil (post-login putem fi agresivi)
       const first = textInputs.find(i => (i.value || '').length === 0);
-      if (first) return first;
+      if (first) {
+        log('  ↳ TOTP found via first-empty-input last-resort fallback');
+        return first;
+      }
     }
     return null;
   };
