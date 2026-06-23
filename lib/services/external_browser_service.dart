@@ -35,6 +35,10 @@ class ExternalBrowserService {
   static Future<String?> openWithAutoFill({
     required String url,
     required String autoFillJs,
+    /// Domain-uri pentru care șterge cookie-urile ÎNAINTE de navigare.
+    /// Util pentru Keycloak unde un session token expirat din încercări
+    /// anterioare cauzează eroarea "Ihre Anmeldung ist nicht mehr aktiv".
+    List<String> clearCookiesFor = const [],
   }) async {
     if (!Platform.isLinux) {
       return 'Externer Browser nur unter Linux verfügbar';
@@ -44,6 +48,26 @@ class ExternalBrowserService {
       await _ensureBrowser();
 
       final page = await _browser!.newPage();
+
+      // Clear cookies pentru domain-urile cerute ÎNAINTE de navigare —
+      // altfel sesiunile anterioare (cu token Keycloak expirat) cauzează
+      // "Ihre Anmeldung ist nicht mehr aktiv".
+      if (clearCookiesFor.isNotEmpty) {
+        for (final domain in clearCookiesFor) {
+          try {
+            // Cookies pentru ambele scheme http/https + cu/fără subdomain.
+            for (final scheme in const ['https://', 'http://']) {
+              final cookies = await page.cookies(scheme + domain);
+              if (cookies.isNotEmpty) {
+                await page.deleteCookie(cookies);
+                debugPrint('[CDP] cleared ${cookies.length} cookies for $scheme$domain');
+              }
+            }
+          } catch (e) {
+            debugPrint('[CDP] clear cookies for $domain failed: $e');
+          }
+        }
+      }
 
       // Re-inject auto-fill on EVERY navigation. Go2Doc (and many German
       // booking portals) navigate full-page from /praxis/... → /buchung/...

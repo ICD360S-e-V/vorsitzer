@@ -46,7 +46,20 @@ class AaAutoLoginService {
       password: password,
       totpCode: totpConfigured ? totpCode : '',
     );
-    return ExternalBrowserService.openWithAutoFill(url: _ssoUrl, autoFillJs: js);
+    return ExternalBrowserService.openWithAutoFill(
+      url: _ssoUrl,
+      autoFillJs: js,
+      // CRITICAL: șterge cookie-urile arbeitsagentur.de înainte de navigare.
+      // Sesiunile vechi cu tab_id expirat cauzează "Ihre Anmeldung ist nicht
+      // mehr aktiv" la prima încărcare a paginii — fără my JS să fi rulat.
+      clearCookiesFor: const [
+        'arbeitsagentur.de',
+        'www.arbeitsagentur.de',
+        'web.arbeitsagentur.de',
+        'sso.arbeitsagentur.de',
+        'con.arbeitsagentur.de',
+      ],
+    );
   }
 
   static String _buildAutoFillJs({
@@ -74,12 +87,21 @@ class AaAutoLoginService {
     // Selectoare hardcodate pentru fiabilitate maximă, cu generic-fallback la final.
     return '''
 (() => {
-  if (window.__icd_aa_auto_login_running) return;
+  // CRITICAL: imediat log la injectare ca să vedem că JS-ul rulează,
+  // chiar dacă user-ul deschide F12 după. Folosim console.warn pentru
+  // a apărea evidențiat în consolă.
+  try {
+    console.warn('[ICD-AutoLogin] INJECTED url=' + location.href + ' time=' + new Date().toISOString());
+  } catch (_) {}
+  if (window.__icd_aa_auto_login_running) {
+    try { console.warn('[ICD-AutoLogin] already running on this document — skip re-init'); } catch (_) {}
+    return;
+  }
   window.__icd_aa_auto_login_running = true;
   const EMAIL = $emailJs;
   const PASSWORD = $passwordJs;
   const TOTP = $totpJs;
-  const log = (...a) => { try { console.log('[ICD-AutoLogin]', ...a); } catch (_) {} };
+  const log = (...a) => { try { console.warn('[ICD-AutoLogin]', ...a); } catch (_) {} };
 
   // CRITICAL: sessionStorage persistă peste navigări în acelaşi tab.
   // Folosit ca să nu re-submit login form după redirect (cauza erorii
@@ -95,7 +117,8 @@ class AaAutoLoginService {
   const detectError = () => {
     const body = (document.body && document.body.innerText) || '';
     if (/ihre anmeldung ist nicht mehr aktiv|anmeldung abgelaufen|session expired|invalid_grant/i.test(body)) {
-      log('ERROR PAGE detected — stopping');
+      log('!!! ERROR PAGE detected on url=' + location.href);
+      log('!!! body snippet:', body.substring(0, 300));
       window.__icd_aa_done = true;
       return true;
     }
@@ -187,13 +210,28 @@ class AaAutoLoginService {
   const localStart = Date.now();
   const MAX_MS = 120_000;
 
+  let tickCount = 0;
   const tick = () => {
-    if (Date.now() - localStart > MAX_MS) { log('timeout, giving up'); return; }
+    tickCount++;
+    if (Date.now() - localStart > MAX_MS) { log('timeout, giving up after', tickCount, 'ticks'); return; }
     if (window.__icd_aa_done) return;
     if (detectError()) return;
     try {
       const loginForm = document.getElementById('kc-form-login');
       const otpForm = document.getElementById('kc-otp-login-form') || document.querySelector('form[action*="otp"]');
+      // Diagnostic tick log la primul tick + la fiecare 5 ticks ca să nu spam-uim.
+      if (tickCount === 1 || tickCount % 5 === 0) {
+        log('tick #' + tickCount,
+          'url=' + location.pathname,
+          'title=' + (document.title || '?').substring(0, 60),
+          'loginForm=' + !!loginForm,
+          'otpForm=' + !!otpForm,
+          'u=' + !!findUsername(),
+          'p=' + !!findPassword(),
+          'totp=' + !!findTotp(),
+          'login_submitted=' + !!ss(SS_LOGIN_SUBMITTED),
+          'totp_submitted=' + !!ss(SS_TOTP_SUBMITTED));
+      }
 
       // STAGE TOTP — dacă vede form-ul OTP, încearcă să-l completeze
       if (otpForm) {
@@ -238,21 +276,48 @@ class AaAutoLoginService {
       const p = findPassword();
       if (u && p && !loginFilling) {
         loginFilling = true;
-        log('filling username + password (Keycloak #username/#password)');
-        setNativeValue(u, EMAIL);
-        setNativeValue(p, PASSWORD);
-        // Așteaptă ca Keycloak să-şi valideze inputurile + activeze submit.
-        // 1500ms e un compromis sigur: suficient pentru Keycloak's onkeyup
-        // validators, nu prea mult cât să expire tab_id token-ul.
+        log('filling username + password — u.id=' + (u.id || '?') + ' p.id=' + (p.id || '?'));
+        // Tipare simulată: dispatch keydown/input/keyup pentru fiecare char,
+        // ca BA să declanşeze validatorii async (verificare pre-existenţă user etc.).
+        const typeChar = (el, ch) => {
+          el.focus();
+          el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+          setNativeValue(el, (el.value || '') + ch);
+          el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+        };
+        // Username
+        setNativeValue(u, '');
+        for (const ch of EMAIL) typeChar(u, ch);
+        u.dispatchEvent(new Event('blur', { bubbles: true }));
+        // Password
+        setNativeValue(p, '');
+        for (const ch of PASSWORD) typeChar(p, ch);
+        p.dispatchEvent(new Event('blur', { bubbles: true }));
+        // Așteaptă MAI MULT — BA poate face pre-validare username via fetch().
+        // 3000ms acoperă majoritatea timpilor async, dar e încă << TTL tab_id.
         setTimeout(() => {
+          const kc = document.getElementById('kc-login');
+          if (kc && kc.disabled) {
+            log('kc-login încă disabled după 3s — așteptăm încă 2s');
+            setTimeout(() => {
+              if (submitForm(loginForm || u.closest('form'))) {
+                ss(SS_LOGIN_SUBMITTED, String(Date.now()));
+                log('login submitted (after extra wait)');
+              } else {
+                log('!!! login submit FAILED definitiv — kc-login still disabled');
+                loginFilling = false;
+              }
+            }, 2000);
+            return;
+          }
           if (submitForm(loginForm || u.closest('form'))) {
             ss(SS_LOGIN_SUBMITTED, String(Date.now()));
             log('login submitted — waiting for next page');
           } else {
-            log('login submit failed — kc-login disabled?');
+            log('!!! login submit FAILED — kc-login not found?');
             loginFilling = false;
           }
-        }, 1500);
+        }, 3000);
       } else if (u && !p && !loginFilling) {
         // Two-step layout (rar la Keycloak BA, dar posibil).
         loginFilling = true;
