@@ -312,12 +312,13 @@ class AaAutoLoginService {
           'totp_submitted=' + !!ss(SS_TOTP_SUBMITTED));
       }
 
-      // STAGE TOTP — STRICT: doar dacă vede explicit form-ul OTP Keycloak.
-      // (NU folosim body-text scan ca să nu confundăm pagina de login,
-      // care are text "Anmeldung mit TOTP / Authenticator" → ne băga în
-      // stage TOTP cu early-return și nu mai fillam login.)
-      const totpInput = otpForm ? findTotp() : null;
-      if (otpForm) {
+      // STAGE TOTP — semnale:
+      //   a) form explicit Keycloak default (#kc-otp-login-form sau action*=otp)
+      //   b) un input ce match-uiește findTotp ŞI login-ul a fost deja submitted
+      //      (BA custom theme nu folosește ID-uri Keycloak standard pentru TOTP)
+      const totpInput = findTotp();
+      const isTotpStage = otpForm || (totpInput && ss(SS_LOGIN_SUBMITTED));
+      if (isTotpStage) {
         if (ss(SS_TOTP_SUBMITTED)) {
           if (tickCount === 1 || tickCount % 5 === 0) log('totp already submitted — skip');
           return;
