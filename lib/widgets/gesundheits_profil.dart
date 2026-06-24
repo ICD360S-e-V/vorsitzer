@@ -26,6 +26,7 @@ class GesundheitsProfilTab extends StatefulWidget {
 class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
   final _gewichtC = TextEditingController();
   final _groesseC = TextEditingController();
+  final _schuhgroesseC = TextEditingController();
 
   // Medical-alert fields (all decrypted by server before reaching the
   // client — see /api/admin/gesundheits_profil.php).
@@ -50,6 +51,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
   void dispose() {
     _gewichtC.dispose();
     _groesseC.dispose();
+    _schuhgroesseC.dispose();
     _schwangerETTC.dispose();
     _herzschrittmacherModellC.dispose();
     _implantateC.dispose();
@@ -62,6 +64,14 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
       if (res['success'] == true) {
         _gewichtC.text = res['gewicht_kg']?.toString() ?? '';
         _groesseC.text = res['groesse_cm']?.toString() ?? '';
+        // Schuhgröße: hide trailing .0 so 42.0 → "42", but keep "42.5"
+        final shoe = res['schuhgroesse']?.toString() ?? '';
+        if (shoe.isNotEmpty) {
+          final d = double.tryParse(shoe);
+          _schuhgroesseC.text = (d != null && d > 0)
+              ? (d == d.roundToDouble() ? d.toStringAsFixed(0) : d.toString())
+              : '';
+        }
         _schwanger = (res['schwanger']?.toString() == '1');
         _schwangerETTC.text = res['schwanger_voraussichtlich']?.toString() ?? '';
         _herzschrittmacher = (res['herzschrittmacher']?.toString() == '1');
@@ -78,6 +88,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     await widget.apiService.saveGesundheitsProfil(widget.userId, {
       'gewicht_kg': double.tryParse(_gewichtC.text) ?? 0,
       'groesse_cm': int.tryParse(_groesseC.text) ?? 0,
+      'schuhgroesse': double.tryParse(_schuhgroesseC.text.replaceAll(',', '.')) ?? 0,
       // Medical alerts — empty string = clear, '1'/'0' = flag.
       'schwanger': _schwanger ? '1' : '0',
       'schwanger_voraussichtlich': _schwangerETTC.text.trim(),
@@ -182,6 +193,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
             const SizedBox(height: 40),
             _sideData(Icons.monitor_weight, 'Gewicht', _gewichtC.text.isNotEmpty ? '${_gewichtC.text} kg' : '—', isMale),
             _sideData(Icons.height, 'Größe', _groesseC.text.isNotEmpty ? '${_groesseC.text} cm' : '—', isMale),
+            _sideData(Icons.checkroom, 'Schuhgröße', _schuhgroesseC.text.isNotEmpty ? 'EU ${_schuhgroesseC.text}' : '—', isMale),
             if (bmi > 0) _sideData(Icons.speed, 'BMI', bmi.toStringAsFixed(1), isMale),
             if (bmi > 0) _sideData(Icons.favorite, 'Status', bmi < 18.5 ? 'Untergewicht' : (bmi < 25 ? 'Normal' : (bmi < 30 ? 'Übergewicht' : 'Adipositas')), isMale,
               statusColor: bmi < 18.5 ? Colors.orange : (bmi < 25 ? Colors.green : (bmi < 30 ? Colors.orange : Colors.red))),
@@ -197,6 +209,19 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
           Expanded(child: TextField(controller: _groesseC, keyboardType: TextInputType.number,
             decoration: InputDecoration(labelText: 'Größe (cm)', isDense: true, prefixIcon: const Icon(Icons.height, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             onChanged: (_) => setState(() {}))),
+          const SizedBox(width: 12),
+          Expanded(child: TextField(
+            controller: _schuhgroesseC,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Schuhgröße (EU)',
+              isDense: true,
+              prefixIcon: const Icon(Icons.checkroom, size: 18),
+              hintText: 'z. B. 42 oder 38,5',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onChanged: (_) => setState(() {}),
+          )),
           const SizedBox(width: 12),
           FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save, size: 16), label: const Text('Speichern', style: TextStyle(fontSize: 12)),
             style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
