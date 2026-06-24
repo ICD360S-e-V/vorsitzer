@@ -3356,6 +3356,52 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ─── Kindergarten Dokumente (Vertrag / Kündigung) ──
+  /// List documents for a member. Pass [typ] to filter ('vertrag'/'kuendigung').
+  Future<Map<String, dynamic>> listKindergartenDokumente({required int userId, String? typ}) async {
+    final body = <String, dynamic>{'action': 'list', 'user_id': userId};
+    if (typ != null) body['typ'] = typ;
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kindergarten_dokumente_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteKindergartenDokument({required int id}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kindergarten_dokumente_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  /// Multipart upload — typ must be 'vertrag' or 'kuendigung'.
+  Future<Map<String, dynamic>> uploadKindergartenDokument({
+    required int userId,
+    required String typ,
+    required String filePath,
+    required String fileName,
+    String? notiz,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/kindergarten_dokumente_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['typ']     = typ;
+    if (notiz != null && notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<http.Response> downloadKindergartenDokument(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/kindergarten_dokumente_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_download.php?id=$docId'),
