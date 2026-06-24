@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:flutter/services.dart';
 
 import 'external_browser_service.dart';
 import 'api_service.dart';
@@ -17,6 +20,44 @@ import 'api_service.dart';
 /// niciodată în afara serverului propriu + browserului local. JS-ul polling
 /// rulează în pagina vizată direct, fără relay extern.
 class AaAutoLoginService {
+  /// Timer pentru reîmprospătarea sistem-clipboard cu cod TOTP fresh.
+  /// User-ul poate face Ctrl+V în câmpul TOTP din Chromium ca fallback dacă
+  /// JS-ul nostru de auto-fill nu match-uiește selectorul.
+  static Timer? _clipboardRefreshTimer;
+
+  /// Pornește timer care la fiecare 5 secunde:
+  /// 1. Cere serverului codul TOTP curent
+  /// 2. Îl copiază în system-clipboard (Clipboard.setData)
+  /// 3. User poate face Ctrl+V în pagina BA TOTP
+  /// Timer-ul se oprește după 2 minute sau la apel cancel.
+  static void _startClipboardRefresh(ApiService apiService, int userId) {
+    _clipboardRefreshTimer?.cancel();
+    int ticks = 0;
+    _clipboardRefreshTimer = Timer.periodic(const Duration(seconds: 5), (t) async {
+      ticks++;
+      if (ticks > 24) { // 2 min max
+        t.cancel();
+        return;
+      }
+      try {
+        final res = await apiService.getArbeitsagenturTotpCode(userId);
+        if (res['success'] == true) {
+          final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+          final code = (data['code'] ?? '').toString();
+          if (code.isNotEmpty) {
+            await Clipboard.setData(ClipboardData(text: code));
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  /// Oprește timer-ul de clipboard refresh (apelat la cleanup sau succes).
+  static void stopClipboardRefresh() {
+    _clipboardRefreshTimer?.cancel();
+    _clipboardRefreshTimer = null;
+  }
+
   // Entry-point pentru flow-ul BA Online. Navigarea la web.arbeitsagentur.de/profil
   // forțează redirect-ul către Keycloak SSO (sso.arbeitsagentur.de/auth/realms/OCP/...).
   // BA folosește Keycloak ca identity broker — selectoarele formularului sunt
@@ -65,6 +106,19 @@ class AaAutoLoginService {
       password: password,
       totpCode: totpConfigured ? totpCode : '',
     );
+    // CRITICAL fallback: dacă JS-ul de auto-fill TOTP nu match-uiește selectorul
+    // pe BA custom theme, user-ul oricum poate face Ctrl+V în câmpul TOTP.
+    // Pornim timer care reîmprospătează clipboard-ul cu cod TOTP fresh la
+    // fiecare 5 secunde pentru 2 minute. Triplu fallback: JS auto-detect +
+    // JS focus-listener + system clipboard Ctrl+V manual.
+    if (totpConfigured && totpCode.isNotEmpty) {
+      try {
+        await Clipboard.setData(ClipboardData(text: totpCode));
+        _startClipboardRefresh(apiService, userId);
+      } catch (_) {
+        // Clipboard nu e critic — auto-fill JS rămâne strategia principală
+      }
+    }
     return ExternalBrowserService.openWithAutoFill(
       url: _ssoUrl,
       autoFillJs: js,
@@ -542,6 +596,39 @@ class AaAutoLoginService {
     }
     setTimeout(tick, 700);
   };
+  // FOCUS LISTENER fallback — dacă cele 6 strategii findTotp nu match-uiesc,
+  // user-ul poate clica MANUAL pe câmpul TOTP din pagină. Acest listener
+  // detectează focus pe orice input non-password empty post-login și-l
+  // completează automat cu codul TOTP. Independent de selector.
+  document.addEventListener('focusin', (e) => {
+    try {
+      if (!ss(SS_LOGIN_SUBMITTED)) return; // doar post-login
+      if (ss(SS_TOTP_SUBMITTED)) return;   // deja completat
+      if (!TOTP) return;                    // n-avem cod
+      const el = e.target;
+      if (!el || el.tagName !== 'INPUT') return;
+      if (el.type === 'password' || el.type === 'hidden' ||
+          el.type === 'checkbox' || el.type === 'radio' ||
+          el.type === 'submit' || el.type === 'button') return;
+      if ((el.value || '').length > 0) return; // deja are conținut
+      log('FOCUS listener: filling input.id=' + (el.id || '?') + ' name=' + (el.name || '?') + ' cu cod TOTP');
+      el.focus();
+      for (const ch of TOTP) {
+        el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+        setNativeValue(el, (el.value || '') + ch);
+        el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+      }
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+      ss(SS_TOTP_SUBMITTED, String(Date.now()));
+      // Submit dacă găsim buton Bestätigen
+      setTimeout(() => {
+        try { submitForm(el.closest('form')); } catch (_) {}
+      }, 600);
+    } catch (err) {
+      log('focus listener err:', err.message);
+    }
+  }, true);
+
   log('starting Auto-Login polling (Keycloak BA Online), url=' + location.href);
   // Wait 800ms initial ca Keycloak SPA să-şi rendereze form-ul.
   setTimeout(tick, 800);
