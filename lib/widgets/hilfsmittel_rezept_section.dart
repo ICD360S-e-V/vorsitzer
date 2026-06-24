@@ -544,13 +544,26 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.blue.shade200),
                   ),
-                  child: Row(children: [
-                    Icon(Icons.event_repeat, size: 18, color: Colors.blue.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(
-                      'Wiederversorgung möglich ab: ${_fmtDate(_rezept['wiederversorgung_ab']?.toString())} (≈ 6 Monate)',
-                      style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
-                    )),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.event_repeat, size: 18, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(
+                        'Wiederversorgung möglich ab: ${_fmtDate(_rezept['wiederversorgung_ab']?.toString())} (≈ 6 Monate)',
+                        style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600),
+                      )),
+                    ]),
+                    if (_rezept['wiederversorgung_ticket_id'] != null) ...[
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        Icon(Icons.notifications_active, size: 14, color: Colors.blue.shade600),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(
+                          'Erinnerungs-Ticket #${_rezept['wiederversorgung_ticket_id']} wird zum Stichtag automatisch beim Mitglied geöffnet.',
+                          style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                        )),
+                      ]),
+                    ],
                   ]),
                 ),
               ]),
