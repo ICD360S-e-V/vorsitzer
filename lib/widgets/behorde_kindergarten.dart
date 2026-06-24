@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import 'file_viewer_dialog.dart';
 
 /// Behörde > Kindergarten — Vorsitzer-only Verwaltung pentru
 /// "zuständiger Kindergarten" + documente asociate (Vertrag, Kündigung).
@@ -380,7 +381,30 @@ class _DokTabState extends State<_DokTab> {
     await _load();
   }
 
-  Future<void> _open(int id, String filename) async {
+  Future<void> _preview(int id, String filename) async {
+    try {
+      final r = await widget.apiService.downloadKindergartenDokument(id);
+      if (r.statusCode != 200) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vorschau fehlgeschlagen (${r.statusCode})'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+      if (!mounted) return;
+      final shown = await FileViewerDialog.showFromBytes(context, r.bodyBytes, filename);
+      if (!shown && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Format wird nicht unterstützt'), backgroundColor: Colors.orange),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _download(int id, String filename) async {
     try {
       final r = await widget.apiService.downloadKindergartenDokument(id);
       if (r.statusCode != 200) {
@@ -491,9 +515,14 @@ class _DokTabState extends State<_DokTab> {
                         ]),
                       ),
                       IconButton(
+                        icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600),
+                        tooltip: 'Vorschau (intern)',
+                        onPressed: () => _preview(id, fn),
+                      ),
+                      IconButton(
                         icon: Icon(Icons.download, size: 18, color: col.shade700),
-                        tooltip: 'Öffnen',
-                        onPressed: () => _open(id, fn),
+                        tooltip: 'Herunterladen / extern öffnen',
+                        onPressed: () => _download(id, fn),
                       ),
                       IconButton(
                         icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
