@@ -621,6 +621,43 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                   ),
                 ),
               )),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(child: RichText(
+                    text: TextSpan(
+                      style: TextStyle(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
+                      children: const [
+                        TextSpan(
+                          text: 'Hinweis: ',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: 'Beim Auto-Login wird der aktuell gültige 2FA-Code (TOTP) automatisch '
+                                'in die Zwischenablage kopiert und alle 5 Sekunden aktualisiert. '
+                                'Sollte die automatische Eingabe des 6-stelligen Codes auf der '
+                                'Anmeldeseite nicht erfolgen, einfach in das Code-Feld klicken und ',
+                        ),
+                        TextSpan(
+                          text: 'Strg + V',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+                        ),
+                        TextSpan(
+                          text: ' drücken, um den Code einzufügen.',
+                        ),
+                      ],
+                    ),
+                  )),
+                ]),
+              ),
             ],
           ],
         ])),
