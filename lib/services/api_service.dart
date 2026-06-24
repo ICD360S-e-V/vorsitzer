@@ -3401,6 +3401,24 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }
+  /// Kündigung structured meta (Datum, Widerspruch flow). Upsert per user_id.
+  Future<Map<String, dynamic>> getKindergartenKuendigungMeta({required int userId}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kindergarten_kuendigung_meta.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'get', 'user_id': userId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveKindergartenKuendigungMeta({required int userId, required Map<String, dynamic> data}) async {
+    final body = <String, dynamic>{'action': 'save', 'user_id': userId, ...data};
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kindergarten_kuendigung_meta.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
 
   Future<http.Response> downloadKKKorrespondenzDoc(int docId) async {
     return await _client.get(

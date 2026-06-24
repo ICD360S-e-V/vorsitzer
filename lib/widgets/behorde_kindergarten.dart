@@ -241,7 +241,7 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
           child: TabBarView(children: [
             _DetailsTab(data: widget.data),
             _DokTab(apiService: widget.apiService, userId: widget.userId, typ: 'vertrag'),
-            _DokTab(apiService: widget.apiService, userId: widget.userId, typ: 'kuendigung'),
+            _KuendigungTab(apiService: widget.apiService, userId: widget.userId),
           ]),
         ),
       ]),
@@ -535,5 +535,472 @@ class _DokTabState extends State<_DokTab> {
               ),
       ),
     ]);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  KÜNDIGUNG TAB — meta-form + 3 doc categories
+//  (Kündigung-Schreiben, Widerspruch, Fax-Sendebericht)
+// ════════════════════════════════════════════════════════════════════
+class _KuendigungTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _KuendigungTab({required this.apiService, required this.userId});
+  @override
+  State<_KuendigungTab> createState() => _KuendigungTabState();
+}
+
+class _KuendigungTabState extends State<_KuendigungTab> {
+  // META FORM STATE
+  final _kuendigungDatumC = TextEditingController();
+  bool _widerspruch = false;
+  final _wErstelltC = TextEditingController();
+  final _wVersendetC = TextEditingController();
+  String? _versandMethode; // 'fax' | 'post' | 'persoenlich' | null
+  final _notizC = TextEditingController();
+
+  // DOCS: separate lists per typ
+  List<Map<String, dynamic>> _docsKuendigung = [];
+  List<Map<String, dynamic>> _docsWiderspruch = [];
+  List<Map<String, dynamic>> _docsSendebericht = [];
+
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() { super.initState(); _loadAll(); }
+
+  @override
+  void dispose() {
+    _kuendigungDatumC.dispose();
+    _wErstelltC.dispose();
+    _wVersendetC.dispose();
+    _notizC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAll() async {
+    setState(() => _loading = true);
+    final metaF = widget.apiService.getKindergartenKuendigungMeta(userId: widget.userId);
+    final docsAllF = widget.apiService.listKindergartenDokumente(userId: widget.userId);
+    final meta = await metaF;
+    final docsAll = await docsAllF;
+
+    if (meta['success'] == true && meta['meta'] is Map) {
+      final m = Map<String, dynamic>.from(meta['meta'] as Map);
+      _kuendigungDatumC.text = (m['kuendigung_datum']?.toString() ?? '');
+      _widerspruch = (m['widerspruch_eingelegt']?.toString() == '1' || m['widerspruch_eingelegt'] == 1 || m['widerspruch_eingelegt'] == true);
+      _wErstelltC.text = (m['widerspruch_erstellt_datum']?.toString() ?? '');
+      _wVersendetC.text = (m['widerspruch_versendet_datum']?.toString() ?? '');
+      _versandMethode = (m['widerspruch_versand_methode']?.toString().isEmpty ?? true) ? null : m['widerspruch_versand_methode']?.toString();
+      _notizC.text = (m['notiz']?.toString() ?? '');
+    }
+
+    final all = (docsAll['dokumente'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    _docsKuendigung   = all.where((d) => d['typ'] == 'kuendigung').toList();
+    _docsWiderspruch  = all.where((d) => d['typ'] == 'widerspruch').toList();
+    _docsSendebericht = all.where((d) => d['typ'] == 'sendebericht').toList();
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _pickDate(TextEditingController c) async {
+    final init = DateTime.tryParse(c.text) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: init,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2099),
+      locale: const Locale('de'),
+    );
+    if (picked != null) {
+      setState(() => c.text = DateFormat('yyyy-MM-dd').format(picked));
+    }
+  }
+
+  Future<void> _saveMeta() async {
+    setState(() => _saving = true);
+    final r = await widget.apiService.saveKindergartenKuendigungMeta(userId: widget.userId, data: {
+      'kuendigung_datum': _kuendigungDatumC.text.trim(),
+      'widerspruch_eingelegt': _widerspruch ? 1 : 0,
+      'widerspruch_erstellt_datum': _widerspruch ? _wErstelltC.text.trim() : '',
+      'widerspruch_versendet_datum': _widerspruch ? _wVersendetC.text.trim() : '',
+      'widerspruch_versand_methode': _widerspruch ? (_versandMethode ?? '') : '',
+      'notiz': _notizC.text.trim(),
+    });
+    if (mounted) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(r['success'] == true ? 'Gespeichert' : 'Fehler: ${r['message'] ?? ''}'),
+        backgroundColor: r['success'] == true ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 2),
+      ));
+    }
+  }
+
+  Future<void> _pickAndUpload(String typ) async {
+    final result = await FilePickerHelper.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    var files = result.files;
+    if (files.length > 20) {
+      files = files.sublist(0, 20);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Max 20 Dateien — die ersten 20 werden hochgeladen'), backgroundColor: Colors.orange),
+      );
+    }
+    int done = 0, failed = 0;
+    for (final f in files) {
+      if (f.path == null) { failed++; continue; }
+      try {
+        final r = await widget.apiService.uploadKindergartenDokument(
+          userId: widget.userId, typ: typ, filePath: f.path!, fileName: f.name,
+        );
+        if (r['success'] != true) failed++;
+      } catch (_) { failed++; }
+      done++;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${done - failed} hochgeladen${failed > 0 ? ", $failed fehlgeschlagen" : ""}'),
+        backgroundColor: failed == done ? Colors.red : (failed > 0 ? Colors.orange : Colors.green),
+      ));
+    }
+    await _loadAll();
+  }
+
+  Future<void> _deleteDoc(int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dokument löschen?'),
+        content: const Text('Diese Aktion kann nicht rückgängig gemacht werden.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.deleteKindergartenDokument(id: id);
+    await _loadAll();
+  }
+
+  Future<void> _previewDoc(int id, String filename) async {
+    try {
+      final r = await widget.apiService.downloadKindergartenDokument(id);
+      if (r.statusCode != 200) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Vorschau fehlgeschlagen (${r.statusCode})'), backgroundColor: Colors.red));
+        return;
+      }
+      if (!mounted) return;
+      await FileViewerDialog.showFromBytes(context, r.bodyBytes, filename);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _downloadDoc(int id, String filename) async {
+    try {
+      final r = await widget.apiService.downloadKindergartenDokument(id);
+      if (r.statusCode != 200) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${r.statusCode})'), backgroundColor: Colors.red));
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$filename');
+      await file.writeAsBytes(r.bodyBytes);
+      await OpenFilex.open(file.path);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _metaForm(),
+        const SizedBox(height: 16),
+        _docSection(
+          title: 'Kündigung-Schreiben',
+          icon: Icons.description,
+          col: Colors.deepOrange,
+          typ: 'kuendigung',
+          docs: _docsKuendigung,
+          hint: 'Das eigentliche Kündigungsschreiben vom/an den Kindergarten',
+        ),
+        const SizedBox(height: 12),
+        if (_widerspruch) ...[
+          _docSection(
+            title: 'Widerspruch',
+            icon: Icons.gavel,
+            col: Colors.indigo,
+            typ: 'widerspruch',
+            docs: _docsWiderspruch,
+            hint: 'Widerspruch / Einspruch gegen die Kündigung',
+          ),
+          const SizedBox(height: 12),
+          if (_versandMethode == 'fax')
+            _docSection(
+              title: 'Fax-Sendebericht',
+              icon: Icons.fax,
+              col: Colors.amber,
+              typ: 'sendebericht',
+              docs: _docsSendebericht,
+              hint: 'Faxprotokoll als Beweis der Übermittlung (nur bei Versand per Fax)',
+            ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _metaForm() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.pink.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.pink.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Icon(Icons.event_busy, size: 18, color: Colors.pink.shade700),
+          const SizedBox(width: 8),
+          Text('Kündigung-Daten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade900)),
+        ]),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: _kuendigungDatumC,
+          readOnly: true,
+          onTap: () => _pickDate(_kuendigungDatumC),
+          decoration: InputDecoration(
+            labelText: 'Kündigung-Datum',
+            isDense: true,
+            prefixIcon: const Icon(Icons.calendar_today, size: 18),
+            suffixIcon: _kuendigungDatumC.text.isEmpty
+              ? null
+              : IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () => setState(() => _kuendigungDatumC.text = '')),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: true, fillColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          value: _widerspruch,
+          onChanged: (v) => setState(() => _widerspruch = v),
+          title: const Text('Widerspruch eingelegt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          subtitle: Text(_widerspruch ? 'Ja — Daten und Versandmethode unten erfassen' : 'Nein', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          activeThumbColor: Colors.indigo.shade600,
+        ),
+        if (_widerspruch) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Expanded(child: TextFormField(
+                  controller: _wErstelltC,
+                  readOnly: true,
+                  onTap: () => _pickDate(_wErstelltC),
+                  decoration: InputDecoration(
+                    labelText: 'Widerspruch erstellt am',
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.edit_note, size: 18),
+                    suffixIcon: _wErstelltC.text.isEmpty ? null : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _wErstelltC.text = '')),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    filled: true, fillColor: Colors.white,
+                  ),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: TextFormField(
+                  controller: _wVersendetC,
+                  readOnly: true,
+                  onTap: () => _pickDate(_wVersendetC),
+                  decoration: InputDecoration(
+                    labelText: 'Versendet am',
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.send, size: 18),
+                    suffixIcon: _wVersendetC.text.isEmpty ? null : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _wVersendetC.text = '')),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    filled: true, fillColor: Colors.white,
+                  ),
+                )),
+              ]),
+              const SizedBox(height: 10),
+              Text('Versandmethode', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 8, children: [
+                _methodChip('fax', 'Fax', Icons.fax, Colors.amber),
+                _methodChip('post', 'Post', Icons.mail, Colors.blue),
+                _methodChip('persoenlich', 'Persönlich', Icons.handshake, Colors.green),
+              ]),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 10),
+        TextField(
+          controller: _notizC,
+          maxLines: 2,
+          decoration: InputDecoration(
+            labelText: 'Notiz (optional)',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: true, fillColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _saving ? null : _saveMeta,
+            icon: _saving
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.save, size: 16),
+            label: const Text('Speichern', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade700),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _methodChip(String value, String label, IconData icon, MaterialColor col) {
+    final selected = _versandMethode == value;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 14, color: selected ? Colors.white : col.shade700),
+      label: Text(label, style: TextStyle(fontSize: 11, color: selected ? Colors.white : col.shade800)),
+      selected: selected,
+      selectedColor: col.shade600,
+      onSelected: (s) => setState(() => _versandMethode = s ? value : null),
+    );
+  }
+
+  Widget _docSection({
+    required String title,
+    required IconData icon,
+    required MaterialColor col,
+    required String typ,
+    required List<Map<String, dynamic>> docs,
+    required String hint,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: col.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            color: col.shade50,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+          ),
+          child: Row(children: [
+            Icon(icon, size: 18, color: col.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: col.shade900)),
+              Text(hint, style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+            ])),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: col.shade100, borderRadius: BorderRadius.circular(10)),
+              child: Text('${docs.length}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: col.shade800)),
+            ),
+            const SizedBox(width: 6),
+            FilledButton.icon(
+              onPressed: () => _pickAndUpload(typ),
+              icon: const Icon(Icons.upload_file, size: 14),
+              label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
+              style: FilledButton.styleFrom(
+                backgroundColor: col.shade600,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+              ),
+            ),
+          ]),
+        ),
+        if (docs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(child: Text(
+              'Keine Dokumente in dieser Kategorie',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+            )),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(children: docs.map((d) => _docRow(d, col)).toList()),
+          ),
+      ]),
+    );
+  }
+
+  Widget _docRow(Map<String, dynamic> d, MaterialColor col) {
+    final id = d['id'] is int ? d['id'] as int : int.parse(d['id'].toString());
+    final fn = d['filename']?.toString() ?? 'document';
+    final size = (d['size_bytes'] is int) ? d['size_bytes'] as int : int.tryParse(d['size_bytes']?.toString() ?? '0') ?? 0;
+    final ext = fn.contains('.') ? fn.split('.').last.toLowerCase() : '';
+    final icon = ext == 'pdf' ? Icons.picture_as_pdf : Icons.image;
+    final iconCol = ext == 'pdf' ? Colors.red.shade400 : Colors.blue.shade400;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)),
+      child: Row(children: [
+        Icon(icon, size: 20, color: iconCol),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(fn, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+          Row(children: [
+            Text(_humanSize(size), style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+            const SizedBox(width: 8),
+            Text(_fmtDateTime(d['uploaded_at']?.toString()), style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+          ]),
+        ])),
+        IconButton(
+          icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+          tooltip: 'Vorschau (intern)',
+          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          onPressed: () => _previewDoc(id, fn),
+        ),
+        IconButton(
+          icon: Icon(Icons.download, size: 16, color: col.shade700),
+          tooltip: 'Herunterladen',
+          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          onPressed: () => _downloadDoc(id, fn),
+        ),
+        IconButton(
+          icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+          tooltip: 'Löschen',
+          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          onPressed: () => _deleteDoc(id),
+        ),
+      ]),
+    );
+  }
+
+  String _humanSize(int b) {
+    if (b < 1024) return '$b B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(1)} KB';
+    return '${(b / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  String _fmtDateTime(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    try { return DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(raw)); } catch (_) { return raw; }
   }
 }
