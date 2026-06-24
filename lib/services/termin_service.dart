@@ -18,6 +18,10 @@ class Termin {
   final String? createdByName;
   final int? ticketId;
   final String? ticketSubject;
+  /// Set when this termin was auto-created from a Hilfsmittel-Rezept Abholung
+  /// step (see `mitglied_rezepte` + `rezept_manage.php`). Allows UI to render
+  /// a "Zum Rezept" badge and lets the server keep the two in sync.
+  final int? rezeptId;
   final bool brauchtMich;
   final String status; // scheduled, completed, cancelled
   final DateTime createdAt;
@@ -66,6 +70,7 @@ class Termin {
     this.createdByName,
     this.ticketId,
     this.ticketSubject,
+    this.rezeptId,
     this.brauchtMich = false,
     required this.status,
     required this.createdAt,
@@ -112,6 +117,9 @@ class Termin {
           ? (json['ticket_id'] is int ? json['ticket_id'] : int.parse(json['ticket_id'].toString()))
           : null,
       ticketSubject: json['ticket_subject'],
+      rezeptId: json['rezept_id'] != null
+          ? (json['rezept_id'] is int ? json['rezept_id'] : int.tryParse(json['rezept_id'].toString()))
+          : null,
       brauchtMich: json['braucht_mich'] == 1 || json['braucht_mich'] == '1' || json['braucht_mich'] == true,
       status: json['status'] ?? 'scheduled',
       createdAt: DateTime.parse(json['created_at']),
@@ -196,6 +204,8 @@ class Termin {
         return 'Schulung';
       case 'sonstiges':
         return 'Sonstiges';
+      case 'sanitaetshaus_abholung':
+        return 'Sanitätshaus-Abholung';
       default:
         return category;
     }
@@ -211,6 +221,8 @@ class Termin {
         return Colors.green;
       case 'sonstiges':
         return Colors.amber;
+      case 'sanitaetshaus_abholung':
+        return Colors.teal;
       default:
         return Colors.grey;
     }

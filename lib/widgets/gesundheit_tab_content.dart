@@ -25,6 +25,7 @@ import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'sanitaetshaus.dart';
 import 'rettungsdienst.dart';
+import 'hilfsmittel_rezept_section.dart';
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -648,6 +649,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   const Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankmeldungen'),
                   const Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Überweisung'),
                   const Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
+                  const Tab(icon: Icon(Icons.medical_services, size: 16), text: 'Hilfsmittel'),
                   const Tab(icon: Icon(Icons.healing, size: 16), text: 'Heilmittel'),
                   const Tab(icon: Icon(Icons.description, size: 16), text: 'Berichte'),
                   const Tab(icon: Icon(Icons.verified, size: 16), text: 'Ärztl. Attest'),
@@ -934,7 +936,19 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     // ===== TAB 8: REZEPT =====
                     _buildRezeptTab(type, arztTitle, data, saveAll, setLocalState),
 
-                    // ===== TAB 9: HEILMITTEL =====
+                    // ===== TAB 9: HILFSMITTEL (Sanitätshaus — Schuheinlagen etc.) =====
+                    HilfsmittelTab(
+                      apiService: widget.apiService,
+                      userId: widget.user.id,
+                      arztType: type,
+                      arztTitle: arztTitle,
+                      arztName: (data['selected_arzt'] is Map
+                          ? (data['selected_arzt']['arzt_name']?.toString()
+                              ?? data['selected_arzt']['praxis_name']?.toString())
+                          : null),
+                    ),
+
+                    // ===== TAB 10: HEILMITTEL =====
                     _buildHeilmittelTab(type, arztTitle, data, saveAll, setLocalState),
 
                     // ===== TAB 10: BERICHTE =====

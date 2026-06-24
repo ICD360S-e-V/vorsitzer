@@ -837,7 +837,10 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   /// just paint the colour so the user can see the termin extends.
   Widget _buildTerminBox(Termin termin, DateTime slotStart, DateTime slotEnd, bool isPast) {
     final isStartSlot = !termin.terminDate.isBefore(slotStart) && termin.terminDate.isBefore(slotEnd);
-    final color = termin.brauchtMich ? Colors.red : Colors.amber;
+    // Hilfsmittel-Abholung gets its own teal accent so members spot the
+    // pickup window at a glance among regular Termine.
+    final isHilfsmittel = termin.rezeptId != null || termin.category == 'sanitaetshaus_abholung';
+    final color = isHilfsmittel ? Colors.teal : (termin.brauchtMich ? Colors.red : Colors.amber);
     final shade = isPast ? color.shade200 : color.shade400;
 
     return GestureDetector(
@@ -887,6 +890,16 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                       const Positioned(top: 0, right: 0, child: _StatusDot(color: Colors.green)),
                     if (termin.feedbackStatus == 'nicht_wahrgenommen')
                       const Positioned(top: 0, right: 0, child: _StatusDot(color: Colors.red)),
+                    // ── Hilfsmittel-Indicator oben links ──
+                    if (isHilfsmittel)
+                      Positioned(
+                        top: 0, left: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(1),
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.8), shape: BoxShape.circle),
+                          child: Icon(Icons.medical_services, size: 9, color: Colors.teal.shade800),
+                        ),
+                      ),
                     // ── Feedback-Indicator unten rechts (Megafon) ──
                     if (termin.feedbackErhalten)
                       const Positioned(
@@ -905,6 +918,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   String _buildTooltipText(Termin t) {
     final base = '${DateFormat('HH:mm').format(t.terminDate)}–${DateFormat('HH:mm').format(t.terminEndTime)}\n${t.title}';
     final parts = <String>[base];
+    if (t.rezeptId != null) parts.add('🏥 Hilfsmittel-Abholung · Rezept #${t.rezeptId}');
     if (t.feedbackStatus == 'wahrgenommen') parts.add('✓ Wahrgenommen');
     if (t.feedbackStatus == 'nicht_wahrgenommen') {
       final g = t.nichtWahrgenommenGrund;

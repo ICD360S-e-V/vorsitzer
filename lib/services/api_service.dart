@@ -5259,6 +5259,20 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Rezept-Tracking pentru Hilfsmittel / Schuheinlagen. Actions:
+  ///   list / detail / create / update / delete /
+  ///   set_status / mark_erledigt / sanitaetshaus_list.
+  /// When a status row with schritt='abholung' has datum + uhrzeit, server
+  /// auto-creates/updates a row in `termine` and links it via `termin_id`.
+  Future<Map<String, dynamic>> rezeptAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rezept_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> searchPflegedienst({String search = ''}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/pflegedienst_search.php'),
