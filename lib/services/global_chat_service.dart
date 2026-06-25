@@ -116,15 +116,39 @@ class GlobalChatService extends ChangeNotifier {
     if (_started) return;
     _started = true;
     _messageSub = _chat.messageStream.listen(_onMessage);
-    _log.info('GlobalChatService started', tag: 'GLOBAL_CHAT');
+    _log.info('GlobalChatService started — subscribed to ChatService.messageStream', tag: 'GLOBAL_CHAT');
+    debugPrint('[GlobalChatService] started, subscribed to messageStream');
+  }
+
+  /// Inject a synthetic bubble for visual testing. Used by the dashboard
+  /// "Test Bubble" affordance so we can verify the overlay renders even
+  /// when no real message has arrived yet.
+  void debugInjectTestBubble({String name = 'Test User'}) {
+    final id = -DateTime.now().millisecondsSinceEpoch ~/ 1000; // negative id → won't clash
+    _bubbles[id] = GlobalChatBubble(
+      conversationId: id,
+      senderName: name,
+      unreadCount: 1,
+      lastMessagePreview: 'Test bubble — rendering confirmation',
+    );
+    debugPrint('[GlobalChatService] TEST bubble injected id=$id');
+    notifyListeners();
   }
 
   void _onMessage(ChatMessage ev) {
-    // Don't bubble our own outgoing messages.
     final myId = _chat.currentUserId;
-    if (myId != null && ev.senderId == myId) return;
+    debugPrint('[GlobalChatService] _onMessage from=${ev.senderName} (sid=${ev.senderId}, '
+               'myId=$myId, dialogOpen=$_adminDialogOpen, conv=${ev.conversationId})');
+    // Don't bubble our own outgoing messages.
+    if (myId != null && ev.senderId == myId) {
+      debugPrint('[GlobalChatService] skip — own message');
+      return;
+    }
     // If full dialog is open, the dialog itself handles UI feedback.
-    if (_adminDialogOpen) return;
+    if (_adminDialogOpen) {
+      debugPrint('[GlobalChatService] skip — admin dialog open');
+      return;
+    }
 
     final preview = ev.message.length > 80
         ? '${ev.message.substring(0, 80)}…'
@@ -138,6 +162,7 @@ class GlobalChatService extends ChangeNotifier {
           (_openPanels.contains(ev.conversationId) ? 0 : 1)),
       lastMessagePreview: preview,
     );
+    debugPrint('[GlobalChatService] bubble UPSERTED for ${ev.senderName}, total bubbles=${_bubbles.length}');
     notifyListeners();
   }
 

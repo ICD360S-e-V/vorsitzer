@@ -1693,6 +1693,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               tooltip: 'ÖPNV Abfahrten',
               onPressed: _showTransitDialog,
             ),
+          // Debug: inject test bubble pentru a confirma rendering overlay global
+          if (!isMobile)
+            IconButton(
+              icon: const Icon(Icons.bubble_chart),
+              tooltip: 'Test Chat Bubble',
+              onPressed: () => GlobalChatService().debugInjectTestBubble(name: 'TEST'),
+            ),
           // Live Chat (Admin can chat with members) with unread badge
           Stack(
             children: [

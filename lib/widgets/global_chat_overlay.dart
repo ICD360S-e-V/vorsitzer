@@ -39,18 +39,29 @@ class _GlobalChatOverlayState extends State<GlobalChatOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_service.enabled) return const SizedBox.shrink();
+    if (!_service.enabled) {
+      debugPrint('[GlobalChatOverlay] hidden — enabled=false');
+      return const SizedBox.shrink();
+    }
     final mn = _service.currentMitgliedernummer;
-    if (mn == null || mn.isEmpty) return const SizedBox.shrink();
+    if (mn == null || mn.isEmpty) {
+      debugPrint('[GlobalChatOverlay] hidden — mitgliedernummer not set');
+      return const SizedBox.shrink();
+    }
     final media = MediaQuery.of(context).size;
-    return IgnorePointer(
-      ignoring: false,
-      child: Stack(children: [
+    debugPrint('[GlobalChatOverlay] render bubbles=${_service.bubbles.length} '
+               'panels=${_service.openPanels.length} media=$media');
+    // Stack.expand → forces full-screen so Positioned children get the
+    // correct origin (without this, Stack collapses to 0×0 because all
+    // children are Positioned and the bubbles render outside the viewport).
+    return Stack(
+      fit: StackFit.expand,
+      children: [
         // Panels (stacked horizontally from right, bottom-aligned)
         ..._buildPanels(media, mn),
         // Bubble column (draggable)
         _buildBubbleColumn(media),
-      ]),
+      ],
     );
   }
 
