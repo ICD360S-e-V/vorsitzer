@@ -13,6 +13,7 @@ import 'services/startup_service.dart';
 import 'services/update_service.dart';
 import 'services/platform_service.dart';
 import 'utils/keyboard_rdp_fix.dart';
+import 'widgets/global_chat_overlay.dart';
 
 // Desktop-only packages (compile on all platforms, but only used on desktop)
 import 'package:window_manager/window_manager.dart';
@@ -232,6 +233,15 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
         fontFamily: Platform.isWindows ? 'Segoe UI' : null,
       ),
       home: const LoginWithCodeScreen(),
+      // Wrap every route with a Stack carrying the global Messenger-style
+      // chat overlay. The overlay self-hides until GlobalChatService.enabled
+      // is set true by the dashboard after login.
+      builder: (context, child) {
+        return Stack(children: [
+          child ?? const SizedBox.shrink(),
+          const Positioned.fill(child: GlobalChatOverlay()),
+        ]);
+      },
     );
   }
 }

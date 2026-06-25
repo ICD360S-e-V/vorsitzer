@@ -29,6 +29,7 @@ import '../widgets/legal_footer.dart';
 import '../widgets/admin_chat_dialog.dart';
 import '../widgets/chat_bubble_overlay.dart';
 import '../widgets/chat_bubble_popup.dart';
+import '../services/global_chat_service.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/incoming_call_dialog.dart';
 import '../widgets/responsive_layout.dart';
@@ -161,6 +162,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
     // Start periodic log upload to server (every 30s)
     _log.startUpload(widget.currentMitgliedernummer);
+
+    // Activate the global Messenger-style chat overlay (bubbles + mini
+    // panels visible across every page). Provides mitgliedernummer for the
+    // overlay so mini panels can send/receive without dashboard context.
+    GlobalChatService()
+      ..currentMitgliedernummer = widget.currentMitgliedernummer
+      ..enabled = true
+      ..start();
 
     _currentEmail = widget.currentEmail;
     _loadUsers();
@@ -420,6 +429,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 );
 
                 _chatBubbles[id] = ChatBubbleEntry(
+                  conversationId: id,
+                  senderName: memberName,
+                  unreadCount: unreadCount,
+                  lastMessagePreview: msgPreview,
+                );
+                // Mirror into the global Messenger-style overlay so the
+                // bubble appears on every page, not just dashboard.
+                GlobalChatService().upsertBubble(
                   conversationId: id,
                   senderName: memberName,
                   unreadCount: unreadCount,
@@ -1822,39 +1839,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   ],
                 ),
           ),
-          // Floating chat bubbles (Messenger-style) for unread conversations.
-          // Tap → opens an inline mini chat popup pinned bottom-right.
-          ChatBubbleOverlay(
-            entries: _chatBubbles.values.toList(),
-            onBubbleTap: _openPopupForConversation,
-            onBubbleClose: (convId) => setState(() => _chatBubbles.remove(convId)),
-            onDismiss: () => setState(() => _chatBubbles.clear()),
-          ),
-          // Inline mini chat popup — visible when a bubble is expanded.
-          if (_openPopupConvId != null)
-            Positioned(
-              right: 20,
-              bottom: 20,
-              child: ChatBubblePopup(
-                key: ValueKey('chat-popup-$_openPopupConvId'),
-                conversationId: _openPopupConvId!,
-                memberName: _openPopupName ?? 'Mitglied',
-                currentMitgliedernummer: widget.currentMitgliedernummer,
-                currentUserName: widget.userName,
-                onClose: () => setState(() {
-                  _openPopupConvId = null;
-                  _openPopupName = null;
-                }),
-                onOpenFullChat: () {
-                  final id = _openPopupConvId!;
-                  setState(() {
-                    _openPopupConvId = null;
-                    _openPopupName = null;
-                  });
-                  _showAdminChatForConversation(id);
-                },
-              ),
-            ),
+          // NOTE 2026-06-25: Local ChatBubbleOverlay + ChatBubblePopup au fost
+          // mutate la nivel global (MaterialApp.builder → GlobalChatOverlay),
+          // ca să apară pe orice pagină nu doar pe Dashboard. State sync:
+          // GlobalChatService.start() ascultă messageStream singur; dashboard-ul
+          // doar populeaza bubble-urile de start în _joinBackgroundConversations.
         ],
       ),
       // Mobile: Bottom navigation bar for quick access
