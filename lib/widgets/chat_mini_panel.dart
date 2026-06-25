@@ -43,7 +43,6 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
   bool _loading = true;
   bool _sending = false;
   int? _lastMessageId;
-  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -62,14 +61,13 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
       _scrollToBottom();
       GlobalChatService().markRead(widget.conversationId);
     });
-    // Lightweight polling fallback (5s) — handles missed WS events.
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollIncrement());
+    // NOTE: polling fallback de 5s a fost eliminat — cauza rebuild-uri pe
+    // panel care făceau backspace să nu mai funcționeze. WebSocket suficient.
   }
 
   @override
   void dispose() {
     _msgSub?.cancel();
-    _pollTimer?.cancel();
     _inputC.dispose();
     _scrollC.dispose();
     super.dispose();
@@ -87,28 +85,6 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
     setState(() => _loading = false);
     _scrollToBottom();
     GlobalChatService().markRead(widget.conversationId);
-  }
-
-  Future<void> _pollIncrement() async {
-    if (!mounted || _lastMessageId == null) return;
-    final r = await _api.getChatMessages(widget.conversationId, widget.currentMitgliedernummer, lastMessageId: _lastMessageId);
-    if (!mounted) return;
-    if (r['success'] == true) {
-      final raw = (r['messages'] as List? ?? []);
-      final fresh = raw.map((e) => ChatMessage.fromJson(Map<String, dynamic>.from(e as Map))).toList();
-      var changed = false;
-      for (final m in fresh) {
-        if (!_messages.any((x) => x.id == m.id)) {
-          _messages.add(m);
-          _lastMessageId = m.id;
-          changed = true;
-        }
-      }
-      if (changed) {
-        setState(() {});
-        _scrollToBottom();
-      }
-    }
   }
 
   void _scrollToBottom() {
@@ -220,22 +196,9 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
           style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
           overflow: TextOverflow.ellipsis,
         )),
-        if (widget.onExpand != null)
-          IconButton(
-            icon: const Icon(Icons.open_in_full, color: Colors.white, size: 16),
-            padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            onPressed: widget.onExpand,
-          ),
-        IconButton(
-          icon: const Icon(Icons.remove, color: Colors.white, size: 18),
-          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          onPressed: widget.onMinimize,
-        ),
-        IconButton(
-          icon: const Icon(Icons.close, color: Colors.white, size: 18),
-          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          onPressed: widget.onClose,
-        ),
+        if (widget.onExpand != null) _PlainIconButton(icon: Icons.open_in_full, size: 16, onTap: widget.onExpand!),
+        _PlainIconButton(icon: Icons.remove, size: 18, onTap: widget.onMinimize),
+        _PlainIconButton(icon: Icons.close, size: 18, onTap: widget.onClose),
       ]),
     );
   }
@@ -274,7 +237,51 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
     );
   }
 
+  /// Input este izolat într-un widget separat ca să NU se rebuilduie la
+  /// fiecare mesaj primit (rebuild-ul părintelui pierdea focus + cauza
+  /// glitch-uri la backspace).
   Widget _input() {
+    return _InputArea(
+      controller: _inputC,
+      sending: _sending,
+      onSend: _send,
+    );
+  }
+}
+
+/// Plain clickable icon — fără Material/InkWell hover-splash gri.
+class _PlainIconButton extends StatelessWidget {
+  final IconData icon;
+  final double size;
+  final VoidCallback onTap;
+  const _PlainIconButton({required this.icon, required this.size, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, color: Colors.white, size: size),
+        ),
+      ),
+    );
+  }
+}
+
+/// Izolat din ChatMiniPanel ca să nu fie afectat de rebuild-urile de la
+/// mesaje noi (care altfel cauzau glitch la backspace).
+class _InputArea extends StatelessWidget {
+  final TextEditingController controller;
+  final bool sending;
+  final VoidCallback onSend;
+  const _InputArea({required this.controller, required this.sending, required this.onSend});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
       decoration: BoxDecoration(
@@ -284,7 +291,7 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
         Expanded(
           child: TextField(
-            controller: _inputC,
+            controller: controller,
             minLines: 1,
             maxLines: 4,
             textInputAction: TextInputAction.send,
@@ -295,16 +302,22 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: Colors.blue.shade400)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
-            onSubmitted: (_) => _send(),
+            onSubmitted: (_) => onSend(),
           ),
         ),
         const SizedBox(width: 4),
-        IconButton(
-          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          icon: _sending
-            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-            : Icon(Icons.send, color: Colors.blue.shade600, size: 22),
-          onPressed: _sending ? null : _send,
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: sending ? null : onSend,
+            child: Padding(
+              padding: const EdgeInsets.all(7),
+              child: sending
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(Icons.send, color: Colors.blue.shade600, size: 22),
+            ),
+          ),
         ),
       ]),
     );
