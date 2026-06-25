@@ -222,19 +222,16 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
         )),
         if (widget.onExpand != null)
           IconButton(
-            tooltip: 'Vollbild öffnen',
             icon: const Icon(Icons.open_in_full, color: Colors.white, size: 16),
             padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
             onPressed: widget.onExpand,
           ),
         IconButton(
-          tooltip: 'Minimieren',
           icon: const Icon(Icons.remove, color: Colors.white, size: 18),
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           onPressed: widget.onMinimize,
         ),
         IconButton(
-          tooltip: 'Schließen',
           icon: const Icon(Icons.close, color: Colors.white, size: 18),
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           onPressed: widget.onClose,
@@ -307,7 +304,6 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
           icon: _sending
             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
             : Icon(Icons.send, color: Colors.blue.shade600, size: 22),
-          tooltip: 'Senden',
           onPressed: _sending ? null : _send,
         ),
       ]),
