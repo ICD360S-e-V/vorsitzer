@@ -208,9 +208,6 @@ class _BubbleState extends State<_Bubble> {
     final initial = widget.bubble.senderName.trim().isNotEmpty
         ? widget.bubble.senderName.trim()[0].toUpperCase()
         : '?';
-    final tooltip = (widget.bubble.lastMessagePreview ?? '').isNotEmpty
-        ? '${widget.bubble.senderName}\n${widget.bubble.lastMessagePreview}'
-        : widget.bubble.senderName;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
@@ -229,10 +226,7 @@ class _BubbleState extends State<_Bubble> {
                   debugPrint('[Bubble] tapped conv=${widget.bubble.conversationId} (${widget.bubble.senderName})');
                   widget.onTap();
                 },
-                child: Tooltip(
-                  message: tooltip,
-                  waitDuration: const Duration(milliseconds: 600),
-                  child: Stack(clipBehavior: Clip.none, children: [
+                child: Stack(clipBehavior: Clip.none, children: [
                     Container(
                       width: 56, height: 56,
                       alignment: Alignment.center,
@@ -269,26 +263,24 @@ class _BubbleState extends State<_Bubble> {
               ),
             ),
           ),
-          // 2. Close X — visible ONLY on hover (Facebook Messenger style)
+          // 2. Close X — visible ONLY on hover (Facebook Messenger style).
+          // Fără tooltip (la cererea user-ului — "chestia gri" era enervantă).
           if (_hovering)
             Positioned(
               left: 0, top: 0,
-              child: Tooltip(
-                message: 'Bubble ausblenden',
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: widget.onClose,
-                    child: Container(
-                      width: 20, height: 20,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade800,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      child: const Icon(Icons.close, size: 12, color: Colors.white),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: widget.onClose,
+                  child: Container(
+                    width: 20, height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade800,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
+                    child: const Icon(Icons.close, size: 12, color: Colors.white),
                   ),
                 ),
               ),
