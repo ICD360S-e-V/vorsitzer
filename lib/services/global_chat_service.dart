@@ -211,6 +211,7 @@ class GlobalChatService extends ChangeNotifier {
   /// clears its unread count. Enforces [maxOpenPanels] by FIFO-evicting
   /// the oldest panel (it stays as a bubble).
   void openPanel(int conversationId, {String? senderName, String? lastMessagePreview}) {
+    debugPrint('[GlobalChatService] openPanel($conversationId, $senderName) — current panels=$_openPanels');
     if (!_openPanels.contains(conversationId)) {
       if (_openPanels.length >= maxOpenPanels) {
         _openPanels.removeAt(0);
@@ -227,6 +228,7 @@ class GlobalChatService extends ChangeNotifier {
     } else if (_bubbles.containsKey(conversationId)) {
       _bubbles[conversationId] = _bubbles[conversationId]!.copyWith(unreadCount: 0);
     }
+    debugPrint('[GlobalChatService] openPanel after: panels=$_openPanels bubbles=${_bubbles.length}');
     notifyListeners();
   }
 

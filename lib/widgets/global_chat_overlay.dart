@@ -176,11 +176,18 @@ class _GlobalChatOverlayState extends State<GlobalChatOverlay> {
   }
 }
 
-class _Bubble extends StatelessWidget {
+class _Bubble extends StatefulWidget {
   final GlobalChatBubble bubble;
   final VoidCallback onTap;
   final VoidCallback onClose;
   const _Bubble({required this.bubble, required this.onTap, required this.onClose});
+
+  @override
+  State<_Bubble> createState() => _BubbleState();
+}
+
+class _BubbleState extends State<_Bubble> {
+  bool _hovering = false;
 
   Color _color(String name) {
     const palette = <Color>[
@@ -198,84 +205,96 @@ class _Bubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = bubble.senderName.trim().isNotEmpty
-        ? bubble.senderName.trim()[0].toUpperCase()
+    final initial = widget.bubble.senderName.trim().isNotEmpty
+        ? widget.bubble.senderName.trim()[0].toUpperCase()
         : '?';
-    final tooltip = (bubble.lastMessagePreview ?? '').isNotEmpty
-        ? '${bubble.senderName}\n${bubble.lastMessagePreview}'
-        : bubble.senderName;
-    return SizedBox(
-      width: 64, height: 64,
-      child: Stack(clipBehavior: Clip.none, children: [
-        Positioned(
-          right: 0, bottom: 0,
-          child: Tooltip(
-            message: tooltip,
+    final tooltip = (widget.bubble.lastMessagePreview ?? '').isNotEmpty
+        ? '${widget.bubble.senderName}\n${widget.bubble.lastMessagePreview}'
+        : widget.bubble.senderName;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: SizedBox(
+        width: 64, height: 64,
+        child: Stack(clipBehavior: Clip.none, children: [
+          // 1. The avatar disk — full bubble click area (NOT covered by X)
+          Positioned(
+            right: 0, bottom: 0,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 customBorder: const CircleBorder(),
-                onTap: onTap,
-                child: Stack(clipBehavior: Clip.none, children: [
-                  Container(
-                    width: 56, height: 56,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _color(bubble.senderName),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3)),
-                      ],
+                onTap: () {
+                  debugPrint('[Bubble] tapped conv=${widget.bubble.conversationId} (${widget.bubble.senderName})');
+                  widget.onTap();
+                },
+                child: Tooltip(
+                  message: tooltip,
+                  waitDuration: const Duration(milliseconds: 600),
+                  child: Stack(clipBehavior: Clip.none, children: [
+                    Container(
+                      width: 56, height: 56,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _color(widget.bubble.senderName),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                        ],
+                      ),
+                      child: Text(initial,
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                     ),
-                    child: Text(initial,
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                  ),
-                  if (bubble.unreadCount > 0)
-                    Positioned(
-                      right: -2, top: -2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade600,
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          bubble.unreadCount > 99 ? '99+' : '${bubble.unreadCount}',
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    if (widget.bubble.unreadCount > 0)
+                      Positioned(
+                        right: -2, top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade600,
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            widget.bubble.unreadCount > 99 ? '99+' : '${widget.bubble.unreadCount}',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
-                    ),
-                ]),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          left: 0, top: 0,
-          child: Tooltip(
-            message: 'Bubble ausblenden',
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: onClose,
-                child: Container(
-                  width: 20, height: 20,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade800,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: const Icon(Icons.close, size: 12, color: Colors.white),
+                  ]),
                 ),
               ),
             ),
           ),
-        ),
-      ]),
+          // 2. Close X — visible ONLY on hover (Facebook Messenger style)
+          if (_hovering)
+            Positioned(
+              left: 0, top: 0,
+              child: Tooltip(
+                message: 'Bubble ausblenden',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: widget.onClose,
+                    child: Container(
+                      width: 20, height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade800,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: const Icon(Icons.close, size: 12, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ]),
+      ),
     );
   }
 }
