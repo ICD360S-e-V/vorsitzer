@@ -128,7 +128,14 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
       if (r['success'] == true) {
         _inputC.clear();
         // Optimistic: append immediately so user sees the send before WS echo.
-        final id = (r['message_id'] as int?) ?? DateTime.now().millisecondsSinceEpoch;
+        // PHP poate returna message_id ca int sau ca String (BIGINT→string)
+        // — folosim parser defensiv în loc de un cast direct care plesnea
+        // cu "String is not subtype of int?".
+        final rawId = r['message_id'];
+        final id = rawId is int
+            ? rawId
+            : (rawId is String ? int.tryParse(rawId) : null)
+              ?? DateTime.now().millisecondsSinceEpoch;
         final me = _chat.currentUserId ?? 0;
         if (!_messages.any((x) => x.id == id)) {
           _messages.add(ChatMessage(
