@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show Offset;
 import 'chat_service.dart';
 import 'logger_service.dart';
 
@@ -52,7 +53,7 @@ class GlobalChatService extends ChangeNotifier {
   GlobalChatService._internal();
 
   final _chat = ChatService();
-  final _log = LoggerService.instance;
+  final _log = LoggerService();
   StreamSubscription? _messageSub;
   bool _started = false;
 

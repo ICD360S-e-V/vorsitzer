@@ -47,7 +47,7 @@ class _GlobalChatOverlayState extends State<GlobalChatOverlay> {
       ignoring: false,
       child: Stack(children: [
         // Panels (stacked horizontally from right, bottom-aligned)
-        ..._buildPanels(media),
+        ..._buildPanels(media, mn),
         // Bubble column (draggable)
         _buildBubbleColumn(media),
       ]),
@@ -55,7 +55,7 @@ class _GlobalChatOverlayState extends State<GlobalChatOverlay> {
   }
 
   // ────────────────────────── PANELS ──────────────────────────
-  List<Widget> _buildPanels(Size media) {
+  List<Widget> _buildPanels(Size media, String mn) {
     final widgets = <Widget>[];
     // Right-edge offset: start at right and walk left as we add panels.
     double rightOffset = 16;

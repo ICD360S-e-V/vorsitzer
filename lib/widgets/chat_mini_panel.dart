@@ -35,7 +35,7 @@ class ChatMiniPanel extends StatefulWidget {
 class _ChatMiniPanelState extends State<ChatMiniPanel> {
   final _api = ApiService();
   final _chat = ChatService();
-  final _log = LoggerService.instance;
+  final _log = LoggerService();
   final _inputC = TextEditingController();
   final _scrollC = ScrollController();
   StreamSubscription? _msgSub;
