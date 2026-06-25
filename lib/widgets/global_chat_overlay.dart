@@ -259,7 +259,6 @@ class _BubbleState extends State<_Bubble> {
                         ),
                       ),
                   ]),
-                ),
               ),
             ),
           ),
