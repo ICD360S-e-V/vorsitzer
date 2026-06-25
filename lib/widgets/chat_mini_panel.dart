@@ -59,7 +59,10 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
         _lastMessageId = m.id;
       });
       _scrollToBottom();
-      GlobalChatService().markRead(widget.conversationId);
+      // NU mai apelăm markRead aici — declanșa notifyListeners pe service,
+      // overlay-ul se reconstruia, TextField-ul pierdea focus la fiecare
+      // mesaj primit ceea ce omora backspace-ul. Bubble-ul oricum nu apare
+      // cât timp panelul e deschis (filtrat în _buildBubbleColumn).
     });
     // NOTE: polling fallback de 5s a fost eliminat — cauza rebuild-uri pe
     // panel care făceau backspace să nu mai funcționeze. WebSocket suficient.
@@ -84,6 +87,8 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
     }
     setState(() => _loading = false);
     _scrollToBottom();
+    // markRead la _load() (rulează o singură dată la deschidere) — OK aici;
+    // notifyListeners pe overlay e tolerabil la mount, nu mai apoi.
     GlobalChatService().markRead(widget.conversationId);
   }
 
@@ -295,6 +300,12 @@ class _InputArea extends StatelessWidget {
             minLines: 1,
             maxLines: 4,
             textInputAction: TextInputAction.send,
+            // Autocorrect/suggestions/IME-learning OFF — pe mobile aceste
+            // funcții pot "restaura" cuvinte șterse cu backspace (bug-ul
+            // raportat de user "sterg cuvântul și apare din nou").
+            autocorrect: false,
+            enableSuggestions: false,
+            enableIMEPersonalizedLearning: false,
             decoration: InputDecoration(
               isDense: true,
               hintText: 'Nachricht…',
