@@ -10925,6 +10925,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     Map<String, dynamic>? sitzung, {
     String verfuegbarVon = '',
     String verfuegbarBis = '',
+    String verfuegbarVon2 = '',
+    String verfuegbarBis2 = '',
     int frequenzProWoche = 1,
   }) {
     final user = widget.user;
@@ -10976,7 +10978,12 @@ erstellt und versendet.''';
       case 'anfrage':
         betreff = 'Terminanfrage Physiotherapie — Verordnung vom $rezeptDatumFmt';
         String verfuegbarText = '';
-        if (verfuegbarVon.isNotEmpty && verfuegbarBis.isNotEmpty) {
+        final hasSlot1 = verfuegbarVon.isNotEmpty && verfuegbarBis.isNotEmpty;
+        final hasSlot2 = verfuegbarVon2.isNotEmpty && verfuegbarBis2.isNotEmpty;
+        if (hasSlot1 && hasSlot2) {
+          verfuegbarText = 'Bevorzugte Zeitfenster: werktags von $verfuegbarVon bis $verfuegbarBis Uhr '
+                           'sowie von $verfuegbarVon2 bis $verfuegbarBis2 Uhr.\n';
+        } else if (hasSlot1) {
           verfuegbarText = 'Bevorzugte Zeitfenster: werktags von $verfuegbarVon Uhr bis $verfuegbarBis Uhr.\n';
         }
         final freqClamped = frequenzProWoche.clamp(1, 3);
@@ -12235,9 +12242,13 @@ $vollName$footer''';
                                 }
                                 selectedSitzung ??= sitzungen.isNotEmpty ? sitzungen.first : null;
                               }
-                              // Verfügbarkeit pentru Termin-Anfrage (only relevant pentru "anfrage")
-                              TimeOfDay? verfuegbarVon = const TimeOfDay(hour: 8, minute: 0);
-                              TimeOfDay? verfuegbarBis = const TimeOfDay(hour: 18, minute: 0);
+                              // Verfügbarkeit pentru Termin-Anfrage — 2 intervale opționale
+                              // (slot 1 implicit, slot 2 doar dacă userul îl activează).
+                              TimeOfDay? verfuegbarVon = const TimeOfDay(hour: 8, minute: 30);
+                              TimeOfDay? verfuegbarBis = const TimeOfDay(hour: 12, minute: 0);
+                              bool slot2Aktiv = false;
+                              TimeOfDay? verfuegbarVon2 = const TimeOfDay(hour: 17, minute: 0);
+                              TimeOfDay? verfuegbarBis2 = const TimeOfDay(hour: 20, minute: 0);
                               // Behandlungsfrequenz: 1 / 2 / 3 pe săptămână (default 1).
                               // Default-ul preia din rezept dacă există acolo o frecvență definită.
                               int frequenz = (() {
@@ -12254,6 +12265,8 @@ $vollName$footer''';
                                   typ, r, selectedSitzung,
                                   verfuegbarVon: fmtTimeOfDay(verfuegbarVon),
                                   verfuegbarBis: fmtTimeOfDay(verfuegbarBis),
+                                  verfuegbarVon2: slot2Aktiv ? fmtTimeOfDay(verfuegbarVon2) : '',
+                                  verfuegbarBis2: slot2Aktiv ? fmtTimeOfDay(verfuegbarBis2) : '',
                                   frequenzProWoche: frequenz,
                                 );
                                 kBetreffC.text = tpl['betreff'] ?? '';
@@ -12311,24 +12324,18 @@ $vollName$footer''';
                                             ),
                                             const SizedBox(height: 6),
                                           ],
-                                          // ── Verfügbarkeit interval (nur pentru Termin-Anfrage) ──
+                                          // ── Verfügbarkeit interval 1 (vormittags) ──
                                           Text('Verfügbar (für Termin-Anfrage):', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
                                           const SizedBox(height: 4),
+                                          // Slot 1
                                           Row(children: [
+                                            const SizedBox(width: 28, child: Text('1.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
                                             Expanded(child: OutlinedButton.icon(
                                               icon: Icon(Icons.schedule, size: 13, color: Colors.amber.shade800),
                                               label: Text('Von: ${fmtTimeOfDay(verfuegbarVon)}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-                                              style: OutlinedButton.styleFrom(
-                                                side: BorderSide(color: Colors.amber.shade300),
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                                minimumSize: Size.zero,
-                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                              ),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.amber.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                                               onPressed: () async {
-                                                final picked = await showTimePicker(
-                                                  context: kDlg,
-                                                  initialTime: verfuegbarVon ?? const TimeOfDay(hour: 8, minute: 0),
-                                                );
+                                                final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarVon ?? const TimeOfDay(hour: 8, minute: 30));
                                                 if (picked != null) setKDlg(() => verfuegbarVon = picked);
                                               },
                                             )),
@@ -12336,18 +12343,44 @@ $vollName$footer''';
                                             Expanded(child: OutlinedButton.icon(
                                               icon: Icon(Icons.schedule, size: 13, color: Colors.amber.shade800),
                                               label: Text('Bis: ${fmtTimeOfDay(verfuegbarBis)}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-                                              style: OutlinedButton.styleFrom(
-                                                side: BorderSide(color: Colors.amber.shade300),
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                                minimumSize: Size.zero,
-                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                              ),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.amber.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                                               onPressed: () async {
-                                                final picked = await showTimePicker(
-                                                  context: kDlg,
-                                                  initialTime: verfuegbarBis ?? const TimeOfDay(hour: 18, minute: 0),
-                                                );
+                                                final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarBis ?? const TimeOfDay(hour: 12, minute: 0));
                                                 if (picked != null) setKDlg(() => verfuegbarBis = picked);
+                                              },
+                                            )),
+                                          ]),
+                                          const SizedBox(height: 4),
+                                          // Slot 2 — toggle on/off + dezactivat când slot2Aktiv=false
+                                          Row(children: [
+                                            SizedBox(
+                                              width: 28,
+                                              child: GestureDetector(
+                                                onTap: () => setKDlg(() => slot2Aktiv = !slot2Aktiv),
+                                                child: Icon(
+                                                  slot2Aktiv ? Icons.check_box : Icons.check_box_outline_blank,
+                                                  size: 16,
+                                                  color: slot2Aktiv ? Colors.amber.shade800 : Colors.grey.shade500,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(child: OutlinedButton.icon(
+                                              icon: Icon(Icons.schedule, size: 13, color: slot2Aktiv ? Colors.amber.shade800 : Colors.grey.shade400),
+                                              label: Text('Von: ${fmtTimeOfDay(verfuegbarVon2)}', style: TextStyle(fontSize: 11, color: slot2Aktiv ? Colors.amber.shade900 : Colors.grey.shade500)),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: slot2Aktiv ? Colors.amber.shade300 : Colors.grey.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                              onPressed: !slot2Aktiv ? null : () async {
+                                                final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarVon2 ?? const TimeOfDay(hour: 17, minute: 0));
+                                                if (picked != null) setKDlg(() => verfuegbarVon2 = picked);
+                                              },
+                                            )),
+                                            const SizedBox(width: 6),
+                                            Expanded(child: OutlinedButton.icon(
+                                              icon: Icon(Icons.schedule, size: 13, color: slot2Aktiv ? Colors.amber.shade800 : Colors.grey.shade400),
+                                              label: Text('Bis: ${fmtTimeOfDay(verfuegbarBis2)}', style: TextStyle(fontSize: 11, color: slot2Aktiv ? Colors.amber.shade900 : Colors.grey.shade500)),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: slot2Aktiv ? Colors.amber.shade300 : Colors.grey.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                              onPressed: !slot2Aktiv ? null : () async {
+                                                final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarBis2 ?? const TimeOfDay(hour: 20, minute: 0));
+                                                if (picked != null) setKDlg(() => verfuegbarBis2 = picked);
                                               },
                                             )),
                                           ]),
