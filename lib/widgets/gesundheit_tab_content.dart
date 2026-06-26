@@ -12259,6 +12259,26 @@ $vollName$footer''';
                               })();
                               String fmtTimeOfDay(TimeOfDay? t) =>
                                 t == null ? '' : '${t.hour.toString().padLeft(2,'0')}:${t.minute.toString().padLeft(2,'0')}';
+                              // Praxis-Email — search async din aerzte_datenbank după praxis_name
+                              // din prima sitzung (dacă există).
+                              String praxisName = sitzungen.isNotEmpty
+                                ? (sitzungen.first['praxis_name']?.toString() ?? '')
+                                : '';
+                              final praxisEmailFuture = praxisName.isEmpty
+                                ? Future.value('')
+                                : widget.apiService.searchAerzte(search: praxisName).then((res) {
+                                    final list = (res['aerzte'] as List?) ?? const [];
+                                    for (final a in list) {
+                                      if (a is Map) {
+                                        final n = a['praxis_name']?.toString() ?? '';
+                                        final firstWord = praxisName.split(' ').first.toLowerCase();
+                                        if (firstWord.length >= 4 && n.toLowerCase().contains(firstWord)) {
+                                          return a['email']?.toString() ?? '';
+                                        }
+                                      }
+                                    }
+                                    return '';
+                                  }).catchError((_) => '');
                               // Aplica un template — completează Betreff + Inhalt.
                               void applyTemplate(String typ, void Function() refresh) {
                                 final tpl = _buildHeilmittelEmailTemplate(
@@ -12427,6 +12447,50 @@ $vollName$footer''';
                                       if (p != null) kDatumC.text = DateFormat('dd.MM.yyyy').format(p);
                                     }))),
                                     const SizedBox(height: 10),
+                                    // ── Praxis-Email + copy-button (vizibil pentru Ausgang + Email) ──
+                                    if (kRichtung == 'ausgang' && kMethode == 'email')
+                                      FutureBuilder<String>(
+                                        future: praxisEmailFuture,
+                                        builder: (ctx, snap) {
+                                          final email = snap.data ?? '';
+                                          final loading = snap.connectionState != ConnectionState.done;
+                                          return Container(
+                                            margin: const EdgeInsets.only(bottom: 10),
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: email.isNotEmpty ? Colors.blue.shade50 : Colors.grey.shade100,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: email.isNotEmpty ? Colors.blue.shade200 : Colors.grey.shade300),
+                                            ),
+                                            child: Row(children: [
+                                              Icon(Icons.email, size: 16, color: email.isNotEmpty ? Colors.blue.shade700 : Colors.grey.shade500),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: loading
+                                                  ? Text('Praxis-E-Mail wird gesucht …', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))
+                                                  : (email.isEmpty
+                                                    ? Text('Keine Praxis-E-Mail in der Datenbank', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))
+                                                    : SelectableText(email, style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600))),
+                                              ),
+                                              if (email.isNotEmpty)
+                                                IconButton(
+                                                  padding: EdgeInsets.zero,
+                                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                  icon: Icon(Icons.content_copy, size: 16, color: Colors.blue.shade700),
+                                                  tooltip: 'In Zwischenablage kopieren',
+                                                  onPressed: () async {
+                                                    await Clipboard.setData(ClipboardData(text: email));
+                                                    if (kDlg.mounted) {
+                                                      ScaffoldMessenger.of(kDlg).showSnackBar(
+                                                        SnackBar(content: Text('Kopiert: $email'), duration: const Duration(seconds: 2), backgroundColor: Colors.green.shade600),
+                                                      );
+                                                    }
+                                                  },
+                                                ),
+                                            ]),
+                                          );
+                                        },
+                                      ),
                                     TextFormField(controller: kBetreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
                                     const SizedBox(height: 10),
                                     TextFormField(controller: kInhaltC, maxLines: 10, decoration: InputDecoration(labelText: 'Inhalt / Nachrichtentext', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
