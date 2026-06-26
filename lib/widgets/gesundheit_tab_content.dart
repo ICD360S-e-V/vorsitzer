@@ -10925,6 +10925,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     Map<String, dynamic>? sitzung, {
     String verfuegbarVon = '',
     String verfuegbarBis = '',
+    int frequenzProWoche = 1,
   }) {
     final user = widget.user;
     final vorname = (user.vorname ?? '').trim();
@@ -10978,6 +10979,8 @@ erstellt und versendet.''';
         if (verfuegbarVon.isNotEmpty && verfuegbarBis.isNotEmpty) {
           verfuegbarText = 'Bevorzugte Zeitfenster: werktags von $verfuegbarVon Uhr bis $verfuegbarBis Uhr.\n';
         }
+        final freqClamped = frequenzProWoche.clamp(1, 3);
+        final frequenzText = 'Gewünschte Behandlungsfrequenz: ${freqClamped} Termin${freqClamped == 1 ? "" : "e"} pro Woche.\n';
         inhalt = '''Sehr geehrtes Praxis-Team,
 
 mein Name ist $vollName${geb.isNotEmpty ? ', geboren am $geb' : ''}.
@@ -10986,7 +10989,7 @@ für ${heilmittel.isNotEmpty ? heilmittel : 'Physiotherapie'} ausgestellt.
 
 Ich möchte hiermit höflich um die Vereinbarung eines Behandlungstermins bitten.
 
-$identityBlock${verfuegbarText.isNotEmpty ? "\n$verfuegbarText" : ""}
+$identityBlock${verfuegbarText.isNotEmpty ? "\n$verfuegbarText" : ""}$frequenzText
 Das Rezept liegt diesem Schreiben als Foto bei. Bitte teilen Sie mir mit,
 welche Termine bei Ihnen in diesem Zeitfenster kurzfristig frei sind.
 
@@ -12235,6 +12238,14 @@ $vollName$footer''';
                               // Verfügbarkeit pentru Termin-Anfrage (only relevant pentru "anfrage")
                               TimeOfDay? verfuegbarVon = const TimeOfDay(hour: 8, minute: 0);
                               TimeOfDay? verfuegbarBis = const TimeOfDay(hour: 18, minute: 0);
+                              // Behandlungsfrequenz: 1 / 2 / 3 pe săptămână (default 1).
+                              // Default-ul preia din rezept dacă există acolo o frecvență definită.
+                              int frequenz = (() {
+                                final f = (r['frequenz']?.toString() ?? '').trim();
+                                final m = RegExp(r'(\d)').firstMatch(f);
+                                final n = m == null ? 1 : int.tryParse(m.group(1) ?? '1') ?? 1;
+                                return n.clamp(1, 3);
+                              })();
                               String fmtTimeOfDay(TimeOfDay? t) =>
                                 t == null ? '' : '${t.hour.toString().padLeft(2,'0')}:${t.minute.toString().padLeft(2,'0')}';
                               // Aplica un template — completează Betreff + Inhalt.
@@ -12243,6 +12254,7 @@ $vollName$footer''';
                                   typ, r, selectedSitzung,
                                   verfuegbarVon: fmtTimeOfDay(verfuegbarVon),
                                   verfuegbarBis: fmtTimeOfDay(verfuegbarBis),
+                                  frequenzProWoche: frequenz,
                                 );
                                 kBetreffC.text = tpl['betreff'] ?? '';
                                 kInhaltC.text = tpl['inhalt'] ?? '';
@@ -12338,6 +12350,19 @@ $vollName$footer''';
                                                 if (picked != null) setKDlg(() => verfuegbarBis = picked);
                                               },
                                             )),
+                                          ]),
+                                          const SizedBox(height: 6),
+                                          // ── Behandlungsfrequenz: 1 / 2 / 3 pro Woche ──
+                                          Text('Behandlungsfrequenz pro Woche:', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                          const SizedBox(height: 4),
+                                          Wrap(spacing: 6, children: [
+                                            for (final n in [1, 2, 3])
+                                              ChoiceChip(
+                                                label: Text('$n × pro Woche', style: TextStyle(fontSize: 11, color: frequenz == n ? Colors.white : Colors.amber.shade900)),
+                                                selected: frequenz == n,
+                                                selectedColor: Colors.amber.shade700,
+                                                onSelected: (_) => setKDlg(() => frequenz = n),
+                                              ),
                                           ]),
                                           const SizedBox(height: 6),
                                           Wrap(spacing: 6, runSpacing: 4, children: [
