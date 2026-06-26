@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
+import 'ntfy_service.dart';
 import '../utils/role_helpers.dart';
 
 class ApiService {
@@ -124,6 +125,15 @@ class ApiService {
     try {
       await _secureStorage.delete(key: 'access_token');
       await _secureStorage.delete(key: 'refresh_token');
+      // Legacy key written by an older buggy refresh path — clean it up too.
+      await _secureStorage.delete(key: 'token');
+    } catch (_) {}
+    // SharedPreferences fallback must also be wiped, otherwise loadTokens()
+    // resurrects the old tokens on next start and the user looks "still logged in".
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('access_token');
+      await prefs.remove('refresh_token');
     } catch (_) {}
   }
 
@@ -154,9 +164,25 @@ class ApiService {
       final result = jsonDecode(response.body);
       if (response.statusCode == 200 && result['success'] == true) {
         final newToken = result['token'] as String;
+        // Some backends rotate the refresh token on each use; keep current one if not returned.
+        final newRefreshToken = (result['refresh_token'] as String?) ?? _refreshToken!;
         _token = newToken;
+        _refreshToken = newRefreshToken;
         try {
-          await _secureStorage.write(key: 'token', value: newToken);
+          await _secureStorage.write(key: 'access_token', value: newToken);
+          await _secureStorage.write(key: 'refresh_token', value: newRefreshToken);
+        } catch (e) {
+          LoggerService().warning('Keychain write failed on refresh, using SharedPreferences fallback: $e', tag: 'AUTH');
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('access_token', newToken);
+            await prefs.setString('refresh_token', newRefreshToken);
+          } catch (_) {}
+        }
+        // Push the new JWT to subscribers that hold their own copy
+        // (ntfy fetches the ntfy_token using this JWT — stale = silent 401 loop).
+        try {
+          NtfyService().updateJwtToken(newToken);
         } catch (_) {}
         LoggerService().info('Access token refreshed successfully', tag: 'AUTH');
         return true;

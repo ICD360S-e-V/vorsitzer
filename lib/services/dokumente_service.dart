@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'api_service.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
@@ -102,12 +103,18 @@ class DokumenteService {
 
   void setToken(String? token) => _token = token;
 
+  /// Always returns the freshest JWT: the live one from ApiService if available
+  /// (so the 50-min proactive refresh is picked up), otherwise the snapshot
+  /// set via setToken() for legacy call sites.
+  String? get _jwt => ApiService().token ?? _token;
+
   Map<String, String> get _headers {
     final deviceKey = _deviceKeyService.deviceKey;
+    final jwt = _jwt;
     return {
       'Content-Type': 'application/json',
       'User-Agent': 'ICD360S-Vorsitzer/1.0',
-      if (_token != null) 'Authorization': 'Bearer $_token',
+      if (jwt != null) 'Authorization': 'Bearer $jwt',
       if (deviceKey != null) 'X-Device-Key': deviceKey,
     };
   }
@@ -128,8 +135,9 @@ class DokumenteService {
       final request = http.MultipartRequest('POST', uri);
 
       request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
-      if (_token != null) {
-        request.headers['Authorization'] = 'Bearer $_token';
+      final jwt = _jwt;
+      if (jwt != null) {
+        request.headers['Authorization'] = 'Bearer $jwt';
       }
       if (deviceKey != null) {
         request.headers['X-Device-Key'] = deviceKey;
@@ -191,8 +199,9 @@ class DokumenteService {
       final request = http.MultipartRequest('POST', uri);
 
       request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
-      if (_token != null) {
-        request.headers['Authorization'] = 'Bearer $_token';
+      final jwt = _jwt;
+      if (jwt != null) {
+        request.headers['Authorization'] = 'Bearer $jwt';
       }
       if (deviceKey != null) {
         request.headers['X-Device-Key'] = deviceKey;
