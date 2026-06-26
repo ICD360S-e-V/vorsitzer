@@ -12259,37 +12259,11 @@ $vollName$footer''';
                               })();
                               String fmtTimeOfDay(TimeOfDay? t) =>
                                 t == null ? '' : '${t.hour.toString().padLeft(2,'0')}:${t.minute.toString().padLeft(2,'0')}';
-                              // Praxis selector: fetch all aerzte_datenbank entries cu fachrichtung
-                              // matching r['bereich'] (Physiotherapie etc.) — dropdown ca user sa
-                              // aleagă praxis-ul + să-i vadă email-ul.
-                              List<Map<String, dynamic>> verfuegbarePraxen = [];
-                              Map<String, dynamic>? selectedPraxis;
-                              final bereichLookup = (r['bereich']?.toString() ?? '').trim();
-                              final praxisListFuture = bereichLookup.isEmpty
-                                ? Future.value(<Map<String, dynamic>>[])
-                                : widget.apiService.searchAerzte(search: '', fachrichtung: bereichLookup).then((res) {
-                                    final list = (res['aerzte'] as List?) ?? const [];
-                                    final maps = <Map<String, dynamic>>[];
-                                    for (final a in list) {
-                                      if (a is Map) maps.add(Map<String, dynamic>.from(a));
-                                    }
-                                    // Default-selectează praxis-ul din prima sitzung (dacă există match)
-                                    if (sitzungen.isNotEmpty) {
-                                      final sName = (sitzungen.first['praxis_name']?.toString() ?? '').toLowerCase();
-                                      if (sName.isNotEmpty) {
-                                        for (final m in maps) {
-                                          final mn = (m['praxis_name']?.toString() ?? '').toLowerCase();
-                                          if (mn.contains(sName) || sName.contains(mn)) {
-                                            selectedPraxis = m;
-                                            break;
-                                          }
-                                        }
-                                      }
-                                    }
-                                    selectedPraxis ??= maps.isNotEmpty ? maps.first : null;
-                                    verfuegbarePraxen = maps;
-                                    return maps;
-                                  }).catchError((_) => <Map<String, dynamic>>[]);
+                              // Praxis e setat în Verlauf — r['physio_praxis_*'] populate când user
+                              // selectează praxis prin _showArztSucheDialog. Folosim DIRECT email-ul
+                              // de acolo, nu mai e nevoie de search/dropdown.
+                              final praxisName = (r['physio_praxis_name']?.toString() ?? '').trim();
+                              final praxisEmail = (r['physio_praxis_email']?.toString() ?? '').trim();
                               // Aplica un template — completează Betreff + Inhalt.
                               void applyTemplate(String typ, void Function() refresh) {
                                 final tpl = _buildHeilmittelEmailTemplate(
@@ -12458,89 +12432,54 @@ $vollName$footer''';
                                       if (p != null) kDatumC.text = DateFormat('dd.MM.yyyy').format(p);
                                     }))),
                                     const SizedBox(height: 10),
-                                    // ── Praxis-Selector + E-Mail-Row (vizibil pentru Ausgang + E-Mail) ──
+                                    // ── Praxis-E-Mail din Verlauf (vizibil pentru Ausgang + E-Mail) ──
                                     if (kRichtung == 'ausgang' && kMethode == 'email')
-                                      FutureBuilder<List<Map<String, dynamic>>>(
-                                        future: praxisListFuture,
-                                        builder: (ctx, snap) {
-                                          final loading = snap.connectionState != ConnectionState.done;
-                                          if (loading) {
-                                            return Padding(
-                                              padding: const EdgeInsets.only(bottom: 10),
-                                              child: Row(children: [
-                                                const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5)),
-                                                const SizedBox(width: 8),
-                                                Text('Praxen werden geladen …', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
-                                              ]),
-                                            );
-                                          }
-                                          if (verfuegbarePraxen.isEmpty) {
-                                            return Container(
-                                              margin: const EdgeInsets.only(bottom: 10),
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
-                                              child: Text(
-                                                'Keine Praxen mit Fachrichtung "${bereichLookup.isEmpty ? "(nicht gesetzt)" : bereichLookup}" in der Datenbank',
-                                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                                      Container(
+                                        margin: const EdgeInsets.only(bottom: 10),
+                                        padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                                        decoration: BoxDecoration(
+                                          color: praxisEmail.isNotEmpty ? Colors.blue.shade50 : Colors.amber.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: praxisEmail.isNotEmpty ? Colors.blue.shade200 : Colors.amber.shade300),
+                                        ),
+                                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                          Row(children: [
+                                            Icon(Icons.local_hospital, size: 14, color: praxisEmail.isNotEmpty ? Colors.blue.shade700 : Colors.amber.shade800),
+                                            const SizedBox(width: 6),
+                                            Expanded(child: Text(
+                                              praxisName.isEmpty ? 'Keine Praxis in Verlauf ausgewählt' : praxisName,
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: praxisEmail.isNotEmpty ? Colors.blue.shade900 : Colors.amber.shade900),
+                                              overflow: TextOverflow.ellipsis,
+                                            )),
+                                          ]),
+                                          const SizedBox(height: 4),
+                                          if (praxisEmail.isNotEmpty)
+                                            Row(children: [
+                                              Icon(Icons.email, size: 14, color: Colors.blue.shade700),
+                                              const SizedBox(width: 6),
+                                              Expanded(child: SelectableText(praxisEmail, style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600))),
+                                              IconButton(
+                                                padding: EdgeInsets.zero,
+                                                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                                                icon: Icon(Icons.content_copy, size: 14, color: Colors.blue.shade700),
+                                                onPressed: () async {
+                                                  await Clipboard.setData(ClipboardData(text: praxisEmail));
+                                                  if (kDlg.mounted) {
+                                                    ScaffoldMessenger.of(kDlg).showSnackBar(
+                                                      SnackBar(content: Text('Kopiert: $praxisEmail'), duration: const Duration(seconds: 2), backgroundColor: Colors.green.shade600),
+                                                    );
+                                                  }
+                                                },
                                               ),
-                                            );
-                                          }
-                                          final email = (selectedPraxis?['email']?.toString() ?? '');
-                                          return Container(
-                                            margin: const EdgeInsets.only(bottom: 10),
-                                            padding: const EdgeInsets.fromLTRB(10, 6, 6, 8),
-                                            decoration: BoxDecoration(
-                                              color: Colors.blue.shade50,
-                                              borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: Colors.blue.shade200),
+                                            ])
+                                          else
+                                            Text(
+                                              praxisName.isEmpty
+                                                ? 'Bitte Praxis in Verlauf-Tab auswählen'
+                                                : 'Diese Praxis hat keine E-Mail in der Datenbank',
+                                              style: TextStyle(fontSize: 10, color: Colors.amber.shade900, fontStyle: FontStyle.italic),
                                             ),
-                                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                              Row(children: [
-                                                Icon(Icons.local_hospital, size: 14, color: Colors.blue.shade700),
-                                                const SizedBox(width: 6),
-                                                Text('Praxis (Empfänger):', style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontWeight: FontWeight.w600)),
-                                              ]),
-                                              const SizedBox(height: 4),
-                                              DropdownButtonFormField<Map<String, dynamic>>(
-                                                initialValue: selectedPraxis,
-                                                isExpanded: true,
-                                                isDense: true,
-                                                decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(6))),
-                                                items: verfuegbarePraxen.map((p) {
-                                                  final name = p['praxis_name']?.toString() ?? '';
-                                                  final ort = p['plz_ort']?.toString() ?? '';
-                                                  final lbl = ort.isEmpty ? name : '$name · $ort';
-                                                  return DropdownMenuItem(value: p, child: Text(lbl, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis));
-                                                }).toList(),
-                                                onChanged: (v) => setKDlg(() => selectedPraxis = v),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Row(children: [
-                                                Icon(Icons.email, size: 14, color: email.isNotEmpty ? Colors.blue.shade700 : Colors.grey.shade500),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: email.isEmpty
-                                                    ? Text('— keine E-Mail in DB —', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))
-                                                    : SelectableText(email, style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600)),
-                                                ),
-                                                if (email.isNotEmpty)
-                                                  IconButton(
-                                                    padding: EdgeInsets.zero,
-                                                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                                    icon: Icon(Icons.content_copy, size: 14, color: Colors.blue.shade700),
-                                                    onPressed: () async {
-                                                      await Clipboard.setData(ClipboardData(text: email));
-                                                      if (kDlg.mounted) {
-                                                        ScaffoldMessenger.of(kDlg).showSnackBar(
-                                                          SnackBar(content: Text('Kopiert: $email'), duration: const Duration(seconds: 2), backgroundColor: Colors.green.shade600),
-                                                        );
-                                                      }
-                                                    },
-                                                  ),
-                                              ]),
-                                            ]),
-                                          );
-                                        },
+                                        ]),
                                       ),
                                     TextFormField(controller: kBetreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
                                     const SizedBox(height: 10),
