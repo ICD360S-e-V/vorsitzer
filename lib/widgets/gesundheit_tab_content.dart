@@ -10913,6 +10913,113 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
+  /// Generează template-uri profesionale germane pentru corespondență e-mail
+  /// la Heilmittel-Rezept (Physiotherapie). Date auto-completate din:
+  /// - widget.user (Verifizierung stufe 1): vorname, nachname, geburtsdatum, telefon, adresa
+  /// - rezept (r): krankenkasse, versicherten_nr (auto-populate la create din Behörde),
+  ///   datum (Ausstellungsdatum), hm1/hm2/hm3 (Heilmittel-Bereich)
+  /// - sitzung (selectată din Verlauf): datum + zeit + praxis_name (pentru Verschiebung/Absage)
+  Map<String, String> _buildHeilmittelEmailTemplate(String typ, Map<String, dynamic> r, Map<String, dynamic>? sitzung) {
+    final user = widget.user;
+    final vorname = (user.vorname ?? '').trim();
+    final nachname = (user.nachname ?? '').trim();
+    final vollName = '$vorname $nachname'.trim();
+    final geb = (user.geburtsdatum ?? '').trim();
+    final telefon = ((user.telefonMobil ?? '').trim().isNotEmpty ? user.telefonMobil! : (user.telefonFix ?? '')).trim();
+    final krankenkasse = (r['krankenkasse']?.toString() ?? '').trim();
+    final versNr = (r['versicherten_nr']?.toString() ?? '').trim();
+    final rezeptDatum = r['datum']?.toString() ?? '';
+    String rezeptDatumFmt = rezeptDatum;
+    try { rezeptDatumFmt = DateFormat('dd.MM.yyyy').format(DateTime.parse(rezeptDatum)); } catch (_) {}
+    final heilmittel = [r['hm1'], r['hm2'], r['hm3']]
+        .map((e) => (e?.toString() ?? '').trim()).where((s) => s.isNotEmpty).join(', ');
+
+    String tDatumFmt = '';
+    String tZeit = '';
+    if (sitzung != null) {
+      try { tDatumFmt = DateFormat('EEEE, dd.MM.yyyy', 'de').format(DateTime.parse(sitzung['datum']?.toString() ?? '')); }
+      catch (_) { tDatumFmt = sitzung['datum']?.toString() ?? ''; }
+      tZeit = sitzung['zeit']?.toString() ?? sitzung['uhrzeit']?.toString() ?? '';
+    }
+
+    String identityBlock = '';
+    if (vollName.isNotEmpty) identityBlock += 'Patient: $vollName\n';
+    if (geb.isNotEmpty)      identityBlock += 'Geburtsdatum: $geb\n';
+    if (krankenkasse.isNotEmpty || versNr.isNotEmpty) {
+      identityBlock += 'Krankenkasse: $krankenkasse';
+      if (versNr.isNotEmpty) identityBlock += ' · Vers-Nr.: $versNr';
+      identityBlock += '\n';
+    }
+    if (telefon.isNotEmpty)  identityBlock += 'Telefon: $telefon\n';
+
+    String betreff;
+    String inhalt;
+
+    switch (typ) {
+      case 'anfrage':
+        betreff = 'Terminanfrage Physiotherapie — Verordnung vom $rezeptDatumFmt';
+        inhalt = '''Sehr geehrtes Praxis-Team,
+
+mein Name ist $vollName${geb.isNotEmpty ? ', geboren am $geb' : ''}.
+Mein behandelnder Arzt hat mir am $rezeptDatumFmt eine ärztliche Verordnung
+für ${heilmittel.isNotEmpty ? heilmittel : 'Physiotherapie'} ausgestellt.
+
+Ich möchte hiermit höflich um die Vereinbarung eines Behandlungstermins bitten.
+
+$identityBlock
+Das Rezept liegt diesem Schreiben als Foto bei. Bitte teilen Sie mir mit,
+welche Termine bei Ihnen kurzfristig frei sind.
+
+Vielen Dank im Voraus für Ihre Rückmeldung.
+
+Mit freundlichen Grüßen
+$vollName''';
+        break;
+
+      case 'verschiebung':
+        betreff = 'Terminverlegung — $vollName, ${tDatumFmt.isNotEmpty ? tDatumFmt : "[Termin]"}${tZeit.isNotEmpty ? " $tZeit" : ""}';
+        inhalt = '''Sehr geehrtes Praxis-Team,
+
+leider muss ich den vereinbarten Behandlungstermin
+${tDatumFmt.isNotEmpty ? "am $tDatumFmt" : "[Termin-Datum]"}${tZeit.isNotEmpty ? " um $tZeit Uhr" : ""}
+aus dringenden Gründen verschieben.
+
+Ich bitte Sie höflich um einen Ersatztermin innerhalb der nächsten 14 Tage.
+
+$identityBlock
+Vielen Dank für Ihr Verständnis und Ihre Flexibilität.
+
+Mit freundlichen Grüßen
+$vollName''';
+        break;
+
+      case 'absage':
+        betreff = 'Terminabsage — $vollName, ${tDatumFmt.isNotEmpty ? tDatumFmt : "[Termin]"}${tZeit.isNotEmpty ? " $tZeit" : ""}';
+        inhalt = '''Sehr geehrtes Praxis-Team,
+
+hiermit muss ich den vereinbarten Behandlungstermin
+${tDatumFmt.isNotEmpty ? "am $tDatumFmt" : "[Termin-Datum]"}${tZeit.isNotEmpty ? " um $tZeit Uhr" : ""}
+leider absagen.
+
+Grund: [bitte ausfüllen — z.B. akute Erkrankung / persönlicher Notfall]
+
+Ich melde mich nach Klärung der Situation bei Ihnen, um einen
+neuen Termin zu vereinbaren.
+
+$identityBlock
+Bitte entschuldigen Sie die kurzfristige Absage.
+
+Mit freundlichen Grüßen
+$vollName''';
+        break;
+
+      default:
+        betreff = '';
+        inhalt = '';
+    }
+    return {'betreff': betreff, 'inhalt': inhalt};
+  }
+
   // ═══════════════════════════════════════════════════════
   // HEILMITTELVERORDNUNG TAB (Muster 13)
   // ═══════════════════════════════════════════════════════
@@ -12091,10 +12198,31 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                               final kDatumC = TextEditingController(text: DateFormat('dd.MM.yyyy').format(DateTime.now()));
                               final kBetreffC = TextEditingController();
                               final kInhaltC = TextEditingController();
+                              // Selected sitzung pentru template-uri Verschiebung/Absage.
+                              // Defaultul e primul Termin viitor din Verlauf.
+                              final List<Map<String, dynamic>> sitzungen = (r['sitzungen'] is List)
+                                ? List<Map<String, dynamic>>.from((r['sitzungen'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+                                : [];
+                              Map<String, dynamic>? selectedSitzung;
+                              {
+                                final now = DateTime.now();
+                                for (final s in sitzungen) {
+                                  final d = DateTime.tryParse(s['datum']?.toString() ?? '');
+                                  if (d != null && d.isAfter(now)) { selectedSitzung = s; break; }
+                                }
+                                selectedSitzung ??= sitzungen.isNotEmpty ? sitzungen.first : null;
+                              }
+                              // Aplica un template — completează Betreff + Inhalt.
+                              void applyTemplate(String typ, void Function() refresh) {
+                                final tpl = _buildHeilmittelEmailTemplate(typ, r, selectedSitzung);
+                                kBetreffC.text = tpl['betreff'] ?? '';
+                                kInhaltC.text = tpl['inhalt'] ?? '';
+                                refresh();
+                              }
                               showDialog(context: kCtx, builder: (kDlg) => StatefulBuilder(
                                 builder: (kDlg, setKDlg) => AlertDialog(
                                   title: const Text('Neue Korrespondenz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                  content: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                  content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
                                     // Richtung
                                     Row(children: [
                                       ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.call_made, size: 13, color: kRichtung == 'ausgang' ? Colors.white : Colors.blue.shade700), const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 11, color: kRichtung == 'ausgang' ? Colors.white : Colors.blue.shade700))]), selected: kRichtung == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setKDlg(() => kRichtung = 'ausgang')),
@@ -12107,6 +12235,64 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                       for (final m in [('email', 'E-Mail', Icons.email), ('telefon', 'Telefon', Icons.phone), ('post', 'Post', Icons.mail), ('fax', 'Fax', Icons.fax)])
                                         ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: kMethode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 11, color: kMethode == m.$1 ? Colors.white : Colors.grey.shade700))]), selected: kMethode == m.$1, selectedColor: Colors.indigo.shade600, onSelected: (_) => setKDlg(() => kMethode = m.$1)),
                                     ]),
+                                    // ── VORLAGEN (nur bei Ausgang + Email) ──
+                                    if (kRichtung == 'ausgang' && kMethode == 'email') ...[
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+                                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                          Row(children: [
+                                            Icon(Icons.auto_awesome, size: 14, color: Colors.amber.shade800),
+                                            const SizedBox(width: 6),
+                                            Text('Vorlage einfügen (Patient + Versicherung auto-befüllt)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                                          ]),
+                                          const SizedBox(height: 6),
+                                          if (sitzungen.length > 1) ...[
+                                            Text('Termin (für Verschiebung/Absage):', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                            const SizedBox(height: 4),
+                                            DropdownButtonFormField<Map<String, dynamic>>(
+                                              initialValue: selectedSitzung,
+                                              isExpanded: true,
+                                              isDense: true,
+                                              decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), border: OutlineInputBorder(borderRadius: BorderRadius.circular(6))),
+                                              items: sitzungen.map((s) {
+                                                final dStr = s['datum']?.toString() ?? '';
+                                                final tStr = s['zeit']?.toString() ?? s['uhrzeit']?.toString() ?? '';
+                                                String label = dStr;
+                                                try { label = DateFormat('dd.MM.yyyy').format(DateTime.parse(dStr)); } catch (_) {}
+                                                if (tStr.isNotEmpty) label += ' · $tStr';
+                                                final p = s['praxis_name']?.toString() ?? '';
+                                                if (p.isNotEmpty) label += ' @ ${p.length > 30 ? "${p.substring(0, 30)}…" : p}';
+                                                return DropdownMenuItem(value: s, child: Text(label, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis));
+                                              }).toList(),
+                                              onChanged: (v) => setKDlg(() => selectedSitzung = v),
+                                            ),
+                                            const SizedBox(height: 6),
+                                          ],
+                                          Wrap(spacing: 6, runSpacing: 4, children: [
+                                            ActionChip(
+                                              avatar: Icon(Icons.event_available, size: 14, color: Colors.green.shade800),
+                                              label: const Text('Termin-Anfrage', style: TextStyle(fontSize: 11)),
+                                              backgroundColor: Colors.green.shade100,
+                                              onPressed: () => applyTemplate('anfrage', () => setKDlg(() {})),
+                                            ),
+                                            ActionChip(
+                                              avatar: Icon(Icons.event_repeat, size: 14, color: Colors.orange.shade800),
+                                              label: const Text('Termin-Verschiebung', style: TextStyle(fontSize: 11)),
+                                              backgroundColor: Colors.orange.shade100,
+                                              onPressed: selectedSitzung == null ? null : () => applyTemplate('verschiebung', () => setKDlg(() {})),
+                                            ),
+                                            ActionChip(
+                                              avatar: Icon(Icons.event_busy, size: 14, color: Colors.red.shade800),
+                                              label: const Text('Termin-Absage', style: TextStyle(fontSize: 11)),
+                                              backgroundColor: Colors.red.shade100,
+                                              onPressed: selectedSitzung == null ? null : () => applyTemplate('absage', () => setKDlg(() {})),
+                                            ),
+                                          ]),
+                                        ]),
+                                      ),
+                                    ],
                                     const SizedBox(height: 10),
                                     TextFormField(controller: kDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
                                       final p = await showDatePicker(context: kDlg, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
@@ -12115,7 +12301,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                     const SizedBox(height: 10),
                                     TextFormField(controller: kBetreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
                                     const SizedBox(height: 10),
-                                    TextFormField(controller: kInhaltC, maxLines: 3, decoration: InputDecoration(labelText: 'Inhalt / Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                                    TextFormField(controller: kInhaltC, maxLines: 10, decoration: InputDecoration(labelText: 'Inhalt / Nachrichtentext', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
                                   ]))),
                                   actions: [
                                     TextButton(onPressed: () => Navigator.pop(kDlg), child: const Text('Abbrechen')),
