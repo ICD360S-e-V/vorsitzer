@@ -10958,12 +10958,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     }
     if (telefon.isNotEmpty)  identityBlock += 'Telefon: $telefon\n';
 
-    // Footer comun: mențiunea că serviciul e oferit gratuit prin asociație.
-    const footer = '''
+    // Footer comun: mențiunea că serviciul e oferit gratuit prin asociație,
+    // cu interval de ani (2025 – anul curent), actualizat automat.
+    final currentYear = DateTime.now().year;
+    final footer = '''
 
 ---
 Dieses Schreiben wird im Rahmen einer kostenlosen Unterstützungsleistung
-durch den gemeinnützigen Verein ICD360S e.V. erstellt und versendet.''';
+durch den gemeinnützigen Verein ICD360S e.V. (2025 – $currentYear)
+erstellt und versendet.''';
 
     String betreff;
     String inhalt;
