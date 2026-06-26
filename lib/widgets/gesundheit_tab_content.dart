@@ -10958,6 +10958,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     }
     if (telefon.isNotEmpty)  identityBlock += 'Telefon: $telefon\n';
 
+    // Footer comun: mențiunea că serviciul e oferit gratuit prin asociație.
+    const footer = '''
+
+---
+Dieses Schreiben wird im Rahmen einer kostenlosen Unterstützungsleistung
+durch den gemeinnützigen Verein ICD360S e.V. erstellt und versendet.''';
+
     String betreff;
     String inhalt;
 
@@ -10983,7 +10990,7 @@ welche Termine bei Ihnen in diesem Zeitfenster kurzfristig frei sind.
 Vielen Dank im Voraus für Ihre Rückmeldung.
 
 Mit freundlichen Grüßen
-$vollName''';
+$vollName$footer''';
         break;
 
       case 'verschiebung':
@@ -11000,7 +11007,7 @@ $identityBlock
 Vielen Dank für Ihr Verständnis und Ihre Flexibilität.
 
 Mit freundlichen Grüßen
-$vollName''';
+$vollName$footer''';
         break;
 
       case 'absage':
@@ -11020,7 +11027,7 @@ $identityBlock
 Bitte entschuldigen Sie die kurzfristige Absage.
 
 Mit freundlichen Grüßen
-$vollName''';
+$vollName$footer''';
         break;
 
       default:
