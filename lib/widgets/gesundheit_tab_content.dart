@@ -10919,7 +10919,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   /// - rezept (r): krankenkasse, versicherten_nr (auto-populate la create din Behörde),
   ///   datum (Ausstellungsdatum), hm1/hm2/hm3 (Heilmittel-Bereich)
   /// - sitzung (selectată din Verlauf): datum + zeit + praxis_name (pentru Verschiebung/Absage)
-  Map<String, String> _buildHeilmittelEmailTemplate(String typ, Map<String, dynamic> r, Map<String, dynamic>? sitzung) {
+  Map<String, String> _buildHeilmittelEmailTemplate(
+    String typ,
+    Map<String, dynamic> r,
+    Map<String, dynamic>? sitzung, {
+    String verfuegbarVon = '',
+    String verfuegbarBis = '',
+  }) {
     final user = widget.user;
     final vorname = (user.vorname ?? '').trim();
     final nachname = (user.nachname ?? '').trim();
@@ -10958,6 +10964,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     switch (typ) {
       case 'anfrage':
         betreff = 'Terminanfrage Physiotherapie — Verordnung vom $rezeptDatumFmt';
+        String verfuegbarText = '';
+        if (verfuegbarVon.isNotEmpty && verfuegbarBis.isNotEmpty) {
+          verfuegbarText = 'Bevorzugte Zeitfenster: werktags von $verfuegbarVon Uhr bis $verfuegbarBis Uhr.\n';
+        }
         inhalt = '''Sehr geehrtes Praxis-Team,
 
 mein Name ist $vollName${geb.isNotEmpty ? ', geboren am $geb' : ''}.
@@ -10966,9 +10976,9 @@ für ${heilmittel.isNotEmpty ? heilmittel : 'Physiotherapie'} ausgestellt.
 
 Ich möchte hiermit höflich um die Vereinbarung eines Behandlungstermins bitten.
 
-$identityBlock
+$identityBlock${verfuegbarText.isNotEmpty ? "\n$verfuegbarText" : ""}
 Das Rezept liegt diesem Schreiben als Foto bei. Bitte teilen Sie mir mit,
-welche Termine bei Ihnen kurzfristig frei sind.
+welche Termine bei Ihnen in diesem Zeitfenster kurzfristig frei sind.
 
 Vielen Dank im Voraus für Ihre Rückmeldung.
 
@@ -12212,9 +12222,18 @@ $vollName''';
                                 }
                                 selectedSitzung ??= sitzungen.isNotEmpty ? sitzungen.first : null;
                               }
+                              // Verfügbarkeit pentru Termin-Anfrage (only relevant pentru "anfrage")
+                              TimeOfDay? verfuegbarVon = const TimeOfDay(hour: 8, minute: 0);
+                              TimeOfDay? verfuegbarBis = const TimeOfDay(hour: 18, minute: 0);
+                              String fmtTimeOfDay(TimeOfDay? t) =>
+                                t == null ? '' : '${t.hour.toString().padLeft(2,'0')}:${t.minute.toString().padLeft(2,'0')}';
                               // Aplica un template — completează Betreff + Inhalt.
                               void applyTemplate(String typ, void Function() refresh) {
-                                final tpl = _buildHeilmittelEmailTemplate(typ, r, selectedSitzung);
+                                final tpl = _buildHeilmittelEmailTemplate(
+                                  typ, r, selectedSitzung,
+                                  verfuegbarVon: fmtTimeOfDay(verfuegbarVon),
+                                  verfuegbarBis: fmtTimeOfDay(verfuegbarBis),
+                                );
                                 kBetreffC.text = tpl['betreff'] ?? '';
                                 kInhaltC.text = tpl['inhalt'] ?? '';
                                 refresh();
@@ -12270,6 +12289,47 @@ $vollName''';
                                             ),
                                             const SizedBox(height: 6),
                                           ],
+                                          // ── Verfügbarkeit interval (nur pentru Termin-Anfrage) ──
+                                          Text('Verfügbar (für Termin-Anfrage):', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                          const SizedBox(height: 4),
+                                          Row(children: [
+                                            Expanded(child: OutlinedButton.icon(
+                                              icon: Icon(Icons.schedule, size: 13, color: Colors.amber.shade800),
+                                              label: Text('Von: ${fmtTimeOfDay(verfuegbarVon)}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+                                              style: OutlinedButton.styleFrom(
+                                                side: BorderSide(color: Colors.amber.shade300),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                              onPressed: () async {
+                                                final picked = await showTimePicker(
+                                                  context: kDlg,
+                                                  initialTime: verfuegbarVon ?? const TimeOfDay(hour: 8, minute: 0),
+                                                );
+                                                if (picked != null) setKDlg(() => verfuegbarVon = picked);
+                                              },
+                                            )),
+                                            const SizedBox(width: 6),
+                                            Expanded(child: OutlinedButton.icon(
+                                              icon: Icon(Icons.schedule, size: 13, color: Colors.amber.shade800),
+                                              label: Text('Bis: ${fmtTimeOfDay(verfuegbarBis)}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+                                              style: OutlinedButton.styleFrom(
+                                                side: BorderSide(color: Colors.amber.shade300),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                              onPressed: () async {
+                                                final picked = await showTimePicker(
+                                                  context: kDlg,
+                                                  initialTime: verfuegbarBis ?? const TimeOfDay(hour: 18, minute: 0),
+                                                );
+                                                if (picked != null) setKDlg(() => verfuegbarBis = picked);
+                                              },
+                                            )),
+                                          ]),
+                                          const SizedBox(height: 6),
                                           Wrap(spacing: 6, runSpacing: 4, children: [
                                             ActionChip(
                                               avatar: Icon(Icons.event_available, size: 14, color: Colors.green.shade800),
