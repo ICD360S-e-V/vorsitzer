@@ -3644,7 +3644,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     };
 
     // Per-category color hint (matches wizard client + Bescheid emitter).
-    Color colorFor(String? cat) => switch (cat) {
+    MaterialColor colorFor(String? cat) => switch (cat) {
       'buergergeld' => Colors.teal,
       'sozialamt' => Colors.brown,
       'alg1' => Colors.deepOrange,
@@ -3654,7 +3654,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
     final finSituation = _verifizierungFinanzielleSituation;
     final isExempt = _exemptFinanzSituations.contains(finSituation);
-    final accent = finSituation == 'nein' ? Colors.green : colorFor(finSituation);
+    final MaterialColor accent = finSituation == 'nein' ? Colors.green : colorFor(finSituation);
 
     // Trigger the Bescheid load lazily on first Stufe 3 render.
     if (!_bescheidLoadStarted && isExempt) {
