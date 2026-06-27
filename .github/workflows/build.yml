@@ -401,15 +401,53 @@ jobs:
           name: flatpak-pages
           path: pages-out
 
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e  # v4.1.0
+      # Replaces peaceiris/actions-gh-pages (Node 20 deprecated). Uses the
+      # maintained actions/checkout + a manual git push — independent of any
+      # third-party action with its own runtime lifecycle.
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: pages-out
-          publish_branch: gh-pages
-          keep_files: false
-          enable_jekyll: false
-          commit_message: "deploy: flatpak repo ${{ github.ref_name }}"
+          ref: gh-pages
+          path: gh-pages-checkout
+          fetch-depth: 1
+          persist-credentials: false
+        continue-on-error: true  # branch may not exist on first run
+
+      - name: Deploy to gh-pages branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pull untrusted-shape values into env so they cannot be interpreted
+          # by the shell parser. github.repository is owner/repo, github.ref_name
+          # is the tag name — both safe in practice, but env-var passing is the
+          # correct pattern (see workflow-injection guidance).
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          REMOTE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GH_REPOSITORY}.git"
+          if [ ! -d gh-pages-checkout/.git ]; then
+            # First-ever deploy: bootstrap an empty orphan branch.
+            mkdir -p gh-pages-checkout
+            cd gh-pages-checkout
+            git init -b gh-pages
+            git remote add origin "$REMOTE_URL"
+          else
+            cd gh-pages-checkout
+            git remote set-url origin "$REMOTE_URL"
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # keep_files: false equivalent — wipe everything except .git, then refill.
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a ../pages-out/. .
+          touch .nojekyll  # enable_jekyll: false equivalent
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+          else
+            git commit -m "deploy: flatpak repo ${GH_REF_NAME}"
+            git push origin gh-pages
+          fi
 
   # ══════════════════════════════════════════════
   #  GITHUB RELEASE (only on tag push)
