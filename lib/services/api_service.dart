@@ -5441,6 +5441,54 @@ class ApiService {
     }
   }
 
+  // ========== APOTHEKE DATENBANK ==========
+
+  /// Search pharmacies in the local apotheke_datenbank. Local DB is the only
+  /// source at runtime — OSM is just the initial seed.
+  Future<List<Map<String, dynamic>>> searchApotheken({String? q, String? ort, int limit = 50}) async {
+    final params = <String, String>{'limit': '$limit'};
+    if (q != null && q.isNotEmpty) params['q'] = q;
+    if (ort != null && ort.isNotEmpty) params['ort'] = ort;
+    final uri = Uri.parse('$baseUrl/admin/apotheke_search.php').replace(queryParameters: params);
+    final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (body['success'] == true && body['items'] is List) {
+        return (body['items'] as List).cast<Map<String, dynamic>>();
+      }
+      return [];
+    } on FormatException {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> createApotheke(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/apotheke_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'create', ...data}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> updateApotheke(int id, Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/apotheke_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'update', 'id': id, ...data}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteApotheke(int id) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/apotheke_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== GESUNDHEIT DOKUMENTE (encrypted upload/download) ==========
 
   Future<Map<String, dynamic>> uploadGesundheitDokument({

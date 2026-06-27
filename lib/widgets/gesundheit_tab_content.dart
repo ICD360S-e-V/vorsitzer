@@ -10091,13 +10091,27 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       // rosa = Muster 16 (Kassenrezept), blau = Privatrezept, gruen = Grünes Rezept
       String rezeptTyp = existing?['rezept_typ']?.toString() ?? 'rosa';
 
-      // Status tab controllers
+      // Arzt-tab tracking (creation method + when picked up from doctor)
+      String erstelltTyp = existing?['erstellt_typ']?.toString() ?? 'manuell'; // manuell | erezept
       bool abgeholt = existing?['abgeholt'] == true || existing?['abgeholt'] == 'true';
       final abgeholtDatumC = TextEditingController(text: existing?['abgeholt_datum']?.toString() ?? '');
+
+      // Apotheke-tab tracking (which pharmacy filled it, when, Zuzahlung, Belege)
+      // Selected pharmacy persisted as id + denormalized snapshot so the card
+      // still renders even if the DB row is later edited/deleted.
+      int? apothekeId = (existing?['apotheke_id'] is int)
+          ? existing?['apotheke_id'] as int
+          : int.tryParse(existing?['apotheke_id']?.toString() ?? '');
+      Map<String, dynamic>? apothekeSnap = existing?['apotheke_snapshot'] is Map
+          ? Map<String, dynamic>.from(existing?['apotheke_snapshot'] as Map)
+          : null;
       final apothekeDatumC = TextEditingController(text: existing?['apotheke_datum']?.toString() ?? '');
-      final kostenC = TextEditingController(text: existing?['kosten']?.toString() ?? '');
-      final apothekenNameC = TextEditingController(text: existing?['apotheke_name']?.toString() ?? '');
-      String einloeseOrt = existing?['einloese_ort']?.toString() ?? 'apotheke';
+      final zuzahlungC = TextEditingController(text: existing?['zuzahlung']?.toString() ?? existing?['kosten']?.toString() ?? '');
+      // Belege: list of {dokument_id, file_name} persisted alongside the rezept
+      final belegeRaw = existing?['belege'];
+      List<Map<String, dynamic>> belege = belegeRaw is List
+          ? belegeRaw.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList()
+          : <Map<String, dynamic>>[];
 
       void doSave(Map<String, dynamic> entry, {bool fromStatus = false, StateSetter? setS}) {
         final base = existing != null ? Map<String, dynamic>.from(existing) : <String, dynamic>{};
@@ -10368,7 +10382,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                       Navigator.pop(dlgCtx);
                     })
                   : DefaultTabController(
-                      length: 2,
+                      length: 3,
                       child: Column(children: [
                         TabBar(
                           labelColor: Colors.pink.shade700,
@@ -10376,7 +10390,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                           indicatorColor: Colors.pink.shade700,
                           tabs: const [
                             Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Details'),
-                            Tab(icon: Icon(Icons.track_changes, size: 16), text: 'Status'),
+                            Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Arzt'),
+                            Tab(icon: Icon(Icons.local_pharmacy, size: 16), text: 'Apotheke'),
                           ],
                         ),
                         Expanded(child: TabBarView(children: [
@@ -10484,14 +10499,73 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             ]),
                           ),
 
-                          // ── TAB 2: Status (editable tracking) ──
+                          // ── TAB 2: Arzt (creation method + when picked up from doctor) ──
                           SingleChildScrollView(
                             padding: const EdgeInsets.all(16),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('Rezept-Tracking', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
-                              const SizedBox(height: 16),
+                              // Arzt-Stammdaten card (read-only summary from selected_arzt)
+                              () {
+                                final aData = data['selected_arzt'] is Map ? Map<String, dynamic>.from(data['selected_arzt'] as Map) : <String, dynamic>{};
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade100)),
+                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Row(children: [
+                                      Icon(Icons.local_hospital, size: 18, color: Colors.pink.shade700),
+                                      const SizedBox(width: 8),
+                                      Text('Ausstellender Arzt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade800)),
+                                    ]),
+                                    const SizedBox(height: 8),
+                                    _rezeptDetailRow(Icons.person, 'Name', (aData['name'] ?? aData['arzt_name'] ?? r['ausgestellt_von'] ?? '—').toString()),
+                                    if ((aData['fachgebiet']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.medical_information, 'Fachgebiet', aData['fachgebiet'].toString()),
+                                    if ((aData['praxis_name']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.business, 'Praxis', aData['praxis_name'].toString()),
+                                    if ((aData['adresse']?.toString() ?? '').isNotEmpty || (aData['ort']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.location_on, 'Adresse', '${aData['adresse'] ?? ''}, ${aData['plz'] ?? ''} ${aData['ort'] ?? ''}'.trim()),
+                                    if ((aData['telefon']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.phone, 'Telefon', aData['telefon'].toString()),
+                                    if ((aData['email']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.email, 'E-Mail', aData['email'].toString()),
+                                    _rezeptDetailRow(Icons.numbers, 'BSNR / LANR', '${r['bsnr'] ?? aData['bsnr'] ?? ''} / ${r['lanr'] ?? aData['lanr'] ?? ''}'),
+                                  ]),
+                                );
+                              }(),
+                              const SizedBox(height: 12),
 
-                              // Abgeholt
+                              // Erstellungs-Typ: manuell vs e-Rezept
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade100)),
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(children: [
+                                    Icon(Icons.assignment, size: 18, color: Colors.deepPurple.shade700),
+                                    const SizedBox(width: 8),
+                                    Text('Wie wurde das Rezept erstellt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                                  ]),
+                                  const SizedBox(height: 8),
+                                  Row(children: [
+                                    Expanded(child: ChoiceChip(
+                                      label: const Text('Manuell (Papier)', style: TextStyle(fontSize: 11)),
+                                      selected: erstelltTyp == 'manuell',
+                                      selectedColor: Colors.deepPurple.shade600,
+                                      labelStyle: TextStyle(color: erstelltTyp == 'manuell' ? Colors.white : Colors.deepPurple.shade700),
+                                      onSelected: (_) => setDlgState2(() => erstelltTyp = 'manuell'),
+                                    )),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: ChoiceChip(
+                                      label: const Text('e-Rezept (digital)', style: TextStyle(fontSize: 11)),
+                                      selected: erstelltTyp == 'erezept',
+                                      selectedColor: Colors.deepPurple.shade600,
+                                      labelStyle: TextStyle(color: erstelltTyp == 'erezept' ? Colors.white : Colors.deepPurple.shade700),
+                                      onSelected: (_) => setDlgState2(() => erstelltTyp = 'erezept'),
+                                    )),
+                                  ]),
+                                ]),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Abgeholt beim Arzt
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
@@ -10499,7 +10573,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                   Row(children: [
                                     Icon(Icons.assignment_turned_in, size: 18, color: Colors.orange.shade700),
                                     const SizedBox(width: 8),
-                                    Text('Rezept abgeholt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                                    Text('Rezept beim Arzt abgeholt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
                                     const Spacer(),
                                     Switch(
                                       value: abgeholt,
@@ -10530,93 +10604,211 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                   ],
                                 ]),
                               ),
-                              const SizedBox(height: 12),
-
-                              // Apotheke / Sanitätshaus
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: einloeseOrt == 'sanitaetshaus' ? Colors.indigo.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: einloeseOrt == 'sanitaetshaus' ? Colors.indigo.shade100 : Colors.green.shade100)),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Row(children: [
-                                    Icon(einloeseOrt == 'sanitaetshaus' ? Icons.medical_services : Icons.local_pharmacy, size: 18, color: einloeseOrt == 'sanitaetshaus' ? Colors.indigo.shade700 : Colors.green.shade700),
-                                    const SizedBox(width: 8),
-                                    Text('Einlosen bei', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: einloeseOrt == 'sanitaetshaus' ? Colors.indigo.shade800 : Colors.green.shade800)),
-                                    const SizedBox(width: 12),
-                                    ChoiceChip(label: const Text('Apotheke', style: TextStyle(fontSize: 11)), selected: einloeseOrt == 'apotheke', selectedColor: Colors.green.shade600, labelStyle: TextStyle(color: einloeseOrt == 'apotheke' ? Colors.white : Colors.green.shade700), onSelected: (_) => setDlgState2(() => einloeseOrt = 'apotheke')),
-                                    const SizedBox(width: 6),
-                                    ChoiceChip(label: const Text('Sanitatshaus', style: TextStyle(fontSize: 11)), selected: einloeseOrt == 'sanitaetshaus', selectedColor: Colors.indigo.shade600, labelStyle: TextStyle(color: einloeseOrt == 'sanitaetshaus' ? Colors.white : Colors.indigo.shade700), onSelected: (_) => setDlgState2(() => einloeseOrt = 'sanitaetshaus')),
-                                  ]),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: apothekenNameC,
-                                    decoration: InputDecoration(labelText: einloeseOrt == 'sanitaetshaus' ? 'Sanitatshaus Name' : 'Apotheke Name (optional)', prefixIcon: Icon(einloeseOrt == 'sanitaetshaus' ? Icons.medical_services : Icons.store, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: apothekeDatumC,
-                                    readOnly: true,
-                                    decoration: InputDecoration(
-                                      labelText: 'Eingelöst am (Datum & Uhrzeit)',
-                                      prefixIcon: const Icon(Icons.event, size: 16),
-                                      isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
-                                        final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
-                                        if (date == null) return;
-                                        if (!dlgCtx.mounted) return;
-                                        final time = await showTimePicker(context: dlgCtx, initialTime: TimeOfDay.now());
-                                        if (time == null) return;
-                                        final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-                                        setDlgState2(() => apothekeDatumC.text = DateFormat('dd.MM.yyyy HH:mm').format(dt));
-                                      }),
-                                    ),
-                                  ),
-                                ]),
-                              ),
-                              const SizedBox(height: 12),
-
-                              // Kosten
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade100)),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Row(children: [
-                                    Icon(Icons.euro, size: 18, color: Colors.blue.shade700),
-                                    const SizedBox(width: 8),
-                                    Text('Kosten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                                  ]),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: kostenC,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    decoration: InputDecoration(
-                                      labelText: 'Zuzahlung / Kosten (€)',
-                                      prefixIcon: const Icon(Icons.euro, size: 16),
-                                      suffixText: '€',
-                                      isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                  ),
-                                ]),
-                              ),
                               const SizedBox(height: 20),
 
-                              // Save status button
                               SizedBox(
                                 width: double.infinity,
                                 child: FilledButton.icon(
                                   icon: const Icon(Icons.save, size: 16),
-                                  label: const Text('Status speichern'),
+                                  label: const Text('Arzt-Daten speichern'),
                                   style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600),
                                   onPressed: () {
                                     doSave({
+                                      'erstellt_typ': erstelltTyp,
                                       'abgeholt': abgeholt,
                                       'abgeholt_datum': abgeholtDatumC.text.trim(),
-                                      'einloese_ort': einloeseOrt,
-                                      'apotheke_name': apothekenNameC.text.trim(),
-                                      'apotheke_datum': apothekeDatumC.text.trim(),
-                                      'kosten': kostenC.text.trim(),
                                       'status': abgeholt && apothekeDatumC.text.isNotEmpty ? 'eingeloest' : abgeholt ? 'abgeholt' : r['status']?.toString() ?? 'ausgestellt',
                                     }, fromStatus: true, setS: setDlgState2);
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Status gespeichert'), backgroundColor: Colors.pink.shade600, duration: const Duration(seconds: 2)));
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Arzt-Daten gespeichert'), backgroundColor: Colors.pink.shade600, duration: const Duration(seconds: 2)));
+                                  },
+                                ),
+                              ),
+                            ]),
+                          ),
+
+                          // ── TAB 3: Apotheke (picker, einloesen, Zuzahlung, Belege) ──
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              // Picker button (lupa)
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.search, size: 18),
+                                  label: Text(apothekeSnap == null ? 'Apotheke auswählen' : 'Andere Apotheke wählen', style: const TextStyle(fontSize: 13)),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.green.shade700,
+                                    side: BorderSide(color: Colors.green.shade300),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                  onPressed: () async {
+                                    final picked = await _pickApotheke(dlgCtx);
+                                    if (picked != null) {
+                                      setDlgState2(() {
+                                        apothekeId = picked['id'] is int ? picked['id'] as int : int.tryParse(picked['id'].toString());
+                                        apothekeSnap = picked;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Selected pharmacy card
+                              if (apothekeSnap != null)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300, width: 1.5)),
+                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Row(children: [
+                                      Icon(Icons.local_pharmacy, size: 20, color: Colors.green.shade700),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text(apothekeSnap?['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900))),
+                                      IconButton(
+                                        icon: Icon(Icons.close, size: 16, color: Colors.grey.shade600),
+                                        tooltip: 'Auswahl entfernen',
+                                        onPressed: () => setDlgState2(() { apothekeId = null; apothekeSnap = null; }),
+                                      ),
+                                    ]),
+                                    const SizedBox(height: 4),
+                                    if (((apothekeSnap?['strasse']?.toString() ?? '').isNotEmpty) || ((apothekeSnap?['ort']?.toString() ?? '').isNotEmpty))
+                                      _rezeptDetailRow(Icons.location_on, 'Adresse', '${apothekeSnap?['strasse'] ?? ''} ${apothekeSnap?['hausnummer'] ?? ''}, ${apothekeSnap?['plz'] ?? ''} ${apothekeSnap?['ort'] ?? ''}'.trim()),
+                                    if ((apothekeSnap?['telefon']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.phone, 'Telefon', apothekeSnap?['telefon']?.toString() ?? ''),
+                                    if ((apothekeSnap?['email']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.email, 'E-Mail', apothekeSnap?['email']?.toString() ?? ''),
+                                    if ((apothekeSnap?['website']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.language, 'Website', apothekeSnap?['website']?.toString() ?? ''),
+                                    if ((apothekeSnap?['oeffnungszeiten']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.access_time, 'Öffnungszeiten', apothekeSnap?['oeffnungszeiten']?.toString() ?? ''),
+                                  ]),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+                                  child: Row(children: [
+                                    Icon(Icons.info_outline, size: 16, color: Colors.grey.shade500),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text('Noch keine Apotheke ausgewählt.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                                  ]),
+                                ),
+                              const SizedBox(height: 12),
+
+                              // Eingelöst am
+                              TextFormField(
+                                controller: apothekeDatumC,
+                                readOnly: true,
+                                decoration: InputDecoration(
+                                  labelText: 'Rezept eingelöst am (Datum & Uhrzeit)',
+                                  prefixIcon: const Icon(Icons.event_available, size: 16),
+                                  isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
+                                    final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
+                                    if (date == null) return;
+                                    if (!dlgCtx.mounted) return;
+                                    final time = await showTimePicker(context: dlgCtx, initialTime: TimeOfDay.now());
+                                    if (time == null) return;
+                                    final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+                                    setDlgState2(() => apothekeDatumC.text = DateFormat('dd.MM.yyyy HH:mm').format(dt));
+                                  }),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Zuzahlungskosten
+                              TextFormField(
+                                controller: zuzahlungC,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: InputDecoration(
+                                  labelText: 'Zuzahlungskosten (€)',
+                                  prefixIcon: const Icon(Icons.euro, size: 16),
+                                  suffixText: '€',
+                                  isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Belege
+                              Row(children: [
+                                Icon(Icons.receipt, size: 16, color: Colors.blueGrey.shade700),
+                                const SizedBox(width: 6),
+                                Text('Belege (${belege.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700)),
+                                const Spacer(),
+                                TextButton.icon(
+                                  icon: const Icon(Icons.upload_file, size: 16),
+                                  label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
+                                  onPressed: () async {
+                                    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png'], allowMultiple: true);
+                                    if (result == null || result.files.isEmpty) return;
+                                    final analyseId = 'rezept_beleg_${DateTime.now().millisecondsSinceEpoch}';
+                                    for (final f in result.files.where((f) => f.path != null)) {
+                                      try {
+                                        final res = await widget.apiService.uploadGesundheitDoc(
+                                          userId: widget.user.id,
+                                          gesundheitType: type,
+                                          analyseId: analyseId,
+                                          filePath: f.path!,
+                                          fileName: f.name,
+                                        );
+                                        if (res['success'] == true) {
+                                          belege.add({
+                                            'analyse_id': analyseId,
+                                            'doc_id': res['id'] ?? res['doc_id'],
+                                            'file_name': f.name,
+                                          });
+                                        }
+                                      } catch (e) {
+                                        debugPrint('[REZEPT-BELEG-UPLOAD] $e');
+                                      }
+                                    }
+                                    setDlgState2(() {});
+                                  },
+                                ),
+                              ]),
+                              if (belege.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text('Noch keine Belege hochgeladen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                                )
+                              else
+                                Column(children: belege.map((b) => Container(
+                                  margin: const EdgeInsets.only(bottom: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
+                                  child: Row(children: [
+                                    Icon(Icons.insert_drive_file, size: 14, color: Colors.blueGrey.shade600),
+                                    const SizedBox(width: 6),
+                                    Expanded(child: Text(b['file_name']?.toString() ?? 'Beleg', style: const TextStyle(fontSize: 11))),
+                                    IconButton(
+                                      icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                                      tooltip: 'Aus Liste entfernen',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                      onPressed: () => setDlgState2(() => belege.remove(b)),
+                                    ),
+                                  ]),
+                                )).toList()),
+                              const SizedBox(height: 20),
+
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  icon: const Icon(Icons.save, size: 16),
+                                  label: const Text('Apotheke-Daten speichern'),
+                                  style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600),
+                                  onPressed: () {
+                                    doSave({
+                                      'apotheke_id': apothekeId,
+                                      'apotheke_snapshot': apothekeSnap,
+                                      'apotheke_name': apothekeSnap?['name'],
+                                      'einloese_ort': 'apotheke',
+                                      'apotheke_datum': apothekeDatumC.text.trim(),
+                                      'zuzahlung': zuzahlungC.text.trim(),
+                                      'belege': belege,
+                                      'status': abgeholt && apothekeDatumC.text.isNotEmpty ? 'eingeloest' : abgeholt ? 'abgeholt' : r['status']?.toString() ?? 'ausgestellt',
+                                    }, fromStatus: true, setS: setDlgState2);
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Apotheke-Daten gespeichert'), backgroundColor: Colors.pink.shade600, duration: const Duration(seconds: 2)));
                                   },
                                 ),
                               ),
@@ -12804,6 +12996,101 @@ $vollName$footer''';
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(4)),
       child: Text(label, style: TextStyle(fontSize: 10, color: color.shade700, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  /// Apotheke picker: search-bar + scrollable list, taps return the row map.
+  /// Source: local apotheke_datenbank only (seeded from OSM, editable manually
+  /// via apotheke_manage endpoint). No runtime dependency on external services.
+  Future<Map<String, dynamic>?> _pickApotheke(BuildContext parentCtx) async {
+    final searchC = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool isLoading = false;
+    bool didInitialFetch = false;
+
+    Future<void> runSearch(StateSetter setSt) async {
+      setSt(() => isLoading = true);
+      try {
+        final list = await widget.apiService.searchApotheken(q: searchC.text.trim(), limit: 100);
+        setSt(() { results = list; isLoading = false; });
+      } catch (_) {
+        setSt(() { results = []; isLoading = false; });
+      }
+    }
+
+    return await showDialog<Map<String, dynamic>>(
+      context: parentCtx,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) {
+        if (!didInitialFetch) {
+          didInitialFetch = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => runSearch(setSt));
+        }
+        return AlertDialog(
+          title: Row(children: [
+            Icon(Icons.local_pharmacy, size: 20, color: Colors.green.shade700),
+            const SizedBox(width: 8),
+            const Text('Apotheke suchen', style: TextStyle(fontSize: 16)),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx)),
+          ]),
+          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          content: SizedBox(
+            width: 500,
+            height: 500,
+            child: Column(children: [
+              TextFormField(
+                controller: searchC,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Name, Straße, PLZ oder Ort',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  suffixIcon: searchC.text.isEmpty
+                      ? null
+                      : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () { searchC.clear(); runSearch(setSt); }),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onChanged: (_) => runSearch(setSt),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : results.isEmpty
+                        ? Center(child: Text('Keine Apotheke gefunden.', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+                        : ListView.separated(
+                            itemCount: results.length,
+                            separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+                            itemBuilder: (_, i) {
+                              final a = results[i];
+                              final addr = [
+                                '${a['strasse'] ?? ''} ${a['hausnummer'] ?? ''}'.trim(),
+                                '${a['plz'] ?? ''} ${a['ort'] ?? ''}'.trim(),
+                              ].where((s) => s.isNotEmpty).join(', ');
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(Icons.local_pharmacy, color: Colors.green.shade400, size: 20),
+                                title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                  if (addr.isNotEmpty) Text(addr, style: const TextStyle(fontSize: 11)),
+                                  if ((a['telefon']?.toString() ?? '').isNotEmpty) Text(a['telefon']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                ]),
+                                onTap: () => Navigator.pop(ctx, a),
+                              );
+                            },
+                          ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Daten © OpenStreetMap-Mitwirkende (ODbL) + lokale Pflege',
+                  style: TextStyle(fontSize: 9, color: Colors.grey.shade400, fontStyle: FontStyle.italic),
+                ),
+              ),
+            ]),
+          ),
+        );
+      }),
     );
   }
 
