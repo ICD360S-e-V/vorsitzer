@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:android_package_installer/android_package_installer.dart';
-import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'platform_service.dart';
 import 'logger_service.dart';
@@ -15,26 +14,29 @@ final _log = LoggerService();
 /// Cross-platform: Windows (Inno Setup), macOS (DMG), Linux (AppImage),
 /// Android (APK), iOS (not supported - use TestFlight)
 class UpdateService {
-  // Protected API endpoint (requires Device Key)
-  static const String versionUrl = 'https://icd360sev.icd360s.de/api/version_vorsitzer.php';
+  // Public version manifest hosted as a GitHub Release asset
+  // (`releases/latest/download/version_vorsitzer.json`). Generated and
+  // uploaded by `.github/workflows/build-android.yml` on every tag —
+  // no internal-server SSH, no Device Key required, runs entirely on cloud.
+  static const String versionUrl =
+      'https://github.com/ICD360S-e-V/vorsitzer/releases/latest/download/version_vorsitzer.json';
   static const String currentVersion = '6.30.26';
   static const int currentBuildNumber = 1043;
-  // ✅ SECURITY FIX: Removed hardcoded API key (extractable via reverse engineering)
-  // All requests now use dynamic Device Key only
 
   late http.Client _client;
   late HttpClient _httpClient;
-  final _deviceKeyService = DeviceKeyService();
 
   // Singleton
   static final UpdateService _instance = UpdateService._internal();
   factory UpdateService() => _instance;
   UpdateService._internal() {
-    _httpClient = HttpClientFactory.createPinnedHttpClient();
+    // GitHub serves the version manifest and APK from DigiCert-signed hosts,
+    // not Let's Encrypt — use the default trust store, not the ISRG-pinned one.
+    _httpClient = HttpClientFactory.createDefaultHttpClient();
     _client = IOClient(_httpClient);
   }
 
-  /// Check if an update is available (protected endpoint - requires Device Key)
+  /// Check if an update is available (public GitHub Release manifest)
   Future<UpdateInfo?> checkForUpdate() async {
     // Linux is shipped exclusively as Flatpak. Updates are handled by the
     // Flatpak runtime (remote add + `flatpak update`), not by this in-app
@@ -47,23 +49,13 @@ class UpdateService {
     }
 
     try {
-      final deviceKey = _deviceKeyService.deviceKey;
-
-      // Build headers with Device Key authentication
-      if (deviceKey == null) {
-        _log.error('Device not registered - cannot check for updates', tag: 'UPDATE');
-        return null;
-      }
-
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-        'User-Agent': 'ICD360S-Vorsitzer/1.0',
-        'X-Device-Key': deviceKey,
-      };
-
+      // versionUrl points at a public GitHub Release asset — no auth needed.
       final response = await _client.get(
         Uri.parse(versionUrl),
-        headers: headers,
+        headers: const {
+          'Accept': 'application/json',
+          'User-Agent': 'ICD360S-Vorsitzer/1.0',
+        },
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {

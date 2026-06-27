@@ -275,94 +275,43 @@ jobs:
           echo "✅ APK uploaded. Stable URL:"
           echo "    https://github.com/$GH_REPO/releases/latest/download/${APP_NAME}.apk"
 
-  # ──────────────────────────────────────────────
-  # Update icd360sev:/api/data/version_vorsitzer.json so the in-app
-  # update check sees the new build number + GitHub Release URL.
-  #
-  # Runs on ubuntu-latest (cloud). The cloud runner cannot reach
-  # 10.10.10.5 directly, so SSH will fail — `continue-on-error: true`
-  # keeps the workflow green. The APK is still published to GitHub
-  # Release; only the in-app version probe needs a manual JSON bump
-  # afterwards (or re-enable via bastion/VPN later).
-  # ──────────────────────────────────────────────
-  update-version-json:
-    name: "📋 Update server version_vorsitzer.json (Android)"
-    needs: [version, publish-release]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Patch download_url_android + version on icd360sev
+      # ────────────────────────────────────────────
+      # Publish version_vorsitzer.json directly as a Release asset.
+      # App fetches it from `releases/latest/download/version_vorsitzer.json`
+      # — no SSH to internal server, no Device Key auth, runs entirely on
+      # cloud. Replaces the old SSH→icd360sev update-version-json job.
+      # ────────────────────────────────────────────
+      - name: Generate + upload version_vorsitzer.json to Release
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.version.outputs.version_name }}
           BUILD: ${{ needs.version.outputs.build_number }}
-          GH_REPO: ${{ github.repository }}
-          GH_REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${DEPLOY_KEY:-}" ]; then
-            echo "::warning::Deploy secrets missing — skipping server JSON update."
-            echo "The APK is published to GitHub Release but the in-app update"
-            echo "check on icd360sev will not see the new build until secrets"
-            echo "DEPLOY_HOST/DEPLOY_PORT/DEPLOY_USER/DEPLOY_SSH_KEY are set."
-            exit 0
-          fi
-          mkdir -p ~/.ssh
-          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          SSH_BASE="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=no"
-          REMOTE="$DEPLOY_USER@$DEPLOY_HOST"
-          # Build the JSON payload LOCALLY where the env vars are sane,
-          # write it to a tmp file, scp it across, and run a fixed-script
-          # python update remotely that reads its inputs from a JSON file.
-          # Avoids shell interpolation across SSH (workflow-injection safe).
           export GH_URL="https://github.com/${GH_REPO}/releases/download/${GH_REF_NAME}/vorsitzer.apk"
           export RELEASE_DATE="$(date -u +%Y-%m-%d)"
-          # Step-level env: already exports VERSION / BUILD / GH_REPO / GH_REF_NAME.
-          # Generate the patch JSON entirely in Python so untrusted values
-          # (tag name, version string from pubspec) are JSON-encoded, never
-          # shell-interpolated. The resulting file is plain JSON, no expansion
-          # on either side.
-          python3 - <<'PY' > /tmp/android-patch.json
+          # Python-generated to JSON-encode all untrusted values safely.
+          # Wrapped in {"success": true, ...} so the app code reads it the
+          # same way as the old icd360sev PHP response — no client change
+          # needed beyond swapping versionUrl.
+          python3 - <<'PY' > version_vorsitzer.json
           import json, os
           json.dump({
+              'success':              True,
               'version':              os.environ['VERSION'],
               'build_number':         int(os.environ['BUILD']),
               'download_url_android': os.environ['GH_URL'],
+              'download_url':         os.environ['GH_URL'],
               'release_date':         os.environ['RELEASE_DATE'],
               'changelog':            (
                   f"Version {os.environ['VERSION']}\n\n"
                   f"See full changelog at "
                   f"https://github.com/{os.environ['GH_REPO']}/releases/tag/{os.environ['GH_REF_NAME']}"
               ),
-          }, open('/dev/stdout', 'w'))
+          }, open('/dev/stdout', 'w'), indent=2)
           PY
-          scp $SSH_BASE -P "$DEPLOY_PORT" /tmp/android-patch.json \
-              "$REMOTE:/tmp/android-patch.json"
-          # The remote script reads /tmp/android-patch.json, refuses to
-          # downgrade build_number, then merges fields into the existing
-          # version_vorsitzer.json and atomically renames into place.
-          # No shell expansion of untrusted values on the remote side.
-          ssh $SSH_BASE -p "$DEPLOY_PORT" "$REMOTE" 'python3 - <<"PYEOF"
-          import json, os
-          dst    = "/var/www/icd360sev.icd360s.de/api/data/version_vorsitzer.json"
-          patch  = json.load(open("/tmp/android-patch.json"))
-          target = json.load(open(dst)) if os.path.exists(dst) else {}
-          new_build = int(patch["build_number"])
-          cur_build = int(target.get("build_number") or 0)
-          if new_build < cur_build:
-              print(f"Skip: server has newer build ({cur_build}), this is {new_build}")
-              raise SystemExit(0)
-          target.update(patch)
-          with open(dst + ".new", "w") as f:
-              json.dump(target, f, indent=4)
-          os.rename(dst + ".new", dst)
-          os.system("chown nginx:nginx " + dst)
-          os.remove("/tmp/android-patch.json")
-          print(f"version_vorsitzer.json bumped: {cur_build} -> {new_build}")
-          PYEOF
-          '
+          gh release upload "$GH_REF_NAME" version_vorsitzer.json --clobber --repo "$GH_REPO"
+          echo "✅ version_vorsitzer.json uploaded. Stable URL:"
+          echo "    https://github.com/$GH_REPO/releases/latest/download/version_vorsitzer.json"
