@@ -86,6 +86,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   String? _verifizierungFinanzielleSituation;
   Map<String, String?> _verifizierungAcceptances = {};
 
+  // Stufe 3 Bescheid files (multi-file wizard_draft_files + legacy single).
+  // Loaded on demand the first time Stufe 3 is rendered.
+  List<Map<String, dynamic>> _leistungsbescheidFiles = [];
+  bool _isLoadingBescheid = false;
+  bool _bescheidLoadStarted = false;
+
   // Stufe 1 edit controllers
   final _stufe1VornameController = TextEditingController();
   final _stufe1NachnameController = TextEditingController();
@@ -2817,6 +2823,38 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
   }
 
+  Future<void> _loadLeistungsbescheidFiles() async {
+    setState(() { _isLoadingBescheid = true; _bescheidLoadStarted = true; });
+    try {
+      final files = await widget.apiService.listLeistungsbescheidFiles(widget.user.id);
+      if (mounted) setState(() { _leistungsbescheidFiles = files; _isLoadingBescheid = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingBescheid = false);
+    }
+  }
+
+  Future<void> _openLeistungsbescheidFile(Map<String, dynamic> file) async {
+    final fileId = file['id'] is int ? file['id'] as int : int.tryParse(file['id']?.toString() ?? '') ?? 0;
+    final isLegacy = file['source']?.toString() == 'users.leistungsbescheid_file' || fileId == 0;
+    try {
+      final response = await widget.apiService.downloadLeistungsbescheidFile(
+        fileId: isLegacy ? null : fileId,
+        userId: isLegacy ? widget.user.id : null,
+        legacy: isLegacy,
+      );
+      if (response.statusCode != 200) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${response.statusCode})'), backgroundColor: Colors.red));
+        return;
+      }
+      final fileName = file['file_name']?.toString() ?? 'leistungsbescheid';
+      final tmp = await File('${Directory.systemTemp.path}/$fileName').create(recursive: true);
+      await tmp.writeAsBytes(response.bodyBytes);
+      await OpenFilex.open(tmp.path);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler beim Öffnen: $e'), backgroundColor: Colors.red));
+    }
+  }
+
   Future<void> _updateVerifizierungStatus(int stufe, String status, {String? notiz}) async {
     setState(() => _isUpdatingVerifizierung = true);
     try {
@@ -3605,8 +3643,23 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       'nein': 'Keine Sozialleistungen',
     };
 
-    // Get finanzielle_situation from loaded verifizierung data
+    // Per-category color hint (matches wizard client + Bescheid emitter).
+    Color colorFor(String? cat) => switch (cat) {
+      'buergergeld' => Colors.teal,
+      'sozialamt' => Colors.brown,
+      'alg1' => Colors.deepOrange,
+      'krankengeld' => Colors.pink,
+      _ => Colors.orange,
+    };
+
     final finSituation = _verifizierungFinanzielleSituation;
+    final isExempt = _exemptFinanzSituations.contains(finSituation);
+    final accent = finSituation == 'nein' ? Colors.green : colorFor(finSituation);
+
+    // Trigger the Bescheid load lazily on first Stufe 3 render.
+    if (!_bescheidLoadStarted && isExempt) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadLeistungsbescheidFiles());
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3615,23 +3668,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: finSituation == 'nein' ? Colors.green.shade50 : Colors.orange.shade50,
+              color: accent.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
                 Icon(
                   finSituation == 'nein' ? Icons.check_circle : Icons.info_outline,
-                  color: finSituation == 'nein' ? Colors.green.shade700 : Colors.orange.shade700,
+                  color: accent.shade700,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   finanzLabels[finSituation] ?? finSituation,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: finSituation == 'nein' ? Colors.green.shade700 : Colors.orange.shade700,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: accent.shade700),
                 ),
               ],
             ),
@@ -3657,7 +3707,94 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               ],
             ),
           ),
+
+        if (isExempt) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            Icon(Icons.attach_file, size: 16, color: accent.shade700),
+            const SizedBox(width: 6),
+            Text('Leistungsbescheid(e)', style: TextStyle(fontWeight: FontWeight.bold, color: accent.shade700, fontSize: 13)),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 16),
+              tooltip: 'Aktualisieren',
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              padding: EdgeInsets.zero,
+              onPressed: _loadLeistungsbescheidFiles,
+            ),
+          ]),
+          const SizedBox(height: 6),
+          if (_isLoadingBescheid)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+          else if (_leistungsbescheidFiles.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+              child: Row(children: [
+                Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Kein Bescheid hochgeladen.', style: TextStyle(fontSize: 12, color: Colors.red.shade800))),
+              ]),
+            )
+          else
+            Column(children: _leistungsbescheidFiles.map((f) => _buildBescheidRow(f, accent)).toList()),
+        ],
       ],
+    );
+  }
+
+  Widget _buildBescheidRow(Map<String, dynamic> file, MaterialColor accent) {
+    final name = file['file_name']?.toString() ?? 'Bescheid';
+    final sizeBytes = file['file_size'] is int ? file['file_size'] as int : int.tryParse(file['file_size']?.toString() ?? '0') ?? 0;
+    final sizePill = sizeBytes < 1024
+        ? '$sizeBytes B'
+        : sizeBytes < 1024 * 1024
+            ? '${(sizeBytes / 1024).toStringAsFixed(1)} KB'
+            : '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    final mime = file['mime_type']?.toString() ?? '';
+    final isLegacy = file['source']?.toString() == 'users.leistungsbescheid_file';
+
+    IconData icon = Icons.insert_drive_file;
+    if (mime.startsWith('image/')) icon = Icons.image;
+    if (mime.contains('pdf')) icon = Icons.picture_as_pdf;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: accent.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: accent.shade100),
+      ),
+      child: Row(children: [
+        Icon(icon, size: 18, color: accent.shade700),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(color: accent.shade100, borderRadius: BorderRadius.circular(8)),
+                child: Text(sizePill, style: TextStyle(fontSize: 10, color: accent.shade800)),
+              ),
+              if (isLegacy) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
+                  child: Text('Legacy', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                ),
+              ],
+            ]),
+          ]),
+        ),
+        IconButton(
+          icon: Icon(Icons.open_in_new, size: 18, color: accent.shade700),
+          tooltip: 'Öffnen',
+          onPressed: () => _openLeistungsbescheidFile(file),
+        ),
+      ]),
     );
   }
 

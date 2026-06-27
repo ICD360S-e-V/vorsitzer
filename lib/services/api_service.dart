@@ -5441,6 +5441,41 @@ class ApiService {
     }
   }
 
+  // ========== LEISTUNGSBESCHEID (wizard Stufe 3 multi-file + legacy single) ==========
+
+  /// Lists every Leistungsbescheid file uploaded for [userId].
+  /// New flow → rows from wizard_draft_files with source='wizard_draft_files'.
+  /// Back-compat → synthetic single row with id=0 + source='users.leistungsbescheid_file'.
+  Future<List<Map<String, dynamic>>> listLeistungsbescheidFiles(int userId) async {
+    final uri = Uri.parse('$baseUrl/admin/leistungsbescheid_list.php')
+        .replace(queryParameters: {'user_id': '$userId'});
+    final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (body['success'] == true && body['files'] is List) {
+        return (body['files'] as List).cast<Map<String, dynamic>>();
+      }
+      return [];
+    } on FormatException {
+      return [];
+    }
+  }
+
+  /// Downloads a single Leistungsbescheid as raw bytes.
+  /// Pass [fileId] for the new flow OR [userId] + legacy=true for the
+  /// users.leistungsbescheid_file fallback (id=0 in the list response).
+  Future<http.Response> downloadLeistungsbescheidFile({int? fileId, int? userId, bool legacy = false}) async {
+    final params = <String, String>{};
+    if (fileId != null && fileId > 0) {
+      params['file_id'] = '$fileId';
+    } else if (legacy && userId != null) {
+      params['user_id'] = '$userId';
+      params['legacy'] = '1';
+    }
+    final uri = Uri.parse('$baseUrl/admin/leistungsbescheid_download.php').replace(queryParameters: params);
+    return await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   // ========== APOTHEKE DATENBANK ==========
 
   /// Search pharmacies in the local apotheke_datenbank. Local DB is the only
