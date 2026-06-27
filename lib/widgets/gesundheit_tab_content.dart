@@ -10099,11 +10099,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       // Apotheke-tab tracking (which pharmacy filled it, when, Zuzahlung, Belege)
       // Selected pharmacy persisted as id + denormalized snapshot so the card
       // still renders even if the DB row is later edited/deleted.
-      int? apothekeId = (existing?['apotheke_id'] is int)
-          ? existing?['apotheke_id'] as int
-          : int.tryParse(existing?['apotheke_id']?.toString() ?? '');
-      Map<String, dynamic>? apothekeSnap = existing?['apotheke_snapshot'] is Map
-          ? Map<String, dynamic>.from(existing?['apotheke_snapshot'] as Map)
+      final dynamic rawApothekeId = existing?['apotheke_id'];
+      int? apothekeId = rawApothekeId is int
+          ? rawApothekeId
+          : int.tryParse(rawApothekeId?.toString() ?? '');
+      final dynamic rawApothekeSnap = existing?['apotheke_snapshot'];
+      Map<String, dynamic>? apothekeSnap = rawApothekeSnap is Map
+          ? Map<String, dynamic>.from(rawApothekeSnap)
           : null;
       final apothekeDatumC = TextEditingController(text: existing?['apotheke_datum']?.toString() ?? '');
       final zuzahlungC = TextEditingController(text: existing?['zuzahlung']?.toString() ?? existing?['kosten']?.toString() ?? '');
