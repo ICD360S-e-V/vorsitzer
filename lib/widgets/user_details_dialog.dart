@@ -627,7 +627,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       child: SizedBox(
         width: screenSize.width - 48,
         height: screenSize.height - 48,
-        child: Column(
+        // Stack so the floating "Zum Bearbeiten" FAB sits above the tab grid
+        // without being clipped by the rounded corners of the Dialog itself.
+        child: Stack(
+          children: [
+            Column(
           children: [
             // Header
             Container(
@@ -771,8 +775,38 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ),
           ],
         ),
+            // Floating "Zum Bearbeiten" — opens the consolidated edit modal
+            // (Stammdaten / Verifizierung / Bescheide / Konto). Positioned
+            // bottom-right of the dialog body.
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton.extended(
+                heroTag: 'mitgliederverwaltung_edit_fab',
+                backgroundColor: Colors.blue.shade700,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Zum Bearbeiten'),
+                onPressed: _openEditDialog,
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openEditDialog() async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ZumBearbeitenDialog(
+        user: widget.user,
+        apiService: widget.apiService,
+      ),
+    );
+    if (changed == true && mounted) {
+      widget.onUpdated();
+    }
   }
 
   Widget _buildKontoTab() {
@@ -826,6 +860,61 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               ],
             ),
           ),
+          // Self-withdraw banner (status='gekuendigt_selbst'). Wizard fills
+          // this row when an applicant aborts after Stufe 1a; the row stays
+          // for the legal retention window (Art. 6(1)(f) DSGVO + §195 BGB),
+          // a future cron anonymises it. anonymize_at / retention_basis /
+          // abuse_hash live on the server but are not yet exposed by the
+          // user_details endpoint — show what we have today.
+          if (user.status == 'gekuendigt_selbst') ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.undo, color: Colors.orange.shade800, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Antrag selbst zurückgezogen',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade900,
+                      ),
+                    ),
+                  ]),
+                  if (user.deactivatedAt != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'am ${dateFormat.format(user.deactivatedAt!.toLocal())}',
+                      style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                    ),
+                  ],
+                  if ((user.deactivationReason ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Grund: ${user.deactivationReason}',
+                      style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    'Datensatz bleibt 3 Jahre erhalten (Art. 6(1)(f) DSGVO, §195 BGB) '
+                    'und wird danach automatisch anonymisiert.',
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade900.withValues(alpha: 0.85)),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
 
           // --- Kontodaten Section ---
@@ -6640,5 +6729,354 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
     if (m == null) return false;
     final d = DateTime(int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!));
     return d.isAfter(DateTime.now().subtract(const Duration(days: 1)));
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// "Zum Bearbeiten" — consolidated edit modal opened from the floating
+// action button on UserDetailsDialog. Currently delivers Stammdaten edit
+// end-to-end; the other three tabs surface read-only context and route
+// the Vorstand back to the corresponding tab on the main details view
+// where the per-field actions already live. Built this way to ship the
+// FAB without duplicating the per-stage / per-document edit dialogs
+// that already exist on the main view.
+// ════════════════════════════════════════════════════════════════
+class _ZumBearbeitenDialog extends StatefulWidget {
+  final User user;
+  final ApiService apiService;
+  const _ZumBearbeitenDialog({required this.user, required this.apiService});
+
+  @override
+  State<_ZumBearbeitenDialog> createState() => _ZumBearbeitenDialogState();
+}
+
+class _ZumBearbeitenDialogState extends State<_ZumBearbeitenDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
+
+  // Stammdaten controllers
+  late final TextEditingController _vornameC;
+  late final TextEditingController _nachnameC;
+  late final TextEditingController _emailC;
+  late final TextEditingController _telC;
+  late final TextEditingController _strasseC;
+  late final TextEditingController _hausnummerC;
+  late final TextEditingController _plzC;
+  late final TextEditingController _ortC;
+
+  bool _saving = false;
+  bool _changed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 4, vsync: this);
+    final u = widget.user;
+    _vornameC = TextEditingController(text: u.vorname ?? '');
+    _nachnameC = TextEditingController(text: u.nachname ?? '');
+    _emailC = TextEditingController(text: u.email);
+    _telC = TextEditingController(text: u.telefonMobil ?? '');
+    _strasseC = TextEditingController(text: u.strasse ?? '');
+    _hausnummerC = TextEditingController(text: u.hausnummer ?? '');
+    _plzC = TextEditingController(text: u.plz ?? '');
+    _ortC = TextEditingController(text: u.ort ?? '');
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    _vornameC.dispose();
+    _nachnameC.dispose();
+    _emailC.dispose();
+    _telC.dispose();
+    _strasseC.dispose();
+    _hausnummerC.dispose();
+    _plzC.dispose();
+    _ortC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveStammdaten() async {
+    setState(() => _saving = true);
+    try {
+      // Only send fields whose value actually differs from the original — keeps
+      // the audit log on user_update.php from logging spurious no-ops.
+      String? diff(String original, String now) =>
+          original == now ? null : now;
+      final u = widget.user;
+      final res = await widget.apiService.updateUser(
+        userId: u.id,
+        vorname: diff(u.vorname ?? '', _vornameC.text.trim()),
+        nachname: diff(u.nachname ?? '', _nachnameC.text.trim()),
+        email: diff(u.email, _emailC.text.trim()),
+        telefonMobil: diff(u.telefonMobil ?? '', _telC.text.trim()),
+        strasse: diff(u.strasse ?? '', _strasseC.text.trim()),
+        hausnummer: diff(u.hausnummer ?? '', _hausnummerC.text.trim()),
+        plz: diff(u.plz ?? '', _plzC.text.trim()),
+        ort: diff(u.ort ?? '', _ortC.text.trim()),
+      );
+      if (!mounted) return;
+      if (res['success'] == true) {
+        _changed = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Stammdaten gespeichert'), backgroundColor: Colors.green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: ${res['message'] ?? 'Unbekannt'}'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(
+        width: size.width - 48,
+        height: size.height - 48,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade700,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(children: [
+                const Icon(Icons.edit, color: Colors.white, size: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Bearbeiten — ${widget.user.name}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context, _changed),
+                ),
+              ]),
+            ),
+            Container(
+              color: Colors.grey.shade100,
+              child: TabBar(
+                controller: _tab,
+                labelColor: Colors.blue.shade700,
+                unselectedLabelColor: Colors.grey.shade600,
+                indicatorColor: Colors.blue.shade700,
+                tabs: const [
+                  Tab(icon: Icon(Icons.person), text: 'Stammdaten'),
+                  Tab(icon: Icon(Icons.verified_user), text: 'Verifizierung'),
+                  Tab(icon: Icon(Icons.description), text: 'Bescheide'),
+                  Tab(icon: Icon(Icons.account_circle), text: 'Konto'),
+                ],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tab,
+                children: [
+                  _buildStammdatenTab(),
+                  _buildRoutedTab(
+                    Icons.verified_user,
+                    'Verifizierung',
+                    'Pro Stufe (1–8) Status, Notiz und Prüfung erfolgen direkt '
+                    'in der "Verifizierung"-Registerkarte der Detailansicht. '
+                    'Die per-Stufe Ausgefüllt-am Zeitstempel werden dort bereits '
+                    'angezeigt.',
+                  ),
+                  _buildRoutedTab(
+                    Icons.description,
+                    'Bescheide',
+                    'Leistungsbescheide aus dem Wizard (Bürgergeld / Sozialamt / '
+                    'ALG I / Krankengeld) erscheinen in der "Verifizierung"-Registerkarte '
+                    'in Stufe 3, inkl. Augensymbol zum Öffnen der Datei.',
+                  ),
+                  _buildKontoTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStammdatenTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _field('Vorname', _vornameC),
+          _field('Nachname', _nachnameC),
+          _field('E-Mail', _emailC, keyboardType: TextInputType.emailAddress),
+          _field('Telefon (mobil)', _telC, keyboardType: TextInputType.phone),
+          const SizedBox(height: 8),
+          Text('Adresse',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              )),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(flex: 3, child: _field('Straße', _strasseC)),
+            const SizedBox(width: 12),
+            Expanded(flex: 1, child: _field('Nr.', _hausnummerC)),
+          ]),
+          Row(children: [
+            Expanded(flex: 1, child: _field('PLZ', _plzC, keyboardType: TextInputType.number)),
+            const SizedBox(width: 12),
+            Expanded(flex: 3, child: _field('Ort', _ortC)),
+          ]),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.save),
+              label: Text(_saving ? 'Speichere...' : 'Speichern'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: _saving ? null : _saveStammdaten,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _field(String label, TextEditingController c, {TextInputType? keyboardType}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: c,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoutedTab(IconData icon, String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, color: Colors.blue.shade700, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade700,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          Text(body, style: const TextStyle(fontSize: 14, height: 1.5)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Zur Detailansicht zurückkehren'),
+            onPressed: () => Navigator.pop(context, _changed),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKontoTab() {
+    final u = widget.user;
+    final df = DateFormat('dd.MM.yyyy, HH:mm');
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _kontoChip('Status', u.status),
+          _kontoChip('Rolle', u.role),
+          _kontoChip('Mitgliedernummer', u.mitgliedernummer),
+          if (u.deactivatedAt != null)
+            _kontoChip('Deaktiviert am', df.format(u.deactivatedAt!.toLocal())),
+          if ((u.deactivationReason ?? '').trim().isNotEmpty)
+            _kontoChip('Deaktivierungsgrund', u.deactivationReason!),
+          const SizedBox(height: 16),
+          if (u.status == 'gekuendigt_selbst')
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Text(
+                'Datensatz bleibt 3 Jahre erhalten (Art. 6(1)(f) DSGVO, §195 BGB). '
+                'Anonymisierung erfolgt automatisch über einen serverseitigen Cron.',
+                style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+              ),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            'Status, Rolle und Sperren werden weiterhin in der '
+            '"Konto"-Registerkarte der Detailansicht bearbeitet — die '
+            'dortigen Bestätigungs- und Audit-Pfade bleiben erhalten.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kontoChip(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 170,
+            child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          ),
+        ],
+      ),
+    );
   }
 }
