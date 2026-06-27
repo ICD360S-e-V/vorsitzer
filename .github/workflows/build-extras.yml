@@ -99,7 +99,7 @@ jobs:
   # ──────────────────────────────────────────────
   android-universal:
     name: "🤖 Android Universal APK"
-    if: false  # PAUSED — only Linux active
+    if: false  # Moved to .github/workflows/build-android.yml (self-hosted, priority)
     needs: version
     runs-on: ubuntu-latest
     steps:
