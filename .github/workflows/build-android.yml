@@ -47,11 +47,12 @@ env:
 permissions:
   contents: read
 
-# Serialize per-tag so two concurrent tag pushes don't race on the
-# Release upload + the server JSON patch.
+# Single concurrency lane across ALL refs. When a newer tag arrives while
+# an older Android build is still running/queued, the older one is cancelled —
+# only the latest version's APK ships to GitHub Release + server JSON.
 concurrency:
-  group: android-${{ github.ref }}
-  cancel-in-progress: false
+  group: vorsitzer-android
+  cancel-in-progress: true
 
 # ============================================================
 # SECRETS REQUIRED:

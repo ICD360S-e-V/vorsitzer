@@ -42,11 +42,13 @@ env:
 permissions:
   contents: read
 
-# Serialize runs on the same branch so parallel pushes don't race on the
-# auto-bump git tag/push step. cancel-in-progress: false → queue, don't drop.
+# Single concurrency lane across ALL refs. When a newer tag arrives while
+# an older build is still running/queued, the older one is cancelled — only
+# the latest version ships. Replaces the per-ref grouping that piled up 5
+# parallel builds for v6.30.14/15/16 in the queue.
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: vorsitzer-release
+  cancel-in-progress: true
 
 # ============================================================
 # SECRETS REQUIRED:

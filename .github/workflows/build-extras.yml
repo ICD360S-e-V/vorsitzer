@@ -41,9 +41,10 @@ permissions:
 
 # Independent concurrency group from the priority workflow — extras
 # can queue / run separately without blocking or being blocked.
+# Single concurrency lane across ALL refs — newest cancel-and-replace.
 concurrency:
-  group: release-extras-${{ github.ref }}
-  cancel-in-progress: false
+  group: vorsitzer-extras
+  cancel-in-progress: true
 
 # ============================================================
 # SECRETS REQUIRED (in addition to the priority workflow's set):
