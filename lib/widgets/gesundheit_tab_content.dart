@@ -10095,6 +10095,9 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       String erstelltTyp = existing?['erstellt_typ']?.toString() ?? 'manuell'; // manuell | erezept
       bool abgeholt = existing?['abgeholt'] == true || existing?['abgeholt'] == 'true';
       final abgeholtDatumC = TextEditingController(text: existing?['abgeholt_datum']?.toString() ?? '');
+      // Lock the Arzt-abgeholt switch + datetime after the Vorsitzer saves them.
+      // Reopen with saved state stays locked; an explicit "Bearbeiten" unlocks.
+      bool arztAbgeholtLocked = abgeholt && abgeholtDatumC.text.isNotEmpty;
 
       // Apotheke-tab tracking (which pharmacy filled it, when, Zuzahlung, Belege)
       // Selected pharmacy persisted as id + denormalized snapshot so the card
@@ -10575,12 +10578,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                   Row(children: [
                                     Icon(Icons.assignment_turned_in, size: 18, color: Colors.orange.shade700),
                                     const SizedBox(width: 8),
-                                    Text('Rezept beim Arzt abgeholt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-                                    const Spacer(),
+                                    Expanded(child: Text('Rezept beim Arzt abgeholt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
+                                    if (arztAbgeholtLocked) Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: Icon(Icons.lock, size: 14, color: Colors.orange.shade400),
+                                    ),
                                     Switch(
                                       value: abgeholt,
                                       activeThumbColor: Colors.orange.shade600,
-                                      onChanged: (v) => setDlgState2(() => abgeholt = v),
+                                      onChanged: arztAbgeholtLocked ? null : (v) => setDlgState2(() => abgeholt = v),
                                     ),
                                   ]),
                                   if (abgeholt) ...[
@@ -10588,19 +10594,22 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                     TextFormField(
                                       controller: abgeholtDatumC,
                                       readOnly: true,
+                                      enabled: !arztAbgeholtLocked,
                                       decoration: InputDecoration(
                                         labelText: 'Abgeholt am (Datum & Uhrzeit)',
                                         prefixIcon: const Icon(Icons.event, size: 16),
                                         isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                        suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
-                                          final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
-                                          if (date == null) return;
-                                          if (!dlgCtx.mounted) return;
-                                          final time = await showTimePicker(context: dlgCtx, initialTime: TimeOfDay.now());
-                                          if (time == null) return;
-                                          final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-                                          setDlgState2(() => abgeholtDatumC.text = DateFormat('dd.MM.yyyy HH:mm').format(dt));
-                                        }),
+                                        suffixIcon: arztAbgeholtLocked
+                                            ? Icon(Icons.lock, size: 14, color: Colors.grey.shade400)
+                                            : IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
+                                                final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
+                                                if (date == null) return;
+                                                if (!dlgCtx.mounted) return;
+                                                final time = await showTimePicker(context: dlgCtx, initialTime: TimeOfDay.now());
+                                                if (time == null) return;
+                                                final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+                                                setDlgState2(() => abgeholtDatumC.text = DateFormat('dd.MM.yyyy HH:mm').format(dt));
+                                              }),
                                       ),
                                     ),
                                   ],
@@ -10608,23 +10617,42 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                               ),
                               const SizedBox(height: 20),
 
-                              SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  icon: const Icon(Icons.save, size: 16),
-                                  label: const Text('Arzt-Daten speichern'),
-                                  style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600),
-                                  onPressed: () {
-                                    doSave({
-                                      'erstellt_typ': erstelltTyp,
-                                      'abgeholt': abgeholt,
-                                      'abgeholt_datum': abgeholtDatumC.text.trim(),
-                                      'status': abgeholt && apothekeDatumC.text.isNotEmpty ? 'eingeloest' : abgeholt ? 'abgeholt' : r['status']?.toString() ?? 'ausgestellt',
-                                    }, fromStatus: true, setS: setDlgState2);
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Arzt-Daten gespeichert'), backgroundColor: Colors.pink.shade600, duration: const Duration(seconds: 2)));
-                                  },
+                              if (arztAbgeholtLocked)
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.edit, size: 16),
+                                    label: const Text('Bearbeiten'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.orange.shade700,
+                                      side: BorderSide(color: Colors.orange.shade300),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                    onPressed: () => setDlgState2(() => arztAbgeholtLocked = false),
+                                  ),
+                                )
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    icon: const Icon(Icons.save, size: 16),
+                                    label: const Text('Arzt-Daten speichern'),
+                                    style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600),
+                                    onPressed: () {
+                                      doSave({
+                                        'erstellt_typ': erstelltTyp,
+                                        'abgeholt': abgeholt,
+                                        'abgeholt_datum': abgeholtDatumC.text.trim(),
+                                        'status': abgeholt && apothekeDatumC.text.isNotEmpty ? 'eingeloest' : abgeholt ? 'abgeholt' : r['status']?.toString() ?? 'ausgestellt',
+                                      }, fromStatus: true, setS: setDlgState2);
+                                      // Lock once we have both abgeholt + a datetime saved.
+                                      if (abgeholt && abgeholtDatumC.text.trim().isNotEmpty) {
+                                        setDlgState2(() => arztAbgeholtLocked = true);
+                                      }
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Arzt-Daten gespeichert'), backgroundColor: Colors.pink.shade600, duration: const Duration(seconds: 2)));
+                                    },
+                                  ),
                                 ),
-                              ),
                             ]),
                           ),
 
