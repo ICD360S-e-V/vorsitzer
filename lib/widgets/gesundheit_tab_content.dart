@@ -10711,6 +10711,20 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                       _rezeptDetailRow(Icons.language, 'Website', apothekeSnap?['website']?.toString() ?? ''),
                                     if ((apothekeSnap?['oeffnungszeiten']?.toString() ?? '').isNotEmpty)
                                       _rezeptDetailRow(Icons.access_time, 'Öffnungszeiten', apothekeSnap?['oeffnungszeiten']?.toString() ?? ''),
+                                    if ((apothekeSnap?['operator']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.business_center, 'Betreiber', apothekeSnap?['operator']?.toString() ?? ''),
+                                    if (apothekeSnap?['wheelchair'] != null && apothekeSnap?['wheelchair'].toString().isNotEmpty)
+                                      _rezeptDetailRow(Icons.accessible, 'Barrierefrei', (() {
+                                        final w = apothekeSnap?['wheelchair'].toString();
+                                        if (w == 'yes') return 'Ja';
+                                        if (w == 'no') return 'Nein';
+                                        if (w == 'limited') return 'Eingeschränkt';
+                                        return w ?? '';
+                                      })()),
+                                    if (apothekeSnap?['dispensing'] != null && (apothekeSnap?['dispensing'] == 1 || apothekeSnap?['dispensing'] == '1'))
+                                      _rezeptDetailRow(Icons.medication, 'Rezept-Abgabe', 'Ja'),
+                                    if ((apothekeSnap?['description']?.toString() ?? '').isNotEmpty)
+                                      _rezeptDetailRow(Icons.notes, 'Hinweis', apothekeSnap?['description']?.toString() ?? ''),
                                   ]),
                                 )
                               else
