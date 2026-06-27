@@ -10873,10 +10873,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                               if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
                                               return;
                                             }
-                                            final dir = await getTemporaryDirectory();
-                                            final f = File('${dir.path}/$fileName');
-                                            await f.writeAsBytes(res.bodyBytes);
-                                            await OpenFilex.open(f.path);
+                                            // Open inline in the in-app viewer (FileViewerDialog handles PDF + image).
+                                            // Same pattern as the other download buttons elsewhere in this file.
+                                            if (dlgCtx.mounted) {
+                                              await FileViewerDialog.showFromBytes(dlgCtx, res.bodyBytes, fileName);
+                                            }
                                           } catch (e) {
                                             if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Fehler beim Öffnen: $e'), backgroundColor: Colors.red));
                                           }
