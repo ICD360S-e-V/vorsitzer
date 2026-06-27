@@ -278,12 +278,19 @@ jobs:
   # ──────────────────────────────────────────────
   # Update icd360sev:/api/data/version_vorsitzer.json so the in-app
   # update check sees the new build number + GitHub Release URL.
+  #
+  # Runs on ubuntu-latest (cloud). The cloud runner cannot reach
+  # 10.10.10.5 directly, so SSH will fail — `continue-on-error: true`
+  # keeps the workflow green. The APK is still published to GitHub
+  # Release; only the in-app version probe needs a manual JSON bump
+  # afterwards (or re-enable via bastion/VPN later).
   # ──────────────────────────────────────────────
   update-version-json:
     name: "📋 Update server version_vorsitzer.json (Android)"
     needs: [version, publish-release]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Patch download_url_android + version on icd360sev
         env:
