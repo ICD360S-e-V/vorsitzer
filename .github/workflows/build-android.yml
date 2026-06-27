@@ -76,7 +76,7 @@ jobs:
   # ──────────────────────────────────────────────
   version:
     name: "📋 Version Info"
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -102,18 +102,28 @@ jobs:
   android-universal:
     name: "🤖 Android Universal APK"
     needs: version
-    # Self-hosted runner on 10.10.10.60 (Ubuntu 26.04 LTS, 8 vCPU/30 GB/97 GB).
-    # JDK 17 (Temurin), Flutter SDK at /opt/flutter, Android SDK
-    # (cmdline-tools + platforms;android-36 + build-tools) all pre-installed.
-    # No setup-java / flutter-action / actions/cache — NVMe IS the cache.
-    runs-on: [self-hosted, linux, x64]
+    # GitHub-hosted: doesn't compete with our self-hosted runner (which is
+    # serving Linux + Flatpak builds + the mail/mitglieder repos). Includes
+    # setup-java + flutter-action explicitly since cloud runners don't have
+    # Flutter/JDK preinstalled. gradle/pub caches reset every run, accepted
+    # trade-off for not blocking the on-prem runner.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: '3.38.4'
+          cache: true
+
       - name: Install dependencies
-        run: |
-          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
-          flutter pub get
+        run: flutter pub get
 
       - name: Decode keystore
         if: ${{ env.KEYSTORE_BASE64 != '' }}
@@ -145,7 +155,6 @@ jobs:
           BUILD_NUMBER: ${{ needs.version.outputs.build_number }}
         run: |
           set -euo pipefail
-          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
           flutter build apk \
             --release \
             --dart-define=TURN_HOST="$TURN_HOST" \
