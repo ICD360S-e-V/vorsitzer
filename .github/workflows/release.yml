@@ -218,9 +218,16 @@ jobs:
           echo "::error::Failed to push bump after 5 attempts"
           exit 1
 
-      - name: Trigger build workflow
+      - name: Trigger build workflows
+        # GitHub does NOT propagate `push: tags` triggers when the tag is
+        # pushed by GITHUB_TOKEN (the loop-prevention rule). Each downstream
+        # workflow we want to run on the freshly-pushed tag must be triggered
+        # explicitly via workflow_dispatch.
         if: steps.detect.outputs.skipped != 'true'
-        run: |
-          gh workflow run build.yml --ref "v${{ steps.push.outputs.final_version }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_REF: v${{ steps.push.outputs.final_version }}
+        run: |
+          set -euo pipefail
+          gh workflow run build.yml         --ref "$TAG_REF"
+          gh workflow run build-android.yml --ref "$TAG_REF"
