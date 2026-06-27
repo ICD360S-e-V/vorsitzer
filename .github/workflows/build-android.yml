@@ -192,7 +192,10 @@ jobs:
     name: "🚀 Publish to GitHub Release"
     needs: [version, android-universal]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, linux, x64]
+    # GitHub-hosted: `gh` CLI is preinstalled here but NOT on our self-hosted
+    # Linux runner. This job only downloads the APK artifact and uploads it
+    # to the Release — no Flutter / Android SDK needed.
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:

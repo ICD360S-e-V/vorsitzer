@@ -466,9 +466,13 @@ jobs:
       - version
       - linux
       - flatpak
-    runs-on: [self-hosted, linux, x64]
+    # GitHub-hosted: `gh` CLI is preinstalled here but NOT on our self-hosted
+    # Linux runner. This step only consumes the already-built artifacts via
+    # download-artifact, so it doesn't need the self-hosted runner's Flutter
+    # / Android SDK. Same pattern as mail repo's release-upload-android job.
+    runs-on: ubuntu-latest
     permissions:
-      contents: write   # softprops/action-gh-release creates a Release object on the tag
+      contents: write   # gh release create/upload writes a Release object on the tag
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
