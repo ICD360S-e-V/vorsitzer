@@ -498,6 +498,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REF_NAME: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
           VERSION_NAME: ${{ needs.version.outputs.version_name }}
         run: |
           set -euo pipefail
@@ -508,15 +509,17 @@ jobs:
             exit 1
           fi
           printf 'Will publish:\n'; printf '  %s\n' "${FILES[@]}"
-          # Idempotent: if a Release for this tag already exists (e.g. created
-          # by a previous failed run, or by build-android.yml's publish-release
-          # racing ahead), reuse it and overwrite the same filenames.
-          if gh release view "$GH_REF_NAME" >/dev/null 2>&1; then
+          # We never checkout the repo in this job (download-artifact + gh only),
+          # so `gh` has no .git directory to infer the target repo from. The
+          # GH_REPO env var (= owner/repo) makes every gh subcommand explicit.
+          # Idempotent: if a Release for this tag already exists, reuse it.
+          if gh release view "$GH_REF_NAME" --repo "$GH_REPO" >/dev/null 2>&1; then
             echo "Release $GH_REF_NAME exists — uploading flatpak artifacts."
-            gh release upload "$GH_REF_NAME" "${FILES[@]}" --clobber
+            gh release upload "$GH_REF_NAME" "${FILES[@]}" --clobber --repo "$GH_REPO"
           else
             echo "Creating Release $GH_REF_NAME ..."
             gh release create "$GH_REF_NAME" \
+              --repo "$GH_REPO" \
               --title "v$VERSION_NAME" \
               --generate-notes \
               "${FILES[@]}"

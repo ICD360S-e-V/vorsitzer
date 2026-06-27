@@ -246,10 +246,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REF_NAME: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           for i in 1 2 3 4 5 6; do
-            if gh release view "$GH_REF_NAME" >/dev/null 2>&1; then
+            if gh release view "$GH_REF_NAME" --repo "$GH_REPO" >/dev/null 2>&1; then
               echo "Release $GH_REF_NAME exists."
               exit 0
             fi
@@ -258,17 +259,21 @@ jobs:
           done
           # build.yml's release job hasn't run (or failed). Create our own so
           # the upload step has somewhere to go.
-          gh release create "$GH_REF_NAME" --generate-notes --title "$GH_REF_NAME"
+          gh release create "$GH_REF_NAME" \
+            --repo "$GH_REPO" \
+            --generate-notes \
+            --title "$GH_REF_NAME"
 
       - name: Upload APKs to Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REF_NAME: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh release upload "$GH_REF_NAME" dist/*.apk --clobber
+          gh release upload "$GH_REF_NAME" dist/*.apk --clobber --repo "$GH_REPO"
           echo "✅ APK uploaded. Stable URL:"
-          echo "    https://github.com/${{ github.repository }}/releases/latest/download/${APP_NAME}.apk"
+          echo "    https://github.com/$GH_REPO/releases/latest/download/${APP_NAME}.apk"
 
   # ──────────────────────────────────────────────
   # Update icd360sev:/api/data/version_vorsitzer.json so the in-app
