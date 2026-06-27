@@ -2797,6 +2797,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     return '$day.$month.$year $hour:$minute';
   }
 
+  /// Same as [_formatDate] but with seconds — for ausgefuellt_am where the
+  /// wizard backend stores sub-second-precise timestamps and the Vorstand
+  /// may want to see them to compare against geprueft_am or other audit info.
+  String _formatDateTimeSec(String? dateStr) {
+    if (dateStr == null) return '—';
+    final date = DateTime.tryParse(dateStr);
+    if (date == null) return dateStr;
+    final d = date.toLocal();
+    final pad = (int v) => v.toString().padLeft(2, '0');
+    return '${pad(d.day)}.${pad(d.month)}.${d.year} ${pad(d.hour)}:${pad(d.minute)}:${pad(d.second)}';
+  }
+
   // ============= VERIFIZIERUNG =============
 
   Future<void> _loadVerifizierung() async {
@@ -3066,12 +3078,28 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ),
           ],
         ),
-        subtitle: stage['geprueft_am'] != null
-            ? Text(
-                'Geprüft am ${_formatDate(stage['geprueft_am'])} von ${stage['geprueft_von_name'] ?? 'Unbekannt'}',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-              )
-            : null,
+        subtitle: () {
+          // Wizard-side completion moment (when the visitor finished this Stufe).
+          // Sub-second precise — different from geprueft_am which is the Vorstand's
+          // review timestamp.
+          final ausgefuelltAm = stage['ausgefuellt_am'] as String?;
+          final geprueftAm = stage['geprueft_am'] as String?;
+          final lines = <Widget>[];
+          if (ausgefuelltAm != null) {
+            lines.add(Text(
+              'Ausgefüllt am ${_formatDateTimeSec(ausgefuelltAm)}',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ));
+          }
+          if (geprueftAm != null) {
+            lines.add(Text(
+              'Geprüft am ${_formatDate(geprueftAm)} von ${stage['geprueft_von_name'] ?? 'Unbekannt'}',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ));
+          }
+          if (lines.isEmpty) return null;
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: lines);
+        }(),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
