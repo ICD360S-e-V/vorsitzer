@@ -10833,23 +10833,71 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                   child: Text('Noch keine Belege hochgeladen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
                                 )
                               else
-                                Column(children: belege.map((b) => Container(
-                                  margin: const EdgeInsets.only(bottom: 4),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
-                                  child: Row(children: [
-                                    Icon(Icons.insert_drive_file, size: 14, color: Colors.blueGrey.shade600),
-                                    const SizedBox(width: 6),
-                                    Expanded(child: Text(b['file_name']?.toString() ?? 'Beleg', style: const TextStyle(fontSize: 11))),
-                                    IconButton(
-                                      icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
-                                      tooltip: 'Aus Liste entfernen',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                      onPressed: () => setDlgState2(() => belege.remove(b)),
-                                    ),
-                                  ]),
-                                )).toList()),
+                                Column(children: belege.map((b) {
+                                  final docIdRaw = b['doc_id'];
+                                  final docId = docIdRaw is int ? docIdRaw : int.tryParse(docIdRaw?.toString() ?? '');
+                                  final fileName = b['file_name']?.toString() ?? 'Beleg';
+                                  final canOpen = docId != null && docId > 0;
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
+                                    child: Row(children: [
+                                      Icon(Icons.insert_drive_file, size: 14, color: Colors.blueGrey.shade600),
+                                      const SizedBox(width: 6),
+                                      Expanded(child: Text(fileName, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+                                      IconButton(
+                                        icon: Icon(Icons.visibility_outlined, size: 16, color: canOpen ? Colors.blue.shade600 : Colors.grey.shade400),
+                                        tooltip: 'Anzeigen',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        onPressed: canOpen ? () async {
+                                          try {
+                                            final res = await widget.apiService.downloadGesundheitDokument(docId);
+                                            if (res.statusCode != 200) {
+                                              if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
+                                              return;
+                                            }
+                                            final dir = await getTemporaryDirectory();
+                                            final f = File('${dir.path}/$fileName');
+                                            await f.writeAsBytes(res.bodyBytes);
+                                            await OpenFilex.open(f.path);
+                                          } catch (e) {
+                                            if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Fehler beim Öffnen: $e'), backgroundColor: Colors.red));
+                                          }
+                                        } : null,
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.download_outlined, size: 16, color: canOpen ? Colors.green.shade700 : Colors.grey.shade400),
+                                        tooltip: 'Herunterladen',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        onPressed: canOpen ? () async {
+                                          try {
+                                            final res = await widget.apiService.downloadGesundheitDokument(docId);
+                                            if (res.statusCode != 200) {
+                                              if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
+                                              return;
+                                            }
+                                            final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
+                                            final f = File('${dir.path}/$fileName');
+                                            await f.writeAsBytes(res.bodyBytes);
+                                            if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Gespeichert: ${f.path}'), backgroundColor: Colors.green));
+                                          } catch (e) {
+                                            if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Fehler beim Herunterladen: $e'), backgroundColor: Colors.red));
+                                          }
+                                        } : null,
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                                        tooltip: 'Aus Liste entfernen',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        onPressed: () => setDlgState2(() => belege.remove(b)),
+                                      ),
+                                    ]),
+                                  );
+                                }).toList()),
                               const SizedBox(height: 20),
 
                               if (apothekeLocked)
