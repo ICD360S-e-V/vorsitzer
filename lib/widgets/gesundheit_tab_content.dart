@@ -10118,6 +10118,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           ? belegeRaw.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList()
           : <Map<String, dynamic>>[];
 
+      // Lock Apotheke picker + Eingelöst-am + Zuzahlung after speichern when
+      // all three are filled. Belege stay editable. "Bearbeiten" unlocks.
+      bool apothekeLocked = apothekeSnap != null
+          && apothekeDatumC.text.isNotEmpty
+          && zuzahlungC.text.isNotEmpty;
+
       void doSave(Map<String, dynamic> entry, {bool fromStatus = false, StateSetter? setS}) {
         final base = existing != null ? Map<String, dynamic>.from(existing) : <String, dynamic>{};
         base.addAll(entry);
@@ -10660,18 +10666,22 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                           SingleChildScrollView(
                             padding: const EdgeInsets.all(16),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              // Picker button (lupa)
+                              // Picker button (lupa) — disabled when locked
                               SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton.icon(
-                                  icon: const Icon(Icons.search, size: 18),
-                                  label: Text(apothekeSnap == null ? 'Apotheke auswählen' : 'Andere Apotheke wählen', style: const TextStyle(fontSize: 13)),
+                                  icon: Icon(apothekeLocked ? Icons.lock : Icons.search, size: 18),
+                                  label: Text(apothekeLocked
+                                      ? 'Apotheke gesperrt'
+                                      : (apothekeSnap == null ? 'Apotheke auswählen' : 'Andere Apotheke wählen'),
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.green.shade700,
-                                    side: BorderSide(color: Colors.green.shade300),
+                                    foregroundColor: apothekeLocked ? Colors.grey.shade500 : Colors.green.shade700,
+                                    side: BorderSide(color: apothekeLocked ? Colors.grey.shade300 : Colors.green.shade300),
                                     padding: const EdgeInsets.symmetric(vertical: 12),
                                   ),
-                                  onPressed: () async {
+                                  onPressed: apothekeLocked ? null : () async {
                                     final picked = await _pickApotheke(dlgCtx);
                                     if (picked != null) {
                                       setDlgState2(() {
@@ -10694,7 +10704,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                       Icon(Icons.local_pharmacy, size: 20, color: Colors.green.shade700),
                                       const SizedBox(width: 8),
                                       Expanded(child: Text(apothekeSnap?['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900))),
-                                      IconButton(
+                                      if (!apothekeLocked) IconButton(
                                         icon: Icon(Icons.close, size: 16, color: Colors.grey.shade600),
                                         tooltip: 'Auswahl entfernen',
                                         onPressed: () => setDlgState2(() { apothekeId = null; apothekeSnap = null; }),
@@ -10739,35 +10749,42 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                 ),
                               const SizedBox(height: 12),
 
-                              // Eingelöst am
+                              // Eingelöst am (lock-aware)
                               TextFormField(
                                 controller: apothekeDatumC,
                                 readOnly: true,
+                                enabled: !apothekeLocked,
                                 decoration: InputDecoration(
                                   labelText: 'Rezept eingelöst am (Datum & Uhrzeit)',
                                   prefixIcon: const Icon(Icons.event_available, size: 16),
                                   isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
-                                    final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
-                                    if (date == null) return;
-                                    if (!dlgCtx.mounted) return;
-                                    final time = await showTimePicker(context: dlgCtx, initialTime: TimeOfDay.now());
-                                    if (time == null) return;
-                                    final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-                                    setDlgState2(() => apothekeDatumC.text = DateFormat('dd.MM.yyyy HH:mm').format(dt));
-                                  }),
+                                  suffixIcon: apothekeLocked
+                                      ? Icon(Icons.lock, size: 14, color: Colors.grey.shade400)
+                                      : IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
+                                          final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
+                                          if (date == null) return;
+                                          if (!dlgCtx.mounted) return;
+                                          final time = await showTimePicker(context: dlgCtx, initialTime: TimeOfDay.now());
+                                          if (time == null) return;
+                                          final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+                                          setDlgState2(() => apothekeDatumC.text = DateFormat('dd.MM.yyyy HH:mm').format(dt));
+                                        }),
                                 ),
                               ),
                               const SizedBox(height: 12),
 
-                              // Zuzahlungskosten
+                              // Zuzahlungskosten (lock-aware)
                               TextFormField(
                                 controller: zuzahlungC,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                enabled: !apothekeLocked,
                                 decoration: InputDecoration(
                                   labelText: 'Zuzahlungskosten (€)',
                                   prefixIcon: const Icon(Icons.euro, size: 16),
                                   suffixText: '€',
+                                  suffixIcon: apothekeLocked
+                                      ? Icon(Icons.lock, size: 14, color: Colors.grey.shade400)
+                                      : null,
                                   isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
                               ),
@@ -10835,27 +10852,48 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                 )).toList()),
                               const SizedBox(height: 20),
 
-                              SizedBox(
-                                width: double.infinity,
-                                child: FilledButton.icon(
-                                  icon: const Icon(Icons.save, size: 16),
-                                  label: const Text('Apotheke-Daten speichern'),
-                                  style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600),
-                                  onPressed: () {
-                                    doSave({
-                                      'apotheke_id': apothekeId,
-                                      'apotheke_snapshot': apothekeSnap,
-                                      'apotheke_name': apothekeSnap?['name'],
-                                      'einloese_ort': 'apotheke',
-                                      'apotheke_datum': apothekeDatumC.text.trim(),
-                                      'zuzahlung': zuzahlungC.text.trim(),
-                                      'belege': belege,
-                                      'status': abgeholt && apothekeDatumC.text.isNotEmpty ? 'eingeloest' : abgeholt ? 'abgeholt' : r['status']?.toString() ?? 'ausgestellt',
-                                    }, fromStatus: true, setS: setDlgState2);
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Apotheke-Daten gespeichert'), backgroundColor: Colors.pink.shade600, duration: const Duration(seconds: 2)));
-                                  },
+                              if (apothekeLocked)
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.edit, size: 16),
+                                    label: const Text('Bearbeiten'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.green.shade700,
+                                      side: BorderSide(color: Colors.green.shade300),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                    onPressed: () => setDlgState2(() => apothekeLocked = false),
+                                  ),
+                                )
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    icon: const Icon(Icons.save, size: 16),
+                                    label: const Text('Apotheke-Daten speichern'),
+                                    style: FilledButton.styleFrom(backgroundColor: Colors.pink.shade600),
+                                    onPressed: () {
+                                      doSave({
+                                        'apotheke_id': apothekeId,
+                                        'apotheke_snapshot': apothekeSnap,
+                                        'apotheke_name': apothekeSnap?['name'],
+                                        'einloese_ort': 'apotheke',
+                                        'apotheke_datum': apothekeDatumC.text.trim(),
+                                        'zuzahlung': zuzahlungC.text.trim(),
+                                        'belege': belege,
+                                        'status': abgeholt && apothekeDatumC.text.isNotEmpty ? 'eingeloest' : abgeholt ? 'abgeholt' : r['status']?.toString() ?? 'ausgestellt',
+                                      }, fromStatus: true, setS: setDlgState2);
+                                      // Lock once Apotheke + datetime + Zuzahlung are all set.
+                                      if (apothekeSnap != null
+                                          && apothekeDatumC.text.trim().isNotEmpty
+                                          && zuzahlungC.text.trim().isNotEmpty) {
+                                        setDlgState2(() => apothekeLocked = true);
+                                      }
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Apotheke-Daten gespeichert'), backgroundColor: Colors.pink.shade600, duration: const Duration(seconds: 2)));
+                                    },
+                                  ),
                                 ),
-                              ),
                             ]),
                           ),
 
