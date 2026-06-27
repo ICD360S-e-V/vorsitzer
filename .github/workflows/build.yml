@@ -476,21 +476,45 @@ jobs:
         run: find artifacts -type f | sort
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
-        with:
-          name: "v${{ needs.version.outputs.version_name }}"
-          tag_name: ${{ github.ref_name }}
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-          # Only the priority workflow's artifacts are uploaded here.
-          # Extras (apk/aab/zip/dmg/ipa) are appended by build-extras.yml
-          # via `gh release upload --clobber` after this job finishes.
-          # The .flatpakref is the update-capable installer; users should
-          # prefer it over the .flatpak bundle (which is offline-only).
-          files: |
-            artifacts/**/*.flatpak
-            artifacts/**/*.flatpakref
+        # Replaces softprops/action-gh-release@v2 (Node 20 deprecated). The gh
+        # CLI is preinstalled on every runner (self-hosted + GitHub-hosted),
+        # maintained by GitHub, and has no third-party Node runtime to age out.
+        # Behaviour matches the previous action:
+        #   - tag = github.ref_name
+        #   - title = "v<version_name>"
+        #   - generate-notes = on
+        #   - draft / prerelease = off (defaults)
+        # Only the priority workflow's artifacts are uploaded here. Extras
+        # (apk/aab/zip/dmg/ipa) are appended by build-extras.yml via
+        # `gh release upload --clobber` after this job finishes. The
+        # .flatpakref is the update-capable installer; users should prefer
+        # it over the .flatpak bundle (which is offline-only).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          VERSION_NAME: ${{ needs.version.outputs.version_name }}
+        run: |
+          set -euo pipefail
+          # Collect files from previously-downloaded artifacts.
+          mapfile -t FILES < <(find artifacts -type f \( -name '*.flatpak' -o -name '*.flatpakref' \) | sort)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "::error::No .flatpak or .flatpakref artifacts found under artifacts/"
+            exit 1
+          fi
+          printf 'Will publish:\n'; printf '  %s\n' "${FILES[@]}"
+          # Idempotent: if a Release for this tag already exists (e.g. created
+          # by a previous failed run, or by build-android.yml's publish-release
+          # racing ahead), reuse it and overwrite the same filenames.
+          if gh release view "$GH_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GH_REF_NAME exists — uploading flatpak artifacts."
+            gh release upload "$GH_REF_NAME" "${FILES[@]}" --clobber
+          else
+            echo "Creating Release $GH_REF_NAME ..."
+            gh release create "$GH_REF_NAME" \
+              --title "v$VERSION_NAME" \
+              --generate-notes \
+              "${FILES[@]}"
+          fi
 
   # ══════════════════════════════════════════════
   #  DEPLOY TO SERVER (only on tag push)
