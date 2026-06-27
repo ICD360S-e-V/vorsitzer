@@ -2308,7 +2308,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       );
     }
 
-    return DefaultTabController(
+    // Validation queue — applicants whose registration is awaiting Vorstand
+    // action: status 'neu' (wizard finalized, never reviewed) or
+    // 'nicht_verifiziert' (registered but not validated within deadline).
+    // Surfaces as a floating button so the queue is reachable from anywhere
+    // in the Mitgliederverwaltung, not just by switching to the right tab.
+    final validationQueue = _users
+        .where((u) => u.isNeu || u.isNichtVerifiziert)
+        .toList()
+      ..sort((a, b) =>
+          (b.createdAt ?? DateTime(2000)).compareTo(a.createdAt ?? DateTime(2000)));
+
+    return Stack(
+      children: [
+        DefaultTabController(
       length: 10,
       child: Column(
         children: [
@@ -2425,6 +2438,140 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
           ),
         ],
+      ),
+        ),
+        if (validationQueue.isNotEmpty)
+          Positioned(
+            right: 24,
+            bottom: 24,
+            child: FloatingActionButton.extended(
+              heroTag: 'mitgliederverwaltung_validation_queue_fab',
+              backgroundColor: Colors.orange.shade700,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.pending_actions),
+              label: Text('Validierung (${validationQueue.length})'),
+              onPressed: () => _showValidationQueue(validationQueue),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showValidationQueue(List<User> queue) {
+    final df = DateFormat('dd.MM.yyyy, HH:mm');
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        insetPadding: const EdgeInsets.all(40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade700,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.pending_actions, color: Colors.white, size: 26),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Validierungs-Warteschlange',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${queue.length} Antrag${queue.length == 1 ? "" : "äge"} '
+                          'wartet auf Prüfung durch den Vorstand',
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(dialogCtx),
+                  ),
+                ]),
+              ),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: queue.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final u = queue[i];
+                    final isNeu = u.isNeu;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isNeu ? Colors.blue.shade100 : Colors.amber.shade100,
+                        child: Icon(
+                          isNeu ? Icons.fiber_new : Icons.help_outline,
+                          color: isNeu ? Colors.blue.shade800 : Colors.amber.shade800,
+                          size: 22,
+                        ),
+                      ),
+                      title: Text(
+                        u.name,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${u.mitgliedernummer} · ${u.email}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          if (u.createdAt != null)
+                            Text(
+                              'Registriert am ${df.format(u.createdAt!.toLocal())}',
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            ),
+                        ],
+                      ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isNeu ? Colors.blue.shade50 : Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isNeu ? Colors.blue.shade300 : Colors.amber.shade300,
+                          ),
+                        ),
+                        child: Text(
+                          isNeu ? 'NEU' : 'Nicht verifiziert',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isNeu ? Colors.blue.shade800 : Colors.amber.shade800,
+                          ),
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(dialogCtx);
+                        _showUserDetailsDialog(u);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
