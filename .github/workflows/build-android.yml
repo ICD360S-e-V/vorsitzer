@@ -97,11 +97,38 @@ jobs:
           echo "📦 Version: $VERSION_NAME+$BUILD_NUMBER"
 
   # ──────────────────────────────────────────────
+  # Static analysis — run BEFORE the APK build so we fail in ~30s
+  # instead of wasting 10+ min on a build whose artifact would be
+  # thrown away. Mirror of the analyze job in build.yml but on
+  # ubuntu-latest (Android-side runs on cloud since 3d8932f0).
+  # ──────────────────────────────────────────────
+  analyze:
+    name: "🔍 Static analysis"
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: '3.38.4'
+          cache: true
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: flutter analyze
+        # Same tolerance as build.yml — errors fail the build, warnings
+        # and infos are accepted until the Radio→RadioGroup migration is
+        # finished and the residual unused private fields are cleaned up.
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+
+  # ──────────────────────────────────────────────
   # Android Universal APK (fat APK, all ABIs)
   # ──────────────────────────────────────────────
   android-universal:
     name: "🤖 Android Universal APK"
-    needs: version
+    needs: [version, analyze]
     # GitHub-hosted: doesn't compete with our self-hosted runner (which is
     # serving Linux + Flatpak builds + the mail/mitglieder repos). Includes
     # setup-java + flutter-action explicitly since cloud runners don't have
