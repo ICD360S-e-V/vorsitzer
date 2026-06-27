@@ -10803,6 +10803,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png'], allowMultiple: true);
                                     if (result == null || result.files.isEmpty) return;
                                     final analyseId = 'rezept_beleg_${DateTime.now().millisecondsSinceEpoch}';
+                                    int newlyAdded = 0;
                                     for (final f in result.files.where((f) => f.path != null)) {
                                       try {
                                         final res = await widget.apiService.uploadGesundheitDoc(
@@ -10818,9 +10819,23 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                             'doc_id': res['id'] ?? res['doc_id'],
                                             'file_name': f.name,
                                           });
+                                          newlyAdded++;
                                         }
                                       } catch (e) {
                                         debugPrint('[REZEPT-BELEG-UPLOAD] $e');
+                                      }
+                                    }
+                                    // Auto-persist the belege list into the rezept entry. Without
+                                    // this, closing the modal before pressing "Apotheke-Daten
+                                    // speichern" would orphan the just-uploaded files on the server.
+                                    if (newlyAdded > 0) {
+                                      doSave({'belege': List<Map<String, dynamic>>.from(belege)}, fromStatus: true, setS: setDlgState2);
+                                      if (dlgCtx.mounted) {
+                                        ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(
+                                          content: Text('$newlyAdded Beleg(e) hochgeladen'),
+                                          backgroundColor: Colors.blueGrey.shade600,
+                                          duration: const Duration(seconds: 2),
+                                        ));
                                       }
                                     }
                                     setDlgState2(() {});
@@ -10893,7 +10908,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                         tooltip: 'Aus Liste entfernen',
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        onPressed: () => setDlgState2(() => belege.remove(b)),
+                                        onPressed: () {
+                                          setDlgState2(() => belege.remove(b));
+                                          // Auto-persist so the removal sticks across modal reopens.
+                                          doSave({'belege': List<Map<String, dynamic>>.from(belege)}, fromStatus: true, setS: setDlgState2);
+                                        },
                                       ),
                                     ]),
                                   );
