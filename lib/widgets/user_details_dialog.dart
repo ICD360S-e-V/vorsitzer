@@ -2534,7 +2534,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 ] else if (_befreiungen.isEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Keine Befreiung vorhanden. Bewilligungsbescheid vom Jobcenter oder Sozialamt hochladen.',
+                    'Keine Befreiung vorhanden. Bewilligungsbescheid vom Jobcenter, Sozialamt, Arbeitsagentur oder Krankenkasse hochladen.',
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
                   ),
                 ] else ...[
@@ -3586,11 +3586,22 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     );
   }
 
+  // Categories that trigger full Beitragsbefreiung under Satzung §6 Abs. 4
+  // (Vorstandsermessen — keep in sync with wizard finalize.php and Stufe 3 wizard).
+  static const _exemptFinanzSituations = {
+    'buergergeld',
+    'sozialamt',
+    'alg1',
+    'krankengeld',
+  };
+
   // Stufe 3: Finanzielle Situation
   Widget _buildStufe3Content(User user) {
     final finanzLabels = {
       'buergergeld': 'Bürgergeld',
       'sozialamt': 'Sozialamt',
+      'alg1': 'Arbeitslosengeld I (ALG I)',
+      'krankengeld': 'Krankengeld',
       'nein': 'Keine Sozialleistungen',
     };
 
@@ -3710,7 +3721,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   // Stufe 5: Mitgliedschaftsbeginn
   Widget _buildStufe5MitgliedschaftContent() {
     final finSituation = _verifizierungFinanzielleSituation;
-    final isBeitragsfrei = finSituation == 'buergergeld' || finSituation == 'sozialamt';
+    final isBeitragsfrei = _exemptFinanzSituations.contains(finSituation);
 
     // Find mitgliedschaftsbeginn data from stages or user data
     // The data comes from the API response
@@ -3934,8 +3945,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         statusText = 'Eingereicht';
     }
 
-    final behoerdeLabel = behoerde == 'jobcenter' ? 'Jobcenter' : 'Sozialamt';
-    final behoerdeColor = behoerde == 'jobcenter' ? Colors.indigo : Colors.teal;
+    final behoerdeLabel = switch (behoerde) {
+      'jobcenter' => 'Jobcenter',
+      'sozialamt' => 'Sozialamt',
+      'arbeitsagentur' => 'Arbeitsagentur',
+      'krankenkasse' => 'Krankenkasse',
+      _ => behoerde.isEmpty ? 'Behörde' : behoerde,
+    };
+    final behoerdeColor = switch (behoerde) {
+      'jobcenter' => Colors.indigo,
+      'sozialamt' => Colors.teal,
+      'arbeitsagentur' => Colors.deepOrange,
+      'krankenkasse' => Colors.pink,
+      _ => Colors.grey,
+    };
 
     return Card(
       elevation: 1,
@@ -4346,8 +4369,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'jobcenter', child: Text('Jobcenter')),
+                      DropdownMenuItem(value: 'jobcenter', child: Text('Jobcenter (Bürgergeld)')),
                       DropdownMenuItem(value: 'sozialamt', child: Text('Sozialamt')),
+                      DropdownMenuItem(value: 'arbeitsagentur', child: Text('Arbeitsagentur (ALG I)')),
+                      DropdownMenuItem(value: 'krankenkasse', child: Text('Krankenkasse (Krankengeld)')),
                     ],
                     onChanged: (val) => setDialogState(() => selectedBehoerde = val ?? 'jobcenter'),
                   ),
