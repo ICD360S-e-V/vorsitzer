@@ -448,7 +448,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 5, vsync: this);
+    _tabC = TabController(length: 6, vsync: this);
     _loadDetail();
   }
 
@@ -488,6 +488,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         Tab(text: 'Termin'),
         Tab(text: 'Rechnungen'),
         Tab(text: 'Vereinbarung'),
+        Tab(text: 'Batterien-Hinweise'),
       ]),
       Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
         _buildDetailsTab(),
@@ -495,6 +496,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         _buildTerminTab(),
         _buildRechnungenTab(),
         _buildVereinbarungTab(),
+        _buildBatterienHinweisTab(),
       ])),
     ]);
   }
@@ -908,5 +910,55 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
       ],
     )));
+  }
+
+  // ==================== Batterien-Hinweise tab ====================
+  // Single multi-file drop-zone scoped to the Vorfall. No CRUD list — the
+  // Vorstand just uploads / replaces battery-usage hints (PDF, JPG, PNG) and
+  // they stay attached for the lifetime of the Vorfall. We piggy-back on the
+  // generic korrespondenz_attachments table with a distinct `modul` key and
+  // the Vorfall id as the container id, so no extra DB/PHP changes are needed.
+  Widget _buildBatterienHinweisTab() {
+    final vid = int.tryParse(widget.vorfall['id'].toString()) ?? 0;
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.battery_charging_full, color: Colors.teal.shade700, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Batterien-Nutzungshinweise',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            'Hinweisblätter zur Batterienutzung des Hilfsmittels — '
+            'mehrere Dateien gleichzeitig hochladbar (PDF, JPG, PNG).',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.teal.shade100),
+                ),
+                child: KorrAttachmentsWidget(
+                  apiService: widget.apiService,
+                  modul: 'sanitaetshaus_batterien_hinweis',
+                  korrespondenzId: vid,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
