@@ -175,7 +175,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
     _stufe1GeburtsortController.text = user.geburtsort ?? '';
     _stufe1GeburtsnameController.text = user.geburtsname ?? '';
-    _stufe1AufenthaltsstatusController.text = user.aufenthaltsstatus ?? '';
+    // The wizard saves aufenthaltsstatus as a short enum key (e.g.
+    // `niederlassungserlaubnis`); normalize to the German legal label so
+    // the Verifizierung dropdown can recognise it and the Vorstand reads
+    // a meaningful string instead of a slug.
+    _stufe1AufenthaltsstatusController.text = aufenthaltsstatusLabel(user.aufenthaltsstatus);
     _stufe1StrasseController.text = user.strasse ?? '';
     _stufe1HausnummerController.text = user.hausnummer ?? '';
     _stufe1PlzController.text = user.plz ?? '';
@@ -3205,7 +3209,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         style: TextButton.styleFrom(foregroundColor: Colors.grey),
                       ),
                     const SizedBox(width: 8),
-                    if (status != 'abgelehnt')
+                    // Stufen 6/7/8 are legal-document accepts (Satzung,
+                    // Datenschutz, Widerrufsbelehrung) — rejection makes
+                    // no sense, they're either read+accepted or not.
+                    // Server-side guard also rejects 'abgelehnt' for these.
+                    if (status != 'abgelehnt' && stufe < 6)
                       OutlinedButton.icon(
                         onPressed: _isUpdatingVerifizierung ? null : () => _showAblehnungDialog(stufe),
                         icon: const Icon(Icons.close, size: 18),

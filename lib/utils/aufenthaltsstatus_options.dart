@@ -131,3 +131,30 @@ List<String> aufenthaltsOptionsForStaat({String? isoCode, String? bezeichnung}) 
     'Sonstiges',
   ];
 }
+
+/// Wizard-side stores `users.aufenthaltsstatus` as a short enum key (e.g.
+/// `niederlassungserlaubnis`). Vorsitzer's own dropdown stores the full
+/// German legal label. To display either kind consistently in the
+/// Verifizierung panel, map enum keys → labels and pass any other value
+/// through unchanged.
+const Map<String, String> aufenthaltsstatusKeyLabels = {
+  'deutsch':                  'Deutsche Staatsangehörigkeit',
+  'eu_eea_freizuegigkeit':    'EU-/EWR-Bürger — Freizügigkeitsrecht (§ 2 FreizügG/EU)',
+  'aufenthaltserlaubnis':     'Aufenthaltserlaubnis (befristet, § 7 AufenthG)',
+  'niederlassungserlaubnis':  'Niederlassungserlaubnis (unbefristet, § 9 AufenthG)',
+  'daueraufenthalt_eu':       'Erlaubnis zum Daueraufenthalt-EU (§ 9a AufenthG)',
+  'blaue_karte_eu':           'Blaue Karte EU (§ 18b AufenthG)',
+  'asylberechtigt':           'Asylberechtigt (Art. 16a GG)',
+  'fluechtling_gfk':          'Anerkannter Flüchtling (GFK, § 25 Abs. 2 AufenthG)',
+  'subsidiaerer_schutz':      'Subsidiärer Schutz (§ 25 Abs. 2 Alt. 2 AufenthG)',
+  'aufenthaltsgestattung':    'Aufenthaltsgestattung — Asylverfahren läuft (§ 55 AsylG)',
+  'duldung':                  'Duldung (§ 60a AufenthG)',
+  'humanitaer':               'Aufenthaltserlaubnis aus humanitären Gründen (§ 25 AufenthG)',
+  'sonstige':                 'Sonstiges',
+};
+
+/// Display-safe label for any `users.aufenthaltsstatus` value.
+String aufenthaltsstatusLabel(String? raw) {
+  if (raw == null || raw.isEmpty) return '';
+  return aufenthaltsstatusKeyLabels[raw] ?? raw;
+}
