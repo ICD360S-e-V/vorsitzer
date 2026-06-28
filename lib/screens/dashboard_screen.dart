@@ -179,7 +179,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _setupMessageListener();
     _setupTicketNotificationListener();
     _setupNotificationClickListener();
-    _startTicketAutoRefresh();
+    // Auto-refresh disabled — was hitting /api every 30s on the Ticketverwaltung
+    // tab, which made the list jump and felt noisy. Tickets now refresh via:
+    //   • WebSocket push on server-side change (ChatService stream)
+    //   • The TicketNotificationService poll (already running below)
+    //   • Pull-to-refresh on the list
+    //   • Explicit _loadTickets() after a Vorstand action (create/edit/close)
+    // The `_ticketRefreshTimer` field + cancel calls in dispose / lifecycle
+    // are left intact in case we want to re-enable a slower cadence later.
     // Start heartbeat to update last_seen in real-time
     _heartbeatService.start(widget.currentMitgliedernummer);
     // Start ticket notification polling - WebSocket not working reliably
@@ -361,21 +368,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
       if (type == 'chat' && !_isAdminChatOpen) {
         _showAdminChatDialog();
-      }
-    });
-  }
-
-  void _startTicketAutoRefresh() {
-    // Auto-refresh tickets every 30 seconds (fallback if WebSocket fails)
-    _ticketRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted && _selectedMenuIndex == 2) {
-        // Only refresh if we're on Ticketverwaltung tab
-        _log.debug('Auto-refreshing tickets...', tag: 'TICKET');
-        _loadTickets();
-      }
-      // Auto-refresh Arbeitszeit on dashboard overview
-      if (mounted && _selectedMenuIndex == 0) {
-        _loadWeeklyTime();
       }
     });
   }
