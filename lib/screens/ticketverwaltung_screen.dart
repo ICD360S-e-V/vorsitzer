@@ -875,12 +875,14 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
   }
 
   String _calcSnoozeDate(Ticket ticket) {
-    final now = DateTime.now();
-    final target = DateTime(now.year, now.month, now.day).add(const Duration(days: 7));
-    final existing = ticket.scheduledDate;
-    final hour = existing?.hour ?? now.hour;
-    final minute = existing?.minute ?? now.minute;
-    final dt = DateTime(target.year, target.month, target.day, hour, minute);
+    // Snooze relative to the ticket's existing scheduled date — NOT to today.
+    // A ticket scheduled for 05.07.2026 must shift to 12.07.2026 when the
+    // user taps "+1 Woche"; previously the base was DateTime.now(), so a
+    // ticket already in the future would jump back to today+7 instead of
+    // moving forward by a week.
+    final base = ticket.scheduledDate ?? DateTime.now();
+    final target = DateTime(base.year, base.month, base.day).add(const Duration(days: 7));
+    final dt = DateTime(target.year, target.month, target.day, base.hour, base.minute);
     return DateFormat('yyyy-MM-dd HH:mm:ss').format(dt);
   }
 
