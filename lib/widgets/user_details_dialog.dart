@@ -110,6 +110,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   List<Map<String, dynamic>> _staatsangehoerigkeitenListe = [];
   bool _isSavingStufe1 = false;
 
+  // Per-field review state for Stufe 1. Lets the Vorstand mark individual
+  // rows as OK / problematic instead of judging the whole Stufe at once.
+  // Map key = field label ("Vorname"); value = 'geprueft' | 'abgelehnt' | ''.
+  // Notiz map collects the per-field reasons; on Stufe-1 Ablehnen we
+  // pre-fill the dialog textarea with the aggregated lines so the mitglieder
+  // app's "Corectează acum" screen can show field-specific feedback.
+  // Ephemeral — not persisted across dialog reopens.
+  final Map<String, String> _stufe1FieldReview = <String, String>{};
+  final Map<String, String> _stufe1FieldNotiz = <String, String>{};
+
   // Befreiung
   List<Map<String, dynamic>> _befreiungen = [];
   bool _isBefreit = false;
@@ -3462,6 +3472,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               ),
             ),
           ),
+          _stufe1FieldReviewBtns(label),
         ],
       ),
     );
@@ -3657,9 +3668,106 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               ),
             ),
           ),
+          _stufe1FieldReviewBtns(label),
         ],
       ),
     );
+  }
+
+  /// Per-field ✓ / ✗ icon buttons rendered at the end of a Stufe-1 row.
+  /// State is in-memory only (`_stufe1FieldReview` / `_stufe1FieldNotiz`)
+  /// and gets aggregated into the Stufe-1 Ablehnen dialog so the wizard
+  /// member sees per-field feedback on the "Corectează acum" screen.
+  Widget _stufe1FieldReviewBtns(String label) {
+    final state = _stufe1FieldReview[label] ?? '';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(width: 4),
+        InkWell(
+          onTap: () => setState(() {
+            if (state == 'geprueft') {
+              _stufe1FieldReview.remove(label);
+            } else {
+              _stufe1FieldReview[label] = 'geprueft';
+              _stufe1FieldNotiz.remove(label);
+            }
+          }),
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              Icons.check_circle,
+              size: 18,
+              color: state == 'geprueft' ? Colors.green.shade700 : Colors.grey.shade300,
+            ),
+          ),
+        ),
+        InkWell(
+          onTap: () async {
+            final notiz = await _promptStufe1FieldNotiz(label);
+            if (notiz == null) return;
+            setState(() {
+              _stufe1FieldReview[label] = 'abgelehnt';
+              _stufe1FieldNotiz[label] = notiz;
+            });
+          },
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              Icons.cancel,
+              size: 18,
+              color: state == 'abgelehnt' ? Colors.red.shade700 : Colors.grey.shade300,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<String?> _promptStufe1FieldNotiz(String label) async {
+    final c = TextEditingController(text: _stufe1FieldNotiz[label] ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$label ablehnen'),
+        content: SizedBox(
+          width: 380,
+          child: TextField(
+            controller: c,
+            autofocus: true,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Was stimmt mit "$label" nicht?',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, c.text.trim()),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Feld ablehnen'),
+          ),
+        ],
+      ),
+    );
+    c.dispose();
+    return result;
+  }
+
+  /// Compose a multi-line text from per-field rejections — used to pre-fill
+  /// the Stufe-1 Ablehnen dialog so the Vorstand doesn't retype reasons.
+  String _aggregateStufe1FieldNotizen() {
+    final lines = <String>[];
+    _stufe1FieldNotiz.forEach((label, notiz) {
+      if ((_stufe1FieldReview[label] ?? '') == 'abgelehnt' && notiz.trim().isNotEmpty) {
+        lines.add('$label: $notiz');
+      }
+    });
+    return lines.join('\n');
   }
 
   Widget _buildStufe2Content(User user) {
@@ -4074,7 +4182,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Future<void> _showAblehnungDialog(int stufe) async {
-    final notizController = TextEditingController();
+    // For Stufe 1, pre-fill the textarea with all per-field rejection
+    // reasons the Vorstand collected via the inline ✗ buttons. They can
+    // edit before confirming.
+    final preset = stufe == 1 ? _aggregateStufe1FieldNotizen() : '';
+    final notizController = TextEditingController(text: preset);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
