@@ -48,6 +48,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
   int _googleNonprofitOpenAufgaben = 0;
   int _microsoftNonprofitOpenAufgaben = 0;
   int _jasminaOpenAufgaben = 0;
+  int _vesperkircheOpenAufgaben = 0;
 
   // Pauschalen data
   Map<String, dynamic>? _pauschalenData;
@@ -61,6 +62,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
     _loadGoogleNonprofitAufgaben();
     _loadMicrosoftNonprofitAufgaben();
     _loadJasminaAufgaben();
+    _loadVesperkircheAufgaben();
     _loadPauschalen();
   }
 
@@ -137,6 +139,17 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
         final aufgaben = List<Map<String, dynamic>>.from(result['aufgaben'] ?? []);
         final open = aufgaben.where((a) => a['erledigt'] != true && a['erledigt'] != 1).length;
         setState(() => _jasminaOpenAufgaben = open);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadVesperkircheAufgaben() async {
+    try {
+      final result = await widget.apiService.getPlatformAufgaben('vesperkirche');
+      if (result['success'] == true && mounted) {
+        final aufgaben = List<Map<String, dynamic>>.from(result['aufgaben'] ?? []);
+        final open = aufgaben.where((a) => a['erledigt'] != true && a['erledigt'] != 1).length;
+        setState(() => _vesperkircheOpenAufgaben = open);
       }
     } catch (_) {}
   }
@@ -220,7 +233,10 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
     } else if (_vereinSubview == 'vesperkirche') {
       return VesperkircheScreen(
         apiService: widget.apiService,
-        onBack: () => setState(() => _vereinSubview = 'partner'),
+        onBack: () {
+          _loadVesperkircheAufgaben();
+          setState(() => _vereinSubview = 'partner');
+        },
       );
     } else if (_vereinSubview == 'it-beschaffung') {
       return _buildITBeschaffungDetailView();
@@ -500,6 +516,10 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       color: Colors.deepPurple.shade700,
       subtitle: 'Pauluskirche Ulm · Frauenstr. 110',
       onTap: () => setState(() => _vereinSubview = 'vesperkirche'),
+      badge: _vesperkircheOpenAufgaben > 0
+          ? '$_vesperkircheOpenAufgaben offene Aufgaben'
+          : null,
+      badgeColor: _vesperkircheOpenAufgaben > 0 ? Colors.orange : null,
     );
   }
 
