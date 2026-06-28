@@ -442,12 +442,13 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   List<Map<String, dynamic>> _termine = [];
   List<Map<String, dynamic>> _korr = [];
   List<Map<String, dynamic>> _rechnungen = [];
+  List<Map<String, dynamic>> _vereinbarungen = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 4, vsync: this);
+    _tabC = TabController(length: 5, vsync: this);
     _loadDetail();
   }
 
@@ -462,6 +463,9 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         _termine = (res['termine'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
         _korr = (res['korrespondenz'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
         _rechnungen = (res['rechnungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        // Server adds `vereinbarungen` once the matching table + actions land;
+        // until then the key is absent → list stays empty (graceful no-op).
+        _vereinbarungen = (res['vereinbarungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
       }
     } catch (_) {}
     if (mounted) setState(() => _isLoading = false);
@@ -483,12 +487,14 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         Tab(text: 'Korrespondenz'),
         Tab(text: 'Termin'),
         Tab(text: 'Rechnungen'),
+        Tab(text: 'Vereinbarung'),
       ]),
       Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
         _buildDetailsTab(),
         _buildKorrTab(),
         _buildTerminTab(),
         _buildRechnungenTab(),
+        _buildVereinbarungTab(),
       ])),
     ]);
   }
@@ -757,6 +763,147 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         ElevatedButton(onPressed: () async {
           Navigator.pop(ctx);
           await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'save_rechnung', 'vorfall_id': widget.vorfall['id'], 'rechnung': {'rechnungsnummer': nrC.text, 'betrag': betragC.text, 'datum': datumC.text, 'status': status, 'notiz': notizC.text}});
+          await _loadDetail();
+        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
+      ],
+    )));
+  }
+
+  // ==================== Vereinbarung tab ====================
+  // "Vereinbarung zur Versorgung mit einem Hilfsmittel in der
+  // Versorgungspauschale" — sanitäres Hilfsmittel-Vertragsdokument
+  // mit Vorgangsnummer + mehreren Anhängen pro Vereinbarung.
+  Widget _buildVereinbarungTab() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(8), child: Row(children: [
+        Expanded(
+          child: Text(
+            'Vereinbarung Versorgungspauschale (${_vereinbarungen.length})',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        ElevatedButton.icon(onPressed: _addVereinbarung, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
+      ])),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        child: Text(
+          'Vereinbarung zur Versorgung mit einem Hilfsmittel in der Versorgungspauschale.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+      ),
+      const SizedBox(height: 4),
+      Expanded(child: _vereinbarungen.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.assignment_outlined, size: 36, color: Colors.grey.shade300),
+            const SizedBox(height: 6),
+            Text('Keine Vereinbarungen', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'Mit "Neu" eine Vorgangsnummer hinzufügen — danach Dateien gleichzeitig (max. 20) hochladen.',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ]))
+        : ListView.builder(itemCount: _vereinbarungen.length, itemBuilder: (ctx, i) {
+            final v = _vereinbarungen[i];
+            final kId = int.tryParse(v['id'].toString()) ?? 0;
+            final vorgangnr = v['vorgangnummer']?.toString() ?? '';
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ExpansionTile(
+              leading: Icon(Icons.assignment, color: Colors.teal.shade700, size: 20),
+              title: Row(children: [
+                Text(vorgangnr.isNotEmpty ? 'Vorgang Nr. $vorgangnr' : 'Vereinbarung', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 8),
+                if ((v['datum']?.toString() ?? '').isNotEmpty)
+                  Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ]),
+              trailing: IconButton(
+                icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
+                onPressed: () async {
+                  final ok = await showDialog<bool>(context: context, builder: (dctx) => AlertDialog(
+                    title: const Text('Löschen?'),
+                    content: const Text('Diese Vereinbarung und alle Anhänge werden dauerhaft entfernt.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(dctx, false), child: const Text('Abbrechen')),
+                      TextButton(
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        onPressed: () => Navigator.pop(dctx, true),
+                        child: const Text('Löschen'),
+                      ),
+                    ],
+                  ));
+                  if (ok != true) return;
+                  await widget.apiService.sanitaetshausAction(widget.userId, {'action': 'delete_vereinbarung', 'id': v['id']});
+                  await _loadDetail();
+                },
+              ),
+              children: [
+                if ((v['notiz']?.toString() ?? '').isNotEmpty)
+                  Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Align(alignment: Alignment.centerLeft, child: Text(v['notiz'], style: const TextStyle(fontSize: 12)))),
+                Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  // Multi-file upload (file_picker allowMultiple=true). Soft cap
+                  // documented in the empty-state hint; the OS picker itself
+                  // doesn't enforce a number.
+                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_vereinbarung', korrespondenzId: kId)),
+              ],
+            ));
+          })),
+    ]);
+  }
+
+  void _addVereinbarung() {
+    final vorgangnrC = TextEditingController();
+    final datumC = TextEditingController();
+    final notizC = TextEditingController();
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      title: const Text('Neue Vereinbarung', style: TextStyle(fontSize: 15)),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          'Vereinbarung zur Versorgung mit einem Hilfsmittel in der Versorgungspauschale',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 10),
+        TextField(controller: vorgangnrC,
+          decoration: InputDecoration(labelText: 'Vorgangsnummer *', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: datumC, readOnly: true,
+          decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async {
+            final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+          }),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        Text(
+          'Nach dem Speichern können Sie bis zu 20 Dateien gleichzeitig hochladen.',
+          style: TextStyle(fontSize: 11, color: Colors.teal.shade700, fontWeight: FontWeight.w500),
+        ),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () async {
+          if (vorgangnrC.text.trim().isEmpty) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(content: Text('Vorgangsnummer ist erforderlich'), backgroundColor: Colors.orange),
+            );
+            return;
+          }
+          Navigator.pop(ctx);
+          await widget.apiService.sanitaetshausAction(widget.userId, {
+            'action': 'save_vereinbarung',
+            'vorfall_id': widget.vorfall['id'],
+            'vereinbarung': {
+              'vorgangnummer': vorgangnrC.text.trim(),
+              'datum': datumC.text,
+              'notiz': notizC.text,
+            },
+          });
           await _loadDetail();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
       ],
