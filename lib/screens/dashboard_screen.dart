@@ -2512,7 +2512,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: queue.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final u = queue[i];
                     final isNeu = u.isNeu;
