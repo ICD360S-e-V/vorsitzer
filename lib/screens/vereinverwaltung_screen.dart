@@ -13,6 +13,7 @@ import 'gls_bank_screen.dart';
 import 'paypal_screen.dart';
 import 'github_screen.dart';
 import 'simplefax_screen.dart';
+import 'vesperkirche_screen.dart';
 import 'ordnungsmassnahmen_screen.dart';
 import 'vereinsinventar_screen.dart';
 import 'telekom_screen.dart';
@@ -215,6 +216,11 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       return SimpleFaxScreen(
         onBack: () => setState(() => _vereinSubview = 'partner'),
         apiService: widget.apiService,
+      );
+    } else if (_vereinSubview == 'vesperkirche') {
+      return VesperkircheScreen(
+        apiService: widget.apiService,
+        onBack: () => setState(() => _vereinSubview = 'partner'),
       );
     } else if (_vereinSubview == 'it-beschaffung') {
       return _buildITBeschaffungDetailView();
@@ -457,7 +463,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
               const SizedBox(width: 16),
               Expanded(child: _buildSimpleFaxCard()),
               const SizedBox(width: 16),
-              const Expanded(child: SizedBox()),
+              Expanded(child: _buildVesperkircheCard()),
               const SizedBox(width: 16),
               const Expanded(child: SizedBox()),
             ],
@@ -484,6 +490,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       color: Colors.orange.shade700,
       subtitle: 'Online-Fax, simple-fax.de',
       onTap: () => setState(() => _vereinSubview = 'simplefax'),
+    );
+  }
+
+  Widget _buildVesperkircheCard() {
+    return _buildClickableCard(
+      icon: Icons.church,
+      title: 'Ulmer Vesperkirche',
+      color: Colors.deepPurple.shade700,
+      subtitle: 'Pauluskirche Ulm · Frauenstr. 110',
+      onTap: () => setState(() => _vereinSubview = 'vesperkirche'),
     );
   }
 
