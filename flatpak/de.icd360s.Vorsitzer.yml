@@ -132,9 +132,15 @@ modules:
       - /share/icons
       - /share/zsh
     sources:
-      - type: archive
-        url: https://github.com/mpv-player/mpv/archive/v0.41.0.tar.gz
-        sha256: ee21092a5ee427353392360929dc64645c54479aefdb5babc5cfbb5fad626209
+      # Switched archive → git (2026-06-28): the codeload.github.com tarball
+      # endpoint kept returning HTTP 400 to the self-hosted runner during
+      # peak hours (shared egress IP throttled). The git source uses a
+      # different rate-limit bucket and survives the throttling; the pinned
+      # commit gives equivalent integrity to the dropped tarball sha256.
+      - type: git
+        url: https://github.com/mpv-player/mpv.git
+        tag: v0.41.0
+        commit: 41f6a645068483470267271e1d09966ca3b9f413
 
   # The ffmpeg-full extension mount-point — empty dir created at build time,
   # populated at runtime when the user `flatpak install` the extension.
