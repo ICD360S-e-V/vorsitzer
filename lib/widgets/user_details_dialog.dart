@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart' show sha256;
 import '../services/api_service.dart';
 import '../utils/aufenthaltsstatus_options.dart';
 import '../services/verwarnung_service.dart';
@@ -85,6 +88,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   bool _isUpdatingVerifizierung = false;
   String? _verifizierungFinanzielleSituation;
   Map<String, String?> _verifizierungAcceptances = {};
+
+  // Document acceptance audit trail (Stufe 6/7/8) — one entry per kind
+  // (satzung / datenschutz / widerrufsbelehrung). Populated on dialog open
+  // alongside _verifizierungStages. Empty until the GET endpoint resolves.
+  Map<String, Map<String, dynamic>> _documentAcceptances = {};
 
   // Stufe 3 Bescheid files (multi-file wizard_draft_files + legacy single).
   // Loaded on demand the first time Stufe 3 is rendered.
@@ -2902,6 +2910,27 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     } catch (e) {
       if (mounted) setState(() => _isLoadingVerifizierung = false);
     }
+    // Audit-trail rows feed the Stufe 6/7/8 "Beweis anzeigen" dialog —
+    // loaded in parallel with the verifizierung stages so the button can
+    // render the moment the panel paints.
+    _loadDocumentAcceptances();
+  }
+
+  Future<void> _loadDocumentAcceptances() async {
+    try {
+      final result = await widget.apiService.getDocumentAcceptances(widget.user.id);
+      if (!mounted || result['success'] != true) return;
+      final list = (result['acceptances'] as List?) ?? const [];
+      final map = <String, Map<String, dynamic>>{};
+      for (final entry in list) {
+        final row = Map<String, dynamic>.from(entry as Map);
+        final kind = row['document_kind']?.toString() ?? '';
+        if (kind.isNotEmpty) map[kind] = row;
+      }
+      setState(() => _documentAcceptances = map);
+    } catch (_) {
+      // Missing audit rows are surfaced in the dialog itself.
+    }
   }
 
   Future<void> _loadLeistungsbescheidFiles() async {
@@ -4103,6 +4132,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       buttonLabel: 'Satzung öffnen',
       icon: Icons.gavel,
       acceptanceDate: _verifizierungAcceptances['satzung'],
+      documentKind: 'satzung',
     );
   }
 
@@ -4115,6 +4145,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       buttonLabel: 'Datenschutz öffnen',
       icon: Icons.privacy_tip,
       acceptanceDate: _verifizierungAcceptances['datenschutz'],
+      documentKind: 'datenschutz',
     );
   }
 
@@ -4127,6 +4158,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       buttonLabel: 'Widerrufsbelehrung öffnen',
       icon: Icons.assignment_return,
       acceptanceDate: _verifizierungAcceptances['widerrufsbelehrung'],
+      documentKind: 'widerrufsbelehrung',
     );
   }
 
@@ -4137,7 +4169,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     required String buttonLabel,
     required IconData icon,
     String? acceptanceDate,
+    required String documentKind,
   }) {
+    final auditRow = _documentAcceptances[documentKind];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -4166,18 +4200,285 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         else
           Text(description, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
         const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: () async {
-            final uri = Uri.parse(url);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            }
-          },
-          icon: Icon(icon, size: 18),
-          label: Text(buttonLabel),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () async {
+                final uri = Uri.parse(url);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: Icon(icon, size: 18),
+              label: Text(buttonLabel),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700),
+            ),
+            OutlinedButton.icon(
+              onPressed: auditRow == null
+                  ? null
+                  : () => _showBeweisDialog(title, documentKind, auditRow),
+              icon: const Icon(Icons.fact_check_outlined, size: 18),
+              label: Text(auditRow == null ? 'Kein Beweis vorhanden' : 'Beweis anzeigen'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: auditRow == null ? Colors.grey : Colors.deepPurple.shade700,
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  // ====================================================================
+  // Beweis-Bundle (Stufe 6/7/8 audit trail)
+  // ====================================================================
+
+  String _truncHash(String hash) {
+    if (hash.length <= 20) return hash;
+    return '${hash.substring(0, 16)}…';
+  }
+
+  Future<void> _showBeweisDialog(String docTitle, String kind, Map<String, dynamic> row) async {
+    String? liveHashResult; // null=unknown, 'match', 'mismatch:<liveHash>', 'error:<msg>'
+    bool checkingLive = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) {
+          final storedContentHash = (row['document_content_hash'] ?? '').toString();
+          final fullHash = (row['full_hash'] ?? '').toString();
+          final scrolledToEnd = row['scrolled_to_end'] == true || row['scrolled_to_end'] == 1;
+
+          Future<void> compareLive() async {
+            setDState(() { checkingLive = true; liveHashResult = null; });
+            try {
+              final docUrl = (row['document_url'] ?? '').toString();
+              final resp = await http.get(Uri.parse(docUrl))
+                  .timeout(const Duration(seconds: 10));
+              if (resp.statusCode != 200) {
+                liveHashResult = 'error:HTTP ${resp.statusCode}';
+              } else {
+                final liveHash = sha256.convert(resp.bodyBytes).toString();
+                liveHashResult = (liveHash == storedContentHash)
+                    ? 'match'
+                    : 'mismatch:$liveHash';
+              }
+            } catch (e) {
+              liveHashResult = 'error:$e';
+            }
+            setDState(() => checkingLive = false);
+          }
+
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.fact_check, color: Colors.deepPurple.shade700),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Beweisbundle: $docTitle-Akzeptanz')),
+              ],
+            ),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _beweisRow('Dokument-Version', row['document_version']?.toString() ?? '—'),
+                    _beweisRow('Dokument-URL', row['document_url']?.toString() ?? '—', copyable: true),
+                    _beweisHashRow('Inhalt-Hash (SHA-256)', storedContentHash),
+                    const Divider(height: 20),
+                    _beweisRow('Akzeptiert am (UTC)', row['accepted_at_utc']?.toString() ?? '—'),
+                    _beweisRow('Lokal (vom Gerät)', row['accepted_at_local']?.toString() ?? '—'),
+                    const Divider(height: 20),
+                    _beweisRow('IP-Adresse', row['ip_address']?.toString() ?? '—'),
+                    _beweisRow('Land (GeoIP)', row['country_iso']?.toString() ?? '—'),
+                    _beweisRow('User-Agent', row['user_agent']?.toString() ?? '—'),
+                    _beweisRow('Geräte-ID', row['device_id']?.toString() ?? '—', copyable: true),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Icon(
+                        scrolledToEnd ? Icons.check_circle : Icons.cancel,
+                        color: scrolledToEnd ? Colors.green : Colors.orange,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        scrolledToEnd
+                            ? 'Bis zum Ende gescrollt'
+                            : 'Nicht bis zum Ende gescrollt',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scrolledToEnd ? Colors.green.shade700 : Colors.orange.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ]),
+                    const Divider(height: 20),
+                    _beweisHashRow('Integritäts-Hash', fullHash),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      OutlinedButton.icon(
+                        icon: checkingLive
+                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.cloud_download, size: 16),
+                        label: Text(checkingLive ? 'Vergleiche…' : 'Aktuelle Version vergleichen'),
+                        onPressed: checkingLive ? null : compareLive,
+                      ),
+                    ]),
+                    if (liveHashResult == 'match') ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.green.shade300),
+                        ),
+                        child: Row(children: [
+                          Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Identisch — Mitglied hat die aktuelle Version gelesen.',
+                              style: TextStyle(fontSize: 12, color: Colors.green.shade800),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ] else if (liveHashResult != null && liveHashResult!.startsWith('mismatch:')) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.orange.shade300),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Geändert — frühere Version akzeptiert.',
+                                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ]),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Aktueller Hash: ${_truncHash(liveHashResult!.substring(9))}',
+                              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.orange.shade900),
+                            ),
+                            Text(
+                              'Damaliger Hash: ${_truncHash(storedContentHash)}',
+                              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.orange.shade900),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (liveHashResult != null && liveHashResult!.startsWith('error:')) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.red.shade300),
+                        ),
+                        child: Row(children: [
+                          Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              liveHashResult!.substring(6),
+                              style: TextStyle(fontSize: 12, color: Colors.red.shade800),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _beweisRow(String label, String value, {bool copyable = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 170,
+            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: SelectableText(value, style: const TextStyle(fontSize: 12)),
+          ),
+          if (copyable && value != '—')
+            InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: value));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Kopiert'), duration: Duration(seconds: 1)),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(Icons.copy, size: 14, color: Colors.grey.shade500),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _beweisHashRow(String label, String hash) {
+    if (hash.isEmpty) return _beweisRow(label, '—');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 170,
+            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: Text(
+              _truncHash(hash),
+              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+            ),
+          ),
+          InkWell(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: hash));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Vollständiger Hash kopiert'), duration: Duration(seconds: 1)),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(Icons.copy, size: 14, color: Colors.grey.shade500),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -7125,6 +7125,23 @@ class ApiService {
     }
   }
 
+  /// Audit trail (Art. 7(1) DSGVO Beweislast) for Stufe 6/7/8 document
+  /// acceptances — Satzung, Datenschutzerklärung, Widerrufsbelehrung.
+  /// Returns up to 3 rows per user (one per document_kind, server enforces
+  /// uniqueness). The Vorstand displays the result in the Verifizierung
+  /// panel via a "Beweis anzeigen" button.
+  Future<Map<String, dynamic>> getDocumentAcceptances(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/document_acceptances.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // ========== BEFREIUNG ==========
 
   // List befreiung entries for a user
