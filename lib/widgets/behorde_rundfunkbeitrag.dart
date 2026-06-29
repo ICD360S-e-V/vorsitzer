@@ -1464,22 +1464,141 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           ),
         ],
         const SizedBox(height: 18),
-        Text('Bescheid-Dokumente',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        Text(
-          'Bis zu 20 Dokumente gleichzeitig hochladbar (PDF, JPG, PNG). '
-          'Anhänge sind dem Antrag zugeordnet, nicht der Korrespondenz.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
-        ),
-        const SizedBox(height: 8),
-        KorrAttachmentsWidget(
-          apiService: widget.apiService,
-          modul: 'rfb_bescheid',
-          korrespondenzId: bid,
-        ),
+        // Bescheid-Dokumente — same source-of-truth as Unterlagen → Bewilligung
+        // sub-tab. We just filter `_docs` to kategorie='bewilligung' so files
+        // uploaded here also appear there (and vice-versa). Upload is the
+        // existing _uploadDoc helper, file_picker allows multi-select so the
+        // Vorstand can drop up to 20 PDFs/JPGs in one go.
+        _bescheidDocsSection(),
       ]),
     );
+  }
+
+  Widget _bescheidDocsSection() {
+    final bewilligungDocs =
+        _docs.where((d) => (d['kategorie']?.toString() ?? '') == 'bewilligung').toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(
+          bewilligungDocs.isNotEmpty ? Icons.check_circle : Icons.folder_open,
+          size: 18,
+          color: bewilligungDocs.isNotEmpty ? Colors.green.shade700 : Colors.grey.shade400,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Bescheid-Dokumente (${bewilligungDocs.length})',
+            style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.bold,
+              color: bewilligungDocs.isNotEmpty ? Colors.green.shade700 : Colors.grey.shade600,
+            ),
+          ),
+        ),
+        ElevatedButton.icon(
+          onPressed: () => _uploadDoc(kategorie: 'bewilligung'),
+          icon: const Icon(Icons.upload_file, size: 14),
+          label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green, foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            minimumSize: Size.zero,
+          ),
+        ),
+      ]),
+      const SizedBox(height: 6),
+      Text(
+        'Diese Liste teilt sich mit Unterlagen → Bewilligung. '
+        'Mehrfach-Upload via Dateiauswahl (bis 20 gleichzeitig).',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 8),
+      if (bewilligungDocs.isEmpty)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200, style: BorderStyle.solid),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.cloud_upload, size: 32, color: Colors.grey.shade300),
+            const SizedBox(height: 4),
+            Text('Keine Bescheid-Dokumente',
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+          ]),
+        )
+      else
+        ...bewilligungDocs.map((d) => Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(children: [
+                Icon(Icons.attach_file, size: 16, color: Colors.green.shade700),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(d['datei_name']?.toString() ?? '',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                    if ((d['created_at']?.toString() ?? '').isNotEmpty)
+                      Text(d['created_at'].toString(),
+                          style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                  ]),
+                ),
+                IconButton(
+                  icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+                  tooltip: 'Anzeigen',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: () async {
+                    try {
+                      final resp = await widget.apiService.downloadRfbAntragDoc(d['id'] as int);
+                      if (resp.statusCode == 200 && mounted) {
+                        final dir = await getTemporaryDirectory();
+                        final file = File('${dir.path}/${d['datei_name']}');
+                        await file.writeAsBytes(resp.bodyBytes);
+                        if (mounted) {
+                          await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
+                        }
+                      }
+                    } catch (_) {}
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.download, size: 16, color: Colors.green.shade700),
+                  tooltip: 'Herunterladen',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: () async {
+                    try {
+                      final resp = await widget.apiService.downloadRfbAntragDoc(d['id'] as int);
+                      if (resp.statusCode == 200 && mounted) {
+                        final dir = await getTemporaryDirectory();
+                        final file = File('${dir.path}/${d['datei_name']}');
+                        await file.writeAsBytes(resp.bodyBytes);
+                        await OpenFilex.open(file.path);
+                      }
+                    } catch (_) {}
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                  tooltip: 'Löschen',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: () async {
+                    await widget.apiService.deleteRfbAntragDoc(d['id'] as int);
+                    _load();
+                  },
+                ),
+              ]),
+            )),
+    ]);
   }
 
   Future<void> _saveBescheid(Map<String, dynamic> a) async {
