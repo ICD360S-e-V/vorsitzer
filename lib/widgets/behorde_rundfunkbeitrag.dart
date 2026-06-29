@@ -1506,8 +1506,43 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     // Step 2: when `zeitraum_bis` is fresh and no renewal-ticket exists yet,
     // immediately schedule a reminder for the Vorstand. Idempotent — anti-dupe
     // via renewal_ticket_id which persists across reopens.
+    //
+    // Re-fetch the antrag fresh from server right before deciding so a
+    // parallel save by another admin (or a stale local cache) can't trick
+    // us into creating a second reminder.
     String? confirmMsg;
-    if (renewalTicketId == null &&
+    bool skipCreate = false;
+    if (renewalTicketId == null && zBis.isNotEmpty) {
+      try {
+        final fresh = await widget.apiService.listRundfunkbeitragAntraege(widget.userId);
+        if (fresh['success'] == true && fresh['data'] is List) {
+          for (final row in (fresh['data'] as List)) {
+            final m = Map<String, dynamic>.from(row as Map);
+            if (m['id']?.toString() == widget.antragId.toString()) {
+              final freshRid = m['renewal_ticket_id'];
+              if (freshRid != null && freshRid.toString().isNotEmpty) {
+                renewalTicketId = freshRid is int
+                    ? freshRid
+                    : int.tryParse(freshRid.toString());
+                if (renewalTicketId != null) {
+                  confirmMsg = 'Erinnerungs-Ticket #$renewalTicketId existiert bereits — '
+                      'kein doppeltes Ticket erstellt.';
+                  skipCreate = true;
+                }
+              }
+              break;
+            }
+          }
+        }
+      } catch (_) {
+        // If the freshness probe itself fails, abort the ticket creation
+        // rather than risk a duplicate.
+        skipCreate = true;
+      }
+    }
+
+    if (!skipCreate &&
+        renewalTicketId == null &&
         zBis.isNotEmpty &&
         widget.ticketService != null &&
         (widget.adminMitgliedernummer ?? '').isNotEmpty &&
