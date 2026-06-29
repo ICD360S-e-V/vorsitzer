@@ -9,6 +9,7 @@ import '../screens/webview_screen.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../services/api_service.dart';
 import '../services/external_browser_service.dart';
+import '../services/ticket_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 
@@ -21,6 +22,12 @@ class BehordeRundfunkbeitragContent extends StatefulWidget {
   final bool Function(String type) isSaving;
   final void Function(String type) loadData;
   final void Function(String type, Map<String, dynamic> data) saveData;
+  // Optional: needed only by the Bewilligungsbescheid tab to auto-create a
+  // renewal ticket 2 months before zeitraum_bis. When either is null the
+  // ticket creation is silently skipped and the Vorstand can create it
+  // manually from Ticketverwaltung.
+  final TicketService? ticketService;
+  final String? adminMitgliedernummer;
 
   const BehordeRundfunkbeitragContent({
     super.key,
@@ -32,6 +39,8 @@ class BehordeRundfunkbeitragContent extends StatefulWidget {
     required this.isSaving,
     required this.loadData,
     required this.saveData,
+    this.ticketService,
+    this.adminMitgliedernummer,
   });
 
   @override
@@ -747,11 +756,15 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 600, height: 560, child: _RfbAntragDetailView(
+        child: SizedBox(width: 600, height: 580, child: _RfbAntragDetailView(
           apiService: widget.apiService!, antragId: aid, antrag: antrag,
           onChanged: () => _loadFromDB(),
           befreiungsgruende: _befreiungsgruende,
           userId: widget.userId!,
+          ticketService: widget.ticketService,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
+          memberMitgliedernummer: widget.user?.mitgliedernummer,
+          memberName: widget.user?.name,
         )),
       ),
     );
@@ -903,7 +916,22 @@ class _RfbAntragDetailView extends StatefulWidget {
   final VoidCallback onChanged;
   final List<({String key, String label, IconData icon, String beschreibung})> befreiungsgruende;
   final int userId;
-  const _RfbAntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.onChanged, required this.befreiungsgruende, required this.userId});
+  final TicketService? ticketService;
+  final String? adminMitgliedernummer;
+  final String? memberMitgliedernummer;
+  final String? memberName;
+  const _RfbAntragDetailView({
+    required this.apiService,
+    required this.antragId,
+    required this.antrag,
+    required this.onChanged,
+    required this.befreiungsgruende,
+    required this.userId,
+    this.ticketService,
+    this.adminMitgliedernummer,
+    this.memberMitgliedernummer,
+    this.memberName,
+  });
   @override
   State<_RfbAntragDetailView> createState() => _RfbAntragDetailViewState();
 }
@@ -936,7 +964,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     final status = a['status']?.toString() ?? 'eingereicht';
     final grund = widget.befreiungsgruende.where((g) => g.key == a['befreiungsgrund']?.toString()).firstOrNull;
     final isBefreit = status == 'bewilligt';
-    return DefaultTabController(length: 4, child: Column(children: [
+    return DefaultTabController(length: 5, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: isBefreit ? Colors.green.shade700 : Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -954,12 +982,14 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.verified, size: 18), text: 'Bewilligungsbescheid'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(a),
         _buildVerlauf(),
         _buildUnterlagen(),
         _buildKorrespondenz(),
+        _buildBescheid(a),
       ])),
     ]));
   }
@@ -1281,5 +1311,265 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           if (ctx.mounted) Navigator.pop(ctx); _load();
         }, child: const Text('Speichern'))],
     ));
+  }
+
+  // ============ TAB 5: BEWILLIGUNGSBESCHEID ============
+  // Speichert Bescheid-Datum (verschlüsselt) + Gültigkeitszeitraum, und
+  // legt — sobald `zeitraum_bis` gesetzt wird — sofort ein
+  // Erinnerungs-Ticket 2 Monate vor Ablauf an, damit der Vorstand den
+  // Folgeantrag rechtzeitig stellt. Anti-Duplikat über `renewal_ticket_id`
+  // (server-side bleibt das Feld nach erstmaliger Setzung erhalten).
+  late final TextEditingController _bescheidDatumC =
+      TextEditingController(text: widget.antrag['bescheid_datum']?.toString() ?? '');
+  late final TextEditingController _bewilligtVonC =
+      TextEditingController(text: widget.antrag['zeitraum_von']?.toString() ?? '');
+  late final TextEditingController _bewilligtBisC =
+      TextEditingController(text: widget.antrag['zeitraum_bis']?.toString() ?? '');
+  bool _bescheidSaving = false;
+  String? _ticketCreatedMessage; // surfaces the green confirmation card
+
+  Future<void> _pickDateInto(BuildContext ctx, TextEditingController c) async {
+    DateTime initial = DateTime.now();
+    try {
+      if (c.text.isNotEmpty) initial = DateTime.parse(c.text);
+    } catch (_) {}
+    final d = await showDatePicker(
+      context: ctx, initialDate: initial,
+      firstDate: DateTime(2020), lastDate: DateTime(2050),
+      locale: const Locale('de'),
+    );
+    if (d != null) {
+      c.text = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      if (mounted) setState(() {});
+    }
+  }
+
+  Widget _buildBescheid(Map<String, dynamic> a) {
+    final existingRenewalId = a['renewal_ticket_id'];
+    final hasRenewal = existingRenewalId != null && existingRenewalId.toString().isNotEmpty;
+    final bid = widget.antragId;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.indigo.shade200),
+          ),
+          child: Row(children: [
+            Icon(Icons.lock, size: 14, color: Colors.indigo.shade700),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Bescheid-Datum ist verschlüsselt gespeichert. Beim Ablauf-Datum '
+                'wird automatisch ein Erinnerungs-Ticket 2 Monate vorher angelegt.',
+                style: TextStyle(fontSize: 11, color: Colors.indigo.shade800),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _bescheidDatumC, readOnly: true,
+          decoration: InputDecoration(
+            labelText: 'Datum Bescheid',
+            prefixIcon: const Icon(Icons.event_note, size: 18),
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onTap: () => _pickDateInto(context, _bescheidDatumC),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _bewilligtVonC, readOnly: true,
+              decoration: InputDecoration(
+                labelText: 'Bewilligt von',
+                prefixIcon: const Icon(Icons.play_arrow, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onTap: () => _pickDateInto(context, _bewilligtVonC),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _bewilligtBisC, readOnly: true,
+              decoration: InputDecoration(
+                labelText: 'Bewilligt bis (Ablauf)',
+                prefixIcon: const Icon(Icons.event_busy, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onTap: () => _pickDateInto(context, _bewilligtBisC),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            icon: _bescheidSaving
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.save, size: 16),
+            label: Text(_bescheidSaving ? 'Speichere…' : 'Bescheid speichern'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade700),
+            onPressed: _bescheidSaving ? null : () => _saveBescheid(a),
+          ),
+        ),
+        if (_ticketCreatedMessage != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade300),
+            ),
+            child: Row(children: [
+              Icon(Icons.confirmation_number, color: Colors.green.shade700, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _ticketCreatedMessage!,
+                  style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ]),
+          ),
+        ] else if (hasRenewal) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(children: [
+              Icon(Icons.confirmation_number, color: Colors.green.shade700, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Erinnerungs-Ticket #$existingRenewalId bereits angelegt — '
+                  'erscheint 2 Monate vor Ablauf in der Ticketverwaltung.',
+                  style: TextStyle(fontSize: 12, color: Colors.green.shade900),
+                ),
+              ),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 18),
+        Text('Bescheid-Dokumente',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Text(
+          'Bis zu 20 Dokumente gleichzeitig hochladbar (PDF, JPG, PNG). '
+          'Anhänge sind dem Antrag zugeordnet, nicht der Korrespondenz.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 8),
+        KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'rfb_bescheid',
+          korrespondenzId: bid,
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _saveBescheid(Map<String, dynamic> a) async {
+    setState(() => _bescheidSaving = true);
+    final bescheidDatum = _bescheidDatumC.text.trim();
+    final zVon = _bewilligtVonC.text.trim();
+    final zBis = _bewilligtBisC.text.trim();
+    final existingRenewalId = a['renewal_ticket_id'];
+    int? renewalTicketId = existingRenewalId is int
+        ? existingRenewalId
+        : int.tryParse(existingRenewalId?.toString() ?? '');
+
+    // Step 1: persist the fields without the ticket id (yet) so the save
+    // succeeds even if ticket creation fails.
+    await widget.apiService.saveRundfunkbeitragAntrag(widget.userId, {
+      'action': 'save_bewilligungsbescheid',
+      'id': widget.antragId,
+      'bescheid_datum': bescheidDatum,
+      'zeitraum_von': zVon,
+      'zeitraum_bis': zBis,
+      if (renewalTicketId != null) 'renewal_ticket_id': renewalTicketId,
+    });
+
+    // Step 2: when `zeitraum_bis` is fresh and no renewal-ticket exists yet,
+    // immediately schedule a reminder for the Vorstand. Idempotent — anti-dupe
+    // via renewal_ticket_id which persists across reopens.
+    String? confirmMsg;
+    if (renewalTicketId == null &&
+        zBis.isNotEmpty &&
+        widget.ticketService != null &&
+        (widget.adminMitgliedernummer ?? '').isNotEmpty &&
+        (widget.memberMitgliedernummer ?? '').isNotEmpty) {
+      try {
+        final bisDate = DateTime.parse(zBis);
+        final scheduledRaw = bisDate.subtract(const Duration(days: 60));
+        // Clamp to today if "bis" is already in the past so the ticket
+        // still surfaces immediately on Ticketverwaltung.
+        final today = DateTime.now();
+        final scheduled = scheduledRaw.isBefore(today) ? today : scheduledRaw;
+        final scheduledStr =
+            '${scheduled.year}-${scheduled.month.toString().padLeft(2, '0')}-${scheduled.day.toString().padLeft(2, '0')}';
+        final bisStr =
+            '${bisDate.year}-${bisDate.month.toString().padLeft(2, '0')}-${bisDate.day.toString().padLeft(2, '0')}';
+        final memberLabel = (widget.memberName ?? '').isEmpty
+            ? widget.memberMitgliedernummer!
+            : widget.memberName!;
+        final res = await widget.ticketService!.createTicketForMember(
+          adminMitgliedernummer: widget.adminMitgliedernummer!,
+          memberMitgliedernummer: widget.memberMitgliedernummer!,
+          subject: 'Rundfunkbeitrag: Folgeantrag für $memberLabel',
+          message: 'Die Befreiung läuft am $bisStr ab. '
+              'Bitte rechtzeitig (2 Monate vorher) den Folgeantrag einreichen.\n\n'
+              'Mitglied: $memberLabel',
+          priority: 'high',
+          scheduledDate: scheduledStr,
+          systemAuto: true,
+        );
+        if (res.containsKey('ticket')) {
+          final t = res['ticket'];
+          final newId = t.id is int ? t.id as int : int.tryParse(t.id.toString());
+          if (newId != null) {
+            renewalTicketId = newId;
+            confirmMsg = 'Erinnerungs-Ticket #$newId angelegt — '
+                'erscheint am $scheduledStr in der Ticketverwaltung.';
+            // Persist the ticket id so we don't create duplicates on resave.
+            await widget.apiService.saveRundfunkbeitragAntrag(widget.userId, {
+              'action': 'save_bewilligungsbescheid',
+              'id': widget.antragId,
+              'bescheid_datum': bescheidDatum,
+              'zeitraum_von': zVon,
+              'zeitraum_bis': zBis,
+              'renewal_ticket_id': newId,
+            });
+          }
+        }
+      } catch (_) {
+        // Date parse / API error — fall through, Vorstand can retry by re-saving.
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _bescheidSaving = false;
+      _ticketCreatedMessage = confirmMsg;
+      // Refresh the parent antrag map so subsequent _hasRenewal checks reflect.
+      a['bescheid_datum'] = bescheidDatum;
+      a['zeitraum_von'] = zVon;
+      a['zeitraum_bis'] = zBis;
+      if (renewalTicketId != null) a['renewal_ticket_id'] = renewalTicketId;
+    });
+    widget.onChanged();
   }
 }
