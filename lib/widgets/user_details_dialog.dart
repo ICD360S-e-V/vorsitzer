@@ -4128,7 +4128,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     return _buildRedirectStufe(
       title: 'Satzung',
       description: 'Die Satzung des Vereins muss vom Mitglied gelesen und akzeptiert werden.',
-      url: 'https://icd360sev.icd360s.de/satzung',
+      url: 'https://icd360s.de/satzung360s/',
       buttonLabel: 'Satzung öffnen',
       icon: Icons.gavel,
       acceptanceDate: _verifizierungAcceptances['satzung'],
@@ -4141,7 +4141,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     return _buildRedirectStufe(
       title: 'Datenschutz',
       description: 'Die Datenschutzerklärung muss vom Mitglied gelesen und akzeptiert werden.',
-      url: 'https://icd360sev.icd360s.de/datenschutz',
+      url: 'https://icd360s.de/datenschutz/',
       buttonLabel: 'Datenschutz öffnen',
       icon: Icons.privacy_tip,
       acceptanceDate: _verifizierungAcceptances['datenschutz'],
@@ -4154,7 +4154,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     return _buildRedirectStufe(
       title: 'Widerrufsbelehrung',
       description: 'Die Widerrufsbelehrung muss vom Mitglied gelesen und akzeptiert werden.',
-      url: 'https://icd360sev.icd360s.de/widerrufsbelehrung',
+      url: 'https://icd360s.de/widerrufsrecht/',
       buttonLabel: 'Widerrufsbelehrung öffnen',
       icon: Icons.assignment_return,
       acceptanceDate: _verifizierungAcceptances['widerrufsbelehrung'],
