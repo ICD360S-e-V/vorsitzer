@@ -752,9 +752,10 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(20),
         child: SizedBox(
-          width: 700, height: 600,
+          width: 760, height: 640,
           child: _LandratsamtVorfallDetailView(
             apiService: widget.apiService,
+            userId: widget.userId,
             vorfallId: vid,
             vorfall: v,
             gerichtLink: gLink,
@@ -767,22 +768,50 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
   }
 }
 
-class _LandratsamtVorfallDetailView extends StatelessWidget {
+class _LandratsamtVorfallDetailView extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final int vorfallId;
   final Map<String, dynamic> vorfall;
   final Map<String, dynamic>? gerichtLink;
   final VoidCallback onEdit;
   final VoidCallback onClose;
   const _LandratsamtVorfallDetailView({
-    required this.apiService, required this.vorfallId, required this.vorfall,
+    required this.apiService, required this.userId, required this.vorfallId, required this.vorfall,
     required this.gerichtLink, required this.onEdit, required this.onClose,
   });
 
   @override
+  State<_LandratsamtVorfallDetailView> createState() => _LandratsamtVorfallDetailViewState();
+}
+
+class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetailView> {
+  List<Map<String, dynamic>> _korr = [];
+  List<Map<String, dynamic>> _termine = [];
+  bool _loadedKorr = false;
+  bool _loadedTermine = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final kR = await widget.apiService.listLandratsamtVorfallKorr(widget.vorfallId);
+    final tR = await widget.apiService.listLandratsamtVorfallTermine(widget.vorfallId);
+    if (!mounted) return;
+    setState(() {
+      _korr = (kR['success'] == true && kR['data'] is List)
+          ? (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _termine = (tR['success'] == true && tR['data'] is List)
+          ? (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _loadedKorr = true;
+      _loadedTermine = true;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 4,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
@@ -791,70 +820,324 @@ class _LandratsamtVorfallDetailView extends StatelessWidget {
             Icon(Icons.report_problem, color: Colors.brown.shade700, size: 22),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(vorfall['art']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
-              Text('${vorfall['datum'] ?? ''} · Az.: ${vorfall['aktenzeichen'] ?? '–'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              Text(widget.vorfall['art']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
+              Text('${widget.vorfall['datum'] ?? ''} · Az.: ${widget.vorfall['aktenzeichen'] ?? '–'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
             ])),
-            IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: onEdit, tooltip: 'Bearbeiten'),
-            IconButton(icon: const Icon(Icons.close, size: 20), onPressed: onClose, tooltip: 'Schließen'),
+            IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: widget.onEdit, tooltip: 'Bearbeiten'),
+            IconButton(icon: const Icon(Icons.close, size: 20), onPressed: widget.onClose, tooltip: 'Schließen'),
           ]),
         ),
         TabBar(
           labelColor: Colors.brown.shade700,
           indicatorColor: Colors.brown.shade700,
-          tabs: const [
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.info_outline, size: 14), SizedBox(width: 4), Text('Details')])),
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.folder_open, size: 14), SizedBox(width: 4), Text('Dokumente')])),
+          isScrollable: true,
+          tabs: [
+            const Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.info_outline, size: 14), SizedBox(width: 4), Text('Details')])),
+            const Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.folder_open, size: 14), SizedBox(width: 4), Text('Dokumente')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.mail_outline, size: 14), const SizedBox(width: 4), Text('Korrespondenz (${_korr.length})')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.event, size: 14), const SizedBox(width: 4), Text('Termin (${_termine.length})')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
-          // === Details ===
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _kv(Icons.label, 'Art', vorfall['art']),
-              _kv(Icons.calendar_today, 'Datum', vorfall['datum']),
-              _kv(Icons.tag, 'Aktenzeichen', vorfall['aktenzeichen']),
-              const Divider(height: 20),
-              _kv(Icons.person, 'Sachbearbeiter/in', vorfall['sachbearbeiter']),
-              _kv(Icons.phone, 'Telefon', vorfall['sachbearbeiter_tel']),
-              _kv(Icons.email, 'E-Mail', vorfall['sachbearbeiter_email']),
-              const Divider(height: 20),
-              _kv(Icons.note, 'Notiz', vorfall['notiz']),
-              if (gerichtLink != null) ...[
-                const Divider(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade300)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Icon(Icons.gavel, size: 16, color: Colors.deepPurple.shade700),
-                      const SizedBox(width: 6),
-                      Text('Verknüpfter Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
-                    ]),
-                    const SizedBox(height: 6),
-                    _kv(Icons.label, 'Art', gerichtLink!['titel']),
-                    _kv(Icons.tag, 'Aktenzeichen', gerichtLink!['aktenzeichen']),
-                    _kv(Icons.calendar_today, 'Datum', gerichtLink!['datum']),
-                    _kv(Icons.person, 'Richter', gerichtLink!['sachbearbeiter']),
-                    _kv(Icons.flag, 'Status', gerichtLink!['status']),
-                    if ((gerichtLink!['notiz']?.toString() ?? '').isNotEmpty) _kv(Icons.note, 'Notiz', gerichtLink!['notiz']),
-                  ]),
-                ),
-              ],
-            ]),
-          ),
-          // === Dokumente ===
+          _buildDetailsTab(),
           Padding(
             padding: const EdgeInsets.all(12),
             child: KorrAttachmentsWidget(
-              apiService: apiService,
+              apiService: widget.apiService,
               modul: 'landratsamt_vorfall',
-              korrespondenzId: vorfallId,
+              korrespondenzId: widget.vorfallId,
             ),
           ),
+          _buildKorrTab(),
+          _buildTerminTab(),
         ])),
       ]),
     );
+  }
+
+  Widget _buildDetailsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _kv(Icons.label, 'Art', widget.vorfall['art']),
+        _kv(Icons.calendar_today, 'Datum', widget.vorfall['datum']),
+        _kv(Icons.tag, 'Aktenzeichen', widget.vorfall['aktenzeichen']),
+        const Divider(height: 20),
+        _kv(Icons.person, 'Sachbearbeiter/in', widget.vorfall['sachbearbeiter']),
+        _kv(Icons.phone, 'Telefon', widget.vorfall['sachbearbeiter_tel']),
+        _kv(Icons.email, 'E-Mail', widget.vorfall['sachbearbeiter_email']),
+        const Divider(height: 20),
+        _kv(Icons.note, 'Notiz', widget.vorfall['notiz']),
+        if (widget.gerichtLink != null) ...[
+          const Divider(height: 20),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade300)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.gavel, size: 16, color: Colors.deepPurple.shade700),
+                const SizedBox(width: 6),
+                Text('Verknüpfter Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+              ]),
+              const SizedBox(height: 6),
+              _kv(Icons.label, 'Art', widget.gerichtLink!['titel']),
+              _kv(Icons.tag, 'Aktenzeichen', widget.gerichtLink!['aktenzeichen']),
+              _kv(Icons.calendar_today, 'Datum', widget.gerichtLink!['datum']),
+              _kv(Icons.person, 'Richter', widget.gerichtLink!['sachbearbeiter']),
+              _kv(Icons.flag, 'Status', widget.gerichtLink!['status']),
+              if ((widget.gerichtLink!['notiz']?.toString() ?? '').isNotEmpty) _kv(Icons.note, 'Notiz', widget.gerichtLink!['notiz']),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildKorrTab() {
+    if (!_loadedKorr) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
+        Icon(Icons.mail_outline, size: 18, color: Colors.brown.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text('Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+        ElevatedButton.icon(
+          onPressed: _addKorr,
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.brown, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10)),
+        ),
+      ])),
+      Expanded(child: _korr.isEmpty
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _korr.length,
+              itemBuilder: (_, i) {
+                final k = _korr[i];
+                final rich = k['richtung']?.toString() ?? 'eingang';
+                final isEin = rich == 'eingang';
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(isEin ? Icons.call_received : Icons.call_made,
+                      color: isEin ? Colors.green.shade600 : Colors.blue.shade600, size: 22),
+                    title: Text(k['betreff']?.toString() ?? '(ohne Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${k['datum'] ?? ''}  ·  ${isEin ? 'Eingang' : 'Ausgang'}  ·  ${k['methode'] ?? '–'}',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                        Padding(padding: const EdgeInsets.only(top: 2), child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 11))),
+                    ]),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                      onPressed: () async {
+                        final id = int.tryParse(k['id']?.toString() ?? '');
+                        if (id != null) { await widget.apiService.deleteLandratsamtVorfallKorr(id); await _load(); }
+                      },
+                    ),
+                  ),
+                );
+              },
+            )),
+    ]);
+  }
+
+  Future<void> _addKorr() async {
+    String richtung = 'eingang';
+    String methode = 'post';
+    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    if (!mounted) return;
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Korrespondenz'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.call_received, size: 14, color: richtung == 'eingang' ? Colors.white : Colors.green.shade600),
+              const SizedBox(width: 4), Text('Eingang', style: TextStyle(fontSize: 12, color: richtung == 'eingang' ? Colors.white : Colors.black87)),
+            ]), selected: richtung == 'eingang', selectedColor: Colors.green.shade600, onSelected: (_) => setD(() => richtung = 'eingang'))),
+            const SizedBox(width: 8),
+            Expanded(child: ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.call_made, size: 14, color: richtung == 'ausgang' ? Colors.white : Colors.blue.shade600),
+              const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 12, color: richtung == 'ausgang' ? Colors.white : Colors.black87)),
+            ]), selected: richtung == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setD(() => richtung = 'ausgang'))),
+          ]),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: methode,
+            decoration: InputDecoration(labelText: 'Methode', prefixIcon: const Icon(Icons.send, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: const [
+              DropdownMenuItem(value: 'post', child: Text('Post')),
+              DropdownMenuItem(value: 'online', child: Text('Online (E-Mail / Portal)')),
+              DropdownMenuItem(value: 'fax', child: Text('Fax')),
+              DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')),
+            ],
+            onChanged: (v) => setD(() => methode = v ?? 'post'),
+          ),
+          const SizedBox(height: 8),
+          TextField(controller: datumC, readOnly: true,
+            decoration: InputDecoration(labelText: 'Datum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async {
+              final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+              if (p != null) datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+            }),
+          const SizedBox(height: 8),
+          TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', prefixIcon: const Icon(Icons.title, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 8),
+          TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () async {
+            if (datumC.text.trim().isEmpty) return;
+            await widget.apiService.saveLandratsamtVorfallKorr(widget.vorfallId, widget.userId, {
+              'richtung': richtung,
+              'methode': methode,
+              'datum': datumC.text.trim(),
+              'betreff': betreffC.text.trim(),
+              'notiz': notizC.text.trim(),
+            });
+            if (ctx.mounted) Navigator.pop(ctx, true);
+          }, child: const Text('Speichern')),
+        ],
+      );
+    }));
+    if (ok == true) await _load();
+  }
+
+  Widget _buildTerminTab() {
+    if (!_loadedTermine) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
+        Icon(Icons.event, size: 18, color: Colors.brown.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+        ElevatedButton.icon(
+          onPressed: _addTermin,
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('Neuer Termin', style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.brown, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10)),
+        ),
+      ])),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          child: Row(children: [
+            Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+              'Termine werden automatisch in die Terminverwaltung übernommen (mit Institution + Sachbearbeiter).',
+              style: TextStyle(fontSize: 10, color: Colors.blue.shade900),
+            )),
+          ]),
+        ),
+      ),
+      Expanded(child: _termine.isEmpty
+          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              itemCount: _termine.length,
+              itemBuilder: (_, i) {
+                final t = _termine[i];
+                final hasGlobal = (t['termin_id']?.toString() ?? '').isNotEmpty && t['termin_id'] != null;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.event, color: Colors.brown.shade700, size: 22),
+                    title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? '  ·  ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if ((t['ort']?.toString() ?? '').isNotEmpty) Text('Ort: ${t['ort']}', style: const TextStyle(fontSize: 11)),
+                      if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: const TextStyle(fontSize: 11)),
+                      if (hasGlobal) Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(children: [
+                          Icon(Icons.check_circle, size: 10, color: Colors.green.shade600),
+                          const SizedBox(width: 3),
+                          Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                        ]),
+                      ),
+                    ]),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                      onPressed: () async {
+                        final id = int.tryParse(t['id']?.toString() ?? '');
+                        if (id != null) { await widget.apiService.deleteLandratsamtVorfallTermin(id); await _load(); }
+                      },
+                    ),
+                  ),
+                );
+              },
+            )),
+    ]);
+  }
+
+  Future<void> _addTermin() async {
+    final datumC = TextEditingController();
+    final uhrzeitC = TextEditingController();
+    final ortC = TextEditingController();
+    final notizC = TextEditingController();
+    if (!mounted) return;
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Neuer Termin'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: TextField(controller: datumC, readOnly: true,
+              decoration: InputDecoration(labelText: 'Datum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              onTap: () async {
+                final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+                if (p != null) datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+              })),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: uhrzeitC, readOnly: true,
+              decoration: InputDecoration(labelText: 'Uhrzeit *', prefixIcon: const Icon(Icons.access_time, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              onTap: () async {
+                final t = await showTimePicker(context: ctx2, initialTime: const TimeOfDay(hour: 9, minute: 0));
+                if (t != null) uhrzeitC.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+              })),
+          ]),
+          const SizedBox(height: 8),
+          TextField(controller: ortC, decoration: InputDecoration(labelText: 'Ort', prefixIcon: const Icon(Icons.place, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 8),
+          TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz / Anlass', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+            child: Row(children: [
+              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                'Termin wird automatisch in der Terminverwaltung erstellt mit Institution & Sachbearbeiter aus diesem Vorfall.',
+                style: TextStyle(fontSize: 10, color: Colors.blue.shade900),
+              )),
+            ]),
+          ),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () async {
+            if (datumC.text.trim().isEmpty || uhrzeitC.text.trim().isEmpty) return;
+            await widget.apiService.saveLandratsamtVorfallTermin(widget.vorfallId, widget.userId, {
+              'datum': datumC.text.trim(),
+              'uhrzeit': uhrzeitC.text.trim(),
+              'ort': ortC.text.trim(),
+              'notiz': notizC.text.trim(),
+            });
+            if (ctx.mounted) Navigator.pop(ctx, true);
+          }, child: const Text('Speichern')),
+        ],
+      );
+    }));
+    if (ok == true) await _load();
   }
 
   Widget _kv(IconData icon, String label, dynamic value) {

@@ -4645,6 +4645,64 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== LANDRATSAMT VORFALL — KORRESPONDENZ + TERMINE ==========
+
+  Future<Map<String, dynamic>> listLandratsamtVorfallKorr(int vorfallId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/landratsamt_vorfall_detail.php?vorfall_id=$vorfallId&type=korr'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveLandratsamtVorfallKorr(int vorfallId, int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data);
+    body['type'] = 'korr'; body['vorfall_id'] = vorfallId; body['user_id'] = userId;
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/landratsamt_vorfall_detail.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteLandratsamtVorfallKorr(int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/landratsamt_vorfall_detail.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> listLandratsamtVorfallTermine(int vorfallId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/landratsamt_vorfall_detail.php?vorfall_id=$vorfallId&type=termine'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveLandratsamtVorfallTermin(int vorfallId, int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data);
+    body['type'] = 'termin'; body['vorfall_id'] = vorfallId; body['user_id'] = userId;
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/landratsamt_vorfall_detail.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteLandratsamtVorfallTermin(int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/landratsamt_vorfall_detail.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'type': 'termine', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== VERSORGUNGSAMT KORRESPONDENZ DOCS ==========
 
   Future<Map<String, dynamic>> listVersorgungsamtKorrDocs(int userId, {String? korrDatum}) async {
