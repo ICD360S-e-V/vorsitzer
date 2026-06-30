@@ -453,8 +453,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
   void initState() {
     super.initState();
     // Betriebskosten-Nachforderung uses a reduced 5-tab modal with a PDF-Generator tab.
-    // All other Antrag types keep the full 7-tab layout (Bewilligungsbescheid, EGV, Sanktionen, Begutachtung).
-    _tabC = TabController(length: _isBetriebskosten ? 5 : 7, vsync: this);
+    // All other Antrag types keep the full 8-tab layout (Bewilligungsbescheid,
+    // EGV, Sanktionen, Begutachtung, Anhörung).
+    _tabC = TabController(length: _isBetriebskosten ? 5 : 8, vsync: this);
   }
 
   @override
@@ -482,6 +483,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
             Tab(text: 'EGV'),
             Tab(text: 'Sanktionen'),
             Tab(text: 'Begutachtung'),
+            Tab(text: 'Anhörung'),
           ];
     final views = _isBetriebskosten
         ? [
@@ -499,6 +501,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
             _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _AntragBegutachtungTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _AntragAnhoerungTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
           ];
     return Column(children: [
       Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
@@ -5353,4 +5356,564 @@ class _EigenbemEditDialogState extends State<_EigenbemEditDialog> {
       ]),
     ]))),
   );
+}
+
+// ============================================================
+// ANHÖRUNG TAB — Bescheid + 3 sub-views (Details / Bescheid / Korrespondenz)
+// ============================================================
+// One row per Anhörungs-Bescheid the Vorstand records on an Antrag. Each
+// row carries:
+//   • bescheid_datum (verschlüsselt) — when the letter was issued
+//   • datum_erhalten (verschlüsselt) — when the member received it
+//   • wie_erhalten — closed enum (online / post / persönlich)
+// Tapping a row opens a detail dialog with three sub-tabs:
+//   1. Details — read/edit the dates above + notiz
+//   2. Bescheid — multi-file upload (up to 20 docs simultaneously)
+//                 stored via KorrAttachmentsWidget with modul='jc_anhoerung_bescheid'
+//   3. Korrespondenz — eingang/ausgang messages tied to this specific Anhörung
+// Both upload buckets are scoped by anhoerung_id, so deleting the Anhörung
+// also wipes its bescheid files + korrespondenz files (server-side cascade).
+
+class _AntragAnhoerungTab extends StatefulWidget {
+  final int antragId;
+  final ApiService apiService;
+  final int userId;
+  const _AntragAnhoerungTab({required this.antragId, required this.apiService, required this.userId});
+  @override
+  State<_AntragAnhoerungTab> createState() => _AntragAnhoerungTabState();
+}
+
+class _AntragAnhoerungTabState extends State<_AntragAnhoerungTab> {
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+
+  static const _wieLabels = {
+    'online': 'Online',
+    'post': 'Per Post',
+    'persoenlich': 'Persönlich',
+  };
+  static const _wieIcons = {
+    'online': Icons.language,
+    'post': Icons.local_post_office,
+    'persoenlich': Icons.person,
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final res = await widget.apiService.getJobcenterAntragDetail(widget.userId, widget.antragId);
+      if (res['success'] == true) {
+        _list = (res['anhoerungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _showCreateOrEditSafe({Map<String, dynamic>? existing}) async {
+    final bescheidC = TextEditingController(text: existing?['bescheid_datum']?.toString() ?? '');
+    final erhaltenC = TextEditingController(text: existing?['datum_erhalten']?.toString() ?? '');
+    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+    String wie = existing?['wie_erhalten']?.toString() ?? 'post';
+    if (!_wieLabels.containsKey(wie)) wie = 'post';
+
+    Future<void> pickInto(BuildContext ctx, TextEditingController c) async {
+      DateTime initial = DateTime.now();
+      try {
+        if (c.text.isNotEmpty) {
+          final parts = c.text.split('.');
+          if (parts.length == 3) {
+            initial = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+          }
+        }
+      } catch (_) {}
+      final d = await showDatePicker(
+        context: ctx, initialDate: initial,
+        firstDate: DateTime(2020), lastDate: DateTime(2040),
+        locale: const Locale('de'),
+      );
+      if (d != null) {
+        c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+      }
+    }
+
+    final result = await showDialog<Map<String, String>?>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+        title: Text(existing == null ? 'Neue Anhörung' : 'Anhörung bearbeiten'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: bescheidC, readOnly: true,
+            decoration: const InputDecoration(labelText: 'Datum Bescheid', prefixIcon: Icon(Icons.event_note, size: 18), isDense: true, border: OutlineInputBorder()),
+            onTap: () async { await pickInto(ctx2, bescheidC); setD(() {}); }),
+          const SizedBox(height: 10),
+          TextField(controller: erhaltenC, readOnly: true,
+            decoration: const InputDecoration(labelText: 'Datum erhalten', prefixIcon: Icon(Icons.mark_email_read, size: 18), isDense: true, border: OutlineInputBorder()),
+            onTap: () async { await pickInto(ctx2, erhaltenC); setD(() {}); }),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: wie,
+            decoration: const InputDecoration(labelText: 'Wie erhalten', prefixIcon: Icon(Icons.outgoing_mail, size: 18), isDense: true, border: OutlineInputBorder()),
+            items: _wieLabels.entries.map((e) => DropdownMenuItem(
+              value: e.key,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(_wieIcons[e.key], size: 14), const SizedBox(width: 6), Text(e.value),
+              ]),
+            )).toList(),
+            onChanged: (v) => setD(() => wie = v ?? 'post'),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, {
+            'bescheid_datum': bescheidC.text.trim(),
+            'datum_erhalten': erhaltenC.text.trim(),
+            'wie_erhalten': wie,
+            'notiz': notizC.text.trim(),
+          }), child: const Text('Speichern')),
+        ],
+      )),
+    );
+
+    bescheidC.dispose(); erhaltenC.dispose(); notizC.dispose();
+    if (result == null) return;
+
+    final payload = <String, dynamic>{
+      'action': 'save_anhoerung',
+      'antrag_id': widget.antragId,
+      'anhoerung': {
+        if (existing != null) 'id': existing['id'],
+        ...result,
+      },
+    };
+    await widget.apiService.jobcenterAction(widget.userId, payload);
+    await _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Anhörung löschen?'),
+        content: const Text('Bescheid-Dokumente und Korrespondenz werden ebenfalls gelöscht.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.jobcenterAction(widget.userId, {'action': 'delete_anhoerung', 'id': id});
+    await _load();
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> h) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: 640, height: 600,
+          child: _AnhoerungDetailModal(
+            anhoerung: h,
+            apiService: widget.apiService,
+            userId: widget.userId,
+            onChanged: _load,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.hearing, size: 22, color: Colors.indigo.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Anhörungen (${_list.length})',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+        ElevatedButton.icon(
+          onPressed: () => _showCreateOrEditSafe(),
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Neu', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+        ),
+      ])),
+      Expanded(child: _list.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.hearing_disabled, size: 40, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text('Keine Anhörungen erfasst', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'Mit "Neu" Bescheid-Datum, Empfangs-Datum und Empfangs-Weg erfassen. '
+                'Danach Bescheid-Dokumente (bis 20) und Korrespondenz im Detail-Dialog hinterlegen.',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 11), textAlign: TextAlign.center,
+              ),
+            ),
+          ]))
+        : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _list.length,
+            itemBuilder: (_, i) {
+              final h = _list[i];
+              final wie = h['wie_erhalten']?.toString() ?? '';
+              return Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  leading: Icon(_wieIcons[wie] ?? Icons.hearing, color: Colors.indigo.shade700),
+                  title: Row(children: [
+                    Text('Anhörung', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(width: 8),
+                    if ((h['bescheid_datum']?.toString() ?? '').isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6)),
+                        child: Text('Bescheid ${h['bescheid_datum']}',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.indigo.shade800)),
+                      ),
+                  ]),
+                  subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if ((h['datum_erhalten']?.toString() ?? '').isNotEmpty)
+                      Text('Erhalten am ${h['datum_erhalten']}'
+                          '${wie.isNotEmpty ? " · ${_wieLabels[wie] ?? wie}" : ""}',
+                          style: const TextStyle(fontSize: 11)),
+                    if ((h['notiz']?.toString() ?? '').isNotEmpty)
+                      Padding(padding: const EdgeInsets.only(top: 2),
+                          child: Text(h['notiz'].toString(),
+                              maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+                  ]),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      icon: Icon(Icons.edit, size: 16, color: Colors.indigo.shade400),
+                      tooltip: 'Bearbeiten',
+                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _showCreateOrEditSafe(existing: h),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
+                      tooltip: 'Löschen',
+                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _delete(h['id'] as int),
+                    ),
+                  ]),
+                  onTap: () => _openDetail(h),
+                ),
+              );
+            })),
+    ]);
+  }
+}
+
+class _AnhoerungDetailModal extends StatefulWidget {
+  final Map<String, dynamic> anhoerung;
+  final ApiService apiService;
+  final int userId;
+  final Future<void> Function() onChanged;
+  const _AnhoerungDetailModal({
+    required this.anhoerung,
+    required this.apiService,
+    required this.userId,
+    required this.onChanged,
+  });
+  @override
+  State<_AnhoerungDetailModal> createState() => _AnhoerungDetailModalState();
+}
+
+class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabC;
+  List<Map<String, dynamic>> _korr = [];
+  bool _loadingKorr = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabC = TabController(length: 3, vsync: this);
+    _loadKorr();
+  }
+
+  @override
+  void dispose() { _tabC.dispose(); super.dispose(); }
+
+  Future<void> _loadKorr() async {
+    setState(() => _loadingKorr = true);
+    try {
+      final h = widget.anhoerung;
+      final r = await widget.apiService.jobcenterListAnhoerungKorr(widget.userId, h['id'] as int);
+      if (r['success'] == true) {
+        _korr = (r['korrespondenz'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loadingKorr = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = widget.anhoerung;
+    final wie = h['wie_erhalten']?.toString() ?? '';
+    final wieLabel = _AntragAnhoerungTabState._wieLabels[wie] ?? wie;
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        child: Row(children: [
+          const Icon(Icons.hearing, color: Colors.white, size: 22),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Anhörung', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text(
+              [
+                if ((h['bescheid_datum']?.toString() ?? '').isNotEmpty) 'Bescheid ${h['bescheid_datum']}',
+                if ((h['datum_erhalten']?.toString() ?? '').isNotEmpty) 'erhalten ${h['datum_erhalten']}',
+                if (wieLabel.isNotEmpty) wieLabel,
+              ].join(' · '),
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { Navigator.pop(context); widget.onChanged(); }),
+        ]),
+      ),
+      TabBar(controller: _tabC, labelColor: Colors.indigo.shade800, indicatorColor: Colors.indigo.shade700, tabs: const [
+        Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 18)),
+        Tab(text: 'Bescheid', icon: Icon(Icons.attach_file, size: 18)),
+        Tab(text: 'Korrespondenz', icon: Icon(Icons.mail, size: 18)),
+      ]),
+      Expanded(child: TabBarView(controller: _tabC, children: [
+        _buildDetailsTab(),
+        _buildBescheidTab(),
+        _buildKorrTab(),
+      ])),
+    ]);
+  }
+
+  Widget _kv(String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+      ]),
+    );
+  }
+
+  Widget _buildDetailsTab() {
+    final h = widget.anhoerung;
+    final wie = h['wie_erhalten']?.toString() ?? '';
+    final wieLabel = _AntragAnhoerungTabState._wieLabels[wie] ?? wie;
+    return SingleChildScrollView(padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _kv('Datum Bescheid', h['bescheid_datum']?.toString() ?? ''),
+        _kv('Datum erhalten', h['datum_erhalten']?.toString() ?? ''),
+        _kv('Wie erhalten', wieLabel),
+        if ((h['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Notiz', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(h['notiz'].toString(), style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildBescheidTab() {
+    final hid = widget.anhoerung['id'] as int;
+    return Padding(padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.attach_file, size: 16, color: Colors.indigo.shade700),
+          const SizedBox(width: 6),
+          Text('Bescheid-Dokumente',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.indigo.shade800)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Bis zu 20 Dokumente gleichzeitig hochladbar (PDF, JPG, PNG).',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.indigo.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.indigo.shade100),
+              ),
+              child: KorrAttachmentsWidget(
+                apiService: widget.apiService,
+                modul: 'jc_anhoerung_bescheid',
+                korrespondenzId: hid,
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildKorrTab() {
+    final hid = widget.anhoerung['id'] as int;
+    if (_loadingKorr) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(8),
+        child: Row(children: [
+          Text('Korrespondenz (${_korr.length})',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.indigo.shade800)),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: () => _showAddKorr(hid),
+            icon: const Icon(Icons.add, size: 14),
+            label: const Text('Neu', style: TextStyle(fontSize: 11)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero,
+            ),
+          ),
+        ]),
+      ),
+      Expanded(child: _korr.isEmpty
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+        : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            itemCount: _korr.length,
+            itemBuilder: (_, i) {
+              final k = _korr[i];
+              final isEin = k['richtung'] == 'eingang';
+              final kid = k['id'] as int;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white, borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(isEin ? Icons.call_received : Icons.call_made, size: 16,
+                        color: isEin ? Colors.green.shade700 : Colors.blue.shade700),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(k['betreff']?.toString() ?? '',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                            color: isEin ? Colors.green.shade800 : Colors.blue.shade800))),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400),
+                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () async {
+                        await widget.apiService.jobcenterAction(widget.userId,
+                            {'action': 'delete_anhoerung_korr', 'id': kid});
+                        _loadKorr();
+                      },
+                    ),
+                  ]),
+                  if ((k['datum']?.toString() ?? '').isNotEmpty)
+                    Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(top: 2),
+                        child: Text(k['notiz'].toString(),
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+                  Padding(padding: const EdgeInsets.only(top: 4),
+                    child: KorrAttachmentsWidget(
+                      apiService: widget.apiService,
+                      modul: 'jc_anhoerung_korr',
+                      korrespondenzId: kid,
+                    ),
+                  ),
+                ]),
+              );
+            },
+          ),
+      ),
+    ]);
+  }
+
+  Future<void> _showAddKorr(int hid) async {
+    String richtung = 'eingang';
+    String methode = 'Brief';
+    final datumC = TextEditingController();
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+        title: const Text('Neue Korrespondenz', style: TextStyle(fontSize: 14)),
+        content: SizedBox(width: 380, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang',
+                onSelected: (_) => setDlg(() => richtung = 'eingang')),
+            const SizedBox(width: 8),
+            ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang',
+                onSelected: (_) => setDlg(() => richtung = 'ausgang')),
+          ]),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(initialValue: methode,
+            decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: 'Brief', child: Text('Brief')),
+              DropdownMenuItem(value: 'E-Mail', child: Text('E-Mail')),
+              DropdownMenuItem(value: 'Fax', child: Text('Fax')),
+              DropdownMenuItem(value: 'Telefon', child: Text('Telefon')),
+              DropdownMenuItem(value: 'Persönlich', child: Text('Persönlich')),
+            ],
+            onChanged: (v) => setDlg(() => methode = v ?? 'Brief'),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: datumC, readOnly: true,
+            decoration: const InputDecoration(labelText: 'Datum', prefixIcon: Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder()),
+            onTap: () async {
+              final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(),
+                firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+              if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+              setDlg(() {});
+            }),
+          const SizedBox(height: 10),
+          TextField(controller: betreffC,
+            decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
+        ],
+      )),
+    );
+    if (ok == true) {
+      await widget.apiService.jobcenterAction(widget.userId, {
+        'action': 'save_anhoerung_korr',
+        'anhoerung_id': hid,
+        'korr': {
+          'richtung': richtung,
+          'methode': methode,
+          'datum': datumC.text.trim(),
+          'betreff': betreffC.text.trim(),
+          'notiz': notizC.text.trim(),
+        },
+      });
+      _loadKorr();
+    }
+    datumC.dispose(); betreffC.dispose(); notizC.dispose();
+  }
 }

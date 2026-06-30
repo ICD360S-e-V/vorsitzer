@@ -7782,6 +7782,18 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Lazy-load the per-Anhörung correspondence list. Called from the
+  /// Anhörung detail modal's Korrespondenz sub-tab; the bescheid files
+  /// themselves live in korrespondenz_attachments and are fetched by the
+  /// shared KorrAttachmentsWidget, no extra call needed here.
+  Future<Map<String, dynamic>> jobcenterListAnhoerungKorr(int userId, int anhoerungId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_manage.php?user_id=$userId&anhoerung_id=$anhoerungId&action=anhoerung_detail'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> jobcenterAction(int userId, Map<String, dynamic> body) async {
     body['user_id'] = userId;
     final response = await _client.post(
