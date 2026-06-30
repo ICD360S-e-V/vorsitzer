@@ -8161,6 +8161,19 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// DMP-Teilnahmen (Disease-Management-Programm). Per (user × arzt_typ)
+  /// relationship. Encrypted at rest server-side; the response contains
+  /// the joined BSNR / LANR / arzt_name from aerzte_datenbank so the
+  /// client doesn't need a separate roundtrip.
+  Future<Map<String, dynamic>> arztDmpAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/arzt_dmp_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<http.Response> downloadArztEinwilligungPdf(int id, {String type = 'pdf'}) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/arzt_einwilligung_pdf.php?id=$id&type=$type'),
