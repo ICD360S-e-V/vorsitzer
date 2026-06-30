@@ -656,6 +656,7 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
     final emailC = TextEditingController(text: existing?['sachbearbeiter_email']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
     int? linkedGerichtId = int.tryParse(existing?['gericht_vorfall_id']?.toString() ?? '');
+    bool submitting = false;
 
     if (!mounted) return;
     final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
@@ -719,22 +720,28 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
           ),
         ]))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () async {
-            if (artC.text.trim().isEmpty || datumC.text.trim().isEmpty) return;
-            await widget.apiService.saveLandratsamtVorfall(widget.userId, {
-              if (id != null) 'id': id,
-              'art': artC.text.trim(),
-              'datum': datumC.text.trim(),
-              'aktenzeichen': aktenC.text.trim(),
-              'sachbearbeiter': sachC.text.trim(),
-              'sachbearbeiter_tel': telC.text.trim(),
-              'sachbearbeiter_email': emailC.text.trim(),
-              'notiz': notizC.text.trim(),
-              'gericht_vorfall_id': linkedGerichtId,
-            });
-            if (ctx.mounted) Navigator.pop(ctx, true);
-          }, child: const Text('Speichern')),
+          TextButton(onPressed: submitting ? null : () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: submitting ? null : () async {
+              if (artC.text.trim().isEmpty || datumC.text.trim().isEmpty) return;
+              setD(() => submitting = true);
+              await widget.apiService.saveLandratsamtVorfall(widget.userId, {
+                if (id != null) 'id': id,
+                'art': artC.text.trim(),
+                'datum': datumC.text.trim(),
+                'aktenzeichen': aktenC.text.trim(),
+                'sachbearbeiter': sachC.text.trim(),
+                'sachbearbeiter_tel': telC.text.trim(),
+                'sachbearbeiter_email': emailC.text.trim(),
+                'notiz': notizC.text.trim(),
+                'gericht_vorfall_id': linkedGerichtId,
+              });
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: submitting
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Speichern'),
+          ),
         ],
       );
     }));
@@ -914,28 +921,44 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
               itemCount: _korr.length,
               itemBuilder: (_, i) {
                 final k = _korr[i];
+                final kid = int.tryParse(k['id']?.toString() ?? '');
                 final rich = k['richtung']?.toString() ?? 'eingang';
                 final isEin = rich == 'eingang';
                 return Card(
                   margin: const EdgeInsets.only(bottom: 6),
-                  child: ListTile(
-                    dense: true,
-                    leading: Icon(isEin ? Icons.call_received : Icons.call_made,
-                      color: isEin ? Colors.green.shade600 : Colors.blue.shade600, size: 22),
-                    title: Text(k['betreff']?.toString() ?? '(ohne Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${k['datum'] ?? ''}  ·  ${isEin ? 'Eingang' : 'Ausgang'}  ·  ${k['methode'] ?? '–'}',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                      if ((k['notiz']?.toString() ?? '').isNotEmpty)
-                        Padding(padding: const EdgeInsets.only(top: 2), child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 11))),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Icon(isEin ? Icons.call_received : Icons.call_made,
+                          color: isEin ? Colors.green.shade600 : Colors.blue.shade600, size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(k['betreff']?.toString() ?? '(ohne Betreff)',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          Text('${k['datum'] ?? ''}  ·  ${isEin ? 'Eingang' : 'Ausgang'}  ·  ${k['methode'] ?? '–'}',
+                            style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                          if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                            Padding(padding: const EdgeInsets.only(top: 2),
+                              child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 11))),
+                        ])),
+                        IconButton(
+                          icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                          onPressed: () async {
+                            if (kid != null) { await widget.apiService.deleteLandratsamtVorfallKorr(kid); await _load(); }
+                          },
+                        ),
+                      ]),
+                      if (kid != null) Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 30),
+                        child: KorrAttachmentsWidget(
+                          apiService: widget.apiService,
+                          modul: 'landratsamt_vorfall_korr',
+                          korrespondenzId: kid,
+                        ),
+                      ),
                     ]),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
-                      onPressed: () async {
-                        final id = int.tryParse(k['id']?.toString() ?? '');
-                        if (id != null) { await widget.apiService.deleteLandratsamtVorfallKorr(id); await _load(); }
-                      },
-                    ),
                   ),
                 );
               },
@@ -946,6 +969,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
   Future<void> _addKorr() async {
     String richtung = 'eingang';
     String methode = 'post';
+    bool submitting = false;
     final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     final betreffC = TextEditingController();
     final notizC = TextEditingController();
@@ -991,18 +1015,24 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
           TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         ]))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () async {
-            if (datumC.text.trim().isEmpty) return;
-            await widget.apiService.saveLandratsamtVorfallKorr(widget.vorfallId, widget.userId, {
-              'richtung': richtung,
-              'methode': methode,
-              'datum': datumC.text.trim(),
-              'betreff': betreffC.text.trim(),
-              'notiz': notizC.text.trim(),
-            });
-            if (ctx.mounted) Navigator.pop(ctx, true);
-          }, child: const Text('Speichern')),
+          TextButton(onPressed: submitting ? null : () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: submitting ? null : () async {
+              if (datumC.text.trim().isEmpty) return;
+              setD(() => submitting = true);
+              await widget.apiService.saveLandratsamtVorfallKorr(widget.vorfallId, widget.userId, {
+                'richtung': richtung,
+                'methode': methode,
+                'datum': datumC.text.trim(),
+                'betreff': betreffC.text.trim(),
+                'notiz': notizC.text.trim(),
+              });
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: submitting
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Speichern'),
+          ),
         ],
       );
     }));
@@ -1083,6 +1113,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
     final uhrzeitC = TextEditingController();
     final ortC = TextEditingController();
     final notizC = TextEditingController();
+    bool submitting = false;
     if (!mounted) return;
     final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
       return AlertDialog(
@@ -1123,17 +1154,23 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
           ),
         ]))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () async {
-            if (datumC.text.trim().isEmpty || uhrzeitC.text.trim().isEmpty) return;
-            await widget.apiService.saveLandratsamtVorfallTermin(widget.vorfallId, widget.userId, {
-              'datum': datumC.text.trim(),
-              'uhrzeit': uhrzeitC.text.trim(),
-              'ort': ortC.text.trim(),
-              'notiz': notizC.text.trim(),
-            });
-            if (ctx.mounted) Navigator.pop(ctx, true);
-          }, child: const Text('Speichern')),
+          TextButton(onPressed: submitting ? null : () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: submitting ? null : () async {
+              if (datumC.text.trim().isEmpty || uhrzeitC.text.trim().isEmpty) return;
+              setD(() => submitting = true);
+              await widget.apiService.saveLandratsamtVorfallTermin(widget.vorfallId, widget.userId, {
+                'datum': datumC.text.trim(),
+                'uhrzeit': uhrzeitC.text.trim(),
+                'ort': ortC.text.trim(),
+                'notiz': notizC.text.trim(),
+              });
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: submitting
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Speichern'),
+          ),
         ],
       );
     }));
