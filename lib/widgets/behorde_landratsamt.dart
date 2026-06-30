@@ -795,6 +795,7 @@ class _LandratsamtVorfallDetailView extends StatefulWidget {
 class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetailView> {
   List<Map<String, dynamic>> _korr = [];
   List<Map<String, dynamic>> _termine = [];
+  Map<String, dynamic> _amt = {};
   bool _loadedKorr = false;
   bool _loadedTermine = false;
 
@@ -804,15 +805,35 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
   Future<void> _load() async {
     final kR = await widget.apiService.listLandratsamtVorfallKorr(widget.vorfallId);
     final tR = await widget.apiService.listLandratsamtVorfallTermine(widget.vorfallId);
+    final aR = await widget.apiService.getLandratsamtData(widget.userId);
     if (!mounted) return;
     setState(() {
       _korr = (kR['success'] == true && kR['data'] is List)
           ? (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
       _termine = (tR['success'] == true && tR['data'] is List)
           ? (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      if (aR['success'] == true && aR['data'] is Map) {
+        final raw = aR['data'] as Map;
+        final amt = raw['amt'];
+        _amt = amt is Map ? Map<String, dynamic>.from(amt) : {};
+      } else {
+        _amt = {};
+      }
       _loadedKorr = true;
       _loadedTermine = true;
     });
+  }
+
+  // "Landratsamt Neu-Ulm, Kantstraße 8, 89231 Neu-Ulm" — frei weglassbar.
+  String _amtAdresseInline() {
+    final parts = <String>[];
+    final name = _amt['name']?.toString().trim() ?? '';
+    final adr = _amt['adresse']?.toString().trim() ?? '';
+    final plz = _amt['plz_ort']?.toString().trim() ?? '';
+    if (name.isNotEmpty) parts.add(name);
+    if (adr.isNotEmpty) parts.add(adr);
+    if (plz.isNotEmpty) parts.add(plz);
+    return parts.join(', ');
   }
 
   @override
@@ -1111,7 +1132,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
   Future<void> _addTermin() async {
     final datumC = TextEditingController();
     final uhrzeitC = TextEditingController();
-    final ortC = TextEditingController();
+    final ortC = TextEditingController(text: _amtAdresseInline());
     final notizC = TextEditingController();
     bool submitting = false;
     if (!mounted) return;
