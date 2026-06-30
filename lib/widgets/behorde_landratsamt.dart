@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class BehordeLandratsamtContent extends StatefulWidget {
   final ApiService apiService;
@@ -28,12 +30,18 @@ class BehordeLandratsamtContent extends StatefulWidget {
 class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   Map<String, Map<String, dynamic>> _dbData = {};
   bool _loaded = false;
-  bool _saving = false;
+  Timer? _autoSaveTimer;
 
   @override
   void initState() {
     super.initState();
     _loadFromDB();
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadFromDB() async {
@@ -54,9 +62,13 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
   }
 
   Future<void> _saveToDB() async {
-    setState(() => _saving = true);
     await widget.apiService.saveLandratsamtData(widget.userId, _dbData);
-    if (mounted) setState(() => _saving = false);
+  }
+
+  // Debounced auto-save — flushes 800ms after last edit.
+  void _scheduleAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 800), () { if (mounted) _saveToDB(); });
   }
 
   Map<String, dynamic> _bereich(String key) {
@@ -69,7 +81,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
 
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Column(children: [
         TabBar(
           labelColor: Colors.brown.shade700,
@@ -77,7 +89,8 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
           indicatorColor: Colors.brown.shade700,
           isScrollable: true,
           tabs: [
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('amt')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Amt')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('amt')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständiges Landratsamt')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.report_problem, size: 16), const SizedBox(width: 4), const Text('Vorfall')])),
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('kfz')['kennzeichen']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.directions_car, size: 16), const SizedBox(width: 4), const Text('KFZ')])),
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('fuehrerschein')['fs_nummer']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 16), const SizedBox(width: 4), const Text('Führerschein')])),
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_bereich('bau')['genehmigung_nr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.home_work, size: 16), const SizedBox(width: 4), const Text('Bau & Wohnen')])),
@@ -88,6 +101,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
         Expanded(
           child: TabBarView(children: [
             _buildAmtTab(),
+            _LandratsamtVorfallTab(apiService: widget.apiService, userId: widget.userId),
             _buildKfzTab(),
             _buildFuehrerscheinTab(),
             _buildBauTab(),
@@ -95,7 +109,6 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
             _buildSonstigesTab(),
           ]),
         ),
-        _buildSaveFooter(),
       ]),
     );
   }
@@ -310,13 +323,6 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
                 _dropDown('Umtausch-Status', fs, 'umtausch', Icons.swap_horiz, {'': 'Nicht erforderlich', 'faellig': 'Fällig (bis 2033)', 'beantragt': 'Umtausch beantragt', 'erledigt': 'Neuer FS erhalten'}),
                 _field('Auflagen / Schlüsselzahlen', fs, 'auflagen', Icons.info, hint: 'z.B. 01.01 — Brille'),
                 _field('Notizen', fs, 'notizen', Icons.note, hint: '', maxLines: 3),
-                const SizedBox(height: 12),
-                Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-                  onPressed: () { _saveToDB(); setState(() => _fsEditing = false); },
-                  icon: const Icon(Icons.save, size: 16),
-                  label: const Text('Speichern'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                )),
               ],
             ]),
           ),
@@ -479,7 +485,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
       child: TextField(
         controller: TextEditingController(text: map[key]?.toString() ?? ''),
         maxLines: maxLines,
-        onChanged: (v) => map[key] = v,
+        onChanged: (v) { map[key] = v; _scheduleAutoSave(); },
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -509,28 +515,359 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
             isDense: true,
             isExpanded: true,
             items: options.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
-            onChanged: (v) => setState(() => map[key] = v ?? ''),
+            onChanged: (v) { setState(() => map[key] = v ?? ''); _saveToDB(); },
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildSaveFooter() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade300))),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: ElevatedButton.icon(
-          onPressed: _saving ? null : () => _saveToDB(),
-          icon: _saving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.save, size: 18),
-          label: const Text('Speichern'),
+// ============================================================
+// VORFALL — separate state, eigene DB-Tabelle
+// ============================================================
+
+const _landratsamtVorfallArten = [
+  'Verfahrensbetreuung (Anordnung Betreuungsgericht)',
+  'Betreuungsanregung',
+  'Sozialbericht / Stellungnahme an Gericht',
+  'Hausbesuch / Ermittlung',
+  'Beratung Betroffene/r',
+  'Beratung Angehörige',
+  'Begleitung Anhörung Betreuungsgericht',
+  'Sonstiges',
+];
+
+class _LandratsamtVorfallTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _LandratsamtVorfallTab({required this.apiService, required this.userId});
+
+  @override
+  State<_LandratsamtVorfallTab> createState() => _LandratsamtVorfallTabState();
+}
+
+class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
+  List<Map<String, dynamic>> _vorfaelle = [];
+  Map<int, Map<String, dynamic>> _gerichtById = {};
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.listLandratsamtVorfaelle(widget.userId);
+    final gR = await widget.apiService.listGerichtVorfaelle(widget.userId, 'betreuungsgericht');
+    if (!mounted) return;
+    setState(() {
+      _vorfaelle = (r['success'] == true && r['data'] is List)
+          ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _gerichtById = {};
+      if (gR['success'] == true && gR['data'] is List) {
+        for (final g in (gR['data'] as List)) {
+          final m = Map<String, dynamic>.from(g as Map);
+          final id = int.tryParse(m['id']?.toString() ?? '');
+          if (id != null) _gerichtById[id] = m;
+        }
+      }
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+        Icon(Icons.report_problem, size: 20, color: Colors.brown.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Vorfälle (${_vorfaelle.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+        ElevatedButton.icon(
+          onPressed: () => _openDialog(),
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Neuer Vorfall', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.brown, foregroundColor: Colors.white),
         ),
+      ])),
+      Expanded(child: _vorfaelle.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.folder_open, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade500)),
+            ]))
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _vorfaelle.length,
+              itemBuilder: (_, i) {
+                final v = _vorfaelle[i];
+                final gId = int.tryParse(v['gericht_vorfall_id']?.toString() ?? '');
+                final gLink = gId != null ? _gerichtById[gId] : null;
+                return Card(child: ListTile(
+                  leading: Icon(Icons.report_problem, color: Colors.brown.shade700, size: 28),
+                  title: Text(v['art']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${v['datum'] ?? ''}  ·  Az.: ${v['aktenzeichen'] ?? '–'}', style: const TextStyle(fontSize: 11)),
+                    if ((v['sachbearbeiter']?.toString() ?? '').isNotEmpty)
+                      Text(v['sachbearbeiter'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    if (gLink != null) Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.deepPurple.shade300),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.gavel, size: 11, color: Colors.deepPurple.shade700),
+                          const SizedBox(width: 3),
+                          Text('Betreuungsgericht: ${gLink['titel'] ?? ''} · Az. ${gLink['aktenzeichen'] ?? '–'}',
+                            style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade900)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                      onPressed: () async {
+                        final id = int.tryParse(v['id']?.toString() ?? '');
+                        if (id != null) {
+                          await widget.apiService.deleteLandratsamtVorfall(id);
+                          await _load();
+                        }
+                      }),
+                    Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                  ]),
+                  onTap: () => _openDetail(v),
+                ));
+              },
+            )),
+    ]);
+  }
+
+  Future<void> _openDialog({Map<String, dynamic>? existing}) async {
+    final id = int.tryParse(existing?['id']?.toString() ?? '');
+    final artC = TextEditingController(text: existing?['art']?.toString() ?? '');
+    final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
+    final aktenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
+    final sachC = TextEditingController(text: existing?['sachbearbeiter']?.toString() ?? '');
+    final telC = TextEditingController(text: existing?['sachbearbeiter_tel']?.toString() ?? '');
+    final emailC = TextEditingController(text: existing?['sachbearbeiter_email']?.toString() ?? '');
+    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+    int? linkedGerichtId = int.tryParse(existing?['gericht_vorfall_id']?.toString() ?? '');
+
+    if (!mounted) return;
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text(id != null ? 'Vorfall bearbeiten' : 'Neuer Vorfall', style: TextStyle(color: Colors.brown.shade700)),
+        content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          DropdownButtonFormField<String>(
+            initialValue: _landratsamtVorfallArten.contains(artC.text) ? artC.text : null,
+            decoration: InputDecoration(labelText: 'Art *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: _landratsamtVorfallArten.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
+            onChanged: (v) => setD(() => artC.text = v ?? ''),
+          ),
+          const SizedBox(height: 8),
+          TextField(controller: datumC, readOnly: true,
+            decoration: InputDecoration(labelText: 'Datum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async {
+              final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+              if (p != null) datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+            }),
+          const SizedBox(height: 8),
+          TextField(controller: aktenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.tag, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 8),
+          TextField(controller: sachC, decoration: InputDecoration(labelText: 'Sachbearbeiter/in (Person)', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: telC, decoration: InputDecoration(labelText: 'Telefon', prefixIcon: const Icon(Icons.phone, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: emailC, decoration: InputDecoration(labelText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          ]),
+          const SizedBox(height: 8),
+          TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.gavel, size: 16, color: Colors.deepPurple.shade700),
+                const SizedBox(width: 6),
+                Text('Verknüpfung Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+              ]),
+              const SizedBox(height: 6),
+              if (_gerichtById.isEmpty)
+                Text('Keine Vorfälle in Betreuungsgericht angelegt.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))
+              else
+                DropdownButtonFormField<int?>(
+                  initialValue: linkedGerichtId,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: 'Betreuungsgericht-Vorfall', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('— keine Verknüpfung —', style: TextStyle(fontSize: 12))),
+                    ..._gerichtById.entries.map((e) => DropdownMenuItem<int?>(
+                      value: e.key,
+                      child: Text('${e.value['titel'] ?? ''} · Az. ${e.value['aktenzeichen'] ?? '–'} · ${e.value['datum'] ?? ''}', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                    )),
+                  ],
+                  onChanged: (v) => setD(() => linkedGerichtId = v),
+                ),
+            ]),
+          ),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () async {
+            if (artC.text.trim().isEmpty || datumC.text.trim().isEmpty) return;
+            await widget.apiService.saveLandratsamtVorfall(widget.userId, {
+              if (id != null) 'id': id,
+              'art': artC.text.trim(),
+              'datum': datumC.text.trim(),
+              'aktenzeichen': aktenC.text.trim(),
+              'sachbearbeiter': sachC.text.trim(),
+              'sachbearbeiter_tel': telC.text.trim(),
+              'sachbearbeiter_email': emailC.text.trim(),
+              'notiz': notizC.text.trim(),
+              'gericht_vorfall_id': linkedGerichtId,
+            });
+            if (ctx.mounted) Navigator.pop(ctx, true);
+          }, child: const Text('Speichern')),
+        ],
+      );
+    }));
+    if (ok == true) await _load();
+  }
+
+  void _openDetail(Map<String, dynamic> v) {
+    final vid = int.tryParse(v['id']?.toString() ?? '');
+    if (vid == null) return;
+    final gId = int.tryParse(v['gericht_vorfall_id']?.toString() ?? '');
+    final gLink = gId != null ? _gerichtById[gId] : null;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(20),
+        child: SizedBox(
+          width: 700, height: 600,
+          child: _LandratsamtVorfallDetailView(
+            apiService: widget.apiService,
+            vorfallId: vid,
+            vorfall: v,
+            gerichtLink: gLink,
+            onEdit: () { Navigator.pop(ctx); _openDialog(existing: v); },
+            onClose: () => Navigator.pop(ctx),
+          ),
+        ),
       ),
+    ).then((_) => _load());
+  }
+}
+
+class _LandratsamtVorfallDetailView extends StatelessWidget {
+  final ApiService apiService;
+  final int vorfallId;
+  final Map<String, dynamic> vorfall;
+  final Map<String, dynamic>? gerichtLink;
+  final VoidCallback onEdit;
+  final VoidCallback onClose;
+  const _LandratsamtVorfallDetailView({
+    required this.apiService, required this.vorfallId, required this.vorfall,
+    required this.gerichtLink, required this.onEdit, required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+          decoration: BoxDecoration(color: Colors.brown.shade50, border: Border(bottom: BorderSide(color: Colors.brown.shade200))),
+          child: Row(children: [
+            Icon(Icons.report_problem, color: Colors.brown.shade700, size: 22),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(vorfall['art']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
+              Text('${vorfall['datum'] ?? ''} · Az.: ${vorfall['aktenzeichen'] ?? '–'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            ])),
+            IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: onEdit, tooltip: 'Bearbeiten'),
+            IconButton(icon: const Icon(Icons.close, size: 20), onPressed: onClose, tooltip: 'Schließen'),
+          ]),
+        ),
+        TabBar(
+          labelColor: Colors.brown.shade700,
+          indicatorColor: Colors.brown.shade700,
+          tabs: const [
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.info_outline, size: 14), SizedBox(width: 4), Text('Details')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.folder_open, size: 14), SizedBox(width: 4), Text('Dokumente')])),
+          ],
+        ),
+        Expanded(child: TabBarView(children: [
+          // === Details ===
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _kv(Icons.label, 'Art', vorfall['art']),
+              _kv(Icons.calendar_today, 'Datum', vorfall['datum']),
+              _kv(Icons.tag, 'Aktenzeichen', vorfall['aktenzeichen']),
+              const Divider(height: 20),
+              _kv(Icons.person, 'Sachbearbeiter/in', vorfall['sachbearbeiter']),
+              _kv(Icons.phone, 'Telefon', vorfall['sachbearbeiter_tel']),
+              _kv(Icons.email, 'E-Mail', vorfall['sachbearbeiter_email']),
+              const Divider(height: 20),
+              _kv(Icons.note, 'Notiz', vorfall['notiz']),
+              if (gerichtLink != null) ...[
+                const Divider(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade300)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.gavel, size: 16, color: Colors.deepPurple.shade700),
+                      const SizedBox(width: 6),
+                      Text('Verknüpfter Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                    ]),
+                    const SizedBox(height: 6),
+                    _kv(Icons.label, 'Art', gerichtLink!['titel']),
+                    _kv(Icons.tag, 'Aktenzeichen', gerichtLink!['aktenzeichen']),
+                    _kv(Icons.calendar_today, 'Datum', gerichtLink!['datum']),
+                    _kv(Icons.person, 'Richter', gerichtLink!['sachbearbeiter']),
+                    _kv(Icons.flag, 'Status', gerichtLink!['status']),
+                    if ((gerichtLink!['notiz']?.toString() ?? '').isNotEmpty) _kv(Icons.note, 'Notiz', gerichtLink!['notiz']),
+                  ]),
+                ),
+              ],
+            ]),
+          ),
+          // === Dokumente ===
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: KorrAttachmentsWidget(
+              apiService: apiService,
+              modul: 'landratsamt_vorfall',
+              korrespondenzId: vorfallId,
+            ),
+          ),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _kv(IconData icon, String label, dynamic value) {
+    final s = value?.toString() ?? '';
+    if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+      ]),
     );
   }
 }
