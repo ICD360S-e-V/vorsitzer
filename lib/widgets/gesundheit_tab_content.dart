@@ -908,7 +908,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     // ===== TAB 3: DMP (Disease-Management-Programm) =====
                     _ArztDmpTab(
                       apiService: widget.apiService,
-                      userId: widget.userId,
+                      userId: widget.user.id,
                       arztTyp: type,
                       arzt: selectedArzt,
                     ),
