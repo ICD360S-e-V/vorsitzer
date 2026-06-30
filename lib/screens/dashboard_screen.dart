@@ -152,6 +152,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   final _routineService = RoutineService();
   Map<String, MemberActivity> _memberActivity = {};
 
+  // Applicants with at least one Stufe awaiting this Vorstand's vote.
+  // Populated from /api/admin/list_pending_my_vote.php on dashboard load.
+  // Feeds the "Mein Vote" FAB inside Mitgliederverwaltung.
+  List<Map<String, dynamic>> _pendingMyVote = [];
+
   // Weekly time tracking
   WeeklyTimeSummary? _weeklyTime;
 
@@ -1077,6 +1082,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         setState(() {
           _users = usersList.map((u) => User.fromJson(u)).toList();
         });
+        // Refresh "Mein Vote" pending list in background — independent of
+        // _users fetch.
+        _refreshPendingMyVote();
         // Kick off activity-indicator fetch in background. Do NOT await — the
         // user list should appear immediately; the green dots fill in when ready.
         _loadMemberActivity();
@@ -2432,6 +2440,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ],
       ),
         ),
+        if (_pendingMyVote.isNotEmpty)
+          Positioned(
+            right: 24,
+            bottom: validationQueue.isNotEmpty ? 92 : 24,
+            child: FloatingActionButton.extended(
+              heroTag: 'mitgliederverwaltung_my_vote_fab',
+              backgroundColor: Colors.purple.shade700,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.how_to_vote),
+              label: Text('Mein Vote (${_pendingMyVote.length})'),
+              onPressed: _showPendingMyVote,
+            ),
+          ),
         if (validationQueue.isNotEmpty)
           Positioned(
             right: 24,
@@ -2446,6 +2467,110 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
           ),
       ],
+    );
+  }
+
+  Future<void> _refreshPendingMyVote() async {
+    try {
+      final r = await _apiService.listPendingMyVote();
+      if (!mounted) return;
+      if (r['success'] == true && r['data'] is List) {
+        setState(() {
+          _pendingMyVote = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _showPendingMyVote() {
+    final df = DateFormat('dd.MM.yyyy');
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        insetPadding: const EdgeInsets.all(40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.purple.shade50,
+                border: Border(bottom: BorderSide(color: Colors.purple.shade200)),
+              ),
+              child: Row(children: [
+                Icon(Icons.how_to_vote, color: Colors.purple.shade700, size: 26),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Wartet auf meinen Vote',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+                  Text('${_pendingMyVote.length} Antragsteller',
+                    style: TextStyle(fontSize: 12, color: Colors.purple.shade700)),
+                ])),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(dialogCtx)),
+              ]),
+            ),
+            Flexible(
+              child: _pendingMyVote.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(40),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.check_circle_outline, size: 64, color: Colors.green.shade300),
+                        const SizedBox(height: 12),
+                        Text('Keine offenen Stimmen', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                      ]),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _pendingMyVote.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (_, i) {
+                        final p = _pendingMyVote[i];
+                        final vorname = p['vorname']?.toString() ?? '';
+                        final nachname = p['nachname']?.toString() ?? '';
+                        final mnr = p['mitgliedernummer']?.toString() ?? '';
+                        final count = p['pending_stufen_count'] ?? 0;
+                        final created = p['created_at']?.toString();
+                        DateTime? createdDt;
+                        try { createdDt = created != null ? DateTime.parse(created) : null; } catch (_) {}
+                        return Card(
+                          margin: EdgeInsets.zero,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.purple.shade100,
+                              child: Icon(Icons.person, color: Colors.purple.shade700),
+                            ),
+                            title: Text('$vorname $nachname'.trim().isEmpty ? mnr : '$vorname $nachname'.trim(),
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('Nr.: $mnr', style: const TextStyle(fontSize: 11)),
+                              if (createdDt != null)
+                                Text('Beantragt: ${df.format(createdDt)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            ]),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.shade600,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text('$count Stufen',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            ),
+                            onTap: () {
+                              Navigator.pop(dialogCtx);
+                              final uid = int.tryParse(p['id']?.toString() ?? '');
+                              if (uid == null) return;
+                              final match = _users.where((u) => u.id == uid).firstOrNull;
+                              if (match != null) _showUserDetailsDialog(match);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 

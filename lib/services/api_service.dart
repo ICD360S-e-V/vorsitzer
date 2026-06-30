@@ -7212,6 +7212,65 @@ class ApiService {
     }
   }
 
+  // ========== DUAL-APPROVAL VERIFIZIERUNG (per-Stufe voting) ==========
+
+  /// Cast a Geprüft/Abgelehnt vote on one Stufe. Server enforces:
+  ///   - UNIQUE (user_id, stufe, approved_by) → 409 on re-vote
+  ///   - Stufe 6/7/8 cannot be abgelehnt → 400
+  ///   - Cannot vote on own application → 403
+  /// Response includes `stufe_status` (recomputed) + `user_status` (set to
+  /// "active" if every Stufe is now geprueft, otherwise null).
+  Future<Map<String, dynamic>> castVote({
+    required int userId,
+    required int stufe,
+    required String decision,
+    String? notiz,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/cast_vote.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'user_id': userId,
+        'stufe': stufe,
+        'decision': decision,
+        if (notiz != null) 'notiz': notiz,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Returns this admin's votes for an applicant plus the full voter list
+  /// per Stufe (for displaying the "Geprüft von X" rows in the panel).
+  Future<Map<String, dynamic>> listMyVotes(int userId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/list_my_votes.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Applicants with at least one Stufe waiting for the current Vorstand's
+  /// vote. Feeds the "Awaiting my vote" tab in Mitgliederverwaltung.
+  Future<Map<String, dynamic>> listPendingMyVote() async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/list_pending_my_vote.php'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   /// Audit trail (Art. 7(1) DSGVO Beweislast) for Stufe 6/7/8 document
   /// acceptances — Satzung, Datenschutzerklärung, Widerrufsbelehrung.
   /// Returns up to 3 rows per user (one per document_kind, server enforces

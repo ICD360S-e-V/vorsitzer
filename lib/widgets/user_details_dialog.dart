@@ -89,6 +89,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   String? _verifizierungFinanzielleSituation;
   Map<String, String?> _verifizierungAcceptances = {};
 
+  // Dual-approval state (per Stufe). Loaded in parallel with verifizierung.
+  // _myVotes[stufe]   = {decision, approved_at}            (this Vorstand only)
+  // _allVotes[stufe]  = [ {approved_by, approved_by_name, decision, ...}, ... ]
+  Map<int, Map<String, dynamic>> _myVotes = {};
+  Map<int, List<Map<String, dynamic>>> _allVotes = {};
+
   // Document acceptance audit trail (Stufe 6/7/8) — one entry per kind
   // (satzung / datenschutz / widerrufsbelehrung). Populated on dialog open
   // alongside _verifizierungStages. Empty until the GET endpoint resolves.
@@ -2914,6 +2920,38 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     // loaded in parallel with the verifizierung stages so the button can
     // render the moment the panel paints.
     _loadDocumentAcceptances();
+    _loadVotes();
+  }
+
+  Future<void> _loadVotes() async {
+    try {
+      final r = await widget.apiService.listMyVotes(widget.user.id);
+      if (!mounted) return;
+      if (r['success'] == true && r['data'] is Map) {
+        final data = r['data'] as Map;
+        final my = data['my_votes'];
+        final all = data['all_votes'];
+        final newMy = <int, Map<String, dynamic>>{};
+        final newAll = <int, List<Map<String, dynamic>>>{};
+        if (my is Map) {
+          for (final e in my.entries) {
+            final s = int.tryParse(e.key.toString());
+            if (s != null && e.value is Map) {
+              newMy[s] = Map<String, dynamic>.from(e.value as Map);
+            }
+          }
+        }
+        if (all is Map) {
+          for (final e in all.entries) {
+            final s = int.tryParse(e.key.toString());
+            if (s != null && e.value is List) {
+              newAll[s] = (e.value as List).map((v) => Map<String, dynamic>.from(v as Map)).toList();
+            }
+          }
+        }
+        setState(() { _myVotes = newMy; _allVotes = newAll; });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadDocumentAcceptances() async {
@@ -2966,27 +3004,54 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Future<void> _updateVerifizierungStatus(int stufe, String status, {String? notiz}) async {
+    // 'offen' = reset → legacy endpoint (verifizierung_update.php). Reset is
+    // a Vorstand-override, not a vote; the approvals table stays untouched.
+    // For geprueft/abgelehnt we route through castVote() so dual-approval
+    // semantics (2× geprueft to finalise, 1× abgelehnt to block) apply.
     setState(() => _isUpdatingVerifizierung = true);
     try {
-      final result = await widget.apiService.updateVerifizierung(
-        userId: widget.user.id,
-        stufe: stufe,
-        status: status,
-        notiz: notiz,
-      );
+      final result = (status == 'geprueft' || status == 'abgelehnt')
+          ? await widget.apiService.castVote(
+              userId: widget.user.id,
+              stufe: stufe,
+              decision: status,
+              notiz: notiz,
+            )
+          : await widget.apiService.updateVerifizierung(
+              userId: widget.user.id,
+              stufe: stufe,
+              status: status,
+              notiz: notiz,
+            );
       if (mounted) {
         setState(() => _isUpdatingVerifizierung = false);
         if (result['success'] == true) {
+          final newStufeStatus = (result['stufe_status'] ?? result['data']?['stufe_status'])?.toString();
+          final userStatus = (result['user_status'] ?? result['data']?['user_status'])?.toString();
+          String msg;
+          if (status == 'geprueft') {
+            final g = result['gepruefts'] ?? result['data']?['gepruefts'];
+            msg = newStufeStatus == 'geprueft'
+                ? 'Stufe $stufe: 2/2 — endgültig geprüft'
+                : 'Stufe $stufe: 1/2 — wartet auf 2. Vorstand';
+            if (g == null && newStufeStatus == null) msg = 'Vote registriert';
+          } else if (status == 'abgelehnt') {
+            msg = 'Stufe $stufe abgelehnt';
+          } else {
+            msg = 'Stufe $stufe zurückgesetzt';
+          }
+          if (userStatus == 'active') msg += ' · Mitglied jetzt aktiv';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(status == 'geprueft' ? 'Stufe $stufe geprüft' : status == 'abgelehnt' ? 'Stufe $stufe abgelehnt' : 'Stufe $stufe zurückgesetzt'),
+              content: Text(msg),
               backgroundColor: status == 'geprueft' ? Colors.green : status == 'abgelehnt' ? Colors.red : Colors.grey,
             ),
           );
           _loadVerifizierung();
         } else {
+          final code = result['message']?.toString() ?? 'Fehler';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'] ?? 'Fehler'), backgroundColor: Colors.red),
+            SnackBar(content: Text(code), backgroundColor: Colors.red),
           );
         }
       }
@@ -3140,6 +3205,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Widget _buildStufeCard(int stufe, String status, Map<String, dynamic> stage) {
     final color = _statusColor(status);
     final user = widget.user;
+    final votes = _allVotes[stufe] ?? const <Map<String, dynamic>>[];
+    final gepruefts = votes.where((v) => v['decision'] == 'geprueft').length;
+    final abgelehnts = votes.where((v) => v['decision'] == 'abgelehnt').length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -3158,11 +3226,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         ),
         title: Row(
           children: [
-            Text(
+            Expanded(child: Text(
               'Stufe $stufe: ${_stufeName(stufe)}',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(width: 8),
+              overflow: TextOverflow.ellipsis,
+            )),
+            const SizedBox(width: 6),
+            _voteDots(gepruefts, abgelehnts),
+            const SizedBox(width: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
@@ -3234,51 +3305,145 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   ),
                 ],
 
+                // Voter list (dual-approval audit trail)
+                if (votes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildVoterList(votes),
+                ],
+                if (gepruefts == 1 && abgelehnts == 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(children: [
+                      Icon(Icons.hourglass_top, size: 14, color: Colors.orange.shade700),
+                      const SizedBox(width: 6),
+                      Text('Wartet auf 2. Vorstand', style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+
                 const SizedBox(height: 12),
 
-                // Action buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (status != 'offen')
-                      TextButton.icon(
-                        onPressed: _isUpdatingVerifizierung ? null : () => _updateVerifizierungStatus(stufe, 'offen'),
-                        icon: const Icon(Icons.restart_alt, size: 18),
-                        label: const Text('Zurücksetzen'),
-                        style: TextButton.styleFrom(foregroundColor: Colors.grey),
-                      ),
-                    const SizedBox(width: 8),
-                    // Stufen 6/7/8 are legal-document accepts (Satzung,
-                    // Datenschutz, Widerrufsbelehrung) — rejection makes
-                    // no sense, they're either read+accepted or not.
-                    // Server-side guard also rejects 'abgelehnt' for these.
-                    if (status != 'abgelehnt' && stufe < 6)
-                      OutlinedButton.icon(
-                        onPressed: _isUpdatingVerifizierung ? null : () => _showAblehnungDialog(stufe),
-                        icon: const Icon(Icons.close, size: 18),
-                        label: const Text('Ablehnen'),
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                      ),
-                    const SizedBox(width: 8),
-                    if (status != 'geprueft')
-                      ElevatedButton.icon(
-                        onPressed: _isUpdatingVerifizierung ? null : () => _updateVerifizierungStatus(stufe, 'geprueft'),
-                        icon: _isUpdatingVerifizierung
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.check, size: 18),
-                        label: const Text('Geprüft'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                  ],
-                ),
+                // Action buttons (dual-approval rules)
+                _buildStufeActions(stufe, status),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// Two-dot indicator. Red ✗ if any abgelehnt, otherwise filled green dots
+  /// = number of geprueft votes (0..2), open dots = pending slots.
+  Widget _voteDots(int gepruefts, int abgelehnts) {
+    if (abgelehnts >= 1) {
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.cancel, size: 14, color: Colors.red.shade600),
+        const SizedBox(width: 2),
+        Icon(gepruefts >= 1 ? Icons.check_circle : Icons.radio_button_unchecked,
+             size: 14, color: gepruefts >= 1 ? Colors.green.shade600 : Colors.grey.shade400),
+      ]);
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(gepruefts >= 1 ? Icons.check_circle : Icons.radio_button_unchecked,
+           size: 14, color: gepruefts >= 1 ? Colors.green.shade600 : Colors.grey.shade400),
+      const SizedBox(width: 2),
+      Icon(gepruefts >= 2 ? Icons.check_circle : Icons.radio_button_unchecked,
+           size: 14, color: gepruefts >= 2 ? Colors.green.shade600 : Colors.grey.shade400),
+    ]);
+  }
+
+  Widget _buildVoterList(List<Map<String, dynamic>> votes) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.how_to_vote, size: 14, color: Colors.blue.shade700),
+          const SizedBox(width: 6),
+          Text('Vorstandsabstimmung (${votes.length}/2)',
+               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+        ]),
+        const SizedBox(height: 4),
+        ...votes.map((v) {
+          final isGeprueft = v['decision'] == 'geprueft';
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(children: [
+              Icon(isGeprueft ? Icons.check_circle : Icons.cancel,
+                   size: 12, color: isGeprueft ? Colors.green.shade700 : Colors.red.shade700),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                '${v['approved_by_name'] ?? '?'} · ${isGeprueft ? 'Geprüft' : 'Abgelehnt'} am ${_formatDate(v['approved_at']?.toString() ?? '')}',
+                style: const TextStyle(fontSize: 11),
+              )),
+            ]),
+          );
+        }),
+      ]),
+    );
+  }
+
+  Widget _buildStufeActions(int stufe, String status) {
+    final myVote = _myVotes[stufe];
+    final alreadyVoted = myVote != null;
+    final finalised = status == 'geprueft' || status == 'abgelehnt';
+    final canGeprueft = !alreadyVoted && !finalised;
+    // 6/7/8 = legal-doc accepts — Ablehnen never allowed.
+    final canAblehnen = !alreadyVoted && !finalised && stufe < 6;
+
+    String? geprueftTip;
+    if (alreadyVoted) {
+      geprueftTip = 'Du hast bereits ${myVote['decision'] == 'geprueft' ? 'Geprüft' : 'Abgelehnt'} abgestimmt';
+    } else if (status == 'geprueft') {
+      geprueftTip = 'Bereits 2/2 — endgültig akzeptiert';
+    } else if (status == 'abgelehnt') {
+      geprueftTip = 'Bereits abgelehnt — wartet auf Korrektur';
+    }
+    String? ablehnenTip = geprueftTip;
+    if (stufe >= 6) ablehnenTip = 'Stufen 6/7/8 können nicht abgelehnt werden';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (status != 'offen')
+          TextButton.icon(
+            onPressed: _isUpdatingVerifizierung ? null : () => _updateVerifizierungStatus(stufe, 'offen'),
+            icon: const Icon(Icons.restart_alt, size: 18),
+            label: const Text('Zurücksetzen'),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey),
+          ),
+        const SizedBox(width: 8),
+        if (stufe < 6)
+          Tooltip(
+            message: ablehnenTip ?? '',
+            child: OutlinedButton.icon(
+              onPressed: (_isUpdatingVerifizierung || !canAblehnen) ? null : () => _showAblehnungDialog(stufe),
+              icon: const Icon(Icons.close, size: 18),
+              label: const Text('Ablehnen'),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+            ),
+          ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: geprueftTip ?? '',
+          child: ElevatedButton.icon(
+            onPressed: (_isUpdatingVerifizierung || !canGeprueft) ? null : () => _updateVerifizierungStatus(stufe, 'geprueft'),
+            icon: _isUpdatingVerifizierung
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.check, size: 18),
+            label: Text(alreadyVoted && myVote['decision'] == 'geprueft' ? 'Geprüft ✓' : 'Geprüft'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
