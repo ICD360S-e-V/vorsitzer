@@ -480,7 +480,22 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (tR['success'] == true && tR['data'] is List) _termine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (kR['success'] == true && kR['data'] is List) {
+        _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        // Chronologische Reihenfolge, neueste oben — die Endpunkte geben die
+        // Einträge je nach Tabelle in inkonsistenter Reihenfolge zurück
+        // (manchmal nach id DESC, manchmal nach id ASC), also sortieren
+        // wir hier zentral nach dem Datum. Fällt auf created_at zurück,
+        // wenn datum fehlt; Einträge ohne beides landen am Ende.
+        _korr.sort((a, b) {
+          final aDt = _parseDatum(a['datum']?.toString()) ?? _parseDatum(a['created_at']?.toString());
+          final bDt = _parseDatum(b['datum']?.toString()) ?? _parseDatum(b['created_at']?.toString());
+          if (aDt == null && bDt == null) return 0;
+          if (aDt == null) return 1;
+          if (bDt == null) return -1;
+          return bDt.compareTo(aDt);
+        });
+      }
       if (rR != null && rR['sections'] is List) {
         _relatedSections = (rR['sections'] as List)
             .map((e) => Map<String, dynamic>.from(e as Map))
@@ -1287,6 +1302,32 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         Text(_methodeLabel(methode), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: c.shade800)),
       ]),
     );
+  }
+
+  /// Accepts both German (dd.mm.yyyy) and ISO (yyyy-mm-dd[ HH:mm:ss])
+  /// formats. Returns null when the input is empty or unparseable so the
+  /// sort can push those entries to the bottom.
+  DateTime? _parseDatum(String? s) {
+    if (s == null) return null;
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    final iso = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(t);
+    if (iso != null) {
+      try {
+        return DateTime(
+          int.parse(iso.group(1)!), int.parse(iso.group(2)!), int.parse(iso.group(3)!),
+        );
+      } catch (_) {}
+    }
+    final de = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})').firstMatch(t);
+    if (de != null) {
+      try {
+        return DateTime(
+          int.parse(de.group(3)!), int.parse(de.group(2)!), int.parse(de.group(1)!),
+        );
+      } catch (_) {}
+    }
+    return null;
   }
 
   Widget _buildKorrespondenz() {
