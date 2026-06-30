@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../services/external_browser_service.dart';
+import '../models/user.dart';
 import '../utils/brief_pdf_generator.dart';
 import '../utils/eigenbem_pdf_generator.dart';
 import '../utils/file_picker_helper.dart';
@@ -15,7 +17,10 @@ import 'korrespondenz_attachments_widget.dart';
 class BehordeJobcenterContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  const BehordeJobcenterContent({super.key, required this.apiService, required this.userId});
+  // Optional — needed by the Online-Termin button on the Antrag → Termin tab
+  // to autofill the Arbeitsagentur form with Stufe-1 data.
+  final User? user;
+  const BehordeJobcenterContent({super.key, required this.apiService, required this.userId, this.user});
   @override
   State<BehordeJobcenterContent> createState() => _BehordeJobcenterContentState();
 }
@@ -74,7 +79,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
       ]),
       Expanded(child: TabBarView(controller: _tabController, children: [
         _JobcenterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
-        _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load),
+        _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, data: _data, user: widget.user),
         _JobcenterStammdatenFieldsTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
         _JCVollmachtSection(apiService: widget.apiService, userId: widget.userId),
         _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
@@ -104,7 +109,7 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
     super.initState();
     final d = widget.data;
     final selName = d['stammdaten.selected_amt_name'] ?? '';
-    if (selName.isNotEmpty) _selected = {'name': selName, 'strasse': d['stammdaten.selected_amt_adresse'] ?? '', 'ort': d['stammdaten.selected_amt_ort'] ?? '', 'telefon': d['stammdaten.selected_amt_telefon'] ?? '', 'fax': d['stammdaten.selected_amt_fax'] ?? '', 'email': d['stammdaten.selected_amt_email'] ?? '', 'website': d['stammdaten.selected_amt_website'] ?? '', 'oeffnungszeiten': d['stammdaten.selected_amt_oeffnungszeiten'] ?? ''};
+    if (selName.isNotEmpty) _selected = {'name': selName, 'strasse': d['stammdaten.selected_amt_adresse'] ?? '', 'ort': d['stammdaten.selected_amt_ort'] ?? '', 'telefon': d['stammdaten.selected_amt_telefon'] ?? '', 'fax': d['stammdaten.selected_amt_fax'] ?? '', 'email': d['stammdaten.selected_amt_email'] ?? '', 'website': d['stammdaten.selected_amt_website'] ?? '', 'oeffnungszeiten': d['stammdaten.selected_amt_oeffnungszeiten'] ?? '', 'termin_url': d['stammdaten.selected_amt_termin_url'] ?? ''};
   }
 
   @override
@@ -166,6 +171,9 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
       'stammdaten.selected_amt_email': s['email']?.toString() ?? '',
       'stammdaten.selected_amt_website': s['website']?.toString() ?? '',
       'stammdaten.selected_amt_oeffnungszeiten': s['oeffnungszeiten']?.toString() ?? '',
+      // Carry the Online-Termin URL through so the Antrag → Termin tab
+      // can render an "Online Termin" button without re-querying datenbank.
+      'stammdaten.selected_amt_termin_url': s['termin_url']?.toString() ?? '',
     });
     if (mounted) setState(() {});
   }
@@ -215,6 +223,8 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
           _infoRow(Icons.fax, 'Fax', s['fax']?.toString() ?? ''),
           _infoRow(Icons.email, 'E-Mail', s['email']?.toString() ?? ''),
           _infoRow(Icons.language, 'Website', s['website']?.toString() ?? ''),
+          if ((s['termin_url']?.toString() ?? '').isNotEmpty)
+            _infoRow(Icons.event_available, 'Online-Termin', s['termin_url']?.toString() ?? ''),
           if ((s['oeffnungszeiten']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade100)),
@@ -237,7 +247,18 @@ class _JobcenterAntragTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  const _JobcenterAntragTab({required this.antraege, required this.apiService, required this.userId, required this.onReload});
+  // jobcenter_data — passed through so the Termin tab can read
+  // `stammdaten.selected_amt_termin_url` for the Online-Termin button.
+  final Map<String, dynamic>? data;
+  final User? user;
+  const _JobcenterAntragTab({
+    required this.antraege,
+    required this.apiService,
+    required this.userId,
+    required this.onReload,
+    this.data,
+    this.user,
+  });
   @override
   State<_JobcenterAntragTab> createState() => _JobcenterAntragTabState();
 }
@@ -362,7 +383,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
   void _openDetail(Map<String, dynamic> antrag) {
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => Dialog(
       insetPadding: const EdgeInsets.all(20),
-      child: SizedBox(width: 700, height: 550, child: _AntragDetailModal(antrag: antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload)),
+      child: SizedBox(width: 700, height: 550, child: _AntragDetailModal(antrag: antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, data: widget.data, user: widget.user)),
     ));
   }
 
@@ -439,7 +460,19 @@ class _AntragDetailModal extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  const _AntragDetailModal({required this.antrag, required this.apiService, required this.userId, required this.onReload});
+  // jobcenter_data + user — needed by the Termin tab's Online-Termin
+  // button to look up the selected Jobcenter's termin_url and autofill
+  // the Arbeitsagentur form with the member's Stufe-1 data.
+  final Map<String, dynamic>? data;
+  final User? user;
+  const _AntragDetailModal({
+    required this.antrag,
+    required this.apiService,
+    required this.userId,
+    required this.onReload,
+    this.data,
+    this.user,
+  });
   @override
   State<_AntragDetailModal> createState() => _AntragDetailModalState();
 }
@@ -489,14 +522,14 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
         ? [
             _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
-            _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+            _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
             _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _BetriebskostenBriefGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
           ]
         : [
             _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
-            _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+            _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
             _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -1977,7 +2010,21 @@ class _AntragTerminTab extends StatefulWidget {
   final int antragId;
   final ApiService apiService;
   final int userId;
-  const _AntragTerminTab({required this.antragId, required this.apiService, required this.userId});
+  // Online-Termin URL of the currently selected Jobcenter (or null if no
+  // Jobcenter is selected / it has no termin_url). When non-null we render
+  // an "Online Termin" button at the top of the Termine list.
+  final String? terminUrl;
+  // User object — read for Stufe-1-equivalent fields (vorname/nachname/
+  // geburtsdatum/email/telefon/strasse/...) the autofill JS injects into
+  // the Arbeitsagentur form.
+  final User? user;
+  const _AntragTerminTab({
+    required this.antragId,
+    required this.apiService,
+    required this.userId,
+    this.terminUrl,
+    this.user,
+  });
   @override
   State<_AntragTerminTab> createState() => _AntragTerminTabState();
 }
@@ -2036,13 +2083,61 @@ class _AntragTerminTabState extends State<_AntragTerminTab> {
     await _load();
   }
 
+  Future<void> _openOnlineTermin() async {
+    final url = widget.terminUrl;
+    if (url == null || url.isEmpty || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(
+      content: Row(children: const [
+        SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+        SizedBox(width: 10),
+        Text('Externer Browser wird geöffnet …'),
+      ]),
+      duration: const Duration(seconds: 4),
+    ));
+    final err = await ExternalBrowserService.openWithAutoFill(
+      url: url,
+      autoFillJs: _terminAutoFillJs(widget.user),
+    );
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    if (err != null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(err),
+        backgroundColor: Colors.red.shade700,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
+    final hasOnlineTermin = (widget.terminUrl ?? '').isNotEmpty;
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
         Text('Termine (${_termine.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade800)),
         const Spacer(),
+        if (hasOnlineTermin) ...[
+          OutlinedButton.icon(
+            onPressed: _openOnlineTermin,
+            icon: const Icon(Icons.language, size: 14),
+            label: const Text('Online Termin', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.indigo.shade700,
+              side: BorderSide(color: Colors.indigo.shade300),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: Size.zero,
+            ),
+          ),
+          const SizedBox(width: 6),
+        ] else
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Tooltip(
+              message: 'Kein Online-Termin-URL — Zuständiges Jobcenter wählen',
+              child: Icon(Icons.info_outline, size: 16, color: Colors.grey.shade400),
+            ),
+          ),
         ElevatedButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
@@ -2059,6 +2154,127 @@ class _AntragTerminTabState extends State<_AntragTerminTab> {
           })),
     ]);
   }
+}
+
+/// Build the auto-fill JS that runs inside the external Chromium tab on
+/// every navigation. Strategy:
+///   1. Stash the member's Stufe-1 data on `window.__icd360sUser`.
+///   2. Walk the DOM looking for inputs whose `name`/`id`/`placeholder`/
+///      surrounding label text matches a known field (Vorname/Nachname/
+///      Geburtsdatum/Straße/Hausnummer/PLZ/Ort/E-Mail/Telefon).
+///   3. Set the value + dispatch input/change/blur so Angular/React keeps
+///      the value (the Arbeitsagentur portal uses Angular form bindings,
+///      so a raw `el.value = ...` alone is ignored).
+///   4. Run on DOMContentLoaded AND on a 500ms interval for the first 30s
+///      to catch async-rendered forms.
+String _terminAutoFillJs(User? user) {
+  String esc(String? v) => (v ?? '').replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+  final vorname = esc(user?.vorname);
+  final nachname = esc(user?.nachname);
+  final email = esc(user?.email);
+  final telefon = esc(user?.telefonMobil);
+  final strasse = esc(user?.strasse);
+  final hausnummer = esc(user?.hausnummer);
+  final plz = esc(user?.plz);
+  final ort = esc(user?.ort);
+  // user.geburtsdatum is stored ISO (yyyy-mm-dd) — convert to dd.mm.yyyy
+  // since the BA form expects German date format.
+  String geb = '';
+  if ((user?.geburtsdatum ?? '').isNotEmpty) {
+    final s = user!.geburtsdatum!;
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(s);
+    if (m != null) geb = '${m.group(3)}.${m.group(2)}.${m.group(1)}';
+  }
+  geb = esc(geb);
+  return '''
+(function () {
+  if (window.__icd360sTerminInjected) return;
+  window.__icd360sTerminInjected = true;
+  window.__icd360sUser = {
+    vorname: '$vorname',
+    nachname: '$nachname',
+    email: '$email',
+    telefon: '$telefon',
+    strasse: '$strasse',
+    hausnummer: '$hausnummer',
+    plz: '$plz',
+    ort: '$ort',
+    geburtsdatum: '$geb',
+  };
+  // Field-name → user-key map. Matched against name/id/placeholder/aria-label
+  // and the closest surrounding <label>.
+  var MAP = [
+    [['vorname','firstname','given-name'], 'vorname'],
+    [['nachname','familienname','lastname','surname','family-name'], 'nachname'],
+    [['gebdatum','geburtsdatum','birthdate','dateofbirth'], 'geburtsdatum'],
+    [['email','e-mail','mail'], 'email'],
+    [['telefon','tel','phone','mobile','handy'], 'telefon'],
+    [['strasse','straße','street'], 'strasse'],
+    [['hausnummer','hausnr','housenumber'], 'hausnummer'],
+    [['plz','postleitzahl','zip','postal'], 'plz'],
+    [['ort','stadt','city','wohnort'], 'ort'],
+  ];
+  function lower(s){ return (s||'').toString().toLowerCase(); }
+  function setValue(el, v){
+    if (!el || v == null || v === '') return false;
+    try {
+      var proto = Object.getPrototypeOf(el);
+      var setter = Object.getOwnPropertyDescriptor(proto, 'value') &&
+                   Object.getOwnPropertyDescriptor(proto, 'value').set;
+      if (setter) setter.call(el, v); else el.value = v;
+      el.dispatchEvent(new Event('input', {bubbles: true}));
+      el.dispatchEvent(new Event('change', {bubbles: true}));
+      el.dispatchEvent(new Event('blur', {bubbles: true}));
+      return true;
+    } catch (e) { return false; }
+  }
+  function findKey(el) {
+    var hay = [
+      lower(el.name), lower(el.id),
+      lower(el.placeholder), lower(el.getAttribute('aria-label')),
+    ];
+    // closest label text
+    try {
+      var lbl = el.closest('label') || (el.id && document.querySelector('label[for="'+el.id+'"]'));
+      if (lbl) hay.push(lower(lbl.innerText || lbl.textContent));
+    } catch (_) {}
+    for (var i = 0; i < MAP.length; i++) {
+      var aliases = MAP[i][0];
+      for (var j = 0; j < aliases.length; j++) {
+        for (var k = 0; k < hay.length; k++) {
+          if (hay[k] && hay[k].indexOf(aliases[j]) !== -1) return MAP[i][1];
+        }
+      }
+    }
+    return null;
+  }
+  function fill() {
+    var els = document.querySelectorAll('input, textarea');
+    var filled = 0;
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.type === 'hidden' || el.type === 'submit' || el.type === 'button') continue;
+      if (el.value && el.value.length > 0) continue; // don't overwrite user typing
+      var key = findKey(el);
+      if (!key) continue;
+      var v = window.__icd360sUser[key];
+      if (setValue(el, v)) filled++;
+    }
+    return filled;
+  }
+  // Initial + post-load attempts.
+  try { fill(); } catch(_) {}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ try { fill(); } catch(_) {} });
+  }
+  // Catch async forms for first 30s.
+  var ticks = 0;
+  var iv = setInterval(function(){
+    try { fill(); } catch(_) {}
+    if (++ticks >= 60) clearInterval(iv);
+  }, 500);
+})();
+''';
 }
 
 // ==================== TAB 3: Stammdaten (readonly) ====================

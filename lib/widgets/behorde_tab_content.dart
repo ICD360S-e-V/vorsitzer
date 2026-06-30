@@ -430,6 +430,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 BehordeJobcenterContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
+                  user: widget.user,
                 ),
                 _buildTabContent('landratsamt', () => BehordeLandratsamtContent(
                   apiService: widget.apiService,
