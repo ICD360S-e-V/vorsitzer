@@ -786,7 +786,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                       if (selectedArzt['telefon']?.isNotEmpty == true)
                                         _arztInfoChip(Icons.phone, selectedArzt['telefon']),
                                       if (selectedArzt['fax']?.isNotEmpty == true)
-                                        _arztInfoChip(Icons.fax, 'Fax: ${selectedArzt['fax']}'),
+                                        _arztFaxChip(selectedArzt['fax']),
                                       if (selectedArzt['email']?.isNotEmpty == true)
                                         _arztInfoChip(Icons.email, selectedArzt['email']),
                                       if (selectedArzt['website']?.isNotEmpty == true)
@@ -1006,6 +1006,36 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
           const SizedBox(width: 4),
           Text(text, style: TextStyle(fontSize: 12, color: hasLink ? Colors.teal.shade700 : Colors.grey.shade700, decoration: hasLink ? TextDecoration.underline : null)),
         ],
+      ),
+    );
+  }
+
+  /// Fax chip with a tap-to-copy affordance. Uses ClipboardHelper.copy which
+  /// auto-clears the clipboard after 30 seconds so the fax number doesn't
+  /// linger for other apps to read — relevant since fax numbers tie to
+  /// medical practices that often appear in encrypted health correspondence.
+  Widget _arztFaxChip(String fax) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => ClipboardHelper.copy(context, fax, 'Fax-Nummer'),
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.fax, size: 14, color: Colors.teal.shade700),
+              const SizedBox(width: 4),
+              Text(
+                'Fax: $fax',
+                style: TextStyle(fontSize: 12, color: Colors.teal.shade700),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.content_copy, size: 12, color: Colors.teal.shade400),
+            ],
+          ),
+        ),
       ),
     );
   }
