@@ -410,6 +410,17 @@ class _MitgliederverwaltungVertraegeVersicherungState
     final id = int.tryParse(existing?['id']?.toString() ?? '');
     int? selVersId = int.tryParse(existing?['versicherung_id']?.toString() ?? '');
     String sparte = existing?['tarif']?.toString() ?? defaultSparte ?? 'haftpflicht';
+
+    // When opened from a Sparte-Vertrag-Pane, the sparte is already fixed by
+    // context — hide the Sparte dropdown and pre-select the sole Zuständige
+    // if there's exactly one. Multiple → user picks via chips. None → keep
+    // the search button as fallback.
+    final sparteLocked = defaultSparte != null;
+    final zustaendige = _zustaendigeFuerSparte(sparte);
+    if (sparteLocked && selVersId == null && zustaendige.length == 1) {
+      selVersId = int.tryParse(zustaendige.first['vers']['id']?.toString() ?? '');
+    }
+
     final nrC = TextEditingController(text: existing?['vertragsnummer']?.toString() ?? '');
     final beginnC = TextEditingController(text: existing?['vertragsbeginn']?.toString() ?? '');
     final kostenC = TextEditingController(text: existing?['monatliche_kosten']?.toString() ?? '');
@@ -426,7 +437,41 @@ class _MitgliederverwaltungVertraegeVersicherungState
         title: Text(id != null ? 'Vertrag bearbeiten' : 'Neuer Vertrag',
           style: TextStyle(color: Colors.green.shade800)),
         content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
+          if (sparteLocked) ...[
+            Row(children: [
+              Icon(_versicherungSpartenIcons[sparte] ?? Icons.category, size: 16, color: Colors.green.shade700),
+              const SizedBox(width: 6),
+              Text('Sparte: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              Text(_versicherungSparten[sparte] ?? sparte,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.green.shade900)),
+            ]),
+            const SizedBox(height: 10),
+          ],
+          // Versicherung: quick-pick chips from Zuständige (if any) + fallback search
+          if (zustaendige.isNotEmpty && sel == null) ...[
+            Text('Zuständige Versicherung wählen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final z in zustaendige)
+                ChoiceChip(
+                  label: Text(z['vers']['name']?.toString() ?? '?', style: const TextStyle(fontSize: 12)),
+                  selected: false,
+                  onSelected: (_) => setD(() => selVersId = int.tryParse(z['vers']['id']?.toString() ?? '')),
+                  avatar: Icon(Icons.shield, size: 14, color: Colors.green.shade700),
+                ),
+              ActionChip(
+                label: const Text('Andere...', style: TextStyle(fontSize: 12)),
+                avatar: const Icon(Icons.search, size: 14),
+                onPressed: () async {
+                  final picked = await _showVersicherungSearch(ctx2, sparteKey: sparte);
+                  if (picked != null) {
+                    setD(() => selVersId = int.tryParse(picked['id']?.toString() ?? ''));
+                  }
+                },
+              ),
+            ]),
+            const SizedBox(height: 10),
+          ] else Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
             child: Row(children: [
@@ -448,22 +493,24 @@ class _MitgliederverwaltungVertraegeVersicherungState
             ]),
           ),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            initialValue: sparte,
-            isExpanded: true,
-            decoration: InputDecoration(
-              labelText: 'Sparte',
-              prefixIcon: const Icon(Icons.category, size: 18),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          if (!sparteLocked) ...[
+            DropdownButtonFormField<String>(
+              initialValue: sparte,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Sparte',
+                prefixIcon: const Icon(Icons.category, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              items: _versicherungSparten.entries.map((e) => DropdownMenuItem(
+                value: e.key,
+                child: Text(e.value, style: const TextStyle(fontSize: 13)),
+              )).toList(),
+              onChanged: (v) => setD(() => sparte = v ?? 'sonstige'),
             ),
-            items: _versicherungSparten.entries.map((e) => DropdownMenuItem(
-              value: e.key,
-              child: Text(e.value, style: const TextStyle(fontSize: 13)),
-            )).toList(),
-            onChanged: (v) => setD(() => sparte = v ?? 'sonstige'),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 8),
+          ],
           TextField(
             controller: nrC,
             decoration: InputDecoration(
