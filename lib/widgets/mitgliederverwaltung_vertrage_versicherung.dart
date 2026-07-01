@@ -562,21 +562,54 @@ class _MitgliederverwaltungVertraegeVersicherungState
           TextButton(onPressed: submitting ? null : () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           FilledButton(
             onPressed: submitting ? null : () async {
-              if (selVersId == null || nrC.text.trim().isEmpty || beginnC.text.trim().isEmpty) return;
+              // Explicit validation with visible feedback — silent return
+              // was confusing the Vorstand ("Nichts passiert!").
+              String? missing;
+              if (selVersId == null) missing = 'Bitte Versicherung auswählen';
+              else if (nrC.text.trim().isEmpty) missing = 'Bitte Vertragsnummer eintragen';
+              else if (beginnC.text.trim().isEmpty) missing = 'Bitte Vertragsbeginn wählen';
+              if (missing != null) {
+                ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(
+                  content: Text(missing),
+                  backgroundColor: Colors.orange.shade700,
+                  duration: const Duration(seconds: 2),
+                ));
+                return;
+              }
               setD(() => submitting = true);
-              final versName = _byId[selVersId!]?['name']?.toString() ?? '';
-              await widget.apiService.saveVertrag(widget.userId, {
-                if (id != null) 'id': id,
-                'kategorie': 'versicherung',
-                'versicherung_id': selVersId,
-                'anbieter': versName,
-                'vertragsnummer': nrC.text.trim(),
-                'tarif': sparte,
-                'vertragsbeginn': beginnC.text.trim(),
-                'monatliche_kosten': kostenC.text.trim().isEmpty ? null : double.tryParse(kostenC.text.trim().replaceAll(',', '.')),
-                'is_active': 1,
-              });
-              if (ctx.mounted) Navigator.pop(ctx, true);
+              try {
+                final versName = _byId[selVersId!]?['name']?.toString() ?? '';
+                final r = await widget.apiService.saveVertrag(widget.userId, {
+                  if (id != null) 'id': id,
+                  'kategorie': 'versicherung',
+                  'versicherung_id': selVersId,
+                  'anbieter': versName,
+                  'vertragsnummer': nrC.text.trim(),
+                  'tarif': sparte,
+                  'vertragsbeginn': beginnC.text.trim(),
+                  'monatliche_kosten': kostenC.text.trim().isEmpty ? null : double.tryParse(kostenC.text.trim().replaceAll(',', '.')),
+                  'is_active': 1,
+                });
+                if (r['success'] == true) {
+                  if (ctx.mounted) Navigator.pop(ctx, true);
+                } else {
+                  setD(() => submitting = false);
+                  if (ctx2.mounted) {
+                    ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(
+                      content: Text('Fehler: ${r['message'] ?? 'Speichern fehlgeschlagen'}'),
+                      backgroundColor: Colors.red.shade700,
+                    ));
+                  }
+                }
+              } catch (e) {
+                setD(() => submitting = false);
+                if (ctx2.mounted) {
+                  ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(
+                    content: Text('Netzwerkfehler: $e'),
+                    backgroundColor: Colors.red.shade700,
+                  ));
+                }
+              }
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
             child: submitting
