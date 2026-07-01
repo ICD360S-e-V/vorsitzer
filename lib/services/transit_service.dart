@@ -88,6 +88,9 @@ class TransitLocation {
   final String? type; // "stop", "locality", "poi"
   final double? lat;
   final double? lon;
+  /// Which provider found this location — needed so `searchJourneys` uses the
+  /// same one instead of `activeProvider` (server IP may be in a different region).
+  final TransitProviderConfig? sourceProvider;
 
   TransitLocation({
     required this.id,
@@ -95,6 +98,7 @@ class TransitLocation {
     this.type,
     this.lat,
     this.lon,
+    this.sourceProvider,
   });
 }
 
@@ -1204,67 +1208,113 @@ class TransitService {
   // ══════════════════════════════════════════════════════════════
 
   /// Autocomplete stops/localities matching [query].
-  /// Dispatches to EFA or HAFAS depending on active provider.
-  /// Falls back to bahn.de (Germany-wide) if provider search fails or is empty.
+  /// Searches ALL EFA providers + bahn.de in parallel — the server may be in
+  /// a region (e.g. Limburg → RMV) that doesn't cover the queried city
+  /// (e.g. Neu-Ulm → DING). Merges + deduplicates by name.
+  /// Each result carries `sourceProvider` so `searchJourneys` uses the right one.
   Future<List<TransitLocation>> searchLocations(String query) async {
     if (query.trim().length < 2) return [];
-    final provider = activeProvider ?? _providers.first;
-    List<TransitLocation> results = [];
 
-    try {
-      if (provider.api == TransitApiType.efa) {
-        results = await _efaLocationSearch(provider, query);
-      } else {
-        results = await _hafasLocationSearch(provider, query);
-      }
-    } catch (e) {
-      _log.error('Transit: Provider location search failed: $e', tag: 'TRANSIT');
+    // Fire all EFA providers + bahn.de in parallel. Individual failures → empty list.
+    final futures = <Future<List<TransitLocation>>>[];
+    for (final p in _providers) {
+      if (p.api != TransitApiType.efa) continue;
+      futures.add(
+        _efaLocationSearch(p, query)
+            .then((list) => list.map((l) => TransitLocation(
+                  id: l.id, name: l.name, type: l.type, lat: l.lat, lon: l.lon,
+                  sourceProvider: p,
+                )).toList())
+            .catchError((e) {
+              _log.debug('Transit: EFA search ${p.name} failed: $e', tag: 'TRANSIT');
+              return <TransitLocation>[];
+            }),
+      );
     }
+    futures.add(
+      _bahnLocationSearch(query).catchError((e) {
+        _log.debug('Transit: bahn.de search failed: $e', tag: 'TRANSIT');
+        return <TransitLocation>[];
+      }),
+    );
 
-    // Fallback to bahn.de (Germany-wide open API, no auth)
-    if (results.isEmpty) {
-      try {
-        results = await _bahnLocationSearch(query);
-      } catch (e) {
-        _log.error('Transit: bahn.de location search failed: $e', tag: 'TRANSIT');
+    final allResults = await Future.wait(futures);
+
+    // Merge + deduplicate by (name, id). Prioritize stops over cities/streets.
+    final seen = <String>{};
+    final stops = <TransitLocation>[];
+    final others = <TransitLocation>[];
+    for (final list in allResults) {
+      for (final loc in list) {
+        final key = '${loc.name.toLowerCase()}|${loc.id}';
+        if (seen.contains(key)) continue;
+        seen.add(key);
+        if (loc.type == 'stop') {
+          stops.add(loc);
+        } else {
+          others.add(loc);
+        }
       }
     }
-
-    return results.take(15).toList();
+    // Stops first (bus/tram/train stations), then localities/streets/POIs.
+    return [...stops, ...others].take(20).toList();
   }
 
   /// Search journeys between two locations.
-  /// [from] and [to] are location IDs returned by [searchLocations].
-  /// [fromName] and [toName] are needed for the bahn.de fallback.
+  /// Uses [from.sourceProvider] and [to.sourceProvider] to pick the right
+  /// backend — NOT `activeProvider` (which reflects the server's GPS position,
+  /// not the location the user is asking about).
+  ///
+  /// Routing:
+  ///   - Both from same EFA provider  → that provider's EFA trip search
+  ///   - Both from same HAFAS provider → that provider's HAFAS trip search
+  ///   - Different providers (intercity) or bahn.de source → bahn.de HAFAS
   Future<List<Journey>> searchJourneys({
     required TransitLocation from,
     required TransitLocation to,
     DateTime? departureTime,
   }) async {
-    final provider = activeProvider ?? _providers.first;
     final when = departureTime ?? DateTime.now();
     List<Journey> results = [];
 
-    try {
-      if (provider.api == TransitApiType.efa) {
-        results = await _efaTripSearch(provider, from, to, when);
-      } else {
-        results = await _hafasTripSearch(provider, from, to, when);
+    final fp = from.sourceProvider;
+    final tp = to.sourceProvider;
+    final sameProvider = fp != null && tp != null && fp.type == tp.type;
+
+    if (sameProvider) {
+      try {
+        if (fp.api == TransitApiType.efa) {
+          results = await _efaTripSearch(fp, from, to, when);
+        } else {
+          results = await _hafasTripSearch(fp, from, to, when);
+        }
+      } catch (e) {
+        _log.error('Transit: ${fp.name} trip search failed: $e', tag: 'TRANSIT');
       }
-    } catch (e) {
-      _log.error('Transit: Provider trip search failed: $e', tag: 'TRANSIT');
     }
 
-    // Fallback to bahn.de HAFAS (Germany-wide, covers all local transit)
+    // Fallback (or intercity) → bahn.de HAFAS (Germany-wide).
+    // For bahn.de we need bahn-style IDs; re-resolve names via bahn.de.
     if (results.isEmpty) {
       try {
-        results = await _bahnTripSearch(from, to, when);
+        results = await _bahnTripSearchByName(from.name, to.name, when);
       } catch (e) {
         _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
       }
     }
 
     return results;
+  }
+
+  /// bahn.de journey search that resolves location names to bahn.de IDs first.
+  /// Used for intercity queries or when local provider fails.
+  Future<List<Journey>> _bahnTripSearchByName(String fromName, String toName, DateTime when) async {
+    final results = await Future.wait([
+      _bahnLocationSearch(fromName),
+      _bahnLocationSearch(toName),
+    ]);
+    if (results[0].isEmpty || results[1].isEmpty) return [];
+    return _bahnTripSearch(results[0].first, results[1].first, when);
   }
 
   // ── EFA trip/location endpoints ────────────────────────────────
