@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+import 'package:geolocator/geolocator.dart';
 import 'package:http/io_client.dart';
 import 'notification_service.dart';
 import 'logger_service.dart';
@@ -61,17 +63,31 @@ class WeatherCode {
 /// Current weather data
 class WeatherData {
   final double temperature;
+  final double apparentTemperature;
   final int weatherCode;
   final double windSpeed;
+  final double windDirection;
   final int humidity;
+  final double precipitation;
+  final double pressureMsl;
+  final double? uvIndex;
+  final int? cloudCover;
+  final bool isDay;
   final String city;
   final DateTime timestamp;
 
   WeatherData({
     required this.temperature,
+    required this.apparentTemperature,
     required this.weatherCode,
     required this.windSpeed,
+    required this.windDirection,
     required this.humidity,
+    required this.precipitation,
+    required this.pressureMsl,
+    this.uvIndex,
+    this.cloudCover,
+    required this.isDay,
     required this.city,
     required this.timestamp,
   });
@@ -81,6 +97,12 @@ class WeatherData {
   bool get isRain => WeatherCode.isRain(weatherCode);
   bool get isSnow => WeatherCode.isSnow(weatherCode);
   bool get isThunder => WeatherCode.isThunder(weatherCode);
+
+  /// Compass direction from windDirection degrees (0=N, 90=E, 180=S, 270=W)
+  String get windCompass {
+    const dirs = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
+    return dirs[((windDirection % 360) / 45).round() % 8];
+  }
 }
 
 /// Hourly forecast entry
@@ -99,6 +121,26 @@ class HourlyForecast {
     required this.windSpeed,
     required this.humidity,
     required this.precipitation,
+  });
+
+  String get icon => WeatherCode.icon(weatherCode);
+  String get description => WeatherCode.describe(weatherCode);
+}
+
+/// 15-minute nowcast entry (Open-Meteo minutely_15) — used for the header timeline bar.
+class MinutelyForecast {
+  final DateTime time;
+  final double temperature;
+  final int weatherCode;
+  final double precipitation;
+  final double windSpeed;
+
+  MinutelyForecast({
+    required this.time,
+    required this.temperature,
+    required this.weatherCode,
+    required this.precipitation,
+    required this.windSpeed,
   });
 
   String get icon => WeatherCode.icon(weatherCode);
@@ -172,12 +214,18 @@ class WeatherAlert {
 class WeatherService {
   Timer? _weatherTimer;
   Timer? _alertTimer;
+  StreamSubscription<Position>? _gpsSubscription;
+  DateTime? _lastGpsRefreshAt;
   double? _latitude;
   double? _longitude;
+  double? _lastGeocodedLat;
+  double? _lastGeocodedLon;
   String _city = '';
+  bool _gpsRefreshEnabled = false;
 
   WeatherData? currentWeather;
   List<WeatherAlert> currentAlerts = [];
+  List<MinutelyForecast> minutelyForecast = [];
   List<HourlyForecast> hourlyForecast = [];
   List<DailyForecast> dailyForecast = [];
 
@@ -192,13 +240,18 @@ class WeatherService {
 
   final _client = IOClient(HttpClientFactory.createDefaultHttpClient());
 
-  /// Start weather monitoring — accepts optional GPS coordinates
-  Future<void> start(String city, {double? lat, double? lon}) async {
+  /// Start weather monitoring — accepts optional GPS coordinates.
+  /// When [followGps] is true, the service re-reads the device GPS every 15 minutes
+  /// and updates the location (with reverse-geocoded city name) if the user moved.
+  Future<void> start(String city, {double? lat, double? lon, bool followGps = false}) async {
     _city = city;
+    _gpsRefreshEnabled = followGps;
 
     if (lat != null && lon != null) {
       _latitude = lat;
       _longitude = lon;
+      _lastGeocodedLat = lat;
+      _lastGeocodedLon = lon;
       _log.info('Weather: Starting with GPS ($_latitude, $_longitude)', tag: 'WEATHER');
     } else if (city.isNotEmpty) {
       _log.info('Weather: Starting for city "$city"', tag: 'WEATHER');
@@ -207,6 +260,8 @@ class WeatherService {
         _log.error('Weather: Could not geocode "$city"', tag: 'WEATHER');
         return;
       }
+      _lastGeocodedLat = _latitude;
+      _lastGeocodedLon = _longitude;
     } else {
       _log.info('Weather: No location provided, skipping', tag: 'WEATHER');
       return;
@@ -216,22 +271,147 @@ class WeatherService {
     await _fetchWeather();
     await _fetchAlerts();
 
-    // Weather every 30 minutes
-    _weatherTimer = Timer.periodic(const Duration(minutes: 30), (_) => _fetchWeather());
+    // Weather every 5 minutes: Bright Sky DWD observations refresh ~10 min server-side,
+    // Open-Meteo current ~15 min; 5-min polling picks up updates as soon as they land.
+    _weatherTimer = Timer.periodic(const Duration(minutes: 5), (_) => _fetchWeather());
 
     // Alerts every 15 minutes
     _alertTimer = Timer.periodic(const Duration(minutes: 15), (_) => _fetchAlerts());
+
+    // Optional GPS follow: event-driven (only fires when device actually moves ≥1m).
+    // Battery-friendly: idle phones never trigger the callback.
+    if (followGps) {
+      _startGpsStream();
+    }
   }
 
   void stop() {
     _weatherTimer?.cancel();
     _alertTimer?.cancel();
+    _gpsSubscription?.cancel();
     _weatherTimer = null;
     _alertTimer = null;
+    _gpsSubscription = null;
     _lastNotifiedWeatherCode = null;
     _lastNotifiedStrongWind = false;
     _lastNotifiedAlertHeadlines = {};
     _log.info('Weather: Stopped', tag: 'WEATHER');
+  }
+
+  /// Enable/disable GPS follow after start().
+  void setFollowGps(bool enabled) {
+    if (_gpsRefreshEnabled == enabled) return;
+    _gpsRefreshEnabled = enabled;
+    if (enabled && _gpsSubscription == null) {
+      _startGpsStream();
+    } else if (!enabled) {
+      _gpsSubscription?.cancel();
+      _gpsSubscription = null;
+      _log.info('Weather: GPS follow disabled', tag: 'WEATHER');
+    }
+  }
+
+  /// Start the platform location stream. distanceFilter=1 means we only get callbacks
+  /// when the device moves ≥1m — so a phone sitting on a desk produces zero events
+  /// (no polling, no battery drain). When it moves, we throttle to at most one weather
+  /// refresh per 15 min to respect API limits.
+  void _startGpsStream() {
+    try {
+      _gpsSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          distanceFilter: 1, // meters
+        ),
+      ).listen(
+        _onGpsMoved,
+        onError: (e) => _log.debug('Weather: GPS stream error: $e', tag: 'WEATHER'),
+      );
+      _log.info('Weather: GPS follow enabled (event-driven, distanceFilter=1m)', tag: 'WEATHER');
+    } catch (e) {
+      _log.error('Weather: could not start GPS stream: $e', tag: 'WEATHER');
+    }
+  }
+
+  /// Called by the platform whenever the device moves at least 1m.
+  /// Throttles weather refresh so we don't spam APIs during a walk/drive.
+  Future<void> _onGpsMoved(Position pos) async {
+    if (!_gpsRefreshEnabled) return;
+
+    // Throttle: at most one refresh per 15 min unless we jump ≥5km (big move → refresh immediately).
+    final now = DateTime.now();
+    final since = _lastGpsRefreshAt == null
+        ? const Duration(days: 365)
+        : now.difference(_lastGpsRefreshAt!);
+
+    double moved = 0;
+    if (_latitude != null && _longitude != null) {
+      moved = _distanceMeters(_latitude!, _longitude!, pos.latitude, pos.longitude);
+    }
+    final bigJump = moved >= 5000;
+    if (!bigJump && since < const Duration(minutes: 15)) {
+      return; // still hot — skip
+    }
+
+    _lastGpsRefreshAt = now;
+    _latitude = pos.latitude;
+    _longitude = pos.longitude;
+
+    // Reverse-geocode only on significant relocation (>5km from last geocoded pos).
+    final geoMoved = _lastGeocodedLat != null && _lastGeocodedLon != null
+        ? _distanceMeters(_lastGeocodedLat!, _lastGeocodedLon!, pos.latitude, pos.longitude)
+        : double.infinity;
+    if (geoMoved >= 5000) {
+      final newCity = await _reverseGeocodeCity(pos.latitude, pos.longitude);
+      if (newCity != null && newCity.isNotEmpty) _city = newCity;
+      _lastGeocodedLat = pos.latitude;
+      _lastGeocodedLon = pos.longitude;
+      _log.info('Weather: GPS moved ${(geoMoved / 1000).toStringAsFixed(1)}km → $_city', tag: 'WEATHER');
+    } else {
+      _log.info(
+        'Weather: GPS event — ${moved.toStringAsFixed(0)}m since last refresh, updating',
+        tag: 'WEATHER',
+      );
+    }
+
+    await _fetchWeather();
+    await _fetchAlerts();
+  }
+
+  /// Compute great-circle distance between two coordinates in meters (Haversine).
+  double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadius = 6371000.0;
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLon = (lon2 - lon1) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  /// Reverse-geocode via Nominatim (OpenStreetMap, free, no API key).
+  /// Nominatim ToS: keep to <=1 req/sec, provide a User-Agent — we call at most every 15 min.
+  Future<String?> _reverseGeocodeCity(double lat, double lon) async {
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse'
+        '?lat=$lat&lon=$lon&format=json&accept-language=de&zoom=10',
+      );
+      final response = await _client
+          .get(uri, headers: {'User-Agent': 'ICD360S-Vorsitzer-App/1.0 (contact@icd360s.de)'})
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return null;
+      final data = jsonDecode(response.body);
+      final addr = data['address'] as Map<String, dynamic>?;
+      if (addr == null) return null;
+      return (addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['municipality']
+          ?? addr['county'] ?? addr['state']) as String?;
+    } catch (e) {
+      _log.debug('Weather: reverse geocode failed: $e', tag: 'WEATHER');
+      return null;
+    }
   }
 
   /// Geocode city name to lat/lon using Open-Meteo Geocoding API
@@ -259,45 +439,189 @@ class WeatherService {
     }
   }
 
-  /// Fetch current weather + hourly + daily forecast from Open-Meteo
+  /// Map Bright Sky `condition` string + `icon` to a WMO weather code
+  int _brightSkyToWmoCode(String? condition, String? icon) {
+    // Bright Sky conditions: dry, fog, rain, sleet, snow, hail, thunderstorm
+    // Prefer thunderstorm/hail from icon if present
+    if (icon == 'thunderstorm') return 95;
+    if (condition == 'thunderstorm') return 95;
+    if (condition == 'hail') return 96;
+    if (condition == 'snow') return 73;
+    if (condition == 'sleet') return 68;
+    if (condition == 'rain') return 63;
+    if (condition == 'fog') return 45;
+    // dry → distinguish by cloud cover via icon
+    if (icon == 'clear-day' || icon == 'clear-night') return 0;
+    if (icon == 'partly-cloudy-day' || icon == 'partly-cloudy-night') return 2;
+    if (icon == 'cloudy') return 3;
+    return 1; // mostly clear fallback
+  }
+
+  /// Fetch REAL current observation from Bright Sky (DWD stations, ~10 min refresh).
+  /// Returns true if a WeatherData was produced from Bright Sky data.
+  Future<bool> _fetchCurrentBrightSky() async {
+    if (_latitude == null || _longitude == null) return false;
+    try {
+      final uri = Uri.parse(
+        'https://api.brightsky.dev/current_weather?lat=$_latitude&lon=$_longitude&units=dwd',
+      );
+      final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return false;
+
+      final data = jsonDecode(response.body);
+      final w = data['weather'];
+      if (w == null) return false;
+
+      final temp = (w['temperature'] as num?)?.toDouble();
+      if (temp == null) return false; // station may be missing this reading
+
+      final code = _brightSkyToWmoCode(w['condition'] as String?, w['icon'] as String?);
+      final ts = w['timestamp'] != null ? DateTime.tryParse(w['timestamp']) : null;
+
+      // Bright Sky returns wind as km/h when units=dwd
+      final windSpeed = (w['wind_speed_10'] as num?)?.toDouble()
+          ?? (w['wind_speed'] as num?)?.toDouble() ?? 0;
+      final windDir = (w['wind_direction_10'] as num?)?.toDouble()
+          ?? (w['wind_direction'] as num?)?.toDouble() ?? 0;
+      final precip = (w['precipitation_10'] as num?)?.toDouble()
+          ?? (w['precipitation'] as num?)?.toDouble() ?? 0;
+
+      final weather = WeatherData(
+        temperature: temp,
+        apparentTemperature: temp, // Bright Sky doesn't provide feels-like; Open-Meteo fills it later
+        weatherCode: code,
+        windSpeed: windSpeed,
+        windDirection: windDir,
+        humidity: (w['relative_humidity'] as num?)?.toInt() ?? 0,
+        precipitation: precip,
+        pressureMsl: (w['pressure_msl'] as num?)?.toDouble() ?? 0,
+        uvIndex: null,
+        cloudCover: (w['cloud_cover'] as num?)?.toInt(),
+        isDay: ts != null ? (ts.hour >= 6 && ts.hour < 20) : true,
+        city: _city,
+        timestamp: ts ?? DateTime.now(),
+      );
+
+      currentWeather = weather;
+      onWeatherUpdate?.call(weather);
+      _checkWeatherNotification(weather);
+
+      _log.debug(
+        'Weather[BrightSky]: ${weather.icon} ${weather.temperature}°C '
+        '${weather.description}, ${weather.windSpeed} km/h, obs=${ts?.toIso8601String() ?? "?"}',
+        tag: 'WEATHER',
+      );
+      return true;
+    } catch (e) {
+      _log.debug('Weather: Bright Sky current failed (falling back): $e', tag: 'WEATHER');
+      return false;
+    }
+  }
+
+  /// Fetch current weather + hourly + daily forecast.
+  /// Tries Bright Sky (real DWD observation) first, then Open-Meteo for forecast + fallback.
   Future<void> _fetchWeather() async {
     if (_latitude == null || _longitude == null) return;
+
+    // 1) Real observation from DWD via Bright Sky (best for Germany)
+    final gotBrightSky = await _fetchCurrentBrightSky();
 
     try {
       final uri = Uri.parse(
         'https://api.open-meteo.com/v1/forecast'
         '?latitude=$_latitude&longitude=$_longitude'
-        '&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m'
+        '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,'
+        'wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,cloud_cover,is_day,uv_index'
+        '&minutely_15=temperature_2m,precipitation,weather_code,wind_speed_10m'
         '&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation'
         '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max'
         '&timezone=Europe/Berlin'
-        '&forecast_days=7',
+        '&forecast_days=7'
+        '&forecast_minutely_15=96', // 96 * 15min = 24h of 15-min nowcast
       );
       final response = await _client.get(uri).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Current weather
+        // Current weather — used if Bright Sky was unavailable, otherwise just enriches feels-like/UV
         final current = data['current'];
         if (current != null) {
-          final weather = WeatherData(
-            temperature: (current['temperature_2m'] as num).toDouble(),
-            weatherCode: (current['weather_code'] as num).toInt(),
-            windSpeed: (current['wind_speed_10m'] as num).toDouble(),
-            humidity: (current['relative_humidity_2m'] as num).toInt(),
-            city: _city,
-            timestamp: DateTime.now(),
-          );
+          if (!gotBrightSky) {
+            final weather = WeatherData(
+              temperature: (current['temperature_2m'] as num).toDouble(),
+              apparentTemperature: (current['apparent_temperature'] as num?)?.toDouble()
+                  ?? (current['temperature_2m'] as num).toDouble(),
+              weatherCode: (current['weather_code'] as num).toInt(),
+              windSpeed: (current['wind_speed_10m'] as num).toDouble(),
+              windDirection: (current['wind_direction_10m'] as num?)?.toDouble() ?? 0,
+              humidity: (current['relative_humidity_2m'] as num).toInt(),
+              precipitation: (current['precipitation'] as num?)?.toDouble() ?? 0,
+              pressureMsl: (current['pressure_msl'] as num?)?.toDouble() ?? 0,
+              uvIndex: (current['uv_index'] as num?)?.toDouble(),
+              cloudCover: (current['cloud_cover'] as num?)?.toInt(),
+              isDay: (current['is_day'] as num?)?.toInt() == 1,
+              city: _city,
+              timestamp: DateTime.now(),
+            );
 
-          currentWeather = weather;
-          onWeatherUpdate?.call(weather);
-          _checkWeatherNotification(weather);
+            currentWeather = weather;
+            onWeatherUpdate?.call(weather);
+            _checkWeatherNotification(weather);
 
-          _log.debug(
-            'Weather: ${weather.icon} ${weather.temperature}°C, ${weather.description}, Wind: ${weather.windSpeed} km/h',
-            tag: 'WEATHER',
-          );
+            _log.debug(
+              'Weather[Open-Meteo]: ${weather.icon} ${weather.temperature}°C, '
+              '${weather.description}, Wind: ${weather.windSpeed} km/h',
+              tag: 'WEATHER',
+            );
+          } else if (currentWeather != null) {
+            // Enrich Bright Sky observation with values it doesn't provide
+            final base = currentWeather!;
+            currentWeather = WeatherData(
+              temperature: base.temperature,
+              apparentTemperature: (current['apparent_temperature'] as num?)?.toDouble()
+                  ?? base.apparentTemperature,
+              weatherCode: base.weatherCode,
+              windSpeed: base.windSpeed,
+              windDirection: base.windDirection,
+              humidity: base.humidity,
+              precipitation: base.precipitation,
+              pressureMsl: base.pressureMsl,
+              uvIndex: (current['uv_index'] as num?)?.toDouble() ?? base.uvIndex,
+              cloudCover: base.cloudCover,
+              isDay: (current['is_day'] as num?)?.toInt() == 1,
+              city: base.city,
+              timestamp: base.timestamp,
+            );
+            onWeatherUpdate?.call(currentWeather!);
+          }
+        }
+
+        // 15-minute nowcast (next 24h) — used for the wetter.com-style timeline bar
+        final minutely = data['minutely_15'];
+        if (minutely != null) {
+          final times = (minutely['time'] as List?)?.cast<String>() ?? const [];
+          final temps = (minutely['temperature_2m'] as List?) ?? const [];
+          final codes = (minutely['weather_code'] as List?) ?? const [];
+          final precips = (minutely['precipitation'] as List?) ?? const [];
+          final winds = (minutely['wind_speed_10m'] as List?) ?? const [];
+
+          minutelyForecast = [];
+          for (int i = 0; i < times.length; i++) {
+            final t = DateTime.tryParse(times[i]);
+            if (t == null) continue;
+            // Skip null entries — Open-Meteo occasionally returns null for future 15-min slots
+            final temp = (i < temps.length ? temps[i] : null) as num?;
+            final code = (i < codes.length ? codes[i] : null) as num?;
+            if (temp == null || code == null) continue;
+            minutelyForecast.add(MinutelyForecast(
+              time: t,
+              temperature: temp.toDouble(),
+              weatherCode: code.toInt(),
+              precipitation: ((i < precips.length ? precips[i] : 0) as num?)?.toDouble() ?? 0,
+              windSpeed: ((i < winds.length ? winds[i] : 0) as num?)?.toDouble() ?? 0,
+            ));
+          }
         }
 
         // Hourly forecast
