@@ -231,14 +231,6 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
         useMaterial3: true,
         // Use system font on each platform
         fontFamily: Platform.isWindows ? 'Segoe UI' : null,
-        // Emoji fallback: Segoe UI / Roboto etc. render legacy dingbats
-        // (☀ ☁ ⛅ ⛈ …) as monochrome. Listing the platform emoji fonts as
-        // fallback lets Flutter pick the coloured glyph from the OS.
-        fontFamilyFallback: const [
-          'Segoe UI Emoji',      // Windows
-          'Apple Color Emoji',   // macOS / iOS
-          'Noto Color Emoji',    // Linux / Android
-        ],
       ),
       home: const LoginWithCodeScreen(),
       // Wrap every route with a Stack carrying the global Messenger-style
