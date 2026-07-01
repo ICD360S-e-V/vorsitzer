@@ -412,12 +412,14 @@ class _MitgliederverwaltungVertraegeVersicherungState
     String sparte = existing?['tarif']?.toString() ?? defaultSparte ?? 'haftpflicht';
 
     // When opened from a Sparte-Vertrag-Pane, the sparte is already fixed by
-    // context — hide the Sparte dropdown and pre-select the sole Zuständige
-    // if there's exactly one. Multiple → user picks via chips. None → keep
-    // the search button as fallback.
+    // context — hide the Sparte dropdown and auto-pick from Zuständige.
+    // We always pre-select the first Zuständige for that sparte if the user
+    // has any at all (single or multiple), so the dialog never asks for a
+    // decision the user has already made in the "Zuständige Versicherung"
+    // sub-tab. The user can still change via Ändern-button.
     final sparteLocked = defaultSparte != null;
     final zustaendige = _zustaendigeFuerSparte(sparte);
-    if (sparteLocked && selVersId == null && zustaendige.length == 1) {
+    if (selVersId == null && zustaendige.isNotEmpty) {
       selVersId = int.tryParse(zustaendige.first['vers']['id']?.toString() ?? '');
     }
 
