@@ -447,18 +447,40 @@ class _MitgliederverwaltungVertraegeVersicherungState
             ]),
             const SizedBox(height: 10),
           ],
-          // Versicherung: quick-pick chips from Zuständige (if any) + fallback search
-          if (zustaendige.isNotEmpty && sel == null) ...[
-            Text('Zuständige Versicherung wählen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          // Versicherung — 3 states:
+          //   1) sel != null → prominent green banner with company name + Ändern
+          //   2) sel == null && zustaendige not empty → chips (selected highlighted) + Andere
+          //   3) sel == null && zustaendige empty → red warning + big Suchen button
+          if (sel != null) Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade600, width: 2)),
+            child: Row(children: [
+              Icon(Icons.check_circle, size: 20, color: Colors.green.shade800),
+              const SizedBox(width: 8),
+              Expanded(child: Text(sel['name']?.toString() ?? '',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900))),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.search, size: 14),
+                label: const Text('Ändern', style: TextStyle(fontSize: 11)),
+                onPressed: () async {
+                  final picked = await _showVersicherungSearch(ctx2, sparteKey: sparte);
+                  if (picked != null) {
+                    setD(() => selVersId = int.tryParse(picked['id']?.toString() ?? ''));
+                  }
+                },
+              ),
+            ]),
+          ) else if (zustaendige.isNotEmpty) ...[
+            Text('Zuständige Versicherung wählen: *', style: TextStyle(fontSize: 11, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
             Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final z in zustaendige)
-                ChoiceChip(
-                  label: Text(z['vers']['name']?.toString() ?? '?', style: const TextStyle(fontSize: 12)),
-                  selected: false,
-                  onSelected: (_) => setD(() => selVersId = int.tryParse(z['vers']['id']?.toString() ?? '')),
-                  avatar: Icon(Icons.shield, size: 14, color: Colors.green.shade700),
-                ),
+              for (final z in zustaendige) ChoiceChip(
+                label: Text(z['vers']['name']?.toString() ?? '?', style: const TextStyle(fontSize: 12)),
+                selected: selVersId != null && selVersId.toString() == z['vers']['id']?.toString(),
+                onSelected: (_) => setD(() => selVersId = int.tryParse(z['vers']['id']?.toString() ?? '')),
+                avatar: Icon(Icons.shield, size: 14, color: Colors.green.shade700),
+                selectedColor: Colors.green.shade200,
+              ),
               ActionChip(
                 label: const Text('Andere...', style: TextStyle(fontSize: 12)),
                 avatar: const Icon(Icons.search, size: 14),
@@ -470,26 +492,29 @@ class _MitgliederverwaltungVertraegeVersicherungState
                 },
               ),
             ]),
-            const SizedBox(height: 10),
           ] else Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
-            child: Row(children: [
-              Icon(Icons.shield, size: 18, color: Colors.green.shade700),
-              const SizedBox(width: 8),
-              Expanded(child: Text(sel?['name']?.toString() ?? 'Versicherung wählen',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                  color: sel != null ? Colors.green.shade900 : Colors.grey.shade600))),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.search, size: 14),
-                label: Text(sel == null ? 'Suchen' : 'Ändern', style: const TextStyle(fontSize: 11)),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade400, width: 2)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.warning_amber, size: 18, color: Colors.orange.shade700),
+                const SizedBox(width: 6),
+                Expanded(child: Text('Versicherung noch nicht ausgewählt *',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+              ]),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: FilledButton.icon(
+                icon: const Icon(Icons.search, size: 16),
+                label: Text('Versicherung für ${_versicherungSparten[sparte] ?? sparte} suchen',
+                  style: const TextStyle(fontSize: 12)),
+                style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
                 onPressed: () async {
                   final picked = await _showVersicherungSearch(ctx2, sparteKey: sparte);
                   if (picked != null) {
                     setD(() => selVersId = int.tryParse(picked['id']?.toString() ?? ''));
                   }
                 },
-              ),
+              )),
             ]),
           ),
           const SizedBox(height: 10),
