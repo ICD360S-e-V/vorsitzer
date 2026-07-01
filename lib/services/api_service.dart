@@ -3803,6 +3803,17 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Read-only master list of insurance companies (Allianz, AXA, HUK, …).
+  /// Used by the "Zuständige Versicherung" search dialog under
+  /// Mitgliederverwaltung → Verträge → Versicherung.
+  Future<Map<String, dynamic>> getVersicherungen() async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/admin/versicherungen_list.php'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> deleteVertrag(int id) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/vertraege_manage.php'),
