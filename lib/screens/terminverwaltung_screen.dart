@@ -388,9 +388,12 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               to: _currentWeekStart.add(const Duration(days: 6)),
             ),
             const SizedBox(height: 12),
-            // Wetter-Hinweise Summary Banner
-            if (_terminWeather.hints.isNotEmpty) _buildWeatherHintsSummary(),
-            if (_terminWeather.hints.isNotEmpty) const SizedBox(height: 12),
+            // Wetter-Warnungen Summary Banner (nur echte Warnungen, keine
+            // "schönes Wetter"-Hinweise — dafür gibt es das Emoji in der Zelle)
+            if (_terminWeather.hints.values.any((h) => h.hasWarning))
+              _buildWeatherHintsSummary(),
+            if (_terminWeather.hints.values.any((h) => h.hasWarning))
+              const SizedBox(height: 12),
             // Legend — wrap so it stays readable on narrower windows
             Wrap(
               spacing: 8,
@@ -918,19 +921,33 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                         bottom: 0, right: 0,
                         child: Icon(Icons.campaign, size: 11, color: Colors.deepOrange),
                       ),
-                    // ── Wetter-Hinweis unten links (Emoji) ──
+                    // ── Wetter-Forecast unten links (Emoji für JEDEN Termin) ──
                     if (_terminWeather.hintFor(termin.id) != null)
                       Positioned(
                         bottom: 0, left: 0,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 2),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
+                            color: _terminWeather.hintFor(termin.id)!.hasWarning
+                                ? Colors.orange.shade100.withValues(alpha: 0.95)
+                                : Colors.white.withValues(alpha: 0.85),
                             borderRadius: BorderRadius.circular(3),
+                            border: _terminWeather.hintFor(termin.id)!.hasWarning
+                                ? Border.all(color: Colors.orange.shade700, width: 0.8)
+                                : null,
                           ),
                           child: Text(
                             _terminWeather.hintFor(termin.id)!.emoji,
-                            style: const TextStyle(fontSize: 11),
+                            // Per-widget emoji font fallback — avoids the "black
+                            // sun" issue without touching theme-wide kerning.
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamilyFallback: [
+                                'Segoe UI Emoji',
+                                'Apple Color Emoji',
+                                'Noto Color Emoji',
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -966,6 +983,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   Widget _buildWeatherHintsSummary() {
     final now = DateTime.now();
     final upcoming = _terminWeather.hints.values.where((h) {
+      if (!h.hasWarning) return false;
       final diff = h.forecastFor.difference(now);
       return diff.inHours >= 0 && diff.inHours <= 48;
     }).toList()

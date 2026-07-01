@@ -995,6 +995,7 @@ ICD360S e.V. Vorstand''';
   /// triggered" and the card doesn't render at all.
   Widget _buildWeatherHintCard(TerminWeatherHint hint) {
     final color = switch (hint.kind) {
+      TerminWeatherKind.normal => Colors.blueGrey.shade600,
       TerminWeatherKind.rain => Colors.blue.shade700,
       TerminWeatherKind.snow => Colors.lightBlue.shade700,
       TerminWeatherKind.thunder => Colors.deepPurple.shade700,
@@ -1003,6 +1004,7 @@ ICD360S e.V. Vorstand''';
       TerminWeatherKind.storm => Colors.brown.shade700,
       TerminWeatherKind.wind => Colors.teal.shade700,
     };
+    final label = hint.hasWarning ? 'Wetter-Hinweis für diesen Termin' : 'Wetter-Prognose';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -1014,7 +1016,16 @@ ICD360S e.V. Vorstand''';
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(hint.emoji, style: const TextStyle(fontSize: 30)),
+          Text(
+            hint.emoji,
+            // Per-widget emoji font fallback — matches weather_widget.dart's
+            // _kEmojiFonts list. Keeps weather symbols colourful without
+            // affecting kerning of surrounding text.
+            style: const TextStyle(
+              fontSize: 30,
+              fontFamilyFallback: ['Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji'],
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1022,7 +1033,7 @@ ICD360S e.V. Vorstand''';
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Wetter-Hinweis für diesen Termin',
+                  label,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -1040,19 +1051,27 @@ ICD360S e.V. Vorstand''';
                   hint.subtitle,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('💡  ', style: TextStyle(fontSize: 13)),
-                    Expanded(
-                      child: Text(
-                        hint.recommendation,
-                        style: TextStyle(fontSize: 12, height: 1.35, color: Colors.grey.shade900),
+                if (hint.recommendation.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '💡  ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamilyFallback: ['Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji'],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      Expanded(
+                        child: Text(
+                          hint.recommendation,
+                          style: TextStyle(fontSize: 12, height: 1.35, color: Colors.grey.shade900),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   'Prognose: Open-Meteo · Stand ${DateFormat('HH:mm').format(hint.computedAt)}',

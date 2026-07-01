@@ -9,19 +9,22 @@ import 'termin_service.dart';
 
 final _log = LoggerService();
 
-/// Kind of weather warning attached to a Termin. Used to pick emoji + colour.
-enum TerminWeatherKind { rain, snow, thunder, cold, hot, wind, storm }
+/// Kind of weather condition. `normal` means no threshold crossed —
+/// there is still a hint, just without a warning styling.
+enum TerminWeatherKind { normal, rain, snow, thunder, cold, hot, wind, storm }
 
-/// Advisory attached to a single Termin: an emoji, one-line status summary,
-/// and a concrete recommendation ("Regenschirm mitnehmen"). Only present when
-/// the forecast for the exact hour of the Termin crosses one of our thresholds.
+/// Weather info attached to a single Termin. Emitted for _every_ Termin whose
+/// location can be geocoded (so the user always sees "how will the appointment
+/// be?"). Warnings are just a subset — [hasWarning] flips true only when a
+/// threshold is crossed and the concrete recommendation is worth surfacing.
 class TerminWeatherHint {
   final int terminId;
   final TerminWeatherKind kind;
+  final bool hasWarning;
   final String emoji;
-  final String title;      // "Regen morgen 09:00"
+  final String title;      // "Regen morgen 09:00" or "Sonnig · Mo 09:00"
   final String subtitle;   // "15°C · gefühlt 13°C · 20 km/h"
-  final String recommendation; // "Regenschirm + wasserdichte Schuhe"
+  final String recommendation; // empty for normal weather
   final DateTime forecastFor;  // rounded to the top of the hour
   final DateTime computedAt;
   final int precipitationProbability;
@@ -33,6 +36,7 @@ class TerminWeatherHint {
   TerminWeatherHint({
     required this.terminId,
     required this.kind,
+    required this.hasWarning,
     required this.emoji,
     required this.title,
     required this.subtitle,
@@ -196,19 +200,24 @@ class TerminWeatherService {
     final precipProb = (forecast['precipitation_probability'] as num?)?.toInt() ?? 0;
 
     final kind = _classify(code, temp, apparent, wind, precip, precipProb);
-    if (kind == null) return null;
+    final hasWarning = kind != null;
+    // Even without a warning, we still produce a hint so every Termin shows
+    // its forecast — that's what the calendar badge represents.
+    final rendered = hasWarning
+        ? _renderKind(kind, temp, apparent, wind, precipProb)
+        : _renderNormal(code, temp);
 
-    final r = _renderKind(kind, temp, apparent, wind, precipProb);
     return TerminWeatherHint(
       terminId: termin.id,
-      kind: kind,
-      emoji: r.$1,
-      title: '${r.$2} · ${_formatDayHour(termin.terminDate)}',
+      kind: kind ?? TerminWeatherKind.normal,
+      hasWarning: hasWarning,
+      emoji: rendered.$1,
+      title: '${rendered.$2} · ${_formatDayHour(termin.terminDate)}',
       subtitle: '${temp.toStringAsFixed(0)}°C · '
           'gefühlt ${apparent.toStringAsFixed(0)}°C · '
           '${wind.toStringAsFixed(0)} km/h Wind'
           '${precipProb > 0 ? " · $precipProb%" : ""}',
-      recommendation: r.$3,
+      recommendation: rendered.$3,
       forecastFor: hour,
       computedAt: DateTime.now(),
       precipitationProbability: precipProb,
@@ -217,6 +226,26 @@ class TerminWeatherService {
       windSpeed: wind,
       weatherCode: code,
     );
+  }
+
+  /// Non-warning renderer — pick the plain WMO emoji + a short descriptor.
+  /// Returns (emoji, headline, "") so calendar badges always have something
+  /// friendly to show even when the weather is fine.
+  (String, String, String) _renderNormal(int code, double temp) {
+    String emoji;
+    String label;
+    if (code == 0) { emoji = '☀️'; label = 'Sonnig'; }
+    else if (code <= 3) { emoji = '⛅'; label = 'Teils bewölkt'; }
+    else if (code <= 48) { emoji = '🌫️'; label = 'Nebel'; }
+    else if (code >= 95) { emoji = '⛈️'; label = 'Gewitter'; }
+    else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
+      emoji = '🌨️'; label = 'Schnee';
+    }
+    else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+      emoji = '🌧️'; label = 'Regen';
+    }
+    else { emoji = '☁️'; label = 'Bewölkt'; }
+    return (emoji, '$label · ${temp.toStringAsFixed(0)}°C', '');
   }
 
   TerminWeatherKind? _classify(int code, double temp, double apparent, double wind,
@@ -236,6 +265,8 @@ class TerminWeatherService {
   (String, String, String) _renderKind(
       TerminWeatherKind kind, double temp, double apparent, double wind, int precipProb) {
     switch (kind) {
+      case TerminWeatherKind.normal:
+        return _renderNormal(0, temp); // shouldn't happen — normal goes through _renderNormal
       case TerminWeatherKind.thunder:
         return ('⛈️', 'Gewitter', 'Möglichst nicht draußen bleiben. '
             'DWD-Warnungen beachten, ggf. Termin verschieben.');
@@ -313,6 +344,7 @@ class TerminWeatherService {
   /// already fired one. Dedup key includes the day so the same Termin id can
   /// be notified again if it's rescheduled to a different day.
   Future<void> _maybeNotify(Termin termin, TerminWeatherHint hint) async {
+    if (!hint.hasWarning) return; // don't spam pushes for fine weather
     final until = termin.terminDate.difference(DateTime.now());
     if (until.isNegative || until > const Duration(hours: 12)) return;
 

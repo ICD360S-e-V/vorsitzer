@@ -2,6 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/weather_service.dart';
 
+/// Emoji font fallback list — applied per-Text ONLY on widgets that render
+/// emoji characters. Avoids setting this on the ThemeData level (which would
+/// affect kerning/letter-spacing of every text in the app).
+///
+/// Windows: Segoe UI has no color glyphs for U+2600 (☀) / U+2601 (☁) etc.
+/// Linux / Android need Noto Color Emoji as fallback.
+/// macOS / iOS need Apple Color Emoji.
+const List<String> _kEmojiFonts = [
+  'Segoe UI Emoji',
+  'Apple Color Emoji',
+  'Noto Color Emoji',
+];
+
+TextStyle _emojiStyle({double fontSize = 14, Color? color}) => TextStyle(
+      fontSize: fontSize,
+      color: color,
+      fontFamilyFallback: _kEmojiFonts,
+    );
+
 /// Compact/full weather pill for the AppBar and the detailed weather dialog.
 ///
 /// Split out of `dashboard_screen.dart` — the AppBar widget is one call:
@@ -44,7 +63,7 @@ class WeatherPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(weather.icon, style: TextStyle(fontSize: compact ? 16 : 18)),
+            Text(weather.icon, style: _emojiStyle(fontSize: compact ? 16 : 18)),
             SizedBox(width: compact ? 3 : 4),
             if (compact)
               Text(
@@ -238,7 +257,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
         children: [
           Row(
             children: [
-              Text(weather.icon, style: const TextStyle(fontSize: 32)),
+              Text(weather.icon, style: _emojiStyle(fontSize: 32)),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -448,7 +467,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(h.icon, style: const TextStyle(fontSize: 18)),
+              Text(h.icon, style: _emojiStyle(fontSize: 18)),
               const SizedBox(width: 10),
               SizedBox(
                 width: 50,
@@ -640,7 +659,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           children: [
             Row(
               children: [
-                Text(day.icon, style: const TextStyle(fontSize: 28)),
+                Text(day.icon, style: _emojiStyle(fontSize: 28)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -763,7 +782,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
         children: [
           Column(
             children: [
-              const Text('🌅', style: TextStyle(fontSize: 20)),
+              Text('🌅', style: _emojiStyle(fontSize: 20)),
               const SizedBox(height: 4),
               Text(
                 astro.sunrise != null ? df.format(astro.sunrise!) : '—',
@@ -774,7 +793,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           ),
           Column(
             children: [
-              const Text('🌇', style: TextStyle(fontSize: 20)),
+              Text('🌇', style: _emojiStyle(fontSize: 20)),
               const SizedBox(height: 4),
               Text(
                 astro.sunset != null ? df.format(astro.sunset!) : '—',
@@ -785,7 +804,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           ),
           Column(
             children: [
-              Text(astro.moonEmoji, style: const TextStyle(fontSize: 20)),
+              Text(astro.moonEmoji, style: _emojiStyle(fontSize: 20)),
               const SizedBox(height: 4),
               Text(
                 '${astro.moonIlluminationPercent}%',
@@ -1152,7 +1171,7 @@ class _MinutelyTimeline extends StatelessWidget {
                     color: labelColor,
                   ),
                 ),
-                Text(e.icon, style: const TextStyle(fontSize: 18)),
+                Text(e.icon, style: _emojiStyle(fontSize: 18)),
                 Text(
                   '${e.temperature.toStringAsFixed(0)}°',
                   style: TextStyle(
@@ -1263,7 +1282,7 @@ class HealthAlertBanner extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(a.icon, style: const TextStyle(fontSize: 26)),
+                  Text(a.icon, style: _emojiStyle(fontSize: 26)),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
