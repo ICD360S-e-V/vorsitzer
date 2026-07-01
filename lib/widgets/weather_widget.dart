@@ -1044,12 +1044,40 @@ class _WeatherDialogState extends State<WeatherDialog> {
 }
 
 /// Horizontal 15-min timeline (wetter.com-style). Scrollable.
-/// Each cell: HH:mm • weather emoji • temperature • precipitation bar underneath.
+/// Each cell: HH:mm • weather emoji • temperature • precip probability • precipitation bar.
 /// The current cell (the one containing "now") is highlighted with a blue border.
+///
+/// Public — reused as a sticky bar under the dashboard AppBar so the user sees
+/// the next hours' forecast without opening the dialog.
+class WeatherMinutelyBar extends StatelessWidget {
+  final List<MinutelyForecast> entries;
+  final VoidCallback? onTap;
+
+  /// [compact] = true → shorter cells (no mm-bar), suitable for the sticky
+  /// dashboard header. `false` = full detail for the in-dialog timeline.
+  final bool compact;
+
+  const WeatherMinutelyBar({
+    super.key,
+    required this.entries,
+    this.onTap,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) return const SizedBox.shrink();
+    final bar = _MinutelyTimeline(entries: entries, compact: compact);
+    if (onTap == null) return bar;
+    return InkWell(onTap: onTap, child: bar);
+  }
+}
+
 class _MinutelyTimeline extends StatelessWidget {
   final List<MinutelyForecast> entries;
+  final bool compact;
 
-  const _MinutelyTimeline({required this.entries});
+  const _MinutelyTimeline({required this.entries, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1068,11 +1096,13 @@ class _MinutelyTimeline extends StatelessWidget {
     );
 
     return Container(
-      height: 115,
+      height: compact ? 78 : 115,
       decoration: BoxDecoration(
-        color: Colors.blue.shade50.withValues(alpha: 0.4),
+        color: compact
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.blue.shade50.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade100),
+        border: compact ? null : Border.all(color: Colors.blue.shade100),
       ),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -1090,14 +1120,26 @@ class _MinutelyTimeline extends StatelessWidget {
               ? (e.precipitation / maxPrecip * 18).clamp(0.0, 18.0)
               : 0.0;
 
+          // Compact cells drop the mm-bar (used in dashboard sticky header).
+          final labelColor = compact
+              ? (isCurrent ? Colors.amber.shade200 : Colors.white70)
+              : (isCurrent ? Colors.blue.shade900 : Colors.grey.shade700);
+          final tempColor = compact
+              ? (e.temperature < 0 ? Colors.lightBlue.shade200 : Colors.orange.shade200)
+              : (e.temperature < 0 ? Colors.blue.shade800 : Colors.orange.shade800);
+          final activeBg = compact
+              ? Colors.white.withValues(alpha: 0.15)
+              : Colors.blue.shade100.withValues(alpha: 0.6);
+          final activeBorder = compact ? Colors.amber.shade300 : Colors.blue.shade400;
+
           return Container(
             width: 46,
             margin: const EdgeInsets.symmetric(horizontal: 1),
             padding: const EdgeInsets.symmetric(vertical: 4),
             decoration: BoxDecoration(
-              color: isCurrent ? Colors.blue.shade100.withValues(alpha: 0.6) : null,
+              color: isCurrent ? activeBg : null,
               borderRadius: BorderRadius.circular(6),
-              border: isCurrent ? Border.all(color: Colors.blue.shade400, width: 1.5) : null,
+              border: isCurrent ? Border.all(color: activeBorder, width: 1.5) : null,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1107,7 +1149,7 @@ class _MinutelyTimeline extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                    color: isCurrent ? Colors.blue.shade900 : Colors.grey.shade700,
+                    color: labelColor,
                   ),
                 ),
                 Text(e.icon, style: const TextStyle(fontSize: 18)),
@@ -1116,7 +1158,7 @@ class _MinutelyTimeline extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: e.temperature < 0 ? Colors.blue.shade800 : Colors.orange.shade800,
+                    color: tempColor,
                   ),
                 ),
                 // Precipitation probability (% chance of rain) — shown when ≥20% or when it's raining.
@@ -1129,40 +1171,43 @@ class _MinutelyTimeline extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
-                            color: e.precipitationProbability! >= 70
-                                ? Colors.blue.shade900
-                                : (e.precipitationProbability! >= 40
-                                    ? Colors.blue.shade700
-                                    : Colors.blue.shade400),
+                            color: compact
+                                ? Colors.lightBlue.shade200
+                                : (e.precipitationProbability! >= 70
+                                    ? Colors.blue.shade900
+                                    : (e.precipitationProbability! >= 40
+                                        ? Colors.blue.shade700
+                                        : Colors.blue.shade400)),
                           ),
                         )
                       : null,
                 ),
-                // Precipitation bar — grows upward with mm; empty if no precipitation.
-                SizedBox(
-                  height: 20,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (e.precipitation > 0)
-                        Container(
-                          width: 12,
-                          height: precipHeight,
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade400,
-                            borderRadius: BorderRadius.circular(2),
+                // Precipitation bar — full detail only; compact drops this row.
+                if (!compact)
+                  SizedBox(
+                    height: 20,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (e.precipitation > 0)
+                          Container(
+                            width: 12,
+                            height: precipHeight,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade400,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
-                        ),
-                      if (e.precipitation > 0)
-                        Text(
-                          e.precipitation < 0.1
-                              ? '<0.1'
-                              : e.precipitation.toStringAsFixed(1),
-                          style: TextStyle(fontSize: 8, color: Colors.blue.shade700),
-                        ),
-                    ],
+                        if (e.precipitation > 0)
+                          Text(
+                            e.precipitation < 0.1
+                                ? '<0.1'
+                                : e.precipitation.toStringAsFixed(1),
+                            style: TextStyle(fontSize: 8, color: Colors.blue.shade700),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           );

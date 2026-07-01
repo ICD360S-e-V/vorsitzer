@@ -15,6 +15,7 @@ import '../services/routine_service.dart';
 import '../services/notification_service.dart';
 import '../services/weather_service.dart';
 import '../services/transit_service.dart';
+import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
 import '../services/radio_service.dart';
 import '../services/ntfy_service.dart';
@@ -562,9 +563,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   void _showTransitDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => _TransitDialog(
+      builder: (ctx) => OpnvDialog(
         transitService: _transitService,
-        departures: _departures,
+        initialDepartures: _departures,
         city: _weatherData?.city ?? '',
       ),
     );
@@ -1190,13 +1191,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               tooltip: 'Nachrichten',
               onPressed: _showNewsDialog,
             ),
-          // Transit (ÖPNV departures)
-          if (!isMobile)
-            IconButton(
-              icon: const Icon(Icons.directions_bus),
-              tooltip: 'ÖPNV Abfahrten',
-              onPressed: _showTransitDialog,
-            ),
+          // Transit (ÖPNV departures) — visible on all screen sizes
+          IconButton(
+            icon: const Icon(Icons.directions_bus),
+            tooltip: 'ÖPNV Abfahrten',
+            onPressed: _showTransitDialog,
+          ),
           // Debug: inject test bubble pentru a confirma rendering overlay global
           if (!isMobile)
             IconButton(
@@ -1290,30 +1290,50 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             )
           : null,
       // Desktop: Sidebar + content, Mobile: Just content + floating chat bubbles
-      body: Stack(
+      body: Column(
         children: [
-          SeasonalBackground(
-            child: isMobile
-              ? _buildMainContent()
-              : Row(
-                  children: [
-                    DashboardSidebar(
-                      userName: widget.userName,
-                      mitgliedernummer: widget.currentMitgliedernummer,
-                      selectedMenuIndex: _selectedMenuIndex,
-                      onMenuSelected: (index) => setState(() => _selectedMenuIndex = index),
-                    ),
-                    Expanded(
-                      child: _buildMainContent(),
-                    ),
-                  ],
+          // wetter.com-style sticky 15-min forecast bar directly under the AppBar.
+          // Tap opens the full weather dialog.
+          if (_weatherService.minutelyForecast.isNotEmpty)
+            Material(
+              color: const Color(0xFF1a1a2e),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+                child: WeatherMinutelyBar(
+                  entries: _weatherService.minutelyForecast,
+                  onTap: () => showWeatherDialog(context, _weatherService),
+                  compact: true,
                 ),
+              ),
+            ),
+          Expanded(
+            child: Stack(
+              children: [
+                SeasonalBackground(
+                  child: isMobile
+                    ? _buildMainContent()
+                    : Row(
+                        children: [
+                          DashboardSidebar(
+                            userName: widget.userName,
+                            mitgliedernummer: widget.currentMitgliedernummer,
+                            selectedMenuIndex: _selectedMenuIndex,
+                            onMenuSelected: (index) => setState(() => _selectedMenuIndex = index),
+                          ),
+                          Expanded(
+                            child: _buildMainContent(),
+                          ),
+                        ],
+                      ),
+                ),
+                // NOTE 2026-06-25: Local ChatBubbleOverlay + ChatBubblePopup au fost
+                // mutate la nivel global (MaterialApp.builder → GlobalChatOverlay),
+                // ca să apară pe orice pagină nu doar pe Dashboard. State sync:
+                // GlobalChatService.start() ascultă messageStream singur; dashboard-ul
+                // doar populeaza bubble-urile de start în _joinBackgroundConversations.
+              ],
+            ),
           ),
-          // NOTE 2026-06-25: Local ChatBubbleOverlay + ChatBubblePopup au fost
-          // mutate la nivel global (MaterialApp.builder → GlobalChatOverlay),
-          // ca să apară pe orice pagină nu doar pe Dashboard. State sync:
-          // GlobalChatService.start() ascultă messageStream singur; dashboard-ul
-          // doar populeaza bubble-urile de start în _joinBackgroundConversations.
         ],
       ),
       // Mobile: Bottom navigation bar for quick access
@@ -2378,384 +2398,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// Transit Dialog — ÖPNV Abfahrten (DING EFA API)
-// ══════════════════════════════════════════════════════════════
-
-class _TransitDialog extends StatefulWidget {
-  final TransitService transitService;
-  final List<Departure> departures;
-  final String city;
-
-  const _TransitDialog({
-    required this.transitService,
-    required this.departures,
-    required this.city,
-  });
-
-  @override
-  State<_TransitDialog> createState() => _TransitDialogState();
-}
-
-class _TransitDialogState extends State<_TransitDialog> {
-  late List<Departure> _departures;
-  bool _isLoading = false;
-  Timer? _autoRefresh;
-  String? _selectedStop; // null = all stops
-
-  @override
-  void initState() {
-    super.initState();
-    _departures = List.from(widget.departures);
-
-    // Default to closest stop
-    _selectedStop = widget.transitService.closestStopName;
-
-    // Auto-refresh every 30 seconds while dialog is open
-    _autoRefresh = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
-
-    // If no data yet, fetch now
-    if (_departures.isEmpty) {
-      _refresh();
-    }
-  }
-
-  @override
-  void dispose() {
-    _autoRefresh?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _refresh() async {
-    setState(() => _isLoading = true);
-    await widget.transitService.refresh();
-    if (mounted) {
-      setState(() {
-        _departures = List.from(widget.transitService.departures);
-        _isLoading = false;
-      });
-    }
-  }
-
-  List<Departure> get _filteredDepartures {
-    if (_selectedStop == null) return _departures;
-    return _departures.where((d) => d.stopName == _selectedStop).toList();
-  }
-
-  /// Unique stop names from departures
-  List<String> get _stopNames {
-    final names = <String>{};
-    for (final d in _departures) {
-      if (d.stopName.isNotEmpty) names.add(d.stopName);
-    }
-    return names.toList()..sort();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final stops = _stopNames;
-    final filtered = _filteredDepartures;
-    final now = DateTime.now();
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: SizedBox(
-        width: 500,
-        height: 560,
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-              decoration: BoxDecoration(
-                color: Colors.teal.shade50,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.directions_bus, color: Colors.teal.shade700, size: 24),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'ÖPNV Abfahrten',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
-                            ),
-                            if (widget.transitService.closestStopName != null)
-                              Row(
-                                children: [
-                                  Icon(Icons.location_on, size: 12, color: Colors.teal.shade400),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    _buildSubtitle(),
-                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                                  ),
-                                ],
-                              )
-                            else
-                              Text(
-                                widget.city.isNotEmpty ? widget.city : 'Nahverkehr',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                              ),
-                          ],
-                        ),
-                      ),
-                      if (_isLoading)
-                        const SizedBox(
-                          width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      else
-                        IconButton(
-                          icon: const Icon(Icons.refresh, size: 20),
-                          tooltip: 'Aktualisieren',
-                          onPressed: _refresh,
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 20),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  // Stop filter chips
-                  if (stops.length > 1) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 32,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ChoiceChip(
-                              label: const Text('Alle', style: TextStyle(fontSize: 11)),
-                              selected: _selectedStop == null,
-                              onSelected: (_) => setState(() => _selectedStop = null),
-                              visualDensity: VisualDensity.compact,
-                              selectedColor: Colors.teal.shade200,
-                            ),
-                          ),
-                          ...stops.map((s) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ChoiceChip(
-                              label: Text(s, style: const TextStyle(fontSize: 11)),
-                              selected: _selectedStop == s,
-                              onSelected: (_) => setState(() => _selectedStop = s),
-                              visualDensity: VisualDensity.compact,
-                              selectedColor: Colors.teal.shade200,
-                            ),
-                          )),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            // Departure list
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.schedule, size: 48, color: Colors.grey.shade300),
-                          const SizedBox(height: 12),
-                          Text(
-                            _isLoading ? 'Abfahrten werden geladen...' : 'Keine Abfahrten gefunden',
-                            style: TextStyle(color: Colors.grey.shade500),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      itemCount: filtered.length,
-                      itemBuilder: (_, i) {
-                        final dep = filtered[i];
-                        final mins = dep.minutesUntil;
-                        final isPast = mins < 0;
-                        if (isPast) return const SizedBox.shrink();
-
-                        final isImminent = mins <= 2;
-                        final isSoon = mins <= 5;
-
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isImminent
-                                ? Colors.red.shade50
-                                : isSoon
-                                    ? Colors.orange.shade50
-                                    : (i.isEven ? Colors.grey.shade50 : null),
-                            borderRadius: BorderRadius.circular(6),
-                            border: isImminent ? Border.all(color: Colors.red.shade200) : null,
-                          ),
-                          child: Row(
-                            children: [
-                              // Line badge
-                              Container(
-                                width: 44,
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: _lineColor(dep.productType),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  dep.line,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              // Direction
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      dep.direction,
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    if (_selectedStop == null && dep.stopName.isNotEmpty)
-                                      Text(
-                                        dep.stopName,
-                                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              // Delay indicator
-                              if (dep.delay > 0) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: dep.delay >= 5 ? Colors.red.shade100 : Colors.orange.shade100,
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                  child: Text(
-                                    '+${dep.delay}',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: dep.delay >= 5 ? Colors.red.shade800 : Colors.orange.shade800,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              // Platform
-                              if (dep.platform != null) ...[
-                                Text(
-                                  dep.platform!,
-                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              // Time
-                              SizedBox(
-                                width: 42,
-                                child: Text(
-                                  dep.timeString,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.shade700,
-                                    decoration: dep.delay > 0 ? TextDecoration.lineThrough : null,
-                                  ),
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Minutes until
-                              SizedBox(
-                                width: 40,
-                                child: Text(
-                                  mins == 0 ? 'jetzt' : '$mins Min',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: isImminent
-                                        ? Colors.red.shade700
-                                        : isSoon
-                                            ? Colors.orange.shade700
-                                            : Colors.teal.shade700,
-                                  ),
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            // Footer
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'Daten: ${widget.transitService.activeProvider?.displayName ?? 'ÖPNV'} • Echtzeit',
-                    style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'Aktualisiert: ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
-                    style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _buildSubtitle() {
-    final closest = widget.transitService.nearbyStops.isNotEmpty
-        ? widget.transitService.nearbyStops.first
-        : null;
-    if (closest != null) {
-      final dist = closest.distance;
-      final distStr = dist >= 1000
-          ? '${(dist / 1000).toStringAsFixed(1)} km'
-          : '$dist m';
-      return '${closest.name} ($distStr)';
-    }
-    return widget.city;
-  }
-
-  Color _lineColor(String productType) {
-    switch (productType) {
-      case 'tram':
-        return Colors.blue.shade700;
-      case 'train':
-      case 'regional':
-        return Colors.red.shade700;
-      case 'suburban':
-        return Colors.green.shade700;
-      default:
-        return Colors.teal.shade700;
-    }
-  }
-}
 
 // ══════════════════════════════════════════════════════════════
 // NEWS DIALOG (Tagesschau RSS — national + regional)
