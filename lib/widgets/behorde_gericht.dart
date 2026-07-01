@@ -465,6 +465,12 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   // Currently linked cases on this vorfall (subset of _availableCases).
   // Each entry only carries {behoerde, case_type, case_id}.
   List<Map<String, dynamic>> _linkedCases = [];
+  // Bank statements from Finanzen → only loaded for Beratungshilfe, where
+  // § 2 BerHG requires proof of financial hardship via the last 3 months
+  // of Kontoauszüge (some Gerichte accept up to 6). The Dokumente tab
+  // shows a coverage indicator so the Vorstand sees at a glance whether
+  // the required window is met before submitting the Antrag.
+  List<Map<String, dynamic>> _kontoauszuege = [];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -475,6 +481,9 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final tR = await widget.apiService.listGerichtVorfallTermine(widget.vorfallId);
     final kR = await widget.apiService.listGerichtVorfallKorr(widget.vorfallId);
     final rR = await widget.apiService.listRelatedDocs(widget.userId, vorfallId: widget.vorfallId);
+    final kaR = widget.gerichtTyp == 'beratungshilfe'
+        ? await widget.apiService.listFinanzenKontoauszuege(widget.userId)
+        : null;
     if (!mounted) return;
     setState(() {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -519,6 +528,13 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             .toList();
       } else {
         _linkedCases = [];
+      }
+      if (kaR != null && kaR['success'] == true && kaR['data'] is List) {
+        _kontoauszuege = (kaR['data'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } else {
+        _kontoauszuege = [];
       }
       _loaded = true;
     });
@@ -754,7 +770,151 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       ..._relatedSections.map(_buildRelatedSection),
       _buildDokSection('Sonstiges', Icons.folder, sonstigeDocs, 'sonstiges',
         hint: 'Alle anderen Dokumente ohne feste Kategorie'),
+      // Kontoauszüge (Beratungshilfe § 2 BerHG) — Nachweis der letzten
+      // 3 Monate vor Antragstellung.
+      if (isBeratungshilfe) _buildKontoauszuegeSection(),
     ]));
+  }
+
+  Widget _buildKontoauszuegeSection() {
+    final vorfallDatum = _parseDatum(widget.vorfall['datum']?.toString());
+    // Berechne Referenzzeitraum: 3 Monate vor Antrag bis Antragsdatum.
+    // Falls das Vorfall-Datum leer ist, nehmen wir "heute" — sonst würde
+    // der Card fälschlicherweise anzeigen "keine Auszüge vorhanden".
+    final refBis = vorfallDatum ?? DateTime.now();
+    final refVon = DateTime(refBis.year, refBis.month - 3, refBis.day);
+
+    // Merge overlapping ranges to check if [refVon..refBis] is fully covered.
+    final ranges = <MapEntry<DateTime, DateTime>>[];
+    for (final k in _kontoauszuege) {
+      final v = _parseDatum(k['von_datum']?.toString());
+      final b = _parseDatum(k['bis_datum']?.toString());
+      if (v == null || b == null) continue;
+      ranges.add(MapEntry(v, b));
+    }
+    ranges.sort((a, b) => a.key.compareTo(b.key));
+    final merged = <MapEntry<DateTime, DateTime>>[];
+    for (final r in ranges) {
+      if (merged.isEmpty || r.key.isAfter(merged.last.value.add(const Duration(days: 1)))) {
+        merged.add(MapEntry(r.key, r.value));
+      } else if (r.value.isAfter(merged.last.value)) {
+        merged[merged.length - 1] = MapEntry(merged.last.key, r.value);
+      }
+    }
+    final fullyCovered = merged.any((r) =>
+      !r.key.isAfter(refVon) && !r.value.isBefore(refBis));
+
+    final overlappingIds = <int>{};
+    for (final k in _kontoauszuege) {
+      final v = _parseDatum(k['von_datum']?.toString());
+      final b = _parseDatum(k['bis_datum']?.toString());
+      final id = int.tryParse(k['id']?.toString() ?? '');
+      if (v == null || b == null || id == null) continue;
+      if (!b.isBefore(refVon) && !v.isAfter(refBis)) overlappingIds.add(id);
+    }
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+    if (_kontoauszuege.isEmpty) {
+      statusColor = Colors.red.shade600;
+      statusIcon = Icons.error_outline;
+      statusText = 'Keine Kontoauszüge vorhanden — Nachweis fehlt';
+    } else if (fullyCovered) {
+      statusColor = Colors.green.shade700;
+      statusIcon = Icons.check_circle;
+      statusText = 'Die 3 Monate vor Antrag sind lückenlos abgedeckt';
+    } else if (overlappingIds.isNotEmpty) {
+      statusColor = Colors.orange.shade700;
+      statusIcon = Icons.warning_amber;
+      statusText = 'Teilweise abgedeckt — bitte Lücken vor der Einreichung schließen';
+    } else {
+      statusColor = Colors.red.shade600;
+      statusIcon = Icons.error_outline;
+      statusText = 'Vorhandene Auszüge liegen außerhalb des Referenzzeitraums';
+    }
+
+    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.account_balance, size: 18, color: statusColor),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Kontoauszüge (Beratungshilfe § 2 BerHG)',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: statusColor))),
+          Text('${_kontoauszuege.length}', style: TextStyle(fontSize: 12, color: statusColor)),
+        ]),
+        const SizedBox(height: 6),
+        Text('Nachweis-Zeitraum: ${fmt(refVon)} – ${fmt(refBis)} '
+             '(${vorfallDatum == null ? "kein Antrag-Datum, heute als Referenz" : "3 Monate vor Antrag"})',
+             style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
+          child: Row(children: [
+            Icon(statusIcon, size: 16, color: statusColor),
+            const SizedBox(width: 6),
+            Expanded(child: Text(statusText, style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600))),
+          ]),
+        ),
+        if (_kontoauszuege.isEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Legen Sie Kontoauszüge unter Finanzen → Zuständige Bank → Kontoauszüge an.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        ] else ...[
+          const SizedBox(height: 10),
+          ..._kontoauszuege.map((k) {
+            final v = _parseDatum(k['von_datum']?.toString());
+            final b = _parseDatum(k['bis_datum']?.toString());
+            final id = int.tryParse(k['id']?.toString() ?? '');
+            final inWindow = id != null && overlappingIds.contains(id);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: inWindow ? Colors.green.shade300 : Colors.grey.shade300),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(inWindow ? Icons.check_circle : Icons.remove_circle_outline,
+                    size: 16, color: inWindow ? Colors.green.shade700 : Colors.grey.shade500),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                    '${v != null ? fmt(v) : '?'} – ${b != null ? fmt(b) : '?'}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  )),
+                  if (v != null && b != null)
+                    Text('${b.difference(v).inDays + 1} Tage',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ]),
+                if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 3, left: 22),
+                    child: Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+                if (id != null) Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 22),
+                  child: KorrAttachmentsWidget(
+                    apiService: widget.apiService,
+                    modul: 'finanzen_kontoauszug',
+                    korrespondenzId: id,
+                  ),
+                ),
+              ]),
+            );
+          }),
+        ],
+      ]),
+    );
   }
 
   Widget _buildChecklistCard() {
