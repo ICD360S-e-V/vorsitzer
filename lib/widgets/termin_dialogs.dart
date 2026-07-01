@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/termin_service.dart';
+import '../services/termin_weather_service.dart';
 import '../services/ticket_service.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
@@ -447,6 +448,7 @@ class EditTerminDialog extends StatefulWidget {
   final List<Ticket> tickets;
   final VoidCallback onTerminUpdated;
   final String currentMitgliedernummer;
+  final TerminWeatherHint? weatherHint;
 
   const EditTerminDialog({
     super.key,
@@ -456,6 +458,7 @@ class EditTerminDialog extends StatefulWidget {
     required this.tickets,
     required this.onTerminUpdated,
     required this.currentMitgliedernummer,
+    this.weatherHint,
   });
 
   @override
@@ -825,6 +828,7 @@ ICD360S e.V. Vorstand''';
                     _readOnlyRow(Icons.timer, 'Dauer', '${termin.durationMinutes} Minuten'),
                     if (termin.location.isNotEmpty)
                       _readOnlyRow(Icons.location_on, 'Ort', termin.location),
+                    if (widget.weatherHint != null) _buildWeatherHintCard(widget.weatherHint!),
                     if (termin.description.isNotEmpty)
                       _readOnlyRow(Icons.notes, 'Beschreibung', termin.description),
                     if (termin.ticketSubject != null)
@@ -981,6 +985,82 @@ ICD360S e.V. Vorstand''';
           const SizedBox(width: 10),
           SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    );
+  }
+
+  /// Prominent card summarising the pre-computed weather advisory for this
+  /// Termin. Only shown in read-only view; a null hint means "no warning
+  /// triggered" and the card doesn't render at all.
+  Widget _buildWeatherHintCard(TerminWeatherHint hint) {
+    final color = switch (hint.kind) {
+      TerminWeatherKind.rain => Colors.blue.shade700,
+      TerminWeatherKind.snow => Colors.lightBlue.shade700,
+      TerminWeatherKind.thunder => Colors.deepPurple.shade700,
+      TerminWeatherKind.cold => Colors.indigo.shade700,
+      TerminWeatherKind.hot => Colors.deepOrange.shade700,
+      TerminWeatherKind.storm => Colors.brown.shade700,
+      TerminWeatherKind.wind => Colors.teal.shade700,
+    };
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(hint.emoji, style: const TextStyle(fontSize: 30)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Wetter-Hinweis für diesen Termin',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hint.title.split(' · ').first,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hint.subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('💡  ', style: TextStyle(fontSize: 13)),
+                    Expanded(
+                      child: Text(
+                        hint.recommendation,
+                        style: TextStyle(fontSize: 12, height: 1.35, color: Colors.grey.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Prognose: Open-Meteo · Stand ${DateFormat('HH:mm').format(hint.computedAt)}',
+                  style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

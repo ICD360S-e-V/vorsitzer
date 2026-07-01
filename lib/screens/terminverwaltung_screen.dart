@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../services/termin_service.dart';
+import '../services/termin_weather_service.dart';
 import '../services/ticket_service.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
@@ -48,6 +50,7 @@ class TerminverwaltungScreen extends StatefulWidget {
 
 class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   final _terminService = TerminService();
+  final _terminWeather = TerminWeatherService();
   final _apiService = ApiService();
   final _ticketService = TicketService();
 
@@ -128,6 +131,11 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
         _feiertage = feiertageList.cast<Map<String, dynamic>>();
         _isLoadingTermine = false;
       });
+      // Kick off weather advisory computation in the background — the calendar
+      // renders immediately, weather badges pop in a moment later.
+      unawaited(_terminWeather.refreshForTermine(_termine).then((_) {
+        if (mounted) setState(() {});
+      }));
     } else if (mounted) {
       setState(() => _isLoadingTermine = false);
     }
@@ -380,6 +388,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               to: _currentWeekStart.add(const Duration(days: 6)),
             ),
             const SizedBox(height: 12),
+            // Wetter-Hinweise Summary Banner
+            if (_terminWeather.hints.isNotEmpty) _buildWeatherHintsSummary(),
+            if (_terminWeather.hints.isNotEmpty) const SizedBox(height: 12),
             // Legend — wrap so it stays readable on narrower windows
             Wrap(
               spacing: 8,
@@ -855,6 +866,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
             tickets: _tickets,
             onTerminUpdated: _loadTermine,
             currentMitgliedernummer: widget.currentMitgliedernummer,
+            weatherHint: _terminWeather.hintFor(termin.id),
           ),
         );
       },
@@ -906,6 +918,22 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                         bottom: 0, right: 0,
                         child: Icon(Icons.campaign, size: 11, color: Colors.deepOrange),
                       ),
+                    // ── Wetter-Hinweis unten links (Emoji) ──
+                    if (_terminWeather.hintFor(termin.id) != null)
+                      Positioned(
+                        bottom: 0, left: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            _terminWeather.hintFor(termin.id)!.emoji,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               )
@@ -925,7 +953,77 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       parts.add('✗ Nicht wahrgenommen${g != null ? " ($g)" : ""}');
     }
     if (t.feedbackErhalten) parts.add('📢 Feedback eingegangen');
+    final hint = _terminWeather.hintFor(t.id);
+    if (hint != null) {
+      parts.add('${hint.emoji} ${hint.subtitle}');
+      parts.add('💡 ${hint.recommendation}');
+    }
     return parts.join('\n');
+  }
+
+  /// Compact banner listing Termine with weather advisories in the next 48h.
+  /// The full list lives in the tooltip / edit dialog — this is a nudge.
+  Widget _buildWeatherHintsSummary() {
+    final now = DateTime.now();
+    final upcoming = _terminWeather.hints.values.where((h) {
+      final diff = h.forecastFor.difference(now);
+      return diff.inHours >= 0 && diff.inHours <= 48;
+    }).toList()
+      ..sort((a, b) => a.forecastFor.compareTo(b.forecastFor));
+
+    if (upcoming.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${upcoming.length} Termin${upcoming.length == 1 ? "" : "e"} '
+                  'mit Wetter-Hinweis in den nächsten 48 h',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: upcoming
+                      .take(6)
+                      .map((h) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.orange.shade200),
+                            ),
+                            child: Text(
+                              '${h.emoji} ${h.title}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Show the urlaub editing dialog (remove first/last day, delete period).
