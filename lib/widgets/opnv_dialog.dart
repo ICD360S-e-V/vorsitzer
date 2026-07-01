@@ -9,12 +9,20 @@ class OpnvDialog extends StatefulWidget {
   final TransitService transitService;
   final List<Departure> initialDepartures;
   final String city;
+  /// Deep-link params — prefill "Verbindung suchen" tab and auto-jump to it.
+  /// Used by termin card to launch the dialog with Verein → Behörde pre-filled.
+  final TransitLocation? initialFrom;
+  final TransitLocation? initialTo;
+  final DateTime? initialArrivalTime;
 
   const OpnvDialog({
     super.key,
     required this.transitService,
     required this.initialDepartures,
     required this.city,
+    this.initialFrom,
+    this.initialTo,
+    this.initialArrivalTime,
   });
 
   @override
@@ -28,6 +36,10 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // Jump straight to "Verbindung suchen" tab when deep-linked with from/to.
+    if (widget.initialFrom != null || widget.initialTo != null) {
+      _tabController.index = 1;
+    }
   }
 
   @override
@@ -68,7 +80,12 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
                     initialDepartures: widget.initialDepartures,
                     city: widget.city,
                   ),
-                  _VerbindungTab(transitService: widget.transitService),
+                  _VerbindungTab(
+                    transitService: widget.transitService,
+                    initialFrom: widget.initialFrom,
+                    initialTo: widget.initialTo,
+                    initialArrivalTime: widget.initialArrivalTime,
+                  ),
                 ],
               ),
             ),
@@ -495,7 +512,15 @@ class _Footer extends StatelessWidget {
 
 class _VerbindungTab extends StatefulWidget {
   final TransitService transitService;
-  const _VerbindungTab({required this.transitService});
+  final TransitLocation? initialFrom;
+  final TransitLocation? initialTo;
+  final DateTime? initialArrivalTime;
+  const _VerbindungTab({
+    required this.transitService,
+    this.initialFrom,
+    this.initialTo,
+    this.initialArrivalTime,
+  });
 
   @override
   State<_VerbindungTab> createState() => _VerbindungTabState();
@@ -505,6 +530,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   TransitLocation? _from;
   TransitLocation? _to;
   DateTime _when = DateTime.now();
+  bool _arriveBy = false;
   bool _searching = false;
   List<Journey>? _results;
   String? _error;
@@ -512,10 +538,22 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   @override
   void initState() {
     super.initState();
-    // Prefill "Von" with GPS city (as text) — user can pick a real stop from autocomplete
-    final gpsCity = widget.transitService.gpsCity;
-    if (gpsCity != null && gpsCity.isNotEmpty) {
-      _from = TransitLocation(id: gpsCity, name: gpsCity);
+    // Deep-link prefill (from termin card) — auto-search if all params given.
+    if (widget.initialFrom != null) _from = widget.initialFrom;
+    if (widget.initialTo != null) _to = widget.initialTo;
+    if (widget.initialArrivalTime != null) {
+      _when = widget.initialArrivalTime!;
+      _arriveBy = true;
+    }
+    // Auto-search if deep-linked with full context
+    if (_from != null && _to != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _search());
+    } else {
+      // Prefill "Von" with GPS city (as text) — user can pick a real stop from autocomplete
+      final gpsCity = widget.transitService.gpsCity;
+      if (gpsCity != null && gpsCity.isNotEmpty && _from == null) {
+        _from = TransitLocation(id: gpsCity, name: gpsCity);
+      }
     }
   }
 
@@ -531,7 +569,9 @@ class _VerbindungTabState extends State<_VerbindungTab> {
     });
     try {
       final journeys = await widget.transitService.searchJourneys(
-        from: _from!, to: _to!, departureTime: _when,
+        from: _from!, to: _to!,
+        departureTime: _arriveBy ? null : _when,
+        arrivalTime: _arriveBy ? _when : null,
       );
       if (!mounted) return;
       setState(() {

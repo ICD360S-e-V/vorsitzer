@@ -341,11 +341,18 @@ const _providers = [
   ),
 ];
 
-/// Transit service with multi-provider support
+/// Transit service with multi-provider support.
+/// Singleton — shared between dashboard (departures + dialog) and
+/// terminverwaltung (route calculation for termin cards).
+///
 /// Providers auto-detected by GPS coordinates. GPS uses a layered strategy:
 /// cached fix → high-accuracy single shot (8s) → medium (4s) → IP fallback →
 /// continuous `getPositionStream` with 100m distanceFilter.
 class TransitService {
+  static final TransitService _instance = TransitService._internal();
+  factory TransitService() => _instance;
+  TransitService._internal();
+
   Timer? _refreshTimer;
   StreamSubscription<Position>? _positionSub;
   double? _latitude;
@@ -1265,16 +1272,19 @@ class TransitService {
   /// backend — NOT `activeProvider` (which reflects the server's GPS position,
   /// not the location the user is asking about).
   ///
-  /// Routing:
-  ///   - Both from same EFA provider  → that provider's EFA trip search
-  ///   - Both from same HAFAS provider → that provider's HAFAS trip search
-  ///   - Different providers (intercity) or bahn.de source → bahn.de HAFAS
+  /// Time semantics:
+  ///   - `arrivalTime` set → arrive-by search (for "must be at Behörde by 13:45").
+  ///     Backend maps to EFA `itdTripDateTimeDepArr=arr` / HAFAS `outFrwd=false`
+  ///     / bahn.de `ankunftSuche=ANKUNFT`.
+  ///   - `departureTime` set (or default now) → depart-at search.
   Future<List<Journey>> searchJourneys({
     required TransitLocation from,
     required TransitLocation to,
     DateTime? departureTime,
+    DateTime? arrivalTime,
   }) async {
-    final when = departureTime ?? DateTime.now();
+    final arriveBy = arrivalTime != null;
+    final when = arrivalTime ?? departureTime ?? DateTime.now();
     List<Journey> results = [];
 
     final fp = from.sourceProvider;
@@ -1284,9 +1294,9 @@ class TransitService {
     if (sameProvider) {
       try {
         if (fp.api == TransitApiType.efa) {
-          results = await _efaTripSearch(fp, from, to, when);
+          results = await _efaTripSearch(fp, from, to, when, arriveBy: arriveBy);
         } else {
-          results = await _hafasTripSearch(fp, from, to, when);
+          results = await _hafasTripSearch(fp, from, to, when, arriveBy: arriveBy);
         }
       } catch (e) {
         _log.error('Transit: ${fp.name} trip search failed: $e', tag: 'TRANSIT');
@@ -1294,10 +1304,9 @@ class TransitService {
     }
 
     // Fallback (or intercity) → bahn.de HAFAS (Germany-wide).
-    // For bahn.de we need bahn-style IDs; re-resolve names via bahn.de.
     if (results.isEmpty) {
       try {
-        results = await _bahnTripSearchByName(from.name, to.name, when);
+        results = await _bahnTripSearchByName(from.name, to.name, when, arriveBy: arriveBy);
       } catch (e) {
         _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
       }
@@ -1307,14 +1316,13 @@ class TransitService {
   }
 
   /// bahn.de journey search that resolves location names to bahn.de IDs first.
-  /// Used for intercity queries or when local provider fails.
-  Future<List<Journey>> _bahnTripSearchByName(String fromName, String toName, DateTime when) async {
+  Future<List<Journey>> _bahnTripSearchByName(String fromName, String toName, DateTime when, {bool arriveBy = false}) async {
     final results = await Future.wait([
       _bahnLocationSearch(fromName),
       _bahnLocationSearch(toName),
     ]);
     if (results[0].isEmpty || results[1].isEmpty) return [];
-    return _bahnTripSearch(results[0].first, results[1].first, when);
+    return _bahnTripSearch(results[0].first, results[1].first, when, arriveBy: arriveBy);
   }
 
   // ── EFA trip/location endpoints ────────────────────────────────
@@ -1358,6 +1366,7 @@ class TransitService {
 
   Future<List<Journey>> _efaTripSearch(
     TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when,
+    {bool arriveBy = false},
   ) async {
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}';
@@ -1366,7 +1375,8 @@ class TransitService {
       '?outputFormat=JSON&locationServerActive=1&useRealtime=1&calcNumberOfTrips=4'
       '&type_origin=any&name_origin=${Uri.encodeComponent(from.id)}'
       '&type_destination=any&name_destination=${Uri.encodeComponent(to.id)}'
-      '&itdDate=$dateStr&itdTime=$timeStr',
+      '&itdDate=$dateStr&itdTime=$timeStr'
+      '&itdTripDateTimeDepArr=${arriveBy ? "arr" : "dep"}',
     );
     final response = await _client.get(uri).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) return [];
@@ -1472,6 +1482,7 @@ class TransitService {
 
   Future<List<Journey>> _hafasTripSearch(
     TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when,
+    {bool arriveBy = false},
   ) async {
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
@@ -1484,6 +1495,7 @@ class TransitService {
           'outDate': dateStr,
           'outTime': timeStr,
           'numF': 4,
+          'outFrwd': !arriveBy, // true = depart-at, false = arrive-by
         },
       },
     ]);
@@ -1603,14 +1615,14 @@ class TransitService {
     }).whereType<TransitLocation>().toList();
   }
 
-  Future<List<Journey>> _bahnTripSearch(TransitLocation from, TransitLocation to, DateTime when) async {
+  Future<List<Journey>> _bahnTripSearch(TransitLocation from, TransitLocation to, DateTime when, {bool arriveBy = false}) async {
     final iso = when.toIso8601String();
     final uri = Uri.parse('https://www.bahn.de/web/api/reiseloesung/verbindungen');
     final body = jsonEncode({
       'abfahrtsHalt': from.id,
       'ankunftsHalt': to.id,
       'anfrageZeitpunkt': iso,
-      'ankunftSuche': 'ABFAHRT',
+      'ankunftSuche': arriveBy ? 'ANKUNFT' : 'ABFAHRT',
       'klasse': 'KLASSE_2',
       'produktgattungen': ['ICE','EC_IC','IR','REGIONAL','SBAHN','BUS','SCHIFF','UBAHN','TRAM','ANRUFPFLICHTIG'],
       'reisende': [{'typ':'ERWACHSENER','ermaessigungen':[{'art':'KEINE_ERMAESSIGUNG','klasse':'KLASSENLOS'}],'alter':[],'anzahl':1}],

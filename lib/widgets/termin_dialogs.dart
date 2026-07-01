@@ -4,7 +4,10 @@ import '../services/termin_service.dart';
 import '../services/termin_weather_service.dart';
 import '../services/ticket_service.dart';
 import '../services/api_service.dart';
+import '../services/transit_service.dart';
+import '../services/termin_route_service.dart';
 import '../models/user.dart';
+import 'opnv_dialog.dart';
 
 // Create Termin Dialog
 class CreateTerminDialog extends StatefulWidget {
@@ -482,6 +485,12 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
   bool _isEditing = false;
   bool _isSendingReminder = false;
 
+  // ÖPNV route calculation state
+  final _transitService = TransitService();
+  late final TerminRouteService _routeService;
+  bool _routeLoading = false;
+  TerminRouteResult? _routeResult;
+
   @override
   void initState() {
     super.initState();
@@ -494,6 +503,35 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
     _selectedTime = TimeOfDay.fromDateTime(widget.termin.terminDate);
     _selectedTicketId = widget.termin.ticketId;
     _brauchtMich = widget.termin.brauchtMich;
+    _routeService = TerminRouteService(ApiService(), _transitService);
+  }
+
+  Future<void> _calculateRoute() async {
+    setState(() {
+      _routeLoading = true;
+      _routeResult = null;
+    });
+    final result = await _routeService.calculateRoute(widget.termin);
+    if (!mounted) return;
+    setState(() {
+      _routeResult = result;
+      _routeLoading = false;
+    });
+  }
+
+  void _openOpnvDialog() {
+    final r = _routeResult?.route;
+    showDialog(
+      context: context,
+      builder: (_) => OpnvDialog(
+        transitService: _transitService,
+        initialDepartures: const [],
+        city: '',
+        initialFrom: r?.from,
+        initialTo: r?.to,
+        initialArrivalTime: r?.targetArrival,
+      ),
+    );
   }
 
   @override
@@ -829,6 +867,7 @@ ICD360S e.V. Vorstand''';
                     if (termin.location.isNotEmpty)
                       _readOnlyRow(Icons.location_on, 'Ort', termin.location),
                     if (widget.weatherHint != null) _buildWeatherHintCard(widget.weatherHint!),
+                    if (widget.termin.location.trim().isNotEmpty) _buildRouteCard(),
                     if (termin.description.isNotEmpty)
                       _readOnlyRow(Icons.notes, 'Beschreibung', termin.description),
                     if (termin.ticketSubject != null)
@@ -1078,6 +1117,210 @@ ICD360S e.V. Vorstand''';
                   style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  ÖPNV route: Verein-Adresse → termin.location, arrive-by = terminDate − 15min
+  // ════════════════════════════════════════════════════════════════════════
+  Widget _buildRouteCard() {
+    final teal = Colors.teal.shade700;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.teal.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.teal.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 6),
+            child: Row(
+              children: [
+                Icon(Icons.directions_bus, size: 18, color: teal),
+                const SizedBox(width: 8),
+                Text('ÖPNV-Anreise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                const Spacer(),
+                if (_routeResult == null && !_routeLoading)
+                  TextButton.icon(
+                    icon: const Icon(Icons.search, size: 14),
+                    label: const Text('Route berechnen', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(foregroundColor: teal, padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    onPressed: _calculateRoute,
+                  ),
+                if (_routeLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                if (_routeResult != null && _routeResult!.isSuccess)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 16),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onPressed: _calculateRoute,
+                    tooltip: 'Neu berechnen',
+                  ),
+              ],
+            ),
+          ),
+          if (_routeResult != null) ...[
+            const Divider(height: 1),
+            if (_routeResult!.isSuccess) _buildRouteContent(_routeResult!.route!)
+            else _buildRouteError(_routeResult!),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRouteContent(TerminRoute r) {
+    final j = r.primary;
+    final dep = DateFormat('HH:mm').format(j.depTime);
+    final arr = DateFormat('HH:mm').format(j.arrTime);
+    final dur = j.duration.inMinutes;
+    final durStr = dur >= 60 ? '${dur ~/ 60}h ${dur % 60}m' : '${dur}m';
+    final minutesBefore = r.minutesBeforeTermin(widget.termin.terminDate);
+    final transfers = j.legs.where((l) => !l.isWalk).length - 1;
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: dep → arr + duration + transfers
+          Row(
+            children: [
+              Text('$dep → $arr', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              Text(durStr, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+                child: Text(
+                  transfers <= 0 ? 'direkt' : '$transfers ×',
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${r.from.name} → ${r.to.name}',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          // Legs
+          Wrap(
+            spacing: 4, runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (int i = 0; i < j.legs.length; i++) ...[
+                if (i > 0) Icon(Icons.chevron_right, size: 14, color: Colors.grey.shade400),
+                _routeLegChip(j.legs[i]),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Buffer status
+          Row(
+            children: [
+              Icon(
+                minutesBefore >= r.bufferMinutes ? Icons.check_circle : Icons.warning,
+                size: 14,
+                color: minutesBefore >= r.bufferMinutes ? Colors.green.shade700 : Colors.orange.shade700,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                minutesBefore >= 0
+                    ? '$minutesBefore Min. vor Termin'
+                    : '${-minutesBefore} Min. NACH Termin ⚠',
+                style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600,
+                  color: minutesBefore >= r.bufferMinutes ? Colors.green.shade700 : Colors.orange.shade700,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: const Text('ÖPNV öffnen', style: TextStyle(fontSize: 11)),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+                onPressed: _openOpnvDialog,
+              ),
+            ],
+          ),
+          if (r.alternatives.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '+ ${r.alternatives.length} Alternative Verbindung${r.alternatives.length > 1 ? "en" : ""} verfügbar',
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _routeLegChip(JourneyLeg leg) {
+    if (leg.isWalk) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.directions_walk, size: 14, color: Colors.grey.shade600),
+          Text('${leg.arrTime.difference(leg.depTime).inMinutes}m', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        ],
+      );
+    }
+    final color = switch (leg.productType) {
+      'tram' => Colors.blue.shade700,
+      'train' || 'regional' => Colors.red.shade700,
+      'suburban' => Colors.green.shade700,
+      _ => Colors.teal.shade700,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+      child: Text(
+        leg.line,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildRouteError(TerminRouteResult res) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  res.germanMessage,
+                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.search, size: 14),
+              label: const Text('Manuell in ÖPNV suchen', style: TextStyle(fontSize: 11)),
+              onPressed: _openOpnvDialog,
             ),
           ),
         ],
