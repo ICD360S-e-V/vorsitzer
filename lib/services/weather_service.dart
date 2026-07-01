@@ -113,6 +113,7 @@ class HourlyForecast {
   final double windSpeed;
   final int humidity;
   final double precipitation;
+  final int? precipitationProbability;
 
   HourlyForecast({
     required this.time,
@@ -121,6 +122,7 @@ class HourlyForecast {
     required this.windSpeed,
     required this.humidity,
     required this.precipitation,
+    this.precipitationProbability,
   });
 
   String get icon => WeatherCode.icon(weatherCode);
@@ -133,6 +135,7 @@ class MinutelyForecast {
   final double temperature;
   final int weatherCode;
   final double precipitation;
+  final int? precipitationProbability;
   final double windSpeed;
 
   MinutelyForecast({
@@ -140,6 +143,7 @@ class MinutelyForecast {
     required this.temperature,
     required this.weatherCode,
     required this.precipitation,
+    this.precipitationProbability,
     required this.windSpeed,
   });
 
@@ -210,6 +214,136 @@ class WeatherAlert {
   }
 }
 
+/// Snapshot of air-quality + pollen data (Open-Meteo air-quality API, free, CAMS).
+///
+/// Levels follow the German UBA / European classification where practical.
+class AirQualityData {
+  final double? pm25;             // µg/m³
+  final double? pm10;             // µg/m³
+  final double? ozone;            // µg/m³
+  final double? nitrogenDioxide;  // µg/m³
+  final double? sulphurDioxide;   // µg/m³
+  final double? carbonMonoxide;   // µg/m³
+  final double? europeanAqi;      // 0-100 index
+  final double? uvIndex;
+  // Pollen (grains/m³ average) — null when out of season or not covered by CAMS.
+  final double? alderPollen;
+  final double? birchPollen;
+  final double? grassPollen;
+  final double? mugwortPollen;
+  final double? olivePollen;
+  final double? ragweedPollen;
+  final DateTime timestamp;
+
+  AirQualityData({
+    this.pm25,
+    this.pm10,
+    this.ozone,
+    this.nitrogenDioxide,
+    this.sulphurDioxide,
+    this.carbonMonoxide,
+    this.europeanAqi,
+    this.uvIndex,
+    this.alderPollen,
+    this.birchPollen,
+    this.grassPollen,
+    this.mugwortPollen,
+    this.olivePollen,
+    this.ragweedPollen,
+    required this.timestamp,
+  });
+
+  /// Coarse label for the European AQI (UBA/EEA scale).
+  String get aqiLabel {
+    final v = europeanAqi;
+    if (v == null) return 'unbekannt';
+    if (v <= 20) return 'sehr gut';
+    if (v <= 40) return 'gut';
+    if (v <= 60) return 'mäßig';
+    if (v <= 80) return 'schlecht';
+    return 'sehr schlecht';
+  }
+
+  /// Any pollen count above ~10 grains/m³ is typically noticeable for allergics.
+  bool get pollenActive =>
+      (alderPollen ?? 0) > 10 ||
+      (birchPollen ?? 0) > 10 ||
+      (grassPollen ?? 0) > 10 ||
+      (mugwortPollen ?? 0) > 10 ||
+      (ragweedPollen ?? 0) > 10;
+}
+
+/// Sun times + moon phase for the header. Sunrise/sunset come from Open-Meteo daily;
+/// the moon phase is computed locally from a known new-moon epoch (no extra API).
+class AstronomyData {
+  final DateTime? sunrise;
+  final DateTime? sunset;
+  final Duration? daylight;
+  final double moonAgeDays; // 0..29.53
+  final int moonPhaseIndex; // 0=new, 1=waxing crescent, ..., 7=waning crescent
+  final String moonPhaseLabel;
+  final String moonEmoji;
+  final int moonIlluminationPercent;
+
+  AstronomyData({
+    this.sunrise,
+    this.sunset,
+    this.daylight,
+    required this.moonAgeDays,
+    required this.moonPhaseIndex,
+    required this.moonPhaseLabel,
+    required this.moonEmoji,
+    required this.moonIlluminationPercent,
+  });
+
+  /// Compute lunar phase from a UTC date.
+  ///
+  /// Uses a well-known reference new moon (2000-01-06 18:14 UT, "Meeus / synodic
+  /// month" approximation). Precision is ±a few hours over a decade — more than
+  /// enough for a UI label.
+  static AstronomyData forDate(DateTime day, {DateTime? sunrise, DateTime? sunset}) {
+    final reference = DateTime.utc(2000, 1, 6, 18, 14);
+    const synodic = 29.530588853;
+    final diffDays = day.toUtc().difference(reference).inSeconds / 86400.0;
+    double age = diffDays % synodic;
+    if (age < 0) age += synodic;
+
+    // 8-phase classification — matches the icons every German weather app uses.
+    const labels = [
+      ('Neumond', '🌑'),
+      ('zunehmender Sichel', '🌒'),
+      ('erstes Viertel', '🌓'),
+      ('zunehmender Mond', '🌔'),
+      ('Vollmond', '🌕'),
+      ('abnehmender Mond', '🌖'),
+      ('letztes Viertel', '🌗'),
+      ('abnehmende Sichel', '🌘'),
+    ];
+    // Phase 0 is centred on age=0 (new moon), phase 4 on age=synodic/2 (full moon).
+    final rawIndex = (age / synodic * 8).round() % 8;
+
+    // Illumination (%): cosine of the phase angle mapped to 0..100.
+    final phaseAngle = 2 * math.pi * age / synodic;
+    final illum = ((1 - math.cos(phaseAngle)) / 2 * 100).round();
+
+    Duration? daylight;
+    if (sunrise != null && sunset != null && sunset.isAfter(sunrise)) {
+      daylight = sunset.difference(sunrise);
+    }
+
+    return AstronomyData(
+      sunrise: sunrise,
+      sunset: sunset,
+      daylight: daylight,
+      moonAgeDays: age,
+      moonPhaseIndex: rawIndex,
+      moonPhaseLabel: labels[rawIndex].$1,
+      moonEmoji: labels[rawIndex].$2,
+      moonIlluminationPercent: illum,
+    );
+  }
+}
+
 /// Weather service using Open-Meteo (free, no API key) + Bright Sky (DWD alerts)
 class WeatherService {
   Timer? _weatherTimer;
@@ -224,10 +358,14 @@ class WeatherService {
   bool _gpsRefreshEnabled = false;
 
   WeatherData? currentWeather;
+  AirQualityData? currentAirQuality;
+  AstronomyData? currentAstronomy;
   List<WeatherAlert> currentAlerts = [];
   List<MinutelyForecast> minutelyForecast = [];
   List<HourlyForecast> hourlyForecast = [];
   List<DailyForecast> dailyForecast = [];
+
+  Timer? _airQualityTimer;
 
   // Track last notified conditions to avoid spam
   int? _lastNotifiedWeatherCode;
@@ -237,6 +375,7 @@ class WeatherService {
   // Callbacks
   void Function(WeatherData)? onWeatherUpdate;
   void Function(List<WeatherAlert>)? onAlertsUpdate;
+  void Function(AirQualityData)? onAirQualityUpdate;
 
   final _client = IOClient(HttpClientFactory.createDefaultHttpClient());
 
@@ -270,6 +409,7 @@ class WeatherService {
     // Initial fetch
     await _fetchWeather();
     await _fetchAlerts();
+    await _fetchAirQuality();
 
     // Weather every 5 minutes: Bright Sky DWD observations refresh ~10 min server-side,
     // Open-Meteo current ~15 min; 5-min polling picks up updates as soon as they land.
@@ -277,6 +417,9 @@ class WeatherService {
 
     // Alerts every 15 minutes
     _alertTimer = Timer.periodic(const Duration(minutes: 15), (_) => _fetchAlerts());
+
+    // Air quality every 30 minutes — CAMS updates hourly, no need to poll faster.
+    _airQualityTimer = Timer.periodic(const Duration(minutes: 30), (_) => _fetchAirQuality());
 
     // Optional GPS follow: event-driven (only fires when device actually moves ≥1m).
     // Battery-friendly: idle phones never trigger the callback.
@@ -288,9 +431,11 @@ class WeatherService {
   void stop() {
     _weatherTimer?.cancel();
     _alertTimer?.cancel();
+    _airQualityTimer?.cancel();
     _gpsSubscription?.cancel();
     _weatherTimer = null;
     _alertTimer = null;
+    _airQualityTimer = null;
     _gpsSubscription = null;
     _lastNotifiedWeatherCode = null;
     _lastNotifiedStrongWind = false;
@@ -375,6 +520,7 @@ class WeatherService {
 
     await _fetchWeather();
     await _fetchAlerts();
+    await _fetchAirQuality();
   }
 
   /// Compute great-circle distance between two coordinates in meters (Haversine).
@@ -532,9 +678,10 @@ class WeatherService {
         '?latitude=$_latitude&longitude=$_longitude'
         '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,'
         'wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,cloud_cover,is_day,uv_index'
-        '&minutely_15=temperature_2m,precipitation,weather_code,wind_speed_10m'
-        '&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation'
-        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max'
+        '&minutely_15=temperature_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m'
+        '&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation,precipitation_probability'
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,'
+        'wind_speed_10m_max,sunrise,sunset,daylight_duration'
         '&timezone=Europe/Berlin'
         '&forecast_days=7'
         '&forecast_minutely_15=96', // 96 * 15min = 24h of 15-min nowcast
@@ -604,6 +751,7 @@ class WeatherService {
           final temps = (minutely['temperature_2m'] as List?) ?? const [];
           final codes = (minutely['weather_code'] as List?) ?? const [];
           final precips = (minutely['precipitation'] as List?) ?? const [];
+          final precipProbs = (minutely['precipitation_probability'] as List?) ?? const [];
           final winds = (minutely['wind_speed_10m'] as List?) ?? const [];
 
           minutelyForecast = [];
@@ -619,6 +767,7 @@ class WeatherService {
               temperature: temp.toDouble(),
               weatherCode: code.toInt(),
               precipitation: ((i < precips.length ? precips[i] : 0) as num?)?.toDouble() ?? 0,
+              precipitationProbability: ((i < precipProbs.length ? precipProbs[i] : null) as num?)?.toInt(),
               windSpeed: ((i < winds.length ? winds[i] : 0) as num?)?.toDouble() ?? 0,
             ));
           }
@@ -633,6 +782,7 @@ class WeatherService {
           final winds = (hourly['wind_speed_10m'] as List);
           final humids = (hourly['relative_humidity_2m'] as List);
           final precips = (hourly['precipitation'] as List);
+          final precipProbs = (hourly['precipitation_probability'] as List?) ?? const [];
 
           hourlyForecast = [];
           for (int i = 0; i < times.length; i++) {
@@ -645,12 +795,13 @@ class WeatherService {
                 windSpeed: (winds[i] as num).toDouble(),
                 humidity: (humids[i] as num).toInt(),
                 precipitation: (precips[i] as num).toDouble(),
+                precipitationProbability: ((i < precipProbs.length ? precipProbs[i] : null) as num?)?.toInt(),
               ));
             }
           }
         }
 
-        // Daily forecast
+        // Daily forecast (+ sunrise/sunset → drive currentAstronomy for today)
         final daily = data['daily'];
         if (daily != null) {
           final dates = (daily['time'] as List).cast<String>();
@@ -659,8 +810,12 @@ class WeatherService {
           final codes = (daily['weather_code'] as List);
           final precips = (daily['precipitation_sum'] as List);
           final winds = (daily['wind_speed_10m_max'] as List);
+          final sunrises = (daily['sunrise'] as List?)?.cast<String?>() ?? const [];
+          final sunsets = (daily['sunset'] as List?)?.cast<String?>() ?? const [];
 
           dailyForecast = [];
+          DateTime? todaySunrise;
+          DateTime? todaySunset;
           for (int i = 0; i < dates.length; i++) {
             final d = DateTime.tryParse(dates[i]);
             if (d != null) {
@@ -672,12 +827,76 @@ class WeatherService {
                 precipitationSum: (precips[i] as num).toDouble(),
                 windSpeedMax: (winds[i] as num).toDouble(),
               ));
+              if (i == 0) {
+                todaySunrise = i < sunrises.length && sunrises[i] != null
+                    ? DateTime.tryParse(sunrises[i]!) : null;
+                todaySunset = i < sunsets.length && sunsets[i] != null
+                    ? DateTime.tryParse(sunsets[i]!) : null;
+              }
             }
           }
+          currentAstronomy = AstronomyData.forDate(
+            DateTime.now(),
+            sunrise: todaySunrise,
+            sunset: todaySunset,
+          );
         }
       }
     } catch (e) {
       _log.error('Weather: Fetch failed: $e', tag: 'WEATHER');
+    }
+  }
+
+  /// Fetch Open-Meteo Air Quality API — free, CAMS-driven. PM2.5/PM10, ozone,
+  /// NO2, SO2, CO, European AQI, plus pollen counts (grass/birch/alder/mugwort/
+  /// olive/ragweed) when available for the region.
+  Future<void> _fetchAirQuality() async {
+    if (_latitude == null || _longitude == null) return;
+    try {
+      final uri = Uri.parse(
+        'https://air-quality-api.open-meteo.com/v1/air-quality'
+        '?latitude=$_latitude&longitude=$_longitude'
+        '&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,'
+        'uv_index,european_aqi,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,'
+        'olive_pollen,ragweed_pollen'
+        '&timezone=Europe/Berlin',
+      );
+      final response = await _client.get(uri).timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return;
+
+      final data = jsonDecode(response.body);
+      final c = data['current'];
+      if (c == null) return;
+
+      double? d(String k) => (c[k] as num?)?.toDouble();
+
+      final aq = AirQualityData(
+        pm25: d('pm2_5'),
+        pm10: d('pm10'),
+        ozone: d('ozone'),
+        nitrogenDioxide: d('nitrogen_dioxide'),
+        sulphurDioxide: d('sulphur_dioxide'),
+        carbonMonoxide: d('carbon_monoxide'),
+        europeanAqi: d('european_aqi'),
+        uvIndex: d('uv_index'),
+        alderPollen: d('alder_pollen'),
+        birchPollen: d('birch_pollen'),
+        grassPollen: d('grass_pollen'),
+        mugwortPollen: d('mugwort_pollen'),
+        olivePollen: d('olive_pollen'),
+        ragweedPollen: d('ragweed_pollen'),
+        timestamp: DateTime.now(),
+      );
+
+      currentAirQuality = aq;
+      onAirQualityUpdate?.call(aq);
+      _log.info(
+        'AirQuality: AQI=${aq.europeanAqi?.toStringAsFixed(0) ?? "?"} (${aq.aqiLabel}), '
+        'PM2.5=${aq.pm25?.toStringAsFixed(1) ?? "?"} µg/m³, pollen=${aq.pollenActive ? "yes" : "no"}',
+        tag: 'WEATHER',
+      );
+    } catch (e) {
+      _log.debug('AirQuality: fetch failed: $e', tag: 'WEATHER');
     }
   }
 
@@ -803,11 +1022,13 @@ class WeatherService {
     _log.info('Weather: Location updated → $city ($lat, $lon)', tag: 'WEATHER');
     await _fetchWeather();
     await _fetchAlerts();
+    await _fetchAirQuality();
   }
 
-  /// Force refresh weather + alerts
+  /// Force refresh weather + alerts + air quality
   Future<void> refresh() async {
     await _fetchWeather();
     await _fetchAlerts();
+    await _fetchAirQuality();
   }
 }

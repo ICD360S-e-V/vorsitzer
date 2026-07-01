@@ -144,6 +144,7 @@ class WeatherDialog extends StatefulWidget {
 class _WeatherDialogState extends State<WeatherDialog> {
   void Function(WeatherData)? _prevWeatherCb;
   void Function(List<WeatherAlert>)? _prevAlertsCb;
+  void Function(AirQualityData)? _prevAirQualityCb;
 
   @override
   void initState() {
@@ -151,6 +152,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
     // Chain existing callbacks so we don't clobber dashboard listeners.
     _prevWeatherCb = widget.service.onWeatherUpdate;
     _prevAlertsCb = widget.service.onAlertsUpdate;
+    _prevAirQualityCb = widget.service.onAirQualityUpdate;
     widget.service.onWeatherUpdate = (w) {
       _prevWeatherCb?.call(w);
       if (mounted) setState(() {});
@@ -159,12 +161,17 @@ class _WeatherDialogState extends State<WeatherDialog> {
       _prevAlertsCb?.call(a);
       if (mounted) setState(() {});
     };
+    widget.service.onAirQualityUpdate = (a) {
+      _prevAirQualityCb?.call(a);
+      if (mounted) setState(() {});
+    };
   }
 
   @override
   void dispose() {
     widget.service.onWeatherUpdate = _prevWeatherCb;
     widget.service.onAlertsUpdate = _prevAlertsCb;
+    widget.service.onAirQualityUpdate = _prevAirQualityCb;
     super.dispose();
   }
 
@@ -198,7 +205,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
         width: 520,
         height: 620,
         child: DefaultTabController(
-          length: 4,
+          length: 5,
           child: Column(
             children: [
               _buildHeader(context, weather),
@@ -207,6 +214,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                   children: [
                     _buildAktuellTab(weather, alerts),
                     _buildStuendlichTab(next24h, df),
+                    _buildUmweltTab(),
                     _buildDreiTageTab(next3Days, dfDay),
                     _buildWocheTab(weekForecast, dfDayShort, now),
                   ],
@@ -268,12 +276,14 @@ class _WeatherDialogState extends State<WeatherDialog> {
           ),
           const SizedBox(height: 8),
           const TabBar(
+            isScrollable: true,
             labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             unselectedLabelStyle: TextStyle(fontSize: 12),
-            indicatorSize: TabBarIndicatorSize.tab,
+            tabAlignment: TabAlignment.center,
             tabs: [
               Tab(text: 'Aktuell'),
               Tab(text: 'Stündlich'),
+              Tab(text: 'Umwelt'),
               Tab(text: '3 Tage'),
               Tab(text: 'Woche'),
             ],
@@ -359,6 +369,11 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 ],
               ),
             ),
+          ],
+          // Astronomy — sunrise/sunset + moon phase
+          if (widget.service.currentAstronomy != null) ...[
+            const SizedBox(height: 10),
+            _buildAstronomyCard(widget.service.currentAstronomy!),
           ],
           // DWD Alerts
           if (alerts.isNotEmpty) ...[
@@ -735,6 +750,285 @@ class _WeatherDialogState extends State<WeatherDialog> {
     );
   }
 
+  Widget _buildAstronomyCard(AstronomyData astro) {
+    final df = DateFormat('HH:mm', 'de_DE');
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.indigo.shade50,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          Column(
+            children: [
+              const Text('🌅', style: TextStyle(fontSize: 20)),
+              const SizedBox(height: 4),
+              Text(
+                astro.sunrise != null ? df.format(astro.sunrise!) : '—',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade900),
+              ),
+              Text('Sonnenaufgang', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            ],
+          ),
+          Column(
+            children: [
+              const Text('🌇', style: TextStyle(fontSize: 20)),
+              const SizedBox(height: 4),
+              Text(
+                astro.sunset != null ? df.format(astro.sunset!) : '—',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.deepOrange.shade900),
+              ),
+              Text('Sonnenuntergang', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            ],
+          ),
+          Column(
+            children: [
+              Text(astro.moonEmoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(height: 4),
+              Text(
+                '${astro.moonIlluminationPercent}%',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade900),
+              ),
+              Text(astro.moonPhaseLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade600), textAlign: TextAlign.center),
+            ],
+          ),
+          if (astro.daylight != null)
+            Column(
+              children: [
+                Icon(Icons.wb_sunny_outlined, size: 20, color: Colors.amber.shade700),
+                const SizedBox(height: 4),
+                Text(
+                  '${astro.daylight!.inHours}h ${astro.daylight!.inMinutes.remainder(60)}m',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.amber.shade900),
+                ),
+                Text('Tageslänge', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUmweltTab() {
+    final aq = widget.service.currentAirQuality;
+    if (aq == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('Luftqualitäts-Daten werden geladen …',
+              style: TextStyle(fontSize: 13, color: Colors.grey)),
+        ),
+      );
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // European AQI headline
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _aqiColor(aq.europeanAqi).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _aqiColor(aq.europeanAqi).withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.air, size: 30, color: _aqiColor(aq.europeanAqi)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Europäischer Luftqualitäts-Index',
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      Text(
+                        aq.europeanAqi != null
+                            ? '${aq.europeanAqi!.toStringAsFixed(0)} • ${aq.aqiLabel}'
+                            : 'unbekannt',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _aqiColor(aq.europeanAqi),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text('Schadstoffe (µg/m³)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          _pollutantRow('Feinstaub PM2.5', aq.pm25, warnAbove: 25, dangerAbove: 50),
+          _pollutantRow('Feinstaub PM10', aq.pm10, warnAbove: 50, dangerAbove: 100),
+          _pollutantRow('Ozon (O₃)', aq.ozone, warnAbove: 120, dangerAbove: 180),
+          _pollutantRow('Stickstoffdioxid (NO₂)', aq.nitrogenDioxide, warnAbove: 40, dangerAbove: 200),
+          if (aq.sulphurDioxide != null && aq.sulphurDioxide! > 0)
+            _pollutantRow('Schwefeldioxid (SO₂)', aq.sulphurDioxide, warnAbove: 40, dangerAbove: 250),
+          if (aq.carbonMonoxide != null && aq.carbonMonoxide! > 0)
+            _pollutantRow('Kohlenmonoxid (CO)', aq.carbonMonoxide, warnAbove: 4000, dangerAbove: 10000),
+          if (aq.uvIndex != null) ...[
+            const SizedBox(height: 14),
+            _uvIndexBar(aq.uvIndex!),
+          ],
+          const SizedBox(height: 14),
+          Text('Pollenflug (Körner/m³)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          if (aq.alderPollen != null || aq.birchPollen != null || aq.grassPollen != null ||
+              aq.mugwortPollen != null || aq.olivePollen != null || aq.ragweedPollen != null)
+            Column(
+              children: [
+                _pollenRow('Erle (Alder)', aq.alderPollen),
+                _pollenRow('Birke', aq.birchPollen),
+                _pollenRow('Gräser', aq.grassPollen),
+                _pollenRow('Beifuß', aq.mugwortPollen),
+                _pollenRow('Olive', aq.olivePollen),
+                _pollenRow('Ambrosia (Ragweed)', aq.ragweedPollen),
+              ],
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text('Keine Pollen-Daten für diesen Standort verfügbar',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ),
+          const SizedBox(height: 12),
+          Text(
+            'Daten: CAMS via Open-Meteo Air Quality API',
+            style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _aqiColor(double? aqi) {
+    if (aqi == null) return Colors.grey;
+    if (aqi <= 20) return Colors.green.shade700;
+    if (aqi <= 40) return Colors.lightGreen.shade700;
+    if (aqi <= 60) return Colors.amber.shade700;
+    if (aqi <= 80) return Colors.orange.shade700;
+    return Colors.red.shade700;
+  }
+
+  Widget _pollutantRow(String label, double? value,
+      {required double warnAbove, required double dangerAbove}) {
+    final v = value;
+    final color = v == null
+        ? Colors.grey
+        : (v >= dangerAbove
+            ? Colors.red.shade700
+            : (v >= warnAbove ? Colors.orange.shade700 : Colors.green.shade700));
+    final ratio = v == null ? 0.0 : (v / dangerAbove).clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(label, style: const TextStyle(fontSize: 12)),
+          ),
+          Expanded(
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: ratio,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 60,
+            child: Text(
+              v == null ? '—' : v.toStringAsFixed(1),
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _uvIndexBar(double uv) {
+    final label = uv < 3 ? 'gering' : (uv < 6 ? 'mäßig' : (uv < 8 ? 'hoch' : (uv < 11 ? 'sehr hoch' : 'extrem')));
+    final color = uv < 3
+        ? Colors.green
+        : (uv < 6 ? Colors.yellow.shade700 : (uv < 8 ? Colors.orange : (uv < 11 ? Colors.red : Colors.purple)));
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.wb_sunny, color: color, size: 22),
+          const SizedBox(width: 10),
+          Text('UV-Index ', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text(uv.toStringAsFixed(1),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(width: 6),
+          Text('($label)', style: TextStyle(fontSize: 12, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _pollenRow(String name, double? count) {
+    if (count == null || count <= 0) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          children: [
+            SizedBox(width: 140, child: Text(name, style: TextStyle(fontSize: 12, color: Colors.grey.shade500))),
+            Text('—', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+          ],
+        ),
+      );
+    }
+    // Belastung: leicht <10, mittel 10-49, hoch 50+
+    final level = count < 10
+        ? ('gering', Colors.green.shade700)
+        : (count < 50 ? ('mittel', Colors.orange.shade700) : ('hoch', Colors.red.shade700));
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(width: 140, child: Text(name, style: const TextStyle(fontSize: 12))),
+          Text(count.toStringAsFixed(0), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: level.$2)),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: level.$2.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(level.$1, style: TextStyle(fontSize: 10, color: level.$2, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Color _alertColor(String severity) {
     switch (severity) {
       case 'extreme':
@@ -774,7 +1068,7 @@ class _MinutelyTimeline extends StatelessWidget {
     );
 
     return Container(
-      height: 100,
+      height: 115,
       decoration: BoxDecoration(
         color: Colors.blue.shade50.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
@@ -824,6 +1118,25 @@ class _MinutelyTimeline extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: e.temperature < 0 ? Colors.blue.shade800 : Colors.orange.shade800,
                   ),
+                ),
+                // Precipitation probability (% chance of rain) — shown when ≥20% or when it's raining.
+                SizedBox(
+                  height: 12,
+                  child: (e.precipitationProbability != null &&
+                          (e.precipitationProbability! >= 20 || e.precipitation > 0))
+                      ? Text(
+                          '${e.precipitationProbability}%',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: e.precipitationProbability! >= 70
+                                ? Colors.blue.shade900
+                                : (e.precipitationProbability! >= 40
+                                    ? Colors.blue.shade700
+                                    : Colors.blue.shade400),
+                          ),
+                        )
+                      : null,
                 ),
                 // Precipitation bar — grows upward with mm; empty if no precipitation.
                 SizedBox(
