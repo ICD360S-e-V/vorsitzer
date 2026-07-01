@@ -231,34 +231,80 @@ class TerminWeatherService {
     // Step 2: Nominatim (OpenStreetMap) — much better for street-level German
     // addresses like "Bürgerbüro Marzahn, Alt-Marzahn 51". Free, no API key,
     // but requires a real User-Agent per usage policy.
+    final nominatim = await _nominatimSearch(location);
+    if (nominatim != null) {
+      await sp.setString('$_spKeyGeocodePrefix$location', '${nominatim.$1},${nominatim.$2}');
+      _log.debug('TerminWeather: geocoded "$location" via Nominatim → ${nominatim.$1}, ${nominatim.$2}',
+          tag: 'TERMIN_WEATHER');
+      return nominatim;
+    }
+
+    // Step 3: last-resort fallback — extract "PLZ Stadt" from the string and
+    // try that. Works for addresses like "Familienarztpraxis Dres. Lankes,
+    // Haslacherweg 81, 89075 Ulm (Böfingen)" where the practice name isn't
+    // indexed anywhere but "89075 Ulm" is guaranteed to geocode.
+    final plz = _extractPlzCity(location);
+    if (plz != null && plz != location) {
+      _log.debug('TerminWeather: retrying with PLZ+city "$plz" for "$location"',
+          tag: 'TERMIN_WEATHER');
+      final via = await _nominatimSearch(plz);
+      if (via != null) {
+        await sp.setString('$_spKeyGeocodePrefix$location', '${via.$1},${via.$2}');
+        return via;
+      }
+      try {
+        final uri = Uri.parse(
+          'https://geocoding-api.open-meteo.com/v1/search'
+          '?name=${Uri.encodeComponent(plz)}&count=1&language=de&format=json',
+        );
+        final r = await _client.get(uri).timeout(const Duration(seconds: 8));
+        if (r.statusCode == 200) {
+          final data = jsonDecode(r.body);
+          final results = data['results'] as List?;
+          if (results != null && results.isNotEmpty) {
+            final lat = (results[0]['latitude'] as num).toDouble();
+            final lon = (results[0]['longitude'] as num).toDouble();
+            await sp.setString('$_spKeyGeocodePrefix$location', '$lat,$lon');
+            return (lat, lon);
+          }
+        }
+      } catch (_) { /* give up */ }
+    }
+
+    return null;
+  }
+
+  /// Extract "PLZ Stadt" ("89073 Ulm") from a longer address string. Returns
+  /// null if the string contains no 5-digit German PLZ.
+  String? _extractPlzCity(String location) {
+    // Match "89073 Ulm" or "89073 Neu-Ulm" — 5 digits followed by 1-3 words.
+    final m = RegExp(r'\b(\d{5})\s+([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß.\-]*(?:\s+[A-Za-zÄÖÜäöüß][\wÄÖÜäöüß.\-]*){0,2})')
+        .firstMatch(location);
+    if (m == null) return null;
+    return '${m.group(1)} ${m.group(2)}';
+  }
+
+  Future<(double, double)?> _nominatimSearch(String query) async {
     try {
       final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/search'
-        '?q=${Uri.encodeComponent(location)}&format=json&limit=1&accept-language=de&countrycodes=de,at,ch',
+        '?q=${Uri.encodeComponent(query)}&format=json&limit=1&accept-language=de&countrycodes=de,at,ch',
       );
       final r = await _client
           .get(uri, headers: {
             'User-Agent': 'ICD360S-Vorsitzer-App/1.0 (contact@icd360s.de)',
           })
           .timeout(const Duration(seconds: 10));
-      if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List;
-        if (list.isNotEmpty) {
-          final lat = double.tryParse(list[0]['lat'].toString());
-          final lon = double.tryParse(list[0]['lon'].toString());
-          if (lat != null && lon != null) {
-            await sp.setString('$_spKeyGeocodePrefix$location', '$lat,$lon');
-            _log.debug('TerminWeather: geocoded "$location" via Nominatim → $lat, $lon',
-                tag: 'TERMIN_WEATHER');
-            return (lat, lon);
-          }
-        }
-      }
-    } catch (e) {
-      _log.debug('TerminWeather: Nominatim failed for "$location" — $e',
-          tag: 'TERMIN_WEATHER');
+      if (r.statusCode != 200) return null;
+      final list = jsonDecode(r.body) as List;
+      if (list.isEmpty) return null;
+      final lat = double.tryParse(list[0]['lat'].toString());
+      final lon = double.tryParse(list[0]['lon'].toString());
+      if (lat == null || lon == null) return null;
+      return (lat, lon);
+    } catch (_) {
+      return null;
     }
-    return null;
   }
 
   Future<TerminWeatherHint?> _hintForTermin(Termin termin, double lat, double lon) async {
