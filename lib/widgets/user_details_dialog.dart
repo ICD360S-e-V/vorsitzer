@@ -92,8 +92,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   // Dual-approval state (per Stufe). Loaded in parallel with verifizierung.
   // _myVotes[stufe]   = {decision, approved_at}            (this Vorstand only)
   // _allVotes[stufe]  = [ {approved_by, approved_by_name, decision, ...}, ... ]
+  // _currentReviewerId = the logged-in Vorstand's user.id (from server auth).
+  //   Used to render "(Du)" next to my own row in the voter list — cheaper
+  //   than diffing timestamps.
   Map<int, Map<String, dynamic>> _myVotes = {};
   Map<int, List<Map<String, dynamic>>> _allVotes = {};
+  int? _currentReviewerId;
 
   // Document acceptance audit trail (Stufe 6/7/8) — one entry per kind
   // (satzung / datenschutz / widerrufsbelehrung). Populated on dialog open
@@ -2949,7 +2953,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             }
           }
         }
-        setState(() { _myVotes = newMy; _allVotes = newAll; });
+        final rid = data['reviewer_id'];
+        setState(() {
+          _myVotes = newMy;
+          _allVotes = newAll;
+          _currentReviewerId = rid is int ? rid : int.tryParse(rid?.toString() ?? '');
+        });
       }
     } catch (_) {}
   }
@@ -3040,11 +3049,17 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           } else {
             msg = 'Stufe $stufe zurückgesetzt';
           }
-          if (userStatus == 'active') msg += ' · Mitglied jetzt aktiv';
+          final becameActive = userStatus == 'active';
+          if (becameActive) {
+            msg = '🎉 Alle 8 Stufen aprobate! ${widget.user.name} este acum Mitglied.';
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(msg),
-              backgroundColor: status == 'geprueft' ? Colors.green : status == 'abgelehnt' ? Colors.red : Colors.grey,
+              backgroundColor: becameActive
+                  ? Colors.purple.shade700
+                  : (status == 'geprueft' ? Colors.green : status == 'abgelehnt' ? Colors.red : Colors.grey),
+              duration: Duration(seconds: becameActive ? 6 : 3),
             ),
           );
           _loadVerifizierung();
@@ -3305,20 +3320,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   ),
                 ],
 
-                // Voter list (dual-approval audit trail)
+                // Voter list (dual-approval audit trail). Renders even for
+                // 0-vote Stufen so the Vorstand sees "Wartet auf 2. Vorstand"
+                // placeholder is visible only when there's ≥1 vote.
                 if (votes.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   _buildVoterList(votes),
                 ],
-                if (gepruefts == 1 && abgelehnts == 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Row(children: [
-                      Icon(Icons.hourglass_top, size: 14, color: Colors.orange.shade700),
-                      const SizedBox(width: 6),
-                      Text('Wartet auf 2. Vorstand', style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
 
                 const SizedBox(height: 12),
 
@@ -3353,8 +3361,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Widget _buildVoterList(List<Map<String, dynamic>> votes) {
+    final approved = votes.where((v) => v['decision'] == 'geprueft').toList();
+    final rejected = votes.where((v) => v['decision'] == 'abgelehnt').toList();
+    // Header count reflects Geprüft progress only (2/2 = final). Abgelehnt
+    // is shown separately below — it doesn't count toward the "N/2".
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.blue.shade50,
         borderRadius: BorderRadius.circular(6),
@@ -3364,25 +3376,63 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         Row(children: [
           Icon(Icons.how_to_vote, size: 14, color: Colors.blue.shade700),
           const SizedBox(width: 6),
-          Text('Vorstandsabstimmung (${votes.length}/2)',
+          Text('Vorstandsabstimmung (${approved.length}/2)',
                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
         ]),
-        const SizedBox(height: 4),
-        ...votes.map((v) {
-          final isGeprueft = v['decision'] == 'geprueft';
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
+        const SizedBox(height: 8),
+        for (final a in approved)
+          _voteLine(a, isRejection: false),
+        if (approved.length < 2 && rejected.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(children: [
-              Icon(isGeprueft ? Icons.check_circle : Icons.cancel,
-                   size: 12, color: isGeprueft ? Colors.green.shade700 : Colors.red.shade700),
-              const SizedBox(width: 6),
-              Expanded(child: Text(
-                '${v['approved_by_name'] ?? '?'} · ${isGeprueft ? 'Geprüft' : 'Abgelehnt'} am ${_formatDate(v['approved_at']?.toString() ?? '')}',
-                style: const TextStyle(fontSize: 11),
-              )),
+              Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+              const SizedBox(width: 8),
+              Text('Wartet auf 2. Vorstand', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
             ]),
-          );
-        }),
+          ),
+        for (final r in rejected)
+          _voteLine(r, isRejection: true),
+      ]),
+    );
+  }
+
+  Widget _voteLine(Map<String, dynamic> vote, {required bool isRejection}) {
+    final approvedBy = vote['approved_by'];
+    final isMe = _currentReviewerId != null && approvedBy is num && approvedBy.toInt() == _currentReviewerId;
+    final name = vote['approved_by_name']?.toString() ?? '?';
+    final ts = vote['approved_at']?.toString() ?? '';
+    final notiz = vote['notiz']?.toString() ?? '';
+    final color = isRejection ? Colors.red.shade700 : Colors.green.shade700;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(isRejection ? Icons.cancel : Icons.check_circle, size: 14, color: color),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Flexible(child: Text(
+              name + (isMe ? ' (Du)' : ''),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isMe ? Colors.blue.shade900 : null),
+              overflow: TextOverflow.ellipsis,
+            )),
+            if (isRejection) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(3)),
+                child: Text('ABGELEHNT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: color)),
+              ),
+            ],
+          ]),
+          if (ts.isNotEmpty)
+            Text(_formatDateTimeSec(ts), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          if (isRejection && notiz.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text('„$notiz"', style: TextStyle(fontSize: 12, color: color, fontStyle: FontStyle.italic)),
+            ),
+        ])),
       ]),
     );
   }
