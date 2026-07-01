@@ -142,7 +142,7 @@ class _FinanzenTabContentState extends State<FinanzenTabContent> with SingleTick
             indicatorColor: Colors.teal.shade700,
             indicatorWeight: 3,
             tabs: const [
-              Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Hausbank'),
+              Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Zuständige Bank'),
               Tab(icon: Icon(Icons.credit_card, size: 18), text: 'Kredit'),
             ],
           ),
@@ -153,6 +153,7 @@ class _FinanzenTabContentState extends State<FinanzenTabContent> with SingleTick
             controller: _tabController,
             children: [
               FinanzenBankWidget(
+                apiService: widget.apiService,
                 getData: _getData,
                 saveData: _saveData,
                 loadData: _loadData,

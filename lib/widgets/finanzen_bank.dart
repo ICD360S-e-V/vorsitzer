@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
 import '../models/user.dart';
+import '../services/api_service.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 class FinanzenBankWidget extends StatefulWidget {
+  final ApiService apiService;
   final Map<String, dynamic> Function(String) getData;
   final Future<void> Function(String, Map<String, dynamic>) saveData;
   final Future<void> Function(String) loadData;
@@ -17,6 +20,7 @@ class FinanzenBankWidget extends StatefulWidget {
 
   const FinanzenBankWidget({
     super.key,
+    required this.apiService,
     required this.getData,
     required this.saveData,
     required this.loadData,
@@ -188,41 +192,223 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
     if (widget.isLoading(_type)) {
       return const Center(child: CircularProgressIndicator());
     }
-
     final data = widget.getData(_type);
     _initFromData(data);
 
+    return DefaultTabController(
+      length: 4,
+      child: Column(children: [
+        Material(
+          color: Colors.teal.shade50,
+          child: TabBar(
+            labelColor: Colors.teal.shade800,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Colors.teal.shade700,
+            isScrollable: true,
+            tabs: [
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: _selectedBank != null ? Colors.green : Colors.red),
+                const SizedBox(width: 4),
+                const Icon(Icons.account_balance, size: 14),
+                const SizedBox(width: 4),
+                const Text('Zuständige Bank'),
+              ])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: _getFullIban().length >= 22 ? Colors.green : Colors.red),
+                const SizedBox(width: 4),
+                const Icon(Icons.credit_card, size: 14),
+                const SizedBox(width: 4),
+                const Text('Stammdaten'),
+              ])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: _beraterNameController.text.isNotEmpty ? Colors.green : Colors.red),
+                const SizedBox(width: 4),
+                const Icon(Icons.support_agent, size: 14),
+                const SizedBox(width: 4),
+                const Text('Ansprechpartner'),
+              ])),
+              const Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.description, size: 14),
+                SizedBox(width: 4),
+                Text('Kontoauszüge'),
+              ])),
+            ],
+          ),
+        ),
+        Expanded(child: TabBarView(children: [
+          _buildZustaendigeBankTab(),
+          _buildStammdatenTab(),
+          _buildAnsprechpartnerTab(),
+          _KontoauszuegeTab(apiService: widget.apiService, userId: widget.user.id),
+        ])),
+      ]),
+    );
+  }
+
+  // ============ TAB 1: ZUSTÄNDIGE BANK ============
+  Widget _buildZustaendigeBankTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.account_balance, size: 20, color: Colors.teal.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Zuständige Bank',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.search, size: 16),
+            label: Text(_selectedBank == null ? 'Bank suchen' : 'Ändern', style: const TextStyle(fontSize: 12)),
+            onPressed: _showBankSearchDialog,
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.teal.shade700),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        if (_selectedBank == null)
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(children: [
+              Icon(Icons.search, size: 40, color: Colors.grey.shade400),
+              const SizedBox(height: 8),
+              Text('Keine Bank ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              const SizedBox(height: 4),
+              Text('Tippen Sie auf "Bank suchen" um die zuständige Bank aus der Datenbank zu wählen.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+          )
+        else
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.teal.shade50, Colors.teal.shade100]),
+              color: Colors.teal.shade50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.teal.shade200),
+              border: Border.all(color: Colors.teal.shade300),
             ),
-            child: Row(
-              children: [
-                Icon(Icons.account_balance, size: 28, color: Colors.teal.shade700),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Hausbank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-                    Text('Bankverbindung des Mandanten', style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
-                  ],
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.account_balance, size: 22, color: Colors.teal.shade700),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_selectedBank!['name']?.toString() ?? '',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+                IconButton(
+                  icon: Icon(Icons.close, size: 18, color: Colors.red.shade400),
+                  tooltip: 'Bank entfernen',
+                  onPressed: () {
+                    setState(() => _selectedBank = null);
+                    widget.autoSaveField(_type, 'bank_id', '');
+                    widget.autoSaveField(_type, 'bank_name', '');
+                  },
                 ),
-              ],
-            ),
+              ]),
+              const SizedBox(height: 8),
+              if ((_selectedBank!['strasse']?.toString() ?? '').isNotEmpty)
+                _bankInfoRow(Icons.place, '${_selectedBank!['strasse']}, ${_selectedBank!['plz_ort']}'),
+              if ((_selectedBank!['telefon']?.toString() ?? '').isNotEmpty)
+                _bankInfoRow(Icons.phone, _selectedBank!['telefon'].toString()),
+              if ((_selectedBank!['bic']?.toString() ?? '').isNotEmpty)
+                _bankInfoRow(Icons.swap_horiz, 'BIC: ${_selectedBank!['bic']}'),
+              if ((_selectedBank!['blz']?.toString() ?? '').isNotEmpty)
+                _bankInfoRow(Icons.tag, 'BLZ: ${_selectedBank!['blz']}'),
+              if ((_selectedBank!['website']?.toString() ?? '').isNotEmpty)
+                _bankInfoRow(Icons.language, _selectedBank!['website'].toString()),
+              if ((_selectedBank!['kontofuehrung_gebuehr']?.toString() ?? '').isNotEmpty)
+                _bankInfoRow(Icons.euro, 'Kontoführung: ${_selectedBank!['kontofuehrung_gebuehr']} €/Monat'),
+            ]),
           ),
-          const SizedBox(height: 20),
+      ]),
+    );
+  }
 
-          // === CARD EXPIRY WARNING ===
+  void _showBankSearchDialog() {
+    String q = '';
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+        final filtered = q.trim().isEmpty
+            ? widget.bankenDb
+            : widget.bankenDb.where((b) {
+                final needle = q.toLowerCase();
+                return (b['name']?.toString().toLowerCase() ?? '').contains(needle)
+                    || (b['plz_ort']?.toString().toLowerCase() ?? '').contains(needle)
+                    || (b['bic']?.toString().toLowerCase() ?? '').contains(needle)
+                    || (b['blz']?.toString().toLowerCase() ?? '').contains(needle);
+              }).toList();
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Row(children: [
+            Icon(Icons.search, color: Colors.teal.shade700),
+            const SizedBox(width: 8),
+            const Text('Bank auswählen'),
+          ]),
+          content: SizedBox(
+            width: 500, height: 500,
+            child: Column(children: [
+              TextField(
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Name, PLZ, Ort, BIC oder BLZ...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onChanged: (v) => setD(() => q = v),
+              ),
+              const SizedBox(height: 8),
+              Expanded(child: filtered.isEmpty
+                ? Center(child: Text('Keine Treffer', style: TextStyle(color: Colors.grey.shade500)))
+                : ListView.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 4),
+                    itemBuilder: (_, i) {
+                      final b = filtered[i];
+                      return InkWell(
+                        onTap: () { _selectBank(b); Navigator.pop(ctx); },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(children: [
+                            Icon(Icons.account_balance, size: 20, color: Colors.teal.shade600),
+                            const SizedBox(width: 10),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(b['name']?.toString() ?? '',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+                              Text('${b['strasse'] ?? ''}, ${b['plz_ort'] ?? ''}',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                              if ((b['bic']?.toString() ?? '').isNotEmpty)
+                                Text('BIC: ${b['bic']} · BLZ: ${b['blz'] ?? '–'}',
+                                  style: TextStyle(fontSize: 10, color: Colors.teal.shade400, fontStyle: FontStyle.italic)),
+                            ])),
+                          ]),
+                        ),
+                      );
+                    },
+                  ),
+              ),
+            ]),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+        );
+      }),
+    );
+  }
+
+  // ============ TAB 2: STAMMDATEN ============
+  Widget _buildStammdatenTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // === CARD EXPIRY WARNING ===
           if (_getCardExpiryStatus() != null) ...[
             () {
               final status = _getCardExpiryStatus()!;
@@ -279,83 +465,6 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
             const SizedBox(height: 12),
           ],
 
-          // === BANK AUSWAHL aus Datenbank ===
-          Text('Bank auswählen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-          const SizedBox(height: 8),
-          if (widget.bankenDb.isEmpty)
-            Text('Keine Banken in der Datenbank', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
-          else
-            DropdownButtonFormField<String>(
-              initialValue: _selectedBank?['id']?.toString(),
-              decoration: InputDecoration(
-                labelText: 'Bank aus Datenbank',
-                prefixIcon: Icon(Icons.account_balance, size: 18, color: Colors.teal.shade600),
-                isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              items: widget.bankenDb.map((b) {
-                return DropdownMenuItem<String>(
-                  value: b['id'].toString(),
-                  child: Text('${b['name']}', style: const TextStyle(fontSize: 13)),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val == null) return;
-                final bank = widget.bankenDb.firstWhere((b) => b['id'].toString() == val);
-                _selectBank(bank);
-              },
-            ),
-          const SizedBox(height: 12),
-
-          // === SELECTED BANK CARD ===
-          if (_selectedBank != null) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.teal.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.teal.shade300),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.account_balance, size: 20, color: Colors.teal.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(_selectedBank!['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close, size: 16, color: Colors.red.shade400),
-                        tooltip: 'Bank entfernen',
-                        onPressed: () {
-                          setState(() => _selectedBank = null);
-                          widget.autoSaveField(_type, 'bank_id', '');
-                          widget.autoSaveField(_type, 'bank_name', '');
-                        },
-                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                        padding: EdgeInsets.zero,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if ((_selectedBank!['strasse']?.toString() ?? '').isNotEmpty)
-                    _bankInfoRow(Icons.place, '${_selectedBank!['strasse']}, ${_selectedBank!['plz_ort']}'),
-                  if ((_selectedBank!['telefon']?.toString() ?? '').isNotEmpty)
-                    _bankInfoRow(Icons.phone, _selectedBank!['telefon'].toString()),
-                  if ((_selectedBank!['bic']?.toString() ?? '').isNotEmpty)
-                    _bankInfoRow(Icons.swap_horiz, 'BIC: ${_selectedBank!['bic']}'),
-                  if ((_selectedBank!['blz']?.toString() ?? '').isNotEmpty)
-                    _bankInfoRow(Icons.tag, 'BLZ: ${_selectedBank!['blz']}'),
-                  if ((_selectedBank!['website']?.toString() ?? '').isNotEmpty)
-                    _bankInfoRow(Icons.language, _selectedBank!['website'].toString()),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
 
           // Kontoart dropdown
           DropdownButtonFormField<String>(
@@ -765,109 +874,74 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Berater Section
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.amber.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.support_agent, size: 16, color: Colors.amber.shade800),
-                    const SizedBox(width: 6),
-                    Text('Bankberater / Ansprechpartner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _buildField(
-                  controller: _beraterNameController,
-                  label: 'Name',
-                  icon: Icons.person_outline,
-                  hint: 'Name des Bankberaters',
-                  onSave: (v) => widget.autoSaveField(_type, 'berater_name', v),
-                ),
-                const SizedBox(height: 8),
-                _buildField(
-                  controller: _beraterTelefonController,
-                  label: 'Telefon',
-                  icon: Icons.phone,
-                  hint: 'Telefonnummer',
-                  onSave: (v) => widget.autoSaveField(_type, 'berater_telefon', v),
-                  keyboard: TextInputType.phone,
-                ),
-                const SizedBox(height: 8),
-                _buildField(
-                  controller: _beraterEmailController,
-                  label: 'E-Mail',
-                  icon: Icons.email,
-                  hint: 'E-Mail-Adresse',
-                  onSave: (v) => widget.autoSaveField(_type, 'berater_email', v),
-                  keyboard: TextInputType.emailAddress,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Notizen
-          TextFormField(
-            controller: _notizenController,
-            maxLines: 3,
-            decoration: InputDecoration(
-              labelText: 'Notizen',
-              prefixIcon: const Icon(Icons.note, size: 18),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              hintText: 'Zusätzliche Informationen...',
-              hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 20),
-
-          // Speichern
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: widget.isSaving(_type) ? null : () {
-                widget.saveData(_type, {
-                  'bank_id': _selectedBank?['id']?.toString() ?? '',
-                  'bank_name': _selectedBank?['name']?.toString() ?? '',
-                  'kontoart': _kontoartController.text.trim(),
-                  'kontofuehrung_gebuehr': _gebuehrController.text.trim(),
-                  'konto_inhaber': _kontoInhaberController.text.trim(),
-                  'iban': _getFullIban(),
-                  'card_type': _cardType,
-                  'card_expiry': _cardExpiryController.text.trim(),
-                  'card_network': _cardNetwork,
-                  'has_nfc': _hasNfc,
-                  'has_girocard': _hasGirocard,
-                  'berater_name': _beraterNameController.text.trim(),
-                  'berater_telefon': _beraterTelefonController.text.trim(),
-                  'berater_email': _beraterEmailController.text.trim(),
-                  'notizen': _notizenController.text.trim(),
-                });
-              },
-              icon: widget.isSaving(_type)
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.save, size: 18),
-              label: Text(widget.isSaving(_type) ? 'Speichern...' : 'Speichern'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal.shade600,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ),
           const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  // ============ TAB 3: ANSPRECHPARTNER ============
+  Widget _buildAnsprechpartnerTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.support_agent, size: 20, color: Colors.amber.shade800),
+          const SizedBox(width: 8),
+          Text('Bankberater / Ansprechpartner',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+        ]),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _buildField(
+              controller: _beraterNameController,
+              label: 'Name',
+              icon: Icons.person_outline,
+              hint: 'Name des Bankberaters',
+              onSave: (v) => widget.autoSaveField(_type, 'berater_name', v),
+            ),
+            const SizedBox(height: 8),
+            _buildField(
+              controller: _beraterTelefonController,
+              label: 'Telefon',
+              icon: Icons.phone,
+              hint: 'Telefonnummer',
+              onSave: (v) => widget.autoSaveField(_type, 'berater_telefon', v),
+              keyboard: TextInputType.phone,
+            ),
+            const SizedBox(height: 8),
+            _buildField(
+              controller: _beraterEmailController,
+              label: 'E-Mail',
+              icon: Icons.email,
+              hint: 'E-Mail-Adresse',
+              onSave: (v) => widget.autoSaveField(_type, 'berater_email', v),
+              keyboard: TextInputType.emailAddress,
+            ),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _notizenController,
+          maxLines: 4,
+          decoration: InputDecoration(
+            labelText: 'Notizen',
+            prefixIcon: const Icon(Icons.note, size: 18),
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            hintText: 'Zusätzliche Informationen...',
+            hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+          ),
+          onChanged: (v) { setState(() {}); widget.autoSaveField(_type, 'notizen', v); },
+        ),
+      ]),
     );
   }
 
@@ -1165,5 +1239,192 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       ),
       onFieldSubmitted: (v) => onSave(v.trim()),
     );
+  }
+}
+
+// ============================================================
+// TAB 4: KONTOAUSZÜGE — period-based bank statement archive
+// ============================================================
+
+class _KontoauszuegeTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _KontoauszuegeTab({required this.apiService, required this.userId});
+
+  @override
+  State<_KontoauszuegeTab> createState() => _KontoauszuegeTabState();
+}
+
+class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.listFinanzenKontoauszuege(widget.userId);
+    if (!mounted) return;
+    setState(() {
+      _items = (r['success'] == true && r['data'] is List)
+          ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _loaded = true;
+    });
+  }
+
+  String _fmtDate(String iso) {
+    // yyyy-mm-dd → dd.mm.yyyy
+    final p = iso.split('-');
+    return p.length == 3 ? '${p[2]}.${p[1]}.${p[0]}' : iso;
+  }
+
+  Future<void> _addDialog() async {
+    DateTime? von;
+    DateTime? bis;
+    final notizC = TextEditingController();
+    bool submitting = false;
+    if (!mounted) return;
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+      String fmt(DateTime? d) => d == null ? '' : '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Neuer Kontoauszug'),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Zeitraum des Kontoauszugs auswählen:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(
+              onPressed: () async {
+                final p = await showDateRangePicker(
+                  context: ctx2,
+                  firstDate: DateTime(2015),
+                  lastDate: DateTime(DateTime.now().year + 1),
+                  initialDateRange: (von != null && bis != null) ? DateTimeRange(start: von!, end: bis!) : null,
+                  locale: const Locale('de'),
+                );
+                if (p != null) setD(() { von = p.start; bis = p.end; });
+              },
+              icon: const Icon(Icons.date_range, size: 16),
+              label: Text(von == null || bis == null ? 'Zeitraum wählen' : '${fmt(von)} – ${fmt(bis)}',
+                style: const TextStyle(fontSize: 12)),
+            )),
+          ]),
+          if (von != null && bis != null) Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.teal.shade200)),
+              child: Row(children: [
+                Icon(Icons.check_circle, size: 14, color: Colors.teal.shade700),
+                const SizedBox(width: 6),
+                Expanded(child: Text('${bis!.difference(von!).inDays + 1} Tage',
+                  style: TextStyle(fontSize: 12, color: Colors.teal.shade900, fontWeight: FontWeight.w600))),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: notizC,
+            maxLines: 2,
+            decoration: InputDecoration(
+              labelText: 'Notiz (optional)',
+              prefixIcon: const Icon(Icons.note, size: 18),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('Nach dem Speichern können Sie die PDFs zum Zeitraum hochladen.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        ]))),
+        actions: [
+          TextButton(onPressed: submitting ? null : () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: submitting ? null : () async {
+              if (von == null || bis == null) return;
+              setD(() => submitting = true);
+              final vonIso = '${von!.year}-${von!.month.toString().padLeft(2, '0')}-${von!.day.toString().padLeft(2, '0')}';
+              final bisIso = '${bis!.year}-${bis!.month.toString().padLeft(2, '0')}-${bis!.day.toString().padLeft(2, '0')}';
+              await widget.apiService.saveFinanzenKontoauszug(widget.userId, vonIso, bisIso, notiz: notizC.text.trim().isEmpty ? null : notizC.text.trim());
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: submitting
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Speichern'),
+          ),
+        ],
+      );
+    }));
+    if (ok == true) await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+        Icon(Icons.description, size: 20, color: Colors.teal.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Kontoauszüge (${_items.length})',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+        ElevatedButton.icon(
+          onPressed: _addDialog,
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Neuer Kontoauszug', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+        ),
+      ])),
+      Expanded(child: _items.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text('Noch keine Kontoauszüge', style: TextStyle(color: Colors.grey.shade500)),
+            ]))
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _items.length,
+              itemBuilder: (_, i) {
+                final k = _items[i];
+                final kid = int.tryParse(k['id']?.toString() ?? '');
+                final von = k['von_datum']?.toString() ?? '';
+                final bis = k['bis_datum']?.toString() ?? '';
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Icon(Icons.date_range, size: 20, color: Colors.teal.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('${_fmtDate(von)} – ${_fmtDate(bis)}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                            Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        ])),
+                        IconButton(
+                          icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                          onPressed: () async {
+                            if (kid != null) { await widget.apiService.deleteFinanzenKontoauszug(kid); await _load(); }
+                          },
+                        ),
+                      ]),
+                      if (kid != null) Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 28),
+                        child: KorrAttachmentsWidget(
+                          apiService: widget.apiService,
+                          modul: 'finanzen_kontoauszug',
+                          korrespondenzId: kid,
+                        ),
+                      ),
+                    ]),
+                  ),
+                );
+              },
+            )),
+    ]);
   }
 }

@@ -4645,6 +4645,39 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== FINANZEN KONTOAUSZÜGE ==========
+
+  Future<Map<String, dynamic>> listFinanzenKontoauszuege(int userId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/finanzen_kontoauszuege_manage.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveFinanzenKontoauszug(int userId, String vonDatum, String bisDatum, {String? notiz}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/finanzen_kontoauszuege_manage.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'user_id': userId,
+        'von_datum': vonDatum,
+        'bis_datum': bisDatum,
+        if (notiz != null) 'notiz': notiz,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteFinanzenKontoauszug(int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/finanzen_kontoauszuege_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== LANDRATSAMT VORFALL — KORRESPONDENZ + TERMINE ==========
 
   Future<Map<String, dynamic>> listLandratsamtVorfallKorr(int vorfallId) async {
