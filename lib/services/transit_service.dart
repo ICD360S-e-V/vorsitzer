@@ -78,25 +78,118 @@ class Departure {
 }
 
 // ══════════════════════════════════════════════════════════════
+// Trip search models — used by "Verbindung suchen" tab
+// ══════════════════════════════════════════════════════════════
+
+/// A location (stop, city, POI) returned by autocomplete
+class TransitLocation {
+  final String id;
+  final String name;
+  final String? type; // "stop", "locality", "poi"
+  final double? lat;
+  final double? lon;
+
+  TransitLocation({
+    required this.id,
+    required this.name,
+    this.type,
+    this.lat,
+    this.lon,
+  });
+}
+
+/// A single leg of a journey (one vehicle segment or a walk)
+class JourneyLeg {
+  final String line;         // "S3", "134", "IC 2013", "Fußweg"
+  final String direction;    // final destination shown on vehicle
+  final String fromName;
+  final String toName;
+  final DateTime depTime;
+  final DateTime arrTime;
+  final int depDelay;
+  final int arrDelay;
+  final String? fromPlatform;
+  final String? toPlatform;
+  final String productType;  // bus, tram, train, suburban, walk
+  final bool isWalk;
+
+  JourneyLeg({
+    required this.line,
+    required this.direction,
+    required this.fromName,
+    required this.toName,
+    required this.depTime,
+    required this.arrTime,
+    this.depDelay = 0,
+    this.arrDelay = 0,
+    this.fromPlatform,
+    this.toPlatform,
+    required this.productType,
+    this.isWalk = false,
+  });
+
+  String get icon {
+    if (isWalk) return '🚶';
+    switch (productType) {
+      case 'tram': return '🚊';
+      case 'train':
+      case 'regional': return '🚆';
+      case 'suburban': return '🚈';
+      default: return '🚌';
+    }
+  }
+}
+
+/// A full journey option (departure → destination) with all legs
+class Journey {
+  final List<JourneyLeg> legs;
+  final DateTime depTime;
+  final DateTime arrTime;
+
+  Journey({required this.legs, required this.depTime, required this.arrTime});
+
+  int get transfers => legs.where((l) => !l.isWalk).length - 1;
+  Duration get duration => arrTime.difference(depTime);
+}
+
+// ══════════════════════════════════════════════════════════════
 // Transit Providers — auto-detected by GPS coordinates
 // ══════════════════════════════════════════════════════════════
 
-enum TransitProviderType { ding, mvv, saarvv }
+enum TransitApiType { efa, hafas }
+
+enum TransitProviderType {
+  ding, mvv, vvs, vrn, vrr, kvv, vvo, vgn, naldo, avv,
+  saarvv, vbb, rmv, nahsh, vbn, insa, nvv,
+}
 
 class TransitProviderConfig {
   final TransitProviderType type;
+  final TransitApiType api;
   final String name;        // short name
   final String displayName; // shown in UI footer
+  final String baseUrl;     // EFA base or HAFAS mgate endpoint
   final double minLat, maxLat, minLon, maxLon; // bounding box
+  // HAFAS-only — public AIDs extracted from official apps (used by hafas-client community)
+  final String? hafasAid;
+  final String? hafasClientId;
+  final String? hafasClientVersion;
+  final String? hafasClientName;
 
   const TransitProviderConfig({
     required this.type,
+    required this.api,
     required this.name,
     required this.displayName,
+    required this.baseUrl,
     required this.minLat,
     required this.maxLat,
     required this.minLon,
     required this.maxLon,
+    this.hafasAid,
+    this.hafasClientId,
+    this.hafasClientVersion,
+    this.hafasClientName,
   });
 
   bool containsCoord(double lat, double lon) {
@@ -104,33 +197,139 @@ class TransitProviderConfig {
   }
 }
 
-/// All supported transit providers with geographic bounding boxes
+/// All supported transit providers with geographic bounding boxes.
+/// Order matters — more specific (smaller) boxes come first so overlapping
+/// regions resolve to the tighter provider (e.g. Stuttgart → VVS, not RMV).
+/// HAFAS AIDs are public tokens extracted from official mobile apps.
 const _providers = [
+  // ── EFA (MENTZ) — no auth required ─────────────────────────────
   TransitProviderConfig(
-    type: TransitProviderType.ding,
-    name: 'DING',
-    displayName: 'DING (Donau-Iller-Nahverkehrsverbund)',
+    type: TransitProviderType.ding, api: TransitApiType.efa,
+    name: 'DING', displayName: 'DING (Donau-Iller-Nahverkehrsverbund)',
+    baseUrl: 'https://ding.eu/mobile',
     minLat: 47.8, maxLat: 48.8, minLon: 9.3, maxLon: 10.5,
   ),
   TransitProviderConfig(
-    type: TransitProviderType.mvv,
-    name: 'MVV',
-    displayName: 'MVV (Münchner Verkehrs- und Tarifverbund)',
+    type: TransitProviderType.mvv, api: TransitApiType.efa,
+    name: 'MVV', displayName: 'MVV (Münchner Verkehrs- und Tarifverbund)',
+    baseUrl: 'https://efa.mvv-muenchen.de/ng',
     minLat: 47.5, maxLat: 48.6, minLon: 10.8, maxLon: 12.5,
   ),
   TransitProviderConfig(
-    type: TransitProviderType.saarvv,
-    name: 'saarVV',
-    displayName: 'saarVV (Saarländischer Verkehrsverbund)',
+    type: TransitProviderType.vvs, api: TransitApiType.efa,
+    name: 'VVS', displayName: 'VVS (Verkehrs- und Tarifverbund Stuttgart)',
+    baseUrl: 'https://www3.vvs.de/mngvvs',
+    minLat: 48.5, maxLat: 49.2, minLon: 8.8, maxLon: 10.0,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.kvv, api: TransitApiType.efa,
+    name: 'KVV', displayName: 'KVV (Karlsruher Verkehrsverbund)',
+    baseUrl: 'https://projekte.kvv-efa.de/sl3-alone',
+    minLat: 48.8, maxLat: 49.3, minLon: 8.2, maxLon: 8.7,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.naldo, api: TransitApiType.efa,
+    name: 'naldo', displayName: 'naldo (Verkehrsverbund Neckar-Alb-Donau)',
+    baseUrl: 'https://efa.naldo.de/naldo',
+    minLat: 47.9, maxLat: 48.6, minLon: 8.7, maxLon: 9.6,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vrn, api: TransitApiType.efa,
+    name: 'VRN', displayName: 'VRN (Verkehrsverbund Rhein-Neckar)',
+    baseUrl: 'https://www.vrn.de/mngvrn',
+    minLat: 49.0, maxLat: 49.9, minLon: 8.0, maxLon: 9.4,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vgn, api: TransitApiType.efa,
+    name: 'VGN', displayName: 'VGN (Verkehrsverbund Großraum Nürnberg)',
+    baseUrl: 'https://efa.vgn.de/vgnExt_oeffi',
+    minLat: 49.0, maxLat: 50.3, minLon: 10.5, maxLon: 12.0,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.avv, api: TransitApiType.efa,
+    name: 'AVV', displayName: 'AVV (Aachener Verkehrsverbund)',
+    baseUrl: 'https://auskunft.avv.de/avv',
+    minLat: 50.6, maxLat: 51.0, minLon: 5.9, maxLon: 6.5,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vrr, api: TransitApiType.efa,
+    name: 'VRR', displayName: 'VRR (Verkehrsverbund Rhein-Ruhr)',
+    baseUrl: 'https://efa.vrr.de/vrr',
+    minLat: 51.0, maxLat: 51.8, minLon: 6.4, maxLon: 7.7,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vvo, api: TransitApiType.efa,
+    name: 'VVO', displayName: 'VVO (Verkehrsverbund Oberelbe Dresden)',
+    baseUrl: 'https://efa.vvo-online.de/std3',
+    minLat: 50.5, maxLat: 51.4, minLon: 13.2, maxLon: 14.3,
+  ),
+
+  // ── HAFAS (HaCon) — public AIDs from official apps ─────────────
+  TransitProviderConfig(
+    type: TransitProviderType.saarvv, api: TransitApiType.hafas,
+    name: 'saarVV', displayName: 'saarVV (Saarländischer Verkehrsverbund)',
+    baseUrl: 'https://saarfahrplan.de/bin/mgate.exe',
+    hafasClientId: 'ZPS-SAAR', hafasClientVersion: '1000070', hafasClientName: 'Saarfahrplan',
+    // saarVV AID injected via --dart-define at build time (see _resolveAid)
     minLat: 49.0, maxLat: 49.7, minLon: 6.3, maxLon: 7.5,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.rmv, api: TransitApiType.hafas,
+    name: 'RMV', displayName: 'RMV (Rhein-Main-Verkehrsverbund)',
+    baseUrl: 'https://www.rmv.de/hapi/mgate.exe',
+    hafasAid: 'w4M5b2GKzXdi7NST',
+    hafasClientId: 'HAFAS', hafasClientVersion: '1', hafasClientName: 'RMV',
+    minLat: 49.5, maxLat: 51.6, minLon: 7.8, maxLon: 10.2,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.nvv, api: TransitApiType.hafas,
+    name: 'NVV', displayName: 'NVV (Nordhessischer Verkehrsverbund)',
+    baseUrl: 'https://auskunft.nvv.de/auskunft/bin/app/mgate.exe',
+    hafasAid: 'Kt8eNOH7qjVeSxNA',
+    hafasClientId: 'NVV', hafasClientVersion: '5000300', hafasClientName: 'NVV Mobil',
+    minLat: 50.6, maxLat: 51.6, minLon: 8.5, maxLon: 10.4,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.insa, api: TransitApiType.hafas,
+    name: 'INSA', displayName: 'INSA (Nahverkehrsservice Sachsen-Anhalt)',
+    baseUrl: 'https://reiseauskunft.insa.de/bin/mgate.exe',
+    hafasAid: 'insa-android',
+    hafasClientId: 'INSA', hafasClientVersion: '3000100', hafasClientName: 'INSA Mobil',
+    minLat: 50.9, maxLat: 53.1, minLon: 10.5, maxLon: 13.2,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vbn, api: TransitApiType.hafas,
+    name: 'VBN', displayName: 'VBN (Verkehrsverbund Bremen/Niedersachsen)',
+    baseUrl: 'https://fahrplaner.vbn.de/bin/mgate.exe',
+    hafasAid: 'IRZOWVLp2MOSTest',
+    hafasClientId: 'VBN', hafasClientVersion: '6000200', hafasClientName: 'Fahrplaner',
+    minLat: 52.0, maxLat: 54.0, minLon: 7.0, maxLon: 11.0,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.nahsh, api: TransitApiType.hafas,
+    name: 'NAH.SH', displayName: 'NAH.SH (Nahverkehr Schleswig-Holstein)',
+    baseUrl: 'https://nah.sh.hafas.de/bin/mgate.exe',
+    hafasAid: 'r0Ot9FLFNAFxijLW',
+    hafasClientId: 'NAHSH', hafasClientVersion: '1000000', hafasClientName: 'NAH.SH',
+    minLat: 53.3, maxLat: 55.1, minLon: 8.4, maxLon: 11.3,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vbb, api: TransitApiType.hafas,
+    name: 'VBB', displayName: 'VBB (Verkehrsverbund Berlin-Brandenburg)',
+    baseUrl: 'https://fahrinfo.vbb.de/bin/mgate.exe',
+    hafasAid: 'hafas-vbb-webapp',
+    hafasClientId: 'VBB', hafasClientVersion: '10000', hafasClientName: 'VBB',
+    minLat: 51.3, maxLat: 53.6, minLon: 11.2, maxLon: 14.8,
   ),
 ];
 
 /// Transit service with multi-provider support
-/// Providers: DING EFA (Ulm), MVV EFA (München), saarVV HAFAS (Saarland)
-/// Auto-detects provider based on GPS coordinates
+/// Providers auto-detected by GPS coordinates. GPS uses a layered strategy:
+/// cached fix → high-accuracy single shot (8s) → medium (4s) → IP fallback →
+/// continuous `getPositionStream` with 100m distanceFilter.
 class TransitService {
   Timer? _refreshTimer;
+  StreamSubscription<Position>? _positionSub;
   double? _latitude;
   double? _longitude;
   String city = '';
@@ -188,31 +387,62 @@ class TransitService {
     // Initial fetch
     await fetchDepartures();
 
-    // Refresh every 60 seconds (also re-checks GPS position)
+    // Continuous stream: fires when user moves >=100m (idiomatic for transit app)
+    if (_useGps) _startPositionStream();
+
+    // Periodic departure refresh every 60s (GPS handled by stream)
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) async {
-      // Update GPS position each refresh if available
-      if (_useGps) {
+      await fetchDepartures();
+    });
+  }
+
+  void _startPositionStream() {
+    _positionSub?.cancel();
+    final settings = Platform.isAndroid
+        ? AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 100,
+            forceLocationManager: false, // keep FusedLocationProvider (Wi-Fi/cell)
+            intervalDuration: const Duration(seconds: 15),
+          )
+        : Platform.isIOS || Platform.isMacOS
+            ? AppleSettings(
+                accuracy: LocationAccuracy.high,
+                distanceFilter: 100,
+                activityType: ActivityType.otherNavigation,
+                pauseLocationUpdatesAutomatically: true,
+              )
+            : const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 100);
+
+    _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
+      (pos) async {
         final oldLat = _latitude;
         final oldLon = _longitude;
-        await _getGpsLocation();
-        // If GPS moved >2km, re-geocode and notify listeners (new city)
-        if (oldLat != null && oldLon != null && _latitude != null && _longitude != null) {
+        _latitude = pos.latitude;
+        _longitude = pos.longitude;
+        _log.debug('Transit: Stream update = $_latitude, $_longitude', tag: 'TRANSIT');
+        if (oldLat != null && oldLon != null) {
           final dist = _distanceKm(oldLat, oldLon, _latitude!, _longitude!);
           if (dist > 2.0) {
-            _log.info('Transit: Location shifted ${dist.toStringAsFixed(1)}km, re-geocoding', tag: 'TRANSIT');
+            _log.info('Transit: Moved ${dist.toStringAsFixed(1)}km, re-geocoding', tag: 'TRANSIT');
             await _reverseGeocode();
             _detectProvider();
             onLocationChanged?.call(_latitude!, _longitude!, gpsCity ?? city);
           }
         }
-      }
-      await fetchDepartures();
-    });
+        await fetchDepartures();
+      },
+      onError: (e) {
+        _log.debug('Transit: Position stream error: $e', tag: 'TRANSIT');
+      },
+    );
   }
 
   void stop() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
+    _positionSub?.cancel();
+    _positionSub = null;
     _log.info('Transit: Stopped', tag: 'TRANSIT');
   }
 
@@ -233,7 +463,12 @@ class TransitService {
     _log.info('Transit: No matching provider, defaulting to ${activeProvider!.name}', tag: 'TRANSIT');
   }
 
-  /// Get current GPS position — robust multi-strategy approach for macOS
+  /// Get current GPS position — layered strategy:
+  ///   1. Cached last-known (instant, 0ms)
+  ///   2. Fresh high-accuracy fix (8s max) — parallel with IP fallback
+  ///   3. Fresh medium-accuracy fix (4s max)
+  ///   4. IP-based geolocation via ipapi.co (city-level, works when no GNSS)
+  ///   5. Previous known position
   Future<bool> _getGpsLocation() async {
     try {
       var permission = await Geolocator.checkPermission();
@@ -242,60 +477,55 @@ class TransitService {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          locationError = 'Standort-Berechtigung verweigert';
-          _log.info('Transit: Location permission denied', tag: 'TRANSIT');
-          return false;
+          _log.info('Transit: Location permission denied → IP fallback', tag: 'TRANSIT');
+          return await _ipGeolocate();
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        locationError = 'Standort-Berechtigung dauerhaft verweigert';
-        _log.info('Transit: Location permission denied forever', tag: 'TRANSIT');
-        return false;
+        _log.info('Transit: Location permission denied forever → IP fallback', tag: 'TRANSIT');
+        return await _ipGeolocate();
       }
 
-      // Strategy 1: Get last known position instantly (cached by OS)
-      Position? cachedPosition;
+      // Strategy 1: instant cached fix (best seed while fresh acquisition runs)
+      Position? cached;
       try {
-        cachedPosition = await Geolocator.getLastKnownPosition();
-        if (cachedPosition != null) {
-          _log.info('Transit: Cached GPS = ${cachedPosition.latitude}, ${cachedPosition.longitude}', tag: 'TRANSIT');
+        cached = await Geolocator.getLastKnownPosition();
+        if (cached != null) {
+          _latitude = cached.latitude;
+          _longitude = cached.longitude;
+          _log.info('Transit: Cached GPS = $_latitude, $_longitude', tag: 'TRANSIT');
         }
-      } catch (e) {
-        _log.debug('Transit: getLastKnownPosition failed: $e', tag: 'TRANSIT');
-      }
+      } catch (_) {}
 
-      // Strategy 2: Try fresh position with high accuracy (15s timeout)
+      // Strategy 2: fresh high accuracy — short timeout, we abandon fast
       try {
         final position = await Geolocator.getCurrentPosition(
           locationSettings: Platform.isAndroid
-              ? AndroidSettings(accuracy: LocationAccuracy.high, forceLocationManager: true)
-              : const LocationSettings(accuracy: LocationAccuracy.high),
-        ).timeout(
-          const Duration(seconds: 15),
-          onTimeout: () => throw Exception('GPS high accuracy timeout'),
-        );
-
+              ? AndroidSettings(
+                  accuracy: LocationAccuracy.high,
+                  forceLocationManager: false, // FusedLocationProvider
+                )
+              : Platform.isIOS || Platform.isMacOS
+                  ? AppleSettings(accuracy: LocationAccuracy.high)
+                  : const LocationSettings(accuracy: LocationAccuracy.high),
+        ).timeout(const Duration(seconds: 8));
         _latitude = position.latitude;
         _longitude = position.longitude;
         locationError = null;
         _log.info('Transit: Fresh GPS (high) = $_latitude, $_longitude', tag: 'TRANSIT');
         return true;
       } catch (e) {
-        _log.debug('Transit: High accuracy failed: $e', tag: 'TRANSIT');
+        _log.debug('Transit: High accuracy failed/timeout: $e', tag: 'TRANSIT');
       }
 
-      // Strategy 3: Try with lower accuracy (faster, 8s timeout)
+      // Strategy 3: medium accuracy — quicker to lock, wider tolerance
       try {
         final position = await Geolocator.getCurrentPosition(
           locationSettings: Platform.isAndroid
-              ? AndroidSettings(accuracy: LocationAccuracy.medium, forceLocationManager: true)
+              ? AndroidSettings(accuracy: LocationAccuracy.medium, forceLocationManager: false)
               : const LocationSettings(accuracy: LocationAccuracy.medium),
-        ).timeout(
-          const Duration(seconds: 8),
-          onTimeout: () => throw Exception('GPS medium accuracy timeout'),
-        );
-
+        ).timeout(const Duration(seconds: 4));
         _latitude = position.latitude;
         _longitude = position.longitude;
         locationError = null;
@@ -305,32 +535,54 @@ class TransitService {
         _log.debug('Transit: Medium accuracy failed: $e', tag: 'TRANSIT');
       }
 
-      // Strategy 4: Fall back to cached position if fresh ones failed
-      if (cachedPosition != null && cachedPosition.latitude != 0.0) {
-        _latitude = cachedPosition.latitude;
-        _longitude = cachedPosition.longitude;
+      // Strategy 4: if we have any cached (even stale) fix, use it
+      if (cached != null && cached.latitude != 0.0) {
         locationError = null;
-        _log.info('Transit: Using cached GPS fallback = $_latitude, $_longitude', tag: 'TRANSIT');
+        _log.info('Transit: Using stale cached fix', tag: 'TRANSIT');
         return true;
       }
 
-      // Strategy 5: Keep previous known position if we had one
+      // Strategy 5: IP fallback — city-level accuracy, saves desktop users
+      if (await _ipGeolocate()) return true;
+
+      // Strategy 6: keep last known
       if (_latitude != null && _longitude != null) {
         _log.info('Transit: Keeping previous position = $_latitude, $_longitude', tag: 'TRANSIT');
         return true;
       }
 
-      locationError = 'GPS nicht verfügbar';
+      locationError = 'Standort nicht verfügbar';
       return false;
     } catch (e) {
-      _log.error('Transit: GPS failed completely: $e', tag: 'TRANSIT');
+      _log.error('Transit: GPS strategy crashed: $e', tag: 'TRANSIT');
+      if (_latitude != null && _longitude != null) return true;
+      return await _ipGeolocate();
+    }
+  }
 
-      if (_latitude != null && _longitude != null) {
-        _log.info('Transit: Error but keeping previous position', tag: 'TRANSIT');
-        return true;
-      }
-
-      locationError = 'GPS nicht verfügbar: $e';
+  /// IP-based geolocation fallback via ipapi.co (HTTPS, no key, ~1000/day).
+  /// City-level accuracy (5–20 km) — enough to pick a default provider/station.
+  /// Essential on Linux Flatpak (GeoClue2 sandbox), Windows without GNSS, macOS.
+  Future<bool> _ipGeolocate() async {
+    try {
+      final response = await _client.get(
+        Uri.parse('https://ipapi.co/json/'),
+        headers: {'Accept': 'application/json', 'User-Agent': 'ICD360S-eV-App/1.0'},
+      ).timeout(const Duration(seconds: 3));
+      if (response.statusCode != 200) return false;
+      final data = jsonDecode(response.body);
+      final lat = (data['latitude'] as num?)?.toDouble();
+      final lon = (data['longitude'] as num?)?.toDouble();
+      final ipCity = data['city']?.toString();
+      if (lat == null || lon == null) return false;
+      _latitude = lat;
+      _longitude = lon;
+      if (ipCity != null && ipCity.isNotEmpty) gpsCity = ipCity;
+      locationError = null;
+      _log.info('Transit: IP geolocation → $lat, $lon ($ipCity)', tag: 'TRANSIT');
+      return true;
+    } catch (e) {
+      _log.debug('Transit: IP geolocation failed: $e', tag: 'TRANSIT');
       return false;
     }
   }
@@ -407,21 +659,11 @@ class TransitService {
     isLoading = true;
 
     try {
-      switch (activeProvider?.type) {
-        case TransitProviderType.mvv:
-          await _fetchEfaDepartures(
-            baseUrl: 'https://efa.mvv-muenchen.de/ng/XSLT_DM_REQUEST',
-          );
-          break;
-        case TransitProviderType.saarvv:
-          await _fetchHafasDepartures();
-          break;
-        case TransitProviderType.ding:
-        default:
-          await _fetchEfaDepartures(
-            baseUrl: 'https://ding.eu/mobile/XSLT_DM_REQUEST',
-          );
-          break;
+      final provider = activeProvider ?? _providers.first;
+      if (provider.api == TransitApiType.hafas) {
+        await _fetchHafasDepartures();
+      } else {
+        await _fetchEfaDepartures(baseUrl: '${provider.baseUrl}/XSLT_DM_REQUEST');
       }
     } catch (e) {
       _log.error('Transit: Fetch failed: $e', tag: 'TRANSIT');
@@ -436,9 +678,9 @@ class TransitService {
     isLoading = true;
 
     try {
-      final baseUrl = activeProvider?.type == TransitProviderType.mvv
-          ? 'https://efa.mvv-muenchen.de/ng/XSLT_DM_REQUEST'
-          : 'https://ding.eu/mobile/XSLT_DM_REQUEST';
+      final provider = activeProvider ?? _providers.first;
+      if (provider.api != TransitApiType.efa) return;
+      final baseUrl = '${provider.baseUrl}/XSLT_DM_REQUEST';
 
       final uri = Uri.parse(
         '$baseUrl'
@@ -613,18 +855,33 @@ class TransitService {
   // HAFAS PROVIDER — used by saarVV (Saarland)
   // ══════════════════════════════════════════════════════════════
 
-  /// HAFAS auth config for saarVV — token injected via --dart-define at build time.
-  /// Fork builds without HAFAS_AID will skip saarVV departures.
+  /// Fallback HAFAS endpoint (used only when `activeProvider` is null).
   static const _hafasEndpoint = 'https://saarfahrplan.de/bin/mgate.exe';
-  static const _hafasClientId = 'ZPS-SAAR';
-  static const _hafasAuthToken = String.fromEnvironment('HAFAS_AID', defaultValue: '');
+  /// saarVV AID from build-time env (kept for backward compat with existing builds).
+  static const _saarvvAidFromEnv = String.fromEnvironment('HAFAS_AID', defaultValue: '');
+
+  /// Resolve HAFAS AID for the active provider:
+  ///   - saarVV: env var override (build-time) OR fall through
+  ///   - other providers: config's `hafasAid`
+  String _resolveAid(TransitProviderConfig? p) {
+    if (p?.type == TransitProviderType.saarvv && _saarvvAidFromEnv.isNotEmpty) {
+      return _saarvvAidFromEnv;
+    }
+    return p?.hafasAid ?? '';
+  }
 
   Map<String, dynamic> _hafasRequest(List<Map<String, dynamic>> svcReqL) {
+    final p = activeProvider;
     return {
       'ver': '1.40',
       'lang': 'de',
-      'auth': {'type': 'AID', 'aid': _hafasAuthToken},
-      'client': {'type': 'AND', 'id': _hafasClientId, 'v': '1000070', 'name': 'Saarfahrplan'},
+      'auth': {'type': 'AID', 'aid': _resolveAid(p)},
+      'client': {
+        'type': 'AND',
+        'id': p?.hafasClientId ?? 'ZPS-SAAR',
+        'v': p?.hafasClientVersion ?? '1000070',
+        'name': p?.hafasClientName ?? 'Saarfahrplan',
+      },
       'svcReqL': svcReqL,
     };
   }
@@ -651,7 +908,7 @@ class TransitService {
     ]);
 
     final nearbyResponse = await _client.post(
-      Uri.parse(_hafasEndpoint),
+      Uri.parse(activeProvider?.baseUrl ?? _hafasEndpoint),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(nearbyRequest),
     ).timeout(const Duration(seconds: 15));
@@ -729,7 +986,7 @@ class TransitService {
 
     final depRequest = _hafasRequest(stbRequests);
     final depResponse = await _client.post(
-      Uri.parse(_hafasEndpoint),
+      Uri.parse(activeProvider?.baseUrl ?? _hafasEndpoint),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(depRequest),
     ).timeout(const Duration(seconds: 15));
@@ -881,5 +1138,415 @@ class TransitService {
     if (_useGps) await _getGpsLocation();
     _detectProvider(); // re-detect in case position changed significantly
     await fetchDepartures();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // TRIP SEARCH — "Verbindung suchen" tab
+  // ══════════════════════════════════════════════════════════════
+
+  /// Autocomplete stops/localities matching [query].
+  /// Dispatches to EFA or HAFAS depending on active provider.
+  /// Falls back to bahn.de (Germany-wide) if provider search fails or is empty.
+  Future<List<TransitLocation>> searchLocations(String query) async {
+    if (query.trim().length < 2) return [];
+    final provider = activeProvider ?? _providers.first;
+    List<TransitLocation> results = [];
+
+    try {
+      if (provider.api == TransitApiType.efa) {
+        results = await _efaLocationSearch(provider, query);
+      } else {
+        results = await _hafasLocationSearch(provider, query);
+      }
+    } catch (e) {
+      _log.error('Transit: Provider location search failed: $e', tag: 'TRANSIT');
+    }
+
+    // Fallback to bahn.de (Germany-wide open API, no auth)
+    if (results.isEmpty) {
+      try {
+        results = await _bahnLocationSearch(query);
+      } catch (e) {
+        _log.error('Transit: bahn.de location search failed: $e', tag: 'TRANSIT');
+      }
+    }
+
+    return results.take(15).toList();
+  }
+
+  /// Search journeys between two locations.
+  /// [from] and [to] are location IDs returned by [searchLocations].
+  /// [fromName] and [toName] are needed for the bahn.de fallback.
+  Future<List<Journey>> searchJourneys({
+    required TransitLocation from,
+    required TransitLocation to,
+    DateTime? departureTime,
+  }) async {
+    final provider = activeProvider ?? _providers.first;
+    final when = departureTime ?? DateTime.now();
+    List<Journey> results = [];
+
+    try {
+      if (provider.api == TransitApiType.efa) {
+        results = await _efaTripSearch(provider, from, to, when);
+      } else {
+        results = await _hafasTripSearch(provider, from, to, when);
+      }
+    } catch (e) {
+      _log.error('Transit: Provider trip search failed: $e', tag: 'TRANSIT');
+    }
+
+    // Fallback to bahn.de HAFAS (Germany-wide, covers all local transit)
+    if (results.isEmpty) {
+      try {
+        results = await _bahnTripSearch(from, to, when);
+      } catch (e) {
+        _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
+      }
+    }
+
+    return results;
+  }
+
+  // ── EFA trip/location endpoints ────────────────────────────────
+
+  Future<List<TransitLocation>> _efaLocationSearch(TransitProviderConfig p, String q) async {
+    final uri = Uri.parse(
+      '${p.baseUrl}/XSLT_STOPFINDER_REQUEST'
+      '?outputFormat=JSON&locationServerActive=1&type_sf=any&anyObjFilter_sf=126'
+      '&name_sf=${Uri.encodeComponent(q)}',
+    );
+    final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) return [];
+    final data = jsonDecode(response.body);
+    final points = data['stopFinder']?['points'];
+    List raw;
+    if (points is List) {
+      raw = points;
+    } else if (points is Map && points['point'] is List) {
+      raw = points['point'];
+    } else if (points is Map && points['point'] is Map) {
+      raw = [points['point']];
+    } else {
+      return [];
+    }
+    return raw.map<TransitLocation?>((e) {
+      final ref = e['ref'] ?? {};
+      final id = ref['id']?.toString() ?? e['stateless']?.toString() ?? '';
+      final name = e['name']?.toString() ?? e['object']?.toString() ?? '';
+      if (id.isEmpty || name.isEmpty) return null;
+      final coords = ref['coords']?.toString().split(',');
+      double? lat, lon;
+      if (coords != null && coords.length == 2) {
+        lon = double.tryParse(coords[0]);
+        lat = double.tryParse(coords[1]);
+      }
+      return TransitLocation(
+        id: id, name: name, type: e['anyType']?.toString(), lat: lat, lon: lon,
+      );
+    }).whereType<TransitLocation>().toList();
+  }
+
+  Future<List<Journey>> _efaTripSearch(
+    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when,
+  ) async {
+    final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
+    final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}';
+    final uri = Uri.parse(
+      '${p.baseUrl}/XSLT_TRIP_REQUEST2'
+      '?outputFormat=JSON&locationServerActive=1&useRealtime=1&calcNumberOfTrips=4'
+      '&type_origin=any&name_origin=${Uri.encodeComponent(from.id)}'
+      '&type_destination=any&name_destination=${Uri.encodeComponent(to.id)}'
+      '&itdDate=$dateStr&itdTime=$timeStr',
+    );
+    final response = await _client.get(uri).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) return [];
+    final data = jsonDecode(response.body);
+    final trips = data['trips'];
+    if (trips is! List) return [];
+    return trips.map<Journey?>(_parseEfaTrip).whereType<Journey>().toList();
+  }
+
+  Journey? _parseEfaTrip(dynamic trip) {
+    try {
+      final legsRaw = trip['legs'];
+      if (legsRaw is! List || legsRaw.isEmpty) return null;
+      final legs = <JourneyLeg>[];
+      for (final leg in legsRaw) {
+        final points = leg['points'] as List? ?? [];
+        if (points.length < 2) continue;
+        final depPoint = points.first;
+        final arrPoint = points.last;
+        final depDT = _parseEfaDateTime(depPoint['dateTime'] ?? {});
+        final arrDT = _parseEfaDateTime(arrPoint['dateTime'] ?? {});
+        if (depDT == null || arrDT == null) continue;
+
+        final mode = leg['mode'] ?? {};
+        final motType = mode['type']?.toString() ?? '';
+        final isWalk = motType == '100' || motType == '99' || (mode['name']?.toString().toLowerCase().contains('fuß') ?? false);
+        String productType;
+        switch (motType) {
+          case '0': productType = 'train'; break;
+          case '1': productType = 'suburban'; break;
+          case '4': productType = 'tram'; break;
+          case '100': case '99': productType = 'walk'; break;
+          default: productType = 'bus';
+        }
+
+        legs.add(JourneyLeg(
+          line: isWalk ? 'Fußweg' : (mode['number']?.toString() ?? mode['symbol']?.toString() ?? '?'),
+          direction: mode['destination']?.toString() ?? '',
+          fromName: depPoint['name']?.toString() ?? '',
+          toName: arrPoint['name']?.toString() ?? '',
+          depTime: depDT,
+          arrTime: arrDT,
+          fromPlatform: depPoint['platform']?.toString(),
+          toPlatform: arrPoint['platform']?.toString(),
+          productType: productType,
+          isWalk: isWalk,
+        ));
+      }
+      if (legs.isEmpty) return null;
+      return Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ── HAFAS trip/location endpoints ──────────────────────────────
+
+  Future<List<TransitLocation>> _hafasLocationSearch(TransitProviderConfig p, String q) async {
+    final req = _hafasRequest([
+      {
+        'meth': 'LocMatch',
+        'req': {
+          'input': {
+            'field': 'S',
+            'loc': {'name': q, 'type': 'ALL'},
+            'maxLoc': 15,
+          },
+        },
+      },
+    ]);
+    final response = await _client.post(
+      Uri.parse(p.baseUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(req),
+    ).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) return [];
+    final data = jsonDecode(response.body);
+    final match = data['svcResL']?[0]?['res']?['match']?['locL'] as List? ?? [];
+    return match.map<TransitLocation?>((loc) {
+      final name = loc['name']?.toString() ?? '';
+      final lid = loc['lid']?.toString() ?? '';
+      if (name.isEmpty || lid.isEmpty) return null;
+      final crd = loc['crd'];
+      double? lat, lon;
+      if (crd is Map) {
+        final x = crd['x']; final y = crd['y'];
+        if (x is num) lon = x / 1000000;
+        if (y is num) lat = y / 1000000;
+      }
+      return TransitLocation(id: lid, name: name, type: loc['type']?.toString(), lat: lat, lon: lon);
+    }).whereType<TransitLocation>().toList();
+  }
+
+  Future<List<Journey>> _hafasTripSearch(
+    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when,
+  ) async {
+    final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
+    final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
+    final req = _hafasRequest([
+      {
+        'meth': 'TripSearch',
+        'req': {
+          'depLocL': [{'lid': from.id}],
+          'arrLocL': [{'lid': to.id}],
+          'outDate': dateStr,
+          'outTime': timeStr,
+          'numF': 4,
+        },
+      },
+    ]);
+    final response = await _client.post(
+      Uri.parse(p.baseUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(req),
+    ).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) return [];
+    final data = jsonDecode(response.body);
+    return _parseHafasTripResponse(data);
+  }
+
+  List<Journey> _parseHafasTripResponse(Map<String, dynamic> data) {
+    final svc = data['svcResL']?[0]?['res'];
+    if (svc == null) return [];
+    final common = svc['common'] ?? {};
+    final locL = common['locL'] as List? ?? [];
+    final prodL = common['prodL'] as List? ?? [];
+    final outConL = svc['outConL'] as List? ?? [];
+
+    final journeys = <Journey>[];
+    for (final con in outConL) {
+      try {
+        final date = con['date']?.toString() ?? '';
+        final secL = con['secL'] as List? ?? [];
+        final legs = <JourneyLeg>[];
+        for (final sec in secL) {
+          final type = sec['type']?.toString() ?? '';
+          final isWalk = type == 'WALK' || type == 'TRSF';
+          final dep = sec['dep'] ?? {};
+          final arr = sec['arr'] ?? {};
+          final depDT = _parseHafasDateTime(date, dep['dTimeR']?.toString() ?? dep['dTimeS']?.toString() ?? '');
+          final arrDT = _parseHafasDateTime(date, arr['aTimeR']?.toString() ?? arr['aTimeS']?.toString() ?? '');
+          if (depDT == null || arrDT == null) continue;
+
+          final depLocIdx = dep['locX'] as int? ?? 0;
+          final arrLocIdx = arr['locX'] as int? ?? 0;
+          final fromName = depLocIdx < locL.length ? (locL[depLocIdx]['name']?.toString() ?? '') : '';
+          final toName = arrLocIdx < locL.length ? (locL[arrLocIdx]['name']?.toString() ?? '') : '';
+
+          String line = 'Fußweg';
+          String direction = '';
+          String productType = 'walk';
+          if (!isWalk) {
+            final jny = sec['jny'] ?? {};
+            direction = jny['dirTxt']?.toString() ?? '';
+            final prodX = jny['prodX'] as int?;
+            if (prodX != null && prodX < prodL.length) {
+              final prod = prodL[prodX];
+              final nameStr = prod['name']?.toString().trim() ?? '?';
+              final m = RegExp(r'([A-Z]*\s?\d+\w*)$').firstMatch(nameStr);
+              line = m?.group(1)?.trim() ?? nameStr;
+              final cls = prod['cls'] as int? ?? 0;
+              if (cls == 1 || cls == 2) {
+                productType = 'train';
+              } else if (cls == 4) {
+                productType = 'regional';
+              } else if (cls == 8) {
+                productType = 'suburban';
+              } else if (cls == 16) {
+                productType = 'tram';
+              } else {
+                productType = 'bus';
+              }
+            }
+          }
+
+          legs.add(JourneyLeg(
+            line: line,
+            direction: direction,
+            fromName: fromName,
+            toName: toName,
+            depTime: depDT,
+            arrTime: arrDT,
+            fromPlatform: dep['dPlatfR']?.toString() ?? dep['dPlatfS']?.toString(),
+            toPlatform: arr['aPlatfR']?.toString() ?? arr['aPlatfS']?.toString(),
+            productType: productType,
+            isWalk: isWalk,
+          ));
+        }
+        if (legs.isEmpty) continue;
+        journeys.add(Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime));
+      } catch (_) {}
+    }
+    return journeys;
+  }
+
+  // ── bahn.de fallback (Germany-wide, no auth) ───────────────────
+
+  Future<List<TransitLocation>> _bahnLocationSearch(String q) async {
+    final uri = Uri.parse(
+      'https://www.bahn.de/web/api/reiseloesung/orte'
+      '?suchbegriff=${Uri.encodeComponent(q)}&typ=ALL&limit=15',
+    );
+    final response = await _client.get(uri, headers: {'Accept': 'application/json'}).timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) return [];
+    final data = jsonDecode(response.body);
+    if (data is! List) return [];
+    return data.map<TransitLocation?>((e) {
+      final name = e['name']?.toString() ?? '';
+      final id = e['id']?.toString() ?? e['extId']?.toString() ?? '';
+      if (name.isEmpty || id.isEmpty) return null;
+      return TransitLocation(
+        id: id, name: name, type: e['typ']?.toString(),
+        lat: (e['lat'] as num?)?.toDouble(),
+        lon: (e['lon'] as num?)?.toDouble(),
+      );
+    }).whereType<TransitLocation>().toList();
+  }
+
+  Future<List<Journey>> _bahnTripSearch(TransitLocation from, TransitLocation to, DateTime when) async {
+    final iso = when.toIso8601String();
+    final uri = Uri.parse('https://www.bahn.de/web/api/reiseloesung/verbindungen');
+    final body = jsonEncode({
+      'abfahrtsHalt': from.id,
+      'ankunftsHalt': to.id,
+      'anfrageZeitpunkt': iso,
+      'ankunftSuche': 'ABFAHRT',
+      'klasse': 'KLASSE_2',
+      'produktgattungen': ['ICE','EC_IC','IR','REGIONAL','SBAHN','BUS','SCHIFF','UBAHN','TRAM','ANRUFPFLICHTIG'],
+      'reisende': [{'typ':'ERWACHSENER','ermaessigungen':[{'art':'KEINE_ERMAESSIGUNG','klasse':'KLASSENLOS'}],'alter':[],'anzahl':1}],
+      'schnelleVerbindungen': true,
+      'sitzplatzOnly': false,
+      'bikeCarriage': false,
+      'reservierungsKontingenteVorhanden': false,
+      'nurDeutschlandTicketVerbindungen': false,
+    });
+    final response = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: body,
+    ).timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) return [];
+    final data = jsonDecode(response.body);
+    final verb = data['verbindungen'] as List? ?? [];
+    return verb.map<Journey?>(_parseBahnConnection).whereType<Journey>().take(4).toList();
+  }
+
+  Journey? _parseBahnConnection(dynamic conn) {
+    try {
+      final segments = conn['verbindungsAbschnitte'] as List? ?? [];
+      if (segments.isEmpty) return null;
+      final legs = <JourneyLeg>[];
+      for (final seg in segments) {
+        final typ = seg['typ']?.toString() ?? '';
+        final isWalk = typ == 'WALK' || typ == 'FUSSWEG';
+        final depIso = seg['abfahrtsZeitpunkt']?.toString();
+        final arrIso = seg['ankunftsZeitpunkt']?.toString();
+        if (depIso == null || arrIso == null) continue;
+        final depDT = DateTime.tryParse(depIso);
+        final arrDT = DateTime.tryParse(arrIso);
+        if (depDT == null || arrDT == null) continue;
+
+        final gattung = seg['verkehrsmittel']?['produktGattung']?.toString() ?? '';
+        String productType;
+        switch (gattung) {
+          case 'ICE': case 'EC_IC': case 'IR': productType = 'train'; break;
+          case 'REGIONAL': productType = 'regional'; break;
+          case 'SBAHN': productType = 'suburban'; break;
+          case 'TRAM': case 'UBAHN': productType = 'tram'; break;
+          case 'WALK': case 'FUSSWEG': productType = 'walk'; break;
+          default: productType = 'bus';
+        }
+
+        legs.add(JourneyLeg(
+          line: isWalk ? 'Fußweg' : (seg['verkehrsmittel']?['name']?.toString() ?? seg['verkehrsmittel']?['kurzText']?.toString() ?? '?'),
+          direction: seg['verkehrsmittel']?['richtung']?.toString() ?? '',
+          fromName: seg['abfahrtsOrt']?.toString() ?? '',
+          toName: seg['ankunftsOrt']?.toString() ?? '',
+          depTime: depDT,
+          arrTime: arrDT,
+          fromPlatform: seg['abfahrtsGleis']?.toString(),
+          toPlatform: seg['ankunftsGleis']?.toString(),
+          productType: productType,
+          isWalk: isWalk,
+        ));
+      }
+      if (legs.isEmpty) return null;
+      return Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime);
+    } catch (_) {
+      return null;
+    }
   }
 }
