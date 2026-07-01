@@ -26,7 +26,7 @@ import 'finanzen_tab_content.dart';
 import 'freizeit_tab_content.dart';
 import 'mitglieder_device.dart';
 import 'member_devices_widget.dart';
-import 'vertraege_content.dart';
+import 'mitgliederverwaltung_vertraege.dart';
 import 'empfehlung.dart';
 import 'reparatur.dart';
 import 'reziprozitaet.dart';

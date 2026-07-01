@@ -3814,6 +3814,37 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// User's explicitly-marked "Zuständige Versicherung" per Sparte.
+  Future<Map<String, dynamic>> listUserVersicherungen(int userId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/user_versicherungen_manage.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> addUserVersicherung(int userId, int versicherungId, {String? sparte}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/user_versicherungen_manage.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'user_id': userId,
+        'versicherung_id': versicherungId,
+        if (sparte != null) 'sparte': sparte,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteUserVersicherung(int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/user_versicherungen_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> deleteVertrag(int id) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/vertraege_manage.php'),
