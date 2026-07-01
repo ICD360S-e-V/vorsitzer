@@ -1216,3 +1216,139 @@ class _MinutelyTimeline extends StatelessWidget {
     );
   }
 }
+
+/// Sticky banner in the dashboard header for locally-generated
+/// vulnerability warnings (heat, cold, UV, PM2.5, ozone). Each banner has
+/// its own colour by severity/kind. Tap the "Verstanden" button to
+/// acknowledge — the alert won't re-appear until tomorrow.
+///
+/// Renders as a Column of banners (one per active alert). If the alert list
+/// is empty, the widget takes zero space so the dashboard layout is unaffected.
+class HealthAlertBanner extends StatelessWidget {
+  final List<HealthAlert> alerts;
+  final void Function(HealthAlert) onAcknowledge;
+  final void Function(HealthAlert)? onTap;
+
+  const HealthAlertBanner({
+    super.key,
+    required this.alerts,
+    required this.onAcknowledge,
+    this.onTap,
+  });
+
+  Color _color(HealthAlert a) {
+    final base = switch (a.kind) {
+      HealthAlertKind.heat => Colors.deepOrange,
+      HealthAlertKind.cold => Colors.lightBlue,
+      HealthAlertKind.uv => Colors.amber,
+      HealthAlertKind.pm25 => Colors.brown,
+      HealthAlertKind.ozone => Colors.purple,
+    };
+    return a.severity == 'severe' ? base.shade900 : base.shade700;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (alerts.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: alerts.map((a) {
+        final c = _color(a);
+        return Material(
+          color: c,
+          child: InkWell(
+            onTap: onTap == null ? null : () => onTap!(a),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(a.icon, style: const TextStyle(fontSize: 26)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              a.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            if (a.severity == 'severe')
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: const Text(
+                                  'AKUT',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          a.body,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.9),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          a.recommendation,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.85),
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () => onAcknowledge(a),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: c,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                        child: const Text(
+                          'OK',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Verstanden',
+                          style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.7))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}

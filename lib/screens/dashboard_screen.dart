@@ -118,6 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   final _weatherService = WeatherService();
   WeatherData? _weatherData;
   List<WeatherAlert> _weatherAlerts = [];
+  List<HealthAlert> _healthAlerts = [];
 
   // Transit (DING EFA)
   final _transitService = TransitService();
@@ -499,6 +500,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         };
         _weatherService.onAlertsUpdate = (alerts) {
           if (mounted) setState(() => _weatherAlerts = alerts);
+        };
+        _weatherService.onHealthAlertsUpdate = (health) {
+          if (mounted) setState(() => _healthAlerts = health);
         };
         _transitService.onDeparturesUpdate = (deps) {
           if (mounted) setState(() => _departures = deps);
@@ -1292,6 +1296,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Desktop: Sidebar + content, Mobile: Just content + floating chat bubbles
       body: Column(
         children: [
+          // Local vulnerability warnings (heat / cold / UV / PM2.5 / ozone).
+          // Auto-hide when the user acknowledges via "OK Verstanden".
+          if (_healthAlerts.isNotEmpty)
+            HealthAlertBanner(
+              alerts: _healthAlerts,
+              onAcknowledge: (a) {
+                _weatherService.acknowledgeHealthAlert(a);
+                setState(() => _healthAlerts = _weatherService.activeHealthAlerts);
+              },
+              onTap: (_) => showWeatherDialog(context, _weatherService),
+            ),
           // wetter.com-style sticky 15-min forecast bar directly under the AppBar.
           // Tap opens the full weather dialog.
           if (_weatherService.minutelyForecast.isNotEmpty)

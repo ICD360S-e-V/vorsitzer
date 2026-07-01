@@ -214,6 +214,48 @@ class WeatherAlert {
   }
 }
 
+/// Internal health-alert kind. Each kind maps to a threshold checked on every
+/// weather / air-quality fetch. Alerts are dispatched to the UI via
+/// [WeatherService.onHealthAlertsUpdate] and acknowledged by the user via
+/// [WeatherService.acknowledgeHealthAlert] (dedup within the same UTC day).
+enum HealthAlertKind { heat, cold, uv, pm25, ozone }
+
+/// A currently-active vulnerability warning generated locally from weather +
+/// air-quality data. Not the same as [WeatherAlert] (which comes from the DWD).
+class HealthAlert {
+  final HealthAlertKind kind;
+  final String severity; // 'moderate' | 'severe'
+  final String title;
+  final String body;
+  final String recommendation;
+  final DateTime timestamp;
+
+  HealthAlert({
+    required this.kind,
+    required this.severity,
+    required this.title,
+    required this.body,
+    required this.recommendation,
+    required this.timestamp,
+  });
+
+  /// Stable id for dedup: kind + date. If a heat alert is acknowledged today,
+  /// it does not fire again until tomorrow.
+  String get dedupKey =>
+      '${kind.name}_${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-'
+      '${timestamp.day.toString().padLeft(2, '0')}';
+
+  String get icon {
+    switch (kind) {
+      case HealthAlertKind.heat: return '🥵';
+      case HealthAlertKind.cold: return '🥶';
+      case HealthAlertKind.uv: return '🔆';
+      case HealthAlertKind.pm25: return '😷';
+      case HealthAlertKind.ozone: return '💨';
+    }
+  }
+}
+
 /// Snapshot of air-quality + pollen data (Open-Meteo air-quality API, free, CAMS).
 ///
 /// Levels follow the German UBA / European classification where practical.
@@ -364,6 +406,8 @@ class WeatherService {
   List<MinutelyForecast> minutelyForecast = [];
   List<HourlyForecast> hourlyForecast = [];
   List<DailyForecast> dailyForecast = [];
+  List<HealthAlert> activeHealthAlerts = [];
+  final Set<String> _acknowledgedHealthAlerts = {};
 
   Timer? _airQualityTimer;
 
@@ -376,6 +420,7 @@ class WeatherService {
   void Function(WeatherData)? onWeatherUpdate;
   void Function(List<WeatherAlert>)? onAlertsUpdate;
   void Function(AirQualityData)? onAirQualityUpdate;
+  void Function(List<HealthAlert>)? onHealthAlertsUpdate;
 
   final _client = IOClient(HttpClientFactory.createDefaultHttpClient());
 
@@ -898,6 +943,125 @@ class WeatherService {
     } catch (e) {
       _log.debug('AirQuality: fetch failed: $e', tag: 'WEATHER');
     }
+    _evaluateHealthAlerts();
+  }
+
+  /// Evaluate local vulnerability warnings from current weather + air quality.
+  /// Thresholds are chosen for the ICD360S member profile (older / at-risk):
+  ///  • Heat: apparent temp ≥ 32 °C (severe ≥ 38)
+  ///  • Cold: temp ≤ 0 °C (severe ≤ −10)
+  ///  • UV: index ≥ 6 (severe ≥ 8)
+  ///  • PM2.5: ≥ 50 µg/m³ (severe ≥ 75)
+  ///  • Ozone: ≥ 180 µg/m³ (severe ≥ 240)
+  ///
+  /// Deduped by (kind + UTC day): once the user hits OK on a heat warning,
+  /// heat won't fire again until tomorrow. If the condition clears before
+  /// then and returns, we still respect the acknowledgement — sends push
+  /// only once per day per kind.
+  void _evaluateHealthAlerts() {
+    final now = DateTime.now();
+    final w = currentWeather;
+    final aq = currentAirQuality;
+    final alerts = <HealthAlert>[];
+
+    if (w != null) {
+      if (w.apparentTemperature >= 32) {
+        final severe = w.apparentTemperature >= 38;
+        alerts.add(HealthAlert(
+          kind: HealthAlertKind.heat,
+          severity: severe ? 'severe' : 'moderate',
+          title: severe ? 'Extreme Hitze' : 'Hitzewarnung',
+          body: 'Gefühlt ${w.apparentTemperature.toStringAsFixed(0)}°C in ${w.city}.',
+          recommendation:
+              'Viel Wasser trinken, körperliche Anstrengung meiden, im Schatten bleiben. '
+              'Prüfe ältere und alleinlebende Mitglieder — biete Wasser & Kontaktaufnahme an.',
+          timestamp: now,
+        ));
+      }
+      if (w.temperature <= 0) {
+        final severe = w.temperature <= -10;
+        alerts.add(HealthAlert(
+          kind: HealthAlertKind.cold,
+          severity: severe ? 'severe' : 'moderate',
+          title: severe ? 'Strenger Frost' : 'Frostwarnung',
+          body: '${w.temperature.toStringAsFixed(0)}°C in ${w.city}'
+              '${w.windSpeed >= 15 ? " • Wind ${w.windSpeed.toStringAsFixed(0)} km/h" : ""}.',
+          recommendation:
+              'Warm anziehen (Schichten), Kopf/Hände/Ohren schützen. '
+              'Kontrolliere Mitglieder ohne funktionierende Heizung — bei Bedarf Nothilfe koordinieren.',
+          timestamp: now,
+        ));
+      }
+    }
+
+    if (aq != null) {
+      final uv = aq.uvIndex ?? 0;
+      if (uv >= 6) {
+        final severe = uv >= 8;
+        alerts.add(HealthAlert(
+          kind: HealthAlertKind.uv,
+          severity: severe ? 'severe' : 'moderate',
+          title: severe ? 'Sehr hoher UV-Index' : 'Erhöhter UV-Index',
+          body: 'UV-Index ${uv.toStringAsFixed(1)}.',
+          recommendation:
+              'Sonnencreme LSF 30+, Kopfbedeckung, Sonnenbrille. '
+              'Mittagssonne (11–15 Uhr) meiden. '
+              'Wichtig für Mitglieder mit foto-sensiblen Medikamenten.',
+          timestamp: now,
+        ));
+      }
+      final pm = aq.pm25 ?? 0;
+      if (pm >= 50) {
+        final severe = pm >= 75;
+        alerts.add(HealthAlert(
+          kind: HealthAlertKind.pm25,
+          severity: severe ? 'severe' : 'moderate',
+          title: severe ? 'Hohe Feinstaub-Belastung' : 'Erhöhte Feinstaub-Belastung',
+          body: 'PM2.5: ${pm.toStringAsFixed(0)} µg/m³.',
+          recommendation:
+              'Fenster geschlossen halten, körperliche Anstrengung im Freien vermeiden. '
+              'Besonders für Mitglieder mit Asthma, COPD oder Herzproblemen.',
+          timestamp: now,
+        ));
+      }
+      final o3 = aq.ozone ?? 0;
+      if (o3 >= 180) {
+        final severe = o3 >= 240;
+        alerts.add(HealthAlert(
+          kind: HealthAlertKind.ozone,
+          severity: severe ? 'severe' : 'moderate',
+          title: severe ? 'Ozon-Alarm' : 'Erhöhte Ozon-Werte',
+          body: 'Ozon: ${o3.toStringAsFixed(0)} µg/m³.',
+          recommendation:
+              'Anstrengende Aktivitäten im Freien am Nachmittag meiden. '
+              'Empfindliche Personen (Kinder, Senioren, Atemwegserkrankte) sollten drinnen bleiben.',
+          timestamp: now,
+        ));
+      }
+    }
+
+    // Drop acknowledged-for-today alerts so the UI doesn't re-show them.
+    activeHealthAlerts = alerts
+        .where((a) => !_acknowledgedHealthAlerts.contains(a.dedupKey))
+        .toList();
+    onHealthAlertsUpdate?.call(activeHealthAlerts);
+
+    if (activeHealthAlerts.isNotEmpty) {
+      _log.info(
+        'HealthAlerts: ${activeHealthAlerts.length} active — '
+        '${activeHealthAlerts.map((a) => a.kind.name).join(", ")}',
+        tag: 'WEATHER',
+      );
+    }
+  }
+
+  /// Called by the UI when the user hits "Verstanden". The alert is removed
+  /// from the visible list and won't be shown again until tomorrow.
+  void acknowledgeHealthAlert(HealthAlert alert) {
+    _acknowledgedHealthAlerts.add(alert.dedupKey);
+    activeHealthAlerts = activeHealthAlerts.where((a) => a.dedupKey != alert.dedupKey).toList();
+    onHealthAlertsUpdate?.call(activeHealthAlerts);
+    _log.info('HealthAlerts: acknowledged ${alert.dedupKey}', tag: 'WEATHER');
   }
 
   /// Fetch DWD alerts from Bright Sky API
