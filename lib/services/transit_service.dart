@@ -159,8 +159,8 @@ class Journey {
 enum TransitApiType { efa, hafas }
 
 enum TransitProviderType {
-  ding, mvv, vvs, vrn, vrr, kvv, vvo, vgn, naldo, avv,
-  saarvv, vbb, rmv, nahsh, vbn, insa, nvv,
+  ding, mvv, vvs, vrn, vrr, kvv, vvo, vgn, naldo,
+  saarvv, vbb, nvv, rmv, nahsh, insa, vbn, avv,
 }
 
 class TransitProviderConfig {
@@ -170,11 +170,14 @@ class TransitProviderConfig {
   final String displayName; // shown in UI footer
   final String baseUrl;     // EFA base or HAFAS mgate endpoint
   final double minLat, maxLat, minLon, maxLon; // bounding box
-  // HAFAS-only — public AIDs extracted from official apps (used by hafas-client community)
+  // HAFAS-only — public config extracted from official apps (hafas-client community)
   final String? hafasAid;
   final String? hafasClientId;
-  final String? hafasClientVersion;
+  final String? hafasClientVersion;   // may be null for WEB clients (e.g. RMV)
   final String? hafasClientName;
+  final String hafasClientType;       // "AND" (Android), "IPH" (iPhone), "WEB"
+  final String hafasVer;              // protocol version ("1.30", "1.40", "1.42", "1.44")
+  final String? hafasExt;             // optional ext field (e.g. "RMV.1")
 
   const TransitProviderConfig({
     required this.type,
@@ -190,6 +193,9 @@ class TransitProviderConfig {
     this.hafasClientId,
     this.hafasClientVersion,
     this.hafasClientName,
+    this.hafasClientType = 'AND',
+    this.hafasVer = '1.40',
+    this.hafasExt,
   });
 
   bool containsCoord(double lat, double lon) {
@@ -228,9 +234,10 @@ const _providers = [
     minLat: 48.8, maxLat: 49.3, minLon: 8.2, maxLon: 8.7,
   ),
   TransitProviderConfig(
+    // naldo shares statewide Baden-Württemberg EFA (Mentz)
     type: TransitProviderType.naldo, api: TransitApiType.efa,
-    name: 'naldo', displayName: 'naldo (Verkehrsverbund Neckar-Alb-Donau)',
-    baseUrl: 'https://efa.naldo.de/naldo',
+    name: 'naldo', displayName: 'naldo (Verkehrsverbund Neckar-Alb-Donau via efa-bw)',
+    baseUrl: 'https://www.efa-bw.de/nvbw',
     minLat: 47.9, maxLat: 48.6, minLon: 8.7, maxLon: 9.6,
   ),
   TransitProviderConfig(
@@ -244,12 +251,6 @@ const _providers = [
     name: 'VGN', displayName: 'VGN (Verkehrsverbund Großraum Nürnberg)',
     baseUrl: 'https://efa.vgn.de/vgnExt_oeffi',
     minLat: 49.0, maxLat: 50.3, minLon: 10.5, maxLon: 12.0,
-  ),
-  TransitProviderConfig(
-    type: TransitProviderType.avv, api: TransitApiType.efa,
-    name: 'AVV', displayName: 'AVV (Aachener Verkehrsverbund)',
-    baseUrl: 'https://auskunft.avv.de/avv',
-    minLat: 50.6, maxLat: 51.0, minLon: 5.9, maxLon: 6.5,
   ),
   TransitProviderConfig(
     type: TransitProviderType.vrr, api: TransitApiType.efa,
@@ -274,14 +275,6 @@ const _providers = [
     minLat: 49.0, maxLat: 49.7, minLon: 6.3, maxLon: 7.5,
   ),
   TransitProviderConfig(
-    type: TransitProviderType.rmv, api: TransitApiType.hafas,
-    name: 'RMV', displayName: 'RMV (Rhein-Main-Verkehrsverbund)',
-    baseUrl: 'https://www.rmv.de/hapi/mgate.exe',
-    hafasAid: 'w4M5b2GKzXdi7NST',
-    hafasClientId: 'HAFAS', hafasClientVersion: '1', hafasClientName: 'RMV',
-    minLat: 49.5, maxLat: 51.6, minLon: 7.8, maxLon: 10.2,
-  ),
-  TransitProviderConfig(
     type: TransitProviderType.nvv, api: TransitApiType.hafas,
     name: 'NVV', displayName: 'NVV (Nordhessischer Verkehrsverbund)',
     baseUrl: 'https://auskunft.nvv.de/auskunft/bin/app/mgate.exe',
@@ -290,28 +283,49 @@ const _providers = [
     minLat: 50.6, maxLat: 51.6, minLon: 8.5, maxLon: 10.4,
   ),
   TransitProviderConfig(
+    type: TransitProviderType.rmv, api: TransitApiType.hafas,
+    name: 'RMV', displayName: 'RMV (Rhein-Main-Verkehrsverbund)',
+    baseUrl: 'https://www.rmv.de/auskunft/bin/jp/mgate.exe',
+    hafasAid: 'x0k4ZR33ICN9CWmj',
+    hafasClientId: 'RMV', hafasClientName: 'webapp',
+    hafasClientType: 'WEB', hafasVer: '1.44', hafasExt: 'RMV.1',
+    minLat: 49.5, maxLat: 51.6, minLon: 7.8, maxLon: 10.2,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.nahsh, api: TransitApiType.hafas,
+    name: 'NAH.SH', displayName: 'NAH.SH (Nahverkehr Schleswig-Holstein)',
+    baseUrl: 'https://nahsh.hafas.cloud/gate',
+    hafasAid: 'r0Ot9FLFNAFxijLW',
+    hafasClientId: 'NAHSH', hafasClientVersion: '3000700', hafasClientName: 'NAHSHPROD',
+    hafasClientType: 'IPH', hafasVer: '1.30',
+    minLat: 53.3, maxLat: 55.1, minLon: 8.4, maxLon: 11.3,
+  ),
+  TransitProviderConfig(
     type: TransitProviderType.insa, api: TransitApiType.hafas,
-    name: 'INSA', displayName: 'INSA (Nahverkehrsservice Sachsen-Anhalt)',
+    name: 'INSA', displayName: 'INSA / NASA (Sachsen-Anhalt)',
     baseUrl: 'https://reiseauskunft.insa.de/bin/mgate.exe',
-    hafasAid: 'insa-android',
-    hafasClientId: 'INSA', hafasClientVersion: '3000100', hafasClientName: 'INSA Mobil',
+    hafasAid: 'nasa-apps',
+    hafasClientId: 'NASA', hafasClientVersion: '4000200', hafasClientName: 'nasaPROD',
+    hafasClientType: 'IPH', hafasVer: '1.44',
     minLat: 50.9, maxLat: 53.1, minLon: 10.5, maxLon: 13.2,
   ),
   TransitProviderConfig(
     type: TransitProviderType.vbn, api: TransitApiType.hafas,
     name: 'VBN', displayName: 'VBN (Verkehrsverbund Bremen/Niedersachsen)',
     baseUrl: 'https://fahrplaner.vbn.de/bin/mgate.exe',
-    hafasAid: 'IRZOWVLp2MOSTest',
-    hafasClientId: 'VBN', hafasClientVersion: '6000200', hafasClientName: 'Fahrplaner',
+    hafasAid: 'kaoxIXLn03zCr2KR',
+    hafasClientId: 'VBN', hafasClientVersion: '6000000', hafasClientName: 'vbn',
+    hafasClientType: 'IPH', hafasVer: '1.42',
     minLat: 52.0, maxLat: 54.0, minLon: 7.0, maxLon: 11.0,
   ),
   TransitProviderConfig(
-    type: TransitProviderType.nahsh, api: TransitApiType.hafas,
-    name: 'NAH.SH', displayName: 'NAH.SH (Nahverkehr Schleswig-Holstein)',
-    baseUrl: 'https://nah.sh.hafas.de/bin/mgate.exe',
-    hafasAid: 'r0Ot9FLFNAFxijLW',
-    hafasClientId: 'NAHSH', hafasClientVersion: '1000000', hafasClientName: 'NAH.SH',
-    minLat: 53.3, maxLat: 55.1, minLon: 8.4, maxLon: 11.3,
+    // AVV Aachen uses HAFAS, not EFA (per transport-apis registry)
+    type: TransitProviderType.avv, api: TransitApiType.hafas,
+    name: 'AVV', displayName: 'AVV (Aachener Verkehrsverbund)',
+    baseUrl: 'https://auskunft.avv.de/bin/mgate.exe',
+    hafasAid: '4vV1AcH3N511icH',
+    hafasClientId: 'AVV_AACHEN', hafasClientVersion: '14000200', hafasClientName: 'AVV_AACHEN',
+    minLat: 50.6, maxLat: 51.0, minLon: 5.9, maxLon: 6.5,
   ),
   TransitProviderConfig(
     type: TransitProviderType.vbb, api: TransitApiType.hafas,
@@ -836,7 +850,8 @@ class TransitService {
     }
   }
 
-  /// Parse EFA dateTime object → DateTime
+  /// Parse EFA departure monitor dateTime → DateTime.
+  /// Format: `{year, month, day, hour, minute}` (integer strings).
   DateTime? _parseEfaDateTime(Map<String, dynamic> dt) {
     try {
       final year = int.tryParse(dt['year']?.toString() ?? '');
@@ -847,6 +862,41 @@ class TransitService {
       if (year == null || month == null || day == null || hour == null || minute == null) return null;
       return DateTime(year, month, day, hour, minute);
     } catch (e) {
+      return null;
+    }
+  }
+
+  /// Clean EFA platform value — filters out "None"/"null"/empty literals.
+  String? _cleanEfaPlatform(dynamic raw) {
+    if (raw == null) return null;
+    final s = raw.toString();
+    if (s.isEmpty || s == 'None' || s == 'null' || s == '0') return null;
+    return s;
+  }
+
+  /// Parse EFA TRIP response dateTime → DateTime.
+  /// Format: `{date: "DD.MM.YYYY", time: "HH:MM", rtDate?, rtTime?}`.
+  /// Prefers `rtDate`/`rtTime` (realtime) when present.
+  DateTime? _parseEfaTripDateTime(dynamic dt) {
+    if (dt is! Map) return null;
+    try {
+      final date = (dt['rtDate'] ?? dt['date'])?.toString();
+      final time = (dt['rtTime'] ?? dt['time'])?.toString();
+      if (date == null || time == null) return null;
+      // date: "01.07.2026" (DD.MM.YYYY)
+      final dParts = date.split('.');
+      if (dParts.length != 3) return null;
+      final day = int.tryParse(dParts[0]);
+      final month = int.tryParse(dParts[1]);
+      final year = int.tryParse(dParts[2]);
+      // time: "17:10" (HH:MM) — sometimes "17:10:00"
+      final tParts = time.split(':');
+      if (tParts.length < 2) return null;
+      final hour = int.tryParse(tParts[0]);
+      final minute = int.tryParse(tParts[1]);
+      if (year == null || month == null || day == null || hour == null || minute == null) return null;
+      return DateTime(year, month, day, hour, minute);
+    } catch (_) {
       return null;
     }
   }
@@ -872,18 +922,27 @@ class TransitService {
 
   Map<String, dynamic> _hafasRequest(List<Map<String, dynamic>> svcReqL) {
     final p = activeProvider;
-    return {
-      'ver': '1.40',
+    final client = <String, dynamic>{
+      'type': p?.hafasClientType ?? 'AND',
+      'id': p?.hafasClientId ?? 'ZPS-SAAR',
+      'name': p?.hafasClientName ?? 'Saarfahrplan',
+    };
+    // client.v is optional (WEB clients like RMV don't send it)
+    final ver = p?.hafasClientVersion ?? '1000070';
+    if (ver.isNotEmpty && p?.hafasClientType != 'WEB') {
+      client['v'] = ver;
+    } else if (p?.hafasClientVersion != null) {
+      client['v'] = p!.hafasClientVersion;
+    }
+    final req = <String, dynamic>{
+      'ver': p?.hafasVer ?? '1.40',
       'lang': 'de',
       'auth': {'type': 'AID', 'aid': _resolveAid(p)},
-      'client': {
-        'type': 'AND',
-        'id': p?.hafasClientId ?? 'ZPS-SAAR',
-        'v': p?.hafasClientVersion ?? '1000070',
-        'name': p?.hafasClientName ?? 'Saarfahrplan',
-      },
+      'client': client,
       'svcReqL': svcReqL,
     };
+    if (p?.hafasExt != null) req['ext'] = p!.hafasExt;
+    return req;
   }
 
   /// Fetch departures via HAFAS mgate.exe (saarVV)
@@ -1277,8 +1336,12 @@ class TransitService {
         if (points.length < 2) continue;
         final depPoint = points.first;
         final arrPoint = points.last;
-        final depDT = _parseEfaDateTime(depPoint['dateTime'] ?? {});
-        final arrDT = _parseEfaDateTime(arrPoint['dateTime'] ?? {});
+        // Trip response uses DIFFERENT dateTime format than departure monitor:
+        //   DM:   {year, month, day, hour, minute}   (integers as strings)
+        //   Trip: {date: "01.07.2026", time: "17:10", rtDate, rtTime}
+        // Try trip parser first, fall back to DM parser.
+        final depDT = _parseEfaTripDateTime(depPoint['dateTime']) ?? _parseEfaDateTime(depPoint['dateTime'] ?? {});
+        final arrDT = _parseEfaTripDateTime(arrPoint['dateTime']) ?? _parseEfaDateTime(arrPoint['dateTime'] ?? {});
         if (depDT == null || arrDT == null) continue;
 
         final mode = leg['mode'] ?? {};
@@ -1300,8 +1363,8 @@ class TransitService {
           toName: arrPoint['name']?.toString() ?? '',
           depTime: depDT,
           arrTime: arrDT,
-          fromPlatform: depPoint['platform']?.toString(),
-          toPlatform: arrPoint['platform']?.toString(),
+          fromPlatform: _cleanEfaPlatform(depPoint['platform']),
+          toPlatform: _cleanEfaPlatform(arrPoint['platform']),
           productType: productType,
           isWalk: isWalk,
         ));
@@ -1335,6 +1398,12 @@ class TransitService {
     ).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
     final data = jsonDecode(response.body);
+    // HAFAS reports auth failures at root level, not in svcResL — check both
+    final rootErr = data['err']?.toString();
+    if (rootErr != null && rootErr != 'OK') {
+      _log.error('Transit [${p.name}]: HAFAS root err=$rootErr ${data['errTxt'] ?? ''}', tag: 'TRANSIT');
+      return [];
+    }
     final match = data['svcResL']?[0]?['res']?['match']?['locL'] as List? ?? [];
     return match.map<TransitLocation?>((loc) {
       final name = loc['name']?.toString() ?? '';
@@ -1379,6 +1448,11 @@ class TransitService {
   }
 
   List<Journey> _parseHafasTripResponse(Map<String, dynamic> data) {
+    final rootErr = data['err']?.toString();
+    if (rootErr != null && rootErr != 'OK') {
+      _log.error('Transit: HAFAS trip root err=$rootErr ${data['errTxt'] ?? ''}', tag: 'TRANSIT');
+      return [];
+    }
     final svc = data['svcResL']?[0]?['res'];
     if (svc == null) return [];
     final common = svc['common'] ?? {};
@@ -1460,7 +1534,10 @@ class TransitService {
       'https://www.bahn.de/web/api/reiseloesung/orte'
       '?suchbegriff=${Uri.encodeComponent(q)}&typ=ALL&limit=15',
     );
-    final response = await _client.get(uri, headers: {'Accept': 'application/json'}).timeout(const Duration(seconds: 10));
+    final response = await _client.get(uri, headers: {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 13) ICD360S-eV-App/1.0',
+    }).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
     final data = jsonDecode(response.body);
     if (data is! List) return [];
@@ -1495,7 +1572,11 @@ class TransitService {
     });
     final response = await _client.post(
       uri,
-      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13) ICD360S-eV-App/1.0',
+      },
       body: body,
     ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) return [];
