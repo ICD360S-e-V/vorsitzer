@@ -79,9 +79,16 @@ class TerminWeatherService {
   static const _spKeyGeocodePrefix = 'termin_weather_geocode_';
 
   /// Heuristics for "not outdoor" locations — skip forecast entirely.
+  ///
+  /// Kept intentionally strict: earlier versions matched `büro` (which is a
+  /// substring of every German Bürgerbüro/Sozialbüro address) and `home`
+  /// (matched "Hombergerstraße"), silently killing weather badges on real
+  /// outdoor Termine. Only patterns that unambiguously mean "not going
+  /// outside" remain.
   static final _internKeywords = RegExp(
-    r'\b(intern|online|zoom|teams|videokonferenz|telefonat|telefon|homeoffice|'
-    r'zuhause|home|vereinshaus|vereinsheim|büro|buero|eigene\s*praxis|remote)\b',
+    r'\b(intern|online|zoom|teams|meet|videokonferenz|telefonisch|telefonat|'
+    r'homeoffice|home[\s-]?office|zuhause|vereinshaus|vereinsheim|'
+    r'eigene\s*praxis|remote)\b',
     caseSensitive: false,
   );
 
@@ -96,16 +103,36 @@ class TerminWeatherService {
     final now = DateTime.now();
     _hints.clear();
 
-    // Consider Termine from now up to 7 days out. Anything past is skipped;
-    // anything further out has enough time to re-refresh closer to the day.
+    int skippedPast = 0, skippedFar = 0, skippedCancelled = 0, skippedIndoor = 0, skippedNoLoc = 0;
+
+    // Consider Termine from now up to 7 days out.
     final horizon = now.add(const Duration(days: 7));
-    final candidates = termine.where((t) {
-      if (t.terminDate.isBefore(now.subtract(const Duration(minutes: 30)))) return false;
-      if (t.terminDate.isAfter(horizon)) return false;
-      if (t.status == 'cancelled') return false;
-      if (_looksIndoor(t.location)) return false;
-      return true;
-    }).toList();
+    final candidates = <Termin>[];
+    for (final t in termine) {
+      if (t.terminDate.isBefore(now.subtract(const Duration(minutes: 30)))) { skippedPast++; continue; }
+      if (t.terminDate.isAfter(horizon)) { skippedFar++; continue; }
+      if (t.status == 'cancelled') { skippedCancelled++; continue; }
+      if (t.location.trim().isEmpty) {
+        skippedNoLoc++;
+        _log.debug('TerminWeather: termin ${t.id} "${t.title}" skipped — no location',
+            tag: 'TERMIN_WEATHER');
+        continue;
+      }
+      if (_looksIndoor(t.location)) {
+        skippedIndoor++;
+        _log.debug('TerminWeather: termin ${t.id} "${t.title}" skipped indoor — '
+            'location: "${t.location}"', tag: 'TERMIN_WEATHER');
+        continue;
+      }
+      candidates.add(t);
+    }
+
+    _log.info(
+      'TerminWeather: ${termine.length} total → ${candidates.length} candidates '
+      '(past=$skippedPast, far=$skippedFar, cancelled=$skippedCancelled, '
+      'noLocation=$skippedNoLoc, indoor=$skippedIndoor)',
+      tag: 'TERMIN_WEATHER',
+    );
 
     if (candidates.isEmpty) return;
 
@@ -115,27 +142,42 @@ class TerminWeatherService {
       byLocation.putIfAbsent(t.location.trim(), () => []).add(t);
     }
 
+    int geocodeFailed = 0, forecastFailed = 0, hintsStored = 0;
     for (final entry in byLocation.entries) {
       final loc = entry.key;
       final ts = entry.value;
+      final terminIds = ts.map((t) => t.id).join(',');
       try {
         final coords = await _geocode(loc);
-        if (coords == null) continue;
+        if (coords == null) {
+          geocodeFailed++;
+          _log.info('TerminWeather: geocode FAILED for "$loc" (termine: $terminIds)',
+              tag: 'TERMIN_WEATHER');
+          continue;
+        }
+        _log.debug('TerminWeather: "$loc" → (${coords.$1}, ${coords.$2}) [$terminIds]',
+            tag: 'TERMIN_WEATHER');
         for (final termin in ts) {
           final hint = await _hintForTermin(termin, coords.$1, coords.$2);
           if (hint != null) {
             _hints[termin.id] = hint;
+            hintsStored++;
             await _maybeNotify(termin, hint);
+          } else {
+            forecastFailed++;
+            _log.info('TerminWeather: forecast FAILED for termin ${termin.id} '
+                '"${termin.title}" @ ${termin.terminDate}', tag: 'TERMIN_WEATHER');
           }
         }
       } catch (e) {
-        _log.debug('TerminWeather: skipped "$loc" — $e', tag: 'TERMIN_WEATHER');
+        _log.error('TerminWeather: exception for "$loc" [$terminIds] — $e',
+            tag: 'TERMIN_WEATHER');
       }
     }
 
     _log.info(
-      'TerminWeather: evaluated ${candidates.length} Termine, '
-      '${_hints.length} with weather hint',
+      'TerminWeather: done — hints=$hintsStored, geocodeFailed=$geocodeFailed, '
+      'forecastFailed=$forecastFailed',
       tag: 'TERMIN_WEATHER',
     );
   }
@@ -158,25 +200,63 @@ class TerminWeatherService {
     if (cached != null) {
       final parts = cached.split(',');
       if (parts.length == 2) {
-        return (double.parse(parts[0]), double.parse(parts[1]));
+        final lat = double.tryParse(parts[0]);
+        final lon = double.tryParse(parts[1]);
+        if (lat != null && lon != null) return (lat, lon);
       }
     }
-    // Query the Open-Meteo geocoder; strip the house number / trailing details
-    // and try just the first token if the full string returns nothing.
-    for (final q in [location, location.split(',').first, location.split(' ').first]) {
+
+    // Step 1: Open-Meteo Geocoding — fast for city names but bad at street
+    // addresses. Try full string, then progressively less specific queries.
+    for (final q in [location, location.split(',').first.trim(),
+                     location.split(' ').last.trim()]) {
+      if (q.isEmpty) continue;
+      try {
+        final uri = Uri.parse(
+          'https://geocoding-api.open-meteo.com/v1/search'
+          '?name=${Uri.encodeComponent(q)}&count=1&language=de&format=json',
+        );
+        final r = await _client.get(uri).timeout(const Duration(seconds: 8));
+        if (r.statusCode != 200) continue;
+        final data = jsonDecode(r.body);
+        final results = data['results'] as List?;
+        if (results == null || results.isEmpty) continue;
+        final lat = (results[0]['latitude'] as num).toDouble();
+        final lon = (results[0]['longitude'] as num).toDouble();
+        await sp.setString('$_spKeyGeocodePrefix$location', '$lat,$lon');
+        return (lat, lon);
+      } catch (_) { /* try next form */ }
+    }
+
+    // Step 2: Nominatim (OpenStreetMap) — much better for street-level German
+    // addresses like "Bürgerbüro Marzahn, Alt-Marzahn 51". Free, no API key,
+    // but requires a real User-Agent per usage policy.
+    try {
       final uri = Uri.parse(
-        'https://geocoding-api.open-meteo.com/v1/search'
-        '?name=${Uri.encodeComponent(q)}&count=1&language=de&format=json',
+        'https://nominatim.openstreetmap.org/search'
+        '?q=${Uri.encodeComponent(location)}&format=json&limit=1&accept-language=de&countrycodes=de,at,ch',
       );
-      final r = await _client.get(uri).timeout(const Duration(seconds: 10));
-      if (r.statusCode != 200) continue;
-      final data = jsonDecode(r.body);
-      final results = data['results'] as List?;
-      if (results == null || results.isEmpty) continue;
-      final lat = (results[0]['latitude'] as num).toDouble();
-      final lon = (results[0]['longitude'] as num).toDouble();
-      await sp.setString('$_spKeyGeocodePrefix$location', '$lat,$lon');
-      return (lat, lon);
+      final r = await _client
+          .get(uri, headers: {
+            'User-Agent': 'ICD360S-Vorsitzer-App/1.0 (contact@icd360s.de)',
+          })
+          .timeout(const Duration(seconds: 10));
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        if (list.isNotEmpty) {
+          final lat = double.tryParse(list[0]['lat'].toString());
+          final lon = double.tryParse(list[0]['lon'].toString());
+          if (lat != null && lon != null) {
+            await sp.setString('$_spKeyGeocodePrefix$location', '$lat,$lon');
+            _log.debug('TerminWeather: geocoded "$location" via Nominatim → $lat, $lon',
+                tag: 'TERMIN_WEATHER');
+            return (lat, lon);
+          }
+        }
+      }
+    } catch (e) {
+      _log.debug('TerminWeather: Nominatim failed for "$location" — $e',
+          tag: 'TERMIN_WEATHER');
     }
     return null;
   }
