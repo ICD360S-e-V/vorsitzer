@@ -38,6 +38,11 @@ dependencies:
   # HTTP requests
   http: ^1.2.0
 
+  # OSM-based map for the Radar tab in WeatherDialog. Combined with RainViewer
+  # tile overlay for animated precipitation history + short-term forecast.
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
   # SHA-256 for live document-content hash compare in Stufe 6/7/8 Beweis dialog.
   crypto: ^3.0.0
 

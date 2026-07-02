@@ -1,5 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import '../services/weather_service.dart';
 
 /// Emoji font fallback list — applied per-Text ONLY on widgets that render
@@ -218,13 +224,27 @@ class _WeatherDialogState extends State<WeatherDialog> {
     final next3Days = widget.service.dailyForecast.take(3).toList();
     final weekForecast = widget.service.dailyForecast.toList();
 
+    // Adapt dialog size to the screen: on phone-sized viewports we go full
+    // screen; on tablets/desktop we cap at 900×800 so it doesn't stretch
+    // uncomfortably wide on ultra-wide monitors.
+    final screen = MediaQuery.of(context).size;
+    final isPhone = screen.width < 600;
+    final dialogWidth = isPhone ? screen.width : (screen.width * 0.9).clamp(600.0, 1100.0);
+    final dialogHeight = isPhone ? screen.height : (screen.height * 0.9).clamp(600.0, 900.0);
+
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isPhone ? 0 : 24,
+        vertical: isPhone ? 0 : 24,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(isPhone ? 0 : 12),
+      ),
       child: SizedBox(
-        width: 520,
-        height: 620,
+        width: dialogWidth,
+        height: dialogHeight,
         child: DefaultTabController(
-          length: 5,
+          length: 6,
           child: Column(
             children: [
               _buildHeader(context, weather),
@@ -234,6 +254,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                     _buildAktuellTab(weather, alerts),
                     _buildStuendlichTab(next24h, df),
                     _buildUmweltTab(),
+                    _buildRadarTab(),
                     _buildDreiTageTab(next3Days, dfDay),
                     _buildWocheTab(weekForecast, dfDayShort, now),
                   ],
@@ -303,6 +324,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
               Tab(text: 'Aktuell'),
               Tab(text: 'Stündlich'),
               Tab(text: 'Umwelt'),
+              Tab(text: 'Radar'),
               Tab(text: '3 Tage'),
               Tab(text: 'Woche'),
             ],
@@ -512,6 +534,24 @@ class _WeatherDialogState extends State<WeatherDialog> {
         );
       },
     );
+  }
+
+  Widget _buildRadarTab() {
+    final lat = widget.service.latitude;
+    final lon = widget.service.longitude;
+    if (lat == null || lon == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Standort nicht verfügbar — Radar kann nicht angezeigt werden.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey),
+          ),
+        ),
+      );
+    }
+    return _RainRadarView(centerLat: lat, centerLon: lon);
   }
 
   Widget _buildDreiTageTab(List<DailyForecast> next3Days, DateFormat dfDay) {
@@ -1370,4 +1410,249 @@ class HealthAlertBanner extends StatelessWidget {
       }).toList(),
     );
   }
+}
+
+/// Rain radar overlay backed by RainViewer's free API and OpenStreetMap tiles.
+///
+/// RainViewer publishes an animated tile pyramid updated every ~10 min covering
+/// the past ~2h; there is no per-user key. We fetch the frame index once, then
+/// let the user scrub through it with a slider (or auto-play). No animation
+/// loop by default so idle dialogs don't burn tile fetches.
+class _RainRadarView extends StatefulWidget {
+  final double centerLat;
+  final double centerLon;
+
+  const _RainRadarView({required this.centerLat, required this.centerLon});
+
+  @override
+  State<_RainRadarView> createState() => _RainRadarViewState();
+}
+
+class _RainRadarViewState extends State<_RainRadarView> {
+  List<_RadarFrame> _frames = [];
+  int _currentFrameIndex = 0;
+  bool _loading = true;
+  String? _error;
+  bool _playing = false;
+  Timer? _playTimer;
+  final _mapController = MapController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFrames();
+  }
+
+  @override
+  void dispose() {
+    _playTimer?.cancel();
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFrames() async {
+    try {
+      final r = await http
+          .get(Uri.parse('https://api.rainviewer.com/public/weather-maps.json'))
+          .timeout(const Duration(seconds: 10));
+      if (r.statusCode != 200) {
+        setState(() { _loading = false; _error = 'Radar-Daten nicht erreichbar.'; });
+        return;
+      }
+      final data = jsonDecode(r.body);
+      final host = data['host'] as String? ?? 'https://tilecache.rainviewer.com';
+      final radar = data['radar'] as Map<String, dynamic>?;
+      final past = (radar?['past'] as List?) ?? const [];
+      final nowcast = (radar?['nowcast'] as List?) ?? const [];
+      final frames = <_RadarFrame>[
+        for (final f in past)
+          _RadarFrame(
+            time: DateTime.fromMillisecondsSinceEpoch((f['time'] as int) * 1000),
+            path: '$host${f['path']}',
+            isForecast: false,
+          ),
+        for (final f in nowcast)
+          _RadarFrame(
+            time: DateTime.fromMillisecondsSinceEpoch((f['time'] as int) * 1000),
+            path: '$host${f['path']}',
+            isForecast: true,
+          ),
+      ];
+      if (!mounted) return;
+      setState(() {
+        _frames = frames;
+        _currentFrameIndex = frames.length - 1; // start on the most recent frame
+        _loading = false;
+        _error = frames.isEmpty ? 'Keine Radar-Frames verfügbar.' : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = 'Radar-Fehler: $e'; });
+    }
+  }
+
+  void _togglePlay() {
+    if (_frames.isEmpty) return;
+    if (_playing) {
+      _playTimer?.cancel();
+      _playTimer = null;
+      setState(() => _playing = false);
+      return;
+    }
+    setState(() => _playing = true);
+    _playTimer = Timer.periodic(const Duration(milliseconds: 550), (_) {
+      if (!mounted || _frames.isEmpty) return;
+      setState(() {
+        _currentFrameIndex = (_currentFrameIndex + 1) % _frames.length;
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () { setState(() { _loading = true; _error = null; }); _loadFrames(); },
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Erneut versuchen'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final frame = _frames[_currentFrameIndex];
+    final center = LatLng(widget.centerLat, widget.centerLon);
+    final tileUrl = '${frame.path}/256/{z}/{x}/{y}/2/1_1.png';
+
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: center,
+                  initialZoom: 8,
+                  minZoom: 3,
+                  maxZoom: 10,
+                ),
+                children: [
+                  // Base map: OSM tiles.
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'de.icd360s.vorsitzer',
+                    // OSM tile usage policy requires a real UA & max zoom 19.
+                    maxNativeZoom: 19,
+                  ),
+                  // RainViewer radar overlay for the current frame.
+                  TileLayer(
+                    urlTemplate: tileUrl,
+                    userAgentPackageName: 'de.icd360s.vorsitzer',
+                    maxNativeZoom: 12,
+                    // Semi-transparent so the base map stays readable.
+                    tileBuilder: (ctx, tileWidget, _) => Opacity(opacity: 0.75, child: tileWidget),
+                  ),
+                  // Marker on the user's location.
+                  MarkerLayer(markers: [
+                    Marker(
+                      point: center,
+                      width: 30,
+                      height: 30,
+                      child: const Icon(Icons.my_location, size: 24, color: Colors.blue),
+                    ),
+                  ]),
+                ],
+              ),
+              // Attribution — required by OSM AND RainViewer terms.
+              Positioned(
+                right: 4,
+                bottom: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  color: Colors.white.withValues(alpha: 0.75),
+                  child: const Text(
+                    'Karte: © OpenStreetMap · Radar: © RainViewer',
+                    style: TextStyle(fontSize: 9, color: Colors.black87),
+                  ),
+                ),
+              ),
+              // Frame label — HH:mm + hint that this frame is a forecast.
+              Positioned(
+                left: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: frame.isForecast ? Colors.orange.shade700 : Colors.blue.shade700,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${frame.isForecast ? "Vorhersage" : "Radar"}  ${DateFormat('HH:mm', 'de_DE').format(frame.time)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Timeline controls.
+        Container(
+          color: Colors.grey.shade100,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(_playing ? Icons.pause_circle : Icons.play_circle,
+                    size: 30, color: Colors.blue.shade700),
+                tooltip: _playing ? 'Pause' : 'Animation abspielen',
+                onPressed: _togglePlay,
+              ),
+              Expanded(
+                child: Slider(
+                  min: 0,
+                  max: (_frames.length - 1).toDouble(),
+                  divisions: _frames.length - 1,
+                  value: _currentFrameIndex.toDouble(),
+                  onChanged: (v) => setState(() => _currentFrameIndex = v.round()),
+                ),
+              ),
+              SizedBox(
+                width: 60,
+                child: Text(
+                  DateFormat('HH:mm', 'de_DE').format(frame.time),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RadarFrame {
+  final DateTime time;
+  final String path;   // tilecache.rainviewer.com/v2/radar/<hash>
+  final bool isForecast;
+  _RadarFrame({required this.time, required this.path, required this.isForecast});
 }

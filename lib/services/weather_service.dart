@@ -394,6 +394,12 @@ class WeatherService {
   DateTime? _lastGpsRefreshAt;
   double? _latitude;
   double? _longitude;
+
+  /// Public read of the current lat/lon used by the service — needed by widgets
+  /// that render maps or run their own location-scoped queries (e.g. the radar).
+  double? get latitude => _latitude;
+  double? get longitude => _longitude;
+
   double? _lastGeocodedLat;
   double? _lastGeocodedLon;
   String _city = '';
