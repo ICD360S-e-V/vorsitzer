@@ -529,7 +529,8 @@ class TransitService {
         }
       } catch (_) {}
 
-      // Strategy 2: fresh high accuracy — short timeout, we abandon fast
+      // Strategy 2: FusedLocationProvider high accuracy (Wi-Fi + cell + GNSS).
+      // Longer timeout (15s) — first GNSS fix can take 10-20s from cold start.
       try {
         final position = await Geolocator.getCurrentPosition(
           locationSettings: Platform.isAndroid
@@ -540,14 +541,46 @@ class TransitService {
               : Platform.isIOS || Platform.isMacOS
                   ? AppleSettings(accuracy: LocationAccuracy.high)
                   : const LocationSettings(accuracy: LocationAccuracy.high),
-        ).timeout(const Duration(seconds: 8));
+        ).timeout(const Duration(seconds: 15));
+        _log.info('Transit: FusedLocation high = ${position.latitude}, ${position.longitude} (accuracy ${position.accuracy.toStringAsFixed(0)}m)', tag: 'TRANSIT');
+        // Accept if accuracy is stop-level useful (< 200m). Otherwise fall through
+        // to Strategy 2b — sometimes FusedLocation returns cell-tower coarse fix.
+        if (position.accuracy < 200) {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+          locationError = null;
+          return true;
+        }
+        _log.info('Transit: high fix too coarse (${position.accuracy.toStringAsFixed(0)}m) — trying raw GNSS', tag: 'TRANSIT');
+        // Keep this fix as tentative — better than nothing if raw GNSS fails.
         _latitude = position.latitude;
         _longitude = position.longitude;
-        locationError = null;
-        _log.info('Transit: Fresh GPS (high) = $_latitude, $_longitude', tag: 'TRANSIT');
-        return true;
       } catch (e) {
         _log.debug('Transit: High accuracy failed/timeout: $e', tag: 'TRANSIT');
+      }
+
+      // Strategy 2b (Android only): force raw LocationManager / GNSS chip.
+      // Bypasses Google Play Services — some tablets (Samsung especially) get
+      // stuck on cell-tower fix when FusedLocation is used. Raw GNSS is slower
+      // to lock but gives real GPS coordinates.
+      if (Platform.isAndroid) {
+        try {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: AndroidSettings(
+              accuracy: LocationAccuracy.best,
+              forceLocationManager: true, // raw LocationManager (GNSS)
+            ),
+          ).timeout(const Duration(seconds: 20));
+          _log.info('Transit: Raw GNSS = ${position.latitude}, ${position.longitude} (accuracy ${position.accuracy.toStringAsFixed(0)}m)', tag: 'TRANSIT');
+          if (position.accuracy < 500) {
+            _latitude = position.latitude;
+            _longitude = position.longitude;
+            locationError = null;
+            return true;
+          }
+        } catch (e) {
+          _log.debug('Transit: Raw GNSS failed/timeout: $e', tag: 'TRANSIT');
+        }
       }
 
       // Strategy 3: medium accuracy — quicker to lock, wider tolerance
@@ -556,11 +589,11 @@ class TransitService {
           locationSettings: Platform.isAndroid
               ? AndroidSettings(accuracy: LocationAccuracy.medium, forceLocationManager: false)
               : const LocationSettings(accuracy: LocationAccuracy.medium),
-        ).timeout(const Duration(seconds: 4));
+        ).timeout(const Duration(seconds: 5));
         _latitude = position.latitude;
         _longitude = position.longitude;
         locationError = null;
-        _log.info('Transit: Fresh GPS (medium) = $_latitude, $_longitude', tag: 'TRANSIT');
+        _log.info('Transit: Fresh GPS (medium) = $_latitude, $_longitude (accuracy ${position.accuracy.toStringAsFixed(0)}m)', tag: 'TRANSIT');
         return true;
       } catch (e) {
         _log.debug('Transit: Medium accuracy failed: $e', tag: 'TRANSIT');
@@ -573,7 +606,13 @@ class TransitService {
         return true;
       }
 
-      // Strategy 5: IP fallback — city-level accuracy, saves desktop users
+      // Strategy 5: keep tentative coarse fix if we got one from Strategy 2
+      if (_latitude != null && _longitude != null) {
+        _log.info('Transit: Using coarse fix from strategy 2 = $_latitude, $_longitude', tag: 'TRANSIT');
+        return true;
+      }
+
+      // Strategy 6: IP fallback — city-level, LAST resort
       if (await _ipGeolocate()) return true;
 
       // Strategy 6: keep last known
