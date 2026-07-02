@@ -1215,25 +1215,27 @@ class TransitService {
   // ══════════════════════════════════════════════════════════════
 
   /// Autocomplete stops/localities matching [query].
-  /// Searches ALL EFA providers + bahn.de in parallel — the server may be in
+  /// Searches ALL EFA + HAFAS providers + bahn.de in parallel — the server may be in
   /// a region (e.g. Limburg → RMV) that doesn't cover the queried city
   /// (e.g. Neu-Ulm → DING). Merges + deduplicates by name.
   /// Each result carries `sourceProvider` so `searchJourneys` uses the right one.
   Future<List<TransitLocation>> searchLocations(String query) async {
     if (query.trim().length < 2) return [];
 
-    // Fire all EFA providers + bahn.de in parallel. Individual failures → empty list.
+    // Fire all providers + bahn.de in parallel. Individual failures → empty list.
     final futures = <Future<List<TransitLocation>>>[];
     for (final p in _providers) {
-      if (p.api != TransitApiType.efa) continue;
+      final search = p.api == TransitApiType.efa
+          ? _efaLocationSearch(p, query)
+          : _hafasLocationSearch(p, query);
       futures.add(
-        _efaLocationSearch(p, query)
+        search
             .then((list) => list.map((l) => TransitLocation(
                   id: l.id, name: l.name, type: l.type, lat: l.lat, lon: l.lon,
                   sourceProvider: p,
                 )).toList())
             .catchError((e) {
-              _log.debug('Transit: EFA search ${p.name} failed: $e', tag: 'TRANSIT');
+              _log.debug('Transit: ${p.name} search failed: $e', tag: 'TRANSIT');
               return <TransitLocation>[];
             }),
       );
@@ -1365,9 +1367,9 @@ class TransitService {
   }
 
   Future<List<Journey>> _efaTripSearch(
-    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when,
-    {bool arriveBy = false},
-  ) async {
+    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when, {
+    bool arriveBy = false,
+  }) async {
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}';
     final uri = Uri.parse(
@@ -1481,9 +1483,9 @@ class TransitService {
   }
 
   Future<List<Journey>> _hafasTripSearch(
-    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when,
-    {bool arriveBy = false},
-  ) async {
+    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when, {
+    bool arriveBy = false,
+  }) async {
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
     final req = _hafasRequest([
