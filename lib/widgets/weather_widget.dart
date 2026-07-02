@@ -1546,7 +1546,10 @@ class _RainRadarViewState extends State<_RainRadarView> {
                 mapController: _mapController,
                 options: MapOptions(
                   initialCenter: center,
-                  initialZoom: 8,
+                  initialZoom: 7,
+                  // RainViewer tiles top out at zoom 7 — allowing more just
+                  // triggers "zoom level not supported" errors from the tile
+                  // layer. The base OSM layer can still upscale visually.
                   minZoom: 3,
                   maxZoom: 10,
                 ),
@@ -1555,14 +1558,19 @@ class _RainRadarViewState extends State<_RainRadarView> {
                   TileLayer(
                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'de.icd360s.vorsitzer',
-                    // OSM tile usage policy requires a real UA & max zoom 19.
+                    // OSM tile usage policy requires a real UA. maxNativeZoom
+                    // caps the fetch level; higher zooms upscale the cached tile.
                     maxNativeZoom: 19,
                   ),
                   // RainViewer radar overlay for the current frame.
+                  // Hard cap at native zoom 7 — that is the highest zoom the
+                  // RainViewer tile pyramid publishes. Anything higher is
+                  // upscaled from the zoom-7 tile.
                   TileLayer(
                     urlTemplate: tileUrl,
                     userAgentPackageName: 'de.icd360s.vorsitzer',
-                    maxNativeZoom: 12,
+                    minNativeZoom: 0,
+                    maxNativeZoom: 7,
                     // Semi-transparent so the base map stays readable.
                     tileBuilder: (ctx, tileWidget, _) => Opacity(opacity: 0.75, child: tileWidget),
                   ),
