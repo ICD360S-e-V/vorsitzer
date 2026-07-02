@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 /// Tab-ul "Hilfsmittel" din pagina Arzt (între Rezept și Heilmittel).
 /// Tracking pentru toate Hilfsmittel (Schuheinlagen PG 08, Bandagen PG 05,
@@ -664,6 +665,38 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
             child: Text('• Betrag: ${status['zuzahlung_betrag']} €${(status['zuzahlung_befreit'] == 1 || status['zuzahlung_befreit'] == '1') ? '  (befreit)' : ''}',
               style: TextStyle(fontSize: 11, color: color.shade800)),
           ),
+          // Zahlungsbelege — Rechnung / Kassenzettel als Nachweis der
+          // Zuzahlung. Nur anzeigen wenn der Zuzahlungs-Status-Row schon
+          // existiert (sonst kein korrespondenz_id) UND der Mitglied nicht
+          // von der Zuzahlung befreit ist (befreit → kein Beleg nötig).
+          if (key == 'zuzahlung'
+              && status['id'] != null
+              && !(status['zuzahlung_befreit'] == 1 || status['zuzahlung_befreit'] == '1'))
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 6, right: 6),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: color.shade200),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.receipt_long, size: 14, color: color.shade700),
+                    const SizedBox(width: 6),
+                    Text('Rechnung / Kassenzettel',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.shade900)),
+                  ]),
+                  const SizedBox(height: 4),
+                  KorrAttachmentsWidget(
+                    apiService: widget.apiService,
+                    modul: 'rezept_zuzahlung',
+                    korrespondenzId: int.tryParse(status['id'].toString()) ?? 0,
+                  ),
+                ]),
+              ),
+            ),
           if (key == 'abholung' && status['datum'] != null && status['erledigt_am'] == null) Padding(
             padding: const EdgeInsets.only(left: 26, top: 6),
             child: ElevatedButton.icon(
