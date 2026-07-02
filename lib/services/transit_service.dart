@@ -488,6 +488,12 @@ class TransitService {
     _log.info('Transit: No matching provider, defaulting to ${activeProvider!.name}', tag: 'TRANSIT');
   }
 
+  /// Force UTF-8 decoding of HTTP body regardless of `Content-Type` header.
+  /// EFA (DING/MVV/VVS/...) returns `text/html` without a charset declaration,
+  /// so `response.body` defaults to latin-1 → German umlauts appear as `Ã¶`,
+  /// `Ã¤`, `ÃŸ`. All EFA/HAFAS/bahn.de responses are actually UTF-8.
+  String _decodeUtf8(http.Response r) => utf8.decode(r.bodyBytes, allowMalformed: true);
+
   /// Get current GPS position — layered strategy:
   ///   1. Cached last-known (instant, 0ms)
   ///   2. Fresh high-accuracy fix (8s max) — parallel with IP fallback
@@ -595,7 +601,7 @@ class TransitService {
         headers: {'Accept': 'application/json', 'User-Agent': 'ICD360S-eV-App/1.0'},
       ).timeout(const Duration(seconds: 3));
       if (response.statusCode != 200) return false;
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(_decodeUtf8(response));
       final lat = (data['latitude'] as num?)?.toDouble();
       final lon = (data['longitude'] as num?)?.toDouble();
       final ipCity = data['city']?.toString();
@@ -634,7 +640,7 @@ class TransitService {
         'User-Agent': 'ICD360S-eV-App/1.0',
       }).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(_decodeUtf8(response));
         final address = data['address'];
         if (address != null) {
           final name = address['city'] ?? address['town'] ?? address['village'] ?? address['municipality'];
@@ -658,7 +664,7 @@ class TransitService {
       final response = await _client.get(uri).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(_decodeUtf8(response));
         final results = data['results'] as List?;
         if (results != null && results.isNotEmpty) {
           _latitude = (results[0]['latitude'] as num).toDouble();
@@ -721,7 +727,7 @@ class TransitService {
       final response = await _client.get(uri).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(_decodeUtf8(response));
         _parseEfaResponse(data);
       }
     } catch (e) {
@@ -756,7 +762,7 @@ class TransitService {
     final response = await _client.get(uri).timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final data = jsonDecode(_decodeUtf8(response));
       _parseEfaResponse(data);
       _log.debug('Transit [${activeProvider?.name}]: ${departures.length} departures from ${nearbyStops.length} stops', tag: 'TRANSIT');
     } else {
@@ -988,7 +994,7 @@ class TransitService {
       return;
     }
 
-    final nearbyData = jsonDecode(nearbyResponse.body);
+    final nearbyData = jsonDecode(_decodeUtf8(nearbyResponse));
     final nearbyRes = nearbyData['svcResL'];
     if (nearbyRes == null || nearbyRes is! List || nearbyRes.isEmpty) {
       _log.error('Transit [saarVV]: Empty LocGeoPos response', tag: 'TRANSIT');
@@ -1066,7 +1072,7 @@ class TransitService {
       return;
     }
 
-    final depData = jsonDecode(depResponse.body);
+    final depData = jsonDecode(_decodeUtf8(depResponse));
     final depResL = depData['svcResL'] as List? ?? [];
 
     departures = [];
@@ -1337,7 +1343,7 @@ class TransitService {
     );
     final response = await _client.get(uri).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
-    final data = jsonDecode(response.body);
+    final data = jsonDecode(_decodeUtf8(response));
     final points = data['stopFinder']?['points'];
     List raw;
     if (points is List) {
@@ -1390,7 +1396,7 @@ class TransitService {
     );
     final response = await _client.get(uri).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) return [];
-    final data = jsonDecode(response.body);
+    final data = jsonDecode(_decodeUtf8(response));
     final trips = data['trips'];
     if (trips is! List) return [];
     return trips.map<Journey?>(_parseEfaTrip).whereType<Journey>().toList();
@@ -1467,7 +1473,7 @@ class TransitService {
       body: jsonEncode(req),
     ).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
-    final data = jsonDecode(response.body);
+    final data = jsonDecode(_decodeUtf8(response));
     // HAFAS reports auth failures at root level, not in svcResL — check both
     final rootErr = data['err']?.toString();
     if (rootErr != null && rootErr != 'OK') {
@@ -1515,7 +1521,7 @@ class TransitService {
       body: jsonEncode(req),
     ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) return [];
-    final data = jsonDecode(response.body);
+    final data = jsonDecode(_decodeUtf8(response));
     return _parseHafasTripResponse(data);
   }
 
@@ -1611,7 +1617,7 @@ class TransitService {
       'User-Agent': 'Mozilla/5.0 (Linux; Android 13) ICD360S-eV-App/1.0',
     }).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
-    final data = jsonDecode(response.body);
+    final data = jsonDecode(_decodeUtf8(response));
     if (data is! List) return [];
     return data.map<TransitLocation?>((e) {
       final name = e['name']?.toString() ?? '';
@@ -1652,7 +1658,7 @@ class TransitService {
       body: body,
     ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) return [];
-    final data = jsonDecode(response.body);
+    final data = jsonDecode(_decodeUtf8(response));
     final verb = data['verbindungen'] as List? ?? [];
     return verb.map<Journey?>(_parseBahnConnection).whereType<Journey>().take(4).toList();
   }

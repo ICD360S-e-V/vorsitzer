@@ -149,9 +149,24 @@ class TerminRouteService {
       return TerminRouteResult.error(TerminRouteError.noJourneysFound);
     }
 
+    // Filter out journeys that have already departed. EFA/HAFAS arrive-by
+    // search returns multiple options — some may be trains/buses that already
+    // left. Tolerance of 1 minute (imminent departures still shown).
+    final now = DateTime.now();
+    final cutoff = now.subtract(const Duration(minutes: 1));
+    final futureJourneys = journeys.where((j) => j.depTime.isAfter(cutoff)).toList();
+    _log.info(
+      'TerminRoute: ${journeys.length} raw → ${futureJourneys.length} future (now=${now.hour}:${now.minute.toString().padLeft(2, "0")})',
+      tag: 'TERMIN_ROUTE',
+    );
+    if (futureJourneys.isEmpty) {
+      return TerminRouteResult.error(TerminRouteError.tooLate);
+    }
+    final selected = futureJourneys;
+
     return TerminRouteResult.success(TerminRoute(
-      primary: journeys.first,
-      alternatives: journeys.skip(1).toList(),
+      primary: selected.first,
+      alternatives: selected.skip(1).toList(),
       from: from,
       to: to,
       targetArrival: targetArrival,
@@ -312,6 +327,8 @@ enum TerminRouteError {
   searchFailed,
   /// Kein Weg gefunden (zu weit? falscher Tag?)
   noJourneysFound,
+  /// Alle passenden Verbindungen sind bereits abgefahren
+  tooLate,
 }
 
 /// Discriminated union — either a route or an error.
@@ -340,6 +357,8 @@ class TerminRouteResult {
         return 'Netzwerkfehler bei der Routenberechnung. Bitte erneut versuchen.';
       case TerminRouteError.noJourneysFound:
         return 'Keine ÖPNV-Verbindung gefunden. Möglicherweise zu weit oder außerhalb der Fahrzeiten.';
+      case TerminRouteError.tooLate:
+        return 'Alle Verbindungen sind bereits abgefahren. Termin liegt zu nah — jetzt aufbrechen und rennen!';
       case null:
         return '';
     }
