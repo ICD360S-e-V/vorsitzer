@@ -527,6 +527,11 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 // VORFALL — separate state, eigene DB-Tabelle
 // ============================================================
 
+// Vorfall-Arten die ein Landratsamt federführend bearbeitet.
+// Betreuungssachen bleiben oben, danach die Schuldnerberatung/Insolvenz-
+// Zweige — LRA-Schuldnerberatungsstellen sind nach § 305 InsO als geeignete
+// Stellen anerkannt und bereiten den außergerichtlichen Einigungsversuch
+// sowie den Verbraucherinsolvenz-Antrag beim Insolvenzgericht vor.
 const _landratsamtVorfallArten = [
   'Verfahrensbetreuung (Anordnung Betreuungsgericht)',
   'Betreuungsanregung',
@@ -535,6 +540,13 @@ const _landratsamtVorfallArten = [
   'Beratung Betroffene/r',
   'Beratung Angehörige',
   'Begleitung Anhörung Betreuungsgericht',
+  // Schuldnerberatung / Insolvenz (LRA-Schuldnerberatungsstelle)
+  'Schuldnerberatung — Erstberatung',
+  'Schuldnerberatung — Haushaltsplan / Gläubigerübersicht',
+  'Schuldnerberatung — Außergerichtlicher Einigungsversuch (§ 305 InsO)',
+  'Insolvenzantrag — Vorbereitung Verbraucherinsolvenz',
+  'Insolvenzantrag — Bescheinigung § 305 InsO ausgestellt',
+  'Insolvenzantrag — Antrag an Insolvenzgericht eingereicht',
   'Sonstiges',
 ];
 
