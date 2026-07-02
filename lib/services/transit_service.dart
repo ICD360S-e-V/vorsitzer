@@ -1351,7 +1351,15 @@ class TransitService {
     }
     return raw.map<TransitLocation?>((e) {
       final ref = e['ref'] ?? {};
-      final id = ref['id']?.toString() ?? e['stateless']?.toString() ?? '';
+      final refId = ref['id']?.toString() ?? '';
+      final stateless = e['stateless']?.toString() ?? '';
+      final anyType = e['anyType']?.toString() ?? '';
+      // For "stop" the short refId works. For "singlehouse"/"poi"/"address"
+      // refId is generic (whole street), stateless carries the house number
+      // (`streetID:XXX:13:...`) — required for trip search to hit the exact address.
+      final id = anyType == 'stop'
+          ? (refId.isNotEmpty ? refId : stateless)
+          : (stateless.isNotEmpty ? stateless : refId);
       final name = e['name']?.toString() ?? e['object']?.toString() ?? '';
       if (id.isEmpty || name.isEmpty) return null;
       final coords = ref['coords']?.toString().split(',');
@@ -1361,7 +1369,7 @@ class TransitService {
         lat = double.tryParse(coords[1]);
       }
       return TransitLocation(
-        id: id, name: name, type: e['anyType']?.toString(), lat: lat, lon: lon,
+        id: id, name: name, type: anyType, lat: lat, lon: lon,
       );
     }).whereType<TransitLocation>().toList();
   }

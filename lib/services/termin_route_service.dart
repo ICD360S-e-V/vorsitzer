@@ -93,11 +93,13 @@ class TerminRouteService {
     }
 
     // 2. Resolve both addresses to transit locations in parallel.
-    // searchLocations already fans out to all EFA providers + bahn.de.
+    // Verein adresse is multi-line in DB (Vereinsname / c-o / Straße / PLZ Ort);
+    // we strip lines that would confuse the geocoder.
+    final cleanVerein = _cleanAddress(vereinAdresse);
     final List<List<TransitLocation>> results;
     try {
       results = await Future.wait([
-        _transitService.searchLocations(vereinAdresse),
+        _transitService.searchLocations(cleanVerein),
         _transitService.searchLocations(termin.location),
       ]);
     } catch (e) {
@@ -147,6 +149,33 @@ class TerminRouteService {
   void invalidateCache() {
     _cachedVereinAdresse = null;
     _cachedAt = null;
+  }
+
+  /// Clean a multi-line German address for geocoder consumption.
+  ///
+  /// The `vereineinstellungen.adresse` field is stored as a formatted block:
+  ///   ICD360S e.V.
+  ///   c/o Ionut-Claudiu Duinea
+  ///   Elsa-Brandstrom-str. 13
+  ///   89231 Neu-Ulm
+  ///
+  /// EFA/HAFAS geocoders expect a single line "Straße + Nr, PLZ Ort".
+  /// We drop the Vereinsname and "c/o …" lines and rejoin the rest.
+  String _cleanAddress(String raw) {
+    final lines = raw
+        .split(RegExp(r'\r?\n'))
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .where((l) => !RegExp(r'^c[/ ]?o[\.\s]', caseSensitive: false).hasMatch(l))
+        .toList();
+    if (lines.isEmpty) return raw.trim();
+    // Prefer the last two lines (street + PLZ Ort). If only one line contains
+    // a number (street with house number), keep only lines that look like
+    // address components (contain digits or look like a postal-city line).
+    if (lines.length >= 2) {
+      return '${lines[lines.length - 2]}, ${lines.last}';
+    }
+    return lines.first;
   }
 }
 
