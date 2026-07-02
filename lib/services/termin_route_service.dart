@@ -92,20 +92,34 @@ class TerminRouteService {
       return TerminRouteResult.error(TerminRouteError.terminLocationMissing);
     }
 
-    // 2. Resolve both addresses to transit locations in parallel.
+    // 2. Resolve both addresses to transit locations.
     // Verein adresse is multi-line in DB (Vereinsname / c-o / Straße / PLZ Ort);
-    // we strip lines that would confuse the geocoder.
-    final cleanVerein = _cleanAddress(vereinAdresse);
-    final List<List<TransitLocation>> results;
+    // we try multiple query variants until one returns a hit.
+    _log.info('TerminRoute: verein raw=${_shortForLog(vereinAdresse)}', tag: 'TERMIN_ROUTE');
+    _log.info('TerminRoute: termin.location="${termin.location}"', tag: 'TERMIN_ROUTE');
+    final vereinCandidates = _addressCandidates(vereinAdresse);
+    _log.info('TerminRoute: verein candidates=$vereinCandidates', tag: 'TERMIN_ROUTE');
+
+    // Same multi-candidate strategy for termin.location — user may enter
+    // "Jobcenter Ulm" (nume+oras), "Adenauerplatz 15" (str+nr), or full address.
+    final terminCandidates = _addressCandidates(termin.location);
+    _log.info('TerminRoute: termin candidates=$terminCandidates', tag: 'TERMIN_ROUTE');
+
+    final List<TransitLocation> fromResults;
+    final List<TransitLocation> toResults;
     try {
-      results = await Future.wait([
-        _transitService.searchLocations(cleanVerein),
-        _transitService.searchLocations(termin.location),
+      final both = await Future.wait([
+        _resolveFirstNonEmpty(vereinCandidates),
+        _resolveFirstNonEmpty(terminCandidates),
       ]);
+      fromResults = both[0];
+      toResults = both[1];
     } catch (e) {
       _log.error('TerminRoute: address resolution failed: $e', tag: 'TERMIN_ROUTE');
       return TerminRouteResult.error(TerminRouteError.resolutionFailed);
     }
+    _log.info('TerminRoute: from=${fromResults.length} results, to=${toResults.length} results', tag: 'TERMIN_ROUTE');
+    final results = [fromResults, toResults];
 
     if (results[0].isEmpty) {
       return TerminRouteResult.error(TerminRouteError.vereinAdresseUnresolvable);
@@ -151,31 +165,134 @@ class TerminRouteService {
     _cachedAt = null;
   }
 
-  /// Clean a multi-line German address for geocoder consumption.
+  /// Returns candidate query strings for a raw address, ordered from most
+  /// specific to most general. `searchLocations` gets tried on each until one
+  /// returns results.
   ///
-  /// The `vereineinstellungen.adresse` field is stored as a formatted block:
-  ///   ICD360S e.V.
-  ///   c/o Ionut-Claudiu Duinea
-  ///   Elsa-Brandstrom-str. 13
-  ///   89231 Neu-Ulm
-  ///
-  /// EFA/HAFAS geocoders expect a single line "Straße + Nr, PLZ Ort".
-  /// We drop the Vereinsname and "c/o …" lines and rejoin the rest.
-  String _cleanAddress(String raw) {
-    final lines = raw
+  /// Handles multiple input shapes:
+  ///   • Multi-line Verein-Adresse: "ICD360S e.V.\nc/o Ionut\nElsa-Brandstrom-str. 13\n89231 Neu-Ulm"
+  ///   • Single-line address: "Adenauerplatz 15, 89073 Ulm"
+  ///   • Just Behörde name: "Jobcenter Ulm"
+  ///   • Comma / semicolon / <br> separated
+  List<String> _addressCandidates(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return [];
+    // Normalize separators — treat <br>, ;, newlines the same way
+    final normalized = t
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(';', '\n');
+    final lines = normalized
         .split(RegExp(r'\r?\n'))
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty)
-        .where((l) => !RegExp(r'^c[/ ]?o[\.\s]', caseSensitive: false).hasMatch(l))
         .toList();
-    if (lines.isEmpty) return raw.trim();
-    // Prefer the last two lines (street + PLZ Ort). If only one line contains
-    // a number (street with house number), keep only lines that look like
-    // address components (contain digits or look like a postal-city line).
-    if (lines.length >= 2) {
-      return '${lines[lines.length - 2]}, ${lines.last}';
+
+    // Filter out lines that are clearly non-address:
+    //  - "c/o …" forwarding
+    //  - lines with a legal-form suffix (e.V., GmbH, AG) as sole content
+    final cleanLines = lines.where((l) {
+      if (RegExp(r'^c[/ ]?o[\.\s]', caseSensitive: false).hasMatch(l)) return false;
+      // Vereinsname / company name: contains "e.V." or "GmbH" and no digit
+      if (RegExp(r'(e\.?\s?v\.?|gmbh|ag\b|kg\b|ohg)', caseSensitive: false).hasMatch(l) &&
+          !RegExp(r'\d').hasMatch(l)) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    final candidates = <String>[];
+
+    // 1. If we have street+city format (2+ lines), join them.
+    if (cleanLines.length >= 2) {
+      candidates.add('${cleanLines[cleanLines.length - 2]}, ${cleanLines.last}');
     }
-    return lines.first;
+
+    // 2. Original raw text — EFA sometimes handles multi-line surprisingly well.
+    if (!candidates.contains(t)) candidates.add(t);
+
+    // 3. Last line only (typically PLZ + Ort)
+    if (cleanLines.isNotEmpty && !candidates.contains(cleanLines.last)) {
+      candidates.add(cleanLines.last);
+    }
+
+    // 4. Line with a house number (contains digit) — usually the street line
+    for (final line in cleanLines) {
+      if (RegExp(r'\d').hasMatch(line) && !candidates.contains(line)) {
+        candidates.add(line);
+        break;
+      }
+    }
+
+    // 5. Extract city from PLZ line: "89231 Neu-Ulm" → "Neu-Ulm"
+    final plzMatch = RegExp(r'\b(\d{5})\s+(.+)$').firstMatch(cleanLines.isEmpty ? '' : cleanLines.last);
+    if (plzMatch != null) {
+      final city = plzMatch.group(2)!.trim();
+      if (!candidates.contains(city)) candidates.add(city);
+    }
+
+    return candidates;
+  }
+
+  /// Truncate a possibly-multiline string for log output.
+  String _shortForLog(String s) {
+    final oneLine = s.replaceAll(RegExp(r'\r?\n'), ' | ');
+    return oneLine.length > 80 ? '${oneLine.substring(0, 80)}…' : oneLine;
+  }
+
+  /// Try each candidate address until one returns non-empty results.
+  /// Results are re-ranked so entries whose name matches query keywords rise
+  /// to the top — the raw autocomplete order is often globally alphabetical,
+  /// so "Adenauerplatz 15, 89073 Ulm" would otherwise return Berlin's
+  /// Adenauerplatz as top hit.
+  Future<List<TransitLocation>> _resolveFirstNonEmpty(List<String> candidates) async {
+    for (final q in candidates) {
+      _log.info('TerminRoute: trying candidate="$q"', tag: 'TERMIN_ROUTE');
+      final r = await _transitService.searchLocations(q);
+      if (r.isNotEmpty) {
+        final ranked = _rankByQueryMatch(r, q);
+        _log.info(
+          'TerminRoute: candidate="$q" → ${r.length} raw, top after rank="${ranked.first.name}" (${ranked.first.type})',
+          tag: 'TERMIN_ROUTE',
+        );
+        return ranked;
+      }
+    }
+    _log.info('TerminRoute: all ${candidates.length} candidates returned empty', tag: 'TERMIN_ROUTE');
+    return [];
+  }
+
+  /// Score-sort results by how well their name matches the query.
+  /// A query "Adenauerplatz 15, 89073 Ulm" boosts entries whose name contains
+  /// "adenauerplatz" AND "ulm" — so Ulm's beats Berlin's.
+  List<TransitLocation> _rankByQueryMatch(List<TransitLocation> results, String query) {
+    final words = query
+        .toLowerCase()
+        .split(RegExp(r'[\s,;/\.]+'))
+        .where((w) => w.length >= 3 && !RegExp(r'^\d{1,2}$').hasMatch(w))
+        .toList();
+    // PLZ digits (5) get their own strong weight
+    final plz = RegExp(r'\b(\d{5})\b').firstMatch(query)?.group(1);
+
+    int score(TransitLocation l) {
+      final name = l.name.toLowerCase();
+      int s = 0;
+      for (final w in words) {
+        if (name.contains(w)) s += 20;
+      }
+      if (plz != null && name.contains(plz)) s += 30;
+      // Type preferences
+      switch (l.type) {
+        case 'stop': s += 12; break;
+        case 'singlehouse': s += 10; break;
+        case 'poi': s += 5; break;
+        case 'street': s += 3; break;
+      }
+      return s;
+    }
+
+    final sorted = List<TransitLocation>.from(results);
+    sorted.sort((a, b) => score(b).compareTo(score(a)));
+    return sorted;
   }
 }
 
