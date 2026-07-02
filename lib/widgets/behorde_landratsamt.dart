@@ -527,12 +527,19 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
 // VORFALL — separate state, eigene DB-Tabelle
 // ============================================================
 
-// Vorfall-Arten die ein Landratsamt federführend bearbeitet.
-// Betreuungssachen bleiben oben, danach die Schuldnerberatung/Insolvenz-
-// Zweige — LRA-Schuldnerberatungsstellen sind nach § 305 InsO als geeignete
-// Stellen anerkannt und bereiten den außergerichtlichen Einigungsversuch
-// sowie den Verbraucherinsolvenz-Antrag beim Insolvenzgericht vor.
+// Vorfall-Arten die ein Landratsamt federführend oder als Anlaufstelle
+// bearbeitet. Praxisstruktur (bayerisches / BW-LRA):
+//   • Betreuungsbehörde (§§ 5-11 BtOG)
+//   • Schuldner-/Insolvenzberatung (§ 305 InsO Vorbereitung) — Anerkennung
+//     als "geeignete Stelle" ist landesrechtlich geregelt; nicht jedes LRA
+//     hat eine eigene anerkannte Stelle, viele delegieren an Caritas/
+//     Diakonie/AWO. Deshalb neutrale Formulierung im Dropdown.
+//   • Sozialhilfe im engeren Sinn (SGB XII / P-Konto).
+// Reihenfolge § 305 InsO: Erstberatung → Gläubigerübersicht →
+// Schuldenbereinigungsplan → außergerichtlicher Einigungsversuch →
+// Bescheinigung → Insolvenzgericht.
 const _landratsamtVorfallArten = [
+  // === Betreuungsbehörde ===
   'Verfahrensbetreuung (Anordnung Betreuungsgericht)',
   'Betreuungsanregung',
   'Sozialbericht / Stellungnahme an Gericht',
@@ -540,13 +547,18 @@ const _landratsamtVorfallArten = [
   'Beratung Betroffene/r',
   'Beratung Angehörige',
   'Begleitung Anhörung Betreuungsgericht',
-  // Schuldnerberatung / Insolvenz (LRA-Schuldnerberatungsstelle)
-  'Schuldnerberatung — Erstberatung',
-  'Schuldnerberatung — Haushaltsplan / Gläubigerübersicht',
+  'Vorsorgevollmacht / Betreuungsverfügung — Beglaubigung (§ 7 BtOG)',
+  // === Schuldner-/Insolvenzberatung (§ 305 InsO Vorbereitung) ===
+  'Schuldner-/Insolvenzberatung — Erstberatung',
+  'Schuldnerberatung — Gläubigerübersicht / Forderungsaufstellung',
+  'Schuldnerberatung — Schuldenbereinigungsplan erstellen',
   'Schuldnerberatung — Außergerichtlicher Einigungsversuch (§ 305 InsO)',
-  'Insolvenzantrag — Vorbereitung Verbraucherinsolvenz',
-  'Insolvenzantrag — Bescheinigung § 305 InsO ausgestellt',
+  'Insolvenzantrag — Bescheinigung § 305 Abs. 1 Nr. 1 InsO ausgestellt',
   'Insolvenzantrag — Antrag an Insolvenzgericht eingereicht',
+  'P-Konto-Bescheinigung ausgestellt',
+  // === Sozialhilfe (SGB XII) ===
+  'Grundsicherung im Alter / bei Erwerbsminderung (SGB XII Kap. 4)',
+  'Hilfe zum Lebensunterhalt (SGB XII Kap. 3)',
   'Sonstiges',
 ];
 
