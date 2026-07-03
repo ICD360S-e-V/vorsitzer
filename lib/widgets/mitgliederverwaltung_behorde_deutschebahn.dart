@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../models/user.dart';
 import '../services/api_service.dart';
 import '../utils/clipboard_helper.dart';
 
@@ -8,14 +10,28 @@ import '../utils/clipboard_helper.dart';
 ///   • "Zuständige Deutsche Bahn" — MSZ contact card + optional selection
 ///   • "Vorfall" — list of Hilfeleistung-Anmeldungen (Ein-/Aus-/Umsteigehilfe)
 ///     with journey details (Reiseverbindung: von/nach, Datum, Uhrzeit, Zug).
+///
+/// Der Vorfall-Dialog bildet die 4 Schritte des MSZ-Portals
+/// (msz.bahnhof.de/reiseverbindung) ab:
+///   1. Reiseverbindung  (Von/Nach, Datum, Uhrzeit, Zug)
+///   2. Reisender        (Hilfsmittel, Begleitperson)
+///   3. Unterstützungsbedarf (Hilfe-Typ)
+///   4. Kontakt          (autofilled aus Stufe 1 der Verifizierung —
+///                         Name, Vorname, E-Mail, Telefon/Handy)
+///
+/// Der „E-Mail an MSZ senden"-Button generiert einen mailto: Link mit
+/// allen 4 Schritten strukturiert im Body — MSZ akzeptiert Anfragen per
+/// E-Mail an msz@deutschebahn.com.
 class MitgliederverwaltungBehordeDeutscheBahn extends StatefulWidget {
   final ApiService apiService;
   final int userId;
+  final User user;
 
   const MitgliederverwaltungBehordeDeutscheBahn({
     super.key,
     required this.apiService,
     required this.userId,
+    required this.user,
   });
 
   @override
@@ -305,6 +321,21 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     _load();
   }
 
+  /// Full display name: Vorname + Nachname (or fallback to name).
+  String get _userFullName {
+    final vor = (widget.user.vorname ?? '').trim();
+    final nach = (widget.user.nachname ?? '').trim();
+    if (vor.isNotEmpty || nach.isNotEmpty) return '$vor $nach'.trim();
+    return widget.user.name;
+  }
+
+  /// Best available phone: Handy > Festnetz.
+  String get _userBestPhone {
+    final mob = (widget.user.telefonMobil ?? '').trim();
+    if (mob.isNotEmpty) return mob;
+    return (widget.user.telefonFix ?? '').trim();
+  }
+
   void _showVorfallDialog({Map<String, dynamic>? existing}) {
     final isEdit = existing != null;
     String hilfeTyp = existing?['hilfe_typ']?.toString().isNotEmpty == true ? existing!['hilfe_typ'].toString() : _hilfeTypen.first;
@@ -322,6 +353,10 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     final bahnbonusC = TextEditingController(text: existing?['bahnbonus_nummer']?.toString() ?? '');
     final aktenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+    // Schritt 4: Kontakt — autofilled aus Stufe 1 der Verifizierung.
+    final kontaktNameC = TextEditingController(text: _userFullName);
+    final kontaktEmailC = TextEditingController(text: widget.user.email);
+    final kontaktTelC = TextEditingController(text: _userBestPhone);
 
     Future<void> pickDate() async {
       final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 30)), lastDate: DateTime(2040), locale: const Locale('de'));
@@ -417,9 +452,62 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         ),
         const SizedBox(height: 10),
         TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+
+        // ─── Schritt 4: Kontakt (autofilled aus Stufe 1) ────────────────────
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.contact_mail, size: 14, color: Colors.blue.shade700),
+              const SizedBox(width: 6),
+              Text('Kontakt (Schritt 4)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade900)),
+              const Spacer(),
+              Text('automatisch aus Stufe 1', style: TextStyle(fontSize: 10, color: Colors.blue.shade700, fontStyle: FontStyle.italic)),
+            ]),
+            const SizedBox(height: 8),
+            TextField(controller: kontaktNameC, decoration: const InputDecoration(labelText: 'Name (Vorname Nachname)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.person, size: 16))),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: TextField(controller: kontaktEmailC, decoration: const InputDecoration(labelText: 'E-Mail', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.email, size: 16)))),
+              const SizedBox(width: 10),
+              Expanded(child: TextField(controller: kontaktTelC, decoration: const InputDecoration(labelText: 'Telefon / Handy', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone, size: 16)))),
+            ]),
+          ]),
+        ),
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.mail_outline, size: 16),
+          label: const Text('E-Mail an MSZ', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700, side: BorderSide(color: Colors.red.shade400)),
+          onPressed: () => _sendMailToMsz(
+            hilfeTyp: hilfeTyp,
+            status: status,
+            reiseDatum: datumC.text.trim(),
+            reiseUhrzeit: uhrzeitC.text.trim(),
+            vonBahnhof: vonC.text.trim(),
+            nachBahnhof: nachC.text.trim(),
+            zugTyp: zugTyp,
+            zugNummer: zugNrC.text.trim(),
+            hilfsmittel: hilfsmittel,
+            begleitperson: begleit,
+            begleitAnzahl: begleitAnzC.text.trim(),
+            buchungsnummer: buchungC.text.trim(),
+            bahnbonusNummer: bahnbonusC.text.trim(),
+            aktenzeichen: aktenC.text.trim(),
+            notiz: notizC.text.trim(),
+            kontaktName: kontaktNameC.text.trim(),
+            kontaktEmail: kontaktEmailC.text.trim(),
+            kontaktTelefon: kontaktTelC.text.trim(),
+          ),
+        ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
           onPressed: _saving ? null : () async {
@@ -456,5 +544,96 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         ),
       ],
     )));
+  }
+
+  /// Build a mailto: link with all 4 MSZ-Schritte structured in the body and
+  /// open the default mail client. MSZ accepts requests at msz@deutschebahn.com.
+  Future<void> _sendMailToMsz({
+    required String hilfeTyp,
+    required String status,
+    required String reiseDatum,
+    required String reiseUhrzeit,
+    required String vonBahnhof,
+    required String nachBahnhof,
+    required String zugTyp,
+    required String zugNummer,
+    required String hilfsmittel,
+    required String begleitperson,
+    required String begleitAnzahl,
+    required String buchungsnummer,
+    required String bahnbonusNummer,
+    required String aktenzeichen,
+    required String notiz,
+    required String kontaktName,
+    required String kontaktEmail,
+    required String kontaktTelefon,
+  }) async {
+    final route = [vonBahnhof, nachBahnhof].where((s) => s.isNotEmpty).join(' → ');
+    final subject = 'Anmeldung Mobilitätshilfe: $hilfeTyp'
+        '${route.isNotEmpty ? " ($route)" : ""}'
+        '${reiseDatum.isNotEmpty ? " am $reiseDatum" : ""}';
+
+    final lines = <String>[
+      'Sehr geehrte Damen und Herren der Mobilitätsservice-Zentrale,',
+      '',
+      'ich möchte hiermit eine Hilfeleistung für folgende Reise anmelden:',
+      '',
+      '── SCHRITT 1: REISEVERBINDUNG ──',
+      if (vonBahnhof.isNotEmpty)     'Von:              $vonBahnhof',
+      if (nachBahnhof.isNotEmpty)    'Nach:             $nachBahnhof',
+      if (reiseDatum.isNotEmpty)     'Reisedatum:       $reiseDatum',
+      if (reiseUhrzeit.isNotEmpty)   'Uhrzeit:          $reiseUhrzeit',
+      if (zugTyp.isNotEmpty)         'Zugart:           $zugTyp',
+      if (zugNummer.isNotEmpty)      'Zug-Nr.:          $zugNummer',
+      '',
+      '── SCHRITT 2: REISENDER ──',
+      'Hilfsmittel:      $hilfsmittel',
+      'Begleitperson:    $begleitperson${begleitAnzahl.isNotEmpty ? " (Anzahl: $begleitAnzahl)" : ""}',
+      '',
+      '── SCHRITT 3: UNTERSTÜTZUNGSBEDARF ──',
+      'Art der Hilfe:    $hilfeTyp',
+      if (notiz.isNotEmpty)          'Zusatzinfo:       $notiz',
+      '',
+      '── SCHRITT 4: KONTAKT ──',
+      if (kontaktName.isNotEmpty)    'Name:             $kontaktName',
+      if (kontaktEmail.isNotEmpty)   'E-Mail:           $kontaktEmail',
+      if (kontaktTelefon.isNotEmpty) 'Telefon / Handy:  $kontaktTelefon',
+      '',
+      if (buchungsnummer.isNotEmpty || bahnbonusNummer.isNotEmpty || aktenzeichen.isNotEmpty) ...[
+        '── REFERENZEN ──',
+        if (buchungsnummer.isNotEmpty) 'Buchungsnummer:   $buchungsnummer',
+        if (bahnbonusNummer.isNotEmpty) 'BahnBonus-Nr.:    $bahnbonusNummer',
+        if (aktenzeichen.isNotEmpty)   'Aktenzeichen:     $aktenzeichen',
+        '',
+      ],
+      'Bitte um Bestätigung.',
+      '',
+      'Mit freundlichen Grüßen',
+      if (kontaktName.isNotEmpty) kontaktName,
+    ];
+
+    final body = lines.join('\r\n');
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'msz@deutschebahn.com',
+      query: 'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
+    );
+
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('E-Mail-Client konnte nicht geöffnet werden'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Fehler: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
   }
 }
