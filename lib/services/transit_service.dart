@@ -156,6 +156,17 @@ class Journey {
   Duration get duration => arrTime.difference(depTime);
 }
 
+/// Where the last position fix came from — used for UI transparency
+/// (green dot = precise GNSS, orange = coarse cell/Wi-Fi, red = IP-only).
+enum LocationSource {
+  none,
+  gnss,              // raw GNSS chip via LocationManager (best)
+  fusedLocation,     // Google Play Services (Wi-Fi + cell + GNSS)
+  cached,            // getLastKnownPosition
+  ipFallback,        // ipapi.co (city-level ~5-20km)
+  cityGeocode,       // geocoded from `city` fallback
+}
+
 // ══════════════════════════════════════════════════════════════
 // Transit Providers — auto-detected by GPS coordinates
 // ══════════════════════════════════════════════════════════════
@@ -365,6 +376,16 @@ class TransitService {
   bool isLoading = false;
   String? locationError;
 
+  /// Accuracy (meters) of the last GPS/IP fix. null = unknown.
+  /// < 50m: excellent GNSS fix
+  /// 50-200m: good FusedLocation (Wi-Fi + cell + GNSS)
+  /// 200-500m: acceptable but coarse
+  /// > 500m: cell-tower or IP fallback — bus stops within 1km won't be found
+  double? lastAccuracy;
+
+  /// Where the last position came from — for UI transparency.
+  LocationSource lastSource = LocationSource.none;
+
   /// Current coordinates (for sharing with weather service)
   double? get latitude => _latitude;
   double? get longitude => _longitude;
@@ -543,11 +564,14 @@ class TransitService {
                   : const LocationSettings(accuracy: LocationAccuracy.high),
         ).timeout(const Duration(seconds: 15));
         _log.info('Transit: FusedLocation high = ${position.latitude}, ${position.longitude} (accuracy ${position.accuracy.toStringAsFixed(0)}m)', tag: 'TRANSIT');
-        // Accept if accuracy is stop-level useful (< 200m). Otherwise fall through
-        // to Strategy 2b — sometimes FusedLocation returns cell-tower coarse fix.
-        if (position.accuracy < 200) {
+        // Accept only tight fixes (< 100m) — the whole point is finding bus
+        // stops within walking distance. A 500m fix means we can't distinguish
+        // which side of a block the user is on.
+        if (position.accuracy < 100) {
           _latitude = position.latitude;
           _longitude = position.longitude;
+          lastAccuracy = position.accuracy;
+          lastSource = LocationSource.fusedLocation;
           locationError = null;
           return true;
         }
@@ -555,6 +579,8 @@ class TransitService {
         // Keep this fix as tentative — better than nothing if raw GNSS fails.
         _latitude = position.latitude;
         _longitude = position.longitude;
+        lastAccuracy = position.accuracy;
+        lastSource = LocationSource.fusedLocation;
       } catch (e) {
         _log.debug('Transit: High accuracy failed/timeout: $e', tag: 'TRANSIT');
       }
@@ -572,9 +598,11 @@ class TransitService {
             ),
           ).timeout(const Duration(seconds: 20));
           _log.info('Transit: Raw GNSS = ${position.latitude}, ${position.longitude} (accuracy ${position.accuracy.toStringAsFixed(0)}m)', tag: 'TRANSIT');
-          if (position.accuracy < 500) {
+          if (position.accuracy < 100) {
             _latitude = position.latitude;
             _longitude = position.longitude;
+            lastAccuracy = position.accuracy;
+            lastSource = LocationSource.gnss;
             locationError = null;
             return true;
           }
@@ -593,6 +621,8 @@ class TransitService {
         _latitude = position.latitude;
         _longitude = position.longitude;
         locationError = null;
+        lastAccuracy = position.accuracy;
+        lastSource = LocationSource.fusedLocation;
         _log.info('Transit: Fresh GPS (medium) = $_latitude, $_longitude (accuracy ${position.accuracy.toStringAsFixed(0)}m)', tag: 'TRANSIT');
         return true;
       } catch (e) {
@@ -602,6 +632,8 @@ class TransitService {
       // Strategy 4: if we have any cached (even stale) fix, use it
       if (cached != null && cached.latitude != 0.0) {
         locationError = null;
+        lastAccuracy = cached.accuracy;
+        lastSource = LocationSource.cached;
         _log.info('Transit: Using stale cached fix', tag: 'TRANSIT');
         return true;
       }
@@ -649,6 +681,8 @@ class TransitService {
       _longitude = lon;
       if (ipCity != null && ipCity.isNotEmpty) gpsCity = ipCity;
       locationError = null;
+      lastAccuracy = 10000; // ~10 km typical for IP geolocation
+      lastSource = LocationSource.ipFallback;
       _log.info('Transit: IP geolocation → $lat, $lon ($ipCity)', tag: 'TRANSIT');
       return true;
     } catch (e) {
@@ -1253,6 +1287,40 @@ class TransitService {
     if (_useGps) await _getGpsLocation();
     _detectProvider(); // re-detect in case position changed significantly
     await fetchDepartures();
+  }
+
+  /// Force a fresh GNSS chip fix — bypasses cache and Play Services.
+  /// Triggered by "GPS erneuern" button in Echtzeit tab when the user sees
+  /// only city-level results. On Android hits raw LocationManager with
+  /// `LocationAccuracy.best`; up to 30s to acquire a satellite fix.
+  Future<bool> forceGnssRefresh() async {
+    _log.info('Transit: forceGnssRefresh triggered', tag: 'TRANSIT');
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: Platform.isAndroid
+            ? AndroidSettings(
+                accuracy: LocationAccuracy.best,
+                forceLocationManager: true,
+              )
+            : Platform.isIOS || Platform.isMacOS
+                ? AppleSettings(accuracy: LocationAccuracy.bestForNavigation)
+                : const LocationSettings(accuracy: LocationAccuracy.bestForNavigation),
+      ).timeout(const Duration(seconds: 30));
+      _latitude = position.latitude;
+      _longitude = position.longitude;
+      lastAccuracy = position.accuracy;
+      lastSource = Platform.isAndroid ? LocationSource.gnss : LocationSource.fusedLocation;
+      locationError = null;
+      _log.info('Transit: forceGnssRefresh got ${position.accuracy.toStringAsFixed(0)}m fix', tag: 'TRANSIT');
+      await _reverseGeocode();
+      _detectProvider();
+      await fetchDepartures();
+      return true;
+    } catch (e) {
+      _log.error('Transit: forceGnssRefresh failed: $e', tag: 'TRANSIT');
+      locationError = 'GPS-Chip antwortet nicht — draußen mit freier Sicht zum Himmel versuchen';
+      return false;
+    }
   }
 
   // ══════════════════════════════════════════════════════════════

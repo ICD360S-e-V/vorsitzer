@@ -198,6 +198,20 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
     });
   }
 
+  /// Force a fresh raw GNSS chip fix — used from the "GPS erneuern" button
+  /// when accuracy is >100m. Blocks up to 30s while the satellite radio locks.
+  Future<void> _forceGnss() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    await widget.transitService.forceGnssRefresh();
+    if (!mounted) return;
+    setState(() {
+      _departures = List.from(widget.transitService.departures);
+      _lastUpdate = DateTime.now();
+      _isLoading = false;
+    });
+  }
+
   /// Group departures by stop name, keeping stop order by distance.
   Map<String, List<Departure>> get _byStop {
     final grouped = <String, List<Departure>>{};
@@ -217,59 +231,192 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
     final locLabel = widget.transitService.gpsCity ?? widget.city;
     final provider = widget.transitService.activeProvider;
 
+    final accuracy = widget.transitService.lastAccuracy;
+    final source = widget.transitService.lastSource;
+    // Bus stops sit within ~30-100m radius. A fix looser than 100m is useless
+    // for "was ist neben mir" — we refuse to show stops and prompt for a real
+    // GNSS fix instead.
+    final isPrecise = accuracy != null && accuracy < 100;
+    final accColor = isPrecise
+        ? Colors.green.shade600
+        : (accuracy != null && accuracy < 500 ? Colors.orange.shade700 : Colors.red.shade600);
+    final accLabel = accuracy == null
+        ? '—'
+        : accuracy < 100
+            ? '±${accuracy.toStringAsFixed(0)}m ✓'
+            : accuracy < 1000
+                ? '±${accuracy.toStringAsFixed(0)}m ⚠'
+                : '±${(accuracy / 1000).toStringAsFixed(1)}km ⚠';
+    final sourceLabel = switch (source) {
+      LocationSource.gnss => 'GPS-Chip',
+      LocationSource.fusedLocation => 'GPS+WiFi',
+      LocationSource.cached => 'Cache',
+      LocationSource.ipFallback => 'nur IP',
+      LocationSource.cityGeocode => 'Stadt',
+      LocationSource.none => '',
+    };
+
     return Column(
       children: [
-        // Location bar
+        // Location bar with accuracy indicator
         Container(
-          padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+          padding: const EdgeInsets.fromLTRB(14, 8, 8, 6),
           color: Colors.grey.shade50,
-          child: Row(
+          child: Column(
             children: [
-              Icon(Icons.location_on, size: 16, color: Colors.teal.shade600),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  locLabel.isNotEmpty ? locLabel : 'Standort wird ermittelt…',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Icon(Icons.location_on, size: 16, color: accColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      locLabel.isNotEmpty ? locLabel : 'Standort wird ermittelt…',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (provider != null)
+                    Text(provider.name, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  const SizedBox(width: 6),
+                  if (_isLoading)
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  else
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      tooltip: 'Aktualisieren',
+                      onPressed: _refresh,
+                    ),
+                ],
+              ),
+              // Accuracy row
+              Padding(
+                padding: const EdgeInsets.only(left: 22, top: 2),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: accColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Text(
+                        accLabel,
+                        style: TextStyle(fontSize: 10, color: accColor, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (sourceLabel.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Text(sourceLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    ],
+                  ],
                 ),
               ),
-              if (provider != null)
-                Text(
-                  provider.name,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                ),
-              const SizedBox(width: 6),
-              if (_isLoading)
-                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              else
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  tooltip: 'Aktualisieren',
-                  onPressed: _refresh,
-                ),
             ],
           ),
         ),
-        // Body
+        // Body — if accuracy is too coarse, refuse to show stops
         Expanded(
-          child: stops.isEmpty && grouped.isEmpty
-              ? _EmptyState(loading: _isLoading, error: widget.transitService.locationError)
-              : ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  children: [
-                    for (final stop in stops.take(3))
-                      _StopSection(
-                        stop: stop,
-                        departures: grouped[stop.name] ?? [],
-                      ),
-                  ],
-                ),
+          child: !isPrecise
+              ? _CoarseState(
+                  loading: _isLoading,
+                  accuracy: accuracy,
+                  source: source,
+                  onForceGnss: _forceGnss,
+                )
+              : stops.isEmpty && grouped.isEmpty
+                  ? _EmptyState(loading: _isLoading, error: widget.transitService.locationError)
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      children: [
+                        for (final stop in stops.take(3))
+                          _StopSection(
+                            stop: stop,
+                            departures: grouped[stop.name] ?? [],
+                          ),
+                      ],
+                    ),
         ),
         _Footer(providerName: provider?.displayName ?? 'ÖPNV', lastUpdate: _lastUpdate),
       ],
+    );
+  }
+}
+
+/// Shown when GPS accuracy is worse than 100m. Bus stops within 30-100m
+/// walking range can't be identified from an IP or cell-tower fix, so we
+/// refuse to display them and offer a "GPS erneuern" action instead.
+class _CoarseState extends StatelessWidget {
+  final bool loading;
+  final double? accuracy;
+  final LocationSource source;
+  final VoidCallback onForceGnss;
+
+  const _CoarseState({
+    required this.loading,
+    required this.accuracy,
+    required this.source,
+    required this.onForceGnss,
+  });
+
+  String get _diagnosis {
+    if (source == LocationSource.ipFallback) {
+      return 'Nur IP-Standort — GPS deaktiviert oder nicht verfügbar.\n'
+             'App-Berechtigung: Standort → "Genau" erforderlich.';
+    }
+    if (source == LocationSource.cached) {
+      return 'Alte gespeicherte Position. GPS-Chip antwortet noch nicht.';
+    }
+    if (accuracy != null && accuracy! >= 500) {
+      return 'Nur Funkzellen-Standort (${accuracy!.toStringAsFixed(0)}m).\n'
+             'GPS liefert kein Signal — draußen mit Blick auf den Himmel versuchen.';
+    }
+    return 'Standort noch zu ungenau (${accuracy?.toStringAsFixed(0) ?? "?"}m).\n'
+           'Bushaltestellen liegen in 30–100m Umkreis — feinere Position nötig.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.gps_off, size: 56, color: Colors.orange.shade400),
+            const SizedBox(height: 14),
+            const Text(
+              'Standort nicht präzise genug',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _diagnosis,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              icon: loading
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.gps_fixed, size: 18),
+              label: Text(loading ? 'Suche GPS-Signal…' : 'GPS erneuern'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              onPressed: loading ? null : onForceGnss,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Kann bis zu 30 Sekunden dauern beim ersten Fix',
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
