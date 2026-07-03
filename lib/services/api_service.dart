@@ -6314,6 +6314,28 @@ class ApiService {
     final r = await _client.get(Uri.parse('$baseUrl/admin/wbs_manage.php?action=institutionen'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+
+  // ── Deutsche Bahn (MSZ — Mobilitätsservice-Zentrale) ──
+  Future<Map<String, dynamic>> getDeutscheBahnData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/deutschebahn_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveDeutscheBahnData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/deutschebahn_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_data', 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveDeutscheBahnVorfall(int userId, Map<String, dynamic> vorfall) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/deutschebahn_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_vorfall', 'vorfall': vorfall})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteDeutscheBahnVorfall(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/deutschebahn_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_vorfall', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listDeutscheBahnInstitutionen() async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/deutschebahn_manage.php?action=institutionen'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   /// Generate the WBS Stadt Ulm 2026 PDF pre-filled with the member's data
   /// and the selected Antrag. Returns raw PDF bytes (binary), or null on
   /// error. Caller saves the bytes to a file and shows them.

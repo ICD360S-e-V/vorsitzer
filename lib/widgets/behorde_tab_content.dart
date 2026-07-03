@@ -18,6 +18,7 @@ import 'behorde_gericht.dart';
 import 'behorde_kindergarten.dart';
 import 'behorde_fruehfoerderung.dart';
 import 'behorde_wbs.dart';
+import 'mitgliederverwaltung_behorde_deutschebahn.dart';
 import 'behorde_krankenkasse.dart';
 import 'behorde_rentenversicherung.dart';
 import 'behorde_jobcenter.dart';
@@ -85,7 +86,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'gericht',
     'krankenkasse', 'rentenversicherung', 'auslaenderbehoerde', 'familienkasse',
     'jugendamt', 'einwohnermeldeamt', 'wohngeldstelle', 'bamf', 'vermieter', 'deutschlandticket', 'schule', 'konsulat', 'polizei',
-    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten', 'fruehfoerderung', 'wbs',
+    'versorgungsamt', 'landratsamt', 'rundfunkbeitrag', 'kindergarten', 'fruehfoerderung', 'wbs', 'deutschebahn',
   ];
 
   // Fields per type for completion calculation
@@ -109,6 +110,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     'schule': ['schul_name', 'schulart', 'schul_beginn'],
     'konsulat': ['konsulat_name', 'konsulat_adresse'],
     'polizei': ['zustaendige_dienststelle', 'aktenzeichen', 'sachbearbeiter'],
+    'deutschebahn': ['institution_id', 'institution_name'],
   };
 
   @override
@@ -350,6 +352,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     {'type': 'kindergarten', 'icon': Icons.child_care, 'label': 'Kindergarten'},
     {'type': 'fruehfoerderung', 'icon': Icons.psychology, 'label': 'Frühförderung'},
     {'type': 'wbs', 'icon': Icons.house_outlined, 'label': 'WBS'},
+    {'type': 'deutschebahn', 'icon': Icons.train, 'label': 'Deutsche Bahn'},
   ];
 
   @override
@@ -357,7 +360,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 24,
+      length: 25,
       child: Column(
         children: [
           _buildMemberAddressCard(),
@@ -613,6 +616,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   userId: widget.user.id,
                 )),
                 _buildTabContent('wbs', () => BehordeWbsContent(
+                  apiService: widget.apiService,
+                  userId: widget.user.id,
+                )),
+                _buildTabContent('deutschebahn', () => MitgliederverwaltungBehordeDeutscheBahn(
                   apiService: widget.apiService,
                   userId: widget.user.id,
                 )),
