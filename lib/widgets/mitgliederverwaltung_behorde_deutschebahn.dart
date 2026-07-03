@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../utils/clipboard_helper.dart';
@@ -546,9 +546,13 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     )));
   }
 
-  /// Build a mailto: link with all 4 MSZ-Schritte structured in the body and
-  /// open the default mail client. MSZ accepts requests at msz@deutschebahn.com.
-  Future<void> _sendMailToMsz({
+  /// Build the MSZ e-mail (recipient, subject, body) and show it in-app in a
+  /// dialog with individual copy-buttons. No external mail client needed —
+  /// the Vorsitzer copies each piece into whichever mail app they use.
+  /// MSZ officially accepts requests at msz@deutschebahn.com.
+  static const _mszRecipient = 'msz@deutschebahn.com';
+
+  void _sendMailToMsz({
     required String hilfeTyp,
     required String status,
     required String reiseDatum,
@@ -567,7 +571,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     required String kontaktName,
     required String kontaktEmail,
     required String kontaktTelefon,
-  }) async {
+  }) {
     final route = [vonBahnhof, nachBahnhof].where((s) => s.isNotEmpty).join(' → ');
     final subject = 'Anmeldung Mobilitätshilfe: $hilfeTyp'
         '${route.isNotEmpty ? " ($route)" : ""}'
@@ -611,29 +615,119 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       'Mit freundlichen Grüßen',
       if (kontaktName.isNotEmpty) kontaktName,
     ];
+    final body = lines.join('\n');
 
-    final body = lines.join('\r\n');
-    final uri = Uri(
-      scheme: 'mailto',
-      path: 'msz@deutschebahn.com',
-      query: 'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
+    showDialog(context: context, builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: SizedBox(width: 720, height: 640, child: Column(children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+          decoration: BoxDecoration(color: Colors.red.shade50, border: Border(bottom: BorderSide(color: Colors.red.shade200))),
+          child: Row(children: [
+            Icon(Icons.mail_outline, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text('E-Mail für MSZ — bereit zum Kopieren',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade900))),
+            IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+          ]),
+        ),
+        Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _mailFieldBlock(
+            label: 'AN (Empfänger)',
+            value: _mszRecipient,
+            monospace: false,
+          ),
+          const SizedBox(height: 12),
+          _mailFieldBlock(
+            label: 'BETREFF',
+            value: subject,
+            monospace: false,
+          ),
+          const SizedBox(height: 12),
+          _mailFieldBlock(
+            label: 'NACHRICHT',
+            value: body,
+            monospace: true,
+            expanded: true,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600, minimumSize: const Size.fromHeight(44)),
+            icon: const Icon(Icons.copy_all, size: 18),
+            label: const Text('Alles kopieren (Empfänger + Betreff + Nachricht)'),
+            onPressed: () async {
+              final full = 'An: $_mszRecipient\r\nBetreff: $subject\r\n\r\n$body';
+              await Clipboard.setData(ClipboardData(text: full));
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                  content: Text('Vollständige E-Mail kopiert'),
+                  backgroundColor: Colors.green,
+                ));
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Hinweis: Fügen Sie den Inhalt in Ihrem E-Mail-Programm (Gmail, Outlook, Thunderbird…) ein und senden Sie ab. MSZ bestätigt normalerweise innerhalb weniger Stunden.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          ),
+        ]))),
+      ])),
+    ));
+  }
+
+  /// One block in the e-mail preview dialog: label + selectable content + copy button.
+  Widget _mailFieldBlock({required String label, required String value, required bool monospace, bool expanded = false}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(7), topRight: Radius.circular(7)),
+          ),
+          child: Row(children: [
+            Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey.shade800, letterSpacing: 0.4))),
+            InkWell(
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: value));
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('$label kopiert'),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ));
+                }
+              },
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.copy, size: 14, color: Colors.blue.shade700),
+                  const SizedBox(width: 4),
+                  Text('Kopieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade700, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(10),
+          child: SelectableText(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: monospace ? 'monospace' : null,
+              height: monospace ? 1.35 : 1.2,
+            ),
+          ),
+        ),
+      ]),
     );
-
-    try {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('E-Mail-Client konnte nicht geöffnet werden'),
-          backgroundColor: Colors.red,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Fehler: $e'),
-          backgroundColor: Colors.red,
-        ));
-      }
-    }
   }
 }
