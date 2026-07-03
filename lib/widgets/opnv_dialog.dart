@@ -368,6 +368,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                           _StopSection(
                             stop: stop,
                             departures: grouped[stop.name] ?? [],
+                            transitService: widget.transitService,
                           ),
                       ],
                     ),
@@ -484,12 +485,22 @@ class _EmptyState extends StatelessWidget {
 class _StopSection extends StatelessWidget {
   final TransitStop stop;
   final List<Departure> departures;
-  const _StopSection({required this.stop, required this.departures});
+  final TransitService transitService;
+  const _StopSection({required this.stop, required this.departures, required this.transitService});
 
   String get _distStr {
     if (stop.distance >= 1000) return '${(stop.distance / 1000).toStringAsFixed(1)} km';
     return '${stop.distance} m';
   }
+
+  /// True if any departure here is a rail vehicle — S-Bahn, U-Bahn, tram,
+  /// regional or long-distance train. Only rail stops have DB facility data.
+  bool get _isRailwayStation => departures.any((d) =>
+      d.productType == 'train' ||
+      d.productType == 'regional' ||
+      d.productType == 'suburban' ||
+      d.productType == 'subway' ||
+      d.productType == 'tram');
 
   @override
   Widget build(BuildContext context) {
@@ -504,7 +515,7 @@ class _StopSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+            padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
             decoration: BoxDecoration(
               color: Colors.teal.shade50,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -521,6 +532,24 @@ class _StopSection extends StatelessWidget {
                   ),
                 ),
                 Text(_distStr, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                if (_isRailwayStation) ...[
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () => _openFacilitiesDialog(context),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('🛗', style: const TextStyle(fontSize: 12)),
+                          const SizedBox(width: 3),
+                          Text('Aufzüge', style: TextStyle(fontSize: 10, color: Colors.teal.shade800, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -531,6 +560,211 @@ class _StopSection extends StatelessWidget {
             )
           else
             ...departures.take(6).map((d) => _DepartureRow(dep: d)),
+        ],
+      ),
+    );
+  }
+
+  void _openFacilitiesDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => _FacilitiesDialog(stationName: stop.name, transitService: transitService),
+    );
+  }
+}
+
+/// Modal that fetches + displays elevator/escalator status for one station.
+class _FacilitiesDialog extends StatefulWidget {
+  final String stationName;
+  final TransitService transitService;
+  const _FacilitiesDialog({required this.stationName, required this.transitService});
+
+  @override
+  State<_FacilitiesDialog> createState() => _FacilitiesDialogState();
+}
+
+class _FacilitiesDialogState extends State<_FacilitiesDialog> {
+  List<StationFacility>? _facilities;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    final f = await widget.transitService.fetchFacilities(widget.stationName);
+    if (!mounted) return;
+    setState(() {
+      _facilities = f;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = _facilities ?? [];
+    final working = f.where((x) => x.isWorking).length;
+    final broken = f.where((x) => x.isBroken).length;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade50,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Row(
+                children: [
+                  const Text('🛗', style: TextStyle(fontSize: 22)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Aufzüge & Fahrtreppen',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                        ),
+                        Text(
+                          widget.stationName,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+            ),
+            // Summary
+            if (!_loading && f.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.grey.shade50,
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+                    const SizedBox(width: 4),
+                    Text('$working in Betrieb', style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 14),
+                    if (broken > 0) ...[
+                      Icon(Icons.cancel, size: 16, color: Colors.red.shade700),
+                      const SizedBox(width: 4),
+                      Text('$broken außer Betrieb', style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w600)),
+                    ],
+                  ],
+                ),
+              ),
+            // Body
+            Flexible(
+              child: _loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : f.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.info_outline, size: 40, color: Colors.grey.shade400),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Keine Aufzugsdaten verfügbar.\nMöglicherweise keine DB-Bahnhof.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          itemCount: f.length,
+                          itemBuilder: (_, i) => _FacilityRow(facility: f[i]),
+                        ),
+            ),
+            // Footer
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+              ),
+              child: Text(
+                'Daten: DB FaSta (via transport.rest)',
+                style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FacilityRow extends StatelessWidget {
+  final StationFacility facility;
+  const _FacilityRow({required this.facility});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = facility.isWorking
+        ? Colors.green.shade600
+        : facility.isBroken
+            ? Colors.red.shade600
+            : Colors.orange.shade600;
+    final label = facility.isWorking
+        ? 'In Betrieb'
+        : facility.isBroken
+            ? 'Außer Betrieb'
+            : 'Status unbekannt';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 10, height: 10,
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(facility.icon, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        facility.description,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  label + (facility.reason != null ? ' — ${facility.reason}' : ''),
+                  style: TextStyle(fontSize: 11, color: color),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -146,6 +146,36 @@ class JourneyLeg {
   }
 }
 
+class _CachedFacilities {
+  final List<StationFacility> facilities;
+  final DateTime at;
+  _CachedFacilities(this.facilities, this.at);
+}
+
+/// A station facility — elevator (Aufzug) or escalator (Fahrtreppe) with
+/// live operational status. Sourced from `v6.db.transport.rest`, which
+/// wraps DB's FaSta (Facility Status) service.
+class StationFacility {
+  final String description;   // "Aufzug zu Gleis 3-4"
+  final String type;          // "ELEVATOR" | "ESCALATOR"
+  final String status;        // "ACTIVE" | "INACTIVE" | "UNKNOWN"
+  final String? reason;       // "Wartung", "Defekt", ... — optional
+
+  StationFacility({
+    required this.description,
+    required this.type,
+    required this.status,
+    this.reason,
+  });
+
+  bool get isElevator => type == 'ELEVATOR' || type.toLowerCase().contains('aufzug');
+  bool get isEscalator => type == 'ESCALATOR' || type.toLowerCase().contains('fahrtreppe');
+  bool get isWorking => status == 'ACTIVE';
+  bool get isBroken => status == 'INACTIVE';
+
+  String get icon => isElevator ? '🛗' : (isEscalator ? '↕️' : '⚙️');
+}
+
 /// A full journey option (departure → destination) with all legs
 class Journey {
   final List<JourneyLeg> legs;
@@ -1409,6 +1439,94 @@ class TransitService {
       locationError = 'GPS-Chip antwortet nicht — draußen mit freier Sicht zum Himmel versuchen';
       return false;
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // STATION FACILITIES — live elevator + escalator status via db-rest
+  // ══════════════════════════════════════════════════════════════
+
+  /// In-memory cache for facility lookups (5 min TTL).
+  /// Facility state doesn't change often; cache saves API round-trips when
+  /// user reopens the same stop dialog.
+  final _facilitiesCache = <String, _CachedFacilities>{};
+
+  /// Fetch live status of elevators + escalators at [stationName].
+  /// Uses `v6.db.transport.rest` (open-source wrapper for DB FaSta API,
+  /// no auth key required). Returns empty list if the station isn't a DB
+  /// railway station (bus stops don't have DB facility records).
+  Future<List<StationFacility>> fetchFacilities(String stationName) async {
+    // Cache lookup (5 min TTL)
+    final cached = _facilitiesCache[stationName];
+    if (cached != null && DateTime.now().difference(cached.at) < const Duration(minutes: 5)) {
+      return cached.facilities;
+    }
+
+    try {
+      // Step 1: resolve station name → DB station ID via /stations
+      final searchUri = Uri.parse(
+        'https://v6.db.transport.rest/stations?query=${Uri.encodeQueryComponent(stationName)}&limit=1',
+      );
+      final searchResp = await _client.get(searchUri, headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'ICD360S-eV-App/1.0',
+      }).timeout(const Duration(seconds: 8));
+      if (searchResp.statusCode != 200) {
+        _log.debug('Transit: station search returned ${searchResp.statusCode}', tag: 'TRANSIT');
+        return [];
+      }
+      final searchData = jsonDecode(_decodeUtf8(searchResp));
+      String? stationId;
+      if (searchData is Map && searchData.isNotEmpty) {
+        stationId = searchData.keys.first.toString();
+      } else if (searchData is List && searchData.isNotEmpty) {
+        stationId = (searchData.first as Map)['id']?.toString();
+      }
+      if (stationId == null) {
+        _log.info('Transit: no DB station match for "$stationName"', tag: 'TRANSIT');
+        _facilitiesCache[stationName] = _CachedFacilities([], DateTime.now());
+        return [];
+      }
+
+      // Step 2: fetch facilities for that station
+      final facUri = Uri.parse('https://v6.db.transport.rest/stations/$stationId');
+      final facResp = await _client.get(facUri, headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'ICD360S-eV-App/1.0',
+      }).timeout(const Duration(seconds: 8));
+      if (facResp.statusCode != 200) return [];
+      final facData = jsonDecode(_decodeUtf8(facResp));
+      final result = _parseFacilities(facData);
+      _facilitiesCache[stationName] = _CachedFacilities(result, DateTime.now());
+      _log.info('Transit: ${result.length} facilities at "$stationName" (DB ID $stationId)', tag: 'TRANSIT');
+      return result;
+    } catch (e) {
+      _log.error('Transit: fetchFacilities failed for "$stationName": $e', tag: 'TRANSIT');
+      return [];
+    }
+  }
+
+  List<StationFacility> _parseFacilities(dynamic data) {
+    if (data is! Map) return [];
+    // db-rest exposes facilities under a couple of possible keys depending on
+    // upstream schema version. Try both.
+    final raw = data['facilities'] ?? data['aufzuege'] ?? data['elevators'];
+    if (raw is! List) return [];
+    final out = <StationFacility>[];
+    for (final f in raw) {
+      if (f is! Map) continue;
+      // Field names vary between FaSta v1/v2 and RIS. Cover the common ones.
+      final desc = (f['description'] ?? f['title'] ?? f['name'] ?? '').toString();
+      final type = (f['type'] ?? f['facilityType'] ?? 'ELEVATOR').toString().toUpperCase();
+      final status = (f['state'] ?? f['status'] ?? 'UNKNOWN').toString().toUpperCase();
+      if (desc.isEmpty) continue;
+      out.add(StationFacility(
+        description: desc,
+        type: type,
+        status: status,
+        reason: f['stateExplanation']?.toString() ?? f['reason']?.toString(),
+      ));
+    }
+    return out;
   }
 
   // ══════════════════════════════════════════════════════════════
