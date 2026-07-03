@@ -891,12 +891,11 @@ class TransitService {
       _log.info('Transit: assignedStops empty → derived ${nearbyStops.length} stops from departureList', tag: 'TRANSIT');
     }
 
-    // Keep the 5 closest stops. Match by stopID — the stopName in
-    // `itdOdvAssignedStops` is just "Rathaus", but departureList shows
+    // Consider 5 nearest stops as candidates so we can prune the empty ones
+    // and land on the 3 nearest ACTIVE stops. Match by stopID — the stopName
+    // in `itdOdvAssignedStops` is just "Rathaus", but departureList shows
     // "Ulm Rathaus" (with city prefix), so name comparison filters everything
     // out. IDs are stable across both structures.
-    // 5 stops (was 3) so tram/subway platforms 300-500m away still show up —
-    // in Ulm city center, the Straßenbahn is at Justizgebäude (380m, stop #4).
     final allowedStopIds = <String>{};
     final idToNiceName = <String, String>{};
     for (int i = 0; i < nearbyStops.length && i < 5; i++) {
@@ -984,6 +983,32 @@ class TransitService {
         return timeA.compareTo(timeB);
       });
     }
+
+    // Now that we know which candidates actually returned departures, prune
+    // nearbyStops down to the 3 NEAREST ACTIVE stops. A silent bus stop with
+    // 0 departures shouldn't push a tram station off the visible list.
+    final activeIds = departures.map((d) => _stopIdForName(d.stopName)).toSet();
+    final activeStops = <TransitStop>[];
+    for (final s in nearbyStops) {
+      if (activeIds.contains(s.id) || activeIds.contains(s.name)) {
+        activeStops.add(s);
+        if (activeStops.length >= 3) break;
+      }
+    }
+    if (activeStops.isNotEmpty) {
+      nearbyStops = activeStops;
+      closestStopName = nearbyStops.first.name;
+    }
+  }
+
+  /// Reverse-lookup: departure.stopName ("Rathaus" — already prettified above)
+  /// → matching nearbyStop.id, so the pruning above can match either the
+  /// cleaned name or the stopID.
+  String? _stopIdForName(String stopName) {
+    for (final s in nearbyStops) {
+      if (s.name == stopName) return s.id;
+    }
+    return null;
   }
 
   /// Parse EFA departure monitor dateTime → DateTime.

@@ -364,7 +364,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                   : ListView(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       children: [
-                        for (final stop in stops.take(5))
+                        for (final stop in stops.take(3))
                           _StopSection(
                             stop: stop,
                             departures: grouped[stop.name] ?? [],
