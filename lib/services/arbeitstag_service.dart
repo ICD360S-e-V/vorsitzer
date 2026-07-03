@@ -1,12 +1,42 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:encrypt/encrypt.dart' as enc;
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
 
 final _log = LoggerService();
+
+// Duplicate of _RoutineCrypto in routine_service.dart — same key,
+// same v2 wire format. Duplicated (not shared) to keep Arbeitswochen
+// self-contained; if a third consumer appears, extract to shared file.
+class _AtRoutineCrypto {
+  static const _keyHex = String.fromEnvironment('ROUTINE_AES_KEY_V2');
+  static final enc.Encrypter? _enc = _keyHex.isEmpty
+      ? null
+      : enc.Encrypter(enc.AES(enc.Key.fromBase16(_keyHex),
+          mode: enc.AESMode.cbc, padding: 'PKCS7'));
+  static const String _v2Prefix = 'v2:';
+
+  static String decrypt(String ciphertext) {
+    if (_enc == null || !ciphertext.startsWith(_v2Prefix)) return ciphertext;
+    try {
+      final combined = base64Decode(ciphertext.substring(_v2Prefix.length));
+      if (combined.length < 17) return ciphertext;
+      final iv = enc.IV(combined.sublist(0, 16));
+      return _enc!.decrypt(enc.Encrypted(combined.sublist(16)), iv: iv);
+    } catch (_) {
+      return ciphertext;
+    }
+  }
+
+  static String? decryptNullable(String? v) {
+    if (v == null || v.isEmpty) return v;
+    return decrypt(v);
+  }
+}
 
 // ─── Models ───────────────────────────────────────────────────────────
 
@@ -108,6 +138,25 @@ class ArbeitstagStats {
       );
 }
 
+class ArbeitstagPickerItem {
+  final int id;
+  final String title;
+  final String? subtitle;
+  final String? meta;
+
+  ArbeitstagPickerItem({required this.id, required this.title, this.subtitle, this.meta});
+
+  factory ArbeitstagPickerItem.fromJson(Map<String, dynamic> j, {bool decryptTitle = false}) {
+    final rawTitle = j['title']?.toString() ?? '';
+    return ArbeitstagPickerItem(
+      id: _int(j['id']),
+      title: decryptTitle ? _AtRoutineCrypto.decrypt(rawTitle) : rawTitle,
+      subtitle: j['subtitle']?.toString(),
+      meta: decryptTitle ? _AtRoutineCrypto.decryptNullable(j['meta']?.toString()) : j['meta']?.toString(),
+    );
+  }
+}
+
 class ArbeitstagWoche {
   final int kwYear;
   final int kwNumber;
@@ -195,6 +244,31 @@ class ArbeitstagService {
     } catch (e) {
       _log.error('arbeitstag getWoche failed: $e', tag: 'ARBEITSTAG');
       return null;
+    }
+  }
+
+  Future<List<ArbeitstagPickerItem>> getPickerItems({
+    required int userId,
+    required String typ,
+    required int kwYear,
+    required int kwNumber,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_picker.php').replace(queryParameters: {
+        'user_id': userId.toString(),
+        'typ': typ,
+        'kw_year': kwYear.toString(),
+        'kw_number': kwNumber.toString(),
+      });
+      final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return [];
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      final list = (data['items'] as List?) ?? [];
+      return list.map((j) => ArbeitstagPickerItem.fromJson(j, decryptTitle: typ == 'routine')).toList();
+    } catch (e) {
+      _log.error('arbeitstag getPickerItems failed: $e', tag: 'ARBEITSTAG');
+      return [];
     }
   }
 

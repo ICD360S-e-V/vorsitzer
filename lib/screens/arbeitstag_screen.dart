@@ -58,50 +58,51 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     _load();
   }
 
-  Future<void> _toggleChip(ArbeitstagMember m, String typ) async {
-    bool currentlyDone;
+  Future<void> _openPicker(ArbeitstagMember m, String typ) async {
+    int? currentSelectionId;
     switch (typ) {
-      case 'ticket':
-        currentlyDone = m.ticketDone;
-        break;
-      case 'termin':
-        currentlyDone = m.terminDone;
-        break;
-      case 'routine':
-      default:
-        currentlyDone = m.routineDone;
+      case 'ticket':  currentSelectionId = m.ticketId; break;
+      case 'termin':  currentSelectionId = m.terminId; break;
+      case 'routine': currentSelectionId = m.routineExecutionId; break;
     }
 
-    if (currentlyDone) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Bearbeitung zurücksetzen?'),
-          content: Text('Bifa "${_typLabel(typ)}" pentru ${m.name} va fi ștearsă.'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Zurücksetzen')),
-          ],
-        ),
-      );
-      if (ok != true) return;
-      final success = await _svc.bearbeitet(
-        kwYear: _kwYear,
-        kwNumber: _kwNumber,
-        userId: m.userId,
-        typ: typ,
-        action: 'reset',
-      );
-      if (success) _load();
-    } else {
-      final success = await _svc.bearbeitet(
-        kwYear: _kwYear,
-        kwNumber: _kwNumber,
-        userId: m.userId,
-        typ: typ,
-        action: 'set',
-      );
-      if (success) _load();
+    final items = await _svc.getPickerItems(
+      userId: m.userId, typ: typ, kwYear: _kwYear, kwNumber: _kwNumber,
+    );
+
+    if (!mounted) return;
+
+    final result = await showModalBottomSheet<_PickerResult>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _PickerSheet(
+        title: '${_typLabel(typ)} für ${m.name} — KW $_kwNumber',
+        emptyLabel: _emptyLabel(typ),
+        items: items,
+        currentSelectionId: currentSelectionId,
+        canReset: currentSelectionId != null,
+      ),
+    );
+
+    if (result == null) return;
+
+    final ok = await _svc.bearbeitet(
+      kwYear: _kwYear,
+      kwNumber: _kwNumber,
+      userId: m.userId,
+      typ: typ,
+      refId: result.selectedId,
+      action: result.reset ? 'reset' : 'set',
+    );
+    if (ok) _load();
+  }
+
+  String _emptyLabel(String typ) {
+    switch (typ) {
+      case 'ticket':  return 'Keine offenen Tickets für dieses Mitglied';
+      case 'termin':  return 'Keine Termine in dieser KW';
+      case 'routine': return 'Keine Routinen in dieser KW';
+      default: return 'Keine Einträge';
     }
   }
 
@@ -148,7 +149,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Arbeitstag – KW $_kwNumber / $_kwYear',
+              Text('Arbeitswochen – KW $_kwNumber / $_kwYear',
                   style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
               if (rangeStr.isNotEmpty)
                 Text(rangeStr, style: theme.textTheme.bodySmall),
@@ -267,17 +268,32 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                       ],
                     ],
                   ),
+                  if (m.ticketSubject != null || m.terminTitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          if (m.ticketSubject != null)
+                            Text('🎫 ${m.ticketSubject}',
+                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+                          if (m.terminTitle != null)
+                            Text('📅 ${m.terminTitle}',
+                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
             _chip('Ticket', Icons.confirmation_number, m.ticketDone, m.openTicketsCount,
-                () => _toggleChip(m, 'ticket')),
+                () => _openPicker(m, 'ticket')),
             const SizedBox(width: 6),
             _chip('Termin', Icons.calendar_month, m.terminDone, m.termineKwCount,
-                () => _toggleChip(m, 'termin')),
+                () => _openPicker(m, 'termin')),
             const SizedBox(width: 6),
             _chip('Routine', Icons.repeat, m.routineDone, m.routinesPendingCount,
-                () => _toggleChip(m, 'routine')),
+                () => _openPicker(m, 'routine')),
           ],
         ),
       ),
@@ -314,6 +330,101 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PickerResult {
+  final int? selectedId;
+  final bool reset;
+  _PickerResult({this.selectedId, this.reset = false});
+}
+
+class _PickerSheet extends StatelessWidget {
+  final String title;
+  final String emptyLabel;
+  final List<ArbeitstagPickerItem> items;
+  final int? currentSelectionId;
+  final bool canReset;
+
+  const _PickerSheet({
+    required this.title,
+    required this.emptyLabel,
+    required this.items,
+    required this.currentSelectionId,
+    required this.canReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(title,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(emptyLabel, style: TextStyle(color: Colors.grey[600])),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (ctx, i) {
+                    final it = items[i];
+                    final selected = it.id == currentSelectionId;
+                    return ListTile(
+                      leading: Icon(
+                        selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                        color: selected ? Colors.green : Colors.grey,
+                      ),
+                      title: Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      subtitle: it.subtitle != null ? Text(it.subtitle!) : null,
+                      onTap: () => Navigator.pop(
+                        context,
+                        _PickerResult(selectedId: it.id, reset: false),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            if (canReset) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.close, color: Colors.red),
+                title: const Text('Bearbeitung zurücksetzen',
+                    style: TextStyle(color: Colors.red)),
+                onTap: () => Navigator.pop(
+                  context,
+                  _PickerResult(reset: true),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
           ],
         ),
       ),
