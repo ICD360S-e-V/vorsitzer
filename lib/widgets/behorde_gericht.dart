@@ -8,6 +8,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
@@ -178,10 +179,11 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
             Text(selectedName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade900)),
             if (selected != null) ...[
               const SizedBox(height: 6),
-              _infoRow(Icons.location_on, 'Adresse', selected['adresse'] ?? ''),
-              _infoRow(Icons.phone, 'Telefon', selected['telefon'] ?? ''),
-              if ((selected['fax'] ?? '').isNotEmpty) _infoRow(Icons.print, 'Fax', selected['fax']!),
-              _infoRow(Icons.email, 'E-Mail', selected['email'] ?? ''),
+              _infoRow(Icons.location_on, 'Adresse', selected['adresse'] ?? '', copyable: true),
+              _infoRow(Icons.phone, 'Telefon', selected['telefon'] ?? '', copyable: true),
+              if ((selected['fax'] ?? '').isNotEmpty)
+                _infoRow(Icons.print, 'Fax', selected['fax']!, copyable: true),
+              _infoRow(Icons.email, 'E-Mail', selected['email'] ?? '', copyable: true, copyLabel: 'E-Mail'),
               _infoRow(Icons.access_time, 'Öffnungszeiten', selected['oeffnungszeiten'] ?? ''),
               _infoRow(Icons.info, 'Zuständigkeit', selected['zustaendigkeit'] ?? ''),
             ],
@@ -355,12 +357,20 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
 
   // ============ HELPERS ============
 
-  Widget _infoRow(IconData icon, String label, String value) {
+  Widget _infoRow(IconData icon, String label, String value, {bool copyable = false, String? copyLabel}) {
     if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
       Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
       SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
       Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 11))),
+      if (copyable) InkWell(
+        onTap: () => ClipboardHelper.copy(context, value, copyLabel ?? label),
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(Icons.copy, size: 14, color: Colors.blue.shade600),
+        ),
+      ),
     ]));
   }
 
