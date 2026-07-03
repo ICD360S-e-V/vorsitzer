@@ -191,7 +191,7 @@ class ArbeitstagService {
       }
       final data = jsonDecode(res.body);
       if (data['success'] != true) return null;
-      return ArbeitstagWoche.fromJson(data['data']);
+      return ArbeitstagWoche.fromJson(data);
     } catch (e) {
       _log.error('arbeitstag getWoche failed: $e', tag: 'ARBEITSTAG');
       return null;
