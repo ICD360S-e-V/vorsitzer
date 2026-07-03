@@ -984,19 +984,36 @@ class TransitService {
       });
     }
 
-    // Now that we know which candidates actually returned departures, prune
-    // nearbyStops down to the 3 NEAREST ACTIVE stops. A silent bus stop with
-    // 0 departures shouldn't push a tram station off the visible list.
-    final activeIds = departures.map((d) => _stopIdForName(d.stopName)).toSet();
-    final activeStops = <TransitStop>[];
-    for (final s in nearbyStops) {
-      if (activeIds.contains(s.id) || activeIds.contains(s.name)) {
-        activeStops.add(s);
-        if (activeStops.length >= 3) break;
-      }
+    // Prune nearbyStops to top-3 ACTIVE stops. Two considerations:
+    //   • silent bus stops (0 deps) shouldn't push tram/subway off the list
+    //   • trams/subways/S-Bahn get preferential ranking — they run through
+    //     the city and are usually farther apart, so a tram stop at 400m is
+    //     often more useful than a 3rd bus stop at 300m.
+    // We boost tram/subway/S-Bahn stops by giving them 30% distance discount.
+    final stopIdToDeps = <String, List<Departure>>{};
+    for (final d in departures) {
+      final id = _stopIdForName(d.stopName) ?? d.stopName;
+      stopIdToDeps.putIfAbsent(id, () => []).add(d);
     }
+
+    double effectiveDistance(TransitStop s) {
+      final deps = stopIdToDeps[s.id] ?? stopIdToDeps[s.name] ?? [];
+      final hasRail = deps.any((d) =>
+          d.productType == 'tram' ||
+          d.productType == 'subway' ||
+          d.productType == 'suburban' ||
+          d.productType == 'train');
+      return hasRail ? s.distance * 0.7 : s.distance.toDouble();
+    }
+
+    final activeStops = nearbyStops
+        .where((s) => stopIdToDeps.containsKey(s.id) || stopIdToDeps.containsKey(s.name))
+        .toList()
+      ..sort((a, b) => effectiveDistance(a).compareTo(effectiveDistance(b)));
+
     if (activeStops.isNotEmpty) {
-      nearbyStops = activeStops;
+      final top3 = activeStops.take(3).toList()..sort((a, b) => a.distance.compareTo(b.distance));
+      nearbyStops = top3;
       closestStopName = nearbyStops.first.name;
     }
   }
