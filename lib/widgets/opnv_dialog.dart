@@ -364,7 +364,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                   : ListView(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       children: [
-                        for (final stop in stops.take(3))
+                        for (final stop in stops.take(5))
                           _StopSection(
                             stop: stop,
                             departures: grouped[stop.name] ?? [],
@@ -544,6 +544,7 @@ class _DepartureRow extends StatelessWidget {
   Color _lineColor() {
     switch (dep.productType) {
       case 'tram': return Colors.blue.shade700;
+      case 'subway': return Colors.indigo.shade700;
       case 'train':
       case 'regional': return Colors.red.shade700;
       case 'suburban': return Colors.green.shade700;

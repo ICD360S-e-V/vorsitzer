@@ -60,6 +60,8 @@ class Departure {
     switch (productType) {
       case 'tram':
         return '🚊';
+      case 'subway':
+        return '🚇';
       case 'train':
       case 'regional':
         return '🚆';
@@ -889,10 +891,17 @@ class TransitService {
       _log.info('Transit: assignedStops empty → derived ${nearbyStops.length} stops from departureList', tag: 'TRANSIT');
     }
 
-    // Keep only the 3 closest stops
-    final allowedStops = <String>{};
-    for (int i = 0; i < nearbyStops.length && i < 3; i++) {
-      allowedStops.add(nearbyStops[i].name);
+    // Keep the 5 closest stops. Match by stopID — the stopName in
+    // `itdOdvAssignedStops` is just "Rathaus", but departureList shows
+    // "Ulm Rathaus" (with city prefix), so name comparison filters everything
+    // out. IDs are stable across both structures.
+    // 5 stops (was 3) so tram/subway platforms 300-500m away still show up —
+    // in Ulm city center, the Straßenbahn is at Justizgebäude (380m, stop #4).
+    final allowedStopIds = <String>{};
+    final idToNiceName = <String, String>{};
+    for (int i = 0; i < nearbyStops.length && i < 5; i++) {
+      allowedStopIds.add(nearbyStops[i].id);
+      idToNiceName[nearbyStops[i].id] = nearbyStops[i].name;
     }
     closestStopName = nearbyStops.isNotEmpty ? nearbyStops.first.name : null;
 
@@ -906,10 +915,14 @@ class TransitService {
           final dateTime = dep['dateTime'] ?? {};
           final realDateTime = dep['realDateTime'];
 
-          final stopName = dep['stopName']?.toString() ?? '';
+          final depStopId = dep['stopID']?.toString() ?? '';
+          final depStopName = dep['stopName']?.toString() ?? '';
+          // Prefer the short name from nearbyStops ("Rathaus") over the full
+          // "Ulm Rathaus" so the UI groups by clean stop labels.
+          final stopName = idToNiceName[depStopId] ?? depStopName;
 
-          // Filter: only keep departures from nearest stops
-          if (allowedStops.isNotEmpty && !allowedStops.contains(stopName)) continue;
+          // Filter: only keep departures from nearest stops (by ID)
+          if (allowedStopIds.isNotEmpty && !allowedStopIds.contains(depStopId)) continue;
 
           final planned = _parseEfaDateTime(dateTime);
           if (planned == null) continue;
@@ -922,7 +935,10 @@ class TransitService {
           final delayStr = dep['servingLine']?['delay']?.toString() ?? '0';
           final delay = int.tryParse(delayStr) ?? 0;
 
-          // Determine product type
+          // Determine product type (EFA motType codes):
+          //  0 = train (ICE/IC), 1 = S-Bahn, 2 = U-Bahn, 3 = Stadtbahn/light rail,
+          //  4 = Tram, 5 = Stadtbus, 6 = Regionalbus, 7 = Schnellbus,
+          //  8 = Seilbahn, 9 = Schiff, 10 = AST, 11 = other
           final motType = servingLine['motType']?.toString() ?? '';
           String productType;
           switch (motType) {
@@ -932,6 +948,10 @@ class TransitService {
             case '1':
               productType = 'suburban';
               break;
+            case '2':
+              productType = 'subway'; // U-Bahn
+              break;
+            case '3': // Stadtbahn / light rail (Karlsruhe, Stuttgart)
             case '4':
               productType = 'tram';
               break;
