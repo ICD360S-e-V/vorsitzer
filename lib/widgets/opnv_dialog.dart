@@ -233,20 +233,28 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
 
     final accuracy = widget.transitService.lastAccuracy;
     final source = widget.transitService.lastSource;
-    // Bus stops sit within ~30-100m radius. A fix looser than 100m is useless
-    // for "was ist neben mir" — we refuse to show stops and prompt for a real
-    // GNSS fix instead.
-    final isPrecise = accuracy != null && accuracy < 100;
-    final accColor = isPrecise
-        ? Colors.green.shade600
-        : (accuracy != null && accuracy < 500 ? Colors.orange.shade700 : Colors.red.shade600);
+    // 300m is the useful cutoff: EFA returns the correct nearby stops up to
+    // ~300m offset (verified live). Beyond that we refuse and prompt for a
+    // fresh GNSS fix.
+    final isPrecise = accuracy != null && accuracy < 300;
+    final accColor = accuracy == null
+        ? Colors.grey
+        : accuracy < 100
+            ? Colors.green.shade600
+            : accuracy < 300
+                ? Colors.lime.shade700
+                : accuracy < 1000
+                    ? Colors.orange.shade700
+                    : Colors.red.shade600;
     final accLabel = accuracy == null
         ? '—'
         : accuracy < 100
             ? '±${accuracy.toStringAsFixed(0)}m ✓'
-            : accuracy < 1000
-                ? '±${accuracy.toStringAsFixed(0)}m ⚠'
-                : '±${(accuracy / 1000).toStringAsFixed(1)}km ⚠';
+            : accuracy < 300
+                ? '±${accuracy.toStringAsFixed(0)}m'
+                : accuracy < 1000
+                    ? '±${accuracy.toStringAsFixed(0)}m ⚠'
+                    : '±${(accuracy / 1000).toStringAsFixed(1)}km ⚠';
     final sourceLabel = switch (source) {
       LocationSource.gnss => 'GPS-Chip',
       LocationSource.fusedLocation => 'GPS+WiFi',

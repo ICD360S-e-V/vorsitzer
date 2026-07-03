@@ -567,7 +567,10 @@ class TransitService {
         // Accept only tight fixes (< 100m) — the whole point is finding bus
         // stops within walking distance. A 500m fix means we can't distinguish
         // which side of a block the user is on.
-        if (position.accuracy < 100) {
+        // 300m is the useful cutoff — EFA returns correct nearby stops up to
+        // ~300m offset (verified live). Below 100m = perfect, 100-300m still
+        // resolves the right stops just at fractional distance.
+        if (position.accuracy < 300) {
           _latitude = position.latitude;
           _longitude = position.longitude;
           lastAccuracy = position.accuracy;
@@ -598,7 +601,7 @@ class TransitService {
             ),
           ).timeout(const Duration(seconds: 20));
           _log.info('Transit: Raw GNSS = ${position.latitude}, ${position.longitude} (accuracy ${position.accuracy.toStringAsFixed(0)}m)', tag: 'TRANSIT');
-          if (position.accuracy < 100) {
+          if (position.accuracy < 300) {
             _latitude = position.latitude;
             _longitude = position.longitude;
             lastAccuracy = position.accuracy;
@@ -845,11 +848,13 @@ class TransitService {
 
   /// Parse the EFA JSON response (DING + MVV share the same format)
   void _parseEfaResponse(Map<String, dynamic> data) {
-    // Parse assigned stops (sorted by distance)
+    // Parse assigned stops (sorted by distance).
+    // DING returns them under `itdOdvAssignedStops` (with the `itdOdv` prefix).
+    // A few EFA installs use plain `assignedStops` — try both.
     nearbyStops = [];
     final dm = data['dm'];
-    if (dm != null) {
-      final assignedStops = dm['assignedStops'];
+    if (dm is Map) {
+      final assignedStops = dm['itdOdvAssignedStops'] ?? dm['assignedStops'];
       if (assignedStops is List) {
         for (final s in assignedStops) {
           nearbyStops.add(TransitStop(
@@ -861,6 +866,27 @@ class TransitService {
         }
         nearbyStops.sort((a, b) => a.distance.compareTo(b.distance));
       }
+    }
+
+    // Fallback: if the assignedStops list was empty/missing, derive stops
+    // from the departure list. Every departure has `stopID` + `stopName`;
+    // we can't know the distance but we surface unique stops so the UI
+    // shows something instead of "Keine Haltestellen".
+    if (nearbyStops.isEmpty) {
+      final seen = <String>{};
+      final departureList = data['departureList'];
+      if (departureList is List) {
+        for (final dep in departureList) {
+          if (dep is! Map) continue;
+          final id = dep['stopID']?.toString() ?? '';
+          final name = dep['stopName']?.toString() ?? '';
+          if (id.isEmpty || name.isEmpty) continue;
+          if (seen.contains(id)) continue;
+          seen.add(id);
+          nearbyStops.add(TransitStop(id: id, name: name, distance: 0));
+        }
+      }
+      _log.info('Transit: assignedStops empty → derived ${nearbyStops.length} stops from departureList', tag: 'TRANSIT');
     }
 
     // Keep only the 3 closest stops
