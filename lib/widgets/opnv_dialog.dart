@@ -233,28 +233,50 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
 
     final accuracy = widget.transitService.lastAccuracy;
     final source = widget.transitService.lastSource;
-    // 300m is the useful cutoff: EFA returns the correct nearby stops up to
-    // ~300m offset (verified live). Beyond that we refuse and prompt for a
-    // fresh GNSS fix.
+    // Accuracy tiers (verified live vs. DING EFA):
+    //   < 25m   → excellent — clear-sky GNSS lock, warm start
+    //   < 50m   → very good — typical GNSS in open area
+    //   < 100m  → good — urban / near buildings
+    //   < 300m  → acceptable — still finds correct stops (EFA verified)
+    //   ≥ 300m  → refused (shows _CoarseState with GPS refresh button)
     final isPrecise = accuracy != null && accuracy < 300;
     final accColor = accuracy == null
         ? Colors.grey
-        : accuracy < 100
-            ? Colors.green.shade600
-            : accuracy < 300
-                ? Colors.lime.shade700
-                : accuracy < 1000
-                    ? Colors.orange.shade700
-                    : Colors.red.shade600;
+        : accuracy < 25
+            ? Colors.green.shade700
+            : accuracy < 50
+                ? Colors.green.shade500
+                : accuracy < 100
+                    ? Colors.lime.shade700
+                    : accuracy < 300
+                        ? Colors.lime.shade800
+                        : accuracy < 1000
+                            ? Colors.orange.shade700
+                            : Colors.red.shade600;
     final accLabel = accuracy == null
         ? '—'
-        : accuracy < 100
-            ? '±${accuracy.toStringAsFixed(0)}m ✓'
-            : accuracy < 300
-                ? '±${accuracy.toStringAsFixed(0)}m'
-                : accuracy < 1000
-                    ? '±${accuracy.toStringAsFixed(0)}m ⚠'
-                    : '±${(accuracy / 1000).toStringAsFixed(1)}km ⚠';
+        : accuracy < 25
+            ? '±${accuracy.toStringAsFixed(0)}m ✓✓'
+            : accuracy < 50
+                ? '±${accuracy.toStringAsFixed(0)}m ✓'
+                : accuracy < 100
+                    ? '±${accuracy.toStringAsFixed(0)}m'
+                    : accuracy < 300
+                        ? '±${accuracy.toStringAsFixed(0)}m'
+                        : accuracy < 1000
+                            ? '±${accuracy.toStringAsFixed(0)}m ⚠'
+                            : '±${(accuracy / 1000).toStringAsFixed(1)}km ⚠';
+    final accQuality = accuracy == null
+        ? ''
+        : accuracy < 25
+            ? 'Perfekt'
+            : accuracy < 50
+                ? 'Sehr gut'
+                : accuracy < 100
+                    ? 'Gut'
+                    : accuracy < 300
+                        ? 'Akzeptabel'
+                        : '';
     final sourceLabel = switch (source) {
       LocationSource.gnss => 'GPS-Chip',
       LocationSource.fusedLocation => 'GPS+WiFi',
@@ -314,9 +336,13 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                         style: TextStyle(fontSize: 10, color: accColor, fontWeight: FontWeight.w600),
                       ),
                     ),
+                    if (accQuality.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Text(accQuality, style: TextStyle(fontSize: 10, color: accColor, fontWeight: FontWeight.w600)),
+                    ],
                     if (sourceLabel.isNotEmpty) ...[
                       const SizedBox(width: 6),
-                      Text(sourceLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text('• $sourceLabel', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                     ],
                   ],
                 ),
