@@ -52,6 +52,7 @@ import 'statistik_screen.dart';
 import 'archiv_screen.dart';
 import 'dienste_screen.dart';
 import 'routinenaufgaben_screen.dart';
+import 'arbeitstag_screen.dart';
 import 'bug_reports_screen.dart';
 import 'pending_parent_consent_screen.dart';
 import 'einstellungen_screen.dart';
@@ -1460,6 +1461,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return PendingParentConsentScreen(currentMitgliedernummer: widget.currentMitgliedernummer);
       case 13:
         return EinstellungenScreen(apiService: _apiService);
+      case 14:
+        return const ArbeitstagScreen();
       default:
         return _buildDashboardOverview();
     }
