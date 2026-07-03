@@ -15,6 +15,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   late int _kwNumber;
   ArbeitstagWoche? _data;
   bool _loading = true;
+  String _view = 'active';
 
   @override
   void initState() {
@@ -39,12 +40,35 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber);
+    final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
     if (!mounted) return;
     setState(() {
       _data = data;
       _loading = false;
     });
+  }
+
+  Future<void> _archiveMember(ArbeitstagMember m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mitglied archivieren?'),
+        content: Text('${m.name} wird aus der aktiven Arbeitswochen-Liste entfernt. '
+            'Kann jederzeit wiederhergestellt werden.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Archivieren')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final success = await _svc.archiveToggle(userId: m.userId, action: 'archive');
+    if (success) _load();
+  }
+
+  Future<void> _unarchiveMember(ArbeitstagMember m) async {
+    final success = await _svc.archiveToggle(userId: m.userId, action: 'unarchive');
+    if (success) _load();
   }
 
   void _shiftKw(int delta) {
@@ -181,8 +205,40 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             icon: const Icon(Icons.refresh),
             tooltip: 'Aktualisieren',
           ),
+          _buildArchiveToggle(),
         ],
       ),
+    );
+  }
+
+  Widget _buildArchiveToggle() {
+    final archivedCount = _data?.stats.totalArchived ?? 0;
+    final showingArchived = _view == 'archived';
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          onPressed: () {
+            setState(() => _view = showingArchived ? 'active' : 'archived');
+            _load();
+          },
+          icon: Icon(showingArchived ? Icons.inventory_2 : Icons.inventory_2_outlined),
+          tooltip: showingArchived ? 'Aktive anzeigen' : 'Archiv anzeigen',
+          color: showingArchived ? Colors.orange : null,
+        ),
+        if (!showingArchived && archivedCount > 0)
+          Positioned(
+            right: 4, top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.orange, borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('$archivedCount',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
+          ),
+      ],
     );
   }
 
@@ -203,11 +259,17 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       return const Center(child: Text('Fehler beim Laden'));
     }
     if (_data!.members.isEmpty) {
-      return const Center(child: Text('Keine aktiven Mitglieder'));
+      return Center(child: Text(_view == 'archived'
+          ? 'Keine archivierten Mitglieder'
+          : 'Keine aktiven Mitglieder'));
     }
-    // Split: not-done first (by prio), done at bottom
-    final active = _data!.members.where((m) => !m.allDone).toList();
-    final done = _data!.members.where((m) => m.allDone).toList();
+    // In archive view no split. In active view: not-done first (by prio), done at bottom.
+    final active = _view == 'archived'
+        ? _data!.members
+        : _data!.members.where((m) => !m.allDone).toList();
+    final done = _view == 'archived'
+        ? <ArbeitstagMember>[]
+        : _data!.members.where((m) => m.allDone).toList();
     return ListView.separated(
       itemCount: active.length + (done.isNotEmpty ? 1 + done.length : 0),
       separatorBuilder: (_, __) => const Divider(height: 1),
@@ -286,14 +348,36 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                 ],
               ),
             ),
-            _chip('Ticket', Icons.confirmation_number, m.ticketDone, m.openTicketsCount,
-                () => _openPicker(m, 'ticket')),
-            const SizedBox(width: 6),
-            _chip('Termin', Icons.calendar_month, m.terminDone, m.termineKwCount,
-                () => _openPicker(m, 'termin')),
-            const SizedBox(width: 6),
-            _chip('Routine', Icons.repeat, m.routineDone, m.routinesPendingCount,
-                () => _openPicker(m, 'routine')),
+            if (!m.isArchived) ...[
+              _chip('Ticket', Icons.confirmation_number, m.ticketDone, m.openTicketsCount,
+                  () => _openPicker(m, 'ticket')),
+              const SizedBox(width: 6),
+              _chip('Termin', Icons.calendar_month, m.terminDone, m.termineKwCount,
+                  () => _openPicker(m, 'termin')),
+              const SizedBox(width: 6),
+              _chip('Routine', Icons.repeat, m.routineDone, m.routinesPendingCount,
+                  () => _openPicker(m, 'routine')),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () => _archiveMember(m),
+                icon: const Icon(Icons.archive_outlined, size: 20),
+                tooltip: 'Archivieren',
+                color: Colors.grey[600],
+              ),
+            ] else ...[
+              if (m.archivedAt != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text('archiviert ${DateFormat('dd.MM.yy').format(m.archivedAt!)}',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                ),
+              IconButton(
+                onPressed: () => _unarchiveMember(m),
+                icon: const Icon(Icons.unarchive, size: 20),
+                tooltip: 'Wiederherstellen',
+                color: Colors.blue,
+              ),
+            ],
           ],
         ),
       ),

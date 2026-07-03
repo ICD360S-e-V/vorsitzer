@@ -69,6 +69,10 @@ class ArbeitstagMember {
   final int termineKwCount;
   final int routinesPendingCount;
 
+  final DateTime? archivedAt;
+  final int? archivedBy;
+  final String? archivGrund;
+
   ArbeitstagMember({
     required this.userId,
     required this.mitgliedernummer,
@@ -92,7 +96,12 @@ class ArbeitstagMember {
     required this.openTicketsCount,
     required this.termineKwCount,
     required this.routinesPendingCount,
+    this.archivedAt,
+    this.archivedBy,
+    this.archivGrund,
   });
+
+  bool get isArchived => archivedAt != null;
 
   bool get ticketDone => ticketDoneAt != null;
   bool get terminDone => terminDoneAt != null;
@@ -122,6 +131,9 @@ class ArbeitstagMember {
         openTicketsCount: _int(j['open_tickets_count']),
         termineKwCount: _int(j['termine_kw_count']),
         routinesPendingCount: _int(j['routines_pending_count']),
+        archivedAt: _dt(j['archived_at']),
+        archivedBy: _intN(j['archived_by']),
+        archivGrund: j['archiv_grund'],
       );
 }
 
@@ -129,12 +141,19 @@ class ArbeitstagStats {
   final int totalMembers;
   final int totalDone;
   final int totalUrgent;
-  ArbeitstagStats({required this.totalMembers, required this.totalDone, required this.totalUrgent});
+  final int totalArchived;
+  ArbeitstagStats({
+    required this.totalMembers,
+    required this.totalDone,
+    required this.totalUrgent,
+    this.totalArchived = 0,
+  });
 
   factory ArbeitstagStats.fromJson(Map<String, dynamic> j) => ArbeitstagStats(
         totalMembers: _int(j['total_members']),
         totalDone: _int(j['total_done']),
         totalUrgent: _int(j['total_urgent']),
+        totalArchived: _int(j['total_archived']),
       );
 }
 
@@ -227,11 +246,16 @@ class ArbeitstagService {
     };
   }
 
-  Future<ArbeitstagWoche?> getWoche({required int kwYear, required int kwNumber}) async {
+  Future<ArbeitstagWoche?> getWoche({
+    required int kwYear,
+    required int kwNumber,
+    String view = 'active', // 'active' | 'archived'
+  }) async {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_list.php').replace(queryParameters: {
         'kw_year': kwYear.toString(),
         'kw_number': kwNumber.toString(),
+        'view': view,
       });
       final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 30));
       if (res.statusCode != 200) {
@@ -244,6 +268,26 @@ class ArbeitstagService {
     } catch (e) {
       _log.error('arbeitstag getWoche failed: $e', tag: 'ARBEITSTAG');
       return null;
+    }
+  }
+
+  Future<bool> archiveToggle({
+    required int userId,
+    required String action, // 'archive' | 'unarchive'
+    String? grund,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_archiv_toggle.php');
+      final body = <String, dynamic>{'user_id': userId, 'action': action};
+      if (grund != null) body['grund'] = grund;
+      final res = await _client
+          .post(uri, headers: _headers, body: jsonEncode(body))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return false;
+      return jsonDecode(res.body)['success'] == true;
+    } catch (e) {
+      _log.error('arbeitstag archiveToggle failed: $e', tag: 'ARBEITSTAG');
+      return false;
     }
   }
 
