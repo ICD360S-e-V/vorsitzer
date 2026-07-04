@@ -456,11 +456,11 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             if (!m.isArchived) ...[
               _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
               const SizedBox(width: 6),
-              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineHeuteCount),
+              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
               const SizedBox(width: 6),
-              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesHeuteCount),
+              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
               const SizedBox(width: 6),
-              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.termineHeuteCount),
+              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.termineKwCount),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () => _archiveMember(m),
