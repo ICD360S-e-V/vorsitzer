@@ -12,27 +12,37 @@ class ArbeitstagScreen extends StatefulWidget {
 
 class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   final _svc = ArbeitstagService();
-  late DateTime _datum;
-  ArbeitstagTag? _data;
+  late int _kwYear;
+  late int _kwNumber;
+  ArbeitstagWoche? _data;
   bool _loading = true;
   String _view = 'active';
-
-  static final _fmt = DateFormat('yyyy-MM-dd');
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('de_DE', null);
     final now = DateTime.now();
-    _datum = DateTime(now.year, now.month, now.day);
+    _kwYear = _isoYear(now);
+    _kwNumber = _isoWeek(now);
     _load();
   }
 
-  String get _datumStr => _fmt.format(_datum);
+  static int _isoWeek(DateTime d) {
+    final thursday = d.add(Duration(days: 4 - d.weekday));
+    final firstThursday = DateTime(thursday.year, 1, 1)
+        .add(Duration(days: (4 - DateTime(thursday.year, 1, 1).weekday + 7) % 7));
+    return ((thursday.difference(firstThursday).inDays) / 7).floor() + 1;
+  }
+
+  static int _isoYear(DateTime d) {
+    final thursday = d.add(Duration(days: 4 - d.weekday));
+    return thursday.year;
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data = await _svc.getTag(datum: _datumStr, view: _view);
+    final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
     if (!mounted) return;
     setState(() {
       _data = data;
@@ -45,7 +55,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Mitglied archivieren?'),
-        content: Text('${m.name} wird aus der aktiven Arbeitstag-Liste entfernt. '
+        content: Text('${m.name} wird aus der aktiven Arbeitswochen-Liste entfernt. '
             'Kann jederzeit wiederhergestellt werden.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -63,9 +73,12 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (success) _load();
   }
 
-  void _shiftDay(int delta) {
+  void _shiftKw(int delta) {
+    var monday = _data?.monday ?? DateTime.now();
+    final next = monday.add(Duration(days: 7 * delta));
     setState(() {
-      _datum = _datum.add(Duration(days: delta));
+      _kwYear = _isoYear(next);
+      _kwNumber = _isoWeek(next);
     });
     _load();
   }
@@ -73,7 +86,8 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   void _jumpToday() {
     final now = DateTime.now();
     setState(() {
-      _datum = DateTime(now.year, now.month, now.day);
+      _kwYear = _isoYear(now);
+      _kwNumber = _isoWeek(now);
     });
     _load();
   }
@@ -86,14 +100,14 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         break;
       case 'geplant':
         await _svc.setState(
-          datum: _datumStr, userId: m.userId,
+          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
           typ: typ, state: 'in_bearbeitung',
         );
         _load();
         break;
       case 'in_bearbeitung':
         await _svc.setState(
-          datum: _datumStr, userId: m.userId,
+          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
           typ: typ, state: 'erledigt',
         );
         _load();
@@ -148,7 +162,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       await _openPicker(m, typ);
     } else {
       await _svc.setState(
-        datum: _datumStr, userId: m.userId,
+        kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
         typ: typ, state: action,
       );
       _load();
@@ -165,7 +179,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     }
 
     final items = await _svc.getPickerItems(
-      userId: m.userId, typ: typ, datum: _datumStr,
+      userId: m.userId, typ: typ, kwYear: _kwYear, kwNumber: _kwNumber,
     );
 
     if (!mounted) return;
@@ -174,7 +188,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       context: context,
       isScrollControlled: true,
       builder: (ctx) => _PickerSheet(
-        title: '${_typLabel(typ)} für ${m.name} — ${DateFormat('dd.MM.yyyy').format(_datum)}',
+        title: '${_typLabel(typ)} für ${m.name} — KW $_kwNumber',
         emptyLabel: _emptyLabel(typ),
         items: items,
         currentSelectionId: currentSelectionId,
@@ -185,7 +199,8 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (result == null) return;
 
     final ok = await _svc.setState(
-      datum: _datumStr,
+      kwYear: _kwYear,
+      kwNumber: _kwNumber,
       userId: m.userId,
       typ: typ,
       state: result.reset ? 'offen' : 'geplant',
@@ -197,9 +212,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   String _emptyLabel(String typ) {
     switch (typ) {
       case 'ticket':  return 'Keine offenen Tickets für dieses Mitglied';
-      case 'termin':  return 'Keine Termine an diesem Tag';
-      case 'routine': return 'Keine Routinen an diesem Tag';
-      case 'notfall': return 'Keine Termine an diesem Tag';
+      case 'termin':  return 'Keine Termine in dieser KW';
+      case 'routine': return 'Keine Routinen in dieser KW';
+      case 'notfall': return 'Keine Termine in dieser KW';
       default: return 'Keine Einträge';
     }
   }
@@ -230,39 +245,42 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
 
   Widget _buildHeader(ThemeData theme) {
     final stats = _data?.stats;
-    final today = DateTime.now();
-    final isToday = _datum.year == today.year && _datum.month == today.month && _datum.day == today.day;
-    final dayName = DateFormat('EEEE', 'de_DE').format(_datum);
-    final dateStr = DateFormat('dd.MM.yyyy').format(_datum);
+    final data = _data;
+    final now = DateTime.now();
+    final isCurrentKw = _kwYear == _isoYear(now) && _kwNumber == _isoWeek(now);
+    final rangeStr = data == null
+        ? ''
+        : '${DateFormat('dd.MM').format(data.monday)} – ${DateFormat('dd.MM.yyyy').format(data.sunday)}';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: theme.colorScheme.surface,
       child: Row(
         children: [
           IconButton(
-            onPressed: () => _shiftDay(-1),
+            onPressed: () => _shiftKw(-1),
             icon: const Icon(Icons.chevron_left),
-            tooltip: 'Vorheriger Tag',
+            tooltip: 'Vorherige KW',
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Arbeitstag – $dayName',
+              Text('Arbeitswochen – KW $_kwNumber / $_kwYear',
                   style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
-              Text(dateStr + (isToday ? ' (heute)' : ''),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isToday ? theme.colorScheme.primary : null,
-                    fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
-                  )),
+              if (rangeStr.isNotEmpty)
+                Text(rangeStr + (isCurrentKw ? ' (aktuelle KW)' : ''),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isCurrentKw ? theme.colorScheme.primary : null,
+                      fontWeight: isCurrentKw ? FontWeight.w600 : FontWeight.normal,
+                    )),
             ],
           ),
           IconButton(
-            onPressed: () => _shiftDay(1),
+            onPressed: () => _shiftKw(1),
             icon: const Icon(Icons.chevron_right),
-            tooltip: 'Nächster Tag',
+            tooltip: 'Nächste KW',
           ),
-          if (!isToday)
+          if (!isCurrentKw)
             TextButton.icon(
               onPressed: _jumpToday,
               icon: const Icon(Icons.today, size: 16),
