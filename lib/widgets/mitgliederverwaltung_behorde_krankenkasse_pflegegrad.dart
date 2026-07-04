@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/user.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 
