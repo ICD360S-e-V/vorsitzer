@@ -493,14 +493,19 @@ class _StopSection extends StatelessWidget {
     return '${stop.distance} m';
   }
 
-  /// True if any departure here is a rail vehicle — S-Bahn, U-Bahn, tram,
-  /// regional or long-distance train. Only rail stops have DB facility data.
-  bool get _isRailwayStation => departures.any((d) =>
-      d.productType == 'train' ||
-      d.productType == 'regional' ||
-      d.productType == 'suburban' ||
-      d.productType == 'subway' ||
-      d.productType == 'tram');
+  /// True if this stop is a mainline station or has rail departures.
+  /// Only mainline stations have DB Aufzüge data.
+  bool get _isRailwayStation {
+    final n = stop.name.toLowerCase();
+    if (n.contains('hbf') || n.contains('hauptbahnhof') || n.contains('bahnhof')) {
+      return true;
+    }
+    return departures.any((d) =>
+        d.productType == 'train' ||
+        d.productType == 'regional' ||
+        d.productType == 'suburban' ||
+        d.productType == 'subway');
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -152,6 +152,12 @@ class _CachedFacilities {
   _CachedFacilities(this.facilities, this.at);
 }
 
+class _CachedDepartures {
+  final List<Departure> departures;
+  final DateTime at;
+  _CachedDepartures(this.departures, this.at);
+}
+
 /// A station facility — elevator (Aufzug) or escalator (Fahrtreppe) with
 /// live operational status. Sourced from `v6.db.transport.rest`, which
 /// wraps DB's FaSta (Facility Status) service.
@@ -804,12 +810,71 @@ class TransitService {
       } else {
         await _fetchEfaDepartures(baseUrl: '${provider.baseUrl}/XSLT_DM_REQUEST');
       }
+
+      // If any of the nearby stops is a mainline station (name contains
+      // "Hbf"/"Hauptbahnhof"/"Bahnhof"), the local EFA/HAFAS provider likely
+      // has only its buses+trams for that stop — no DB long-distance trains.
+      // Merge in DB departures from transport.rest so the user sees ICE/IC/RE/RB.
+      await _augmentWithDbRailDepartures();
     } catch (e) {
       _log.error('Transit: Fetch failed: $e', tag: 'TRANSIT');
     }
 
     isLoading = false;
     onDeparturesUpdate?.call(departures);
+  }
+
+  /// For every visible stop whose name matches a mainline station pattern,
+  /// fetch DB (HAFAS via transport.rest) departures in parallel and merge them.
+  Future<void> _augmentWithDbRailDepartures() async {
+    if (nearbyStops.isEmpty) return;
+    final railwayStops = nearbyStops.where((s) {
+      final n = s.name.toLowerCase();
+      return n.contains('hbf') || n.contains('hauptbahnhof') || n.contains('bahnhof');
+    }).toList();
+    if (railwayStops.isEmpty) return;
+
+    _log.info('Transit: augmenting ${railwayStops.length} railway stops with DB data', tag: 'TRANSIT');
+    final futures = railwayStops.map((s) => fetchDbDepartures(s.name)).toList();
+    final results = await Future.wait(futures);
+
+    // De-dup by (line, direction, plannedTime, stopName) so we don't stack the
+    // same tram twice when EFA + DB both report it.
+    final seen = <String>{};
+    for (final d in departures) {
+      seen.add('${d.line}|${d.direction}|${d.plannedTime.toIso8601String()}|${d.stopName}');
+    }
+    for (int i = 0; i < railwayStops.length; i++) {
+      final stopName = railwayStops[i].name;
+      for (final dbDep in results[i]) {
+        // Keep DB's rail entries only — DB feeds also carry buses that EFA
+        // already reported. This avoids duplicates and clutters.
+        if (dbDep.productType == 'bus') continue;
+        // Rewrite stopName to match the local EFA one (short form)
+        final dep = Departure(
+          line: dbDep.line,
+          direction: dbDep.direction,
+          plannedTime: dbDep.plannedTime,
+          realtimeTime: dbDep.realtimeTime,
+          delay: dbDep.delay,
+          platform: dbDep.platform,
+          productType: dbDep.productType,
+          operator: dbDep.operator,
+          stopName: stopName,
+        );
+        final key = '${dep.line}|${dep.direction}|${dep.plannedTime.toIso8601String()}|$stopName';
+        if (seen.contains(key)) continue;
+        seen.add(key);
+        departures.add(dep);
+      }
+    }
+
+    // Re-sort by time (may include new rail entries)
+    departures.sort((a, b) {
+      final ta = a.realtimeTime ?? a.plannedTime;
+      final tb = b.realtimeTime ?? b.plannedTime;
+      return ta.compareTo(tb);
+    });
   }
 
   /// Fetch departures for a specific stop by name (EFA only)
@@ -1450,80 +1515,205 @@ class TransitService {
   /// user reopens the same stop dialog.
   final _facilitiesCache = <String, _CachedFacilities>{};
 
+  final _dbStopIdCache = <String, String?>{};   // stationName → DB stop ID
+  final _dbDeparturesCache = <String, _CachedDepartures>{};
+
+  static const _restBase = 'https://v6.db.transport.rest';
+  static const _restHeaders = {
+    'Accept': 'application/json',
+    'User-Agent': 'ICD360S-eV-App/1.0',
+  };
+
+  /// Resolve a station name to a DB (HAFAS) stop ID via transport.rest.
+  /// Cached — the mapping is stable across days.
+  Future<String?> _resolveDbStopId(String stationName) async {
+    if (_dbStopIdCache.containsKey(stationName)) return _dbStopIdCache[stationName];
+    // Try `/locations?query=X&results=1&addresses=false&poi=false`
+    try {
+      final uri = Uri.parse(
+        '$_restBase/locations?query=${Uri.encodeQueryComponent(stationName)}&results=1&addresses=false&poi=false',
+      );
+      final resp = await _client.get(uri, headers: _restHeaders).timeout(const Duration(seconds: 6));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(_decodeUtf8(resp));
+        if (data is List && data.isNotEmpty) {
+          final first = data.first;
+          if (first is Map) {
+            final id = first['id']?.toString();
+            _log.info('Transit: DB stop resolve "$stationName" → id=$id (${first['name']})', tag: 'TRANSIT');
+            _dbStopIdCache[stationName] = id;
+            return id;
+          }
+        }
+      }
+    } catch (e) {
+      _log.debug('Transit: DB stop resolve failed for "$stationName": $e', tag: 'TRANSIT');
+    }
+    _dbStopIdCache[stationName] = null;
+    return null;
+  }
+
+  /// Fetch live DB long-distance/regional/S-Bahn departures for a station
+  /// (ICE, IC, EC, RE, RB, S). Complements EFA which typically only has local
+  /// buses + trams. Cached 60s.
+  Future<List<Departure>> fetchDbDepartures(String stationName) async {
+    final cached = _dbDeparturesCache[stationName];
+    if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 60)) {
+      return cached.departures;
+    }
+    final id = await _resolveDbStopId(stationName);
+    if (id == null) {
+      _dbDeparturesCache[stationName] = _CachedDepartures([], DateTime.now());
+      return [];
+    }
+    try {
+      final uri = Uri.parse('$_restBase/stops/$id/departures?duration=60&results=10');
+      final resp = await _client.get(uri, headers: _restHeaders).timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) {
+        _log.debug('Transit: DB departures returned ${resp.statusCode} for $stationName', tag: 'TRANSIT');
+        _dbDeparturesCache[stationName] = _CachedDepartures([], DateTime.now());
+        return [];
+      }
+      final data = jsonDecode(_decodeUtf8(resp));
+      // Response shape: { departures: [...] } (v6) or bare list (v5)
+      final list = data is Map ? (data['departures'] as List? ?? []) : (data as List? ?? []);
+      final out = <Departure>[];
+      for (final d in list) {
+        if (d is! Map) continue;
+        final planned = DateTime.tryParse(d['plannedWhen']?.toString() ?? '');
+        final actual = DateTime.tryParse(d['when']?.toString() ?? '');
+        if (planned == null) continue;
+        final line = d['line'] as Map? ?? {};
+        final product = (line['product'] ?? line['productName'] ?? '').toString().toLowerCase();
+        String pt;
+        if (product.contains('nationalexpress') || product.contains('national') || product.contains('ice')) {
+          pt = 'train';
+        } else if (product.contains('regional') || product.contains('regionalexp')) {
+          pt = 'regional';
+        } else if (product.contains('suburban') || product.contains('sbahn')) {
+          pt = 'suburban';
+        } else if (product.contains('subway') || product.contains('ubahn')) {
+          pt = 'subway';
+        } else if (product.contains('tram')) {
+          pt = 'tram';
+        } else {
+          pt = 'bus';
+        }
+        final delay = (d['delay'] as num?) != null ? ((d['delay'] as num).toInt() ~/ 60) : 0;
+        out.add(Departure(
+          line: line['name']?.toString() ?? line['id']?.toString() ?? '?',
+          direction: d['direction']?.toString() ?? d['destination']?['name']?.toString() ?? '',
+          plannedTime: planned,
+          realtimeTime: actual,
+          delay: delay,
+          platform: d['platform']?.toString() ?? d['plannedPlatform']?.toString(),
+          productType: pt,
+          operator: (d['line'] as Map?)?['operator']?['name']?.toString() ?? '',
+          stopName: stationName,
+        ));
+      }
+      _log.info('Transit: DB $stationName → ${out.length} rail departures', tag: 'TRANSIT');
+      _dbDeparturesCache[stationName] = _CachedDepartures(out, DateTime.now());
+      return out;
+    } catch (e) {
+      _log.error('Transit: fetchDbDepartures failed for "$stationName": $e', tag: 'TRANSIT');
+      _dbDeparturesCache[stationName] = _CachedDepartures([], DateTime.now());
+      return [];
+    }
+  }
+
   /// Fetch live status of elevators + escalators at [stationName].
-  /// Uses `v6.db.transport.rest` (open-source wrapper for DB FaSta API,
-  /// no auth key required). Returns empty list if the station isn't a DB
-  /// railway station (bus stops don't have DB facility records).
+  /// Uses `v6.db.transport.rest` `/stops/{id}` which embeds a `facilities` map
+  /// keyed by facility ID. No auth key required. Returns empty list if the
+  /// stop is not a DB railway station.
   Future<List<StationFacility>> fetchFacilities(String stationName) async {
-    // Cache lookup (5 min TTL)
     final cached = _facilitiesCache[stationName];
     if (cached != null && DateTime.now().difference(cached.at) < const Duration(minutes: 5)) {
       return cached.facilities;
     }
 
-    try {
-      // Step 1: resolve station name → DB station ID via /stations
-      final searchUri = Uri.parse(
-        'https://v6.db.transport.rest/stations?query=${Uri.encodeQueryComponent(stationName)}&limit=1',
-      );
-      final searchResp = await _client.get(searchUri, headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'ICD360S-eV-App/1.0',
-      }).timeout(const Duration(seconds: 8));
-      if (searchResp.statusCode != 200) {
-        _log.debug('Transit: station search returned ${searchResp.statusCode}', tag: 'TRANSIT');
-        return [];
-      }
-      final searchData = jsonDecode(_decodeUtf8(searchResp));
-      String? stationId;
-      if (searchData is Map && searchData.isNotEmpty) {
-        stationId = searchData.keys.first.toString();
-      } else if (searchData is List && searchData.isNotEmpty) {
-        stationId = (searchData.first as Map)['id']?.toString();
-      }
-      if (stationId == null) {
-        _log.info('Transit: no DB station match for "$stationName"', tag: 'TRANSIT');
-        _facilitiesCache[stationName] = _CachedFacilities([], DateTime.now());
-        return [];
-      }
-
-      // Step 2: fetch facilities for that station
-      final facUri = Uri.parse('https://v6.db.transport.rest/stations/$stationId');
-      final facResp = await _client.get(facUri, headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'ICD360S-eV-App/1.0',
-      }).timeout(const Duration(seconds: 8));
-      if (facResp.statusCode != 200) return [];
-      final facData = jsonDecode(_decodeUtf8(facResp));
-      final result = _parseFacilities(facData);
-      _facilitiesCache[stationName] = _CachedFacilities(result, DateTime.now());
-      _log.info('Transit: ${result.length} facilities at "$stationName" (DB ID $stationId)', tag: 'TRANSIT');
-      return result;
-    } catch (e) {
-      _log.error('Transit: fetchFacilities failed for "$stationName": $e', tag: 'TRANSIT');
+    // Try to resolve to a DB stop ID via /locations.
+    final id = await _resolveDbStopId(stationName);
+    if (id == null) {
+      _facilitiesCache[stationName] = _CachedFacilities([], DateTime.now());
       return [];
     }
+
+    // Try both endpoints (schema varies between deployments):
+    //   /stops/{id}  — usually has facilities under `.facilities`
+    //   /stations/{id} — legacy STADA endpoint (some ILU codes only)
+    for (final url in [
+      '$_restBase/stops/$id',
+      '$_restBase/stations/$id',
+    ]) {
+      try {
+        final resp = await _client.get(Uri.parse(url), headers: _restHeaders).timeout(const Duration(seconds: 8));
+        if (resp.statusCode != 200) continue;
+        final data = jsonDecode(_decodeUtf8(resp));
+        final result = _parseFacilities(data);
+        if (result.isNotEmpty) {
+          _log.info('Transit: ${result.length} facilities @ "$stationName" via $url', tag: 'TRANSIT');
+          _facilitiesCache[stationName] = _CachedFacilities(result, DateTime.now());
+          return result;
+        }
+      } catch (e) {
+        _log.debug('Transit: facility fetch $url failed: $e', tag: 'TRANSIT');
+      }
+    }
+    _log.info('Transit: no facilities data for "$stationName"', tag: 'TRANSIT');
+    _facilitiesCache[stationName] = _CachedFacilities([], DateTime.now());
+    return [];
   }
 
   List<StationFacility> _parseFacilities(dynamic data) {
     if (data is! Map) return [];
-    // db-rest exposes facilities under a couple of possible keys depending on
-    // upstream schema version. Try both.
+    // v6.db.transport.rest shape: `facilities` is a Map<id, { title, state, ... }>
+    // Older wrappers used a List. Handle both.
     final raw = data['facilities'] ?? data['aufzuege'] ?? data['elevators'];
-    if (raw is! List) return [];
+    Iterable<dynamic> entries;
+    if (raw is Map) {
+      entries = raw.values;
+    } else if (raw is List) {
+      entries = raw;
+    } else {
+      return [];
+    }
+
     final out = <StationFacility>[];
-    for (final f in raw) {
+    for (final f in entries) {
       if (f is! Map) continue;
-      // Field names vary between FaSta v1/v2 and RIS. Cover the common ones.
-      final desc = (f['description'] ?? f['title'] ?? f['name'] ?? '').toString();
-      final type = (f['type'] ?? f['facilityType'] ?? 'ELEVATOR').toString().toUpperCase();
-      final status = (f['state'] ?? f['status'] ?? 'UNKNOWN').toString().toUpperCase();
+      final desc = (f['description'] ?? f['title'] ?? f['name'] ?? f['label'] ?? '').toString();
+      final rawType = (f['type'] ?? f['facilityType'] ?? '').toString().toUpperCase();
+      // Guess type from description when field is missing
+      String type;
+      if (rawType.contains('ESCAL') || rawType.contains('FAHRTREPPE')) {
+        type = 'ESCALATOR';
+      } else if (rawType.contains('ELEVATOR') || rawType.contains('AUFZUG') || rawType.contains('LIFT')) {
+        type = 'ELEVATOR';
+      } else {
+        final descLower = desc.toLowerCase();
+        if (descLower.contains('fahrtreppe') || descLower.contains('rolltreppe') || descLower.contains('escalator')) {
+          type = 'ESCALATOR';
+        } else {
+          type = 'ELEVATOR';
+        }
+      }
+      // Normalize status (FaSta uses ACTIVE/INACTIVE/UNKNOWN; some clients use in_service/out_of_service)
+      final rawStatus = (f['state'] ?? f['status'] ?? f['operationalStatus'] ?? 'UNKNOWN').toString().toUpperCase();
+      String status;
+      if (rawStatus == 'ACTIVE' || rawStatus == 'IN_SERVICE' || rawStatus == 'AVAILABLE' || rawStatus == 'BETRIEB') {
+        status = 'ACTIVE';
+      } else if (rawStatus == 'INACTIVE' || rawStatus == 'OUT_OF_SERVICE' || rawStatus == 'DEFECT' || rawStatus == 'STOERUNG') {
+        status = 'INACTIVE';
+      } else {
+        status = 'UNKNOWN';
+      }
       if (desc.isEmpty) continue;
       out.add(StationFacility(
         description: desc,
         type: type,
         status: status,
-        reason: f['stateExplanation']?.toString() ?? f['reason']?.toString(),
+        reason: f['stateExplanation']?.toString() ?? f['reason']?.toString() ?? f['ausfallgrund']?.toString(),
       ));
     }
     return out;
