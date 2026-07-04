@@ -456,8 +456,15 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   Future<void> _save(String updatedStatus) async {
     setState(() => _saving = true);
     try {
-      await widget.apiService.savePflegegradAntrag(widget.userId, {
-        'id': _a['id'],
+      // Coerce id explicit to int — server expects (int).
+      final id = _a['id'] is int ? _a['id'] as int : int.tryParse(_a['id']?.toString() ?? '') ?? 0;
+      if (id <= 0) {
+        throw Exception('Antrag-ID fehlt oder ungültig');
+      }
+      // Sync new form values back into local state so UI reflects saved
+      // values immediately if user reopens without a fresh _load().
+      final payload = <String, dynamic>{
+        'id': id,
         'antrag_typ': _s('antrag_typ'),
         'antrag_datum': _s('antrag_datum'),
         'antrag_methode': _s('antrag_methode'),
@@ -477,15 +484,24 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'widerspruch_begruendung': _widerspruchBegC.text.trim(),
         'widerspruch_zweitgutachten_datum': _zweitgutachtenC.text.trim(),
         'widerspruch_ergebnis': _widerspruchErgC.text.trim(),
-      });
+      };
+      debugPrint('[PFG] save payload keys=${payload.keys.toList()} widerspruch_eingelegt=${payload['widerspruch_eingelegt']} widerspruch_datum=${payload['widerspruch_datum']} bescheid_datum=${payload['bescheid_datum']}');
+      final res = await widget.apiService.savePflegegradAntrag(widget.userId, payload);
+      debugPrint('[PFG] save response=$res');
+      if (res['success'] != true) {
+        throw Exception('Server-Fehler: ${res['message'] ?? res.toString()}');
+      }
+      // Update local _a so re-open of modal shows persisted values.
+      _a.addAll(payload);
       widget.onSaved();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
         Navigator.pop(context);
       }
     } catch (e) {
+      debugPrint('[PFG] save error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 6)));
       }
     }
     if (mounted) setState(() => _saving = false);
