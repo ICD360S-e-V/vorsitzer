@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+// dart:ui is aliased so the CustomPainter can spell out `ui.Path` and
+// `ui.TextDirection.ltr` — flutter_map exports a generic `Path<T>` and its
+// own `TextDirection` that leak through via generic type parameters and
+// shadow the canvas types even when we `show`-restrict the import.
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-// Whitelist only the widgets we use — flutter_map exports its own `Path`
-// (generic polyline) and re-exports `TextDirection`, both of which clash
-// with the `dart:ui` types the CustomPainter in this file needs.
 import 'package:flutter_map/flutter_map.dart'
     show FlutterMap, MapController, MapOptions, TileLayer, MarkerLayer, Marker;
 import 'package:http/http.dart' as http;
@@ -1725,7 +1727,7 @@ class _WeeklyTrendPainter extends CustomPainter {
     }
 
     // Gradient shading between min and max lines.
-    final fillPath = Path()..moveTo(maxPts.first.dx, maxPts.first.dy);
+    final fillPath = ui.Path()..moveTo(maxPts.first.dx, maxPts.first.dy);
     for (final p in maxPts) { fillPath.lineTo(p.dx, p.dy); }
     for (final p in minPts.reversed) { fillPath.lineTo(p.dx, p.dy); }
     fillPath.close();
@@ -1816,7 +1818,7 @@ class _WeeklyTrendPainter extends CustomPainter {
 
   void _drawPolyline(Canvas canvas, List<Offset> pts, Paint paint) {
     if (pts.length < 2) return;
-    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+    final path = ui.Path()..moveTo(pts.first.dx, pts.first.dy);
     for (int i = 1; i < pts.length; i++) {
       path.lineTo(pts[i].dx, pts[i].dy);
     }
@@ -1834,7 +1836,7 @@ class _WeeklyTrendPainter extends CustomPainter {
           fontWeight: bold ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      textDirection: TextDirection.ltr,
+      textDirection: ui.TextDirection.ltr,
     );
     tp.layout();
     tp.paint(canvas, at);
