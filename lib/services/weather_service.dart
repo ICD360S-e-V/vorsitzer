@@ -49,9 +49,13 @@ class WeatherCode {
   static bool isThunder(int code) => code >= 95 && code <= 99;
   static bool isSevere(int code) => code >= 65 || isThunder(code);
 
-  static String icon(int code) {
-    if (code == 0) return '☀️';
-    if (code <= 3) return '⛅';
+  /// [isDay] switches the "clear" and "partly cloudy" emojis to their night
+  /// counterparts. Precipitation glyphs stay the same — rain looks like rain
+  /// regardless of the hour, and colored emoji fonts don't have night variants
+  /// for most WMO codes anyway.
+  static String icon(int code, {bool isDay = true}) {
+    if (code == 0) return isDay ? '☀️' : '🌙';
+    if (code <= 3) return isDay ? '⛅' : '☁️';
     if (code <= 48) return '🌫️';
     if (isThunder(code)) return '⛈️';
     if (isSnow(code)) return '🌨️';
@@ -93,7 +97,7 @@ class WeatherData {
   });
 
   String get description => WeatherCode.describe(weatherCode);
-  String get icon => WeatherCode.icon(weatherCode);
+  String get icon => WeatherCode.icon(weatherCode, isDay: isDay);
   bool get isRain => WeatherCode.isRain(weatherCode);
   bool get isSnow => WeatherCode.isSnow(weatherCode);
   bool get isThunder => WeatherCode.isThunder(weatherCode);
@@ -125,7 +129,11 @@ class HourlyForecast {
     this.precipitationProbability,
   });
 
-  String get icon => WeatherCode.icon(weatherCode);
+  /// Approx isDay from local hour — Open-Meteo returns hourly in Europe/Berlin.
+  /// Good enough for icon selection (nobody notices ± half an hour on twilight).
+  bool get _isDay => time.hour >= 6 && time.hour < 20;
+
+  String get icon => WeatherCode.icon(weatherCode, isDay: _isDay);
   String get description => WeatherCode.describe(weatherCode);
 }
 
@@ -147,7 +155,8 @@ class MinutelyForecast {
     required this.windSpeed,
   });
 
-  String get icon => WeatherCode.icon(weatherCode);
+  bool get _isDay => time.hour >= 6 && time.hour < 20;
+  String get icon => WeatherCode.icon(weatherCode, isDay: _isDay);
   String get description => WeatherCode.describe(weatherCode);
 }
 
@@ -399,6 +408,51 @@ class WeatherService {
   /// that render maps or run their own location-scoped queries (e.g. the radar).
   double? get latitude => _latitude;
   double? get longitude => _longitude;
+
+  /// True while the platform GPS stream is being consumed (i.e. the location
+  /// follows the device rather than sticking to the profile city). Used by
+  /// the header pill to show a subtle 📍 next to the city name.
+  bool get isFollowingGps => _gpsSubscription != null;
+
+  /// True when the last successful weather fetch is more than 30 min old —
+  /// useful for painting the pill dimmer + adding a ⏱ badge.
+  bool get isDataStale {
+    final w = currentWeather;
+    if (w == null) return false;
+    return DateTime.now().difference(w.timestamp) > const Duration(minutes: 30);
+  }
+
+  /// Temperature trend across the next ~3 hours. Returns "↑" when it warms up
+  /// by ≥2 °C, "↓" when it cools ≥2 °C, or null when the change is smaller
+  /// than the noise floor. Comparison uses the current temperature and the
+  /// hourly forecast slot ≥3 h in the future.
+  String? temperatureTrend() {
+    final w = currentWeather;
+    if (w == null || hourlyForecast.isEmpty) return null;
+    final now = DateTime.now();
+    final target = hourlyForecast.firstWhere(
+      (h) => h.time.isAfter(now.add(const Duration(hours: 3))),
+      orElse: () => hourlyForecast.last,
+    );
+    final delta = target.temperature - w.temperature;
+    if (delta.abs() < 2) return null;
+    return delta > 0 ? '↑' : '↓';
+  }
+
+  /// True when at least one 15-min forecast slot in the next 45 min has
+  /// precipitation_probability ≥ 60 % (or actual precipitation ≥ 1 mm) — a
+  /// signal we can render on the AppBar pill as an "umbrella-in-a-minute" hint.
+  bool hasImminentPrecipitation() {
+    final now = DateTime.now();
+    final horizon = now.add(const Duration(minutes: 45));
+    for (final m in minutelyForecast) {
+      if (m.time.isBefore(now)) continue;
+      if (m.time.isAfter(horizon)) break;
+      if ((m.precipitationProbability ?? 0) >= 60) return true;
+      if (m.precipitation >= 1) return true;
+    }
+    return false;
+  }
 
   double? _lastGeocodedLat;
   double? _lastGeocodedLon;

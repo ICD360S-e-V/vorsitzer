@@ -1261,11 +1261,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ],
           ),
           // Weather pill: full on tablets/desktop (width>=600), compact on phones.
+          // Alerts count combines DWD warnings and locally-derived health alerts
+          // so the badge always reflects the total number of things to check on.
           if (_weatherData != null)
             WeatherPill(
               weather: _weatherData!,
-              alertsCount: _weatherAlerts.length,
+              alertsCount: _weatherAlerts.length + _healthAlerts.length,
               compact: showWeatherCompact,
+              trendArrow: _weatherService.temperatureTrend(),
+              imminentPrecipitation: _weatherService.hasImminentPrecipitation(),
+              isStale: _weatherService.isDataStale,
+              gpsFollowing: _weatherService.isFollowingGps,
               onTap: () => showWeatherDialog(context, _weatherService),
             ),
           IconButton(

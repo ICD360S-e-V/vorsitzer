@@ -44,16 +44,40 @@ class WeatherPill extends StatelessWidget {
   final bool compact;
   final VoidCallback onTap;
 
+  /// "↑" (warming), "↓" (cooling) or null for stable. Compared over ~3h.
+  final String? trendArrow;
+  /// True when a 15-min forecast slot in the next 45 min has ≥60 % rain
+  /// probability — pill shows a small 💧 hint even if it's clear right now.
+  final bool imminentPrecipitation;
+  /// True when the last successful fetch is >30 min old — pill dims and
+  /// shows a ⏱ badge so the reader knows the number may be stale.
+  final bool isStale;
+  /// True when the location is coming from the device GPS, not a fixed city —
+  /// shows a small 📍 next to the city name.
+  final bool gpsFollowing;
+
   const WeatherPill({
     super.key,
     required this.weather,
     required this.alertsCount,
     required this.compact,
     required this.onTap,
+    this.trendArrow,
+    this.imminentPrecipitation = false,
+    this.isStale = false,
+    this.gpsFollowing = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Dim everything when stale so users don't act on old data by accident.
+    final baseColor = isStale
+        ? Colors.white.withValues(alpha: 0.55)
+        : Colors.white;
+    final subColor = isStale
+        ? Colors.white.withValues(alpha: 0.4)
+        : Colors.white.withValues(alpha: 0.7);
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -71,15 +95,37 @@ class WeatherPill extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(weather.icon, style: _emojiStyle(fontSize: compact ? 16 : 18)),
+            // Imminent-rain dot: small light-blue 💧 tucked between icon and
+            // temperature so it doesn't compete with the main condition emoji.
+            if (imminentPrecipitation) ...[
+              const SizedBox(width: 2),
+              Text('💧', style: _emojiStyle(fontSize: compact ? 11 : 13)),
+            ],
             SizedBox(width: compact ? 3 : 4),
             if (compact)
-              Text(
-                '${weather.temperature.toStringAsFixed(0)}°',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${weather.temperature.toStringAsFixed(0)}°',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: baseColor,
+                    ),
+                  ),
+                  if (trendArrow != null)
+                    Text(
+                      trendArrow!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: trendArrow == '↑'
+                            ? Colors.orange.shade200
+                            : Colors.lightBlue.shade200,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                ],
               )
             else
               Column(
@@ -91,33 +137,60 @@ class WeatherPill extends StatelessWidget {
                     children: [
                       Text(
                         '${weather.temperature.toStringAsFixed(0)}°C',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: baseColor,
                         ),
                       ),
+                      if (trendArrow != null) ...[
+                        const SizedBox(width: 2),
+                        Text(
+                          trendArrow!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: trendArrow == '↑'
+                                ? Colors.orange.shade200
+                                : Colors.lightBlue.shade200,
+                          ),
+                        ),
+                      ],
                       if ((weather.apparentTemperature - weather.temperature).abs() >= 1) ...[
                         const SizedBox(width: 4),
                         Text(
                           '(gefühlt ${weather.apparentTemperature.toStringAsFixed(0)}°)',
                           style: TextStyle(
                             fontSize: 9,
-                            color: Colors.white.withValues(alpha: 0.7),
+                            color: subColor,
                           ),
                         ),
                       ],
                     ],
                   ),
-                  Text(
-                    weather.city.isEmpty ? weather.description : weather.city,
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: Colors.white.withValues(alpha: 0.7),
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (gpsFollowing) ...[
+                        Icon(Icons.my_location, size: 9, color: subColor),
+                        const SizedBox(width: 2),
+                      ],
+                      Flexible(
+                        child: Text(
+                          weather.city.isEmpty ? weather.description : weather.city,
+                          style: TextStyle(fontSize: 9, color: subColor),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isStale) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.access_time, size: 9, color: subColor),
+                      ],
+                    ],
                   ),
                 ],
               ),
+            // Combined alert badge: DWD warnings + local health advisories.
             if (alertsCount > 0) ...[
               SizedBox(width: compact ? 3 : 4),
               Container(
