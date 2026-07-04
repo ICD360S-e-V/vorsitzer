@@ -51,14 +51,17 @@ class ArbeitstagMember {
   final int? ticketId;
   final String? ticketSubject;
   final String? ticketStatus;
+  final String ticketState; // offen | geplant | in_bearbeitung | erledigt
 
   final DateTime? terminDoneAt;
   final int? terminId;
   final String? terminTitle;
   final DateTime? terminDate;
+  final String terminState;
 
   final DateTime? routineDoneAt;
   final int? routineExecutionId;
+  final String routineState;
 
   final int prioritaet;
   final String? prioGrund;
@@ -83,12 +86,15 @@ class ArbeitstagMember {
     this.ticketId,
     this.ticketSubject,
     this.ticketStatus,
+    this.ticketState = 'offen',
     this.terminDoneAt,
     this.terminId,
     this.terminTitle,
     this.terminDate,
+    this.terminState = 'offen',
     this.routineDoneAt,
     this.routineExecutionId,
+    this.routineState = 'offen',
     required this.prioritaet,
     this.prioGrund,
     this.bearbeiterUserId,
@@ -103,10 +109,19 @@ class ArbeitstagMember {
 
   bool get isArchived => archivedAt != null;
 
-  bool get ticketDone => ticketDoneAt != null;
-  bool get terminDone => terminDoneAt != null;
-  bool get routineDone => routineDoneAt != null;
+  bool get ticketDone  => ticketState == 'erledigt';
+  bool get terminDone  => terminState == 'erledigt';
+  bool get routineDone => routineState == 'erledigt';
   bool get allDone => ticketDone && terminDone && routineDone;
+
+  String stateFor(String typ) {
+    switch (typ) {
+      case 'ticket':  return ticketState;
+      case 'termin':  return terminState;
+      case 'routine': return routineState;
+      default: return 'offen';
+    }
+  }
 
   factory ArbeitstagMember.fromJson(Map<String, dynamic> j) => ArbeitstagMember(
         userId: _int(j['user_id']),
@@ -118,12 +133,15 @@ class ArbeitstagMember {
         ticketId: _intN(j['ticket_id']),
         ticketSubject: j['ticket_subject'],
         ticketStatus: j['ticket_status'],
+        ticketState: j['ticket_state'] ?? 'offen',
         terminDoneAt: _dt(j['termin_done_at']),
         terminId: _intN(j['termin_id']),
         terminTitle: j['termin_title'],
         terminDate: _dt(j['termin_date']),
+        terminState: j['termin_state'] ?? 'offen',
         routineDoneAt: _dt(j['routine_done_at']),
         routineExecutionId: _intN(j['routine_execution_id']),
+        routineState: j['routine_state'] ?? 'offen',
         prioritaet: _int(j['prioritaet']),
         prioGrund: j['prio_grund'],
         bearbeiterUserId: _intN(j['bearbeiter_user_id']),
@@ -316,14 +334,14 @@ class ArbeitstagService {
     }
   }
 
-  Future<bool> bearbeitet({
+  Future<bool> setState({
     required int kwYear,
     required int kwNumber,
     required int userId,
     required String typ, // 'ticket' | 'termin' | 'routine'
+    required String state, // 'offen' | 'geplant' | 'in_bearbeitung' | 'erledigt'
     int? refId,
     String? notiz,
-    String action = 'set', // 'set' | 'reset'
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_bearbeitet.php');
@@ -332,7 +350,7 @@ class ArbeitstagService {
         'kw_number': kwNumber,
         'user_id': userId,
         'typ': typ,
-        'action': action,
+        'state': state,
       };
       if (refId != null) body['ref_id'] = refId;
       if (notiz != null) body['notiz'] = notiz;
@@ -343,7 +361,7 @@ class ArbeitstagService {
       final data = jsonDecode(res.body);
       return data['success'] == true;
     } catch (e) {
-      _log.error('arbeitstag bearbeitet failed: $e', tag: 'ARBEITSTAG');
+      _log.error('arbeitstag setState failed: $e', tag: 'ARBEITSTAG');
       return false;
     }
   }

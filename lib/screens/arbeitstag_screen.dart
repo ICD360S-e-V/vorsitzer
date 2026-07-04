@@ -82,6 +82,83 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     _load();
   }
 
+  Future<void> _handleChipTap(ArbeitstagMember m, String typ) async {
+    final state = m.stateFor(typ);
+    switch (state) {
+      case 'offen':
+        await _openPicker(m, typ);
+        break;
+      case 'geplant':
+        await _svc.setState(
+          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
+          typ: typ, state: 'in_bearbeitung',
+        );
+        _load();
+        break;
+      case 'in_bearbeitung':
+        await _svc.setState(
+          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
+          typ: typ, state: 'erledigt',
+        );
+        _load();
+        break;
+      case 'erledigt':
+        // already done — no-op on tap, long-press pentru reset
+        break;
+    }
+  }
+
+  Future<void> _handleChipLongPress(ArbeitstagMember m, String typ) async {
+    final state = m.stateFor(typ);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('${_typLabel(typ)} für ${m.name}',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            const Divider(height: 1),
+            if (state != 'offen') ListTile(
+              leading: const Icon(Icons.swap_horiz),
+              title: const Text('Auswahl ändern'),
+              onTap: () => Navigator.pop(ctx, 'change'),
+            ),
+            if (state == 'in_bearbeitung' || state == 'erledigt') ListTile(
+              leading: const Icon(Icons.hourglass_bottom, color: Colors.orange),
+              title: const Text('Zurück zu Geplant'),
+              onTap: () => Navigator.pop(ctx, 'geplant'),
+            ),
+            if (state == 'erledigt') ListTile(
+              leading: const Icon(Icons.autorenew, color: Colors.blue),
+              title: const Text('Zurück zu In Bearbeitung'),
+              onTap: () => Navigator.pop(ctx, 'in_bearbeitung'),
+            ),
+            if (state != 'offen') ListTile(
+              leading: const Icon(Icons.close, color: Colors.red),
+              title: const Text('Reset (offen)'),
+              onTap: () => Navigator.pop(ctx, 'offen'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+    if (action == 'change') {
+      await _openPicker(m, typ);
+    } else {
+      await _svc.setState(
+        kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
+        typ: typ, state: action,
+      );
+      _load();
+    }
+  }
+
   Future<void> _openPicker(ArbeitstagMember m, String typ) async {
     int? currentSelectionId;
     switch (typ) {
@@ -110,13 +187,13 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
 
     if (result == null) return;
 
-    final ok = await _svc.bearbeitet(
+    final ok = await _svc.setState(
       kwYear: _kwYear,
       kwNumber: _kwNumber,
       userId: m.userId,
       typ: typ,
-      refId: result.selectedId,
-      action: result.reset ? 'reset' : 'set',
+      state: result.reset ? 'offen' : 'geplant',
+      refId: result.reset ? null : result.selectedId,
     );
     if (ok) _load();
   }
@@ -349,14 +426,11 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               ),
             ),
             if (!m.isArchived) ...[
-              _chip('Ticket', Icons.confirmation_number, m.ticketDone, m.openTicketsCount,
-                  () => _openPicker(m, 'ticket')),
+              _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
               const SizedBox(width: 6),
-              _chip('Termin', Icons.calendar_month, m.terminDone, m.termineKwCount,
-                  () => _openPicker(m, 'termin')),
+              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
               const SizedBox(width: 6),
-              _chip('Routine', Icons.repeat, m.routineDone, m.routinesPendingCount,
-                  () => _openPicker(m, 'routine')),
+              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesPendingCount),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () => _archiveMember(m),
@@ -384,25 +458,50 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     );
   }
 
-  Widget _chip(String label, IconData icon, bool done, int badgeCount, VoidCallback onTap) {
-    final color = done ? Colors.green : Colors.grey;
+  IconData _iconFor(String typ, String state) {
+    if (state == 'geplant')        return Icons.hourglass_bottom;
+    if (state == 'in_bearbeitung') return Icons.autorenew;
+    if (state == 'erledigt')       return Icons.check_circle;
+    // offen — icon by typ
+    switch (typ) {
+      case 'ticket':  return Icons.confirmation_number;
+      case 'termin':  return Icons.calendar_month;
+      case 'routine': return Icons.repeat;
+      default: return Icons.circle_outlined;
+    }
+  }
+
+  Color _colorFor(String state) {
+    switch (state) {
+      case 'geplant':        return Colors.orange;
+      case 'in_bearbeitung': return Colors.blue;
+      case 'erledigt':       return Colors.green;
+      default:               return Colors.grey;
+    }
+  }
+
+  Widget _stateChip(ArbeitstagMember m, String label, String typ, String state, int badgeCount) {
+    final color = _colorFor(state);
+    final icon = _iconFor(typ, state);
+    final isOffen = state == 'offen';
     return InkWell(
-      onTap: onTap,
+      onTap: () => _handleChipTap(m, typ),
+      onLongPress: () => _handleChipLongPress(m, typ),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: done ? Colors.green.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(done ? Icons.check_circle : icon, size: 16, color: color),
+            Icon(icon, size: 16, color: color),
             const SizedBox(width: 6),
             Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-            if (!done && badgeCount > 0) ...[
+            if (isOffen && badgeCount > 0) ...[
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
