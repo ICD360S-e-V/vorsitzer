@@ -967,6 +967,90 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
     } catch (_) {}
   }
 
+  Future<void> _loadGutachterList(int mdId) async {
+    if (_gutachterLoadedForMdId == mdId && _gutachterLoaded) return;
+    _gutachterLoadedForMdId = mdId;
+    try {
+      final res = await widget.apiService.listMdGutachter(mdId);
+      if (res['success'] == true && mounted) {
+        setState(() {
+          _gutachterList = (res['gutachter'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _gutachterLoaded = true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _showNeuerGutachterDialog(int mdId, String mdName) {
+    final vornameC = TextEditingController();
+    final nachnameC = TextEditingController();
+    final notizC = TextEditingController();
+    String qualifikation = 'Pflegefachperson';
+    const qualifikationen = ['Pflegefachperson', 'Ärztin / Arzt', 'Sozialpädagoge/-in', 'Ergotherapeut/-in', 'Andere'];
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: const Text('Neuer Gutachter anlegen'),
+      content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('für $mdName', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: TextField(controller: vornameC, decoration: const InputDecoration(labelText: 'Vorname *', isDense: true, border: OutlineInputBorder()))),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(controller: nachnameC, decoration: const InputDecoration(labelText: 'Nachname *', isDense: true, border: OutlineInputBorder()))),
+        ]),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: qualifikation,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Qualifikation', isDense: true, border: OutlineInputBorder()),
+          items: qualifikationen.map((q) => DropdownMenuItem(value: q, child: Text(q, style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setD(() => qualifikation = v ?? 'Pflegefachperson'),
+        ),
+        const SizedBox(height: 12),
+        TextField(controller: notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz (optional, z.B. „Landkreis Ulm")', isDense: true, border: OutlineInputBorder())),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade700),
+          onPressed: () async {
+            if (vornameC.text.trim().isEmpty || nachnameC.text.trim().isEmpty) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Vorname und Nachname sind Pflicht'), backgroundColor: Colors.orange));
+              return;
+            }
+            try {
+              final res = await widget.apiService.saveMdGutachter(widget.userId, {
+                'md_id': mdId,
+                'vorname': vornameC.text.trim(),
+                'nachname': nachnameC.text.trim(),
+                'qualifikation': qualifikation,
+                'notiz': notizC.text.trim(),
+              });
+              if (res['success'] != true) {
+                throw Exception(res['message'] ?? 'Server-Fehler');
+              }
+              final newId = res['id'] as int?;
+              final fullName = '${vornameC.text.trim()} ${nachnameC.text.trim()}';
+              setState(() {
+                _a['zweitgutachten_gutachter_id'] = newId?.toString() ?? '';
+                _a['zweitgutachten_gutachter_name'] = fullName;
+                _gutachterLoaded = false;
+                _gutachterLoadedForMdId = null;
+              });
+              await _loadGutachterList(mdId);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gutachter „$fullName" angelegt und ausgewählt'), backgroundColor: Colors.green));
+            } catch (e) {
+              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+            }
+          },
+          child: const Text('Anlegen'),
+        ),
+      ],
+    )));
+  }
+
   Future<void> _pick(TextEditingController c) async {
     final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime(2040), locale: const Locale('de'));
     if (p != null) c.text = '${p.day.toString().padLeft(2,'0')}.${p.month.toString().padLeft(2,'0')}.${p.year}';
@@ -1013,6 +1097,8 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
         'widerspruch_zweitgutachten_datum': _zgDatumC.text.trim(),
         'zweitgutachten_md_id': _s('zweitgutachten_md_id'),
         'zweitgutachten_md_name': _s('zweitgutachten_md_name'),
+        'zweitgutachten_gutachter_id': _s('zweitgutachten_gutachter_id'),
+        'zweitgutachten_gutachter_name': _s('zweitgutachten_gutachter_name'),
         'widerspruch_bescheid_datum': _bescheidDatumC.text.trim(),
         'widerspruch_bescheid_ergebnis': _bescheidErgebnisC.text.trim(),
         'widerspruch_bescheid_pflegegrad': _bescheidPg,
@@ -1244,15 +1330,24 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
           ),
         ),
         onSelected: (m) {
+          final mdId = int.tryParse(m['id']?.toString() ?? '');
           setState(() {
             _a['zweitgutachten_md_id'] = m['id']?.toString() ?? '';
             _a['zweitgutachten_md_name'] = m['name']?.toString() ?? '';
+            // Ausgewählten Gutachter zurücksetzen — er gehört zum vorherigen MD.
+            _a['zweitgutachten_gutachter_id'] = '';
+            _a['zweitgutachten_gutachter_name'] = '';
+            _gutachterLoaded = false;
+            _gutachterLoadedForMdId = null;
           });
+          if (mdId != null) _loadGutachterList(mdId);
         },
       ),
       if (selectedMd != null) ...[
         const SizedBox(height: 10),
         _buildMdCard(selectedMd),
+        const SizedBox(height: 16),
+        _buildGutachterSection(selectedMd),
       ],
 
       const SizedBox(height: 20),
@@ -1314,6 +1409,144 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
       Expanded(child: SelectableText(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
     ]),
   );
+
+  Widget _buildGutachterSection(Map<String, dynamic> md) {
+    final mdId = int.tryParse(md['id']?.toString() ?? '') ?? 0;
+    // Autoload beim ersten Aufruf der Section.
+    if (mdId > 0 && _gutachterLoadedForMdId != mdId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadGutachterList(mdId));
+    }
+    final selGutachterId = int.tryParse(_s('zweitgutachten_gutachter_id'));
+    Map<String, dynamic>? selectedG;
+    if (selGutachterId != null) {
+      selectedG = _gutachterList.firstWhere(
+        (g) => (g['id'] as int?) == selGutachterId || int.tryParse(g['id'].toString()) == selGutachterId,
+        orElse: () => {},
+      );
+      if (selectedG.isEmpty) selectedG = null;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.deepPurple.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.person_search, size: 16, color: Colors.deepPurple.shade700),
+          const SizedBox(width: 6),
+          Text('Gutachter (Person)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+          const Spacer(),
+          if (_gutachterLoaded)
+            Text('${_gutachterList.length} registriert für ${md['kuerzel'] ?? md['name']}',
+                 style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        ]),
+        const SizedBox(height: 8),
+        if (!_gutachterLoaded)
+          const Padding(padding: EdgeInsets.all(8), child: Row(children: [
+            SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 8),
+            Text('Lade Gutachter…', style: TextStyle(fontSize: 11)),
+          ]))
+        else if (_gutachterList.isEmpty)
+          Padding(padding: const EdgeInsets.all(4), child: Text(
+            'Noch kein Gutachter für ${md['kuerzel'] ?? md['name']} registriert.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+          ))
+        else Autocomplete<Map<String, dynamic>>(
+          initialValue: TextEditingValue(text: _s('zweitgutachten_gutachter_name')),
+          displayStringForOption: (g) => '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(),
+          optionsBuilder: (txt) {
+            final q = txt.text.trim().toLowerCase();
+            if (q.isEmpty) return _gutachterList;
+            return _gutachterList.where((g) =>
+              (g['vorname']?.toString() ?? '').toLowerCase().contains(q) ||
+              (g['nachname']?.toString() ?? '').toLowerCase().contains(q) ||
+              (g['qualifikation']?.toString() ?? '').toLowerCase().contains(q) ||
+              (g['notiz']?.toString() ?? '').toLowerCase().contains(q));
+          },
+          fieldViewBuilder: (ctx, controller, focusNode, onSubmit) => TextField(
+            controller: controller, focusNode: focusNode,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search, size: 18),
+              suffixIcon: controller.text.isNotEmpty
+                  ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () {
+                      controller.clear();
+                      setState(() {
+                        _a['zweitgutachten_gutachter_id'] = '';
+                        _a['zweitgutachten_gutachter_name'] = '';
+                      });
+                    })
+                  : null,
+              hintText: 'Gutachter suchen (Vorname, Nachname, Qualifikation)…',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            ),
+          ),
+          optionsViewBuilder: (ctx, onSel, options) => Align(
+            alignment: Alignment.topLeft,
+            child: Material(elevation: 4, borderRadius: BorderRadius.circular(6),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300, maxWidth: 560),
+                child: ListView(padding: EdgeInsets.zero, shrinkWrap: true,
+                  children: options.map((g) => InkWell(
+                    onTap: () => onSel(g),
+                    child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      if ((g['qualifikation']?.toString() ?? '').isNotEmpty)
+                        Text(g['qualifikation'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade600)),
+                      if ((g['notiz']?.toString() ?? '').isNotEmpty)
+                        Text(g['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                    ])),
+                  )).toList(),
+                ),
+              ),
+            ),
+          ),
+          onSelected: (g) {
+            setState(() {
+              _a['zweitgutachten_gutachter_id'] = g['id']?.toString() ?? '';
+              _a['zweitgutachten_gutachter_name'] = '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim();
+            });
+          },
+        ),
+        if (selectedG != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade400, width: 1.5)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.person, size: 22, color: Colors.deepPurple.shade700),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SelectableText('${selectedG['vorname'] ?? ''} ${selectedG['nachname'] ?? ''}'.trim(),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900)),
+                if ((selectedG['qualifikation']?.toString() ?? '').isNotEmpty)
+                  Text(selectedG['qualifikation'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700)),
+                if ((selectedG['notiz']?.toString() ?? '').isNotEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 2),
+                    child: Text(selectedG['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
+              ])),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          icon: Icon(Icons.person_add, size: 14, color: Colors.deepPurple.shade700),
+          label: Text('Neuen Gutachter für ${md['kuerzel'] ?? md['name']} anlegen', style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.deepPurple.shade400),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            minimumSize: Size.zero,
+          ),
+          onPressed: () => _showNeuerGutachterDialog(mdId, md['name']?.toString() ?? ''),
+        ),
+      ]),
+    );
+  }
 
   Widget _buildBescheidTab() {
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

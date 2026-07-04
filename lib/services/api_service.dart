@@ -6333,6 +6333,19 @@ class ApiService {
     final r = await _client.get(Uri.parse('$baseUrl/admin/pflegegrad_manage.php?action=list_md'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  /// Gutachter je MD (verschlüsselt, Verein-shared).
+  Future<Map<String, dynamic>> listMdGutachter(int mdId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/pflegegrad_manage.php?action=list_gutachter&md_id=$mdId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveMdGutachter(int adminUserId, Map<String, dynamic> gutachter) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/pflegegrad_manage.php'), headers: _headers, body: jsonEncode({'user_id': adminUserId, 'action': 'save_gutachter', 'gutachter': gutachter})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteMdGutachter(int adminUserId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/pflegegrad_manage.php'), headers: _headers, body: jsonEncode({'user_id': adminUserId, 'action': 'delete_gutachter', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
 
   // ── Deutsche Bahn (MSZ — Mobilitätsservice-Zentrale) ──
   Future<Map<String, dynamic>> getDeutscheBahnData(int userId) async {
