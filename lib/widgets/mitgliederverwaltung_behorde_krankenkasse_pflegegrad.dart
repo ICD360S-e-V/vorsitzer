@@ -517,10 +517,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: SizedBox(width: 780, height: 640, child: Column(children: [
+        child: SizedBox(width: 820, height: 660, child: Column(children: [
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
             child: Row(children: [
@@ -545,7 +545,12 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
                 const SizedBox(width: 4), const Text('Details'),
               ])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _s('bescheid_datum').isNotEmpty ? Colors.green : Colors.red),
+                Icon(Icons.circle, size: 8, color: _begutachtungDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
+                const SizedBox(width: 4), const Icon(Icons.medical_information, size: 16),
+                const SizedBox(width: 4), const Text('Begutachtung'),
+              ])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: _bescheidDatumC.text.isNotEmpty ? Colors.green : Colors.red),
                 const SizedBox(width: 4), const Icon(Icons.assignment_turned_in, size: 16),
                 const SizedBox(width: 4), const Text('Bescheid'),
               ])),
@@ -558,6 +563,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           ),
           Expanded(child: TabBarView(children: [
             _buildDetailsTab(),
+            _buildBegutachtungTab(),
             _buildBescheidTab(),
             _buildWiderspruchTab(),
           ])),
@@ -592,10 +598,15 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     ]));
   }
 
-  Widget _buildBescheidTab() {
+  Widget _buildBegutachtungTab() {
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _sectionHeader(Icons.medical_information, 'MD-Begutachtung', Colors.blue),
       const SizedBox(height: 8),
+      Text(
+        'Termin und Ort der Begutachtung durch den Medizinischen Dienst zum Erstantrag.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 14),
       Row(children: [
         Expanded(child: TextField(
           controller: _begutachtungDatumC, readOnly: true,
@@ -613,10 +624,26 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       ]),
       const SizedBox(height: 10),
       TextField(controller: _gutachterC, decoration: const InputDecoration(labelText: 'Gutachter (Name / MDK-Nr.)', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 16),
+      _actionRow(
+        primaryLabel: 'Begutachtung speichern',
+        primaryStatus: _begutachtungDatumC.text.isNotEmpty ? 'begutachtung' : (_s('status').isEmpty ? 'offen' : _s('status')),
+      ),
+    ]));
+  }
 
-      const SizedBox(height: 20),
+  Widget _buildBescheidTab() {
+    final antragId = (widget.antrag['id'] is int)
+        ? widget.antrag['id'] as int
+        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _sectionHeader(Icons.assignment_turned_in, 'Bescheid der Pflegekasse', Colors.green),
       const SizedBox(height: 8),
+      Text(
+        'Ergebnis der Erstbegutachtung — Datum, gültig ab, Ergebnistext. Ca. 1-2 Wochen nach der Begutachtung erhalten Sie den Bescheid.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 14),
       Row(children: [
         Expanded(child: TextField(
           controller: _bescheidDatumC, readOnly: true,
@@ -644,6 +671,26 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
           )),
         ]),
+      ),
+      const SizedBox(height: 20),
+      Row(children: [
+        Icon(Icons.upload_file, size: 16, color: Colors.green.shade700),
+        const SizedBox(width: 6),
+        Text('Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+      ]),
+      const SizedBox(height: 4),
+      Text(
+        'Bescheid der Pflegekasse (PDF/JPG/PNG). Mehrere Dateien können gleichzeitig hochgeladen werden.',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 260,
+        child: KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'pflegegrad_bescheid',
+          korrespondenzId: antragId,
+        ),
       ),
       const SizedBox(height: 16),
       _actionRow(
