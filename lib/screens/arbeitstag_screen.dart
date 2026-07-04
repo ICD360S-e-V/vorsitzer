@@ -161,6 +161,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       case 'ticket':  currentSelectionId = m.ticketId; break;
       case 'termin':  currentSelectionId = m.terminId; break;
       case 'routine': currentSelectionId = m.routineExecutionId; break;
+      case 'notfall': currentSelectionId = m.notfallTerminId; break;
     }
 
     final items = await _svc.getPickerItems(
@@ -198,6 +199,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       case 'ticket':  return 'Keine offenen Tickets für dieses Mitglied';
       case 'termin':  return 'Keine Termine an diesem Tag';
       case 'routine': return 'Keine Routinen an diesem Tag';
+      case 'notfall': return 'Keine Termine an diesem Tag';
       default: return 'Keine Einträge';
     }
   }
@@ -207,6 +209,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       case 'ticket': return 'Ticket';
       case 'termin': return 'Termin';
       case 'routine': return 'Routine';
+      case 'notfall': return 'Notfall Termin';
       default: return typ;
     }
   }
@@ -411,7 +414,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                       ],
                     ],
                   ),
-                  if (m.ticketSubject != null || m.terminTitle != null)
+                  if (m.ticketSubject != null || m.terminTitle != null || m.notfallTerminTitle != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Wrap(
@@ -423,6 +426,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                           if (m.terminTitle != null)
                             Text('📅 ${m.terminTitle}',
                                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+                          if (m.notfallTerminTitle != null)
+                            Text('🚨 ${m.notfallTerminTitle}',
+                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.red.shade700)),
                         ],
                       ),
                     ),
@@ -435,6 +441,8 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               _stateChip(m, 'Termin', 'termin', m.terminState, m.termineHeuteCount),
               const SizedBox(width: 6),
               _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesHeuteCount),
+              const SizedBox(width: 6),
+              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.termineHeuteCount),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () => _archiveMember(m),
@@ -471,6 +479,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       case 'ticket':  return Icons.confirmation_number;
       case 'termin':  return Icons.calendar_month;
       case 'routine': return Icons.repeat;
+      case 'notfall': return Icons.emergency;
       default: return Icons.circle_outlined;
     }
   }

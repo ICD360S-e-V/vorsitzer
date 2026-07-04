@@ -63,6 +63,12 @@ class ArbeitstagMember {
   final int? routineExecutionId;
   final String routineState;
 
+  final DateTime? notfallDoneAt;
+  final int? notfallTerminId;
+  final String? notfallTerminTitle;
+  final DateTime? notfallTerminDate;
+  final String notfallState;
+
   final int prioritaet;
   final String? prioGrund;
   final int? bearbeiterUserId;
@@ -95,6 +101,11 @@ class ArbeitstagMember {
     this.routineDoneAt,
     this.routineExecutionId,
     this.routineState = 'offen',
+    this.notfallDoneAt,
+    this.notfallTerminId,
+    this.notfallTerminTitle,
+    this.notfallTerminDate,
+    this.notfallState = 'offen',
     required this.prioritaet,
     this.prioGrund,
     this.bearbeiterUserId,
@@ -112,6 +123,8 @@ class ArbeitstagMember {
   bool get ticketDone  => ticketState == 'erledigt';
   bool get terminDone  => terminState == 'erledigt';
   bool get routineDone => routineState == 'erledigt';
+  bool get notfallDone => notfallState == 'erledigt';
+  // "allDone" NU include notfall — e slot opțional, ne-standard
   bool get allDone => ticketDone && terminDone && routineDone;
 
   String stateFor(String typ) {
@@ -119,6 +132,7 @@ class ArbeitstagMember {
       case 'ticket':  return ticketState;
       case 'termin':  return terminState;
       case 'routine': return routineState;
+      case 'notfall': return notfallState;
       default: return 'offen';
     }
   }
@@ -142,6 +156,11 @@ class ArbeitstagMember {
         routineDoneAt: _dt(j['routine_done_at']),
         routineExecutionId: _intN(j['routine_execution_id']),
         routineState: j['routine_state'] ?? 'offen',
+        notfallDoneAt: _dt(j['notfall_done_at']),
+        notfallTerminId: _intN(j['notfall_termin_id']),
+        notfallTerminTitle: j['notfall_termin_title'],
+        notfallTerminDate: _dt(j['notfall_termin_date']),
+        notfallState: j['notfall_state'] ?? 'offen',
         prioritaet: _int(j['prioritaet']),
         prioGrund: j['prio_grund'],
         bearbeiterUserId: _intN(j['bearbeiter_user_id']),
