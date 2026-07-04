@@ -255,38 +255,125 @@ class TerminRouteService {
   }
 
   /// Try each candidate address until one returns non-empty results.
-  /// Results are re-ranked so entries whose name matches query keywords rise
-  /// to the top — the raw autocomplete order is often globally alphabetical,
-  /// so "Adenauerplatz 15, 89073 Ulm" would otherwise return Berlin's
-  /// Adenauerplatz as top hit.
+  /// Results are re-ranked with a strict city filter so entries far from
+  /// the queried city (like "Jobcenter Tirschenreuth" for a "Jobcenter Ulm"
+  /// query) never win, even when EFA has no proper match locally.
+  ///
+  /// If ranking drops all results because no entry mentions the queried city,
+  /// we fall back to a city-only search — targeting the city centre so the
+  /// user at least gets a plausible arrival station (city Hbf / centre) rather
+  /// than a same-name POI 300 km away.
   Future<List<TransitLocation>> _resolveFirstNonEmpty(List<String> candidates) async {
     for (final q in candidates) {
       _log.info('TerminRoute: trying candidate="$q"', tag: 'TERMIN_ROUTE');
       final r = await _transitService.searchLocations(q);
-      if (r.isNotEmpty) {
-        final ranked = _rankByQueryMatch(r, q);
-        _log.info(
-          'TerminRoute: candidate="$q" → ${r.length} raw, top after rank="${ranked.first.name}" (${ranked.first.type})',
-          tag: 'TERMIN_ROUTE',
-        );
-        return ranked;
+      if (r.isEmpty) continue;
+
+      final cityHint = _extractCityHint(q);
+      final ranked = _rankByQueryMatch(r, q);
+
+      // If the strict city filter should have applied but nothing survived,
+      // fall back to searching for the city's Hauptbahnhof — that resolves
+      // to a real, well-known stop instead of a same-name POI elsewhere.
+      if (cityHint != null && cityHint.length >= 3) {
+        final anyMatchesCity = ranked.any((l) => l.name.toLowerCase().contains(cityHint));
+        if (!anyMatchesCity) {
+          for (final variant in ['$cityHint Hbf', '$cityHint Hauptbahnhof', '$cityHint Bahnhof']) {
+            _log.info('TerminRoute: no city match — trying "$variant"', tag: 'TERMIN_ROUTE');
+            final r = await _transitService.searchLocations(variant);
+            // Keep only results that actually contain the target city
+            final cityStops = r.where((l) => l.name.toLowerCase().contains(cityHint)).toList();
+            if (cityStops.isNotEmpty) {
+              _log.info('TerminRoute: fallback "$variant" → top="${cityStops.first.name}"', tag: 'TERMIN_ROUTE');
+              return cityStops;
+            }
+          }
+        }
       }
+
+      _log.info(
+        'TerminRoute: candidate="$q" → ${r.length} raw, top after rank="${ranked.first.name}" (${ranked.first.type})',
+        tag: 'TERMIN_ROUTE',
+      );
+      return ranked;
     }
     _log.info('TerminRoute: all ${candidates.length} candidates returned empty', tag: 'TERMIN_ROUTE');
     return [];
   }
 
+  /// Extract the target city name from a query. Mirrors the logic in
+  /// [_rankByQueryMatch] so filter + fallback stay consistent.
+  String? _extractCityHint(String query) {
+    final plzCity = RegExp(r'\b\d{5}\s+([A-Za-zÄÖÜäöüß][\w\-]+)').firstMatch(query);
+    if (plzCity != null) return plzCity.group(1)!.toLowerCase();
+    if (query.contains(',')) {
+      final tail = query.split(',').last.trim();
+      return tail.replaceAll(RegExp(r'^\d{5}\s*'), '').toLowerCase();
+    }
+    final tokens = query.split(RegExp(r'\s+')).where((t) => t.length >= 3).toList();
+    if (tokens.length >= 2) {
+      final last = tokens.last;
+      if (RegExp(r'^[A-ZÄÖÜ]').hasMatch(last)) return last.toLowerCase();
+    }
+    return null;
+  }
+
   /// Score-sort results by how well their name matches the query.
-  /// A query "Adenauerplatz 15, 89073 Ulm" boosts entries whose name contains
-  /// "adenauerplatz" AND "ulm" — so Ulm's beats Berlin's.
+  /// Two-pass:
+  ///   1. STRICT filter — if a city hint (from PLZ+city or last capitalized
+  ///      word) is present, drop results whose name doesn't contain it.
+  ///      This kills the classic "Jobcenter Ulm" → Tirschenreuth trap
+  ///      (a Jobcenter in Bavaria, 300km away).
+  ///   2. Rank remaining results by keyword + PLZ + type matches.
+  /// Falls back to unfiltered when strict filter empties (e.g. rural queries).
   List<TransitLocation> _rankByQueryMatch(List<TransitLocation> results, String query) {
-    final words = query
-        .toLowerCase()
+    final lower = query.toLowerCase();
+    final words = lower
         .split(RegExp(r'[\s,;/\.]+'))
         .where((w) => w.length >= 3 && !RegExp(r'^\d{1,2}$').hasMatch(w))
         .toList();
-    // PLZ digits (5) get their own strong weight
     final plz = RegExp(r'\b(\d{5})\b').firstMatch(query)?.group(1);
+
+    // Extract "city hint" — the town whose transit network should be searched.
+    // Preference order:
+    //   1. After a PLZ:                "Neue Straße 100, 89073 Ulm" → "ulm"
+    //   2. After the last comma:       "Praxis Meyer, Neu-Ulm"      → "neu-ulm"
+    //   3. Last capitalized word ≥3ch: "Jobcenter Ulm"              → "ulm"
+    String? cityHint;
+    final plzCity = RegExp(r'\b\d{5}\s+([A-Za-zÄÖÜäöüß][\w\-]+)').firstMatch(query);
+    if (plzCity != null) {
+      cityHint = plzCity.group(1)!.toLowerCase();
+    } else if (query.contains(',')) {
+      cityHint = query.split(',').last.trim().toLowerCase();
+      // Drop any trailing PLZ if present
+      cityHint = cityHint.replaceAll(RegExp(r'^\d{5}\s*'), '');
+    } else {
+      // Fallback: last capitalized ≥3 chars word
+      final tokens = query.split(RegExp(r'\s+')).where((t) => t.length >= 3).toList();
+      if (tokens.length >= 2) {
+        final last = tokens.last;
+        if (RegExp(r'^[A-ZÄÖÜ]').hasMatch(last)) {
+          cityHint = last.toLowerCase();
+        }
+      }
+    }
+
+    // STRICT city-based filter
+    List<TransitLocation> base = results;
+    if (cityHint != null && cityHint.length >= 3) {
+      final hint = cityHint;
+      final filtered = results.where((r) {
+        final name = r.name.toLowerCase();
+        return name.contains(hint);
+      }).toList();
+      if (filtered.isNotEmpty) {
+        base = filtered;
+      } else {
+        // No hit for city — probably a Behörde name unknown to EFA. Keep going
+        // with all results but log so we can diagnose why nothing matched.
+        // No log helper visible here; the caller already logs the candidate.
+      }
+    }
 
     int score(TransitLocation l) {
       final name = l.name.toLowerCase();
@@ -295,7 +382,7 @@ class TerminRouteService {
         if (name.contains(w)) s += 20;
       }
       if (plz != null && name.contains(plz)) s += 30;
-      // Type preferences
+      if (cityHint != null && name.contains(cityHint)) s += 50; // strong city boost
       switch (l.type) {
         case 'stop': s += 12; break;
         case 'singlehouse': s += 10; break;
@@ -305,7 +392,7 @@ class TerminRouteService {
       return s;
     }
 
-    final sorted = List<TransitLocation>.from(results);
+    final sorted = List<TransitLocation>.from(base);
     sorted.sort((a, b) => score(b).compareTo(score(a)));
     return sorted;
   }
