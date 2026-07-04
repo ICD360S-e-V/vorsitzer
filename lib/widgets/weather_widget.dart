@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/clothing_advice.dart';
+import '../services/weather_history_service.dart';
 import '../services/weather_service.dart';
 
 /// Emoji font fallback list — applied per-Text ONLY on widgets that render
@@ -245,6 +246,11 @@ class _WeatherDialogState extends State<WeatherDialog> {
   void Function(List<WeatherAlert>)? _prevAlertsCb;
   void Function(AirQualityData)? _prevAirQualityCb;
 
+  // Historical comparison — lazy-loaded when the user hits the Woche tab.
+  final _historyService = WeatherHistoryService();
+  List<HistoricalWeekSummary>? _history;
+  bool _historyLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -264,6 +270,35 @@ class _WeatherDialogState extends State<WeatherDialog> {
       _prevAirQualityCb?.call(a);
       if (mounted) setState(() {});
     };
+    _maybeLoadHistory();
+  }
+
+  void _maybeLoadHistory() {
+    final lat = widget.service.latitude;
+    final lon = widget.service.longitude;
+    if (lat == null || lon == null) return;
+    if (_historyLoading || _history != null) return;
+    _historyLoading = true;
+    final weekStart = _weekStartMonday(DateTime.now());
+    _historyService
+        .fetchWeekComparison(lat: lat, lon: lon, weekStart: weekStart)
+        .then((rows) {
+      if (!mounted) return;
+      setState(() {
+        _history = rows;
+        _historyLoading = false;
+      });
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() {
+        _historyLoading = false;
+      });
+    });
+  }
+
+  static DateTime _weekStartMonday(DateTime d) {
+    final base = DateTime(d.year, d.month, d.day);
+    return base.subtract(Duration(days: base.weekday - 1));
   }
 
   @override
@@ -642,7 +677,13 @@ class _WeatherDialogState extends State<WeatherDialog> {
         ),
       );
     }
-    return _RainRadarView(centerLat: lat, centerLon: lon);
+    // Auto-play the radar loop when precipitation is imminent — a bit of
+    // motion draws the eye and makes the "rain incoming" state obvious.
+    return _RainRadarView(
+      centerLat: lat,
+      centerLon: lon,
+      autoPlay: widget.service.hasImminentPrecipitation(),
+    );
   }
 
   Widget _buildDreiTageTab(List<DailyForecast> next3Days, DateFormat dfDay) {
@@ -657,66 +698,92 @@ class _WeatherDialogState extends State<WeatherDialog> {
 
   Widget _buildWocheTab(List<DailyForecast> weekForecast, DateFormat dfDayShort, DateTime now) {
     if (weekForecast.isEmpty) return const Center(child: Text('Keine Vorhersage verfügbar'));
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: weekForecast.length,
-      itemBuilder: (_, i) {
-        final d = weekForecast[i];
-        final isToday = d.date.day == now.day && d.date.month == now.month;
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: isToday ? Colors.blue.shade50 : (i.isEven ? Colors.grey.shade50 : null),
-            borderRadius: BorderRadius.circular(8),
-            border: isToday ? Border.all(color: Colors.blue.shade200) : null,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _WeeklyTrendChart(week: weekForecast, today: now),
+          const SizedBox(height: 12),
+          _HistoricalComparisonCard(
+            current: weekForecast,
+            history: _history,
+            isLoading: _historyLoading,
           ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 35,
-                child: Text(
-                  isToday ? 'Heu.' : dfDayShort.format(d.date),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
+          const SizedBox(height: 12),
+          ..._buildWeekList(weekForecast, dfDayShort, now),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildWeekList(List<DailyForecast> weekForecast, DateFormat dfDayShort, DateTime now) {
+    return List.generate(weekForecast.length, (i) {
+      final d = weekForecast[i];
+      final isToday = d.date.day == now.day && d.date.month == now.month;
+      return _weekListRow(d, dfDayShort, isToday, i, weekForecast);
+    });
+  }
+
+  Widget _weekListRow(
+    DailyForecast d,
+    DateFormat dfDayShort,
+    bool isToday,
+    int i,
+    List<DailyForecast> weekForecast,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isToday ? Colors.blue.shade50 : (i.isEven ? Colors.grey.shade50 : null),
+        borderRadius: BorderRadius.circular(8),
+        border: isToday ? Border.all(color: Colors.blue.shade200) : null,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 35,
+            child: Text(
+              isToday ? 'Heu.' : dfDayShort.format(d.date),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
               ),
-              const SizedBox(width: 6),
-              Text(d.icon, style: const TextStyle(fontSize: 20)),
-              const SizedBox(width: 10),
-              Text('${d.tempMin.toStringAsFixed(0)}°',
-                  style: TextStyle(fontSize: 13, color: Colors.blue.shade700)),
-              const SizedBox(width: 4),
-              Expanded(child: _buildTempRangeBar(d.tempMin, d.tempMax, weekForecast)),
-              const SizedBox(width: 4),
-              Text(
-                '${d.tempMax.toStringAsFixed(0)}°',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
-              ),
-              const SizedBox(width: 10),
-              if (d.precipitationSum > 0) ...[
-                Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400),
-                Text(
-                  d.precipitationSum.toStringAsFixed(1),
-                  style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
-                ),
-                const SizedBox(width: 6),
-              ],
-              Icon(Icons.air, size: 14, color: Colors.grey.shade400),
-              const SizedBox(width: 2),
-              SizedBox(
-                width: 30,
-                child: Text(
-                  d.windSpeedMax.toStringAsFixed(0),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+          const SizedBox(width: 6),
+          Text(d.icon, style: _emojiStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Text('${d.tempMin.toStringAsFixed(0)}°',
+              style: TextStyle(fontSize: 13, color: Colors.blue.shade700)),
+          const SizedBox(width: 4),
+          Expanded(child: _buildTempRangeBar(d.tempMin, d.tempMax, weekForecast)),
+          const SizedBox(width: 4),
+          Text(
+            '${d.tempMax.toStringAsFixed(0)}°',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+          ),
+          const SizedBox(width: 10),
+          if (d.precipitationSum > 0) ...[
+            Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400),
+            Text(
+              d.precipitationSum.toStringAsFixed(1),
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Icon(Icons.air, size: 14, color: Colors.grey.shade400),
+          const SizedBox(width: 2),
+          SizedBox(
+            width: 30,
+            child: Text(
+              d.windSpeedMax.toStringAsFixed(0),
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1503,6 +1570,462 @@ class HealthAlertBanner extends StatelessWidget {
   }
 }
 
+/// 7-day trend visualisation: two temperature lines (max/min) with a filled
+/// gradient in between, and blue precipitation bars underneath. Zero external
+/// dependencies — everything drawn with CustomPainter so we don't drag in a
+/// charts package (and its version conflicts).
+class _WeeklyTrendChart extends StatelessWidget {
+  final List<DailyForecast> week;
+  final DateTime today;
+
+  const _WeeklyTrendChart({required this.week, required this.today});
+
+  @override
+  Widget build(BuildContext context) {
+    if (week.isEmpty) return const SizedBox.shrink();
+    final dfShort = DateFormat('E', 'de_DE');
+    // Compute the shared temperature range so both lines share the same scale.
+    double minT = week.map((d) => d.tempMin).reduce((a, b) => a < b ? a : b);
+    double maxT = week.map((d) => d.tempMax).reduce((a, b) => a > b ? a : b);
+    // Pad the range so the lines don't hug the frame edges.
+    minT = (minT - 3).floorToDouble();
+    maxT = (maxT + 3).ceilToDouble();
+    double maxPrecip = week.map((d) => d.precipitationSum).fold(0, (a, b) => a > b ? a : b);
+    if (maxPrecip < 2) maxPrecip = 2;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.show_chart, size: 16, color: Colors.grey.shade700),
+              const SizedBox(width: 6),
+              Text('7-Tage-Trend',
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+              const Spacer(),
+              _legendDot(Colors.orange.shade700, 'Max'),
+              const SizedBox(width: 6),
+              _legendDot(Colors.blue.shade700, 'Min'),
+              const SizedBox(width: 6),
+              _legendDot(Colors.blue.shade300, 'Regen'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 150,
+            child: LayoutBuilder(builder: (context, constraints) {
+              return CustomPaint(
+                size: Size(constraints.maxWidth, 150),
+                painter: _WeeklyTrendPainter(
+                  week: week,
+                  today: today,
+                  minT: minT,
+                  maxT: maxT,
+                  maxPrecip: maxPrecip,
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: week.map((d) {
+              final isToday = d.date.day == today.day && d.date.month == today.month;
+              return Text(
+                isToday ? 'Heu.' : dfShort.format(d.date),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                  color: isToday ? Colors.blue.shade900 : Colors.grey.shade700,
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 3),
+      Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+    ]);
+  }
+}
+
+class _WeeklyTrendPainter extends CustomPainter {
+  final List<DailyForecast> week;
+  final DateTime today;
+  final double minT;
+  final double maxT;
+  final double maxPrecip;
+
+  _WeeklyTrendPainter({
+    required this.week,
+    required this.today,
+    required this.minT,
+    required this.maxT,
+    required this.maxPrecip,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (week.isEmpty) return;
+    // Split canvas: top 70% for temperature lines, bottom 30% for precip bars.
+    final tempH = size.height * 0.72;
+    final precipH = size.height - tempH - 4;
+
+    final xStep = size.width / (week.length - 1).clamp(1, 100);
+
+    // Grid lines behind the plot area — 4 horizontal gridlines.
+    final gridPaint = Paint()
+      ..color = Colors.grey.shade300
+      ..strokeWidth = 0.5;
+    for (int i = 0; i <= 3; i++) {
+      final y = tempH * i / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    // Y-axis temp labels on the left (min at bottom, max at top).
+    final rangeT = maxT - minT;
+    for (int i = 0; i <= 3; i++) {
+      final t = maxT - rangeT * i / 3;
+      final y = tempH * i / 3;
+      _drawText(canvas, '${t.toStringAsFixed(0)}°',
+          Offset(2, y - 6), 9, Colors.grey.shade600);
+    }
+
+    // Points for the two lines.
+    final maxPts = <Offset>[];
+    final minPts = <Offset>[];
+    for (int i = 0; i < week.length; i++) {
+      final d = week[i];
+      final x = i * xStep;
+      final yMax = tempH * (maxT - d.tempMax) / rangeT;
+      final yMin = tempH * (maxT - d.tempMin) / rangeT;
+      maxPts.add(Offset(x, yMax));
+      minPts.add(Offset(x, yMin));
+    }
+
+    // Gradient shading between min and max lines.
+    final fillPath = Path()..moveTo(maxPts.first.dx, maxPts.first.dy);
+    for (final p in maxPts) { fillPath.lineTo(p.dx, p.dy); }
+    for (final p in minPts.reversed) { fillPath.lineTo(p.dx, p.dy); }
+    fillPath.close();
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.orange.shade200.withValues(alpha: 0.4),
+            Colors.blue.shade200.withValues(alpha: 0.4),
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, tempH)),
+    );
+
+    // Max line (orange).
+    final maxLinePaint = Paint()
+      ..color = Colors.orange.shade700
+      ..strokeWidth = 2.2
+      ..style = PaintingStyle.stroke;
+    _drawPolyline(canvas, maxPts, maxLinePaint);
+
+    // Min line (blue).
+    final minLinePaint = Paint()
+      ..color = Colors.blue.shade700
+      ..strokeWidth = 2.2
+      ..style = PaintingStyle.stroke;
+    _drawPolyline(canvas, minPts, minLinePaint);
+
+    // Point markers + inline value labels.
+    for (int i = 0; i < week.length; i++) {
+      canvas.drawCircle(maxPts[i], 3, Paint()..color = Colors.orange.shade700);
+      canvas.drawCircle(minPts[i], 3, Paint()..color = Colors.blue.shade700);
+      _drawText(
+        canvas,
+        '${week[i].tempMax.toStringAsFixed(0)}°',
+        Offset(maxPts[i].dx - 8, maxPts[i].dy - 15),
+        10, Colors.orange.shade800, bold: true,
+      );
+      _drawText(
+        canvas,
+        '${week[i].tempMin.toStringAsFixed(0)}°',
+        Offset(minPts[i].dx - 8, minPts[i].dy + 4),
+        10, Colors.blue.shade800, bold: true,
+      );
+    }
+
+    // "Today" vertical guide.
+    for (int i = 0; i < week.length; i++) {
+      if (week[i].date.day == today.day && week[i].date.month == today.month) {
+        final x = i * xStep;
+        canvas.drawLine(
+          Offset(x, 0),
+          Offset(x, size.height),
+          Paint()
+            ..color = Colors.blue.shade900.withValues(alpha: 0.3)
+            ..strokeWidth = 1
+            ..strokeCap = StrokeCap.round,
+        );
+        break;
+      }
+    }
+
+    // Precipitation bars along the bottom band.
+    final precipTop = tempH + 4;
+    for (int i = 0; i < week.length; i++) {
+      final d = week[i];
+      if (d.precipitationSum <= 0) continue;
+      final barX = i * xStep - 8;
+      final ratio = (d.precipitationSum / maxPrecip).clamp(0.0, 1.0);
+      final h = precipH * ratio;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(barX, precipTop + (precipH - h), 16, h),
+          const Radius.circular(3),
+        ),
+        Paint()..color = Colors.blue.shade400,
+      );
+      _drawText(
+        canvas,
+        d.precipitationSum.toStringAsFixed(0),
+        Offset(barX + 2, precipTop + precipH - h - 12),
+        8, Colors.blue.shade800,
+      );
+    }
+  }
+
+  void _drawPolyline(Canvas canvas, List<Offset> pts, Paint paint) {
+    if (pts.length < 2) return;
+    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (int i = 1; i < pts.length; i++) {
+      path.lineTo(pts[i].dx, pts[i].dy);
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawText(Canvas canvas, String text, Offset at, double size, Color color,
+      {bool bold = false}) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: size,
+          color: color,
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    tp.paint(canvas, at);
+  }
+
+  @override
+  bool shouldRepaint(covariant _WeeklyTrendPainter old) =>
+      old.week != week || old.today != today ||
+      old.minT != minT || old.maxT != maxT || old.maxPrecip != maxPrecip;
+}
+
+/// Compare the current 7-day forecast against the same calendar week in the
+/// last 3 years. Data comes from [WeatherHistoryService] (cached forever, since
+/// historical daily numbers don't change).
+class _HistoricalComparisonCard extends StatelessWidget {
+  final List<DailyForecast> current;
+  final List<HistoricalWeekSummary>? history;
+  final bool isLoading;
+
+  const _HistoricalComparisonCard({
+    required this.current,
+    required this.history,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading && history == null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(children: [
+          const SizedBox(
+            width: 14, height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Text('Historische Daten laden…',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ]),
+      );
+    }
+    if (history == null || history!.isEmpty) return const SizedBox.shrink();
+
+    // Aggregate current week values.
+    final curMax = current.map((d) => d.tempMax).reduce((a, b) => a + b) / current.length;
+    final curMin = current.map((d) => d.tempMin).reduce((a, b) => a + b) / current.length;
+    final curRain = current.map((d) => d.precipitationSum).reduce((a, b) => a + b);
+
+    // 3-Jahres-Durchschnitt.
+    final histAvgMaxs = history!.map((h) => h.avgTempMax).whereType<double>().toList();
+    final histAvgMax = histAvgMaxs.isEmpty
+        ? null
+        : histAvgMaxs.reduce((a, b) => a + b) / histAvgMaxs.length;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.indigo.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.indigo.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history, size: 16, color: Colors.indigo.shade700),
+              const SizedBox(width: 6),
+              Text(
+                'Vergleich mit den letzten ${history!.length} Jahren',
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _row(
+            label: 'Diese Woche',
+            valueTop: 'Ø max ${curMax.toStringAsFixed(1)}°C',
+            valueBottom: 'Ø min ${curMin.toStringAsFixed(1)}°C · ${curRain.toStringAsFixed(0)} mm Regen',
+            color: Colors.indigo.shade900,
+            highlight: true,
+          ),
+          const Divider(height: 12),
+          for (final h in history!) ...[
+            _row(
+              label: _labelForYear(h.yearsAgo, h.start),
+              valueTop: h.avgTempMax != null
+                  ? 'Ø max ${h.avgTempMax!.toStringAsFixed(1)}°C'
+                  : '—',
+              valueBottom: 'Ø min ${h.avgTempMin?.toStringAsFixed(1) ?? "—"}°C · '
+                  '${h.totalPrecipitation?.toStringAsFixed(0) ?? "?"} mm Regen',
+              color: Colors.grey.shade800,
+              highlight: false,
+            ),
+            const SizedBox(height: 4),
+          ],
+          if (histAvgMax != null) ...[
+            const SizedBox(height: 4),
+            _deltaSummary(curMax, histAvgMax),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _labelForYear(int yearsAgo, DateTime start) {
+    final months = [
+      'Januar','Februar','März','April','Mai','Juni',
+      'Juli','August','September','Oktober','November','Dezember',
+    ];
+    final monthLabel = months[start.month - 1];
+    return 'Vor ${yearsAgo == 1 ? "1 Jahr" : "$yearsAgo Jahren"} '
+        '(${monthLabel} ${start.year})';
+  }
+
+  Widget _row({
+    required String label,
+    required String valueTop,
+    required String valueBottom,
+    required Color color,
+    required bool highlight,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 4,
+          child: Text(label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: highlight ? FontWeight.bold : FontWeight.w500,
+                color: color,
+              )),
+        ),
+        Expanded(
+          flex: 6,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(valueTop,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: highlight ? FontWeight.bold : FontWeight.w500,
+                      color: color)),
+              Text(valueBottom,
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _deltaSummary(double curMax, double histAvgMax) {
+    final delta = curMax - histAvgMax;
+    final absDelta = delta.abs();
+    if (absDelta < 0.5) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          '💡 Diese Woche entspricht dem ${history!.length}-Jahres-Durchschnitt',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+        ),
+      );
+    }
+    final warmer = delta > 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: warmer ? Colors.orange.shade100 : Colors.blue.shade100,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '💡 Diese Woche ${absDelta.toStringAsFixed(1)} °C '
+        '${warmer ? "wärmer" : "kälter"} als der '
+        '${history!.length}-Jahres-Durchschnitt',
+        style: TextStyle(
+            fontSize: 11,
+            color: warmer ? Colors.orange.shade900 : Colors.blue.shade900,
+            fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
 /// Rain radar overlay backed by RainViewer's free API and OpenStreetMap tiles.
 ///
 /// RainViewer publishes an animated tile pyramid updated every ~10 min covering
@@ -1512,8 +2035,13 @@ class HealthAlertBanner extends StatelessWidget {
 class _RainRadarView extends StatefulWidget {
   final double centerLat;
   final double centerLon;
+  final bool autoPlay;
 
-  const _RainRadarView({required this.centerLat, required this.centerLon});
+  const _RainRadarView({
+    required this.centerLat,
+    required this.centerLon,
+    this.autoPlay = false,
+  });
 
   @override
   State<_RainRadarView> createState() => _RainRadarViewState();
@@ -1576,6 +2104,12 @@ class _RainRadarViewState extends State<_RainRadarView> {
         _loading = false;
         _error = frames.isEmpty ? 'Keine Radar-Frames verfügbar.' : null;
       });
+      // Auto-play if the caller flagged incoming precipitation — restart from
+      // the oldest frame so the user actually sees the front approaching.
+      if (widget.autoPlay && frames.isNotEmpty && mounted) {
+        setState(() => _currentFrameIndex = 0);
+        _togglePlay();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() { _loading = false; _error = 'Radar-Fehler: $e'; });
