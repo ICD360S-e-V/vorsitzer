@@ -22,11 +22,14 @@ import 'korrespondenz_attachments_widget.dart';
 class MitgliederverwaltungBehordeKrankenkassePflegegrad extends StatefulWidget {
   final ApiService apiService;
   final int userId;
+  /// Mitglied (für Auto-Preselect des zuständigen MD anhand des Bundeslands).
+  final User? member;
 
   const MitgliederverwaltungBehordeKrankenkassePflegegrad({
     super.key,
     required this.apiService,
     required this.userId,
+    this.member,
   });
 
   @override
@@ -367,6 +370,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
       statusList: _statusList,
       begutachtungsorte: _begutachtungsorte,
       prettyStatus: _prettyStatus,
+      memberBundesland: widget.member?.bundesland,
       onSaved: () => _load(),
       onEdit: () { Navigator.pop(ctx); _showAntragDialog(existing: antrag); },
     ));
@@ -384,6 +388,7 @@ class _AntragDetailModal extends StatefulWidget {
   final List<String> statusList;
   final List<String> begutachtungsorte;
   final String Function(String) prettyStatus;
+  final String? memberBundesland;
   final VoidCallback onSaved;
   final VoidCallback onEdit;
 
@@ -397,6 +402,7 @@ class _AntragDetailModal extends StatefulWidget {
     required this.statusList,
     required this.begutachtungsorte,
     required this.prettyStatus,
+    this.memberBundesland,
     required this.onSaved,
     required this.onEdit,
   });
@@ -850,6 +856,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       userId: widget.userId,
       antragId: (_a['id'] is int) ? _a['id'] as int : int.tryParse(_a['id'].toString()) ?? 0,
       antrag: _a,
+      memberBundesland: widget.memberBundesland,
       onSaved: (updated) {
         // Merge back into parent state so the summary card refreshes.
         setState(() => _a.addAll(updated));
@@ -897,6 +904,7 @@ class _WiderspruchDetailModal extends StatefulWidget {
   final int userId;
   final int antragId;
   final Map<String, dynamic> antrag;
+  final String? memberBundesland;
   final void Function(Map<String, dynamic> updated) onSaved;
 
   const _WiderspruchDetailModal({
@@ -904,6 +912,7 @@ class _WiderspruchDetailModal extends StatefulWidget {
     required this.userId,
     required this.antragId,
     required this.antrag,
+    this.memberBundesland,
     required this.onSaved,
   });
 
@@ -934,6 +943,11 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
   List<Map<String, dynamic>> _mdList = [];
   bool _mdLoaded = false;
 
+  // Gutachter je aktuell ausgewähltem MD (verein-shared, verschlüsselt)
+  List<Map<String, dynamic>> _gutachterList = [];
+  bool _gutachterLoaded = false;
+  int? _gutachterLoadedForMdId;
+
   static const _methoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
   static const _pflegegrade = ['', '1', '2', '3', '4', '5'];
 
@@ -963,8 +977,52 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
           _mdList = (res['md'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
           _mdLoaded = true;
         });
+        // Auto-Preselect des zuständigen MD anhand des Bundeslands des Mitglieds,
+        // aber nur wenn noch keiner gewählt wurde.
+        if (_s('zweitgutachten_md_id').isEmpty && widget.memberBundesland != null && widget.memberBundesland!.trim().isNotEmpty) {
+          final auto = _findMdForBundesland(widget.memberBundesland!);
+          if (auto != null && mounted) {
+            final mdId = int.tryParse(auto['id']?.toString() ?? '') ?? 0;
+            setState(() {
+              _a['zweitgutachten_md_id'] = auto['id']?.toString() ?? '';
+              _a['zweitgutachten_md_name'] = auto['name']?.toString() ?? '';
+            });
+            if (mdId > 0) _loadGutachterList(mdId);
+          }
+        }
       }
     } catch (_) {}
+  }
+
+  /// Ordnet ein Bundesland dem passenden regionalen MD zu.
+  /// NRW-Fallback: MD Nordrhein (Regierungsbezirke Düsseldorf, Köln); für
+  /// Regierungsbezirke Arnsberg/Detmold/Münster kann der User manuell auf
+  /// MD Westfalen-Lippe umschalten.
+  Map<String, dynamic>? _findMdForBundesland(String bl) {
+    final needle = bl.trim().toLowerCase();
+    if (needle.isEmpty) return null;
+    // Erst exakter Match auf `bundeslaender`-Spalte (contains).
+    for (final md in _mdList) {
+      final blCol = (md['bundeslaender']?.toString() ?? '').toLowerCase();
+      if (blCol.contains(needle)) return md;
+    }
+    // Fallback: bekannte Abweichungen — Kurzformen ohne Bindestrich, etc.
+    final aliases = <String, String>{
+      'nrw': 'nordrhein-westfalen',
+      'sh': 'schleswig-holstein',
+      'mv': 'mecklenburg-vorpommern',
+      'bw': 'baden-württemberg',
+      'ba-wü': 'baden-württemberg',
+      'rlp': 'rheinland-pfalz',
+    };
+    final alias = aliases[needle];
+    if (alias != null) {
+      for (final md in _mdList) {
+        final blCol = (md['bundeslaender']?.toString() ?? '').toLowerCase();
+        if (blCol.contains(alias)) return md;
+      }
+    }
+    return null;
   }
 
   Future<void> _loadGutachterList(int mdId) async {

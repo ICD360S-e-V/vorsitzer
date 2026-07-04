@@ -703,6 +703,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           MitgliederverwaltungBehordeKrankenkassePflegegrad(
             apiService: widget.apiService,
             userId: widget.user.id,
+            member: widget.user,
           ),
         ])),
       ]),
