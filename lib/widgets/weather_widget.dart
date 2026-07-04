@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+// Whitelist only the widgets we use — flutter_map exports its own `Path`
+// (generic polyline) and re-exports `TextDirection`, both of which clash
+// with the `dart:ui` types the CustomPainter in this file needs.
+import 'package:flutter_map/flutter_map.dart'
+    show FlutterMap, MapController, MapOptions, TileLayer, MarkerLayer, Marker;
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
