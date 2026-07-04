@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
+import '../services/clothing_advice.dart';
 import '../services/weather_service.dart';
 
 /// Emoji font fallback list — applied per-Text ONLY on widgets that render
@@ -416,6 +417,23 @@ class _WeatherDialogState extends State<WeatherDialog> {
             const SizedBox(height: 10),
             _buildAstronomyCard(widget.service.currentAstronomy!),
           ],
+          // Anziehtipp — derived from current WeatherData + optional AirQuality
+          const SizedBox(height: 12),
+          Builder(builder: (_) {
+            final aq = widget.service.currentAirQuality;
+            final advice = computeClothingAdvice(
+              apparentTemp: weather.apparentTemperature,
+              temp: weather.temperature,
+              weatherCode: weather.weatherCode,
+              wind: weather.windSpeed,
+              precipProb: 0, // no probability for "now" — only forecast has it
+              precip: weather.precipitation,
+              uvIndex: weather.uvIndex ?? aq?.uvIndex,
+              humidity: weather.humidity,
+              durationMinutes: 60,
+            );
+            return ClothingAdviceCard(advice: advice, headline: 'Für jetzt');
+          }),
           // DWD Alerts
           if (alerts.isNotEmpty) ...[
             const SizedBox(height: 16),

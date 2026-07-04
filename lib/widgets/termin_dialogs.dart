@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../services/clothing_advice.dart';
 import '../services/termin_service.dart';
 import '../services/termin_weather_service.dart';
 import '../services/ticket_service.dart';
@@ -867,6 +868,7 @@ ICD360S e.V. Vorstand''';
                     if (termin.location.isNotEmpty)
                       _readOnlyRow(Icons.location_on, 'Ort', termin.location),
                     if (widget.weatherHint != null) _buildWeatherHintCard(widget.weatherHint!),
+                    if (widget.weatherHint != null) _buildTerminClothingCard(widget.weatherHint!),
                     if (widget.termin.location.trim().isNotEmpty) _buildRouteCard(),
                     if (termin.description.isNotEmpty)
                       _readOnlyRow(Icons.notes, 'Beschreibung', termin.description),
@@ -1120,6 +1122,29 @@ ICD360S e.V. Vorstand''';
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Personalised clothing/gear list for this exact Termin. Independent of
+  /// hasWarning — a sunny 22°C Termin still shows "T-Shirt + Sonnencreme".
+  Widget _buildTerminClothingCard(TerminWeatherHint hint) {
+    final advice = computeClothingAdvice(
+      apparentTemp: hint.apparentTemperature,
+      temp: hint.temperature,
+      weatherCode: hint.weatherCode,
+      wind: hint.windSpeed,
+      precipProb: hint.precipitationProbability,
+      precip: 0, // hourly precipitation not stored in hint; use probability
+      humidity: null,
+      durationMinutes: widget.termin.durationMinutes,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: ClothingAdviceCard(
+        advice: advice,
+        headline: '${DateFormat('HH:mm').format(widget.termin.terminDate)} · '
+            '${widget.termin.title.split(",").first.trim()}',
       ),
     );
   }
