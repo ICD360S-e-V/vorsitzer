@@ -440,7 +440,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   late TextEditingController _wsBescheidErgebnisC;
   String _wsBescheidPg = '';
 
-  // Tab 6: Klage
+  // Tab 7: Klage
   String _klageEingelegt = 'nein';
   late TextEditingController _klageDatumC;
   late TextEditingController _klageGerichtC;
@@ -450,7 +450,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   late TextEditingController _klageVerhandlungC;
   String _klageAnwalt = 'nein';
 
-  // Tab 7: Urteil (Klage-Bescheid)
+  // Tab 8: Drittgutachten (durch das Sozialgericht bestellt)
+  late TextEditingController _dgDatumC;
+
+  // Tab 9: Urteil (Klage-Bescheid)
   late TextEditingController _klageUrteilDatumC;
   late TextEditingController _klageUrteilErgC;
   String _klageUrteilPg = '';
@@ -499,6 +502,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     _klageBegC = TextEditingController(text: _s('klage_begruendung'));
     _klageVerhandlungC = TextEditingController(text: _s('klage_verhandlung_datum'));
     _klageAnwalt = _s('klage_anwalt').toLowerCase() == 'ja' ? 'ja' : 'nein';
+    // Drittgutachten
+    _dgDatumC = TextEditingController(text: _s('drittgutachten_datum'));
     // Urteil
     _klageUrteilDatumC = TextEditingController(text: _s('klage_urteil_datum'));
     _klageUrteilErgC = TextEditingController(text: _s('klage_urteil_ergebnis'));
@@ -648,7 +653,13 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'klage_anwalt_name': _klageAnwaltNameC.text.trim(),
         'klage_begruendung': _klageBegC.text.trim(),
         'klage_verhandlung_datum': _klageVerhandlungC.text.trim(),
-        // Tab 7: Urteil / Klage-Bescheid
+        // Tab 8: Drittgutachten
+        'drittgutachten_datum': _dgDatumC.text.trim(),
+        'drittgutachten_md_id': _s('drittgutachten_md_id'),
+        'drittgutachten_md_name': _s('drittgutachten_md_name'),
+        'drittgutachten_gutachter_id': _s('drittgutachten_gutachter_id'),
+        'drittgutachten_gutachter_name': _s('drittgutachten_gutachter_name'),
+        // Tab 9: Urteil / Klage-Bescheid
         'klage_urteil_datum': _klageUrteilDatumC.text.trim(),
         'klage_urteil_ergebnis': _klageUrteilErgC.text.trim(),
         'klage_urteil_pflegegrad': _klageUrteilPg,
@@ -672,7 +683,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 7,
+      length: 9,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: SizedBox(width: 900, height: 700, child: Column(children: [
@@ -700,8 +711,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
               _tabWithDot('Begutachtung', Icons.medical_information, _begutachtungDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
               _tabWithDot('Bescheid', Icons.assignment_turned_in, _bescheidDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
               _tabWithDot('Widerspruch', Icons.gavel, _widerspruchEingelegt == 'ja' ? Colors.orange : Colors.grey),
+              _tabWithDot('Zweitgutachten', Icons.assignment_ind, _wsZgDatumC.text.isNotEmpty ? Colors.deepPurple : Colors.grey),
               _tabWithDot('Bescheid', Icons.assignment_turned_in, _wsBescheidDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
               _tabWithDot('Klage', Icons.account_balance, _klageEingelegt == 'ja' ? Colors.red : Colors.grey),
+              _tabWithDot('Drittgutachten', Icons.assignment_ind, _dgDatumC.text.isNotEmpty ? Colors.deepPurple : Colors.grey),
               _tabWithDot('Bescheid', Icons.gavel_rounded, _klageUrteilDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
             ],
           ),
@@ -710,8 +723,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             _buildBegutachtungTab(),
             _buildBescheidTab(),
             _buildWiderspruchTab(),
+            _buildZweitgutachtenTab(),
             _buildWiderspruchBescheidTab(),
             _buildKlageTab(),
+            _buildDrittgutachtenTab(),
             _buildKlageBescheidTab(),
           ])),
           _buildBottomActionBar(),
@@ -867,9 +882,6 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
 
   // ── Tab 4: Widerspruch (inline: Datum, Methode, Anwalt, Begründung, Zweitgutachten + MD/Gutachter/Upload) ──
   Widget _buildWiderspruchTab() {
-    final antragId = (widget.antrag['id'] is int)
-        ? widget.antrag['id'] as int
-        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _sectionHeader(Icons.gavel, 'Widerspruch gegen Bescheid', Colors.orange),
       const SizedBox(height: 8),
@@ -919,37 +931,52 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         ],
         const SizedBox(height: 10),
         TextField(controller: _wsBegC, maxLines: 4, decoration: const InputDecoration(labelText: 'Begründung des Widerspruchs', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
-
-        // ─── Zweitgutachten (inline) ───────────────────
-        const SizedBox(height: 20),
-        _sectionHeader(Icons.assignment_ind, 'Zweitgutachten durch Medizinischen Dienst', Colors.deepPurple),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _wsZgDatumC, readOnly: true, onTap: () => _pickDate(_wsZgDatumC),
-          decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-        ),
-        const SizedBox(height: 10),
-        _buildMdAutocomplete(),
-        const SizedBox(height: 12),
-        Row(children: [
-          Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
-          const SizedBox(width: 6),
-          Text('Termin-Brief vom Med. Dienst hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
-        ]),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 240,
-          child: KorrAttachmentsWidget(
-            apiService: widget.apiService,
-            modul: 'pflegegrad_zweitgutachten',
-            korrespondenzId: antragId,
-          ),
-        ),
       ],
     ]));
   }
 
-  // ── Tab 5: Bescheid nach Widerspruch ──
+  // ── Tab 5: Zweitgutachten (nach Widerspruch, durch MD) ──
+  Widget _buildZweitgutachtenTab() {
+    final antragId = (widget.antrag['id'] is int)
+        ? widget.antrag['id'] as int
+        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.assignment_ind, 'Zweitgutachten durch Medizinischen Dienst', Colors.deepPurple),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
+        child: Text(
+          'Nach Widerspruch veranlasst die Pflegekasse i.d.R. ein Zweitgutachten durch den MD.',
+          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900),
+        ),
+      ),
+      const SizedBox(height: 14),
+      TextField(
+        controller: _wsZgDatumC, readOnly: true, onTap: () => _pickDate(_wsZgDatumC),
+        decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+      ),
+      const SizedBox(height: 12),
+      _buildMdAutocomplete(prefix: 'zweitgutachten'),
+      const SizedBox(height: 16),
+      Row(children: [
+        Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 6),
+        Text('Termin-Brief vom Med. Dienst hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+      ]),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 240,
+        child: KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'pflegegrad_zweitgutachten',
+          korrespondenzId: antragId,
+        ),
+      ),
+    ]));
+  }
+
+  // ── Tab 6: Bescheid nach Widerspruch ──
   Widget _buildWiderspruchBescheidTab() {
     final antragId = (widget.antrag['id'] is int)
         ? widget.antrag['id'] as int
@@ -1075,7 +1102,49 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     ]));
   }
 
-  // ── Tab 7: Urteil (Bescheid nach Klage) ──
+  // ── Tab 8: Drittgutachten (durch das Sozialgericht bestellt) ──
+  Widget _buildDrittgutachtenTab() {
+    final antragId = (widget.antrag['id'] is int)
+        ? widget.antrag['id'] as int
+        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.assignment_ind, 'Drittgutachten (Sozialgericht)', Colors.deepPurple),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
+        child: Text(
+          'Im Klageverfahren bestellt das Sozialgericht i.d.R. ein weiteres unabhängiges Gutachten (§ 106 SGG). '
+          'Dieses überprüft die bisherigen MD-Gutachten und ist für das Urteil maßgeblich.',
+          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900, height: 1.4),
+        ),
+      ),
+      const SizedBox(height: 14),
+      TextField(
+        controller: _dgDatumC, readOnly: true, onTap: () => _pickDate(_dgDatumC),
+        decoration: const InputDecoration(labelText: 'Drittgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+      ),
+      const SizedBox(height: 12),
+      _buildMdAutocomplete(prefix: 'drittgutachten'),
+      const SizedBox(height: 16),
+      Row(children: [
+        Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 6),
+        Text('Drittgutachten hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+      ]),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 240,
+        child: KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'pflegegrad_drittgutachten',
+          korrespondenzId: antragId,
+        ),
+      ),
+    ]));
+  }
+
+  // ── Tab 9: Urteil (Bescheid nach Klage) ──
   Widget _buildKlageBescheidTab() {
     final antragId = (widget.antrag['id'] is int)
         ? widget.antrag['id'] as int
@@ -1122,8 +1191,11 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   }
 
   // ── Helpers: MD Autocomplete + Card + Gutachter Section + Neuer Gutachter Dialog ──
-  Widget _buildMdAutocomplete() {
-    final selMdId = int.tryParse(_s('zweitgutachten_md_id'));
+  /// [prefix] entscheidet, welche Antragsfelder gelesen/geschrieben werden:
+  ///   'zweitgutachten' → zweitgutachten_md_id/_name/_gutachter_id/_gutachter_name (Widerspruchs-Verfahren)
+  ///   'drittgutachten' → drittgutachten_md_id/_name/_gutachter_id/_gutachter_name (Klage-Verfahren)
+  Widget _buildMdAutocomplete({String prefix = 'zweitgutachten'}) {
+    final selMdId = int.tryParse(_s('${prefix}_md_id'));
     Map<String, dynamic>? selectedMd;
     if (selMdId != null) {
       selectedMd = _mdList.firstWhere(
@@ -1140,7 +1212,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           Text('Lade Medizinische Dienste…', style: TextStyle(fontSize: 11)),
         ]))
       else Autocomplete<Map<String, dynamic>>(
-        initialValue: TextEditingValue(text: _s('zweitgutachten_md_name')),
+        initialValue: TextEditingValue(text: _s('${prefix}_md_name')),
         displayStringForOption: (m) => m['name']?.toString() ?? '',
         optionsBuilder: (txt) {
           final q = txt.text.trim().toLowerCase();
@@ -1159,10 +1231,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
                 ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () {
                     controller.clear();
                     setState(() {
-                      _a['zweitgutachten_md_id'] = '';
-                      _a['zweitgutachten_md_name'] = '';
-                      _a['zweitgutachten_gutachter_id'] = '';
-                      _a['zweitgutachten_gutachter_name'] = '';
+                      _a['${prefix}_md_id'] = '';
+                      _a['${prefix}_md_name'] = '';
+                      _a['${prefix}_gutachter_id'] = '';
+                      _a['${prefix}_gutachter_name'] = '';
                     });
                   })
                 : null,
@@ -1187,10 +1259,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         onSelected: (m) {
           final mdId = int.tryParse(m['id']?.toString() ?? '');
           setState(() {
-            _a['zweitgutachten_md_id'] = m['id']?.toString() ?? '';
-            _a['zweitgutachten_md_name'] = m['name']?.toString() ?? '';
-            _a['zweitgutachten_gutachter_id'] = '';
-            _a['zweitgutachten_gutachter_name'] = '';
+            _a['${prefix}_md_id'] = m['id']?.toString() ?? '';
+            _a['${prefix}_md_name'] = m['name']?.toString() ?? '';
+            _a['${prefix}_gutachter_id'] = '';
+            _a['${prefix}_gutachter_name'] = '';
             _gutachterLoaded = false;
             _gutachterLoadedForMdId = null;
           });
@@ -1199,17 +1271,17 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       ),
       if (selectedMd != null) ...[
         const SizedBox(height: 8),
-        _buildGutachterSection(selectedMd),
+        _buildGutachterSection(selectedMd, prefix: prefix),
       ],
     ]);
   }
 
-  Widget _buildGutachterSection(Map<String, dynamic> md) {
+  Widget _buildGutachterSection(Map<String, dynamic> md, {String prefix = 'zweitgutachten'}) {
     final mdId = int.tryParse(md['id']?.toString() ?? '') ?? 0;
     if (mdId > 0 && _gutachterLoadedForMdId != mdId) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadGutachterList(mdId));
     }
-    final selGId = int.tryParse(_s('zweitgutachten_gutachter_id'));
+    final selGId = int.tryParse(_s('${prefix}_gutachter_id'));
     Map<String, dynamic>? selG;
     if (selGId != null) {
       selG = _gutachterList.firstWhere(
@@ -1236,7 +1308,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         else if (_gutachterList.isEmpty)
           Text('Noch keiner registriert für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))
         else Autocomplete<Map<String, dynamic>>(
-          initialValue: TextEditingValue(text: _s('zweitgutachten_gutachter_name')),
+          initialValue: TextEditingValue(text: _s('${prefix}_gutachter_name')),
           displayStringForOption: (g) => '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(),
           optionsBuilder: (txt) {
             final q = txt.text.trim().toLowerCase();
@@ -1267,8 +1339,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             ),
           )),
           onSelected: (g) => setState(() {
-            _a['zweitgutachten_gutachter_id'] = g['id']?.toString() ?? '';
-            _a['zweitgutachten_gutachter_name'] = '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim();
+            _a['${prefix}_gutachter_id'] = g['id']?.toString() ?? '';
+            _a['${prefix}_gutachter_name'] = '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim();
           }),
         ),
         if (selG != null) ...[
@@ -1292,13 +1364,13 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             side: BorderSide(color: Colors.deepPurple.shade400),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), minimumSize: Size.zero,
           ),
-          onPressed: () => _showNeuerGutachterDialog(mdId, md['name']?.toString() ?? ''),
+          onPressed: () => _showNeuerGutachterDialog(mdId, md['name']?.toString() ?? '', prefix: prefix),
         ),
       ]),
     );
   }
 
-  void _showNeuerGutachterDialog(int mdId, String mdName) {
+  void _showNeuerGutachterDialog(int mdId, String mdName, {String prefix = 'zweitgutachten'}) {
     final vornameC = TextEditingController();
     final nachnameC = TextEditingController();
     final notizC = TextEditingController();
@@ -1346,8 +1418,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
               final newId = res['id'] as int?;
               final fullName = '${vornameC.text.trim()} ${nachnameC.text.trim()}';
               setState(() {
-                _a['zweitgutachten_gutachter_id'] = newId?.toString() ?? '';
-                _a['zweitgutachten_gutachter_name'] = fullName;
+                _a['${prefix}_gutachter_id'] = newId?.toString() ?? '';
+                _a['${prefix}_gutachter_name'] = fullName;
                 _gutachterLoaded = false;
                 _gutachterLoadedForMdId = null;
               });
