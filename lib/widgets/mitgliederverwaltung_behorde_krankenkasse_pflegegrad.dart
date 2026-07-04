@@ -930,6 +930,10 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
   late TextEditingController _bescheidErgebnisC;
   String _bescheidPg = '';
 
+  // Medizinischer Dienst (Referenz auf medizinischer_dienst_datenbank)
+  List<Map<String, dynamic>> _mdList = [];
+  bool _mdLoaded = false;
+
   static const _methoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
   static const _pflegegrade = ['', '1', '2', '3', '4', '5'];
 
@@ -948,6 +952,19 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
     _bescheidDatumC = TextEditingController(text: _s('widerspruch_bescheid_datum'));
     _bescheidErgebnisC = TextEditingController(text: _s('widerspruch_bescheid_ergebnis'));
     _bescheidPg = _pflegegrade.contains(_s('widerspruch_bescheid_pflegegrad')) ? _s('widerspruch_bescheid_pflegegrad') : '';
+    _loadMdList();
+  }
+
+  Future<void> _loadMdList() async {
+    try {
+      final res = await widget.apiService.listMedizinischerDienst();
+      if (res['success'] == true && mounted) {
+        setState(() {
+          _mdList = (res['md'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _mdLoaded = true;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _pick(TextEditingController c) async {
@@ -994,6 +1011,8 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
         'widerspruch_anwalt_name': _anwaltNameC.text.trim(),
         'widerspruch_begruendung': _begC.text.trim(),
         'widerspruch_zweitgutachten_datum': _zgDatumC.text.trim(),
+        'zweitgutachten_md_id': _s('zweitgutachten_md_id'),
+        'zweitgutachten_md_name': _s('zweitgutachten_md_name'),
         'widerspruch_bescheid_datum': _bescheidDatumC.text.trim(),
         'widerspruch_bescheid_ergebnis': _bescheidErgebnisC.text.trim(),
         'widerspruch_bescheid_pflegegrad': _bescheidPg,
@@ -1118,6 +1137,16 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
   }
 
   Widget _buildZweitgutachtenTab() {
+    final selMdId = int.tryParse(_s('zweitgutachten_md_id'));
+    Map<String, dynamic>? selectedMd;
+    if (selMdId != null) {
+      selectedMd = _mdList.firstWhere(
+        (m) => (m['id'] as int?) == selMdId || int.tryParse(m['id'].toString()) == selMdId,
+        orElse: () => {},
+      );
+      if (selectedMd.isEmpty) selectedMd = null;
+    }
+
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(Icons.assignment_ind, size: 18, color: Colors.deepPurple.shade700),
@@ -1141,7 +1170,92 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
         onTap: () => _pick(_zgDatumC),
         decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
       ),
+
+      // ─── Auswahl des zuständigen Medizinischen Dienstes ─────────────────
       const SizedBox(height: 16),
+      Row(children: [
+        Icon(Icons.local_hospital, size: 16, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 6),
+        Text('Zuständiger Medizinischer Dienst', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+      ]),
+      const SizedBox(height: 6),
+      if (!_mdLoaded)
+        const Padding(padding: EdgeInsets.all(8), child: Row(children: [
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 8),
+          Text('Lade Liste der Medizinischen Dienste…', style: TextStyle(fontSize: 11)),
+        ]))
+      else Autocomplete<Map<String, dynamic>>(
+        initialValue: TextEditingValue(text: _s('zweitgutachten_md_name')),
+        displayStringForOption: (m) => m['name']?.toString() ?? '',
+        optionsBuilder: (txt) {
+          final q = txt.text.trim().toLowerCase();
+          if (q.isEmpty) return _mdList;
+          return _mdList.where((m) =>
+            (m['name']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['kuerzel']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['bundeslaender']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['ort']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['plz']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['zustaendig_fuer']?.toString() ?? '').toLowerCase().contains(q));
+        },
+        fieldViewBuilder: (ctx, controller, focusNode, onSubmit) => TextField(
+          controller: controller, focusNode: focusNode,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search, size: 20),
+            suffixIcon: controller.text.isNotEmpty
+                ? IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () {
+                    controller.clear();
+                    setState(() {
+                      _a['zweitgutachten_md_id'] = '';
+                      _a['zweitgutachten_md_name'] = '';
+                    });
+                  })
+                : null,
+            hintText: 'MD suchen (z.B. „Baden-Württemberg", „Ulm", „BW")…',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+        optionsViewBuilder: (ctx, onSel, options) => Align(
+          alignment: Alignment.topLeft,
+          child: Material(elevation: 4, borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320, maxWidth: 640),
+              child: ListView(padding: EdgeInsets.zero, shrinkWrap: true,
+                children: options.map((m) => InkWell(
+                  onTap: () => onSel(m),
+                  child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(child: Text(m['name']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                      if ((m['kuerzel']?.toString() ?? '').isNotEmpty)
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(4)),
+                          child: Text(m['kuerzel'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700, fontWeight: FontWeight.w600))),
+                    ]),
+                    if ((m['bundeslaender']?.toString() ?? '').isNotEmpty)
+                      Text(m['bundeslaender'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade600, fontStyle: FontStyle.italic)),
+                    Text('${m['plz'] ?? ''} ${m['ort'] ?? ''} — ${m['strasse'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  ])),
+                )).toList(),
+              ),
+            ),
+          ),
+        ),
+        onSelected: (m) {
+          setState(() {
+            _a['zweitgutachten_md_id'] = m['id']?.toString() ?? '';
+            _a['zweitgutachten_md_name'] = m['name']?.toString() ?? '';
+          });
+        },
+      ),
+      if (selectedMd != null) ...[
+        const SizedBox(height: 10),
+        _buildMdCard(selectedMd),
+      ],
+
+      const SizedBox(height: 20),
       Row(children: [
         Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
         const SizedBox(width: 6),
@@ -1158,6 +1272,48 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
       ),
     ]));
   }
+
+  Widget _buildMdCard(Map<String, dynamic> md) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.deepPurple.shade300),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.local_hospital, size: 22, color: Colors.deepPurple.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(md['name']?.toString() ?? '',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900))),
+        ]),
+        const SizedBox(height: 6),
+        if ((md['bundeslaender']?.toString() ?? '').isNotEmpty)
+          _mdRow(Icons.map, md['bundeslaender'].toString()),
+        _mdRow(Icons.location_on, '${md['strasse'] ?? ''}, ${md['plz'] ?? ''} ${md['ort'] ?? ''}'),
+        if ((md['telefon']?.toString() ?? '').isNotEmpty)
+          _mdRow(Icons.phone, md['telefon'].toString()),
+        if ((md['email']?.toString() ?? '').isNotEmpty)
+          _mdRow(Icons.email, md['email'].toString()),
+        if ((md['website']?.toString() ?? '').isNotEmpty)
+          _mdRow(Icons.language, md['website'].toString()),
+        if ((md['zustaendig_fuer']?.toString() ?? '').isNotEmpty)
+          Padding(padding: const EdgeInsets.only(top: 4),
+            child: Text(md['zustaendig_fuer'].toString(),
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
+      ]),
+    );
+  }
+
+  Widget _mdRow(IconData icon, String text) => Padding(
+    padding: const EdgeInsets.only(top: 3),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 13, color: Colors.grey.shade700),
+      const SizedBox(width: 6),
+      Expanded(child: SelectableText(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+    ]),
+  );
 
   Widget _buildBescheidTab() {
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
