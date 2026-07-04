@@ -416,31 +416,160 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   late Map<String, dynamic> _a;
   bool _saving = false;
 
-  // Bescheid controllers
-  late TextEditingController _bescheidDatumC;
-  late TextEditingController _bescheidGueltigC;
-  late TextEditingController _bescheidErgebnisC;
+  // Tab 2: Begutachtung
   late TextEditingController _begutachtungDatumC;
   late TextEditingController _gutachterC;
   String _begutachtungsort = '';
 
-  // Widerspruch state (simple flag — details live in _WiderspruchDetailModal)
+  // Tab 3: Erst-Bescheid
+  late TextEditingController _bescheidDatumC;
+  late TextEditingController _bescheidGueltigC;
+  late TextEditingController _bescheidErgebnisC;
+
+  // Tab 4: Widerspruch
   String _widerspruchEingelegt = 'nein';
+  late TextEditingController _wsDatumC;
+  late TextEditingController _wsAnwaltNameC;
+  late TextEditingController _wsBegC;
+  late TextEditingController _wsZgDatumC;
+  String _wsMethode = 'schriftlich per Post';
+  String _wsAnwalt = 'nein';
+
+  // Tab 5: Widerspruchs-Bescheid
+  late TextEditingController _wsBescheidDatumC;
+  late TextEditingController _wsBescheidErgebnisC;
+  String _wsBescheidPg = '';
+
+  // Tab 6: Klage
+  String _klageEingelegt = 'nein';
+  late TextEditingController _klageDatumC;
+  late TextEditingController _klageGerichtC;
+  late TextEditingController _klageAktenC;
+  late TextEditingController _klageAnwaltNameC;
+  late TextEditingController _klageBegC;
+  late TextEditingController _klageVerhandlungC;
+  String _klageAnwalt = 'nein';
+
+  // Tab 7: Urteil (Klage-Bescheid)
+  late TextEditingController _klageUrteilDatumC;
+  late TextEditingController _klageUrteilErgC;
+  String _klageUrteilPg = '';
+
+  // MD + Gutachter (für Widerspruch → Zweitgutachten)
+  List<Map<String, dynamic>> _mdList = [];
+  bool _mdLoaded = false;
+  List<Map<String, dynamic>> _gutachterList = [];
+  bool _gutachterLoaded = false;
+  int? _gutachterLoadedForMdId;
+
+  static const _wsMethoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
+  static const _klageMethoden = _wsMethoden; // gleiche Optionen
+  static const _pflegegrade = ['', '1', '2', '3', '4', '5'];
 
   @override
   void initState() {
     super.initState();
     _a = Map<String, dynamic>.from(widget.antrag);
-    _bescheidDatumC = TextEditingController(text: _s('bescheid_datum'));
-    _bescheidGueltigC = TextEditingController(text: _s('bescheid_gueltig_ab'));
-    _bescheidErgebnisC = TextEditingController(text: _s('bescheid_ergebnis'));
+    // Begutachtung
     _begutachtungDatumC = TextEditingController(text: _s('begutachtung_datum'));
     _gutachterC = TextEditingController(text: _s('gutachter_name'));
     _begutachtungsort = _s('begutachtung_ort');
+    // Erst-Bescheid
+    _bescheidDatumC = TextEditingController(text: _s('bescheid_datum'));
+    _bescheidGueltigC = TextEditingController(text: _s('bescheid_gueltig_ab'));
+    _bescheidErgebnisC = TextEditingController(text: _s('bescheid_ergebnis'));
+    // Widerspruch
     _widerspruchEingelegt = (_s('widerspruch_eingelegt').toLowerCase() == 'ja') ? 'ja' : 'nein';
+    _wsDatumC = TextEditingController(text: _s('widerspruch_datum'));
+    _wsAnwaltNameC = TextEditingController(text: _s('widerspruch_anwalt_name'));
+    _wsBegC = TextEditingController(text: _s('widerspruch_begruendung'));
+    _wsZgDatumC = TextEditingController(text: _s('widerspruch_zweitgutachten_datum'));
+    _wsMethode = _wsMethoden.contains(_s('widerspruch_methode')) ? _s('widerspruch_methode') : _wsMethoden.first;
+    _wsAnwalt = _s('widerspruch_anwalt').toLowerCase() == 'ja' ? 'ja' : 'nein';
+    // Widerspruchs-Bescheid
+    _wsBescheidDatumC = TextEditingController(text: _s('widerspruch_bescheid_datum'));
+    _wsBescheidErgebnisC = TextEditingController(text: _s('widerspruch_bescheid_ergebnis'));
+    _wsBescheidPg = _pflegegrade.contains(_s('widerspruch_bescheid_pflegegrad')) ? _s('widerspruch_bescheid_pflegegrad') : '';
+    // Klage
+    _klageEingelegt = (_s('klage_eingelegt').toLowerCase() == 'ja') ? 'ja' : 'nein';
+    _klageDatumC = TextEditingController(text: _s('klage_datum'));
+    _klageGerichtC = TextEditingController(text: _s('klage_gericht'));
+    _klageAktenC = TextEditingController(text: _s('klage_aktenzeichen'));
+    _klageAnwaltNameC = TextEditingController(text: _s('klage_anwalt_name'));
+    _klageBegC = TextEditingController(text: _s('klage_begruendung'));
+    _klageVerhandlungC = TextEditingController(text: _s('klage_verhandlung_datum'));
+    _klageAnwalt = _s('klage_anwalt').toLowerCase() == 'ja' ? 'ja' : 'nein';
+    // Urteil
+    _klageUrteilDatumC = TextEditingController(text: _s('klage_urteil_datum'));
+    _klageUrteilErgC = TextEditingController(text: _s('klage_urteil_ergebnis'));
+    _klageUrteilPg = _pflegegrade.contains(_s('klage_urteil_pflegegrad')) ? _s('klage_urteil_pflegegrad') : '';
+    // MD + Gutachter (lazy load)
+    _loadMdList();
   }
 
   String _s(String k) => _a[k]?.toString() ?? '';
+
+  Future<void> _loadMdList() async {
+    try {
+      final res = await widget.apiService.listMedizinischerDienst();
+      if (res['success'] == true && mounted) {
+        setState(() {
+          _mdList = (res['md'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _mdLoaded = true;
+        });
+        // Auto-Preselect MD anhand des Bundeslands wenn im Widerspruch-Kontext.
+        if (_s('zweitgutachten_md_id').isEmpty && widget.memberBundesland != null && widget.memberBundesland!.trim().isNotEmpty) {
+          final auto = _findMdForBundesland(widget.memberBundesland!);
+          if (auto != null && mounted) {
+            final mdId = int.tryParse(auto['id']?.toString() ?? '') ?? 0;
+            setState(() {
+              _a['zweitgutachten_md_id'] = auto['id']?.toString() ?? '';
+              _a['zweitgutachten_md_name'] = auto['name']?.toString() ?? '';
+            });
+            if (mdId > 0) _loadGutachterList(mdId);
+          }
+        } else {
+          final existingMd = int.tryParse(_s('zweitgutachten_md_id'));
+          if (existingMd != null) _loadGutachterList(existingMd);
+        }
+      }
+    } catch (_) {}
+  }
+
+  Map<String, dynamic>? _findMdForBundesland(String bl) {
+    final needle = bl.trim().toLowerCase();
+    if (needle.isEmpty) return null;
+    for (final md in _mdList) {
+      final blCol = (md['bundeslaender']?.toString() ?? '').toLowerCase();
+      if (blCol.contains(needle)) return md;
+    }
+    final aliases = <String, String>{
+      'nrw': 'nordrhein-westfalen', 'sh': 'schleswig-holstein', 'mv': 'mecklenburg-vorpommern',
+      'bw': 'baden-württemberg', 'ba-wü': 'baden-württemberg', 'rlp': 'rheinland-pfalz',
+    };
+    final alias = aliases[needle];
+    if (alias != null) {
+      for (final md in _mdList) {
+        final blCol = (md['bundeslaender']?.toString() ?? '').toLowerCase();
+        if (blCol.contains(alias)) return md;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _loadGutachterList(int mdId) async {
+    if (_gutachterLoadedForMdId == mdId && _gutachterLoaded) return;
+    _gutachterLoadedForMdId = mdId;
+    try {
+      final res = await widget.apiService.listMdGutachter(mdId);
+      if (res['success'] == true && mounted) {
+        setState(() {
+          _gutachterList = (res['gutachter'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _gutachterLoaded = true;
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _pickDate(TextEditingController c) async {
     final p = await showDatePicker(
@@ -453,16 +582,29 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     if (p != null) c.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
   }
 
-  Future<void> _save(String updatedStatus) async {
+  /// Auto-compute status entlang des gesamten Prozess-Flusses.
+  String _computeStatus() {
+    if (_klageUrteilErgC.text.isNotEmpty || _klageUrteilDatumC.text.isNotEmpty) {
+      return _klageUrteilErgC.text.toLowerCase().contains('abgelehnt') ? 'klage_abgelehnt' : 'klage_bewilligt';
+    }
+    if (_klageEingelegt == 'ja') return 'klage';
+    if (_wsBescheidErgebnisC.text.isNotEmpty || _wsBescheidDatumC.text.isNotEmpty) {
+      return _wsBescheidErgebnisC.text.toLowerCase().contains('abgelehnt') ? 'widerspruch_abgelehnt' : 'widerspruch_bewilligt';
+    }
+    if (_wsZgDatumC.text.isNotEmpty) return 'zweitgutachten';
+    if (_widerspruchEingelegt == 'ja') return 'widerspruch_eingelegt';
+    if (_bescheidErgebnisC.text.isNotEmpty || _bescheidDatumC.text.isNotEmpty) {
+      return _bescheidErgebnisC.text.toLowerCase().contains('abgelehnt') ? 'abgelehnt' : 'bescheid_erhalten';
+    }
+    if (_begutachtungDatumC.text.isNotEmpty) return 'begutachtung';
+    return _s('status').isEmpty ? 'offen' : _s('status');
+  }
+
+  Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      // Coerce id explicit to int — server expects (int).
       final id = _a['id'] is int ? _a['id'] as int : int.tryParse(_a['id']?.toString() ?? '') ?? 0;
-      if (id <= 0) {
-        throw Exception('Antrag-ID fehlt oder ungültig');
-      }
-      // Sync new form values back into local state so UI reflects saved
-      // values immediately if user reopens without a fresh _load().
+      if (id <= 0) throw Exception('Antrag-ID fehlt oder ungültig');
       final payload = <String, dynamic>{
         'id': id,
         'antrag_typ': _s('antrag_typ'),
@@ -471,34 +613,48 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'pflegegrad_beantragt': _s('pflegegrad_beantragt'),
         'pflegegrad_ziel': _s('pflegegrad_ziel'),
         'aktenzeichen': _s('aktenzeichen'),
-        'status': updatedStatus,
+        'status': _computeStatus(),
         'notiz': _s('notiz'),
+        // Tab 2: Begutachtung
         'begutachtung_datum': _begutachtungDatumC.text.trim(),
         'begutachtung_ort': _begutachtungsort,
         'gutachter_name': _gutachterC.text.trim(),
+        // Tab 3: Erst-Bescheid
         'bescheid_datum': _bescheidDatumC.text.trim(),
         'bescheid_ergebnis': _bescheidErgebnisC.text.trim(),
         'bescheid_gueltig_ab': _bescheidGueltigC.text.trim(),
+        // Tab 4: Widerspruch
         'widerspruch_eingelegt': _widerspruchEingelegt,
-        // Widerspruch-Detail-Felder werden im _WiderspruchDetailModal
-        // separat gespeichert — hier nur den existierenden Wert erhalten.
-        'widerspruch_datum': _s('widerspruch_datum'),
-        'widerspruch_methode': _s('widerspruch_methode'),
-        'widerspruch_anwalt': _s('widerspruch_anwalt'),
-        'widerspruch_anwalt_name': _s('widerspruch_anwalt_name'),
-        'widerspruch_begruendung': _s('widerspruch_begruendung'),
-        'widerspruch_zweitgutachten_datum': _s('widerspruch_zweitgutachten_datum'),
-        'widerspruch_bescheid_datum': _s('widerspruch_bescheid_datum'),
-        'widerspruch_bescheid_ergebnis': _s('widerspruch_bescheid_ergebnis'),
-        'widerspruch_bescheid_pflegegrad': _s('widerspruch_bescheid_pflegegrad'),
+        'widerspruch_datum': _wsDatumC.text.trim(),
+        'widerspruch_methode': _wsMethode,
+        'widerspruch_anwalt': _wsAnwalt,
+        'widerspruch_anwalt_name': _wsAnwaltNameC.text.trim(),
+        'widerspruch_begruendung': _wsBegC.text.trim(),
+        'widerspruch_zweitgutachten_datum': _wsZgDatumC.text.trim(),
+        'zweitgutachten_md_id': _s('zweitgutachten_md_id'),
+        'zweitgutachten_md_name': _s('zweitgutachten_md_name'),
+        'zweitgutachten_gutachter_id': _s('zweitgutachten_gutachter_id'),
+        'zweitgutachten_gutachter_name': _s('zweitgutachten_gutachter_name'),
+        // Tab 5: Widerspruchs-Bescheid
+        'widerspruch_bescheid_datum': _wsBescheidDatumC.text.trim(),
+        'widerspruch_bescheid_ergebnis': _wsBescheidErgebnisC.text.trim(),
+        'widerspruch_bescheid_pflegegrad': _wsBescheidPg,
+        // Tab 6: Klage
+        'klage_eingelegt': _klageEingelegt,
+        'klage_datum': _klageDatumC.text.trim(),
+        'klage_gericht': _klageGerichtC.text.trim(),
+        'klage_aktenzeichen': _klageAktenC.text.trim(),
+        'klage_anwalt': _klageAnwalt,
+        'klage_anwalt_name': _klageAnwaltNameC.text.trim(),
+        'klage_begruendung': _klageBegC.text.trim(),
+        'klage_verhandlung_datum': _klageVerhandlungC.text.trim(),
+        // Tab 7: Urteil / Klage-Bescheid
+        'klage_urteil_datum': _klageUrteilDatumC.text.trim(),
+        'klage_urteil_ergebnis': _klageUrteilErgC.text.trim(),
+        'klage_urteil_pflegegrad': _klageUrteilPg,
       };
-      debugPrint('[PFG] save payload keys=${payload.keys.toList()} widerspruch_eingelegt=${payload['widerspruch_eingelegt']} widerspruch_datum=${payload['widerspruch_datum']} bescheid_datum=${payload['bescheid_datum']}');
       final res = await widget.apiService.savePflegegradAntrag(widget.userId, payload);
-      debugPrint('[PFG] save response=$res');
-      if (res['success'] != true) {
-        throw Exception('Server-Fehler: ${res['message'] ?? res.toString()}');
-      }
-      // Update local _a so re-open of modal shows persisted values.
+      if (res['success'] != true) throw Exception('Server-Fehler: ${res['message'] ?? res.toString()}');
       _a.addAll(payload);
       widget.onSaved();
       if (mounted) {
@@ -506,7 +662,6 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         Navigator.pop(context);
       }
     } catch (e) {
-      debugPrint('[PFG] save error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 6)));
       }
@@ -517,10 +672,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 7,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: SizedBox(width: 820, height: 660, child: Column(children: [
+        child: SizedBox(width: 900, height: 700, child: Column(children: [
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
             child: Row(children: [
@@ -538,27 +693,16 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             labelColor: Colors.purple.shade700,
             unselectedLabelColor: Colors.grey.shade500,
             indicatorColor: Colors.purple.shade700,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _s('antrag_datum').isNotEmpty ? Colors.green : Colors.red),
-                const SizedBox(width: 4), const Icon(Icons.info_outline, size: 16),
-                const SizedBox(width: 4), const Text('Details'),
-              ])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _begutachtungDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
-                const SizedBox(width: 4), const Icon(Icons.medical_information, size: 16),
-                const SizedBox(width: 4), const Text('Begutachtung'),
-              ])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _bescheidDatumC.text.isNotEmpty ? Colors.green : Colors.red),
-                const SizedBox(width: 4), const Icon(Icons.assignment_turned_in, size: 16),
-                const SizedBox(width: 4), const Text('Bescheid'),
-              ])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _widerspruchEingelegt == 'ja' ? Colors.orange : Colors.grey),
-                const SizedBox(width: 4), const Icon(Icons.gavel, size: 16),
-                const SizedBox(width: 4), const Text('Widerspruch'),
-              ])),
+              _tabWithDot('Details', Icons.info_outline, _s('antrag_datum').isNotEmpty ? Colors.green : Colors.red),
+              _tabWithDot('Begutachtung', Icons.medical_information, _begutachtungDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
+              _tabWithDot('Bescheid', Icons.assignment_turned_in, _bescheidDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
+              _tabWithDot('Widerspruch', Icons.gavel, _widerspruchEingelegt == 'ja' ? Colors.orange : Colors.grey),
+              _tabWithDot('Bescheid', Icons.assignment_turned_in, _wsBescheidDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
+              _tabWithDot('Klage', Icons.account_balance, _klageEingelegt == 'ja' ? Colors.red : Colors.grey),
+              _tabWithDot('Bescheid', Icons.gavel_rounded, _klageUrteilDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
             ],
           ),
           Expanded(child: TabBarView(children: [
@@ -566,9 +710,40 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             _buildBegutachtungTab(),
             _buildBescheidTab(),
             _buildWiderspruchTab(),
+            _buildWiderspruchBescheidTab(),
+            _buildKlageTab(),
+            _buildKlageBescheidTab(),
           ])),
+          _buildBottomActionBar(),
         ])),
       ),
+    );
+  }
+
+  Widget _tabWithDot(String label, IconData icon, Color dot) {
+    return Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.circle, size: 8, color: dot),
+      const SizedBox(width: 4), Icon(icon, size: 16),
+      const SizedBox(width: 4), Text(label),
+    ]));
+  }
+
+  Widget _buildBottomActionBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+      child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
+        const SizedBox(width: 8),
+        FilledButton.icon(
+          icon: _saving
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.save, size: 16),
+          label: Text(_saving ? 'Speichert…' : 'Alle Änderungen speichern'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600),
+          onPressed: _saving ? null : _save,
+        ),
+      ]),
     );
   }
 
@@ -624,11 +799,6 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       ]),
       const SizedBox(height: 10),
       TextField(controller: _gutachterC, decoration: const InputDecoration(labelText: 'Gutachter (Name / MDK-Nr.)', isDense: true, border: OutlineInputBorder())),
-      const SizedBox(height: 16),
-      _actionRow(
-        primaryLabel: 'Begutachtung speichern',
-        primaryStatus: _begutachtungDatumC.text.isNotEmpty ? 'begutachtung' : (_s('status').isEmpty ? 'offen' : _s('status')),
-      ),
     ]));
   }
 
@@ -692,399 +862,440 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           korrespondenzId: antragId,
         ),
       ),
-      const SizedBox(height: 16),
-      _actionRow(
-        primaryLabel: 'Bescheid speichern',
-        primaryStatus: _bescheidErgebnisC.text.toLowerCase().contains('abgelehnt') ? 'abgelehnt' : (_bescheidErgebnisC.text.isNotEmpty ? 'bescheid_erhalten' : 'begutachtung'),
-      ),
     ]));
   }
 
+  // ── Tab 4: Widerspruch (inline: Datum, Methode, Anwalt, Begründung, Zweitgutachten + MD/Gutachter/Upload) ──
   Widget _buildWiderspruchTab() {
-    if (_widerspruchEingelegt != 'ja') {
-      return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _sectionHeader(Icons.gavel, 'Widerspruch gegen Bescheid', Colors.orange),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.orange.shade800),
-              const SizedBox(width: 6),
-              Text('Widerspruchsverfahren', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade900)),
-            ]),
-            const SizedBox(height: 6),
-            Text(
-              'Wenn Sie mit dem Bescheid nicht einverstanden sind, können Sie innerhalb 1 Monats '
-              '(1 Jahr, wenn Rechtsbelehrung fehlt) Widerspruch bei der Pflegekasse einlegen. '
-              'Danach wird i.d.R. ein Zweitgutachten durch den Medizinischen Dienst veranlasst.',
-              style: TextStyle(fontSize: 11, color: Colors.orange.shade900, height: 1.4),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 20),
-        Center(child: FilledButton.icon(
-          icon: const Icon(Icons.gavel, size: 18),
-          label: const Text('Widerspruch einlegen'),
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.orange.shade700,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          ),
-          onPressed: _saving ? null : _showWiderspruchEinlegenDialog,
-        )),
-        const SizedBox(height: 20),
-        Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen'))),
-      ]));
-    }
-
-    // Widerspruch bereits eingelegt → Zusammenfassungs-Card + „Details öffnen"-Button
-    final wsDatum = _s('widerspruch_datum');
-    final wsMethode = _s('widerspruch_methode');
-    final wsAnwalt = _s('widerspruch_anwalt').toLowerCase() == 'ja';
-    final wsAnwaltName = _s('widerspruch_anwalt_name');
-    final zgDatum = _s('widerspruch_zweitgutachten_datum');
-    final wsBescheid = _s('widerspruch_bescheid_datum');
-    final wsBescheidErgebnis = _s('widerspruch_bescheid_ergebnis');
+    final antragId = (widget.antrag['id'] is int)
+        ? widget.antrag['id'] as int
+        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionHeader(Icons.gavel, 'Widerspruch wurde eingelegt', Colors.orange),
-      const SizedBox(height: 12),
+      _sectionHeader(Icons.gavel, 'Widerspruch gegen Bescheid', Colors.orange),
+      const SizedBox(height: 8),
       Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade300)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.check_circle, color: Colors.orange.shade700),
-            const SizedBox(width: 8),
-            Text('Widerspruch eingelegt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
-          ]),
-          const SizedBox(height: 10),
-          if (wsDatum.isNotEmpty) _summaryRow(Icons.calendar_today, 'Datum', wsDatum),
-          if (wsMethode.isNotEmpty) _summaryRow(Icons.send, 'Eingereicht per', wsMethode),
-          _summaryRow(Icons.person, 'Anwalt', wsAnwalt ? (wsAnwaltName.isNotEmpty ? 'ja — $wsAnwaltName' : 'ja') : 'nein'),
-          if (zgDatum.isNotEmpty) _summaryRow(Icons.assignment_ind, 'Zweitgutachten', zgDatum),
-          if (wsBescheid.isNotEmpty) _summaryRow(Icons.assignment_turned_in, 'Widerspruchs-Bescheid', '$wsBescheid${wsBescheidErgebnis.isNotEmpty ? " — $wsBescheidErgebnis" : ""}'),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+        child: Text(
+          'Frist: 1 Monat ab Zugang des Bescheids (1 Jahr, wenn Rechtsbelehrung fehlt).',
+          style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+        ),
+      ),
+      const SizedBox(height: 14),
+      const Text('Widerspruch eingelegt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 6),
+      Row(children: [
+        ChoiceChip(label: const Text('nein', style: TextStyle(fontSize: 11)), selected: _widerspruchEingelegt == 'nein', onSelected: (_) => setState(() => _widerspruchEingelegt = 'nein')),
+        const SizedBox(width: 8),
+        ChoiceChip(label: const Text('ja', style: TextStyle(fontSize: 11)), selected: _widerspruchEingelegt == 'ja', selectedColor: Colors.orange.shade200, onSelected: (_) => setState(() => _widerspruchEingelegt = 'ja')),
+      ]),
+      if (_widerspruchEingelegt == 'ja') ...[
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: TextField(
+            controller: _wsDatumC, readOnly: true, onTap: () => _pickDate(_wsDatumC),
+            decoration: const InputDecoration(labelText: 'Widerspruch eingelegt am *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: _wsMethoden.contains(_wsMethode) ? _wsMethode : _wsMethoden.first,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Wie eingereicht?', isDense: true, border: OutlineInputBorder()),
+            items: _wsMethoden.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12)))).toList(),
+            onChanged: (v) => setState(() => _wsMethode = v ?? _wsMethoden.first),
+          )),
         ]),
-      ),
-      const SizedBox(height: 16),
-      FilledButton.icon(
-        style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700, minimumSize: const Size.fromHeight(46)),
-        icon: const Icon(Icons.open_in_new, size: 18),
-        label: const Text('Widerspruch-Details öffnen (Details / Zweitgutachten / Bescheid)'),
-        onPressed: _openWiderspruchDetailModal,
-      ),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-        icon: const Icon(Icons.undo, size: 16, color: Colors.red),
-        label: const Text('Widerspruch zurückziehen', style: TextStyle(color: Colors.red)),
-        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), minimumSize: const Size.fromHeight(40)),
-        onPressed: _saving ? null : _confirmWiderspruchZurueckziehen,
-      ),
-    ]));
-  }
-
-  Widget _summaryRow(IconData icon, String label, String value) {
-    return Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 14, color: Colors.orange.shade700),
-      const SizedBox(width: 8),
-      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
-      Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 12))),
-    ]));
-  }
-
-  Future<void> _confirmWiderspruchZurueckziehen() async {
-    final ok = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
-      title: const Text('Widerspruch zurückziehen?'),
-      content: const Text('Alle Widerspruchs-Daten (Datum, Methode, Anwalt, Begründung, Zweitgutachten, Widerspruchs-Bescheid) werden gelöscht.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Abbrechen')),
-        TextButton(onPressed: () => Navigator.pop(d, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Zurückziehen')),
-      ],
-    ));
-    if (ok != true) return;
-    setState(() {
-      _widerspruchEingelegt = 'nein';
-      _a['widerspruch_eingelegt'] = 'nein';
-      for (final k in const ['widerspruch_datum','widerspruch_methode','widerspruch_anwalt','widerspruch_anwalt_name','widerspruch_begruendung','widerspruch_zweitgutachten_datum','widerspruch_bescheid_datum','widerspruch_bescheid_ergebnis','widerspruch_bescheid_pflegegrad']) {
-        _a[k] = '';
-      }
-    });
-    await _save(_s('bescheid_datum').isNotEmpty ? 'bescheid_erhalten' : 'offen');
-  }
-
-  /// Dialog zum Einlegen eines Widerspruchs — Datum, Methode, Anwalt, Begründung.
-  void _showWiderspruchEinlegenDialog() {
-    final datumC = TextEditingController(text: '');
-    String methode = 'schriftlich per Post';
-    String anwalt = 'nein';
-    final anwaltNameC = TextEditingController();
-    final begC = TextEditingController();
-
-    const methoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
-
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      title: const Text('Widerspruch einlegen'),
-      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Widerspruch gegen Bescheid vom ${_s('bescheid_datum').isEmpty ? "—" : _s('bescheid_datum')}',
-             style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
-        const SizedBox(height: 12),
-        TextField(
-          controller: datumC, readOnly: true,
-          decoration: const InputDecoration(labelText: 'Widerspruch eingelegt am *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-          onTap: () async {
-            final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime(2040), locale: const Locale('de'));
-            if (p != null) datumC.text = '${p.day.toString().padLeft(2,'0')}.${p.month.toString().padLeft(2,'0')}.${p.year}';
-          },
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: methode,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Wie eingereicht? *', isDense: true, border: OutlineInputBorder()),
-          items: methoden.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12)))).toList(),
-          onChanged: (v) => setD(() => methode = v ?? methoden.first),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         const Text('Durch Anwalt eingereicht?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         Row(children: [
-          ChoiceChip(
-            label: const Text('nein', style: TextStyle(fontSize: 11)),
-            selected: anwalt == 'nein',
-            onSelected: (_) => setD(() => anwalt = 'nein'),
-          ),
+          ChoiceChip(label: const Text('nein', style: TextStyle(fontSize: 11)), selected: _wsAnwalt == 'nein', onSelected: (_) => setState(() => _wsAnwalt = 'nein')),
           const SizedBox(width: 8),
-          ChoiceChip(
-            label: const Text('ja', style: TextStyle(fontSize: 11)),
-            selected: anwalt == 'ja',
-            selectedColor: Colors.orange.shade200,
-            onSelected: (_) => setD(() => anwalt = 'ja'),
-          ),
+          ChoiceChip(label: const Text('ja', style: TextStyle(fontSize: 11)), selected: _wsAnwalt == 'ja', selectedColor: Colors.orange.shade200, onSelected: (_) => setState(() => _wsAnwalt = 'ja')),
         ]),
-        if (anwalt == 'ja') ...[
+        if (_wsAnwalt == 'ja') ...[
           const SizedBox(height: 10),
-          TextField(controller: anwaltNameC, decoration: const InputDecoration(labelText: 'Kanzlei / Anwalt (Name, Adresse)', isDense: true, border: OutlineInputBorder())),
+          TextField(controller: _wsAnwaltNameC, decoration: const InputDecoration(labelText: 'Kanzlei / Anwalt', isDense: true, border: OutlineInputBorder())),
         ],
+        const SizedBox(height: 10),
+        TextField(controller: _wsBegC, maxLines: 4, decoration: const InputDecoration(labelText: 'Begründung des Widerspruchs', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
+
+        // ─── Zweitgutachten (inline) ───────────────────
+        const SizedBox(height: 20),
+        _sectionHeader(Icons.assignment_ind, 'Zweitgutachten durch Medizinischen Dienst', Colors.deepPurple),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _wsZgDatumC, readOnly: true, onTap: () => _pickDate(_wsZgDatumC),
+          decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        ),
+        const SizedBox(height: 10),
+        _buildMdAutocomplete(),
         const SizedBox(height: 12),
-        TextField(controller: begC, maxLines: 4, decoration: const InputDecoration(labelText: 'Begründung des Widerspruchs', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
-      ]))),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
-          onPressed: () async {
-            if (datumC.text.trim().isEmpty) {
-              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Widerspruchsdatum ist Pflicht'), backgroundColor: Colors.orange));
-              return;
-            }
-            // Update local state, then save.
-            _a['widerspruch_eingelegt'] = 'ja';
-            _a['widerspruch_datum'] = datumC.text.trim();
-            _a['widerspruch_methode'] = methode;
-            _a['widerspruch_anwalt'] = anwalt;
-            _a['widerspruch_anwalt_name'] = anwaltNameC.text.trim();
-            _a['widerspruch_begruendung'] = begC.text.trim();
-            setState(() => _widerspruchEingelegt = 'ja');
-            Navigator.pop(ctx);
-            await _save('widerspruch_eingelegt');
-            // Reopen der Detail-Modal ist der nächste natürliche Schritt für den User.
-          },
-          child: const Text('Widerspruch speichern'),
+        Row(children: [
+          Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
+          const SizedBox(width: 6),
+          Text('Termin-Brief vom Med. Dienst hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+        ]),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 240,
+          child: KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            modul: 'pflegegrad_zweitgutachten',
+            korrespondenzId: antragId,
+          ),
         ),
       ],
-    )));
+    ]));
   }
 
-  /// Öffnet das Detail-Modal für einen bereits eingelegten Widerspruch
-  /// mit 3 Sub-Tabs: Details / Zweitgutachten / Bescheid.
-  void _openWiderspruchDetailModal() {
-    showDialog(context: context, builder: (ctx) => _WiderspruchDetailModal(
-      apiService: widget.apiService,
-      userId: widget.userId,
-      antragId: (_a['id'] is int) ? _a['id'] as int : int.tryParse(_a['id'].toString()) ?? 0,
-      antrag: _a,
-      memberBundesland: widget.memberBundesland,
-      onSaved: (updated) {
-        // Merge back into parent state so the summary card refreshes.
-        setState(() => _a.addAll(updated));
-        widget.onSaved();
-      },
-    ));
-  }
-
-  Widget _sectionHeader(IconData icon, String title, MaterialColor color) {
-    return Row(children: [
-      Icon(icon, size: 18, color: color.shade700),
-      const SizedBox(width: 6),
-      Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
-    ]);
-  }
-
-  Widget _actionRow({required String primaryLabel, required String primaryStatus}) {
-    return Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
-      const SizedBox(width: 8),
-      FilledButton.icon(
-        icon: _saving
-            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.save, size: 16),
-        label: Text(_saving ? 'Speichert…' : primaryLabel),
-        style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600),
-        onPressed: _saving ? null : () => _save(primaryStatus),
+  // ── Tab 5: Bescheid nach Widerspruch ──
+  Widget _buildWiderspruchBescheidTab() {
+    final antragId = (widget.antrag['id'] is int)
+        ? widget.antrag['id'] as int
+        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.assignment_turned_in, 'Bescheid nach Widerspruch', Colors.green),
+      const SizedBox(height: 8),
+      Text(
+        'Nach dem Zweitgutachten entscheidet die Pflegekasse erneut. Datum + Ergebnis + neuer (oder bestätigter) Pflegegrad.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
       ),
+      const SizedBox(height: 14),
+      Row(children: [
+        Expanded(child: TextField(
+          controller: _wsBescheidDatumC, readOnly: true, onTap: () => _pickDate(_wsBescheidDatumC),
+          decoration: const InputDecoration(labelText: 'Bescheiddatum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: _pflegegrade.contains(_wsBescheidPg) ? _wsBescheidPg : '',
+          decoration: const InputDecoration(labelText: 'Neuer PG', isDense: true, border: OutlineInputBorder()),
+          items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? '—' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setState(() => _wsBescheidPg = v ?? ''),
+        )),
+      ]),
+      const SizedBox(height: 10),
+      TextField(controller: _wsBescheidErgebnisC, decoration: const InputDecoration(labelText: 'Ergebnis (z.B. PG 3 anerkannt / Widerspruch abgelehnt)', isDense: true, border: OutlineInputBorder())),
+      const SizedBox(height: 20),
+      Row(children: [
+        Icon(Icons.upload_file, size: 16, color: Colors.green.shade700),
+        const SizedBox(width: 6),
+        Text('Widerspruchs-Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+      ]),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 260,
+        child: KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'pflegegrad_widerspruch_bescheid',
+          korrespondenzId: antragId,
+        ),
+      ),
+    ]));
+  }
+
+  // ── Tab 6: Klage ──
+  Widget _buildKlageTab() {
+    final antragId = (widget.antrag['id'] is int)
+        ? widget.antrag['id'] as int
+        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.account_balance, 'Klage vor dem Sozialgericht', Colors.red),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+        child: Text(
+          'Wenn auch nach dem Widerspruch der Bescheid unbefriedigend ist, kann innerhalb 1 Monats Klage beim Sozialgericht erhoben werden. Sozialgerichtsklagen sind gerichtsgebührenfrei (§ 183 SGG).',
+          style: TextStyle(fontSize: 11, color: Colors.red.shade900, height: 1.4),
+        ),
+      ),
+      const SizedBox(height: 14),
+      const Text('Klage eingelegt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 6),
+      Row(children: [
+        ChoiceChip(label: const Text('nein', style: TextStyle(fontSize: 11)), selected: _klageEingelegt == 'nein', onSelected: (_) => setState(() => _klageEingelegt = 'nein')),
+        const SizedBox(width: 8),
+        ChoiceChip(label: const Text('ja', style: TextStyle(fontSize: 11)), selected: _klageEingelegt == 'ja', selectedColor: Colors.red.shade200, onSelected: (_) => setState(() => _klageEingelegt = 'ja')),
+      ]),
+      if (_klageEingelegt == 'ja') ...[
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: TextField(
+            controller: _klageDatumC, readOnly: true, onTap: () => _pickDate(_klageDatumC),
+            decoration: const InputDecoration(labelText: 'Klage eingereicht am *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(
+            controller: _klageAktenC,
+            decoration: const InputDecoration(labelText: 'Aktenzeichen (SG …)', isDense: true, border: OutlineInputBorder()),
+          )),
+        ]),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _klageGerichtC,
+          decoration: const InputDecoration(labelText: 'Zuständiges Sozialgericht (z.B. „Sozialgericht Ulm")', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.account_balance, size: 18)),
+        ),
+        const SizedBox(height: 10),
+        const Text('Durch Anwalt vertreten?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Row(children: [
+          ChoiceChip(label: const Text('nein', style: TextStyle(fontSize: 11)), selected: _klageAnwalt == 'nein', onSelected: (_) => setState(() => _klageAnwalt = 'nein')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('ja', style: TextStyle(fontSize: 11)), selected: _klageAnwalt == 'ja', selectedColor: Colors.red.shade200, onSelected: (_) => setState(() => _klageAnwalt = 'ja')),
+        ]),
+        if (_klageAnwalt == 'ja') ...[
+          const SizedBox(height: 10),
+          TextField(controller: _klageAnwaltNameC, decoration: const InputDecoration(labelText: 'Kanzlei / Anwalt', isDense: true, border: OutlineInputBorder())),
+        ],
+        const SizedBox(height: 10),
+        TextField(controller: _klageBegC, maxLines: 4, decoration: const InputDecoration(labelText: 'Klagebegründung', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _klageVerhandlungC, readOnly: true, onTap: () => _pickDate(_klageVerhandlungC),
+          decoration: const InputDecoration(labelText: 'Verhandlungstermin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        ),
+        const SizedBox(height: 20),
+        Row(children: [
+          Icon(Icons.upload_file, size: 16, color: Colors.red.shade700),
+          const SizedBox(width: 6),
+          Text('Klage-Unterlagen hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade800)),
+        ]),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 240,
+          child: KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            modul: 'pflegegrad_klage',
+            korrespondenzId: antragId,
+          ),
+        ),
+      ],
+    ]));
+  }
+
+  // ── Tab 7: Urteil (Bescheid nach Klage) ──
+  Widget _buildKlageBescheidTab() {
+    final antragId = (widget.antrag['id'] is int)
+        ? widget.antrag['id'] as int
+        : int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.gavel_rounded, 'Urteil / Bescheid nach Klage', Colors.teal),
+      const SizedBox(height: 8),
+      Text(
+        'Ergebnis des Sozialgerichtsverfahrens — Urteil oder gerichtlicher Vergleich mit endgültigem Pflegegrad.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 14),
+      Row(children: [
+        Expanded(child: TextField(
+          controller: _klageUrteilDatumC, readOnly: true, onTap: () => _pickDate(_klageUrteilDatumC),
+          decoration: const InputDecoration(labelText: 'Urteilsdatum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: _pflegegrade.contains(_klageUrteilPg) ? _klageUrteilPg : '',
+          decoration: const InputDecoration(labelText: 'Zugesprochener PG', isDense: true, border: OutlineInputBorder()),
+          items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? '—' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setState(() => _klageUrteilPg = v ?? ''),
+        )),
+      ]),
+      const SizedBox(height: 10),
+      TextField(controller: _klageUrteilErgC, maxLines: 3, decoration: const InputDecoration(labelText: 'Ergebnis (z.B. „PG 3 zugesprochen" / „Klage abgewiesen")', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
+      const SizedBox(height: 20),
+      Row(children: [
+        Icon(Icons.upload_file, size: 16, color: Colors.teal.shade700),
+        const SizedBox(width: 6),
+        Text('Urteil hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade800)),
+      ]),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 260,
+        child: KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'pflegegrad_urteil',
+          korrespondenzId: antragId,
+        ),
+      ),
+    ]));
+  }
+
+  // ── Helpers: MD Autocomplete + Card + Gutachter Section + Neuer Gutachter Dialog ──
+  Widget _buildMdAutocomplete() {
+    final selMdId = int.tryParse(_s('zweitgutachten_md_id'));
+    Map<String, dynamic>? selectedMd;
+    if (selMdId != null) {
+      selectedMd = _mdList.firstWhere(
+        (m) => (m['id'] as int?) == selMdId || int.tryParse(m['id'].toString()) == selMdId,
+        orElse: () => {},
+      );
+      if (selectedMd.isEmpty) selectedMd = null;
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (!_mdLoaded)
+        const Padding(padding: EdgeInsets.all(8), child: Row(children: [
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 8),
+          Text('Lade Medizinische Dienste…', style: TextStyle(fontSize: 11)),
+        ]))
+      else Autocomplete<Map<String, dynamic>>(
+        initialValue: TextEditingValue(text: _s('zweitgutachten_md_name')),
+        displayStringForOption: (m) => m['name']?.toString() ?? '',
+        optionsBuilder: (txt) {
+          final q = txt.text.trim().toLowerCase();
+          if (q.isEmpty) return _mdList;
+          return _mdList.where((m) =>
+            (m['name']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['kuerzel']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['bundeslaender']?.toString() ?? '').toLowerCase().contains(q) ||
+            (m['ort']?.toString() ?? '').toLowerCase().contains(q));
+        },
+        fieldViewBuilder: (ctx, controller, focusNode, onSubmit) => TextField(
+          controller: controller, focusNode: focusNode,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search, size: 18),
+            suffixIcon: controller.text.isNotEmpty
+                ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () {
+                    controller.clear();
+                    setState(() {
+                      _a['zweitgutachten_md_id'] = '';
+                      _a['zweitgutachten_md_name'] = '';
+                      _a['zweitgutachten_gutachter_id'] = '';
+                      _a['zweitgutachten_gutachter_name'] = '';
+                    });
+                  })
+                : null,
+            hintText: 'Zuständiger MD (z.B. „BW", „Ulm")…',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+          ),
+        ),
+        optionsViewBuilder: (ctx, onSel, options) => Align(alignment: Alignment.topLeft, child: Material(elevation: 4, borderRadius: BorderRadius.circular(6),
+          child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 300, maxWidth: 600),
+            child: ListView(padding: EdgeInsets.zero, shrinkWrap: true, children: options.map((m) => InkWell(
+              onTap: () => onSel(m),
+              child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(m['name']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                if ((m['bundeslaender']?.toString() ?? '').isNotEmpty)
+                  Text(m['bundeslaender'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade600, fontStyle: FontStyle.italic)),
+                Text('${m['plz'] ?? ''} ${m['ort'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ])),
+            )).toList()),
+          ),
+        )),
+        onSelected: (m) {
+          final mdId = int.tryParse(m['id']?.toString() ?? '');
+          setState(() {
+            _a['zweitgutachten_md_id'] = m['id']?.toString() ?? '';
+            _a['zweitgutachten_md_name'] = m['name']?.toString() ?? '';
+            _a['zweitgutachten_gutachter_id'] = '';
+            _a['zweitgutachten_gutachter_name'] = '';
+            _gutachterLoaded = false;
+            _gutachterLoadedForMdId = null;
+          });
+          if (mdId != null) _loadGutachterList(mdId);
+        },
+      ),
+      if (selectedMd != null) ...[
+        const SizedBox(height: 8),
+        _buildGutachterSection(selectedMd),
+      ],
     ]);
   }
-}
 
-// ══════════════════════════ Widerspruch Detail Modal ══════════════════════════
-// Erscheint nach dem Einlegen des Widerspruchs (Tab „Widerspruch" → Button
-// „Details öffnen"). Enthält 3 Sub-Tabs:
-//   • Details        — Datum, Methode, Anwalt, Begründung (bearbeitbar)
-//   • Zweitgutachten — Termin + Upload des Termin-Briefs vom Med. Dienst
-//                       (KorrAttachmentsWidget mit modul='pflegegrad_zweitgutachten')
-//   • Bescheid       — Widerspruchs-Bescheid: Datum, Ergebnis, neuer PG
-//
-// Nach dem Speichern wird das übergeordnete Antrag-Modal via onSaved über
-// die neuen Werte informiert, damit die Summary-Card sofort refreshed.
-class _WiderspruchDetailModal extends StatefulWidget {
-  final ApiService apiService;
-  final int userId;
-  final int antragId;
-  final Map<String, dynamic> antrag;
-  final String? memberBundesland;
-  final void Function(Map<String, dynamic> updated) onSaved;
-
-  const _WiderspruchDetailModal({
-    required this.apiService,
-    required this.userId,
-    required this.antragId,
-    required this.antrag,
-    this.memberBundesland,
-    required this.onSaved,
-  });
-
-  @override
-  State<_WiderspruchDetailModal> createState() => _WiderspruchDetailModalState();
-}
-
-class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
-  late Map<String, dynamic> _a;
-  bool _saving = false;
-
-  // Details
-  late TextEditingController _datumC;
-  late TextEditingController _anwaltNameC;
-  late TextEditingController _begC;
-  String _methode = 'schriftlich per Post';
-  String _anwalt = 'nein';
-
-  // Zweitgutachten
-  late TextEditingController _zgDatumC;
-
-  // Bescheid
-  late TextEditingController _bescheidDatumC;
-  late TextEditingController _bescheidErgebnisC;
-  String _bescheidPg = '';
-
-  // Medizinischer Dienst (Referenz auf medizinischer_dienst_datenbank)
-  List<Map<String, dynamic>> _mdList = [];
-  bool _mdLoaded = false;
-
-  // Gutachter je aktuell ausgewähltem MD (verein-shared, verschlüsselt)
-  List<Map<String, dynamic>> _gutachterList = [];
-  bool _gutachterLoaded = false;
-  int? _gutachterLoadedForMdId;
-
-  static const _methoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
-  static const _pflegegrade = ['', '1', '2', '3', '4', '5'];
-
-  String _s(String k) => _a[k]?.toString() ?? '';
-
-  @override
-  void initState() {
-    super.initState();
-    _a = Map<String, dynamic>.from(widget.antrag);
-    _datumC = TextEditingController(text: _s('widerspruch_datum'));
-    _anwaltNameC = TextEditingController(text: _s('widerspruch_anwalt_name'));
-    _begC = TextEditingController(text: _s('widerspruch_begruendung'));
-    _methode = _methoden.contains(_s('widerspruch_methode')) ? _s('widerspruch_methode') : _methoden.first;
-    _anwalt = _s('widerspruch_anwalt').toLowerCase() == 'ja' ? 'ja' : 'nein';
-    _zgDatumC = TextEditingController(text: _s('widerspruch_zweitgutachten_datum'));
-    _bescheidDatumC = TextEditingController(text: _s('widerspruch_bescheid_datum'));
-    _bescheidErgebnisC = TextEditingController(text: _s('widerspruch_bescheid_ergebnis'));
-    _bescheidPg = _pflegegrade.contains(_s('widerspruch_bescheid_pflegegrad')) ? _s('widerspruch_bescheid_pflegegrad') : '';
-    _loadMdList();
-  }
-
-  Future<void> _loadMdList() async {
-    try {
-      final res = await widget.apiService.listMedizinischerDienst();
-      if (res['success'] == true && mounted) {
-        setState(() {
-          _mdList = (res['md'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          _mdLoaded = true;
-        });
-        // Auto-Preselect des zuständigen MD anhand des Bundeslands des Mitglieds,
-        // aber nur wenn noch keiner gewählt wurde.
-        if (_s('zweitgutachten_md_id').isEmpty && widget.memberBundesland != null && widget.memberBundesland!.trim().isNotEmpty) {
-          final auto = _findMdForBundesland(widget.memberBundesland!);
-          if (auto != null && mounted) {
-            final mdId = int.tryParse(auto['id']?.toString() ?? '') ?? 0;
-            setState(() {
-              _a['zweitgutachten_md_id'] = auto['id']?.toString() ?? '';
-              _a['zweitgutachten_md_name'] = auto['name']?.toString() ?? '';
-            });
-            if (mdId > 0) _loadGutachterList(mdId);
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
-  /// Ordnet ein Bundesland dem passenden regionalen MD zu.
-  /// NRW-Fallback: MD Nordrhein (Regierungsbezirke Düsseldorf, Köln); für
-  /// Regierungsbezirke Arnsberg/Detmold/Münster kann der User manuell auf
-  /// MD Westfalen-Lippe umschalten.
-  Map<String, dynamic>? _findMdForBundesland(String bl) {
-    final needle = bl.trim().toLowerCase();
-    if (needle.isEmpty) return null;
-    // Erst exakter Match auf `bundeslaender`-Spalte (contains).
-    for (final md in _mdList) {
-      final blCol = (md['bundeslaender']?.toString() ?? '').toLowerCase();
-      if (blCol.contains(needle)) return md;
+  Widget _buildGutachterSection(Map<String, dynamic> md) {
+    final mdId = int.tryParse(md['id']?.toString() ?? '') ?? 0;
+    if (mdId > 0 && _gutachterLoadedForMdId != mdId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadGutachterList(mdId));
     }
-    // Fallback: bekannte Abweichungen — Kurzformen ohne Bindestrich, etc.
-    final aliases = <String, String>{
-      'nrw': 'nordrhein-westfalen',
-      'sh': 'schleswig-holstein',
-      'mv': 'mecklenburg-vorpommern',
-      'bw': 'baden-württemberg',
-      'ba-wü': 'baden-württemberg',
-      'rlp': 'rheinland-pfalz',
-    };
-    final alias = aliases[needle];
-    if (alias != null) {
-      for (final md in _mdList) {
-        final blCol = (md['bundeslaender']?.toString() ?? '').toLowerCase();
-        if (blCol.contains(alias)) return md;
-      }
+    final selGId = int.tryParse(_s('zweitgutachten_gutachter_id'));
+    Map<String, dynamic>? selG;
+    if (selGId != null) {
+      selG = _gutachterList.firstWhere(
+        (g) => (g['id'] as int?) == selGId || int.tryParse(g['id'].toString()) == selGId,
+        orElse: () => {},
+      );
+      if (selG.isEmpty) selG = null;
     }
-    return null;
-  }
-
-  Future<void> _loadGutachterList(int mdId) async {
-    if (_gutachterLoadedForMdId == mdId && _gutachterLoaded) return;
-    _gutachterLoadedForMdId = mdId;
-    try {
-      final res = await widget.apiService.listMdGutachter(mdId);
-      if (res['success'] == true && mounted) {
-        setState(() {
-          _gutachterList = (res['gutachter'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          _gutachterLoaded = true;
-        });
-      }
-    } catch (_) {}
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.person_search, size: 14, color: Colors.deepPurple.shade700),
+          const SizedBox(width: 4),
+          Text('Gutachter (Person)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+          const Spacer(),
+          if (_gutachterLoaded)
+            Text('${_gutachterList.length} für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 9, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        ]),
+        const SizedBox(height: 6),
+        if (!_gutachterLoaded)
+          const Padding(padding: EdgeInsets.all(4), child: Text('Lade…', style: TextStyle(fontSize: 10)))
+        else if (_gutachterList.isEmpty)
+          Text('Noch keiner registriert für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))
+        else Autocomplete<Map<String, dynamic>>(
+          initialValue: TextEditingValue(text: _s('zweitgutachten_gutachter_name')),
+          displayStringForOption: (g) => '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(),
+          optionsBuilder: (txt) {
+            final q = txt.text.trim().toLowerCase();
+            if (q.isEmpty) return _gutachterList;
+            return _gutachterList.where((g) =>
+              (g['vorname']?.toString() ?? '').toLowerCase().contains(q) ||
+              (g['nachname']?.toString() ?? '').toLowerCase().contains(q));
+          },
+          fieldViewBuilder: (ctx, controller, focusNode, onSubmit) => TextField(
+            controller: controller, focusNode: focusNode,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search, size: 16),
+              hintText: 'Gutachter suchen…',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          optionsViewBuilder: (ctx, onSel, options) => Align(alignment: Alignment.topLeft, child: Material(elevation: 4, borderRadius: BorderRadius.circular(6),
+            child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 240, maxWidth: 500),
+              child: ListView(padding: EdgeInsets.zero, shrinkWrap: true, children: options.map((g) => InkWell(
+                onTap: () => onSel(g),
+                child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  if ((g['qualifikation']?.toString() ?? '').isNotEmpty)
+                    Text(g['qualifikation'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade600)),
+                ])),
+              )).toList()),
+            ),
+          )),
+          onSelected: (g) => setState(() {
+            _a['zweitgutachten_gutachter_id'] = g['id']?.toString() ?? '';
+            _a['zweitgutachten_gutachter_name'] = '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim();
+          }),
+        ),
+        if (selG != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.deepPurple.shade400)),
+            child: Row(children: [
+              Icon(Icons.person, size: 16, color: Colors.deepPurple.shade700),
+              const SizedBox(width: 6),
+              Expanded(child: Text('${selG['vorname'] ?? ''} ${selG['nachname'] ?? ''}'.trim() + ((selG['qualifikation']?.toString() ?? '').isNotEmpty ? " — ${selG['qualifikation']}" : ""),
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500))),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 6),
+        OutlinedButton.icon(
+          icon: Icon(Icons.person_add, size: 12, color: Colors.deepPurple.shade700),
+          label: Text('Neuer Gutachter für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.deepPurple.shade400),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), minimumSize: Size.zero,
+          ),
+          onPressed: () => _showNeuerGutachterDialog(mdId, md['name']?.toString() ?? ''),
+        ),
+      ]),
+    );
   }
 
   void _showNeuerGutachterDialog(int mdId, String mdName) {
@@ -1093,7 +1304,6 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
     final notizC = TextEditingController();
     String qualifikation = 'Pflegefachperson';
     const qualifikationen = ['Pflegefachperson', 'Ärztin / Arzt', 'Sozialpädagoge/-in', 'Ergotherapeut/-in', 'Andere'];
-
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Gutachter anlegen'),
@@ -1107,14 +1317,13 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
         ]),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          initialValue: qualifikation,
-          isExpanded: true,
+          initialValue: qualifikation, isExpanded: true,
           decoration: const InputDecoration(labelText: 'Qualifikation', isDense: true, border: OutlineInputBorder()),
           items: qualifikationen.map((q) => DropdownMenuItem(value: q, child: Text(q, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setD(() => qualifikation = v ?? 'Pflegefachperson'),
         ),
         const SizedBox(height: 12),
-        TextField(controller: notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz (optional, z.B. „Landkreis Ulm")', isDense: true, border: OutlineInputBorder())),
+        TextField(controller: notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder())),
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -1133,9 +1342,7 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
                 'qualifikation': qualifikation,
                 'notiz': notizC.text.trim(),
               });
-              if (res['success'] != true) {
-                throw Exception(res['message'] ?? 'Server-Fehler');
-              }
+              if (res['success'] != true) throw Exception(res['message'] ?? 'Server-Fehler');
               final newId = res['id'] as int?;
               final fullName = '${vornameC.text.trim()} ${nachnameC.text.trim()}';
               setState(() {
@@ -1146,7 +1353,7 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
               });
               await _loadGutachterList(mdId);
               if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gutachter „$fullName" angelegt und ausgewählt'), backgroundColor: Colors.green));
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gutachter „$fullName" angelegt'), backgroundColor: Colors.green));
             } catch (e) {
               if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
             }
@@ -1157,560 +1364,12 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
     )));
   }
 
-  Future<void> _pick(TextEditingController c) async {
-    final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime(2040), locale: const Locale('de'));
-    if (p != null) c.text = '${p.day.toString().padLeft(2,'0')}.${p.month.toString().padLeft(2,'0')}.${p.year}';
-  }
-
-  /// Compute an appropriate parent Antrag status based on Widerspruch state.
-  String _computeStatus() {
-    if (_bescheidErgebnisC.text.isNotEmpty || _bescheidDatumC.text.isNotEmpty) {
-      return _bescheidErgebnisC.text.toLowerCase().contains('abgelehnt')
-          ? 'widerspruch_abgelehnt'
-          : 'widerspruch_bewilligt';
-    }
-    if (_zgDatumC.text.isNotEmpty) return 'zweitgutachten';
-    return 'widerspruch_eingelegt';
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final payload = <String, dynamic>{
-        'id': widget.antragId,
-        // Preserve outer Antrag-fields verbatim so the UPDATE doesn't clear them.
-        'antrag_typ': _s('antrag_typ'),
-        'antrag_datum': _s('antrag_datum'),
-        'antrag_methode': _s('antrag_methode'),
-        'pflegegrad_beantragt': _s('pflegegrad_beantragt'),
-        'pflegegrad_ziel': _s('pflegegrad_ziel'),
-        'aktenzeichen': _s('aktenzeichen'),
-        'status': _computeStatus(),
-        'notiz': _s('notiz'),
-        'begutachtung_datum': _s('begutachtung_datum'),
-        'begutachtung_ort': _s('begutachtung_ort'),
-        'gutachter_name': _s('gutachter_name'),
-        'bescheid_datum': _s('bescheid_datum'),
-        'bescheid_ergebnis': _s('bescheid_ergebnis'),
-        'bescheid_gueltig_ab': _s('bescheid_gueltig_ab'),
-        // Widerspruch-Felder aus diesem Modal:
-        'widerspruch_eingelegt': 'ja',
-        'widerspruch_datum': _datumC.text.trim(),
-        'widerspruch_methode': _methode,
-        'widerspruch_anwalt': _anwalt,
-        'widerspruch_anwalt_name': _anwaltNameC.text.trim(),
-        'widerspruch_begruendung': _begC.text.trim(),
-        'widerspruch_zweitgutachten_datum': _zgDatumC.text.trim(),
-        'zweitgutachten_md_id': _s('zweitgutachten_md_id'),
-        'zweitgutachten_md_name': _s('zweitgutachten_md_name'),
-        'zweitgutachten_gutachter_id': _s('zweitgutachten_gutachter_id'),
-        'zweitgutachten_gutachter_name': _s('zweitgutachten_gutachter_name'),
-        'widerspruch_bescheid_datum': _bescheidDatumC.text.trim(),
-        'widerspruch_bescheid_ergebnis': _bescheidErgebnisC.text.trim(),
-        'widerspruch_bescheid_pflegegrad': _bescheidPg,
-      };
-      final res = await widget.apiService.savePflegegradAntrag(widget.userId, payload);
-      if (res['success'] != true) {
-        throw Exception('Server-Fehler: ${res['message'] ?? res.toString()}');
-      }
-      _a.addAll(payload);
-      widget.onSaved(payload);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Widerspruch-Daten gespeichert'), backgroundColor: Colors.green));
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 6)));
-      }
-    }
-    if (mounted) setState(() => _saving = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: SizedBox(width: 780, height: 640, child: Column(children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
-            child: Row(children: [
-              Icon(Icons.gavel, color: Colors.orange.shade700),
-              const SizedBox(width: 8),
-              const Expanded(child: Text('Widerspruch — Details', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-            ]),
-          ),
-          TabBar(
-            labelColor: Colors.orange.shade700,
-            unselectedLabelColor: Colors.grey.shade500,
-            indicatorColor: Colors.orange.shade700,
-            tabs: [
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _datumC.text.isNotEmpty ? Colors.green : Colors.red),
-                const SizedBox(width: 4), const Icon(Icons.info_outline, size: 16),
-                const SizedBox(width: 4), const Text('Details'),
-              ])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _zgDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
-                const SizedBox(width: 4), const Icon(Icons.assignment_ind, size: 16),
-                const SizedBox(width: 4), const Text('Zweitgutachten'),
-              ])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.circle, size: 8, color: _bescheidDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
-                const SizedBox(width: 4), const Icon(Icons.assignment_turned_in, size: 16),
-                const SizedBox(width: 4), const Text('Bescheid'),
-              ])),
-            ],
-          ),
-          Expanded(child: TabBarView(children: [
-            _buildDetailsTab(),
-            _buildZweitgutachtenTab(),
-            _buildBescheidTab(),
-          ])),
-          Padding(padding: const EdgeInsets.all(12), child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              icon: _saving
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.save, size: 16),
-              label: Text(_saving ? 'Speichert…' : 'Alle Widerspruch-Daten speichern'),
-              style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
-              onPressed: _saving ? null : _save,
-            ),
-          ])),
-        ])),
-      ),
-    );
-  }
-
-  Widget _buildDetailsTab() {
-    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.gavel, size: 18, color: Colors.orange.shade700),
-        const SizedBox(width: 6),
-        Text('Widerspruchsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-      ]),
-      const SizedBox(height: 14),
-      TextField(
-        controller: _datumC, readOnly: true,
-        onTap: () => _pick(_datumC),
-        decoration: const InputDecoration(labelText: 'Widerspruch eingelegt am *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-      ),
-      const SizedBox(height: 10),
-      DropdownButtonFormField<String>(
-        initialValue: _methoden.contains(_methode) ? _methode : _methoden.first,
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Wie eingereicht?', isDense: true, border: OutlineInputBorder()),
-        items: _methoden.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12)))).toList(),
-        onChanged: (v) => setState(() => _methode = v ?? _methoden.first),
-      ),
-      const SizedBox(height: 10),
-      const Text('Durch Anwalt eingereicht?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-      const SizedBox(height: 6),
-      Row(children: [
-        ChoiceChip(label: const Text('nein', style: TextStyle(fontSize: 11)), selected: _anwalt == 'nein', onSelected: (_) => setState(() => _anwalt = 'nein')),
-        const SizedBox(width: 8),
-        ChoiceChip(label: const Text('ja', style: TextStyle(fontSize: 11)), selected: _anwalt == 'ja', selectedColor: Colors.orange.shade200, onSelected: (_) => setState(() => _anwalt = 'ja')),
-      ]),
-      if (_anwalt == 'ja') ...[
-        const SizedBox(height: 10),
-        TextField(controller: _anwaltNameC, decoration: const InputDecoration(labelText: 'Kanzlei / Anwalt (Name, Adresse)', isDense: true, border: OutlineInputBorder())),
-      ],
-      const SizedBox(height: 10),
-      TextField(
-        controller: _begC, maxLines: 5,
-        decoration: const InputDecoration(labelText: 'Begründung des Widerspruchs', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true),
-      ),
-    ]));
-  }
-
-  Widget _buildZweitgutachtenTab() {
-    final selMdId = int.tryParse(_s('zweitgutachten_md_id'));
-    Map<String, dynamic>? selectedMd;
-    if (selMdId != null) {
-      selectedMd = _mdList.firstWhere(
-        (m) => (m['id'] as int?) == selMdId || int.tryParse(m['id'].toString()) == selMdId,
-        orElse: () => {},
-      );
-      if (selectedMd.isEmpty) selectedMd = null;
-    }
-
-    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.assignment_ind, size: 18, color: Colors.deepPurple.shade700),
-        const SizedBox(width: 6),
-        Text('Zweitgutachten durch Medizinischen Dienst', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-      ]),
-      const SizedBox(height: 8),
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
-        child: Text(
-          'Nach dem Widerspruch veranlasst die Pflegekasse i.d.R. ein Zweitgutachten '
-          'durch den Medizinischen Dienst. Der Termin wird per Brief mitgeteilt — hier '
-          'können Sie den Umschlag/den Brief als Beleg hochladen.',
-          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900, height: 1.4),
-        ),
-      ),
-      const SizedBox(height: 14),
-      TextField(
-        controller: _zgDatumC, readOnly: true,
-        onTap: () => _pick(_zgDatumC),
-        decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-      ),
-
-      // ─── Auswahl des zuständigen Medizinischen Dienstes ─────────────────
-      const SizedBox(height: 16),
-      Row(children: [
-        Icon(Icons.local_hospital, size: 16, color: Colors.deepPurple.shade700),
-        const SizedBox(width: 6),
-        Text('Zuständiger Medizinischer Dienst', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
-      ]),
-      const SizedBox(height: 6),
-      if (!_mdLoaded)
-        const Padding(padding: EdgeInsets.all(8), child: Row(children: [
-          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-          SizedBox(width: 8),
-          Text('Lade Liste der Medizinischen Dienste…', style: TextStyle(fontSize: 11)),
-        ]))
-      else Autocomplete<Map<String, dynamic>>(
-        initialValue: TextEditingValue(text: _s('zweitgutachten_md_name')),
-        displayStringForOption: (m) => m['name']?.toString() ?? '',
-        optionsBuilder: (txt) {
-          final q = txt.text.trim().toLowerCase();
-          if (q.isEmpty) return _mdList;
-          return _mdList.where((m) =>
-            (m['name']?.toString() ?? '').toLowerCase().contains(q) ||
-            (m['kuerzel']?.toString() ?? '').toLowerCase().contains(q) ||
-            (m['bundeslaender']?.toString() ?? '').toLowerCase().contains(q) ||
-            (m['ort']?.toString() ?? '').toLowerCase().contains(q) ||
-            (m['plz']?.toString() ?? '').toLowerCase().contains(q) ||
-            (m['zustaendig_fuer']?.toString() ?? '').toLowerCase().contains(q));
-        },
-        fieldViewBuilder: (ctx, controller, focusNode, onSubmit) => TextField(
-          controller: controller, focusNode: focusNode,
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.search, size: 20),
-            suffixIcon: controller.text.isNotEmpty
-                ? IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () {
-                    controller.clear();
-                    setState(() {
-                      _a['zweitgutachten_md_id'] = '';
-                      _a['zweitgutachten_md_name'] = '';
-                    });
-                  })
-                : null,
-            hintText: 'MD suchen (z.B. „Baden-Württemberg", „Ulm", „BW")…',
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          ),
-        ),
-        optionsViewBuilder: (ctx, onSel, options) => Align(
-          alignment: Alignment.topLeft,
-          child: Material(elevation: 4, borderRadius: BorderRadius.circular(8),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 320, maxWidth: 640),
-              child: ListView(padding: EdgeInsets.zero, shrinkWrap: true,
-                children: options.map((m) => InkWell(
-                  onTap: () => onSel(m),
-                  child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(child: Text(m['name']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                      if ((m['kuerzel']?.toString() ?? '').isNotEmpty)
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(4)),
-                          child: Text(m['kuerzel'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700, fontWeight: FontWeight.w600))),
-                    ]),
-                    if ((m['bundeslaender']?.toString() ?? '').isNotEmpty)
-                      Text(m['bundeslaender'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade600, fontStyle: FontStyle.italic)),
-                    Text('${m['plz'] ?? ''} ${m['ort'] ?? ''} — ${m['strasse'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                  ])),
-                )).toList(),
-              ),
-            ),
-          ),
-        ),
-        onSelected: (m) {
-          final mdId = int.tryParse(m['id']?.toString() ?? '');
-          setState(() {
-            _a['zweitgutachten_md_id'] = m['id']?.toString() ?? '';
-            _a['zweitgutachten_md_name'] = m['name']?.toString() ?? '';
-            // Ausgewählten Gutachter zurücksetzen — er gehört zum vorherigen MD.
-            _a['zweitgutachten_gutachter_id'] = '';
-            _a['zweitgutachten_gutachter_name'] = '';
-            _gutachterLoaded = false;
-            _gutachterLoadedForMdId = null;
-          });
-          if (mdId != null) _loadGutachterList(mdId);
-        },
-      ),
-      if (selectedMd != null) ...[
-        const SizedBox(height: 10),
-        _buildMdCard(selectedMd),
-        const SizedBox(height: 16),
-        _buildGutachterSection(selectedMd),
-      ],
-
-      const SizedBox(height: 20),
-      Row(children: [
-        Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
-        const SizedBox(width: 6),
-        Text('Umschlag / Brief zum Termin hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
-      ]),
-      const SizedBox(height: 8),
-      SizedBox(
-        height: 260,
-        child: KorrAttachmentsWidget(
-          apiService: widget.apiService,
-          modul: 'pflegegrad_zweitgutachten',
-          korrespondenzId: widget.antragId,
-        ),
-      ),
-    ]));
-  }
-
-  Widget _buildMdCard(Map<String, dynamic> md) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.deepPurple.shade300),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.local_hospital, size: 22, color: Colors.deepPurple.shade700),
-          const SizedBox(width: 8),
-          Expanded(child: Text(md['name']?.toString() ?? '',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900))),
-        ]),
-        const SizedBox(height: 6),
-        if ((md['bundeslaender']?.toString() ?? '').isNotEmpty)
-          _mdRow(Icons.map, md['bundeslaender'].toString()),
-        _mdRow(Icons.location_on, '${md['strasse'] ?? ''}, ${md['plz'] ?? ''} ${md['ort'] ?? ''}'),
-        if ((md['telefon']?.toString() ?? '').isNotEmpty)
-          _mdRow(Icons.phone, md['telefon'].toString()),
-        if ((md['email']?.toString() ?? '').isNotEmpty)
-          _mdRow(Icons.email, md['email'].toString()),
-        if ((md['website']?.toString() ?? '').isNotEmpty)
-          _mdRow(Icons.language, md['website'].toString()),
-        if ((md['zustaendig_fuer']?.toString() ?? '').isNotEmpty)
-          Padding(padding: const EdgeInsets.only(top: 4),
-            child: Text(md['zustaendig_fuer'].toString(),
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
-      ]),
-    );
-  }
-
-  Widget _mdRow(IconData icon, String text) => Padding(
-    padding: const EdgeInsets.only(top: 3),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 13, color: Colors.grey.shade700),
+  Widget _sectionHeader(IconData icon, String title, MaterialColor color) {
+    return Row(children: [
+      Icon(icon, size: 18, color: color.shade700),
       const SizedBox(width: 6),
-      Expanded(child: SelectableText(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
-    ]),
-  );
-
-  Widget _buildGutachterSection(Map<String, dynamic> md) {
-    final mdId = int.tryParse(md['id']?.toString() ?? '') ?? 0;
-    // Autoload beim ersten Aufruf der Section.
-    if (mdId > 0 && _gutachterLoadedForMdId != mdId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadGutachterList(mdId));
-    }
-    final selGutachterId = int.tryParse(_s('zweitgutachten_gutachter_id'));
-    Map<String, dynamic>? selectedG;
-    if (selGutachterId != null) {
-      selectedG = _gutachterList.firstWhere(
-        (g) => (g['id'] as int?) == selGutachterId || int.tryParse(g['id'].toString()) == selGutachterId,
-        orElse: () => {},
-      );
-      if (selectedG.isEmpty) selectedG = null;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.deepPurple.shade200),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.person_search, size: 16, color: Colors.deepPurple.shade700),
-          const SizedBox(width: 6),
-          Text('Gutachter (Person)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
-          const Spacer(),
-          if (_gutachterLoaded)
-            Text('${_gutachterList.length} registriert für ${md['kuerzel'] ?? md['name']}',
-                 style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
-        ]),
-        const SizedBox(height: 8),
-        if (!_gutachterLoaded)
-          const Padding(padding: EdgeInsets.all(8), child: Row(children: [
-            SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 8),
-            Text('Lade Gutachter…', style: TextStyle(fontSize: 11)),
-          ]))
-        else if (_gutachterList.isEmpty)
-          Padding(padding: const EdgeInsets.all(4), child: Text(
-            'Noch kein Gutachter für ${md['kuerzel'] ?? md['name']} registriert.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic),
-          ))
-        else Autocomplete<Map<String, dynamic>>(
-          initialValue: TextEditingValue(text: _s('zweitgutachten_gutachter_name')),
-          displayStringForOption: (g) => '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(),
-          optionsBuilder: (txt) {
-            final q = txt.text.trim().toLowerCase();
-            if (q.isEmpty) return _gutachterList;
-            return _gutachterList.where((g) =>
-              (g['vorname']?.toString() ?? '').toLowerCase().contains(q) ||
-              (g['nachname']?.toString() ?? '').toLowerCase().contains(q) ||
-              (g['qualifikation']?.toString() ?? '').toLowerCase().contains(q) ||
-              (g['notiz']?.toString() ?? '').toLowerCase().contains(q));
-          },
-          fieldViewBuilder: (ctx, controller, focusNode, onSubmit) => TextField(
-            controller: controller, focusNode: focusNode,
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search, size: 18),
-              suffixIcon: controller.text.isNotEmpty
-                  ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () {
-                      controller.clear();
-                      setState(() {
-                        _a['zweitgutachten_gutachter_id'] = '';
-                        _a['zweitgutachten_gutachter_name'] = '';
-                      });
-                    })
-                  : null,
-              hintText: 'Gutachter suchen (Vorname, Nachname, Qualifikation)…',
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            ),
-          ),
-          optionsViewBuilder: (ctx, onSel, options) => Align(
-            alignment: Alignment.topLeft,
-            child: Material(elevation: 4, borderRadius: BorderRadius.circular(6),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300, maxWidth: 560),
-                child: ListView(padding: EdgeInsets.zero, shrinkWrap: true,
-                  children: options.map((g) => InkWell(
-                    onTap: () => onSel(g),
-                    child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      if ((g['qualifikation']?.toString() ?? '').isNotEmpty)
-                        Text(g['qualifikation'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade600)),
-                      if ((g['notiz']?.toString() ?? '').isNotEmpty)
-                        Text(g['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
-                    ])),
-                  )).toList(),
-                ),
-              ),
-            ),
-          ),
-          onSelected: (g) {
-            setState(() {
-              _a['zweitgutachten_gutachter_id'] = g['id']?.toString() ?? '';
-              _a['zweitgutachten_gutachter_name'] = '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim();
-            });
-          },
-        ),
-        if (selectedG != null) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade400, width: 1.5)),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.person, size: 22, color: Colors.deepPurple.shade700),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SelectableText('${selectedG['vorname'] ?? ''} ${selectedG['nachname'] ?? ''}'.trim(),
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900)),
-                if ((selectedG['qualifikation']?.toString() ?? '').isNotEmpty)
-                  Text(selectedG['qualifikation'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700)),
-                if ((selectedG['notiz']?.toString() ?? '').isNotEmpty)
-                  Padding(padding: const EdgeInsets.only(top: 2),
-                    child: Text(selectedG['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
-              ])),
-            ]),
-          ),
-        ],
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          icon: Icon(Icons.person_add, size: 14, color: Colors.deepPurple.shade700),
-          label: Text('Neuen Gutachter für ${md['kuerzel'] ?? md['name']} anlegen', style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700)),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: Colors.deepPurple.shade400),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            minimumSize: Size.zero,
-          ),
-          onPressed: () => _showNeuerGutachterDialog(mdId, md['name']?.toString() ?? ''),
-        ),
-      ]),
-    );
-  }
-
-  Widget _buildBescheidTab() {
-    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.assignment_turned_in, size: 18, color: Colors.green.shade700),
-        const SizedBox(width: 6),
-        Text('Widerspruchs-Bescheid', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-      ]),
-      const SizedBox(height: 8),
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
-        child: Text(
-          'Nach dem Zweitgutachten entscheidet die Pflegekasse erneut über den Widerspruch. '
-          'Hier tragen Sie Datum + Ergebnis + neuen (oder bestätigten) Pflegegrad ein.',
-          style: TextStyle(fontSize: 11, color: Colors.green.shade900, height: 1.4),
-        ),
-      ),
-      const SizedBox(height: 14),
-      Row(children: [
-        Expanded(child: TextField(
-          controller: _bescheidDatumC, readOnly: true,
-          onTap: () => _pick(_bescheidDatumC),
-          decoration: const InputDecoration(labelText: 'Bescheiddatum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-        )),
-        const SizedBox(width: 10),
-        Expanded(child: DropdownButtonFormField<String>(
-          initialValue: _pflegegrade.contains(_bescheidPg) ? _bescheidPg : '',
-          decoration: const InputDecoration(labelText: 'Neuer PG', isDense: true, border: OutlineInputBorder()),
-          items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? '—' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),
-          onChanged: (v) => setState(() => _bescheidPg = v ?? ''),
-        )),
-      ]),
-      const SizedBox(height: 10),
-      TextField(
-        controller: _bescheidErgebnisC,
-        decoration: const InputDecoration(labelText: 'Ergebnis (z.B. PG 3 anerkannt / Widerspruch abgelehnt)', isDense: true, border: OutlineInputBorder()),
-      ),
-      const SizedBox(height: 20),
-      Row(children: [
-        Icon(Icons.upload_file, size: 16, color: Colors.green.shade700),
-        const SizedBox(width: 6),
-        Text('Widerspruchs-Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
-      ]),
-      const SizedBox(height: 4),
-      Text(
-        'Bescheid der Pflegekasse nach dem Widerspruch (PDF/JPG/PNG). Mehrere Dateien können gleichzeitig hochgeladen werden.',
-        style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
-      ),
-      const SizedBox(height: 8),
-      SizedBox(
-        height: 260,
-        child: KorrAttachmentsWidget(
-          apiService: widget.apiService,
-          modul: 'pflegegrad_widerspruch_bescheid',
-          korrespondenzId: widget.antragId,
-        ),
-      ),
-    ]));
+      Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+    ]);
   }
 }
+
