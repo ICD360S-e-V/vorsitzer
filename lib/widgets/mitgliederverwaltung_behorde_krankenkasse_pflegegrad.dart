@@ -1644,6 +1644,26 @@ class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
         controller: _bescheidErgebnisC,
         decoration: const InputDecoration(labelText: 'Ergebnis (z.B. PG 3 anerkannt / Widerspruch abgelehnt)', isDense: true, border: OutlineInputBorder()),
       ),
+      const SizedBox(height: 20),
+      Row(children: [
+        Icon(Icons.upload_file, size: 16, color: Colors.green.shade700),
+        const SizedBox(width: 6),
+        Text('Widerspruchs-Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+      ]),
+      const SizedBox(height: 4),
+      Text(
+        'Bescheid der Pflegekasse nach dem Widerspruch (PDF/JPG/PNG). Mehrere Dateien können gleichzeitig hochgeladen werden.',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 260,
+        child: KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'pflegegrad_widerspruch_bescheid',
+          korrespondenzId: widget.antragId,
+        ),
+      ),
     ]));
   }
 }
