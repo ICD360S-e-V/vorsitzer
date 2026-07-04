@@ -148,7 +148,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
               child: Column(
                 children: [
                   _item(0, Icons.dashboard, 'Dashboard'),
-                  _item(14, Icons.today, 'Arbeitswochen'),
+                  _item(14, Icons.today, 'Arbeitstag'),
                   _item(1, Icons.people, 'Mitgliederverwaltung'),
                   _item(2, Icons.confirmation_number, 'Ticketverwaltung'),
                   _item(3, Icons.calendar_month, 'Terminverwaltung'),

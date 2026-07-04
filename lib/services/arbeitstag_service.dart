@@ -69,8 +69,8 @@ class ArbeitstagMember {
   final String? notiz;
 
   final int openTicketsCount;
-  final int termineKwCount;
-  final int routinesPendingCount;
+  final int termineHeuteCount;
+  final int routinesHeuteCount;
 
   final DateTime? archivedAt;
   final int? archivedBy;
@@ -100,8 +100,8 @@ class ArbeitstagMember {
     this.bearbeiterUserId,
     this.notiz,
     required this.openTicketsCount,
-    required this.termineKwCount,
-    required this.routinesPendingCount,
+    required this.termineHeuteCount,
+    required this.routinesHeuteCount,
     this.archivedAt,
     this.archivedBy,
     this.archivGrund,
@@ -147,8 +147,8 @@ class ArbeitstagMember {
         bearbeiterUserId: _intN(j['bearbeiter_user_id']),
         notiz: j['notiz'],
         openTicketsCount: _int(j['open_tickets_count']),
-        termineKwCount: _int(j['termine_kw_count']),
-        routinesPendingCount: _int(j['routines_pending_count']),
+        termineHeuteCount: _int(j['termine_heute_count']),
+        routinesHeuteCount: _int(j['routines_heute_count']),
         archivedAt: _dt(j['archived_at']),
         archivedBy: _intN(j['archived_by']),
         archivGrund: j['archiv_grund'],
@@ -194,28 +194,15 @@ class ArbeitstagPickerItem {
   }
 }
 
-class ArbeitstagWoche {
-  final int kwYear;
-  final int kwNumber;
-  final DateTime monday;
-  final DateTime sunday;
+class ArbeitstagTag {
+  final DateTime datum;
   final List<ArbeitstagMember> members;
   final ArbeitstagStats stats;
 
-  ArbeitstagWoche({
-    required this.kwYear,
-    required this.kwNumber,
-    required this.monday,
-    required this.sunday,
-    required this.members,
-    required this.stats,
-  });
+  ArbeitstagTag({required this.datum, required this.members, required this.stats});
 
-  factory ArbeitstagWoche.fromJson(Map<String, dynamic> j) => ArbeitstagWoche(
-        kwYear: _int(j['kw_year']),
-        kwNumber: _int(j['kw_number']),
-        monday: DateTime.parse(j['monday']),
-        sunday: DateTime.parse(j['sunday']),
+  factory ArbeitstagTag.fromJson(Map<String, dynamic> j) => ArbeitstagTag(
+        datum: DateTime.parse(j['datum']),
         members: ((j['members'] as List?) ?? []).map((m) => ArbeitstagMember.fromJson(m)).toList(),
         stats: ArbeitstagStats.fromJson(j['stats'] ?? {}),
       );
@@ -264,27 +251,25 @@ class ArbeitstagService {
     };
   }
 
-  Future<ArbeitstagWoche?> getWoche({
-    required int kwYear,
-    required int kwNumber,
-    String view = 'active', // 'active' | 'archived'
+  Future<ArbeitstagTag?> getTag({
+    required String datum, // YYYY-MM-DD
+    String view = 'active',
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_list.php').replace(queryParameters: {
-        'kw_year': kwYear.toString(),
-        'kw_number': kwNumber.toString(),
+        'datum': datum,
         'view': view,
       });
       final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 30));
       if (res.statusCode != 200) {
-        _log.error('arbeitstag getWoche HTTP ${res.statusCode}', tag: 'ARBEITSTAG');
+        _log.error('arbeitstag getTag HTTP ${res.statusCode}', tag: 'ARBEITSTAG');
         return null;
       }
       final data = jsonDecode(res.body);
       if (data['success'] != true) return null;
-      return ArbeitstagWoche.fromJson(data);
+      return ArbeitstagTag.fromJson(data);
     } catch (e) {
-      _log.error('arbeitstag getWoche failed: $e', tag: 'ARBEITSTAG');
+      _log.error('arbeitstag getTag failed: $e', tag: 'ARBEITSTAG');
       return null;
     }
   }
@@ -312,15 +297,13 @@ class ArbeitstagService {
   Future<List<ArbeitstagPickerItem>> getPickerItems({
     required int userId,
     required String typ,
-    required int kwYear,
-    required int kwNumber,
+    required String datum,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_picker.php').replace(queryParameters: {
         'user_id': userId.toString(),
         'typ': typ,
-        'kw_year': kwYear.toString(),
-        'kw_number': kwNumber.toString(),
+        'datum': datum,
       });
       final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
@@ -335,8 +318,7 @@ class ArbeitstagService {
   }
 
   Future<bool> setState({
-    required int kwYear,
-    required int kwNumber,
+    required String datum,
     required int userId,
     required String typ, // 'ticket' | 'termin' | 'routine'
     required String state, // 'offen' | 'geplant' | 'in_bearbeitung' | 'erledigt'
@@ -346,8 +328,7 @@ class ArbeitstagService {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_bearbeitet.php');
       final body = <String, dynamic>{
-        'kw_year': kwYear,
-        'kw_number': kwNumber,
+        'datum': datum,
         'user_id': userId,
         'typ': typ,
         'state': state,

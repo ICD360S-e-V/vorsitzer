@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import '../services/arbeitstag_service.dart';
 
 class ArbeitstagScreen extends StatefulWidget {
@@ -11,36 +12,27 @@ class ArbeitstagScreen extends StatefulWidget {
 
 class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   final _svc = ArbeitstagService();
-  late int _kwYear;
-  late int _kwNumber;
-  ArbeitstagWoche? _data;
+  late DateTime _datum;
+  ArbeitstagTag? _data;
   bool _loading = true;
   String _view = 'active';
+
+  static final _fmt = DateFormat('yyyy-MM-dd');
 
   @override
   void initState() {
     super.initState();
+    initializeDateFormatting('de_DE', null);
     final now = DateTime.now();
-    _kwYear = _isoYear(now);
-    _kwNumber = _isoWeek(now);
+    _datum = DateTime(now.year, now.month, now.day);
     _load();
   }
 
-  static int _isoWeek(DateTime d) {
-    final thursday = d.add(Duration(days: 4 - (d.weekday)));
-    final firstThursday = DateTime(thursday.year, 1, 1)
-        .add(Duration(days: (4 - DateTime(thursday.year, 1, 1).weekday + 7) % 7));
-    return ((thursday.difference(firstThursday).inDays) / 7).floor() + 1;
-  }
-
-  static int _isoYear(DateTime d) {
-    final thursday = d.add(Duration(days: 4 - d.weekday));
-    return thursday.year;
-  }
+  String get _datumStr => _fmt.format(_datum);
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
+    final data = await _svc.getTag(datum: _datumStr, view: _view);
     if (!mounted) return;
     setState(() {
       _data = data;
@@ -53,7 +45,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Mitglied archivieren?'),
-        content: Text('${m.name} wird aus der aktiven Arbeitswochen-Liste entfernt. '
+        content: Text('${m.name} wird aus der aktiven Arbeitstag-Liste entfernt. '
             'Kann jederzeit wiederhergestellt werden.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -71,13 +63,17 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (success) _load();
   }
 
-  void _shiftKw(int delta) {
-    var monday = DateTime.now();
-    if (_data != null) monday = _data!.monday;
-    final next = monday.add(Duration(days: 7 * delta));
+  void _shiftDay(int delta) {
     setState(() {
-      _kwYear = _isoYear(next);
-      _kwNumber = _isoWeek(next);
+      _datum = _datum.add(Duration(days: delta));
+    });
+    _load();
+  }
+
+  void _jumpToday() {
+    final now = DateTime.now();
+    setState(() {
+      _datum = DateTime(now.year, now.month, now.day);
     });
     _load();
   }
@@ -90,14 +86,14 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         break;
       case 'geplant':
         await _svc.setState(
-          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
+          datum: _datumStr, userId: m.userId,
           typ: typ, state: 'in_bearbeitung',
         );
         _load();
         break;
       case 'in_bearbeitung':
         await _svc.setState(
-          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
+          datum: _datumStr, userId: m.userId,
           typ: typ, state: 'erledigt',
         );
         _load();
@@ -152,7 +148,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       await _openPicker(m, typ);
     } else {
       await _svc.setState(
-        kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
+        datum: _datumStr, userId: m.userId,
         typ: typ, state: action,
       );
       _load();
@@ -168,7 +164,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     }
 
     final items = await _svc.getPickerItems(
-      userId: m.userId, typ: typ, kwYear: _kwYear, kwNumber: _kwNumber,
+      userId: m.userId, typ: typ, datum: _datumStr,
     );
 
     if (!mounted) return;
@@ -177,7 +173,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       context: context,
       isScrollControlled: true,
       builder: (ctx) => _PickerSheet(
-        title: '${_typLabel(typ)} für ${m.name} — KW $_kwNumber',
+        title: '${_typLabel(typ)} für ${m.name} — ${DateFormat('dd.MM.yyyy').format(_datum)}',
         emptyLabel: _emptyLabel(typ),
         items: items,
         currentSelectionId: currentSelectionId,
@@ -188,8 +184,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (result == null) return;
 
     final ok = await _svc.setState(
-      kwYear: _kwYear,
-      kwNumber: _kwNumber,
+      datum: _datumStr,
       userId: m.userId,
       typ: typ,
       state: result.reset ? 'offen' : 'geplant',
@@ -201,8 +196,8 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   String _emptyLabel(String typ) {
     switch (typ) {
       case 'ticket':  return 'Keine offenen Tickets für dieses Mitglied';
-      case 'termin':  return 'Keine Termine in dieser KW';
-      case 'routine': return 'Keine Routinen in dieser KW';
+      case 'termin':  return 'Keine Termine an diesem Tag';
+      case 'routine': return 'Keine Routinen an diesem Tag';
       default: return 'Keine Einträge';
     }
   }
@@ -231,36 +226,45 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   }
 
   Widget _buildHeader(ThemeData theme) {
-    final data = _data;
-    final rangeStr = data == null
-        ? ''
-        : '${DateFormat('dd.MM').format(data.monday)} – ${DateFormat('dd.MM.yyyy').format(data.sunday)}';
-    final stats = data?.stats;
+    final stats = _data?.stats;
+    final today = DateTime.now();
+    final isToday = _datum.year == today.year && _datum.month == today.month && _datum.day == today.day;
+    final dayName = DateFormat('EEEE', 'de_DE').format(_datum);
+    final dateStr = DateFormat('dd.MM.yyyy').format(_datum);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: theme.colorScheme.surface,
       child: Row(
         children: [
           IconButton(
-            onPressed: () => _shiftKw(-1),
+            onPressed: () => _shiftDay(-1),
             icon: const Icon(Icons.chevron_left),
-            tooltip: 'Vorherige KW',
+            tooltip: 'Vorheriger Tag',
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Arbeitswochen – KW $_kwNumber / $_kwYear',
+              Text('Arbeitstag – $dayName',
                   style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
-              if (rangeStr.isNotEmpty)
-                Text(rangeStr, style: theme.textTheme.bodySmall),
+              Text(dateStr + (isToday ? ' (heute)' : ''),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isToday ? theme.colorScheme.primary : null,
+                    fontWeight: isToday ? FontWeight.w600 : FontWeight.normal,
+                  )),
             ],
           ),
           IconButton(
-            onPressed: () => _shiftKw(1),
+            onPressed: () => _shiftDay(1),
             icon: const Icon(Icons.chevron_right),
-            tooltip: 'Nächste KW',
+            tooltip: 'Nächster Tag',
           ),
+          if (!isToday)
+            TextButton.icon(
+              onPressed: _jumpToday,
+              icon: const Icon(Icons.today, size: 16),
+              label: const Text('Heute'),
+            ),
           const Spacer(),
           if (stats != null) ...[
             _statChip(
@@ -428,9 +432,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             if (!m.isArchived) ...[
               _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
               const SizedBox(width: 6),
-              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
+              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineHeuteCount),
               const SizedBox(width: 6),
-              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesPendingCount),
+              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesHeuteCount),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () => _archiveMember(m),
