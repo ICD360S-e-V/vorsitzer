@@ -10,6 +10,7 @@ import '../services/ticket_service.dart';
 import '../models/user.dart';
 import '../utils/file_picker_helper.dart';
 import 'pflegebox_widget.dart';
+import 'mitgliederverwaltung_behorde_krankenkasse_pflegegrad.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -674,6 +675,41 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
   // ============ TAB 4: PFLEGEGRAD ============
   Widget _buildPflegegradTab(Map<String, dynamic> data) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(children: [
+        Container(
+          color: Colors.purple.shade50,
+          child: TabBar(
+            labelColor: Colors.purple.shade700,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Colors.purple.shade700,
+            tabs: [
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: (data['pflegegrad']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red),
+                const SizedBox(width: 4), const Icon(Icons.elderly, size: 16),
+                const SizedBox(width: 4), const Text('Zuständige Pflegekasse'),
+              ])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                Icon(Icons.assignment, size: 16),
+                SizedBox(width: 4),
+                Text('Pflegestufe / Anträge'),
+              ])),
+            ],
+          ),
+        ),
+        Expanded(child: TabBarView(children: [
+          _buildPflegegradZustaendigTab(data),
+          MitgliederverwaltungBehordeKrankenkassePflegegrad(
+            apiService: widget.apiService,
+            userId: widget.user.id,
+          ),
+        ])),
+      ]),
+    );
+  }
+
+  Widget _buildPflegegradZustaendigTab(Map<String, dynamic> data) {
     final pflegegrade = {
       '': 'Kein Pflegegrad',
       '1': 'Pflegegrad 1 – Geringe Beeinträchtigung',

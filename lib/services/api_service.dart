@@ -6315,6 +6315,20 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ── Pflegegrad (Pflegestufe-Anträge, Bescheide, Widersprüche) ──
+  Future<Map<String, dynamic>> listPflegegradAntraege(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/pflegegrad_manage.php?user_id=$userId&action=list'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> savePflegegradAntrag(int userId, Map<String, dynamic> antrag) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/pflegegrad_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save', 'antrag': antrag})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deletePflegegradAntrag(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/pflegegrad_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ── Deutsche Bahn (MSZ — Mobilitätsservice-Zentrale) ──
   Future<Map<String, dynamic>> getDeutscheBahnData(int userId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/deutschebahn_manage.php?user_id=$userId&action=all'), headers: _headers).timeout(const Duration(seconds: 15));
