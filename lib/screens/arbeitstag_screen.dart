@@ -74,13 +74,22 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   }
 
   void _shiftKw(int delta) {
-    var monday = _data?.monday ?? DateTime.now();
-    final next = monday.add(Duration(days: 7 * delta));
+    // Calculate from _kwYear/_kwNumber directly, don't rely on _data.monday
+    // (which might be null or stale during load).
+    final currentMonday = _mondayOfIsoWeek(_kwYear, _kwNumber);
+    final next = currentMonday.add(Duration(days: 7 * delta));
     setState(() {
       _kwYear = _isoYear(next);
       _kwNumber = _isoWeek(next);
     });
     _load();
+  }
+
+  static DateTime _mondayOfIsoWeek(int year, int week) {
+    // ISO week 1 is the week containing Jan 4 (guaranteed to be in week 1).
+    final jan4 = DateTime(year, 1, 4);
+    final mondayOfWeek1 = jan4.subtract(Duration(days: jan4.weekday - 1));
+    return mondayOfWeek1.add(Duration(days: 7 * (week - 1)));
   }
 
   void _jumpToday() {
