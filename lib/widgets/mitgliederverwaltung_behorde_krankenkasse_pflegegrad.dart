@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'korrespondenz_attachments_widget.dart';
 
 /// Pflegestufe / Anträge auf Pflegegrad
 ///
@@ -416,11 +417,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   late TextEditingController _gutachterC;
   String _begutachtungsort = '';
 
-  // Widerspruch controllers
-  late TextEditingController _widerspruchDatumC;
-  late TextEditingController _widerspruchBegC;
-  late TextEditingController _zweitgutachtenC;
-  late TextEditingController _widerspruchErgC;
+  // Widerspruch state (simple flag — details live in _WiderspruchDetailModal)
   String _widerspruchEingelegt = 'nein';
 
   @override
@@ -433,10 +430,6 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     _begutachtungDatumC = TextEditingController(text: _s('begutachtung_datum'));
     _gutachterC = TextEditingController(text: _s('gutachter_name'));
     _begutachtungsort = _s('begutachtung_ort');
-    _widerspruchDatumC = TextEditingController(text: _s('widerspruch_datum'));
-    _widerspruchBegC = TextEditingController(text: _s('widerspruch_begruendung'));
-    _zweitgutachtenC = TextEditingController(text: _s('widerspruch_zweitgutachten_datum'));
-    _widerspruchErgC = TextEditingController(text: _s('widerspruch_ergebnis'));
     _widerspruchEingelegt = (_s('widerspruch_eingelegt').toLowerCase() == 'ja') ? 'ja' : 'nein';
   }
 
@@ -480,10 +473,17 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'bescheid_ergebnis': _bescheidErgebnisC.text.trim(),
         'bescheid_gueltig_ab': _bescheidGueltigC.text.trim(),
         'widerspruch_eingelegt': _widerspruchEingelegt,
-        'widerspruch_datum': _widerspruchDatumC.text.trim(),
-        'widerspruch_begruendung': _widerspruchBegC.text.trim(),
-        'widerspruch_zweitgutachten_datum': _zweitgutachtenC.text.trim(),
-        'widerspruch_ergebnis': _widerspruchErgC.text.trim(),
+        // Widerspruch-Detail-Felder werden im _WiderspruchDetailModal
+        // separat gespeichert — hier nur den existierenden Wert erhalten.
+        'widerspruch_datum': _s('widerspruch_datum'),
+        'widerspruch_methode': _s('widerspruch_methode'),
+        'widerspruch_anwalt': _s('widerspruch_anwalt'),
+        'widerspruch_anwalt_name': _s('widerspruch_anwalt_name'),
+        'widerspruch_begruendung': _s('widerspruch_begruendung'),
+        'widerspruch_zweitgutachten_datum': _s('widerspruch_zweitgutachten_datum'),
+        'widerspruch_bescheid_datum': _s('widerspruch_bescheid_datum'),
+        'widerspruch_bescheid_ergebnis': _s('widerspruch_bescheid_ergebnis'),
+        'widerspruch_bescheid_pflegegrad': _s('widerspruch_bescheid_pflegegrad'),
       };
       debugPrint('[PFG] save payload keys=${payload.keys.toList()} widerspruch_eingelegt=${payload['widerspruch_eingelegt']} widerspruch_datum=${payload['widerspruch_datum']} bescheid_datum=${payload['bescheid_datum']}');
       final res = await widget.apiService.savePflegegradAntrag(widget.userId, payload);
@@ -647,76 +647,215 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   }
 
   Widget _buildWiderspruchTab() {
+    if (_widerspruchEingelegt != 'ja') {
+      return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionHeader(Icons.gavel, 'Widerspruch gegen Bescheid', Colors.orange),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.orange.shade800),
+              const SizedBox(width: 6),
+              Text('Widerspruchsverfahren', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade900)),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              'Wenn Sie mit dem Bescheid nicht einverstanden sind, können Sie innerhalb 1 Monats '
+              '(1 Jahr, wenn Rechtsbelehrung fehlt) Widerspruch bei der Pflegekasse einlegen. '
+              'Danach wird i.d.R. ein Zweitgutachten durch den Medizinischen Dienst veranlasst.',
+              style: TextStyle(fontSize: 11, color: Colors.orange.shade900, height: 1.4),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 20),
+        Center(child: FilledButton.icon(
+          icon: const Icon(Icons.gavel, size: 18),
+          label: const Text('Widerspruch einlegen'),
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.orange.shade700,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          ),
+          onPressed: _saving ? null : _showWiderspruchEinlegenDialog,
+        )),
+        const SizedBox(height: 20),
+        Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen'))),
+      ]));
+    }
+
+    // Widerspruch bereits eingelegt → Zusammenfassungs-Card + „Details öffnen"-Button
+    final wsDatum = _s('widerspruch_datum');
+    final wsMethode = _s('widerspruch_methode');
+    final wsAnwalt = _s('widerspruch_anwalt').toLowerCase() == 'ja';
+    final wsAnwaltName = _s('widerspruch_anwalt_name');
+    final zgDatum = _s('widerspruch_zweitgutachten_datum');
+    final wsBescheid = _s('widerspruch_bescheid_datum');
+    final wsBescheidErgebnis = _s('widerspruch_bescheid_ergebnis');
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionHeader(Icons.gavel, 'Widerspruch gegen Bescheid', Colors.orange),
-      const SizedBox(height: 8),
+      _sectionHeader(Icons.gavel, 'Widerspruch wurde eingelegt', Colors.orange),
+      const SizedBox(height: 12),
       Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
-        child: Row(children: [
-          Icon(Icons.info_outline, size: 16, color: Colors.orange.shade800),
-          const SizedBox(width: 6),
-          Expanded(child: Text(
-            'Nach Widerspruch wird i.d.R. ein Zweitgutachten durch den Medizinischen Dienst veranlasst.',
-            style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
-          )),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade300)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.check_circle, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            Text('Widerspruch eingelegt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+          ]),
+          const SizedBox(height: 10),
+          if (wsDatum.isNotEmpty) _summaryRow(Icons.calendar_today, 'Datum', wsDatum),
+          if (wsMethode.isNotEmpty) _summaryRow(Icons.send, 'Eingereicht per', wsMethode),
+          _summaryRow(Icons.person, 'Anwalt', wsAnwalt ? (wsAnwaltName.isNotEmpty ? 'ja — $wsAnwaltName' : 'ja') : 'nein'),
+          if (zgDatum.isNotEmpty) _summaryRow(Icons.assignment_ind, 'Zweitgutachten', zgDatum),
+          if (wsBescheid.isNotEmpty) _summaryRow(Icons.assignment_turned_in, 'Widerspruchs-Bescheid', '$wsBescheid${wsBescheidErgebnis.isNotEmpty ? " — $wsBescheidErgebnis" : ""}'),
         ]),
       ),
       const SizedBox(height: 16),
-      Row(children: [
-        const Text('Widerspruch eingelegt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        const SizedBox(width: 12),
-        ChoiceChip(
-          label: const Text('ja', style: TextStyle(fontSize: 11)),
-          selected: _widerspruchEingelegt == 'ja',
-          selectedColor: Colors.orange.shade200,
-          onSelected: (v) => setState(() => _widerspruchEingelegt = 'ja'),
-        ),
-        const SizedBox(width: 6),
-        ChoiceChip(
-          label: const Text('nein', style: TextStyle(fontSize: 11)),
-          selected: _widerspruchEingelegt == 'nein',
-          onSelected: (v) => setState(() => _widerspruchEingelegt = 'nein'),
-        ),
-      ]),
-      if (_widerspruchEingelegt == 'ja') ...[
-        const SizedBox(height: 14),
-        TextField(
-          controller: _widerspruchDatumC, readOnly: true,
-          onTap: () => _pickDate(_widerspruchDatumC),
-          decoration: const InputDecoration(labelText: 'Widerspruch eingelegt am *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _widerspruchBegC, maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Begründung des Widerspruchs', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true),
-        ),
-        const SizedBox(height: 14),
-        _sectionHeader(Icons.assignment_ind, 'Zweitgutachten / neue Examinare', Colors.deepPurple),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _zweitgutachtenC, readOnly: true,
-          onTap: () => _pickDate(_zweitgutachtenC),
-          decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _widerspruchErgC,
-          decoration: const InputDecoration(labelText: 'Ergebnis des Widerspruchs (z.B. PG 3 anerkannt / abgelehnt)', isDense: true, border: OutlineInputBorder()),
-        ),
-      ],
-      const SizedBox(height: 20),
-      _actionRow(
-        primaryLabel: 'Widerspruch speichern',
-        primaryStatus: _widerspruchEingelegt != 'ja'
-            ? (_s('status').isEmpty ? 'offen' : _s('status'))
-            : (_widerspruchErgC.text.toLowerCase().contains('abgelehnt')
-                ? 'widerspruch_abgelehnt'
-                : (_widerspruchErgC.text.isNotEmpty
-                    ? 'widerspruch_bewilligt'
-                    : (_zweitgutachtenC.text.isNotEmpty ? 'zweitgutachten' : 'widerspruch_eingelegt'))),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700, minimumSize: const Size.fromHeight(46)),
+        icon: const Icon(Icons.open_in_new, size: 18),
+        label: const Text('Widerspruch-Details öffnen (Details / Zweitgutachten / Bescheid)'),
+        onPressed: _openWiderspruchDetailModal,
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.undo, size: 16, color: Colors.red),
+        label: const Text('Widerspruch zurückziehen', style: TextStyle(color: Colors.red)),
+        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), minimumSize: const Size.fromHeight(40)),
+        onPressed: _saving ? null : _confirmWiderspruchZurueckziehen,
       ),
     ]));
+  }
+
+  Widget _summaryRow(IconData icon, String label, String value) {
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 14, color: Colors.orange.shade700),
+      const SizedBox(width: 8),
+      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+      Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 12))),
+    ]));
+  }
+
+  Future<void> _confirmWiderspruchZurueckziehen() async {
+    final ok = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
+      title: const Text('Widerspruch zurückziehen?'),
+      content: const Text('Alle Widerspruchs-Daten (Datum, Methode, Anwalt, Begründung, Zweitgutachten, Widerspruchs-Bescheid) werden gelöscht.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(d, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Zurückziehen')),
+      ],
+    ));
+    if (ok != true) return;
+    setState(() {
+      _widerspruchEingelegt = 'nein';
+      _a['widerspruch_eingelegt'] = 'nein';
+      for (final k in const ['widerspruch_datum','widerspruch_methode','widerspruch_anwalt','widerspruch_anwalt_name','widerspruch_begruendung','widerspruch_zweitgutachten_datum','widerspruch_bescheid_datum','widerspruch_bescheid_ergebnis','widerspruch_bescheid_pflegegrad']) {
+        _a[k] = '';
+      }
+    });
+    await _save(_s('bescheid_datum').isNotEmpty ? 'bescheid_erhalten' : 'offen');
+  }
+
+  /// Dialog zum Einlegen eines Widerspruchs — Datum, Methode, Anwalt, Begründung.
+  void _showWiderspruchEinlegenDialog() {
+    final datumC = TextEditingController(text: '');
+    String methode = 'schriftlich per Post';
+    String anwalt = 'nein';
+    final anwaltNameC = TextEditingController();
+    final begC = TextEditingController();
+
+    const methoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: const Text('Widerspruch einlegen'),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Widerspruch gegen Bescheid vom ${_s('bescheid_datum').isEmpty ? "—" : _s('bescheid_datum')}',
+             style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 12),
+        TextField(
+          controller: datumC, readOnly: true,
+          decoration: const InputDecoration(labelText: 'Widerspruch eingelegt am *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+          onTap: () async {
+            final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (p != null) datumC.text = '${p.day.toString().padLeft(2,'0')}.${p.month.toString().padLeft(2,'0')}.${p.year}';
+          },
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: methode,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Wie eingereicht? *', isDense: true, border: OutlineInputBorder()),
+          items: methoden.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setD(() => methode = v ?? methoden.first),
+        ),
+        const SizedBox(height: 12),
+        const Text('Durch Anwalt eingereicht?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Row(children: [
+          ChoiceChip(
+            label: const Text('nein', style: TextStyle(fontSize: 11)),
+            selected: anwalt == 'nein',
+            onSelected: (_) => setD(() => anwalt = 'nein'),
+          ),
+          const SizedBox(width: 8),
+          ChoiceChip(
+            label: const Text('ja', style: TextStyle(fontSize: 11)),
+            selected: anwalt == 'ja',
+            selectedColor: Colors.orange.shade200,
+            onSelected: (_) => setD(() => anwalt = 'ja'),
+          ),
+        ]),
+        if (anwalt == 'ja') ...[
+          const SizedBox(height: 10),
+          TextField(controller: anwaltNameC, decoration: const InputDecoration(labelText: 'Kanzlei / Anwalt (Name, Adresse)', isDense: true, border: OutlineInputBorder())),
+        ],
+        const SizedBox(height: 12),
+        TextField(controller: begC, maxLines: 4, decoration: const InputDecoration(labelText: 'Begründung des Widerspruchs', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
+          onPressed: () async {
+            if (datumC.text.trim().isEmpty) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Widerspruchsdatum ist Pflicht'), backgroundColor: Colors.orange));
+              return;
+            }
+            // Update local state, then save.
+            _a['widerspruch_eingelegt'] = 'ja';
+            _a['widerspruch_datum'] = datumC.text.trim();
+            _a['widerspruch_methode'] = methode;
+            _a['widerspruch_anwalt'] = anwalt;
+            _a['widerspruch_anwalt_name'] = anwaltNameC.text.trim();
+            _a['widerspruch_begruendung'] = begC.text.trim();
+            setState(() => _widerspruchEingelegt = 'ja');
+            Navigator.pop(ctx);
+            await _save('widerspruch_eingelegt');
+            // Reopen der Detail-Modal ist der nächste natürliche Schritt für den User.
+          },
+          child: const Text('Widerspruch speichern'),
+        ),
+      ],
+    )));
+  }
+
+  /// Öffnet das Detail-Modal für einen bereits eingelegten Widerspruch
+  /// mit 3 Sub-Tabs: Details / Zweitgutachten / Bescheid.
+  void _openWiderspruchDetailModal() {
+    showDialog(context: context, builder: (ctx) => _WiderspruchDetailModal(
+      apiService: widget.apiService,
+      userId: widget.userId,
+      antragId: (_a['id'] is int) ? _a['id'] as int : int.tryParse(_a['id'].toString()) ?? 0,
+      antrag: _a,
+      onSaved: (updated) {
+        // Merge back into parent state so the summary card refreshes.
+        setState(() => _a.addAll(updated));
+        widget.onSaved();
+      },
+    ));
   }
 
   Widget _sectionHeader(IconData icon, String title, MaterialColor color) {
@@ -740,5 +879,323 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         onPressed: _saving ? null : () => _save(primaryStatus),
       ),
     ]);
+  }
+}
+
+// ══════════════════════════ Widerspruch Detail Modal ══════════════════════════
+// Erscheint nach dem Einlegen des Widerspruchs (Tab „Widerspruch" → Button
+// „Details öffnen"). Enthält 3 Sub-Tabs:
+//   • Details        — Datum, Methode, Anwalt, Begründung (bearbeitbar)
+//   • Zweitgutachten — Termin + Upload des Termin-Briefs vom Med. Dienst
+//                       (KorrAttachmentsWidget mit modul='pflegegrad_zweitgutachten')
+//   • Bescheid       — Widerspruchs-Bescheid: Datum, Ergebnis, neuer PG
+//
+// Nach dem Speichern wird das übergeordnete Antrag-Modal via onSaved über
+// die neuen Werte informiert, damit die Summary-Card sofort refreshed.
+class _WiderspruchDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int antragId;
+  final Map<String, dynamic> antrag;
+  final void Function(Map<String, dynamic> updated) onSaved;
+
+  const _WiderspruchDetailModal({
+    required this.apiService,
+    required this.userId,
+    required this.antragId,
+    required this.antrag,
+    required this.onSaved,
+  });
+
+  @override
+  State<_WiderspruchDetailModal> createState() => _WiderspruchDetailModalState();
+}
+
+class _WiderspruchDetailModalState extends State<_WiderspruchDetailModal> {
+  late Map<String, dynamic> _a;
+  bool _saving = false;
+
+  // Details
+  late TextEditingController _datumC;
+  late TextEditingController _anwaltNameC;
+  late TextEditingController _begC;
+  String _methode = 'schriftlich per Post';
+  String _anwalt = 'nein';
+
+  // Zweitgutachten
+  late TextEditingController _zgDatumC;
+
+  // Bescheid
+  late TextEditingController _bescheidDatumC;
+  late TextEditingController _bescheidErgebnisC;
+  String _bescheidPg = '';
+
+  static const _methoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
+  static const _pflegegrade = ['', '1', '2', '3', '4', '5'];
+
+  String _s(String k) => _a[k]?.toString() ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _a = Map<String, dynamic>.from(widget.antrag);
+    _datumC = TextEditingController(text: _s('widerspruch_datum'));
+    _anwaltNameC = TextEditingController(text: _s('widerspruch_anwalt_name'));
+    _begC = TextEditingController(text: _s('widerspruch_begruendung'));
+    _methode = _methoden.contains(_s('widerspruch_methode')) ? _s('widerspruch_methode') : _methoden.first;
+    _anwalt = _s('widerspruch_anwalt').toLowerCase() == 'ja' ? 'ja' : 'nein';
+    _zgDatumC = TextEditingController(text: _s('widerspruch_zweitgutachten_datum'));
+    _bescheidDatumC = TextEditingController(text: _s('widerspruch_bescheid_datum'));
+    _bescheidErgebnisC = TextEditingController(text: _s('widerspruch_bescheid_ergebnis'));
+    _bescheidPg = _pflegegrade.contains(_s('widerspruch_bescheid_pflegegrad')) ? _s('widerspruch_bescheid_pflegegrad') : '';
+  }
+
+  Future<void> _pick(TextEditingController c) async {
+    final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime(2040), locale: const Locale('de'));
+    if (p != null) c.text = '${p.day.toString().padLeft(2,'0')}.${p.month.toString().padLeft(2,'0')}.${p.year}';
+  }
+
+  /// Compute an appropriate parent Antrag status based on Widerspruch state.
+  String _computeStatus() {
+    if (_bescheidErgebnisC.text.isNotEmpty || _bescheidDatumC.text.isNotEmpty) {
+      return _bescheidErgebnisC.text.toLowerCase().contains('abgelehnt')
+          ? 'widerspruch_abgelehnt'
+          : 'widerspruch_bewilligt';
+    }
+    if (_zgDatumC.text.isNotEmpty) return 'zweitgutachten';
+    return 'widerspruch_eingelegt';
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final payload = <String, dynamic>{
+        'id': widget.antragId,
+        // Preserve outer Antrag-fields verbatim so the UPDATE doesn't clear them.
+        'antrag_typ': _s('antrag_typ'),
+        'antrag_datum': _s('antrag_datum'),
+        'antrag_methode': _s('antrag_methode'),
+        'pflegegrad_beantragt': _s('pflegegrad_beantragt'),
+        'pflegegrad_ziel': _s('pflegegrad_ziel'),
+        'aktenzeichen': _s('aktenzeichen'),
+        'status': _computeStatus(),
+        'notiz': _s('notiz'),
+        'begutachtung_datum': _s('begutachtung_datum'),
+        'begutachtung_ort': _s('begutachtung_ort'),
+        'gutachter_name': _s('gutachter_name'),
+        'bescheid_datum': _s('bescheid_datum'),
+        'bescheid_ergebnis': _s('bescheid_ergebnis'),
+        'bescheid_gueltig_ab': _s('bescheid_gueltig_ab'),
+        // Widerspruch-Felder aus diesem Modal:
+        'widerspruch_eingelegt': 'ja',
+        'widerspruch_datum': _datumC.text.trim(),
+        'widerspruch_methode': _methode,
+        'widerspruch_anwalt': _anwalt,
+        'widerspruch_anwalt_name': _anwaltNameC.text.trim(),
+        'widerspruch_begruendung': _begC.text.trim(),
+        'widerspruch_zweitgutachten_datum': _zgDatumC.text.trim(),
+        'widerspruch_bescheid_datum': _bescheidDatumC.text.trim(),
+        'widerspruch_bescheid_ergebnis': _bescheidErgebnisC.text.trim(),
+        'widerspruch_bescheid_pflegegrad': _bescheidPg,
+      };
+      final res = await widget.apiService.savePflegegradAntrag(widget.userId, payload);
+      if (res['success'] != true) {
+        throw Exception('Server-Fehler: ${res['message'] ?? res.toString()}');
+      }
+      _a.addAll(payload);
+      widget.onSaved(payload);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Widerspruch-Daten gespeichert'), backgroundColor: Colors.green));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 6)));
+      }
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: SizedBox(width: 780, height: 640, child: Column(children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+            child: Row(children: [
+              Icon(Icons.gavel, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Widerspruch — Details', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+            ]),
+          ),
+          TabBar(
+            labelColor: Colors.orange.shade700,
+            unselectedLabelColor: Colors.grey.shade500,
+            indicatorColor: Colors.orange.shade700,
+            tabs: [
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: _datumC.text.isNotEmpty ? Colors.green : Colors.red),
+                const SizedBox(width: 4), const Icon(Icons.info_outline, size: 16),
+                const SizedBox(width: 4), const Text('Details'),
+              ])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: _zgDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
+                const SizedBox(width: 4), const Icon(Icons.assignment_ind, size: 16),
+                const SizedBox(width: 4), const Text('Zweitgutachten'),
+              ])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.circle, size: 8, color: _bescheidDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
+                const SizedBox(width: 4), const Icon(Icons.assignment_turned_in, size: 16),
+                const SizedBox(width: 4), const Text('Bescheid'),
+              ])),
+            ],
+          ),
+          Expanded(child: TabBarView(children: [
+            _buildDetailsTab(),
+            _buildZweitgutachtenTab(),
+            _buildBescheidTab(),
+          ])),
+          Padding(padding: const EdgeInsets.all(12), child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              icon: _saving
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.save, size: 16),
+              label: Text(_saving ? 'Speichert…' : 'Alle Widerspruch-Daten speichern'),
+              style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
+              onPressed: _saving ? null : _save,
+            ),
+          ])),
+        ])),
+      ),
+    );
+  }
+
+  Widget _buildDetailsTab() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.gavel, size: 18, color: Colors.orange.shade700),
+        const SizedBox(width: 6),
+        Text('Widerspruchsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+      ]),
+      const SizedBox(height: 14),
+      TextField(
+        controller: _datumC, readOnly: true,
+        onTap: () => _pick(_datumC),
+        decoration: const InputDecoration(labelText: 'Widerspruch eingelegt am *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+      ),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: _methoden.contains(_methode) ? _methode : _methoden.first,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Wie eingereicht?', isDense: true, border: OutlineInputBorder()),
+        items: _methoden.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12)))).toList(),
+        onChanged: (v) => setState(() => _methode = v ?? _methoden.first),
+      ),
+      const SizedBox(height: 10),
+      const Text('Durch Anwalt eingereicht?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 6),
+      Row(children: [
+        ChoiceChip(label: const Text('nein', style: TextStyle(fontSize: 11)), selected: _anwalt == 'nein', onSelected: (_) => setState(() => _anwalt = 'nein')),
+        const SizedBox(width: 8),
+        ChoiceChip(label: const Text('ja', style: TextStyle(fontSize: 11)), selected: _anwalt == 'ja', selectedColor: Colors.orange.shade200, onSelected: (_) => setState(() => _anwalt = 'ja')),
+      ]),
+      if (_anwalt == 'ja') ...[
+        const SizedBox(height: 10),
+        TextField(controller: _anwaltNameC, decoration: const InputDecoration(labelText: 'Kanzlei / Anwalt (Name, Adresse)', isDense: true, border: OutlineInputBorder())),
+      ],
+      const SizedBox(height: 10),
+      TextField(
+        controller: _begC, maxLines: 5,
+        decoration: const InputDecoration(labelText: 'Begründung des Widerspruchs', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true),
+      ),
+    ]));
+  }
+
+  Widget _buildZweitgutachtenTab() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.assignment_ind, size: 18, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 6),
+        Text('Zweitgutachten durch Medizinischen Dienst', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+      ]),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
+        child: Text(
+          'Nach dem Widerspruch veranlasst die Pflegekasse i.d.R. ein Zweitgutachten '
+          'durch den Medizinischen Dienst. Der Termin wird per Brief mitgeteilt — hier '
+          'können Sie den Umschlag/den Brief als Beleg hochladen.',
+          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900, height: 1.4),
+        ),
+      ),
+      const SizedBox(height: 14),
+      TextField(
+        controller: _zgDatumC, readOnly: true,
+        onTap: () => _pick(_zgDatumC),
+        decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+      ),
+      const SizedBox(height: 16),
+      Row(children: [
+        Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
+        const SizedBox(width: 6),
+        Text('Umschlag / Brief zum Termin hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+      ]),
+      const SizedBox(height: 8),
+      SizedBox(
+        height: 260,
+        child: KorrAttachmentsWidget(
+          apiService: widget.apiService,
+          modul: 'pflegegrad_zweitgutachten',
+          korrespondenzId: widget.antragId,
+        ),
+      ),
+    ]));
+  }
+
+  Widget _buildBescheidTab() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.assignment_turned_in, size: 18, color: Colors.green.shade700),
+        const SizedBox(width: 6),
+        Text('Widerspruchs-Bescheid', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+      ]),
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+        child: Text(
+          'Nach dem Zweitgutachten entscheidet die Pflegekasse erneut über den Widerspruch. '
+          'Hier tragen Sie Datum + Ergebnis + neuen (oder bestätigten) Pflegegrad ein.',
+          style: TextStyle(fontSize: 11, color: Colors.green.shade900, height: 1.4),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Row(children: [
+        Expanded(child: TextField(
+          controller: _bescheidDatumC, readOnly: true,
+          onTap: () => _pick(_bescheidDatumC),
+          decoration: const InputDecoration(labelText: 'Bescheiddatum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: _pflegegrade.contains(_bescheidPg) ? _bescheidPg : '',
+          decoration: const InputDecoration(labelText: 'Neuer PG', isDense: true, border: OutlineInputBorder()),
+          items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? '—' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setState(() => _bescheidPg = v ?? ''),
+        )),
+      ]),
+      const SizedBox(height: 10),
+      TextField(
+        controller: _bescheidErgebnisC,
+        decoration: const InputDecoration(labelText: 'Ergebnis (z.B. PG 3 anerkannt / Widerspruch abgelehnt)', isDense: true, border: OutlineInputBorder()),
+      ),
+    ]));
   }
 }
