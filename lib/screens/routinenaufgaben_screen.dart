@@ -45,7 +45,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
     setState(() => _isLoading = true);
 
     final startDate = DateFormat('yyyy-MM-dd').format(_currentWeekStart);
-    final endDate = DateFormat('yyyy-MM-dd').format(_currentWeekStart.add(const Duration(days: 4)));
+    final endDate = DateFormat('yyyy-MM-dd').format(_currentWeekStart.add(const Duration(days: 6)));
 
     final results = await Future.wait([
       _routineService.getExecutions(startDate: startDate, endDate: endDate, userId: _filterUserId),
@@ -76,7 +76,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
   @override
   Widget build(BuildContext context) {
     final weekNumber = _getWeekNumber(_currentWeekStart);
-    final weekEnd = _currentWeekStart.add(const Duration(days: 4));
+    final weekEnd = _currentWeekStart.add(const Duration(days: 6));
     final weekRange = '${DateFormat('dd.').format(_currentWeekStart)} - ${DateFormat('dd. MMMM yyyy', 'de_DE').format(weekEnd)}';
 
     return SeasonalBackground(
@@ -266,24 +266,29 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
   }
 
   Widget _buildWeeklyGrid() {
-    const dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
+    const dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
     final today = DateTime.now();
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(5, (dayIndex) {
+      children: List.generate(7, (dayIndex) {
         final day = _currentWeekStart.add(Duration(days: dayIndex));
         final isToday = day.year == today.year && day.month == today.month && day.day == today.day;
         final dayExecs = _getExecutionsForDay(day);
+        final isWeekend = dayIndex >= 5;
 
         return Expanded(
           child: Container(
-            margin: EdgeInsets.only(right: dayIndex < 4 ? 8 : 0),
+            margin: EdgeInsets.only(right: dayIndex < 6 ? 6 : 0),
             decoration: BoxDecoration(
-              color: isToday ? Colors.teal.shade50 : Colors.grey.shade50,
+              color: isToday
+                  ? Colors.teal.shade50
+                  : (isWeekend ? Colors.orange.shade50 : Colors.grey.shade50),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isToday ? Colors.teal.shade300 : Colors.grey.shade300,
+                color: isToday
+                    ? Colors.teal.shade300
+                    : (isWeekend ? Colors.orange.shade200 : Colors.grey.shade300),
                 width: isToday ? 2 : 1,
               ),
             ),
@@ -859,6 +864,8 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                         DropdownMenuItem(value: 3, child: Text('Mittwoch')),
                         DropdownMenuItem(value: 4, child: Text('Donnerstag')),
                         DropdownMenuItem(value: 5, child: Text('Freitag')),
+                        DropdownMenuItem(value: 6, child: Text('Samstag')),
+                        DropdownMenuItem(value: 7, child: Text('Sonntag')),
                       ],
                       onChanged: (val) => setDialogState(() => dayOfWeek = val!),
                     ),
@@ -1158,6 +1165,8 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                           DropdownMenuItem(value: 3, child: Text('Mittwoch')),
                           DropdownMenuItem(value: 4, child: Text('Donnerstag')),
                           DropdownMenuItem(value: 5, child: Text('Freitag')),
+                          DropdownMenuItem(value: 6, child: Text('Samstag')),
+                          DropdownMenuItem(value: 7, child: Text('Sonntag')),
                         ],
                         onChanged: (val) => setDialogState(() => dayOfWeek = val!),
                       ),
