@@ -441,7 +441,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                       ],
                     ],
                   ),
-                  if (m.ticketSubject != null || m.terminTitle != null || m.notfallTerminTitle != null)
+                  if (m.ticketSubject != null || m.terminTitle != null || m.routineTitle != null || m.notfallTerminTitle != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Wrap(
@@ -452,6 +452,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
                           if (m.terminTitle != null)
                             Text('📅 ${m.terminTitle}',
+                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+                          if (m.routineTitle != null)
+                            Text('🔄 ${m.routineTitle}',
                                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
                           if (m.notfallTerminTitle != null)
                             Text('🚨 ${m.notfallTerminTitle}',

@@ -61,6 +61,8 @@ class ArbeitstagMember {
 
   final DateTime? routineDoneAt;
   final int? routineExecutionId;
+  final String? routineTitle;
+  final DateTime? routineScheduledDate;
   final String routineState;
 
   final DateTime? notfallDoneAt;
@@ -100,6 +102,8 @@ class ArbeitstagMember {
     this.terminState = 'offen',
     this.routineDoneAt,
     this.routineExecutionId,
+    this.routineTitle,
+    this.routineScheduledDate,
     this.routineState = 'offen',
     this.notfallDoneAt,
     this.notfallTerminId,
@@ -155,6 +159,8 @@ class ArbeitstagMember {
         terminState: j['termin_state'] ?? 'offen',
         routineDoneAt: _dt(j['routine_done_at']),
         routineExecutionId: _intN(j['routine_execution_id']),
+        routineTitle: _AtRoutineCrypto.decryptNullable(j['routine_title']?.toString()),
+        routineScheduledDate: _dt(j['routine_scheduled_date']),
         routineState: j['routine_state'] ?? 'offen',
         notfallDoneAt: _dt(j['notfall_done_at']),
         notfallTerminId: _intN(j['notfall_termin_id']),
