@@ -16,6 +16,7 @@ import '../services/notification_service.dart';
 import '../services/weather_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
+import '../services/transit_termin_reminder_service.dart';
 import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
 import '../services/radio_service.dart';
@@ -246,6 +247,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       _loadUsers();
       _autoUpdateCheck();
       _autoUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoUpdateCheck());
+      // Re-scan termine on resume — critical if user opens the app in the
+      // morning and a termin bus leaves in <3h.
+      TransitTerminReminderService.checkUpcoming();
       debugPrint('[Dashboard] App resumed - data refreshed, update check restarted');
     }
   }
@@ -532,6 +536,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // Start disruption polling (15 min interval, badge on bus icon)
         _disruptionsService.start();
         _disruptionsService.addListener(_onDisruptionsChanged);
+
+        // Scan upcoming termine (next 24h) and surface a local notification
+        // for any whose ÖPNV departure is within the next 3 hours and hasn't
+        // been reminded today. Fire-and-forget; failures logged inside.
+        TransitTerminReminderService.checkUpcoming();
 
         // Use GPS coordinates from transit if available, else city fallback.
         // followGps: true → re-reads device GPS every 15 min and updates city on movement >5km.
