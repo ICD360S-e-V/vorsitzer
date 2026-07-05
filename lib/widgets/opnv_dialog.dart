@@ -7,6 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/transit_service.dart';
 import '../services/transit_favorites_service.dart';
 
@@ -1442,6 +1443,7 @@ class _VerbindungTab extends StatefulWidget {
 }
 
 class _VerbindungTabState extends State<_VerbindungTab> {
+  static const _kPrefsDTicketKey = 'opnv.filter.onlyDeutschlandTicket';
   TransitLocation? _from;
   TransitLocation? _to;
   DateTime _when = DateTime.now();
@@ -1450,6 +1452,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   List<Journey>? _results;
   String? _error;
   List<TransitFavorite> _favorites = [];
+  bool _onlyDTicket = false;
 
   @override
   void initState() {
@@ -1472,6 +1475,23 @@ class _VerbindungTabState extends State<_VerbindungTab> {
       }
     }
     _loadFavorites();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final sp = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _onlyDTicket = sp.getBool(_kPrefsDTicketKey) ?? false);
+  }
+
+  Future<void> _toggleDTicket(bool v) async {
+    setState(() => _onlyDTicket = v);
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_kPrefsDTicketKey, v);
+    // Re-run the last search with the new filter so the user immediately sees the effect.
+    if (_from != null && _to != null && _results != null) {
+      await _search();
+    }
   }
 
   Future<void> _loadFavorites() async {
@@ -1503,6 +1523,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         from: _from!, to: _to!,
         departureTime: _arriveBy ? null : _when,
         arrivalTime: _arriveBy ? _when : null,
+        onlyDeutschlandTicket: _onlyDTicket,
       );
       if (!mounted) return;
       setState(() {
@@ -1593,11 +1614,52 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                         : const Icon(Icons.search, size: 16),
                     label: const Text('Suchen'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal.shade700,
+                      backgroundColor: Colors.teal.shade400,
                       foregroundColor: Colors.white,
                     ),
                     onPressed: _searching ? null : _search,
                   ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              // D-Ticket filter — critical for Jobcenter-user target audience:
+              // strips ICE/IC/EC that need a separate ticket, so the shown routes
+              // are 100% Deutschlandticket-covered (49 EUR flat).
+              Row(
+                children: [
+                  Semantics(
+                    button: true,
+                    label: _onlyDTicket
+                        ? 'Nur Deutschlandticket-Verbindungen aktiv, Antippen zum Deaktivieren'
+                        : 'Nur Deutschlandticket-Verbindungen anzeigen',
+                    child: FilterChip(
+                      label: const Text('Nur 49€-Ticket', style: TextStyle(fontSize: 11)),
+                      selected: _onlyDTicket,
+                      onSelected: _toggleDTicket,
+                      avatar: Icon(
+                        _onlyDTicket ? Icons.check_circle : Icons.euro_symbol,
+                        size: 14,
+                        color: _onlyDTicket ? Colors.white : Colors.teal.shade400,
+                      ),
+                      selectedColor: Colors.teal.shade400,
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        color: _onlyDTicket ? Colors.white : p.onSurface,
+                      ),
+                      backgroundColor: p.card,
+                      side: BorderSide(color: p.border),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  if (_onlyDTicket)
+                    Expanded(
+                      child: Text(
+                        'ICE/IC/EC ausgeblendet',
+                        style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
+                      ),
+                    ),
                 ],
               ),
             ],

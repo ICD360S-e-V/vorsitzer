@@ -2598,6 +2598,10 @@ class TransitService {
     required TransitLocation to,
     DateTime? departureTime,
     DateTime? arrivalTime,
+    /// When true, bahn.de is queried with `nurDeutschlandTicketVerbindungen=true`
+    /// so ICE/IC/EC (nicht D-Ticket-fähig) werden herausgefiltert. Lokale
+    /// EFA/HAFAS-Verbünde geben ohnehin nur D-Ticket-gedeckten Verkehr zurück.
+    bool onlyDeutschlandTicket = false,
   }) async {
     final arriveBy = arrivalTime != null;
     final when = arrivalTime ?? departureTime ?? DateTime.now();
@@ -2622,7 +2626,11 @@ class TransitService {
     // Fallback (or intercity) → bahn.de HAFAS (Germany-wide).
     if (results.isEmpty) {
       try {
-        results = await _bahnTripSearchByName(from.name, to.name, when, arriveBy: arriveBy);
+        results = await _bahnTripSearchByName(
+          from.name, to.name, when,
+          arriveBy: arriveBy,
+          onlyDeutschlandTicket: onlyDeutschlandTicket,
+        );
       } catch (e) {
         _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
       }
@@ -2632,13 +2640,20 @@ class TransitService {
   }
 
   /// bahn.de journey search that resolves location names to bahn.de IDs first.
-  Future<List<Journey>> _bahnTripSearchByName(String fromName, String toName, DateTime when, {bool arriveBy = false}) async {
+  Future<List<Journey>> _bahnTripSearchByName(
+    String fromName, String toName, DateTime when,
+    {bool arriveBy = false, bool onlyDeutschlandTicket = false}
+  ) async {
     final results = await Future.wait([
       _bahnLocationSearch(fromName),
       _bahnLocationSearch(toName),
     ]);
     if (results[0].isEmpty || results[1].isEmpty) return [];
-    return _bahnTripSearch(results[0].first, results[1].first, when, arriveBy: arriveBy);
+    return _bahnTripSearch(
+      results[0].first, results[1].first, when,
+      arriveBy: arriveBy,
+      onlyDeutschlandTicket: onlyDeutschlandTicket,
+    );
   }
 
   // ── EFA trip/location endpoints ────────────────────────────────
@@ -2939,22 +2954,31 @@ class TransitService {
     }).whereType<TransitLocation>().toList();
   }
 
-  Future<List<Journey>> _bahnTripSearch(TransitLocation from, TransitLocation to, DateTime when, {bool arriveBy = false}) async {
+  Future<List<Journey>> _bahnTripSearch(
+    TransitLocation from, TransitLocation to, DateTime when,
+    {bool arriveBy = false, bool onlyDeutschlandTicket = false}
+  ) async {
     final iso = when.toIso8601String();
     final uri = Uri.parse('https://www.bahn.de/web/api/reiseloesung/verbindungen');
+    // When onlyDeutschlandTicket is on, ICE/EC/IC/IR are stripped from the
+    // product list AND the D-Ticket-only flag is set — bahn.de then only
+    // returns Nahverkehr (Regional, S-Bahn, Bus, U-Bahn, Tram, Fähre).
+    final produkte = onlyDeutschlandTicket
+        ? const ['REGIONAL','SBAHN','BUS','SCHIFF','UBAHN','TRAM','ANRUFPFLICHTIG']
+        : const ['ICE','EC_IC','IR','REGIONAL','SBAHN','BUS','SCHIFF','UBAHN','TRAM','ANRUFPFLICHTIG'];
     final body = jsonEncode({
       'abfahrtsHalt': from.id,
       'ankunftsHalt': to.id,
       'anfrageZeitpunkt': iso,
       'ankunftSuche': arriveBy ? 'ANKUNFT' : 'ABFAHRT',
       'klasse': 'KLASSE_2',
-      'produktgattungen': ['ICE','EC_IC','IR','REGIONAL','SBAHN','BUS','SCHIFF','UBAHN','TRAM','ANRUFPFLICHTIG'],
+      'produktgattungen': produkte,
       'reisende': [{'typ':'ERWACHSENER','ermaessigungen':[{'art':'KEINE_ERMAESSIGUNG','klasse':'KLASSENLOS'}],'alter':[],'anzahl':1}],
       'schnelleVerbindungen': true,
       'sitzplatzOnly': false,
       'bikeCarriage': false,
       'reservierungsKontingenteVorhanden': false,
-      'nurDeutschlandTicketVerbindungen': false,
+      'nurDeutschlandTicketVerbindungen': onlyDeutschlandTicket,
     });
     final response = await _client.post(
       uri,
