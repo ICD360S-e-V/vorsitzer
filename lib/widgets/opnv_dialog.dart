@@ -1192,9 +1192,9 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                           const SizedBox(width: 3),
                           Flexible(
                             child: Text(
-                              'Du: \$boardStop'
-                                  '\${boardEta != null ? " -- \$boardEta" : " -- \${dep.timeString}"}'
-                                  '\${dep.delay > 0 ? "  +\${dep.delay}min" : ""}',
+                              'Du: $boardStop'
+                                  '${boardEta != null ? " — $boardEta" : " · ${dep.timeString}"}'
+                                  '${dep.delay > 0 ? "  +${dep.delay}′" : ""}',
                               style: TextStyle(fontSize: 10.5, color: p.onSurfaceDim),
                               overflow: TextOverflow.ellipsis,
                             ),
