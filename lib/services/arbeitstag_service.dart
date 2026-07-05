@@ -246,6 +246,93 @@ class ArbeitstagWoche {
       );
 }
 
+// ─── History entry (per KW × user) ────────────────────────────────────
+
+class ArbeitstagHistoryEntry {
+  final int kwYear;
+  final int kwNumber;
+  final String ticketState;
+  final int? ticketId;
+  final String? ticketSubject;
+  final String terminState;
+  final int? terminId;
+  final String? terminTitle;
+  final DateTime? terminDate;
+  final String routineState;
+  final int? routineExecutionId;
+  final String? routineTitle;
+  final String notfallState;
+  final int? notfallTerminId;
+  final String? notfallTerminTitle;
+  final int prioritaet;
+  final String? prioGrund;
+  final String? notiz;
+  final int? bearbeiterUserId;
+  final String? bearbeiterName;
+  final DateTime? updatedAt;
+
+  ArbeitstagHistoryEntry({
+    required this.kwYear,
+    required this.kwNumber,
+    this.ticketState = 'offen',
+    this.ticketId,
+    this.ticketSubject,
+    this.terminState = 'offen',
+    this.terminId,
+    this.terminTitle,
+    this.terminDate,
+    this.routineState = 'offen',
+    this.routineExecutionId,
+    this.routineTitle,
+    this.notfallState = 'offen',
+    this.notfallTerminId,
+    this.notfallTerminTitle,
+    required this.prioritaet,
+    this.prioGrund,
+    this.notiz,
+    this.bearbeiterUserId,
+    this.bearbeiterName,
+    this.updatedAt,
+  });
+
+  bool get allErledigt =>
+      ticketState == 'erledigt' && terminState == 'erledigt' && routineState == 'erledigt';
+
+  String stateFor(String typ) {
+    switch (typ) {
+      case 'ticket':  return ticketState;
+      case 'termin':  return terminState;
+      case 'routine': return routineState;
+      case 'notfall': return notfallState;
+      default: return 'offen';
+    }
+  }
+
+  factory ArbeitstagHistoryEntry.fromJson(Map<String, dynamic> j) => ArbeitstagHistoryEntry(
+        kwYear: _int(j['kw_year']),
+        kwNumber: _int(j['kw_number']),
+        ticketState: j['ticket_state'] ?? 'offen',
+        ticketId: _intN(j['ticket_id']),
+        ticketSubject: j['ticket_subject'],
+        terminState: j['termin_state'] ?? 'offen',
+        terminId: _intN(j['termin_id']),
+        terminTitle: j['termin_title'],
+        terminDate: _dt(j['termin_date']),
+        routineState: j['routine_state'] ?? 'offen',
+        routineExecutionId: _intN(j['routine_execution_id']),
+        routineTitle: _AtRoutineCrypto.decryptNullable(j['routine_title']?.toString()),
+        notfallState: j['notfall_state'] ?? 'offen',
+        notfallTerminId: _intN(j['notfall_termin_id']),
+        notfallTerminTitle: j['notfall_termin_title'],
+        prioritaet: _int(j['prioritaet']),
+        prioGrund: j['prio_grund'],
+        notiz: j['notiz'],
+        bearbeiterUserId: _intN(j['bearbeiter_user_id']),
+        bearbeiterName: j['bearbeiter_name'],
+        updatedAt: _dt(j['updated_at']),
+      );
+}
+
 int _int(dynamic v) {
   if (v is int) return v;
   if (v is String) return int.tryParse(v) ?? 0;
@@ -311,6 +398,48 @@ class ArbeitstagService {
     } catch (e) {
       _log.error('arbeitstag getWoche failed: $e', tag: 'ARBEITSTAG');
       return null;
+    }
+  }
+
+  Future<List<ArbeitstagHistoryEntry>> getHistory({required int userId, int limit = 10}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_history.php').replace(queryParameters: {
+        'user_id': userId.toString(),
+        'limit': limit.toString(),
+      });
+      final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return [];
+      final data = jsonDecode(res.body);
+      if (data['success'] != true) return [];
+      final list = (data['entries'] as List?) ?? [];
+      return list.map((j) => ArbeitstagHistoryEntry.fromJson(j)).toList();
+    } catch (e) {
+      _log.error('arbeitstag getHistory failed: $e', tag: 'ARBEITSTAG');
+      return [];
+    }
+  }
+
+  Future<bool> setNotiz({
+    required int kwYear,
+    required int kwNumber,
+    required int userId,
+    required String notiz,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_notiz.php');
+      final res = await _client
+          .post(uri, headers: _headers, body: jsonEncode({
+            'kw_year': kwYear,
+            'kw_number': kwNumber,
+            'user_id': userId,
+            'notiz': notiz,
+          }))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return false;
+      return jsonDecode(res.body)['success'] == true;
+    } catch (e) {
+      _log.error('arbeitstag setNotiz failed: $e', tag: 'ARBEITSTAG');
+      return false;
     }
   }
 

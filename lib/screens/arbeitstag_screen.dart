@@ -179,6 +179,55 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     }
   }
 
+  Future<void> _openHistory(ArbeitstagMember m) async {
+    final entries = await _svc.getHistory(userId: m.userId, limit: 12);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => _HistoryDialog(member: m, entries: entries),
+    );
+  }
+
+  Future<void> _openNotiz(ArbeitstagMember m) async {
+    final controller = TextEditingController(text: m.notiz ?? '');
+    final saved = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Notiz — ${m.name} (KW $_kwNumber)'),
+        content: SizedBox(
+          width: 480,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 5,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              hintText: 'z.B. Fax an Jobcenter — warte auf Bestätigung',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+          if ((m.notiz ?? '').isNotEmpty)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('Löschen', style: TextStyle(color: Colors.red)),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    if (saved == null) return;
+    final ok = await _svc.setNotiz(
+      kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId, notiz: saved,
+    );
+    if (ok) _load();
+  }
+
   Future<void> _openPicker(ArbeitstagMember m, String typ) async {
     int? currentSelectionId;
     switch (typ) {
@@ -430,8 +479,18 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(m.name.isNotEmpty ? m.name : '${m.vorname ?? ''} ${m.nachname ?? ''}'.trim(),
-                      style: theme.textTheme.titleMedium),
+                  InkWell(
+                    onTap: () => _openHistory(m),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(m.name.isNotEmpty ? m.name : '${m.vorname ?? ''} ${m.nachname ?? ''}'.trim(),
+                            style: theme.textTheme.titleMedium),
+                        const SizedBox(width: 4),
+                        Icon(Icons.history, size: 14, color: Colors.grey.shade500),
+                      ],
+                    ),
+                  ),
                   Row(
                     children: [
                       Text(m.mitgliedernummer, style: theme.textTheme.bodySmall),
@@ -440,6 +499,39 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                         Text('• ${m.prioGrund!}',
                             style: theme.textTheme.bodySmall?.copyWith(color: prioColor)),
                       ],
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () => _openNotiz(m),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                (m.notiz ?? '').isNotEmpty ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
+                                size: 14,
+                                color: (m.notiz ?? '').isNotEmpty ? Colors.amber.shade700 : Colors.grey.shade500,
+                              ),
+                              if ((m.notiz ?? '').isNotEmpty) ...[
+                                const SizedBox(width: 4),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 200),
+                                  child: Text(
+                                    m.notiz!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.amber.shade900,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   if (m.ticketSubject != null || m.terminTitle != null || m.routineTitle != null || m.notfallTerminTitle != null)
@@ -652,6 +744,160 @@ class _PickerSheet extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryDialog extends StatelessWidget {
+  final ArbeitstagMember member;
+  final List<ArbeitstagHistoryEntry> entries;
+  const _HistoryDialog({required this.member, required this.entries});
+
+  static const _typs = ['ticket', 'termin', 'routine', 'notfall'];
+  static const _icons = {
+    'ticket': '🎫', 'termin': '📅', 'routine': '🔄', 'notfall': '🚨',
+  };
+
+  String _stateSymbol(String s) {
+    switch (s) {
+      case 'geplant':        return '⏳';
+      case 'in_bearbeitung': return '🔵';
+      case 'erledigt':       return '✅';
+      default:               return '·';
+    }
+  }
+
+  Color _stateColor(String s) {
+    switch (s) {
+      case 'geplant':        return Colors.orange;
+      case 'in_bearbeitung': return Colors.blue;
+      case 'erledigt':       return Colors.green;
+      default:               return Colors.grey.shade400;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 600),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.history, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Historie — ${member.name}',
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+                        Text('${member.mitgliedernummer} · letzte ${entries.length} KW',
+                            style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: entries.isEmpty
+                  ? const Padding(padding: EdgeInsets.all(24), child: Text('Noch kein Verlauf'))
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: entries.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx, i) {
+                        final e = entries[i];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: e.allErledigt
+                                        ? Colors.green.withValues(alpha: 0.15)
+                                        : theme.colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text('KW ${e.kwNumber} / ${e.kwYear}',
+                                      style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+                                ),
+                                const SizedBox(width: 8),
+                                if (e.prioGrund != null && e.prioGrund!.isNotEmpty)
+                                  Expanded(
+                                    child: Text(e.prioGrund!,
+                                        style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                                        overflow: TextOverflow.ellipsis),
+                                  ),
+                              ]),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 12,
+                                children: _typs.map((t) {
+                                  final st = e.stateFor(t);
+                                  final title = t == 'ticket' ? e.ticketSubject
+                                              : t == 'termin' ? e.terminTitle
+                                              : t == 'routine' ? e.routineTitle
+                                              : e.notfallTerminTitle;
+                                  return Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Text(_icons[t] ?? '·', style: const TextStyle(fontSize: 14)),
+                                    const SizedBox(width: 2),
+                                    Text(_stateSymbol(st), style: TextStyle(color: _stateColor(st), fontSize: 13)),
+                                    if (title != null) ...[
+                                      const SizedBox(width: 4),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 140),
+                                        child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodySmall),
+                                      ),
+                                    ],
+                                  ]);
+                                }).toList(),
+                              ),
+                              if (e.notiz != null && e.notiz!.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Icon(Icons.sticky_note_2, size: 14, color: Colors.amber.shade700),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(e.notiz!,
+                                          style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic)),
+                                    ),
+                                  ]),
+                                ),
+                              ],
+                              if (e.bearbeiterName != null) ...[
+                                const SizedBox(height: 4),
+                                Text('bearbeitet von ${e.bearbeiterName}',
+                                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade500, fontSize: 11)),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),
