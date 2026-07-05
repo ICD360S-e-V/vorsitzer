@@ -2424,6 +2424,7 @@ class HealthAlertBanner extends StatelessWidget {
       HealthAlertKind.uv => Colors.amber,
       HealthAlertKind.pm25 => Colors.brown,
       HealthAlertKind.ozone => Colors.purple,
+      HealthAlertKind.pollen => Colors.green,
     };
     return a.severity == 'severe' ? base.shade900 : base.shade700;
   }
