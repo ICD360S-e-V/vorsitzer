@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'logger_service.dart';
 import 'tray_service.dart';
 import 'platform_service.dart';
+import 'weather_service.dart';
 
 final _log = LoggerService();
 
@@ -242,7 +243,17 @@ class NotificationService {
     IconData? icon,
     VoidCallback? onTap,
     String? payload,
+    /// When set, the notification title is prefixed with the weather emoji +
+    /// short label for that timestamp (e.g. "🌧 Regen · Neuer Termin"). Falls
+    /// back silently if no forecast is available for that time.
+    DateTime? eventTime,
   }) async {
+    if (eventTime != null) {
+      final hint = WeatherService.instance.weatherHintAt(eventTime);
+      if (hint != null) {
+        title = '${hint.emoji} ${hint.label} · $title';
+      }
+    }
     try {
       if (Platform.isMacOS) {
         // macOS: use native UNUserNotificationCenter via MethodChannel

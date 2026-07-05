@@ -9,6 +9,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart'
     show FlutterMap, MapController, MapOptions, TileLayer, MarkerLayer, Marker;
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
@@ -307,11 +308,71 @@ class _WeatherDialogState extends State<WeatherDialog> {
     return base.subtract(Duration(days: base.weekday - 1));
   }
 
+  // ── Text-to-speech ──
+  FlutterTts? _tts;
+  bool _ttsSpeaking = false;
+
+  Future<void> _toggleTts(WeatherData w) async {
+    // Toggle: second tap stops. Prevents lock-out if the user changes their mind.
+    if (_ttsSpeaking) {
+      await _tts?.stop();
+      if (mounted) setState(() => _ttsSpeaking = false);
+      return;
+    }
+    _tts ??= FlutterTts();
+    try {
+      await _tts!.setLanguage('de-DE');
+      await _tts!.setSpeechRate(0.5); // slower — clearer for elderly listeners
+      await _tts!.setVolume(1.0);
+      await _tts!.setPitch(1.0);
+    } catch (_) { /* platform without TTS — silently skip */ }
+
+    final aq = widget.service.currentAirQuality;
+    final astro = widget.service.currentAstronomy;
+    final parts = <String>[
+      'Aktuelles Wetter in ${w.city.isEmpty ? "deiner Region" : w.city}.',
+      '${w.temperature.toStringAsFixed(0)} Grad, ${w.description}.',
+      if ((w.apparentTemperature - w.temperature).abs() >= 1)
+        'Gefühlt ${w.apparentTemperature.toStringAsFixed(0)} Grad.',
+      'Wind ${w.windSpeed.toStringAsFixed(0)} Kilometer pro Stunde aus ${_windDirLong(w.windCompass)}.',
+      'Luftfeuchtigkeit ${w.humidity} Prozent.',
+      if (aq?.europeanAqi != null)
+        'Luftqualität: ${aq!.aqiLabel}.',
+      if (aq?.pollenActive == true)
+        'Pollenflug aktiv.',
+      if (astro?.sunset != null)
+        'Sonnenuntergang um '
+        '${astro!.sunset!.hour}:${astro.sunset!.minute.toString().padLeft(2, "0")}.',
+      if (widget.service.hasImminentPrecipitation())
+        'Achtung: in den nächsten Minuten wird Regen erwartet.',
+    ];
+    final text = parts.join(' ');
+
+    _tts!.setCompletionHandler(() {
+      if (mounted) setState(() => _ttsSpeaking = false);
+    });
+    _tts!.setCancelHandler(() {
+      if (mounted) setState(() => _ttsSpeaking = false);
+    });
+
+    setState(() => _ttsSpeaking = true);
+    await _tts!.speak(text);
+  }
+
+  String _windDirLong(String compass) {
+    const map = {
+      'N': 'Norden', 'NO': 'Nordosten', 'O': 'Osten', 'SO': 'Südosten',
+      'S': 'Süden', 'SW': 'Südwesten', 'W': 'Westen', 'NW': 'Nordwesten',
+    };
+    return map[compass] ?? compass;
+  }
+
   @override
   void dispose() {
     widget.service.onWeatherUpdate = _prevWeatherCb;
     widget.service.onAlertsUpdate = _prevAlertsCb;
     widget.service.onAirQualityUpdate = _prevAirQualityCb;
+    _tts?.stop();
     super.dispose();
   }
 
@@ -416,6 +477,15 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 ),
               ),
               IconButton(
+                icon: Icon(
+                  _ttsSpeaking ? Icons.stop_circle : Icons.volume_up,
+                  size: 20,
+                  color: _ttsSpeaking ? Colors.red.shade600 : null,
+                ),
+                tooltip: _ttsSpeaking ? 'Vorlesen stoppen' : 'Wetterbericht vorlesen',
+                onPressed: () => _toggleTts(weather),
+              ),
+              IconButton(
                 icon: const Icon(Icons.refresh, size: 20),
                 tooltip: 'Aktualisieren',
                 onPressed: () async {
@@ -451,9 +521,15 @@ class _WeatherDialogState extends State<WeatherDialog> {
 
   Widget _buildAktuellTab(WeatherData weather, List<WeatherAlert> alerts) {
     final minutely = widget.service.minutelyForecast;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    return RefreshIndicator(
+      onRefresh: () async {
+        await widget.service.refresh();
+        if (mounted) setState(() {});
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // wetter.com-style 15-min timeline (next ~6h). Scrollable horizontally.
@@ -595,7 +671,8 @@ class _WeatherDialogState extends State<WeatherDialog> {
             'Beobachtung: DWD via Bright Sky • Vorhersage/UV: Open-Meteo',
             style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1051,19 +1128,20 @@ class _WeatherDialogState extends State<WeatherDialog> {
   Widget _buildUmweltTab() {
     final aq = widget.service.currentAirQuality;
     if (aq == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('Luftqualitäts-Daten werden geladen …',
-              style: TextStyle(fontSize: 13, color: Colors.grey)),
-        ),
-      );
+      // Shimmer skeleton while the first Air-Quality fetch is in flight.
+      return const _UmweltSkeleton();
     }
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return RefreshIndicator(
+      onRefresh: () async {
+        await widget.service.refresh();
+        if (mounted) setState(() {});
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           // European AQI headline
           Container(
             padding: const EdgeInsets.all(14),
@@ -1164,7 +1242,8 @@ class _WeatherDialogState extends State<WeatherDialog> {
             'Daten: CAMS via Open-Meteo Air Quality API',
             style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3268,6 +3347,111 @@ class _RadarFrame {
   final String path;   // tilecache.rainviewer.com/v2/radar/<hash>
   final bool isForecast;
   _RadarFrame({required this.time, required this.path, required this.isForecast});
+}
+
+/// Shimmering skeleton placeholder — mimics a real block while data is fetched.
+/// Uses a subtle grey-to-lighter-grey linear gradient that slides horizontally.
+class _SkeletonBox extends StatefulWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const _SkeletonBox({
+    this.width = double.infinity,
+    this.height = 12,
+    this.radius = 4,
+  });
+
+  @override
+  State<_SkeletonBox> createState() => _SkeletonBoxState();
+}
+
+class _SkeletonBoxState extends State<_SkeletonBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        final t = _c.value * 3 - 1;
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.radius),
+            gradient: LinearGradient(
+              begin: Alignment(t - 0.3, 0),
+              end: Alignment(t + 0.3, 0),
+              colors: [
+                Colors.grey.shade200,
+                Colors.grey.shade100,
+                Colors.grey.shade200,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Skeleton content for the Umwelt tab while `currentAirQuality` is null.
+class _UmweltSkeleton extends StatelessWidget {
+  const _UmweltSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SkeletonBox(height: 70, radius: 10),
+          const SizedBox(height: 14),
+          const _SkeletonBox(width: 100, height: 12),
+          const SizedBox(height: 8),
+          for (int i = 0; i < 4; i++) ...[
+            const Row(children: [
+              _SkeletonBox(width: 120, height: 10),
+              SizedBox(width: 12),
+              Expanded(child: _SkeletonBox(height: 6)),
+              SizedBox(width: 8),
+              _SkeletonBox(width: 40, height: 10),
+            ]),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 8),
+          const _SkeletonBox(width: 100, height: 12),
+          const SizedBox(height: 8),
+          for (int i = 0; i < 3; i++) ...[
+            const Row(children: [
+              _SkeletonBox(width: 130, height: 10),
+              Spacer(),
+              _SkeletonBox(width: 40, height: 16, radius: 3),
+            ]),
+            const SizedBox(height: 6),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 /// Static German-language description block used by the pollutant info bottom

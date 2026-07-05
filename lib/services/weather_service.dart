@@ -450,7 +450,19 @@ class AstronomyData {
 }
 
 /// Weather service using Open-Meteo (free, no API key) + Bright Sky (DWD alerts)
+///
+/// Singleton pattern — the dashboard's instance is shared with cross-service
+/// consumers (chat/termini push emitters) via [WeatherService.instance] so
+/// notifications can pick up the current forecast without a separate fetch.
 class WeatherService {
+  static WeatherService? _instance;
+  static WeatherService get instance => _instance ??= WeatherService._internal();
+  factory WeatherService() {
+    _instance ??= WeatherService._internal();
+    return _instance!;
+  }
+  WeatherService._internal();
+
   Timer? _weatherTimer;
   Timer? _alertTimer;
   StreamSubscription<Position>? _gpsSubscription;
@@ -506,6 +518,31 @@ class WeatherService {
       if (m.precipitation >= 1) return true;
     }
     return false;
+  }
+
+  /// Best-effort weather emoji + short label for a future point in time.
+  /// Used by cross-service notifications (e.g. "Neuer Termin morgen 10:00 • 🌧 Regen").
+  /// Returns null when we have no forecast for that timestamp.
+  ({String emoji, String label})? weatherHintAt(DateTime when) {
+    // Try 15-min slots first (highest resolution), then hourly, then daily.
+    for (final m in minutelyForecast) {
+      if (!m.time.isAfter(when) &&
+          m.time.add(const Duration(minutes: 15)).isAfter(when)) {
+        return (emoji: m.icon, label: m.description);
+      }
+    }
+    for (final h in hourlyForecast) {
+      if (!h.time.isAfter(when) &&
+          h.time.add(const Duration(hours: 1)).isAfter(when)) {
+        return (emoji: h.icon, label: h.description);
+      }
+    }
+    for (final d in dailyForecast) {
+      if (d.date.day == when.day && d.date.month == when.month) {
+        return (emoji: d.icon, label: d.description);
+      }
+    }
+    return null;
   }
 
   double? _lastGeocodedLat;

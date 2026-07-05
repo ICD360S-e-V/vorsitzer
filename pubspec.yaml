@@ -148,6 +148,10 @@ dependencies:
   # Cross-platform notifications (replaces local_notifier)
   flutter_local_notifications: ^21.0.0
 
+  # Text-to-speech for the "Sprich Wetter"-Button im Aktuell-Tab (a11y).
+  # Uses the OS TTS engine on each platform, no cloud calls.
+  flutter_tts: ^4.2.0
+
 
   # ============================================================
   # DESKTOP-ONLY PACKAGES (Windows, macOS, Linux)
