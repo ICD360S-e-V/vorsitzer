@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -89,6 +91,52 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   int? _pflegeboxFirmaId;
   String _pflegeboxFirmaName = '';
   List<Map<String, dynamic>> _termine = [];
+
+  bool _stammdatenLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadKrankenkassenStammdaten();
+  }
+
+  /// Krankenkassen-Datenbank vom Server laden (Name, Zusatzbeitrag, Rating).
+  /// Fuellt _dbKrankenkassen* — _getKrankenkassenListe bevorzugt DB vor der statischen Liste,
+  /// d.h. die Lupe/Auswahl arbeitet danach direkt auf der DB (Tabelle `krankenkassen`).
+  Future<void> _loadKrankenkassenStammdaten() async {
+    if (_stammdatenLoaded) return;
+    _stammdatenLoaded = true;
+    try {
+      final res = await widget.apiService.getKrankenkassenStammdaten();
+      if (res['success'] == true && res['data'] is List) {
+        final z25 = <String, double>{};
+        final z26 = <String, double>{};
+        final ratings = <String, double>{};
+        for (final row in (res['data'] as List)) {
+          if (row is! Map) continue;
+          final name = row['name']?.toString() ?? '';
+          if (name.isEmpty) continue;
+          final v25 = double.tryParse('${row['zusatzbeitrag_2025'] ?? ''}');
+          final v26 = double.tryParse('${row['zusatzbeitrag_2026'] ?? ''}');
+          final rv = double.tryParse('${row['rating'] ?? ''}');
+          if (v25 != null) z25[name] = v25;
+          if (v26 != null) z26[name] = v26;
+          if (rv != null) ratings[name] = rv;
+        }
+        if (mounted && (z25.isNotEmpty || z26.isNotEmpty)) {
+          setState(() {
+            if (z25.isNotEmpty) _dbKrankenkassenZusatzbeitrag[2025] = z25;
+            if (z26.isNotEmpty) _dbKrankenkassenZusatzbeitrag[2026] = z26;
+            _dbKrankenkassenRating
+              ..clear()
+              ..addAll(ratings);
+          });
+        }
+      }
+    } catch (_) {
+      // Fallback: statische Liste im Code — kein Blocker fuer die UI.
+    }
+  }
 
   void _initControllers(Map<String, dynamic> data) {
     if (!_controllersInitialized) {
@@ -438,7 +486,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _initControllers(data);
 
     return DefaultTabController(
-      length: 7,
+      length: 8,
       child: Column(
         children: [
           TabBar(
@@ -447,11 +495,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             indicatorColor: Colors.blue.shade700,
             isScrollable: true,
             tabs: [
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.local_hospital, size: 16), const SizedBox(width: 4), const Text('Krankenkasse')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.local_hospital, size: 16), const SizedBox(width: 4), const Text('Zuständige Krankenkasse')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _getTermineListe(data).isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.calendar_month, size: 16), const SizedBox(width: 4), const Text('Termine')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _kkKorrespondenz.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['pflegegrad']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.elderly, size: 16), const SizedBox(width: 4), const Text('Pflegegrad')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['versicherungsart']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.shield, size: 16), const SizedBox(width: 4), const Text('Versicherung')])),
+              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['kvnr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.credit_card, size: 16), const SizedBox(width: 4), const Text('Versicherungskarte')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1') ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.card_membership, size: 16), const SizedBox(width: 4), const Text('Befreiungskarte')])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _krankengeldCount > 0 ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.medical_information, size: 16), const SizedBox(width: 4), Text('Krankengeld${_krankengeldCount > 0 ? " ($_krankengeldCount)" : ""}')])),
             ],
@@ -464,6 +513,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 _buildKorrespondenzTab(data),
                 _buildPflegegradTab(data),
                 _buildVersicherungTab(data),
+                _buildVersicherungskarteTab(data),
                 _buildBefreiungskarteTab(data),
                 _KrankengeldTab(apiService: widget.apiService, userId: widget.user.id, onCountChanged: (n) => setState(() => _krankengeldCount = n)),
               ],
@@ -482,87 +532,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader(Icons.local_hospital, 'Krankenkasse', Colors.blue),
+          _sectionHeader(Icons.local_hospital, 'Zuständige Krankenkasse', Colors.blue),
           const SizedBox(height: 8),
           widget.dienststelleBuilder(type, _dienststelleController),
-          Text('Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Zuständige Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
           const SizedBox(height: 4),
-          Builder(builder: (context) {
-            final currentYear = DateTime.now().year;
-            final kassenListe = _getKrankenkassenListe(currentYear);
-            return Autocomplete<String>(
-              initialValue: _krankenkasseNameController.value,
-              optionsBuilder: (textEditingValue) {
-                if (textEditingValue.text.isEmpty) return kassenListe;
-                final query = textEditingValue.text.toLowerCase();
-                return kassenListe.where((k) => k.toLowerCase().contains(query));
-              },
-              fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-                if (controller.text.isEmpty && _krankenkasseNameController.text.isNotEmpty) {
-                  controller.text = _krankenkasseNameController.text;
-                }
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  decoration: InputDecoration(
-                    hintText: 'Krankenkasse suchen (z.B. AOK, TK, Barmer...)',
-                    prefixIcon: const Icon(Icons.local_hospital, size: 20),
-                    suffixIcon: const Icon(Icons.arrow_drop_down, size: 24),
-                    isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                  onChanged: (v) => _krankenkasseNameController.text = v,
-                );
-              },
-              optionsViewBuilder: (context, onSelected, options) {
-                return Align(
-                  alignment: Alignment.topLeft,
-                  child: Material(
-                    elevation: 4,
-                    borderRadius: BorderRadius.circular(8),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 250, maxWidth: 500),
-                      child: ListView.builder(
-                        padding: EdgeInsets.zero,
-                        shrinkWrap: true,
-                        itemCount: options.length,
-                        itemBuilder: (context, index) {
-                          final kasse = options.elementAt(index);
-                          final zusatz = _getZusatzbeitrag(kasse, currentYear);
-                          final gesamt = _getGesamtbeitrag(kasse, currentYear);
-                          final rating = _getKrankenkassenRatingValue(kasse);
-                          return ListTile(
-                            dense: true,
-                            title: Text(kasse, style: const TextStyle(fontSize: 13)),
-                            subtitle: _starRating(rating, size: 12),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
-                                Text('+${zusatz?.toStringAsFixed(2)}% Zusatz', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                              ],
-                            ),
-                            onTap: () {
-                              onSelected(kasse);
-                              _krankenkasseNameController.text = kasse;
-                              setState(() {});
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                );
-              },
-              onSelected: (kasse) {
-                _krankenkasseNameController.text = kasse;
-                setState(() {});
-              },
-            );
-          }),
+          _buildKrankenkassePickerField(),
           Builder(builder: (context) {
             final currentYear = DateTime.now().year;
             final kasseName = _krankenkasseNameController.text.trim();
@@ -624,21 +599,175 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ),
             );
           }),
-          const SizedBox(height: 8),
-          Text('Versichertennummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          TextField(
-            controller: _versichertennummerController,
-            decoration: InputDecoration(
-              hintText: 'Versichertennummer (auf der Gesundheitskarte)',
-              prefixIcon: const Icon(Icons.credit_card, size: 20),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-            style: const TextStyle(fontSize: 14),
-          ),
         ],
+      ),
+    );
+  }
+
+  // ── Lupe-Auswahlfeld für die zuständige Krankenkasse ──
+  // Tippbares Feld (Lupe) -> öffnet einen Such-Dialog auf Basis der
+  // Krankenkassen-Datenbank (Tabelle `krankenkassen`, mit statischem Fallback).
+  Widget _buildKrankenkassePickerField() {
+    final selected = _krankenkasseNameController.text.trim();
+    final rating = selected.isNotEmpty ? _getKrankenkassenRatingValue(selected) : null;
+    return InkWell(
+      onTap: _showKrankenkassePicker,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: selected.isEmpty
+              ? const Icon(Icons.arrow_drop_down, size: 24)
+              : IconButton(
+                  icon: const Icon(Icons.clear, size: 18),
+                  tooltip: 'Auswahl entfernen',
+                  onPressed: () {
+                    _krankenkasseNameController.clear();
+                    setState(() {});
+                  },
+                ),
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        ),
+        child: selected.isEmpty
+            ? Text('Zuständige Krankenkasse suchen…', style: TextStyle(fontSize: 14, color: Colors.grey.shade500))
+            : Row(children: [
+                Expanded(child: Text(selected, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                if (rating != null) _starRating(rating, size: 13),
+              ]),
+      ),
+    );
+  }
+
+  Future<void> _showKrankenkassePicker() async {
+    final currentYear = DateTime.now().year;
+    final all = _getKrankenkassenListe(currentYear);
+    final controller = TextEditingController();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(builder: (sheetCtx, setSheet) {
+          final q = controller.text.trim().toLowerCase();
+          final filtered = q.isEmpty ? all : all.where((k) => k.toLowerCase().contains(q)).toList();
+          final mq = MediaQuery.of(sheetCtx);
+          return Padding(
+            padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+            child: Container(
+              height: mq.size.height * 0.82,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Column(children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+                  child: Row(children: [
+                    Icon(Icons.local_hospital, color: Colors.blue.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Zuständige Krankenkasse wählen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(sheetCtx)),
+                  ]),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    onChanged: (_) => setSheet(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'Suchen (Name, z.B. AOK, TK, Barmer)…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: controller.text.isEmpty
+                          ? null
+                          : IconButton(icon: const Icon(Icons.clear), onPressed: () => setSheet(() => controller.clear())),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Row(children: [
+                    Text('${filtered.length} Kassen', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    const Spacer(),
+                    Text('Quelle: Krankenkassen-Datenbank', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                  ]),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? _pickerEmptyState(controller.text.trim(), sheetCtx)
+                      : ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+                          itemBuilder: (itemCtx, i) {
+                            final kasse = filtered[i];
+                            final zusatz = _getZusatzbeitrag(kasse, currentYear);
+                            final gesamt = _getGesamtbeitrag(kasse, currentYear);
+                            final rating = _getKrankenkassenRatingValue(kasse);
+                            final isSel = kasse == _krankenkasseNameController.text.trim();
+                            return ListTile(
+                              dense: true,
+                              selected: isSel,
+                              selectedTileColor: Colors.blue.shade50,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.blue.shade50,
+                                child: Icon(Icons.local_hospital, size: 16, color: Colors.blue.shade700),
+                              ),
+                              title: Text(kasse, style: TextStyle(fontSize: 13, fontWeight: isSel ? FontWeight.bold : FontWeight.w500)),
+                              subtitle: _starRating(rating, size: 12),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                                  if (zusatz != null) Text('+${zusatz.toStringAsFixed(2)}% Zusatz', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                ],
+                              ),
+                              onTap: () => Navigator.pop(sheetCtx, kasse),
+                            );
+                          },
+                        ),
+                ),
+              ]),
+            ),
+          );
+        });
+      },
+    );
+    controller.dispose();
+    if (selected != null && selected.isNotEmpty) {
+      _krankenkasseNameController.text = selected;
+      setState(() {});
+    }
+  }
+
+  Widget _pickerEmptyState(String query, BuildContext sheetCtx) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.search_off, size: 42, color: Colors.grey.shade400),
+          const SizedBox(height: 8),
+          Text('Keine Kasse gefunden', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+          if (query.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.add, size: 18),
+              label: Text('„$query" übernehmen'),
+              onPressed: () => Navigator.pop(sheetCtx, query),
+            ),
+          ],
+        ]),
       ),
     );
   }
@@ -1067,174 +1196,429 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ]),
             ),
           ],
-          const SizedBox(height: 24),
-          _sectionHeader(Icons.credit_card, 'Elektronische Gesundheitskarte (eGK)', Colors.teal),
-          const SizedBox(height: 8),
-          Text('Krankenversichertennummer (KVNR)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          TextField(
-            controller: _kvnrController,
-            decoration: InputDecoration(
-              hintText: 'z.B. A123456789 (1 Buchstabe + 9 Ziffern)',
-              prefixIcon: const Icon(Icons.badge, size: 20),
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-            style: const TextStyle(fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          Text('Lebenslang gueltig — bleibt auch bei Kassenwechsel gleich.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Kartennummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: _kartennummerController,
-                decoration: InputDecoration(
-                  hintText: 'Auf der Vorderseite',
-                  prefixIcon: const Icon(Icons.numbers, size: 18),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 14),
-              ),
-            ])),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Kartenfolge-Nr.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: _kartenfolgenummerController,
-                decoration: InputDecoration(
-                  hintText: 'z.B. 01',
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 14),
-                keyboardType: TextInputType.number,
-              ),
-            ])),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Gültig ab', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: _egkGueltigAbController,
-                readOnly: true,
-                decoration: InputDecoration(
-                  hintText: 'Datum...',
-                  prefixIcon: const Icon(Icons.calendar_today, size: 18),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 13),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2040),
-                    locale: const Locale('de', 'DE'),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _egkGueltigAbController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
-                    });
-                  }
-                },
-              ),
-            ])),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Gültig bis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: _egkGueltigBisController,
-                readOnly: true,
-                decoration: InputDecoration(
-                  hintText: 'Datum...',
-                  prefixIcon: const Icon(Icons.event_busy, size: 18),
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                style: const TextStyle(fontSize: 13),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2040),
-                    locale: const Locale('de', 'DE'),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _egkGueltigBisController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
-                    });
-                  }
-                },
-              ),
-            ])),
-          ]),
           const SizedBox(height: 16),
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.indigo.shade50,
+              color: Colors.teal.shade50,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.indigo.shade200),
+              border: Border.all(color: Colors.teal.shade200),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Icon(Icons.language, size: 18, color: Colors.indigo.shade700),
-                  const SizedBox(width: 6),
-                  Text('EHIC — Europäische Krankenversicherungskarte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-                ]),
-                const SizedBox(height: 4),
-                Text('Rückseite der eGK — gültig in allen EU-/EWR-Ländern + Schweiz', style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
-                const SizedBox(height: 10),
-                Text('Persönliche Kennnummer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _ehicKennummerController,
-                  decoration: InputDecoration(
-                    hintText: 'Kennnummer auf der EHIC-Rückseite',
-                    prefixIcon: const Icon(Icons.person_pin, size: 18),
-                    isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 10),
-                Text('Kennnummer der Institution (IK)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _ehicInstitutionskennzeichenController,
-                  decoration: InputDecoration(
-                    hintText: 'Institutionskennzeichen der Krankenkasse',
-                    prefixIcon: const Icon(Icons.business, size: 18),
-                    isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
-            ),
+            child: Row(children: [
+              Icon(Icons.credit_card, size: 18, color: Colors.teal.shade700),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Gesundheitskarte (eGK) und EHIC-Rückseite befinden sich jetzt im Tab „Versicherungskarte".', style: TextStyle(fontSize: 12, color: Colors.teal.shade800))),
+            ]),
           ),
         ],
       ),
     );
+  }
+
+  // ============ TAB (neu): VERSICHERUNGSKARTE ============
+  // Visuelle Vorschau der elektronischen Gesundheitskarte (eGK) im Design der
+  // jeweiligen Krankenkasse + EHIC-Rueckseite. Die eGK-Datenfelder wurden aus
+  // dem Versicherung-Tab hierher verschoben (gleiche Controller / DB-Felder).
+
+  /// Markenfarben je Krankenkasse — als "ideale Nachbildung" ohne geschuetzte
+  /// Original-Logos (Wortmarke + Markenfarbe statt Bild-Logo).
+  _EgkTheme _egkThemeFor(String raw) {
+    final n = raw.toLowerCase().trim();
+    _EgkTheme mk(int a, int b, {String? mark, Color on = Colors.white}) =>
+        _EgkTheme(Color(a), Color(b), on, mark);
+    if (n.contains('aok')) return mk(0xFF00A94F, 0xFF007A38, mark: 'AOK');
+    if (n.contains('techniker') || n == 'tk' || n.startsWith('tk ') || n.startsWith('tk-')) return mk(0xFF1A3C7A, 0xFF0E2551, mark: 'TK');
+    if (n.contains('barmer')) return mk(0xFF3AAA35, 0xFF247A1D, mark: 'BARMER');
+    if (n.contains('dak')) return mk(0xFFE2001A, 0xFF9C0012, mark: 'DAK');
+    if (n.contains('ikk')) return mk(0xFF004F9F, 0xFF00356B, mark: 'IKK');
+    if (n.contains('kkh')) return mk(0xFF009AA6, 0xFF006A73, mark: 'KKH');
+    if (n.contains('hkk')) return mk(0xFFE2001A, 0xFF9C0012, mark: 'hkk');
+    if (n.contains('knappschaft')) return mk(0xFF0F4C81, 0xFF083254, mark: 'KBS');
+    if (n.contains('viactiv')) return mk(0xFFEC6608, 0xFFB44B04, mark: 'VIACTIV');
+    if (n.contains('big direkt') || n.startsWith('big ') || n == 'big') return mk(0xFFF39200, 0xFFB56A00, mark: 'BIG');
+    if (n.contains('mobil')) return mk(0xFF6FAF2A, 0xFF4A7A14, mark: 'Mobil');
+    if (n.contains('sbk') || n.contains('siemens')) return mk(0xFF4C9C2E, 0xFF2F6B18, mark: 'SBK');
+    if (n.contains('mhplus')) return mk(0xFF0075BF, 0xFF004E80, mark: 'mhplus');
+    if (n.contains('pronova')) return mk(0xFF0090D4, 0xFF005E8C, mark: 'pronova');
+    if (n.contains('audi')) return mk(0xFF262626, 0xFF000000, mark: 'Audi BKK');
+    if (n.contains('bmw')) return mk(0xFF0066B1, 0xFF00437A, mark: 'BMW BKK');
+    if (n.contains('bosch')) return mk(0xFF00539C, 0xFF00365F, mark: 'Bosch BKK');
+    if (n.contains('bertelsmann')) return mk(0xFF3B3B3B, 0xFF1A1A1A, mark: 'Bertelsmann BKK');
+    if (n.contains('heimat')) return mk(0xFF00713B, 0xFF004D28, mark: 'Heimat');
+    if (n.contains('vivida')) return mk(0xFF6A1F7A, 0xFF441150, mark: 'vivida bkk');
+    if (n.contains('salus')) return mk(0xFFE30613, 0xFF9C0410, mark: 'Salus BKK');
+    if (n.contains('bkk')) return mk(0xFF0069B4, 0xFF00477A, mark: 'BKK');
+    // Standard: neutrales Blaugrau, volle Kassenbezeichnung als Wortmarke
+    return mk(0xFF37556B, 0xFF223546, mark: null);
+  }
+
+  String _holderVornameFull() {
+    final v1 = (widget.user.vorname ?? '').trim();
+    final v2 = (widget.user.vorname2 ?? '').trim();
+    final j = [v1, v2].where((s) => s.isNotEmpty).join(' ');
+    return j;
+  }
+
+  String _holderNameZeile() {
+    final n = (widget.user.nachname ?? '').trim();
+    final v = _holderVornameFull();
+    if (n.isEmpty && v.isEmpty) return widget.user.name;
+    return [n, v].where((s) => s.isNotEmpty).join(', ');
+  }
+
+  String _fmtDate(String? s) {
+    final v = (s ?? '').trim();
+    if (v.isEmpty) return '';
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(v);
+    if (m != null) return '${m.group(3)}.${m.group(2)}.${m.group(1)}';
+    return v;
+  }
+
+  String _mmYY(String d) {
+    final m = RegExp(r'(\d{2})\.(\d{2})\.(\d{4})').firstMatch(d);
+    if (m != null) return '${m.group(2)}/${m.group(3)!.substring(2)}';
+    return d;
+  }
+
+  void _copyValue(String value, String label) {
+    final v = value.trim();
+    if (v.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: v));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$label kopiert'), duration: const Duration(seconds: 1)),
+    );
+  }
+
+  Widget _cardCaption(IconData icon, String text) {
+    return Row(children: [
+      Icon(icon, size: 15, color: Colors.grey.shade600),
+      const SizedBox(width: 6),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700))),
+    ]);
+  }
+
+  Widget _cardScaler(Widget card) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: AspectRatio(
+          aspectRatio: 430 / 271, // ISO/IEC 7810 ID-1 (Scheckkartenformat)
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(width: 430, height: 271, child: card),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _egkChip() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [Color(0xFFF2D98A), Color(0xFFC9A94A), Color(0xFFAE8A2E)],
+        ),
+        border: Border.all(color: const Color(0xFF9A7A26), width: 0.5),
+      ),
+      child: CustomPaint(painter: _EgkChipPainter()),
+    );
+  }
+
+  Widget _frontField(Color on, String label, String value, {double valueSize = 13, bool bold = false, bool mono = false, String ph = '—'}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Text(label.toUpperCase(), style: TextStyle(color: on.withValues(alpha: 0.68), fontSize: 8, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+      const SizedBox(height: 1),
+      Text(
+        value.isEmpty ? ph : value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: on,
+          fontSize: valueSize,
+          fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+          letterSpacing: mono ? 1.1 : 0,
+          fontFamily: mono ? 'monospace' : null,
+        ),
+      ),
+    ]);
+  }
+
+  Widget _ehicField(String label, String value, {String ph = '—'}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5, right: 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(label, style: const TextStyle(color: Color(0xFFFFCC00), fontSize: 7.5, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+        Text(value.isEmpty ? ph : value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+      ]),
+    );
+  }
+
+  Widget _buildEgkFrontCard(_EgkTheme t) {
+    final kasse = _krankenkasseNameController.text.trim();
+    final wordmark = t.mark ?? (kasse.isEmpty ? 'Krankenkasse' : kasse);
+    final showSub = t.mark != null && kasse.isNotEmpty && kasse.toLowerCase() != t.mark!.toLowerCase();
+    final on = t.onPrimary;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [t.primary, t.primaryDark]),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.22), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(children: [
+          Positioned(right: -60, top: -60, child: Container(width: 180, height: 180, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.06)))),
+          Positioned(right: 30, bottom: -80, child: Container(width: 160, height: 160, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.05)))),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text(wordmark, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: on, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: 0.3, height: 1.0)),
+                  if (showSub) Padding(padding: const EdgeInsets.only(top: 2), child: Text(kasse, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: on.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w500))),
+                ])),
+                const SizedBox(width: 10),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                  Text('Gesundheitskarte', style: TextStyle(color: on, fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text('Versicherungskarte', style: TextStyle(color: on.withValues(alpha: 0.7), fontSize: 9)),
+                ]),
+              ]),
+              const SizedBox(height: 18),
+              Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Column(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    width: 78, height: 96,
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.92), borderRadius: BorderRadius.circular(6)),
+                    child: Icon(Icons.person, size: 54, color: t.primary.withValues(alpha: 0.55)),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(width: 46, height: 34, child: _egkChip()),
+                ]),
+                const SizedBox(width: 18),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  _frontField(on, 'Name, Vorname', _holderNameZeile(), valueSize: 15, bold: true),
+                  const SizedBox(height: 9),
+                  _frontField(on, 'Versicherten-Nr.', _kvnrController.text.trim(), mono: true),
+                  const SizedBox(height: 7),
+                  _frontField(on, 'Kennnummer', _ehicInstitutionskennzeichenController.text.trim(), mono: true),
+                  const SizedBox(height: 7),
+                  _frontField(on, 'Kartennummer', _kartennummerController.text.trim(), valueSize: 11, mono: true),
+                  const Spacer(),
+                  Align(alignment: Alignment.centerRight, child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                    Text('gültig bis', style: TextStyle(color: on.withValues(alpha: 0.7), fontSize: 9, fontWeight: FontWeight.w600)),
+                    Text(_mmYY(_egkGueltigBisController.text.trim()).isEmpty ? 'MM/JJ' : _mmYY(_egkGueltigBisController.text.trim()), style: TextStyle(color: on, fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                  ])),
+                ])),
+              ])),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildEhicBackCard(_EgkTheme t) {
+    final nach = (widget.user.nachname ?? '').trim().isNotEmpty ? (widget.user.nachname ?? '').trim() : widget.user.name;
+    final vor = _holderVornameFull();
+    final geb = _fmtDate(widget.user.geburtsdatum);
+    final persKenn = _ehicKennummerController.text.trim().isNotEmpty ? _ehicKennummerController.text.trim() : _kvnrController.text.trim();
+    final ik = _ehicInstitutionskennzeichenController.text.trim();
+    final kasse = _krankenkasseNameController.text.trim();
+    final ikLine = [ik, kasse].where((s) => s.isNotEmpty).join('  ');
+    final kartennr = _kartennummerController.text.trim();
+    final ablauf = _fmtDate(_egkGueltigBisController.text.trim());
+    const eu = Color(0xFFFFCC00);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0A3DA6), Color(0xFF00206B)]),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.22), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(children: [
+          Positioned(left: 0, right: 0, top: 16, child: Container(height: 30, color: Colors.black.withValues(alpha: 0.55))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 56, 18, 14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.public, size: 16, color: eu),
+                const SizedBox(width: 6),
+                const Expanded(child: Text('Europäische Krankenversicherungskarte', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700))),
+              ]),
+              Padding(padding: const EdgeInsets.only(left: 22, top: 1), child: Text('European Health Insurance Card', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 8.5, fontStyle: FontStyle.italic))),
+              const SizedBox(height: 8),
+              Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                SizedBox(width: 100, child: Center(child: SizedBox(width: 94, height: 94, child: CustomPaint(painter: const _EuStarsPainter())))),
+                const SizedBox(width: 12),
+                Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: _ehicField('3  Name', nach)),
+                    Expanded(child: _ehicField('4  Vornamen', vor)),
+                  ]),
+                  Row(children: [
+                    Expanded(child: _ehicField('5  Geburtsdatum', geb)),
+                    Expanded(child: _ehicField('9  Ablaufdatum', ablauf)),
+                  ]),
+                  _ehicField('6  Persönliche Kennnummer', persKenn),
+                  _ehicField('7  Kennnummer der Institution', ikLine),
+                  _ehicField('8  Kennnummer der Karte', kartennr),
+                ])),
+              ])),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildVersicherungskarteTab(Map<String, dynamic> data) {
+    return StatefulBuilder(builder: (context, setCard) {
+      final t = _egkThemeFor(_krankenkasseNameController.text);
+      final kasseLeer = _krankenkasseNameController.text.trim().isEmpty;
+
+      InputDecoration deco(String hint, IconData icon, {Widget? suffix}) => InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, size: 18),
+            suffixIcon: suffix,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          );
+
+      Widget label(String s) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(s, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          );
+
+      Widget dateField(TextEditingController c, String hint, IconData icon, DateTime initial) => TextField(
+            controller: c,
+            readOnly: true,
+            style: const TextStyle(fontSize: 13),
+            decoration: deco(hint, icon),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: initial,
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2040),
+                locale: const Locale('de', 'DE'),
+              );
+              if (picked != null) {
+                setCard(() {
+                  c.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+                });
+              }
+            },
+          );
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionHeader(Icons.credit_card, 'Versicherungskarte', t.primary),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: kasseLeer ? Colors.orange.shade50 : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kasseLeer ? Colors.orange.shade200 : Colors.blue.shade200),
+              ),
+              child: Row(children: [
+                Icon(kasseLeer ? Icons.info_outline : Icons.palette_outlined, size: 16, color: kasseLeer ? Colors.orange.shade700 : Colors.blue.shade700),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  kasseLeer
+                      ? 'Bitte zuerst im Tab „Krankenkasse" die Kasse auswählen — die Karte wird dann im passenden Kassendesign angezeigt.'
+                      : 'Vorschau im Design der Krankenkasse. Nachbildung ohne Original-Logo, dient der Anschauung / Datenerfassung.',
+                  style: TextStyle(fontSize: 11.5, color: kasseLeer ? Colors.orange.shade900 : Colors.blue.shade900),
+                )),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            _cardCaption(Icons.badge_outlined, 'Vorderseite — Elektronische Gesundheitskarte (eGK)'),
+            const SizedBox(height: 8),
+            _cardScaler(_buildEgkFrontCard(t)),
+            const SizedBox(height: 20),
+            _cardCaption(Icons.public, 'Rückseite — Europäische Krankenversicherungskarte (EHIC)'),
+            const SizedBox(height: 8),
+            _cardScaler(_buildEhicBackCard(t)),
+            const SizedBox(height: 22),
+            const Divider(),
+            const SizedBox(height: 4),
+            _sectionHeader(Icons.edit_note, 'Kartendaten bearbeiten', Colors.blueGrey),
+            const SizedBox(height: 8),
+            label('Krankenversichertennummer (KVNR)'),
+            TextField(
+              controller: _kvnrController,
+              onChanged: (_) => setCard(() {}),
+              style: const TextStyle(fontSize: 14),
+              decoration: deco('z.B. A123456789 (1 Buchstabe + 9 Ziffern)', Icons.badge, suffix: IconButton(
+                icon: const Icon(Icons.copy, size: 18),
+                tooltip: 'KVNR kopieren',
+                onPressed: () => _copyValue(_kvnrController.text, 'KVNR'),
+              )),
+            ),
+            const SizedBox(height: 4),
+            Text('Lebenslang gültig — bleibt auch bei Kassenwechsel gleich.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+            const SizedBox(height: 12),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                label('Kartennummer'),
+                TextField(controller: _kartennummerController, onChanged: (_) => setCard(() {}), style: const TextStyle(fontSize: 14), decoration: deco('Auf der Vorderseite', Icons.numbers)),
+              ])),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                label('Kartenfolge-Nr.'),
+                TextField(controller: _kartenfolgenummerController, onChanged: (_) => setCard(() {}), keyboardType: TextInputType.number, style: const TextStyle(fontSize: 14), decoration: deco('z.B. 01', Icons.tag)),
+              ])),
+            ]),
+            const SizedBox(height: 12),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                label('Gültig ab'),
+                dateField(_egkGueltigAbController, 'Datum...', Icons.calendar_today, DateTime.now()),
+              ])),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                label('Gültig bis'),
+                dateField(_egkGueltigBisController, 'Datum...', Icons.event_busy, DateTime.now().add(const Duration(days: 365 * 5))),
+              ])),
+            ]),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.indigo.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.indigo.shade200),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.language, size: 18, color: Colors.indigo.shade700),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text('EHIC — Europäische Krankenversicherungskarte (Rückseite)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+                ]),
+                const SizedBox(height: 4),
+                Text('Gültig in allen EU-/EWR-Ländern + Schweiz', style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
+                const SizedBox(height: 10),
+                label('Persönliche Kennnummer (Feld 6)'),
+                TextField(controller: _ehicKennummerController, onChanged: (_) => setCard(() {}), style: const TextStyle(fontSize: 13), decoration: deco('Kennnummer auf der EHIC-Rückseite', Icons.person_pin)),
+                const SizedBox(height: 10),
+                label('Kennnummer der Institution / IK (Feld 7)'),
+                TextField(controller: _ehicInstitutionskennzeichenController, onChanged: (_) => setCard(() {}), style: const TextStyle(fontSize: 13), decoration: deco('Institutionskennzeichen der Krankenkasse', Icons.business)),
+              ]),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   // ============ TAB 6: BEFREIUNGSKARTE ============
@@ -3433,5 +3817,86 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
         }),
     ]);
   }
+}
+
+// ============ Versicherungskarte: Design-Helfer ============
+
+/// Kassen-Design: Markenfarbe (Verlauf), Textfarbe und Kurz-Wortmarke.
+/// Bewusst ohne geschuetzte Original-Logos — Nachbildung anhand Farbe + Wortmarke.
+class _EgkTheme {
+  final Color primary;
+  final Color primaryDark;
+  final Color onPrimary;
+  final String? mark;
+  const _EgkTheme(this.primary, this.primaryDark, this.onPrimary, this.mark);
+}
+
+/// Zeichnet den EU-Sternenkranz (12 goldene Sterne im Kreis) fuer die EHIC-Rueckseite.
+class _EuStarsPainter extends CustomPainter {
+  final Color color;
+  const _EuStarsPainter({this.color = const Color(0xFFFFCC00)});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final ringR = size.width * 0.40;
+    final starR = size.width * 0.075;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    for (int i = 0; i < 12; i++) {
+      final a = (i / 12) * 2 * math.pi - math.pi / 2;
+      final c = Offset(center.dx + ringR * math.cos(a), center.dy + ringR * math.sin(a));
+      canvas.drawPath(_star(c, starR), paint);
+    }
+  }
+
+  Path _star(Offset c, double r) {
+    final path = Path();
+    for (int i = 0; i < 5; i++) {
+      final outer = (i / 5) * 2 * math.pi - math.pi / 2;
+      final inner = outer + math.pi / 5;
+      final ox = c.dx + r * math.cos(outer);
+      final oy = c.dy + r * math.sin(outer);
+      final ix = c.dx + (r * 0.42) * math.cos(inner);
+      final iy = c.dy + (r * 0.42) * math.sin(inner);
+      if (i == 0) {
+        path.moveTo(ox, oy);
+      } else {
+        path.lineTo(ox, oy);
+      }
+      path.lineTo(ix, iy);
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(covariant _EuStarsPainter old) => old.color != color;
+}
+
+/// Zeichnet die Kontaktflaechen des goldenen eGK-Chips.
+class _EgkChipPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0xFF8A6D1F)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = true;
+    final w = size.width, h = size.height;
+    final pad = Rect.fromLTWH(w * 0.30, h * 0.28, w * 0.40, h * 0.44);
+    canvas.drawRRect(RRect.fromRectAndRadius(pad, const Radius.circular(2)), p);
+    canvas.drawLine(Offset(0, h * 0.34), Offset(w * 0.30, h * 0.34), p);
+    canvas.drawLine(Offset(0, h * 0.66), Offset(w * 0.30, h * 0.66), p);
+    canvas.drawLine(Offset(w * 0.70, h * 0.34), Offset(w, h * 0.34), p);
+    canvas.drawLine(Offset(w * 0.70, h * 0.66), Offset(w, h * 0.66), p);
+    canvas.drawLine(Offset(w * 0.5, 0), Offset(w * 0.5, h * 0.28), p);
+    canvas.drawLine(Offset(w * 0.5, h * 0.72), Offset(w * 0.5, h), p);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
