@@ -388,7 +388,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
           await widget.onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
       ],
-    );})));
+    );}));
   }
 
   void _openDetail(Map<String, dynamic> antrag) {
@@ -492,14 +492,16 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
   late TabController _tabC;
 
   bool get _isBetriebskosten => widget.antrag['art']?.toString() == 'betriebskosten_nachforderung';
+  bool get _isWba => widget.antrag['art']?.toString() == 'weiterbewilligung';
 
   @override
   void initState() {
     super.initState();
     // Betriebskosten-Nachforderung uses a reduced 5-tab modal with a PDF-Generator tab.
-    // All other Antrag types keep the full 8-tab layout (Bewilligungsbescheid,
-    // EGV, Sanktionen, Begutachtung, Anhörung).
-    _tabC = TabController(length: _isBetriebskosten ? 5 : 8, vsync: this);
+    // WBA (Weiterbewilligung) has a 9-tab layout with a dedicated Generator WBA tab
+    // right after Details. All other Antrag types keep the full 8-tab layout
+    // (Bewilligungsbescheid, EGV, Sanktionen, Begutachtung, Anhörung).
+    _tabC = TabController(length: _isBetriebskosten ? 5 : (_isWba ? 9 : 8), vsync: this);
   }
 
   @override
