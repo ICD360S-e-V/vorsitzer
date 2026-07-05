@@ -97,6 +97,7 @@ class TransitTerminReminderService {
             body: body,
             eventTime: t.terminDate,
             payload: 'termin:${t.id}',
+            androidChannelId: NotificationService.channelIdOpnvReminder,
           );
           _log.info('TerminReminder: showed reminder for termin ${t.id} in ${minsUntilDep}min', tag: 'TERMIN_REMIND');
         } catch (e) {

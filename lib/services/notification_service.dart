@@ -43,11 +43,21 @@ class NotificationService {
   final StreamController<String> _clickController = StreamController<String>.broadcast();
   Stream<String> get onNotificationClicked => _clickController.stream;
 
-  // Notification channel for Android
+  // Default notification channel for Android
   static const String _channelId = 'icd360sev_vorsitzer_channel';
   static const String _channelName = 'ICD360S e.V Benachrichtigungen';
   static const String _channelDescription =
       'Benachrichtigungen für Chat, Anrufe und Updates';
+
+  // ÖPNV-specific channels — the user can independently mute e.g. Störungen
+  // while keeping Ausstieg-Alarm at full volume via Android system settings.
+  //
+  // - opnvReminder: 'ÖPNV-Erinnerungen' (Termin-Reminder, Häufigkeit hoch)
+  // - opnvAlarm:    'Ausstieg-Alarm' (max importance, vibrate — safety-critical)
+  // - opnvStoerung: 'Verkehrsstörungen' (default importance, optional)
+  static const String channelIdOpnvReminder = 'opnv_reminder';
+  static const String channelIdOpnvAlarm = 'opnv_alarm';
+  static const String channelIdOpnvStoerung = 'opnv_stoerung';
 
   /// Chat-Dialog-Status setzen (von AdminChatDialog aufrufen)
   static void setChatDialogOpen(bool isOpen) {
@@ -125,21 +135,49 @@ class NotificationService {
     }
   }
 
-  /// Create Android notification channel
+  /// Create Android notification channels — default + 3 ÖPNV-specific.
   Future<void> _createAndroidNotificationChannel() async {
-    const channel = AndroidNotificationChannel(
+    final impl = _notifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (impl == null) return;
+
+    // 1. Default channel (chat / calls / updates)
+    await impl.createNotificationChannel(const AndroidNotificationChannel(
       _channelId,
       _channelName,
       description: _channelDescription,
       importance: Importance.high,
       playSound: true,
       enableVibration: true,
-    );
-
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    ));
+    // 2. ÖPNV Termin-Reminder (high — but user can mute independently)
+    await impl.createNotificationChannel(const AndroidNotificationChannel(
+      channelIdOpnvReminder,
+      'ÖPNV-Erinnerungen',
+      description: 'Erinnert dich rechtzeitig loszufahren zum Termin.',
+      importance: Importance.high,
+      playSound: true,
+      enableVibration: true,
+    ));
+    // 3. Ausstieg-Alarm (max — safety-critical, hardest to accidentally silence)
+    await impl.createNotificationChannel(const AndroidNotificationChannel(
+      channelIdOpnvAlarm,
+      'Ausstieg-Alarm',
+      description: 'Vibriert wenn du deine gewählte Ausstiegs-Haltestelle erreichst.',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    ));
+    // 4. Verkehrsstörungen (default — informative, can be muted without loss)
+    await impl.createNotificationChannel(const AndroidNotificationChannel(
+      channelIdOpnvStoerung,
+      'Verkehrsstörungen',
+      description: 'Aktive HIM-Störungsmeldungen in deiner Region.',
+      importance: Importance.defaultImportance,
+      playSound: false,
+      enableVibration: false,
+    ));
   }
 
   /// Request notification permissions on iOS/macOS
@@ -208,16 +246,45 @@ class NotificationService {
   NotificationDetails _getNotificationDetails({
     String? payload,
     bool playSound = true,
+    /// Overrides the default channel — for ÖPNV features which each own
+    /// a dedicated Android channel (user can mute independently).
+    String? androidChannelId,
   }) {
+    final chId = androidChannelId ?? _channelId;
+    // Match name/description/importance to whatever we registered at boot.
+    String chName;
+    String chDesc;
+    Importance imp;
+    switch (chId) {
+      case channelIdOpnvReminder:
+        chName = 'ÖPNV-Erinnerungen';
+        chDesc = 'Erinnert dich rechtzeitig loszufahren zum Termin.';
+        imp = Importance.high;
+        break;
+      case channelIdOpnvAlarm:
+        chName = 'Ausstieg-Alarm';
+        chDesc = 'Vibriert wenn du deine gewählte Ausstiegs-Haltestelle erreichst.';
+        imp = Importance.max;
+        break;
+      case channelIdOpnvStoerung:
+        chName = 'Verkehrsstörungen';
+        chDesc = 'Aktive HIM-Störungsmeldungen in deiner Region.';
+        imp = Importance.defaultImportance;
+        break;
+      default:
+        chName = _channelName;
+        chDesc = _channelDescription;
+        imp = Importance.high;
+    }
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        _channelId,
-        _channelName,
-        channelDescription: _channelDescription,
-        importance: Importance.high,
-        priority: Priority.high,
+        chId,
+        chName,
+        channelDescription: chDesc,
+        importance: imp,
+        priority: imp == Importance.max ? Priority.max : Priority.high,
         playSound: playSound,
-        enableVibration: true,
+        enableVibration: chId != channelIdOpnvStoerung,
         icon: '@mipmap/ic_launcher',
       ),
       iOS: DarwinNotificationDetails(
@@ -234,6 +301,26 @@ class NotificationService {
     );
   }
 
+  /// Deterministic notification ID from payload — same payload = same ID
+  /// so a second call for the same event UPDATES the existing notification
+  /// instead of stacking a new one. Different payload = different ID, they
+  /// coexist. Prevents the previous "2 events in one second overwrite each
+  /// other" bug where ID was millisecondsSinceEpoch ~/ 1000.
+  ///
+  /// Payload null → fallback to timestamp-based ID (old behavior).
+  int _notificationIdFor(String? payload) {
+    if (payload == null || payload.isEmpty) {
+      return DateTime.now().millisecondsSinceEpoch % 0x7FFFFFFF;
+    }
+    // Simple FNV-1a hash — fast, 32-bit, no crypto lib needed.
+    var hash = 0x811c9dc5;
+    for (int i = 0; i < payload.length; i++) {
+      hash = (hash ^ payload.codeUnitAt(i)) & 0xFFFFFFFF;
+      hash = (hash * 0x01000193) & 0xFFFFFFFF;
+    }
+    return hash & 0x7FFFFFFF;
+  }
+
   /// Show a native notification on all platforms
   Future<void> show({
     required String title,
@@ -247,6 +334,10 @@ class NotificationService {
     /// short label for that timestamp (e.g. "🌧 Regen · Neuer Termin"). Falls
     /// back silently if no forecast is available for that time.
     DateTime? eventTime,
+    /// Android channel override — one of [channelIdOpnvReminder],
+    /// [channelIdOpnvAlarm], [channelIdOpnvStoerung]. Null = default channel.
+    /// Chosen channel controls importance + user-facing mute controls.
+    String? androidChannelId,
   }) async {
     if (eventTime != null) {
       final hint = WeatherService.instance.weatherHintAt(eventTime);
@@ -259,13 +350,19 @@ class NotificationService {
         // macOS: use native UNUserNotificationCenter via MethodChannel
         await _showMacOSNotification(title, body, payload: payload);
       } else {
-        // All other platforms: use flutter_local_notifications
-        final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        // All other platforms: use flutter_local_notifications.
+        // ID derived from payload so re-triggers of the same event UPDATE
+        // instead of stacking. Prevents duplicate spam when a proximity
+        // callback fires 3× per second.
+        final id = _notificationIdFor(payload);
         await _notifications.show(
           id: id,
           title: title,
           body: body,
-          notificationDetails: _getNotificationDetails(payload: payload),
+          notificationDetails: _getNotificationDetails(
+            payload: payload,
+            androidChannelId: androidChannelId,
+          ),
           payload: payload,
         );
       }

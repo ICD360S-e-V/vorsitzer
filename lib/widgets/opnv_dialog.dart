@@ -3063,6 +3063,7 @@ class _TripMapViewState extends State<_TripMapView> {
             body: 'Deine Ziel-Haltestelle ist erreicht — jetzt aussteigen!',
             payload: 'opnv:ausstieg:${target.stopID}',
             duration: const Duration(seconds: 10),
+            androidChannelId: NotificationService.channelIdOpnvAlarm,
           );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
