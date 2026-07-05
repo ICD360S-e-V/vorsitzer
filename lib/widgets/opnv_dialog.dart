@@ -3203,7 +3203,8 @@ class _JourneyCard extends StatelessWidget {
 
     return Semantics(
       label: sem,
-      container: true,
+      button: true,
+      hint: 'Antippen für Details mit allen Umstiegen',
       excludeSemantics: true,
       child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -3212,7 +3213,13 @@ class _JourneyCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: p.border),
       ),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => _JourneyDetailsDialog(journey: journey),
+        ),
+        child: Padding(
         padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3378,7 +3385,322 @@ class _JourneyCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     ));
+  }
+}
+
+/// Full-journey drill-down modal — opens when the user taps a JourneyCard
+/// in the Verbindung tab. Renders every leg vertically with a coloured
+/// per-vehicle strip, separated by Umstieg-Banner boxes that show the
+/// transfer window ("6 Min. Umstieg" — green >=5, orange 2-4, red <2).
+///
+/// Walking legs get their own compact "🚶 350m Fußweg" card between
+/// vehicle legs (real bahn.de journeys often include short walks between
+/// platforms; suppressing them would misrepresent the trip).
+class _JourneyDetailsDialog extends StatelessWidget {
+  final Journey journey;
+  const _JourneyDetailsDialog({required this.journey});
+
+  String _hhmm(DateTime d) => '${d.hour.toString().padLeft(2, "0")}:${d.minute.toString().padLeft(2, "0")}';
+
+  Color _colorFor(String product) {
+    switch (product) {
+      case 'tram': return Colors.blue.shade700;
+      case 'subway': return Colors.indigo.shade700;
+      case 'train':
+      case 'regional': return Colors.red.shade700;
+      case 'suburban': return Colors.green.shade700;
+      case 'walk': return Colors.grey.shade500;
+      default: return Colors.teal.shade700;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final size = MediaQuery.of(context).size;
+    final compact = size.width < 700;
+    final dialogW = compact ? size.width - 16 : 520.0;
+    final dialogH = compact ? size.height - 80 : 650.0;
+    final durMin = journey.duration.inMinutes;
+    final durStr = durMin >= 60 ? '${durMin ~/ 60}h ${durMin % 60}m' : '${durMin}m';
+    final vehicleLegs = journey.legs.where((l) => !l.isWalk).length;
+    return Dialog(
+      backgroundColor: p.bg,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 40,
+        vertical: compact ? 40 : 24,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SizedBox(
+        width: dialogW,
+        height: dialogH,
+        child: Column(
+          children: [
+            // Header — full journey summary
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 8, 10),
+              decoration: BoxDecoration(
+                color: p.accentTint,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.route, size: 20, color: Colors.teal.shade400),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Verbindungsdetails',
+                        style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.bold,
+                          color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, size: 18, color: p.onSurface),
+                      tooltip: 'Schließen',
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Icon(Icons.play_circle_filled, size: 14, color: Colors.green.shade600),
+                    const SizedBox(width: 4),
+                    Flexible(child: Text(
+                      journey.legs.first.fromName,
+                      style: TextStyle(fontSize: 12, color: p.onSurfaceDim),
+                      overflow: TextOverflow.ellipsis,
+                    )),
+                    const SizedBox(width: 6),
+                    Icon(Icons.arrow_right_alt, size: 14, color: p.onSurfaceFaint),
+                    const SizedBox(width: 6),
+                    Icon(Icons.flag, size: 14, color: Colors.red.shade400),
+                    const SizedBox(width: 4),
+                    Flexible(child: Text(
+                      journey.legs.last.toName,
+                      style: TextStyle(fontSize: 13, color: p.onSurface, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    )),
+                  ]),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_hhmm(journey.depTime)} → ${_hhmm(journey.arrTime)} · $durStr · '
+                        '${vehicleLegs == 0 ? "nur Fußweg" : vehicleLegs == 1 ? "direkt" : "${vehicleLegs - 1} Umstiege"}',
+                    style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+                  ),
+                ],
+              ),
+            ),
+            // Body — leg cards + umstieg banners
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                itemCount: journey.legs.length * 2 - 1,
+                itemBuilder: (_, idx) {
+                  // Alternate: leg (even idx) — umstieg banner (odd idx)
+                  if (idx.isEven) {
+                    final legIdx = idx ~/ 2;
+                    return _JourneyLegCard(
+                      leg: journey.legs[legIdx],
+                      color: _colorFor(journey.legs[legIdx].productType),
+                    );
+                  } else {
+                    final legIdx = idx ~/ 2;
+                    final arriveLeg = journey.legs[legIdx];
+                    final nextLeg = journey.legs[legIdx + 1];
+                    // Skip "umstieg" between walk-and-vehicle — it's not really
+                    // a transfer, just walking to the next stop. Also skip
+                    // when times touch (transfer window ~0 minutes).
+                    if (arriveLeg.isWalk || nextLeg.isWalk) {
+                      return const SizedBox(height: 4);
+                    }
+                    final windowMin = nextLeg.depTime.difference(arriveLeg.arrTime).inMinutes;
+                    return _UmstiegBanner(
+                      stopName: arriveLeg.toName,
+                      windowMinutes: windowMin,
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Vertical stack card for one leg: header (line + direction + times) +
+/// from → to. Walking legs use a compact one-liner.
+class _JourneyLegCard extends StatelessWidget {
+  final JourneyLeg leg;
+  final Color color;
+  const _JourneyLegCard({required this.leg, required this.color});
+
+  String _hhmm(DateTime d) => '${d.hour.toString().padLeft(2, "0")}:${d.minute.toString().padLeft(2, "0")}';
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    if (leg.isWalk) {
+      final mins = leg.arrTime.difference(leg.depTime).inMinutes;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+        child: Row(children: [
+          Icon(Icons.directions_walk, size: 16, color: p.onSurfaceDim),
+          const SizedBox(width: 6),
+          Text(
+            '$mins Min. Fußweg',
+            style: TextStyle(fontSize: 11.5, color: p.onSurfaceDim, fontWeight: FontWeight.w500),
+          ),
+        ]),
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: p.card,
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: color, width: 4)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+                child: Text(leg.line,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '→ ${leg.direction}',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: p.onSurface),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Row(children: [
+              Icon(Icons.play_circle_filled, size: 12, color: Colors.green.shade600),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Text(
+                  leg.fromName,
+                  style: TextStyle(fontSize: 11.5, color: p.onSurface),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(_hhmm(leg.depTime),
+                  style: TextStyle(fontSize: 11, color: p.onSurfaceDim, fontWeight: FontWeight.w600)),
+              if (leg.depDelay > 0) ...[
+                const SizedBox(width: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(2)),
+                  child: Text('+${leg.depDelay}',
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                ),
+              ],
+            ]),
+            const SizedBox(height: 3),
+            Row(children: [
+              Icon(Icons.flag, size: 12, color: Colors.red.shade400),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Text(
+                  leg.toName,
+                  style: TextStyle(fontSize: 11.5, color: p.onSurface),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(_hhmm(leg.arrTime),
+                  style: TextStyle(fontSize: 11, color: p.onSurfaceDim, fontWeight: FontWeight.w600)),
+              if (leg.arrDelay > 0) ...[
+                const SizedBox(width: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(2)),
+                  child: Text('+${leg.arrDelay}',
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                ),
+              ],
+            ]),
+            if (leg.fromPlatform != null || leg.toPlatform != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                'Gleis${leg.fromPlatform != null ? " ${leg.fromPlatform} ab" : ""}'
+                    '${leg.toPlatform != null ? " · ${leg.toPlatform} an" : ""}',
+                style: TextStyle(fontSize: 10, color: p.onSurfaceFaint),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Umstieg-Banner shown between two vehicle legs. Colour encodes the
+/// tightness of the transfer window: green ≥5 Min (comfortable),
+/// orange 2-4 Min (viable but risky), red <2 Min (likely to miss).
+class _UmstiegBanner extends StatelessWidget {
+  final String stopName;
+  final int windowMinutes;
+  const _UmstiegBanner({required this.stopName, required this.windowMinutes});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final Color color;
+    final String label;
+    if (windowMinutes >= 5) {
+      color = Colors.green.shade500;
+      label = 'Bequem';
+    } else if (windowMinutes >= 2) {
+      color = Colors.orange.shade500;
+      label = 'Knapp';
+    } else {
+      color = Colors.red.shade500;
+      label = 'Sehr knapp';
+    }
+    return Semantics(
+      label: 'Umstieg bei $stopName, ${windowMinutes < 0 ? 0 : windowMinutes} Minuten Zeit. $label.',
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: p.dark ? 0.25 : 0.12),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Row(children: [
+          Icon(Icons.swap_calls, size: 14, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Umstieg bei $stopName',
+              style: TextStyle(fontSize: 11, color: p.onSurface, fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            '${windowMinutes < 0 ? 0 : windowMinutes} Min. — $label',
+            style: TextStyle(fontSize: 10.5, color: color, fontWeight: FontWeight.w700),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
