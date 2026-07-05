@@ -680,7 +680,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       {
         'flag': '_termin_created_erst',
         'title': 'MD-Erstbegutachtung',
-        'category': 'begutachtung',
+        'category': 'arzt',
         'datum': _begutachtungDatumC.text.trim(),
         'uhrzeit': _begutachtungUhrzeitC.text.trim(),
         'dauer': _begutachtungDauerC.text.trim(),
@@ -691,7 +691,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       {
         'flag': '_termin_created_zweit',
         'title': 'MD-Zweitgutachten (Widerspruch)',
-        'category': 'begutachtung',
+        'category': 'arzt',
         'datum': _wsZgDatumC.text.trim(),
         'uhrzeit': _wsZgUhrzeitC.text.trim(),
         'dauer': _wsZgDauerC.text.trim(),
@@ -702,7 +702,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       {
         'flag': '_termin_created_dritt',
         'title': 'MD-Drittgutachten (Sozialgericht)',
-        'category': 'begutachtung',
+        'category': 'arzt',
         'datum': _dgDatumC.text.trim(),
         'uhrzeit': _dgUhrzeitC.text.trim(),
         'dauer': _dgDauerC.text.trim(),
