@@ -244,6 +244,44 @@ class StationFacility {
   String get icon => isElevator ? '🛗' : (isEscalator ? '↕️' : '⚙️');
 }
 
+/// Whether a Journey is likely to work for a wheelchair / stroller user
+/// based on the DB FaSta elevator status at each transfer stop.
+///
+/// - `unknown`: no facility data for any checked stop (all bus stops,
+///   or DB doesn't cover these stations) — don't punish, show as "?".
+/// - `barrierFree`: every station we could check has working elevators.
+/// - `brokenElevator`: at least one station has an INACTIVE elevator.
+enum JourneyAccessibilityStatus { unknown, barrierFree, brokenElevator }
+
+class JourneyAccessibility {
+  final JourneyAccessibilityStatus status;
+  /// Station names with an inactive elevator, in order.
+  final List<String> brokenAt;
+  /// Station names for which we successfully got facility data.
+  final List<String> checked;
+
+  const JourneyAccessibility({
+    required this.status,
+    this.brokenAt = const [],
+    this.checked = const [],
+  });
+
+  static const unknown = JourneyAccessibility(status: JourneyAccessibilityStatus.unknown);
+
+  String get germanLabel {
+    switch (status) {
+      case JourneyAccessibilityStatus.barrierFree:
+        return 'Barrierefrei';
+      case JourneyAccessibilityStatus.brokenElevator:
+        return brokenAt.isEmpty
+            ? 'Aufzug defekt'
+            : 'Aufzug defekt: ${brokenAt.join(", ")}';
+      case JourneyAccessibilityStatus.unknown:
+        return 'Barrierefreiheit unbekannt';
+    }
+  }
+}
+
 /// A full journey option (departure → destination) with all legs
 class Journey {
   final List<JourneyLeg> legs;
@@ -2247,6 +2285,55 @@ class TransitService {
     _log.info('Transit: no facilities data for "$stationName"', tag: 'TRANSIT');
     _facilitiesCache[stationName] = _CachedFacilities([], DateTime.now());
     return [];
+  }
+
+  /// Check whether a Journey is likely usable for a wheelchair user by
+  /// querying DB FaSta elevator status at every vehicle-leg endpoint.
+  ///
+  /// Walking legs are skipped (no ÖPNV = no facilities to check).
+  /// Stops without DB coverage (pure bus stops) contribute nothing —
+  /// if none of the checked stops have data, status stays `unknown`.
+  ///
+  /// All fetches run in parallel; individual results are already cached
+  /// 5min by `fetchFacilities` so multiple journeys sharing a station
+  /// hit the cache.
+  Future<JourneyAccessibility> checkJourneyAccessibility(Journey j) async {
+    final stops = <String>{};
+    for (final leg in j.legs) {
+      if (leg.isWalk) continue;
+      if (leg.fromName.isNotEmpty) stops.add(leg.fromName);
+      if (leg.toName.isNotEmpty) stops.add(leg.toName);
+    }
+    if (stops.isEmpty) return JourneyAccessibility.unknown;
+
+    final results = await Future.wait(stops.map((s) async {
+      try {
+        return MapEntry(s, await fetchFacilities(s));
+      } catch (_) {
+        return MapEntry(s, const <StationFacility>[]);
+      }
+    }));
+
+    final checked = <String>[];
+    final broken = <String>[];
+    for (final e in results) {
+      final elevators = e.value.where((f) => f.isElevator).toList();
+      if (elevators.isEmpty) continue; // no data → don't count
+      checked.add(e.key);
+      if (elevators.any((f) => f.isBroken)) broken.add(e.key);
+    }
+
+    if (checked.isEmpty) return JourneyAccessibility.unknown;
+    if (broken.isNotEmpty) {
+      return JourneyAccessibility(
+        status: JourneyAccessibilityStatus.brokenElevator,
+        brokenAt: broken, checked: checked,
+      );
+    }
+    return JourneyAccessibility(
+      status: JourneyAccessibilityStatus.barrierFree,
+      checked: checked,
+    );
   }
 
   List<StationFacility> _parseFacilities(dynamic data) {

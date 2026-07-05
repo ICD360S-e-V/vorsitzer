@@ -1647,6 +1647,7 @@ class _VerbindungTab extends StatefulWidget {
 
 class _VerbindungTabState extends State<_VerbindungTab> {
   static const _kPrefsDTicketKey = 'opnv.filter.onlyDeutschlandTicket';
+  static const _kPrefsBarrierFreiKey = 'opnv.filter.barrierFrei';
   TransitLocation? _from;
   TransitLocation? _to;
   DateTime _when = DateTime.now();
@@ -1656,6 +1657,11 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   String? _error;
   List<TransitFavorite> _favorites = [];
   bool _onlyDTicket = false;
+  bool _barrierFrei = false;
+  /// Async accessibility check result per journey index. Populated by
+  /// `_checkAccessibility()` after each search. When `_barrierFrei` toggle
+  /// is on, journeys with brokenElevator status are hidden from the list.
+  final Map<int, JourneyAccessibility> _accessibility = {};
 
   @override
   void initState() {
@@ -1684,7 +1690,10 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   Future<void> _loadPrefs() async {
     final sp = await SharedPreferences.getInstance();
     if (!mounted) return;
-    setState(() => _onlyDTicket = sp.getBool(_kPrefsDTicketKey) ?? false);
+    setState(() {
+      _onlyDTicket = sp.getBool(_kPrefsDTicketKey) ?? false;
+      _barrierFrei = sp.getBool(_kPrefsBarrierFreiKey) ?? false;
+    });
   }
 
   Future<void> _toggleDTicket(bool v) async {
@@ -1694,6 +1703,30 @@ class _VerbindungTabState extends State<_VerbindungTab> {
     // Re-run the last search with the new filter so the user immediately sees the effect.
     if (_from != null && _to != null && _results != null) {
       await _search();
+    }
+  }
+
+  Future<void> _toggleBarrierFrei(bool v) async {
+    setState(() => _barrierFrei = v);
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_kPrefsBarrierFreiKey, v);
+    // Toggle is client-side only — no re-search needed, existing checks
+    // are reused. UI just re-filters what to render.
+  }
+
+  /// Kick off DB FaSta elevator checks for each journey in parallel.
+  /// Fire-and-forget: setState per result so cards light up as data arrives.
+  void _checkAccessibility(List<Journey> journeys) {
+    _accessibility.clear();
+    for (int i = 0; i < journeys.length; i++) {
+      final idx = i;
+      final j = journeys[i];
+      widget.transitService.checkJourneyAccessibility(j).then((acc) {
+        if (!mounted) return;
+        setState(() => _accessibility[idx] = acc);
+      }).catchError((_) {
+        // Silent — accessibility is best-effort; UI shows "unknown" fallback.
+      });
     }
   }
 
@@ -1732,6 +1765,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
       setState(() {
         _results = journeys;
         _searching = false;
+        _accessibility.clear();
         if (journeys.isEmpty) _error = 'Keine Verbindungen gefunden';
       });
       // Only record searches that actually returned results — random typos
@@ -1739,6 +1773,9 @@ class _VerbindungTabState extends State<_VerbindungTab> {
       if (journeys.isNotEmpty) {
         await TransitFavoritesService.record(_from!, _to!);
         await _loadFavorites();
+        // Kick off DB FaSta elevator checks in background — cards decorate
+        // as data arrives, no blocking.
+        _checkAccessibility(journeys);
       }
     } catch (e) {
       if (!mounted) return;
@@ -1896,11 +1933,16 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                 ],
               ),
               const SizedBox(height: 6),
-              // D-Ticket filter — critical for Jobcenter-user target audience:
-              // strips ICE/IC/EC that need a separate ticket, so the shown routes
-              // are 100% Deutschlandticket-covered (49 EUR flat).
-              Row(
+              // Filter chips row — D-Ticket + Barrierefrei. Wrap so both
+              // fit on portrait tablets without overflow.
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  // D-Ticket filter — critical for Jobcenter-user target audience:
+                  // strips ICE/IC/EC that need a separate ticket, so the shown routes
+                  // are 100% Deutschlandticket-covered (49 EUR flat).
                   Semantics(
                     button: true,
                     label: _onlyDTicket
@@ -1926,13 +1968,43 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  if (_onlyDTicket)
-                    Expanded(
-                      child: Text(
-                        'ICE/IC/EC ausgeblendet',
-                        style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
+                  // Barrierefrei filter — checks DB FaSta elevator status at every
+                  // transfer stop of each journey. Hides routes with broken elevator.
+                  // Unknown-facilities stops don't count as failure (fail-open).
+                  Semantics(
+                    button: true,
+                    label: _barrierFrei
+                        ? 'Barrierefrei aktiv — Routen mit defekten Aufzügen werden ausgeblendet'
+                        : 'Nur barrierefreie Routen anzeigen',
+                    child: FilterChip(
+                      label: const Text('Barrierefrei', style: TextStyle(fontSize: 11)),
+                      selected: _barrierFrei,
+                      onSelected: _toggleBarrierFrei,
+                      avatar: Icon(
+                        _barrierFrei ? Icons.check_circle : Icons.accessible,
+                        size: 14,
+                        color: _barrierFrei ? Colors.white : Colors.teal.shade400,
                       ),
+                      selectedColor: Colors.teal.shade400,
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        color: _barrierFrei ? Colors.white : p.onSurface,
+                      ),
+                      backgroundColor: p.card,
+                      side: BorderSide(color: p.border),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  if (_onlyDTicket)
+                    Text(
+                      'ICE/IC/EC ausgeblendet',
+                      style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
+                    ),
+                  if (_barrierFrei)
+                    Text(
+                      'Defekte Aufzüge ausgeblendet',
+                      style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
                     ),
                 ],
               ),
@@ -1952,16 +2024,50 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                     style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: _results!.length,
-                  itemBuilder: (_, i) => _JourneyCard(
-                    journey: _results![i],
-                    onSend: (widget.currentMitgliedernummer != null && widget.users != null && widget.users!.isNotEmpty)
-                        ? () => _sendRoute(_results![i])
-                        : null,
-                  ),
-                ),
+              : Builder(builder: (_) {
+                  // Build filtered index list preserving original indexes so
+                  // that _accessibility lookups (keyed by original position)
+                  // still line up after the Barrierefrei toggle hides some.
+                  final visible = <int>[];
+                  for (int i = 0; i < _results!.length; i++) {
+                    final acc = _accessibility[i];
+                    if (_barrierFrei &&
+                        acc != null &&
+                        acc.status == JourneyAccessibilityStatus.brokenElevator) {
+                      continue;
+                    }
+                    visible.add(i);
+                  }
+                  if (visible.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          _barrierFrei
+                              ? 'Keine barrierefreien Verbindungen gefunden.\n'
+                                  'Deaktiviere den Barrierefrei-Filter für Alternativen.'
+                              : 'Keine Verbindungen',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: visible.length,
+                    itemBuilder: (_, listIdx) {
+                      final i = visible[listIdx];
+                      return _JourneyCard(
+                        journey: _results![i],
+                        accessibility: _accessibility[i],
+                        onSend: (widget.currentMitgliedernummer != null && widget.users != null && widget.users!.isNotEmpty)
+                            ? () => _sendRoute(_results![i])
+                            : null,
+                      );
+                    },
+                  );
+                }),
         ),
       ],
     );
@@ -2552,10 +2658,52 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
   }
 }
 
+/// Small icon + tooltip that surfaces the DB FaSta elevator status for a
+/// journey. Null status renders nothing (result not in yet).
+///
+/// - green ♿ = all elevators active where FaSta has data
+/// - red   🚫 = at least one elevator broken (details in tooltip)
+/// - grey  ? = no facility data (all bus stops, or DB unreachable)
+class _AccessibilityBadge extends StatelessWidget {
+  final JourneyAccessibility? status;
+  const _AccessibilityBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = status;
+    if (s == null) return const SizedBox.shrink();
+    IconData icon;
+    Color color;
+    switch (s.status) {
+      case JourneyAccessibilityStatus.barrierFree:
+        icon = Icons.accessible;
+        color = Colors.green.shade500;
+        break;
+      case JourneyAccessibilityStatus.brokenElevator:
+        icon = Icons.not_accessible;
+        color = Colors.red.shade400;
+        break;
+      case JourneyAccessibilityStatus.unknown:
+        return const SizedBox.shrink();
+    }
+    return Tooltip(
+      message: s.germanLabel,
+      child: Semantics(
+        label: s.germanLabel,
+        child: Icon(icon, size: 15, color: color),
+      ),
+    );
+  }
+}
+
 class _JourneyCard extends StatelessWidget {
   final Journey journey;
   final VoidCallback? onSend;
-  const _JourneyCard({required this.journey, this.onSend});
+  /// Async elevator-status check for transfer stops. Null while still
+  /// loading (shown as a subtle "prüft…" hint). Populated in
+  /// _VerbindungTabState._checkAccessibility.
+  final JourneyAccessibility? accessibility;
+  const _JourneyCard({required this.journey, this.onSend, this.accessibility});
 
   String _hhmm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
 
@@ -2576,10 +2724,15 @@ class _JourneyCard extends StatelessWidget {
     final transfers = journey.transfers;
     final durMin = journey.duration.inMinutes;
     final durStr = durMin >= 60 ? '${durMin ~/ 60}h ${durMin % 60}m' : '${durMin}m';
+    final accSuffix = (accessibility != null &&
+            accessibility!.status != JourneyAccessibilityStatus.unknown)
+        ? ' ${accessibility!.germanLabel}.'
+        : '';
     final sem = 'Verbindung von ${journey.legs.first.fromName} nach '
         '${journey.legs.last.toName}. Abfahrt ${_hhmm(journey.depTime)}, '
         'Ankunft ${_hhmm(journey.arrTime)}. Dauer $durMin Minuten. '
-        '${transfers == 0 ? "Direktverbindung" : "$transfers Umstiege"}.';
+        '${transfers == 0 ? "Direktverbindung" : "$transfers Umstiege"}.'
+        '$accSuffix';
 
     return Semantics(
       label: sem,
@@ -2603,6 +2756,8 @@ class _JourneyCard extends StatelessWidget {
                   '${_hhmm(journey.depTime)} → ${_hhmm(journey.arrTime)}',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.onSurface),
                 ),
+                const SizedBox(width: 6),
+                _AccessibilityBadge(status: accessibility),
                 const Spacer(),
                 Text(durStr, style: TextStyle(fontSize: 12, color: p.onSurfaceDim, fontWeight: FontWeight.w600)),
                 const SizedBox(width: 8),
@@ -2619,6 +2774,24 @@ class _JourneyCard extends StatelessWidget {
                 ),
               ],
             ),
+            // "Aufzug defekt: X" warning line — only when accessibility
+            // check found a broken elevator on this journey's route.
+            if (accessibility?.status == JourneyAccessibilityStatus.brokenElevator &&
+                accessibility!.brokenAt.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Row(children: [
+                Icon(Icons.warning_amber_rounded, size: 12, color: Colors.red.shade400),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    'Aufzug defekt: ${accessibility!.brokenAt.take(2).join(", ")}'
+                        '${accessibility!.brokenAt.length > 2 ? " +${accessibility!.brokenAt.length - 2}" : ""}',
+                    style: TextStyle(fontSize: 10.5, color: Colors.red.shade400, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ]),
+            ],
             const SizedBox(height: 6),
             Wrap(
               spacing: 4, runSpacing: 4,
