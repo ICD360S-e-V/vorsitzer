@@ -101,6 +101,8 @@ class TripStop {
   final int delay;      // minutes
   final bool isCurrent; // true = this is where the user is boarding
   final String? platform;
+  final double? lat;
+  final double? lon;
 
   TripStop({
     required this.name,
@@ -110,12 +112,26 @@ class TripStop {
     this.delay = 0,
     this.isCurrent = false,
     this.platform,
+    this.lat,
+    this.lon,
   });
 
   String get timeString {
     final t = realtimeTime ?? plannedTime;
     return '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
   }
+}
+
+/// The full drawable route of one leg: stops + the polyline path between them.
+/// Used by the "Karte" tab in the trip-sequence dialog to render on OSM.
+class TripRoute {
+  final List<TripStop> stops;
+  /// Path polyline as (lat, lon) pairs — from EFA's `leg.path`
+  /// (space-separated "lon,lat" tokens) or HAFAS `polyG`. Empty if not
+  /// provided by the backend; UI falls back to straight lines between pins.
+  final List<(double, double)> path;
+
+  TripRoute({required this.stops, required this.path});
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -199,8 +215,9 @@ class _CachedDepartures {
 
 class _CachedTripStops {
   final List<TripStop> stops;
+  final List<(double, double)> path;
   final DateTime at;
-  _CachedTripStops(this.stops, this.at);
+  _CachedTripStops(this.stops, this.at, {this.path = const []});
 }
 
 /// A station facility — elevator (Aufzug) or escalator (Fahrtreppe) with
@@ -2251,36 +2268,43 @@ class TransitService {
   /// Cached 60 seconds per (stopID, destID, line) so re-opening the dialog
   /// doesn't hammer the API.
   Future<List<TripStop>> fetchTripStops(Departure dep) async {
+    final route = await fetchTripRoute(dep);
+    return route.stops;
+  }
+
+  /// Same as [fetchTripStops] but returns [TripRoute] with polyline for the map.
+  Future<TripRoute> fetchTripRoute(Departure dep) async {
+    final empty = TripRoute(stops: const [], path: const []);
     final fromId = dep.stopID;
     final toId = dep.destID;
     if (fromId == null || fromId.isEmpty || toId == null || toId.isEmpty) {
-      _log.info('Transit: fetchTripStops skipped — missing stopID/destID', tag: 'TRANSIT');
-      return [];
+      _log.info('Transit: fetchTripRoute skipped — missing stopID/destID', tag: 'TRANSIT');
+      return empty;
     }
     final cacheKey = '$fromId|$toId|${dep.line}|${dep.plannedTime.toIso8601String()}';
     final cached = _tripStopsCache[cacheKey];
     if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 60)) {
-      return cached.stops;
+      return TripRoute(stops: cached.stops, path: cached.path);
     }
 
     final provider = activeProvider;
-    if (provider == null) return [];
-    List<TripStop> stops = [];
+    if (provider == null) return empty;
+    TripRoute route = empty;
     try {
       if (provider.api == TransitApiType.efa) {
-        stops = await _efaTripStops(provider, dep);
+        route = await _efaTripRoute(provider, dep);
       } else {
-        stops = await _hafasTripStops(provider, dep);
+        route = await _hafasTripRoute(provider, dep);
       }
     } catch (e) {
-      _log.error('Transit: fetchTripStops failed for line ${dep.line}: $e', tag: 'TRANSIT');
+      _log.error('Transit: fetchTripRoute failed for line ${dep.line}: $e', tag: 'TRANSIT');
     }
-    _tripStopsCache[cacheKey] = _CachedTripStops(stops, DateTime.now());
-    _log.info('Transit: fetchTripStops line ${dep.line} → ${stops.length} stops', tag: 'TRANSIT');
-    return stops;
+    _tripStopsCache[cacheKey] = _CachedTripStops(route.stops, DateTime.now(), path: route.path);
+    _log.info('Transit: fetchTripRoute line ${dep.line} → ${route.stops.length} stops, ${route.path.length} path points', tag: 'TRANSIT');
+    return route;
   }
 
-  Future<List<TripStop>> _efaTripStops(TransitProviderConfig p, Departure dep) async {
+  Future<TripRoute> _efaTripRoute(TransitProviderConfig p, Departure dep) async {
     final when = dep.realtimeTime ?? dep.plannedTime;
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}';
@@ -2289,10 +2313,11 @@ class TransitService {
       '?outputFormat=JSON&locationServerActive=1&useRealtime=1&calcNumberOfTrips=1'
       '&type_origin=stop&name_origin=${Uri.encodeComponent(dep.stopID!)}'
       '&type_destination=stop&name_destination=${Uri.encodeComponent(dep.destID!)}'
-      '&itdDate=$dateStr&itdTime=$timeStr',
+      '&itdDate=$dateStr&itdTime=$timeStr'
+      '&coordOutputFormat=WGS84[dd.ddddd]',
     );
     final resp = await _client.get(uri).timeout(const Duration(seconds: 12));
-    if (resp.statusCode != 200) return [];
+    if (resp.statusCode != 200) return TripRoute(stops: const [], path: const []);
     final data = jsonDecode(_decodeUtf8(resp));
     // DING returns `trips` as {trip: [...]} or {trip: {...}}; MVV returns a bare list.
     dynamic tripsRoot = data['trips'];
@@ -2303,7 +2328,7 @@ class TransitService {
       final t = tripsRoot['trip'];
       firstTrip = t is List ? (t.isNotEmpty ? t.first : null) : t;
     }
-    if (firstTrip is! Map) return [];
+    if (firstTrip is! Map) return TripRoute(stops: const [], path: const []);
     final legs = firstTrip['legs'] as List? ?? [];
     // Find the leg matching this line (skip walks)
     for (final leg in legs) {
@@ -2313,9 +2338,21 @@ class TransitService {
       if (lineNum != dep.line && !lineNum.contains(dep.line)) continue;
       final seqRaw = leg['stopSeq'];
       final seq = seqRaw is List ? seqRaw : (seqRaw is Map ? (seqRaw['stop'] as List? ?? []) : []);
-      return _parseEfaStopSequence(seq, dep.stopID!);
+      final stops = _parseEfaStopSequence(seq, dep.stopID!);
+      // Parse polyline "lon,lat lon,lat …" (space-separated tokens).
+      final pathStr = leg['path']?.toString() ?? '';
+      final path = <(double, double)>[];
+      for (final token in pathStr.split(' ')) {
+        final xy = token.split(',');
+        if (xy.length != 2) continue;
+        final lon = double.tryParse(xy[0]);
+        final lat = double.tryParse(xy[1]);
+        if (lon == null || lat == null) continue;
+        path.add((lat, lon));
+      }
+      return TripRoute(stops: stops, path: path);
     }
-    return [];
+    return TripRoute(stops: const [], path: const []);
   }
 
   List<TripStop> _parseEfaStopSequence(List seq, String currentStopId) {
@@ -2337,6 +2374,16 @@ class TransitService {
         });
       }
       final delayMin = (rt != null) ? rt.difference(planned).inMinutes : 0;
+      // Parse coords "lon,lat" (EFA convention).
+      double? lat, lon;
+      final coordsStr = ref['coords']?.toString();
+      if (coordsStr != null) {
+        final xy = coordsStr.split(',');
+        if (xy.length == 2) {
+          lon = double.tryParse(xy[0]);
+          lat = double.tryParse(xy[1]);
+        }
+      }
       out.add(TripStop(
         name: name,
         stopID: id,
@@ -2345,12 +2392,14 @@ class TransitService {
         delay: delayMin > 0 ? delayMin : 0,
         isCurrent: id == currentStopId,
         platform: _cleanEfaPlatform(s['platform']),
+        lat: lat,
+        lon: lon,
       ));
     }
     return out;
   }
 
-  Future<List<TripStop>> _hafasTripStops(TransitProviderConfig p, Departure dep) async {
+  Future<TripRoute> _hafasTripRoute(TransitProviderConfig p, Departure dep) async {
     final when = dep.realtimeTime ?? dep.plannedTime;
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
@@ -2371,15 +2420,16 @@ class TransitService {
     final resp = await _client.post(Uri.parse(p.baseUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(req)).timeout(const Duration(seconds: 12));
-    if (resp.statusCode != 200) return [];
+    final empty = TripRoute(stops: const [], path: const []);
+    if (resp.statusCode != 200) return empty;
     final data = jsonDecode(_decodeUtf8(resp));
-    if (data['err']?.toString() != null && data['err'] != 'OK') return [];
+    if (data['err']?.toString() != null && data['err'] != 'OK') return empty;
     final svc = data['svcResL']?[0]?['res'];
-    if (svc is! Map) return [];
+    if (svc is! Map) return empty;
     final common = svc['common'] ?? {};
     final locL = common['locL'] as List? ?? [];
     final conL = svc['outConL'] as List? ?? [];
-    if (conL.isEmpty) return [];
+    if (conL.isEmpty) return empty;
     final firstCon = conL.first;
     final date = firstCon['date']?.toString() ?? dateStr;
     final secL = firstCon['secL'] as List? ?? [];
@@ -2388,6 +2438,7 @@ class TransitService {
       final jny = sec['jny'] ?? {};
       final stopL = jny['stopL'] as List? ?? [];
       final out = <TripStop>[];
+      final path = <(double, double)>[];
       for (final s in stopL) {
         if (s is! Map) continue;
         final locX = s['locX'] as int? ?? -1;
@@ -2401,6 +2452,15 @@ class TransitService {
         final rtStr = (s['dTimeR'] ?? s['aTimeR'] ?? '').toString();
         final rt = rtStr.isNotEmpty ? _parseHafasDateTime(date, rtStr) : null;
         final delayMin = (rt != null) ? rt.difference(planned).inMinutes : 0;
+        // HAFAS coord: `crd.x = lon*1e6`, `crd.y = lat*1e6`.
+        double? lat, lon;
+        final crd = loc['crd'];
+        if (crd is Map) {
+          final x = crd['x']; final y = crd['y'];
+          if (x is num) lon = x / 1000000;
+          if (y is num) lat = y / 1000000;
+        }
+        if (lat != null && lon != null) path.add((lat, lon));
         out.add(TripStop(
           name: name,
           stopID: id,
@@ -2409,11 +2469,13 @@ class TransitService {
           delay: delayMin > 0 ? delayMin : 0,
           isCurrent: id == dep.stopID,
           platform: s['dPlatfR']?.toString() ?? s['dPlatfS']?.toString(),
+          lat: lat,
+          lon: lon,
         ));
       }
-      return out;
+      return TripRoute(stops: out, path: path);
     }
-    return [];
+    return empty;
   }
 
   // ══════════════════════════════════════════════════════════════

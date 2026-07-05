@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/transit_service.dart';
 
 /// ÖPNV dialog — two tabs:
@@ -917,21 +920,29 @@ class _TripSequenceDialog extends StatefulWidget {
   State<_TripSequenceDialog> createState() => _TripSequenceDialogState();
 }
 
-class _TripSequenceDialogState extends State<_TripSequenceDialog> {
-  List<TripStop>? _stops;
+class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTickerProviderStateMixin {
+  TripRoute? _route;
   bool _loading = true;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _fetch();
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetch() async {
-    final s = await widget.transitService.fetchTripStops(widget.dep);
+    final r = await widget.transitService.fetchTripRoute(widget.dep);
     if (!mounted) return;
     setState(() {
-      _stops = s;
+      _route = r;
       _loading = false;
     });
   }
@@ -950,7 +961,8 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> {
   @override
   Widget build(BuildContext context) {
     final dep = widget.dep;
-    final stops = _stops ?? [];
+    final stops = _route?.stops ?? const <TripStop>[];
+    final path = _route?.path ?? const <(double, double)>[];
     final currentIdx = stops.indexWhere((s) => s.isCurrent);
     final lineColor = _lineColor();
 
@@ -963,13 +975,13 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+              padding: const EdgeInsets.fromLTRB(12, 12, 4, 4),
               decoration: BoxDecoration(
                 color: lineColor.withValues(alpha: 0.08),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 border: Border(bottom: BorderSide(color: lineColor.withValues(alpha: 0.3))),
               ),
-              child: Row(
+              child: Column(children: [Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -996,9 +1008,19 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> {
                   ),
                   IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.pop(context)),
                 ],
-              ),
+              ), TabBar(
+                controller: _tabController,
+                labelColor: lineColor,
+                unselectedLabelColor: Colors.grey.shade600,
+                indicatorColor: lineColor,
+                labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                tabs: const [
+                  Tab(icon: Icon(Icons.list_alt, size: 16), text: 'Liste', height: 40),
+                  Tab(icon: Icon(Icons.map_outlined, size: 16), text: 'Karte', height: 40),
+                ],
+              )]),
             ),
-            // Body — vertical timeline
+            // Body — TabBarView Liste + Karte
             Flexible(
               child: _loading
                   ? const Padding(
@@ -1021,17 +1043,22 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> {
                             ],
                           ),
                         )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: stops.length,
-                          itemBuilder: (_, i) => _TripStopRow(
-                            stop: stops[i],
-                            isFirst: i == 0,
-                            isLast: i == stops.length - 1,
-                            beforeCurrent: currentIdx > 0 && i < currentIdx,
-                            lineColor: lineColor,
-                          ),
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            ListView.builder(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: stops.length,
+                              itemBuilder: (_, i) => _TripStopRow(
+                                stop: stops[i],
+                                isFirst: i == 0,
+                                isLast: i == stops.length - 1,
+                                beforeCurrent: currentIdx > 0 && i < currentIdx,
+                                lineColor: lineColor,
+                              ),
+                            ),
+                            _TripMapView(stops: stops, path: path, lineColor: lineColor),
+                          ],
                         ),
             ),
             // Footer
@@ -1617,6 +1644,218 @@ class _LegChip extends StatelessWidget {
         leg.line,
         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
       ),
+    );
+  }
+}
+
+/// Live map for the trip-sequence dialog. Since the user is INSIDE the
+/// vehicle, their GPS position doubles as the vehicle's live position —
+/// no separate real-time vehicle feed needed.
+///
+/// Uses `flutter_map` + free OSM tiles.
+class _TripMapView extends StatefulWidget {
+  final List<TripStop> stops;
+  final List<(double, double)> path;
+  final Color lineColor;
+
+  const _TripMapView({required this.stops, required this.path, required this.lineColor});
+
+  @override
+  State<_TripMapView> createState() => _TripMapViewState();
+}
+
+class _TripMapViewState extends State<_TripMapView> {
+  StreamSubscription<Position>? _positionSub;
+  LatLng? _userPosition;
+  final _mapController = MapController();
+  bool _followUser = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Live GPS tracking — 5m distance filter, high accuracy.
+    // User inside vehicle → user's position IS the vehicle position.
+    _positionSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+      ),
+    ).listen(
+      (pos) {
+        if (!mounted) return;
+        setState(() => _userPosition = LatLng(pos.latitude, pos.longitude));
+        if (_followUser && _userPosition != null) {
+          _mapController.move(_userPosition!, _mapController.camera.zoom);
+        }
+      },
+      onError: (_) {},
+    );
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    super.dispose();
+  }
+
+  LatLngBounds? _computeBounds() {
+    final all = <LatLng>[];
+    for (final p in widget.path) {
+      all.add(LatLng(p.$1, p.$2));
+    }
+    for (final s in widget.stops) {
+      if (s.lat != null && s.lon != null) all.add(LatLng(s.lat!, s.lon!));
+    }
+    if (all.isEmpty) return null;
+    return LatLngBounds.fromPoints(all);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final polylinePoints = widget.path.map((p) => LatLng(p.$1, p.$2)).toList();
+    if (polylinePoints.isEmpty) {
+      // Fallback: straight lines between stops
+      for (final s in widget.stops) {
+        if (s.lat != null && s.lon != null) {
+          polylinePoints.add(LatLng(s.lat!, s.lon!));
+        }
+      }
+    }
+    final bounds = _computeBounds();
+    final center = bounds != null
+        ? LatLng((bounds.north + bounds.south) / 2, (bounds.east + bounds.west) / 2)
+        : const LatLng(48.4, 10.0);
+
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCameraFit: bounds != null
+                ? CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(30))
+                : null,
+            initialCenter: center,
+            initialZoom: 13,
+            minZoom: 8,
+            maxZoom: 18,
+            onPositionChanged: (pos, hasGesture) {
+              if (hasGesture && _followUser) {
+                setState(() => _followUser = false);
+              }
+            },
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'de.icd360s.vorsitzer',
+              maxZoom: 19,
+            ),
+            if (polylinePoints.length >= 2)
+              PolylineLayer(polylines: [
+                Polyline(points: polylinePoints, strokeWidth: 7, color: Colors.white),
+                Polyline(points: polylinePoints, strokeWidth: 4, color: widget.lineColor),
+              ]),
+            MarkerLayer(markers: [
+              for (final s in widget.stops)
+                if (s.lat != null && s.lon != null)
+                  Marker(
+                    point: LatLng(s.lat!, s.lon!),
+                    width: s.isCurrent ? 30 : 14,
+                    height: s.isCurrent ? 30 : 14,
+                    child: s.isCurrent
+                        ? Container(
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade600,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [BoxShadow(color: Colors.green.withValues(alpha: 0.5), blurRadius: 8)],
+                            ),
+                          )
+                        : Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: widget.lineColor, width: 2.5),
+                            ),
+                          ),
+                  ),
+            ]),
+            if (_userPosition != null)
+              MarkerLayer(markers: [
+                Marker(
+                  point: _userPosition!,
+                  width: 40, height: 40,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade600,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: [BoxShadow(color: Colors.blue.withValues(alpha: 0.6), blurRadius: 10, spreadRadius: 2)],
+                    ),
+                    child: const Icon(Icons.navigation, color: Colors.white, size: 20),
+                  ),
+                ),
+              ]),
+          ],
+        ),
+        Positioned(
+          right: 8, bottom: 8,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_userPosition != null && !_followUser)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: FloatingActionButton.small(
+                    heroTag: 'centerUser',
+                    onPressed: () {
+                      setState(() => _followUser = true);
+                      _mapController.move(_userPosition!, 16);
+                    },
+                    backgroundColor: Colors.blue.shade600,
+                    child: const Icon(Icons.my_location, color: Colors.white),
+                  ),
+                ),
+              FloatingActionButton.small(
+                heroTag: 'fitRoute',
+                onPressed: () {
+                  final b = _computeBounds();
+                  if (b != null) {
+                    _mapController.fitCamera(CameraFit.bounds(bounds: b, padding: const EdgeInsets.all(30)));
+                    setState(() => _followUser = false);
+                  }
+                },
+                backgroundColor: Colors.white,
+                foregroundColor: widget.lineColor,
+                child: const Icon(Icons.zoom_out_map),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          left: 8, top: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.navigation, size: 10, color: Colors.blue.shade600),
+                const SizedBox(width: 4),
+                const Text('Ich', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                const SizedBox(width: 8),
+                Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.green.shade600, shape: BoxShape.circle)),
+                const SizedBox(width: 4),
+                const Text('Einstieg', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
