@@ -1351,11 +1351,23 @@ class _StuendlichViewState extends State<_StuendlichView> {
       });
     }
 
-    return ListView.builder(
-      controller: _scroll,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: rows.length,
-      itemBuilder: (_, i) => _renderRow(rows[i], i),
+    // Sticky sparkline header — temperature line + precipitation-probability
+    // bars for the next 24 h. Compact overview above the detailed list.
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: _HourlySparkline(hours: widget.next24h),
+        ),
+        Expanded(
+          child: ListView.builder(
+            controller: _scroll,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: rows.length,
+            itemBuilder: (_, i) => _renderRow(rows[i], i),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1529,6 +1541,134 @@ class _HourRow {
 ///
 /// Public — reused as a sticky bar under the dashboard AppBar so the user sees
 /// the next hours' forecast without opening the dialog.
+/// Compact 24 h chart: temperature line (orange) over precipitation-probability
+/// bars (blue). Zero-dependency CustomPainter, sized to fit above the hour list.
+class _HourlySparkline extends StatelessWidget {
+  final List<HourlyForecast> hours;
+
+  const _HourlySparkline({required this.hours});
+
+  @override
+  Widget build(BuildContext context) {
+    if (hours.length < 2) return const SizedBox.shrink();
+    return Container(
+      height: 80,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          Row(children: [
+            Icon(Icons.show_chart, size: 12, color: Colors.orange.shade700),
+            const SizedBox(width: 4),
+            Text('24-Stunden-Trend',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700)),
+            const Spacer(),
+            Container(width: 8, height: 8, color: Colors.orange.shade700),
+            const SizedBox(width: 3),
+            Text('°C',
+                style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+            const SizedBox(width: 8),
+            Container(width: 8, height: 8, color: Colors.blue.shade400),
+            const SizedBox(width: 3),
+            Text('% Regen',
+                style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+          ]),
+          const SizedBox(height: 2),
+          Expanded(
+            child: LayoutBuilder(builder: (_, c) {
+              return CustomPaint(
+                size: Size(c.maxWidth, c.maxHeight),
+                painter: _HourlySparklinePainter(hours: hours),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HourlySparklinePainter extends CustomPainter {
+  final List<HourlyForecast> hours;
+  _HourlySparklinePainter({required this.hours});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (hours.length < 2) return;
+    double minT = hours.map((h) => h.temperature).reduce((a, b) => a < b ? a : b);
+    double maxT = hours.map((h) => h.temperature).reduce((a, b) => a > b ? a : b);
+    if ((maxT - minT).abs() < 2) { maxT += 1; minT -= 1; } // avoid flat line
+    final rangeT = maxT - minT;
+    final step = size.width / (hours.length - 1);
+
+    // Precip probability bars along the bottom third.
+    final barTop = size.height * 0.55;
+    final barMaxH = size.height - barTop;
+    for (int i = 0; i < hours.length; i++) {
+      final p = hours[i].precipitationProbability ?? 0;
+      if (p <= 0) continue;
+      final h = barMaxH * (p / 100).clamp(0.0, 1.0);
+      canvas.drawRect(
+        Rect.fromLTWH(i * step - step * 0.35, size.height - h, step * 0.7, h),
+        Paint()..color = Colors.blue.shade400.withValues(alpha: 0.55),
+      );
+    }
+
+    // Temperature polyline.
+    final tempPath = ui.Path();
+    final tempPts = <Offset>[];
+    for (int i = 0; i < hours.length; i++) {
+      final x = i * step;
+      final y = (barTop - 4) * (1 - (hours[i].temperature - minT) / rangeT);
+      tempPts.add(Offset(x, y));
+    }
+    tempPath.moveTo(tempPts.first.dx, tempPts.first.dy);
+    for (int i = 1; i < tempPts.length; i++) {
+      tempPath.lineTo(tempPts[i].dx, tempPts[i].dy);
+    }
+    canvas.drawPath(
+      tempPath,
+      Paint()
+        ..color = Colors.orange.shade700
+        ..strokeWidth = 1.8
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Small dots on the temperature line to hint at hour granularity.
+    final dotPaint = Paint()..color = Colors.orange.shade700;
+    for (final p in tempPts) {
+      canvas.drawCircle(p, 1.5, dotPaint);
+    }
+
+    // Label min/max temp for context.
+    _drawText(canvas, '${maxT.toStringAsFixed(0)}°',
+        const Offset(0, 0), 9, Colors.orange.shade900);
+    _drawText(canvas, '${minT.toStringAsFixed(0)}°',
+        Offset(0, barTop - 12), 9, Colors.orange.shade900);
+  }
+
+  void _drawText(Canvas canvas, String text, Offset at, double size, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: TextStyle(fontSize: size, color: color)),
+      textDirection: ui.TextDirection.ltr,
+    );
+    tp.layout();
+    tp.paint(canvas, at);
+  }
+
+  @override
+  bool shouldRepaint(_HourlySparklinePainter old) => old.hours != hours;
+}
+
 class WeatherMinutelyBar extends StatelessWidget {
   final List<MinutelyForecast> entries;
   final VoidCallback? onTap;
@@ -2208,6 +2348,13 @@ class _HistoricalComparisonCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
+          // Multi-year overlay chart — only when history entries have per-day
+          // arrays populated (v2+ cache). Falls back to the numeric table
+          // gracefully when older cache entries exist.
+          if (_HistoricalComparisonCard._anyHistoryHasDailies(history!)) ...[
+            _MultiYearChart(current: current, history: history!),
+            const SizedBox(height: 8),
+          ],
           _row(
             label: 'Diese Woche',
             valueTop: 'Ø max ${curMax.toStringAsFixed(1)}°C',
@@ -2247,6 +2394,9 @@ class _HistoricalComparisonCard extends StatelessWidget {
     return 'Vor ${yearsAgo == 1 ? "1 Jahr" : "$yearsAgo Jahren"} '
         '(${monthLabel} ${start.year})';
   }
+
+  static bool _anyHistoryHasDailies(List<HistoricalWeekSummary> h) =>
+      h.any((e) => e.dailyTempMax.isNotEmpty);
 
   Widget _row({
     required String label,
@@ -2320,6 +2470,200 @@ class _HistoricalComparisonCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Multi-year overlay chart — draws the max-temperature line for the current
+/// week alongside the same 7 dates in the last 3 years. Uses opacity ramp
+/// (current bold, older years progressively faded) instead of distinct hues
+/// to keep the chart readable at small dialog sizes.
+class _MultiYearChart extends StatelessWidget {
+  final List<DailyForecast> current;
+  final List<HistoricalWeekSummary> history;
+
+  const _MultiYearChart({required this.current, required this.history});
+
+  @override
+  Widget build(BuildContext context) {
+    // Collect all four year-series' max temps to pick a shared Y-range.
+    final all = <double>[];
+    for (final d in current) { all.add(d.tempMax); }
+    for (final h in history) {
+      all.addAll(h.dailyTempMax.whereType<double>());
+    }
+    if (all.length < 4) return const SizedBox.shrink();
+    double minT = all.reduce((a, b) => a < b ? a : b);
+    double maxT = all.reduce((a, b) => a > b ? a : b);
+    minT = (minT - 2).floorToDouble();
+    maxT = (maxT + 2).ceilToDouble();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.indigo.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.timeline, size: 14, color: Colors.indigo.shade700),
+              const SizedBox(width: 4),
+              Text('Max-Temperatur im Jahresvergleich',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo.shade900)),
+              const Spacer(),
+              _legendChip(Colors.orange.shade900, 'Jetzt'),
+              const SizedBox(width: 4),
+              for (int i = 1; i <= history.length; i++) ...[
+                _legendChip(
+                  Colors.deepOrange.withValues(alpha: 1 - i * 0.22),
+                  '-$i J.',
+                ),
+                const SizedBox(width: 4),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 110,
+            child: LayoutBuilder(builder: (_, c) {
+              return CustomPaint(
+                size: Size(c.maxWidth, c.maxHeight),
+                painter: _MultiYearPainter(
+                  current: current.map((d) => d.tempMax).toList(),
+                  history: history,
+                  minT: minT,
+                  maxT: maxT,
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendChip(Color color, String label) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+          width: 8,
+          height: 3,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1))),
+      const SizedBox(width: 2),
+      Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+    ]);
+  }
+}
+
+class _MultiYearPainter extends CustomPainter {
+  final List<double> current;
+  final List<HistoricalWeekSummary> history;
+  final double minT;
+  final double maxT;
+
+  _MultiYearPainter({
+    required this.current,
+    required this.history,
+    required this.minT,
+    required this.maxT,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (current.length < 2) return;
+    final rangeT = maxT - minT;
+    final xStep = size.width / (current.length - 1);
+
+    // Grid lines.
+    final gridPaint = Paint()..color = Colors.grey.shade200..strokeWidth = 0.5;
+    for (int i = 0; i <= 3; i++) {
+      final y = size.height * i / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      final t = maxT - rangeT * i / 3;
+      _drawText(canvas, '${t.toStringAsFixed(0)}°',
+          Offset(2, y - 6), 9, Colors.grey.shade500);
+    }
+
+    // Historical lines — draw oldest first so newest sits on top.
+    final sortedHistory = [...history]
+      ..sort((a, b) => b.yearsAgo.compareTo(a.yearsAgo));
+    for (final h in sortedHistory) {
+      if (h.dailyTempMax.isEmpty) continue;
+      final alpha = (1 - h.yearsAgo * 0.22).clamp(0.2, 1.0);
+      _drawSeries(
+        canvas,
+        h.dailyTempMax,
+        Colors.deepOrange.withValues(alpha: alpha),
+        1.4,
+        xStep,
+        size.height,
+        rangeT,
+      );
+    }
+    // Current-week line — thickest, on top.
+    _drawSeries(
+      canvas,
+      current.map((v) => v as double?).toList(),
+      Colors.orange.shade900,
+      2.5,
+      xStep,
+      size.height,
+      rangeT,
+    );
+  }
+
+  void _drawSeries(
+    Canvas canvas,
+    List<double?> values,
+    Color color,
+    double stroke,
+    double xStep,
+    double height,
+    double rangeT,
+  ) {
+    final path = ui.Path();
+    bool started = false;
+    for (int i = 0; i < values.length; i++) {
+      final v = values[i];
+      if (v == null) continue;
+      final x = i * xStep;
+      final y = height * (1 - (v - minT) / rangeT);
+      if (!started) {
+        path.moveTo(x, y);
+        started = true;
+      } else {
+        path.lineTo(x, y);
+      }
+      canvas.drawCircle(Offset(x, y), 2, Paint()..color = color);
+    }
+    if (started) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..strokeWidth = stroke
+          ..style = PaintingStyle.stroke,
+      );
+    }
+  }
+
+  void _drawText(Canvas canvas, String text, Offset at, double size, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: TextStyle(fontSize: size, color: color)),
+      textDirection: ui.TextDirection.ltr,
+    );
+    tp.layout();
+    tp.paint(canvas, at);
+  }
+
+  @override
+  bool shouldRepaint(_MultiYearPainter old) =>
+      old.current != current || old.history != history ||
+      old.minT != minT || old.maxT != maxT;
 }
 
 /// Rain radar overlay backed by RainViewer's free API and OpenStreetMap tiles.
@@ -2542,6 +2886,28 @@ class _RainRadarViewState extends State<_RainRadarView> {
             ],
           ),
         ),
+        // Colour legend — matches the RainViewer default palette (color=2)
+        // so users can read the map without guessing. mm/h intensity buckets
+        // reflect the DWD radar scale.
+        Container(
+          color: Colors.grey.shade100,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: [
+              Text('Intensität:',
+                  style: TextStyle(
+                      fontSize: 10, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 6),
+              _radarLegendChip(const Color(0xFF7FFF7F), 'sehr leicht'),
+              _radarLegendChip(const Color(0xFF3ACC3A), 'leicht'),
+              _radarLegendChip(const Color(0xFFFFFF00), 'mäßig'),
+              _radarLegendChip(const Color(0xFFFF9500), 'stark'),
+              _radarLegendChip(const Color(0xFFFF2A2A), 'Starkregen'),
+              _radarLegendChip(const Color(0xFFB100FF), 'extrem'),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
         // Timeline controls.
         Container(
           color: Colors.grey.shade100,
@@ -2575,6 +2941,28 @@ class _RainRadarViewState extends State<_RainRadarView> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _radarLegendChip(Color color, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(color: Colors.grey.shade400, width: 0.5),
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade800)),
+        ],
+      ),
     );
   }
 }

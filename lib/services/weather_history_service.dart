@@ -22,6 +22,11 @@ class HistoricalWeekSummary {
   final double? avgTempMin;       // Ø min temp of the week (°C)
   final double? totalPrecipitation; // sum of precipitation over the week (mm)
   final double? maxWindSpeed;     // strongest wind gust of the week (km/h)
+  // Per-day arrays for the same 7 dates — used by the multi-year chart so we
+  // can overlay this year vs. last year on the same day axis.
+  final List<double?> dailyTempMax;
+  final List<double?> dailyTempMin;
+  final List<double?> dailyPrecipitation;
 
   const HistoricalWeekSummary({
     required this.yearsAgo,
@@ -31,6 +36,9 @@ class HistoricalWeekSummary {
     required this.avgTempMin,
     required this.totalPrecipitation,
     required this.maxWindSpeed,
+    this.dailyTempMax = const [],
+    this.dailyTempMin = const [],
+    this.dailyPrecipitation = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -41,6 +49,9 @@ class HistoricalWeekSummary {
         'avgTempMin': avgTempMin,
         'totalPrecipitation': totalPrecipitation,
         'maxWindSpeed': maxWindSpeed,
+        'dailyTempMax': dailyTempMax,
+        'dailyTempMin': dailyTempMin,
+        'dailyPrecipitation': dailyPrecipitation,
       };
 
   factory HistoricalWeekSummary.fromJson(Map<String, dynamic> j) => HistoricalWeekSummary(
@@ -51,6 +62,15 @@ class HistoricalWeekSummary {
         avgTempMin: (j['avgTempMin'] as num?)?.toDouble(),
         totalPrecipitation: (j['totalPrecipitation'] as num?)?.toDouble(),
         maxWindSpeed: (j['maxWindSpeed'] as num?)?.toDouble(),
+        dailyTempMax: (j['dailyTempMax'] as List?)
+                ?.map((v) => (v as num?)?.toDouble()).toList() ??
+            const [],
+        dailyTempMin: (j['dailyTempMin'] as List?)
+                ?.map((v) => (v as num?)?.toDouble()).toList() ??
+            const [],
+        dailyPrecipitation: (j['dailyPrecipitation'] as List?)
+                ?.map((v) => (v as num?)?.toDouble()).toList() ??
+            const [],
       );
 }
 
@@ -62,7 +82,8 @@ class HistoricalWeekSummary {
 class WeatherHistoryService {
   final _client = IOClient(HttpClientFactory.createDefaultHttpClient());
 
-  static const _spKeyPrefix = 'weather_history_v1_';
+  // v2: includes daily arrays needed for the multi-year overlay chart.
+  static const _spKeyPrefix = 'weather_history_v2_';
 
   /// Fetch [yearsBack] slices, one per calendar year, for the week starting at
   /// [weekStart]. Slices are returned in ascending years-ago (1 first).
@@ -139,6 +160,9 @@ class WeatherHistoryService {
         avgTempMin: _avg(minT),
         totalPrecipitation: _sum(prec),
         maxWindSpeed: _max(wind),
+        dailyTempMax: maxT.map((n) => n?.toDouble()).toList(),
+        dailyTempMin: minT.map((n) => n?.toDouble()).toList(),
+        dailyPrecipitation: prec.map((n) => n?.toDouble()).toList(),
       );
 
       // Cache — data won't change, keep forever.
