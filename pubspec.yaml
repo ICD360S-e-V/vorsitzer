@@ -118,6 +118,13 @@ dependencies:
   # Already pulled in transitively, declared here so the import is stable.
   flutter_svg: ^2.0.10
 
+  # Barcode rendering (pure Dart, no native plugin — works on Android + Flatpak).
+  # Generates a scannable barcode from a Kundenkarten-Code in the Karten tab.
+  # Symbology is selectable per card (Code128 default; EAN-13/EAN-8/Code39/ITF/QR).
+  # NB: EAN is a GS1 product-numbering standard, NOT the same as a generic
+  # loyalty-card barcode — so Code128 is the default, EAN only when the card is EAN.
+  barcode_widget: ^2.0.4
+
   # URL launcher for opening downloaded files
   url_launcher: ^6.2.0
 

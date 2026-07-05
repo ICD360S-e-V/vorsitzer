@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:barcode_widget/barcode_widget.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
@@ -51,6 +52,30 @@ const Map<String, String> kartenTypen = {
   'gutschein':      'Gutscheinkarte',
   'sonstiges':      'Sonstige',
 };
+
+/// Barcode-Symbologie → Anzeigename.
+/// Wichtig: EAN ist ein GS1-*Produkt*-Nummernstandard (13-stellig, Prüfziffer),
+/// NICHT dasselbe wie ein generischer Kundenkarten-Barcode. Darum ist Code128
+/// der Standard; EAN nur wählen, wenn die Karte tatsächlich einen EAN trägt.
+const Map<String, String> kartenBarcodeTypen = {
+  'code128': 'Code 128',
+  'ean13':   'EAN-13',
+  'ean8':    'EAN-8',
+  'code39':  'Code 39',
+  'itf':     'Interleaved 2of5',
+  'qr':      'QR-Code',
+};
+
+Barcode barcodeForTyp(String key) {
+  switch (key) {
+    case 'ean13':  return Barcode.ean13();
+    case 'ean8':   return Barcode.ean8();
+    case 'code39': return Barcode.code39();
+    case 'itf':    return Barcode.itf();
+    case 'qr':     return Barcode.qrCode();
+    default:       return Barcode.code128();
+  }
+}
 
 (String, IconData, MaterialColor) katMeta(String? k) =>
     kartenKategorien[k] ?? kartenKategorien['sonstiges']!;
@@ -585,6 +610,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
   late DateTime? _ausgestelltAm;
   late DateTime? _gueltigBis;
   late String _kartenTyp;
+  late String _barcodeTyp;
   int? _shopId;
   late final TabController _tabCtl;
 
@@ -604,6 +630,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
     _uuid = k['uuid'] as String?;
     _shopId = k['shop_id'] as int?;
     _kartenTyp = (k['karten_typ'] ?? 'kundenkarte').toString();
+    _barcodeTyp = (k['barcode_typ'] ?? 'code128').toString();
     _shopName     = TextEditingController(text: (k['shop_name']    ?? '').toString());
     _bezeichnung  = TextEditingController(text: (k['bezeichnung']  ?? '').toString());
     _kartennummer = TextEditingController(text: (k['kartennummer'] ?? '').toString());
@@ -645,6 +672,36 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
   }
   String? _fmtIso(DateTime? d) => d == null ? null : DateFormat('yyyy-MM-dd').format(d);
 
+  // Read-only/Edit-Umschaltung wie bei Einkaufen: bestehende Karte öffnet
+  // read-only; Bearbeiten macht einen Snapshot, Abbrechen stellt ihn wieder her.
+  Map<String, dynamic> _snapshot = const {};
+  void _snapshotForm() {
+    _snapshot = {
+      'shopId': _shopId, 'shopName': _shopName.text, 'kartenTyp': _kartenTyp,
+      'barcodeTyp': _barcodeTyp, 'bezeichnung': _bezeichnung.text,
+      'kartennummer': _kartennummer.text, 'barcode': _barcode.text, 'pin': _pin.text,
+      'vorteile': _vorteile.text, 'notiz': _notiz.text,
+      'ausgestelltAm': _ausgestelltAm, 'gueltigBis': _gueltigBis,
+    };
+  }
+  void _restoreFromSnapshot() {
+    if (_snapshot.isEmpty) return;
+    _shopId = _snapshot['shopId'] as int?;
+    _shopName.text = _snapshot['shopName'] as String;
+    _kartenTyp = _snapshot['kartenTyp'] as String;
+    _barcodeTyp = _snapshot['barcodeTyp'] as String;
+    _bezeichnung.text = _snapshot['bezeichnung'] as String;
+    _kartennummer.text = _snapshot['kartennummer'] as String;
+    _barcode.text = _snapshot['barcode'] as String;
+    _pin.text = _snapshot['pin'] as String;
+    _vorteile.text = _snapshot['vorteile'] as String;
+    _notiz.text = _snapshot['notiz'] as String;
+    _ausgestelltAm = _snapshot['ausgestelltAm'] as DateTime?;
+    _gueltigBis = _snapshot['gueltigBis'] as DateTime?;
+  }
+  void _enterEdit() { _snapshotForm(); setState(() { _editMode = true; _dirty = false; }); }
+  void _cancelEdit() { _restoreFromSnapshot(); setState(() { _editMode = false; _dirty = false; }); }
+
   void _onShopSelected(int? shopId) {
     setState(() {
       _shopId = shopId;
@@ -668,6 +725,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
       'shop_id'        : _shopId,
       'shop_name'      : _shopName.text.trim(),
       'karten_typ'     : _kartenTyp,
+      'barcode_typ'    : _barcodeTyp,
       'bezeichnung'    : _bezeichnung.text.trim(),
       'kartennummer'   : _kartennummer.text.trim(),
       'barcode'        : _barcode.text.trim(),
@@ -757,7 +815,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900),
                 )),
                 if (_id != null && !_editMode)
-                  IconButton(onPressed: () => setState(() => _editMode = true), icon: const Icon(Icons.edit), color: Colors.deepPurple.shade700, tooltip: 'Bearbeiten'),
+                  IconButton(onPressed: _enterEdit, icon: const Icon(Icons.edit), color: Colors.deepPurple.shade700, tooltip: 'Bearbeiten'),
                 if (_id != null && _editMode)
                   IconButton(onPressed: _delete, icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Löschen'),
                 IconButton(onPressed: () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, icon: const Icon(Icons.close)),
@@ -783,7 +841,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
               child: Row(children: [
                 const Spacer(),
                 if (_editMode && !isNew)
-                  TextButton(onPressed: _saving ? null : () => setState(() => _editMode = false), child: const Text('Abbrechen'))
+                  TextButton(onPressed: _saving ? null : _cancelEdit, child: const Text('Abbrechen'))
                 else
                   TextButton(onPressed: _saving ? null : () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, child: const Text('Schließen')),
                 if (_editMode) ...[
@@ -808,6 +866,56 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
           ]),
         ),
       ),
+    );
+  }
+
+  /// Erzeugt aus dem Code (oder abweichender Barcode-Nummer) einen scannbaren
+  /// Barcode in der gewählten Symbologie. Aktualisiert live beim Tippen.
+  Widget _barcodePreview() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_barcode, _kartennummer]),
+      builder: (context, _) {
+        final data = (_barcode.text.trim().isNotEmpty ? _barcode.text : _kartennummer.text).trim();
+        if (data.isEmpty) return const SizedBox.shrink();
+        final payload = _barcodeTyp == 'qr' ? data : data.replaceAll(RegExp(r'\s'), '');
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.qr_code_2, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 6),
+                Text('Scan-Code · ${kartenBarcodeTypen[_barcodeTyp] ?? _barcodeTyp}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: _barcodeTyp == 'qr' ? 150 : 90,
+              child: BarcodeWidget(
+                barcode: barcodeForTyp(_barcodeTyp),
+                data: payload,
+                drawText: _barcodeTyp != 'qr',
+                color: Colors.black,
+                backgroundColor: Colors.white,
+                style: const TextStyle(fontSize: 12, color: Colors.black),
+                errorBuilder: (context, error) => Center(child: Text(
+                  'Für „${kartenBarcodeTypen[_barcodeTyp]}" ungültig:\n$error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: Colors.red.shade400),
+                )),
+              ),
+            ),
+          ]),
+        );
+      },
     );
   }
 
@@ -873,8 +981,16 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
         TextField(
           controller: _barcode,
           readOnly: ro,
-          decoration: deco('Barcode / EAN', icon: Icons.qr_code_2, hint: 'Nummer unter dem Strichcode'),
+          decoration: deco('Barcode-Nummer', icon: Icons.qr_code_2, hint: 'nur falls abweichend vom Code oben'),
         ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: kartenBarcodeTypen.containsKey(_barcodeTyp) ? _barcodeTyp : 'code128',
+          decoration: deco('Barcode-Typ', icon: Icons.view_week),
+          items: kartenBarcodeTypen.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+          onChanged: ro ? null : (v) { if (v != null) setState(() { _barcodeTyp = v; _dirty = true; }); },
+        ),
+        _barcodePreview(),
         const SizedBox(height: 12),
         TextField(
           controller: _pin,
