@@ -493,14 +493,12 @@ class _WeatherDialogState extends State<WeatherDialog> {
 
     final alerts = widget.service.currentAlerts;
     final df = DateFormat('HH:mm', 'de_DE');
-    final dfDay = DateFormat('E dd.MM.', 'de_DE');
     final dfDayShort = DateFormat('E', 'de_DE');
     final now = DateTime.now();
 
     final next24h = widget.service.hourlyForecast
         .where((h) => h.time.isAfter(now) && h.time.isBefore(now.add(const Duration(hours: 25))))
         .toList();
-    final next3Days = widget.service.dailyForecast.take(3).toList();
     final weekForecast = widget.service.dailyForecast.toList();
 
     // Adapt dialog size to the screen: on phone-sized viewports we go full
@@ -523,10 +521,10 @@ class _WeatherDialogState extends State<WeatherDialog> {
         width: dialogWidth,
         height: dialogHeight,
         child: DefaultTabController(
-          length: 6,
+          length: 5,
           child: Column(
             children: [
-              _buildHeader(context, weather),
+              _buildHeader(context, weather, alerts),
               Expanded(
                 child: TabBarView(
                   children: [
@@ -534,7 +532,6 @@ class _WeatherDialogState extends State<WeatherDialog> {
                     _buildStuendlichTab(next24h, df),
                     _buildUmweltTab(),
                     _buildRadarTab(),
-                    _buildDreiTageTab(next3Days, dfDay),
                     _buildWocheTab(weekForecast, dfDayShort, now),
                   ],
                 ),
@@ -546,9 +543,17 @@ class _WeatherDialogState extends State<WeatherDialog> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, WeatherData weather) {
+  Widget _buildHeader(
+    BuildContext context,
+    WeatherData weather,
+    List<WeatherAlert> alerts,
+  ) {
+    final totalAlerts =
+        alerts.length + widget.service.activeHealthAlerts.length;
+    final apparentGap =
+        (weather.apparentTemperature - weather.temperature).abs() >= 1;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 0),
       decoration: BoxDecoration(
         color: Colors.blue.shade50,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
@@ -557,64 +562,77 @@ class _WeatherDialogState extends State<WeatherDialog> {
         children: [
           Row(
             children: [
-              Text(weather.icon, style: _emojiStyle(fontSize: 32)),
-              const SizedBox(width: 10),
+              // Emoji + optional alerts badge overlaid on the corner. Persistent
+              // across tabs so warnings never hide when the user leaves Aktuell.
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Text(weather.icon, style: _emojiStyle(fontSize: 34)),
+                  if (totalAlerts > 0)
+                    Positioned(
+                      right: -6,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade600,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: Text(
+                          '$totalAlerts',
+                          style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Wetter in ${weather.city}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    // Big current temperature — the AppBar pill already shows
+                    // the city, so we spend the extra vertical inches on the
+                    // number the user actually opened the dialog for.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '${weather.temperature.toStringAsFixed(0)}°C',
+                          style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              height: 1.1),
+                        ),
+                        if (apparentGap) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '· gefühlt ${weather.apparentTemperature.toStringAsFixed(0)}°',
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.grey.shade700),
+                          ),
+                        ],
+                      ],
                     ),
                     Text(
-                      '${weather.description} • ${weather.temperature.toStringAsFixed(1)}°C'
-                      '${(weather.apparentTemperature - weather.temperature).abs() >= 1 ? " (gefühlt ${weather.apparentTemperature.toStringAsFixed(1)}°C)" : ""}',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                      weather.description,
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
                     ),
-                    Text(
-                      'Stand: ${DateFormat('HH:mm', 'de_DE').format(weather.timestamp)}',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                    ),
+                    _freshnessLine(weather.timestamp),
                   ],
                 ),
               ),
+              // Search-alt-location button — quick lookup without touching profile.
               IconButton(
-                icon: Icon(
-                  _ttsSpeaking ? Icons.stop_circle : Icons.volume_up,
-                  size: 20,
-                  color: _ttsSpeaking ? Colors.red.shade600 : null,
-                ),
-                tooltip: _ttsSpeaking ? 'Vorlesen stoppen' : 'Wetterbericht vorlesen',
-                onPressed: () => _toggleTts(weather),
-              ),
-              IconButton(
-                icon: const Icon(Icons.picture_as_pdf, size: 20),
-                tooltip: 'Wochenübersicht als PDF',
-                onPressed: () async {
-                  await generateAndShareWeatherPdf(service: widget.service);
-                },
-              ),
-              ValueListenableBuilder<WeatherProfile>(
-                valueListenable: WeatherProfileService.instance.notifier,
-                builder: (_, p, __) => IconButton(
-                  icon: Icon(
-                    Icons.tune,
-                    size: 20,
-                    color: (p.coldSensitive || p.heatSensitive || p.asthma ||
-                            p.photoSensitive || p.anyAllergy)
-                        ? Colors.teal.shade400
-                        : null,
-                  ),
-                  tooltip: 'Mein Wetter-Profil',
-                  onPressed: () async {
-                    await showDialog(
-                      context: context,
-                      builder: (_) => const WeatherProfileDialog(),
-                    );
-                    if (mounted) setState(() {}); // refresh in case allergies changed pollen highlight
-                  },
-                ),
+                icon: const Icon(Icons.search, size: 20),
+                tooltip: 'Anderer Ort',
+                onPressed: () => _openLocationSearch(),
               ),
               IconButton(
                 icon: const Icon(Icons.refresh, size: 20),
@@ -624,13 +642,75 @@ class _WeatherDialogState extends State<WeatherDialog> {
                   if (mounted) setState(() {});
                 },
               ),
+              // Secondary actions collapsed into a 3-dot menu so the header
+              // doesn't fight for 5 icon slots on 375-px phones.
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, size: 20),
+                tooltip: 'Mehr',
+                onSelected: (value) async {
+                  switch (value) {
+                    case 'tts':
+                      await _toggleTts(weather);
+                      break;
+                    case 'pdf':
+                      await generateAndShareWeatherPdf(service: widget.service);
+                      break;
+                    case 'profile':
+                      await showDialog(
+                        context: context,
+                        builder: (_) => const WeatherProfileDialog(),
+                      );
+                      if (mounted) setState(() {});
+                      break;
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'tts',
+                    child: Row(children: [
+                      Icon(_ttsSpeaking ? Icons.stop_circle : Icons.volume_up,
+                          size: 18,
+                          color: _ttsSpeaking ? Colors.red.shade600 : null),
+                      const SizedBox(width: 10),
+                      Text(_ttsSpeaking
+                          ? 'Vorlesen stoppen'
+                          : 'Wetterbericht vorlesen'),
+                    ]),
+                  ),
+                  const PopupMenuItem(
+                    value: 'pdf',
+                    child: Row(children: [
+                      Icon(Icons.picture_as_pdf, size: 18),
+                      SizedBox(width: 10),
+                      Text('Wochenübersicht als PDF'),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'profile',
+                    child: ValueListenableBuilder<WeatherProfile>(
+                      valueListenable: WeatherProfileService.instance.notifier,
+                      builder: (_, p, __) {
+                        final on = p.coldSensitive || p.heatSensitive ||
+                            p.asthma || p.photoSensitive || p.anyAllergy;
+                        return Row(children: [
+                          Icon(Icons.tune,
+                              size: 18,
+                              color: on ? Colors.teal.shade600 : null),
+                          const SizedBox(width: 10),
+                          const Text('Mein Wetter-Profil'),
+                        ]);
+                      },
+                    ),
+                  ),
+                ],
+              ),
               IconButton(
                 icon: const Icon(Icons.close, size: 20),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const TabBar(
             isScrollable: true,
             labelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
@@ -641,13 +721,183 @@ class _WeatherDialogState extends State<WeatherDialog> {
               Tab(text: 'Stündlich'),
               Tab(text: 'Umwelt'),
               Tab(text: 'Radar'),
-              Tab(text: '3 Tage'),
               Tab(text: 'Woche'),
             ],
           ),
         ],
       ),
     );
+  }
+
+  /// Renders "vor 3 Min · aktuell" / "vor 42 Min · veraltet" style timestamp
+  /// with a small dot in the freshness colour. Replaces the ambiguous
+  /// "Stand: 14:23" that used to sit under the description.
+  Widget _freshnessLine(DateTime observation) {
+    final now = DateTime.now();
+    final ago = now.difference(observation);
+    String label;
+    if (ago.isNegative || ago.inSeconds < 30) {
+      label = 'gerade eben';
+    } else if (ago.inMinutes < 1) {
+      label = 'vor ${ago.inSeconds} Sek.';
+    } else if (ago.inMinutes < 60) {
+      label = 'vor ${ago.inMinutes} Min';
+    } else {
+      label = 'vor ${ago.inHours} Std ${ago.inMinutes % 60} Min';
+    }
+    Color color;
+    String status;
+    if (ago.inMinutes < 15) {
+      color = Colors.green.shade600; status = 'aktuell';
+    } else if (ago.inMinutes < 30) {
+      color = Colors.amber.shade700; status = 'älter';
+    } else {
+      color = Colors.red.shade600; status = 'veraltet';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+              width: 6, height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 5),
+          Text('$label · $status',
+              style: TextStyle(fontSize: 10, color: color)),
+        ],
+      ),
+    );
+  }
+
+  /// Ad-hoc location lookup — TextField + Open-Meteo geocoder + one-tap apply.
+  /// Does not persist the new city into the user profile; the next GPS event
+  /// or manual refresh reverts to the profile location.
+  Future<void> _openLocationSearch() async {
+    final controller = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool loading = false;
+    Timer? debounce;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          void query(String q) {
+            debounce?.cancel();
+            if (q.trim().length < 2) {
+              setLocal(() => results = []);
+              return;
+            }
+            debounce = Timer(const Duration(milliseconds: 350), () async {
+              setLocal(() => loading = true);
+              try {
+                final r = await http.get(Uri.parse(
+                  'https://geocoding-api.open-meteo.com/v1/search'
+                  '?name=${Uri.encodeComponent(q)}&count=6&language=de&format=json',
+                )).timeout(const Duration(seconds: 8));
+                if (r.statusCode == 200) {
+                  final data = jsonDecode(r.body);
+                  final list = (data['results'] as List?) ?? const [];
+                  setLocal(() {
+                    results = list.cast<Map<String, dynamic>>();
+                    loading = false;
+                  });
+                } else {
+                  setLocal(() { results = []; loading = false; });
+                }
+              } catch (_) {
+                setLocal(() { results = []; loading = false; });
+              }
+            });
+          }
+          return Dialog(
+            child: SizedBox(
+              width: 400,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.search, size: 20),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text(
+                          'Anderer Ort',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+                      IconButton(icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(ctx)),
+                    ]),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Stadt eingeben …',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_city, size: 20),
+                      ),
+                      onChanged: query,
+                    ),
+                    const SizedBox(height: 12),
+                    if (loading)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    else if (results.isEmpty && controller.text.trim().length >= 2)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text('Keine Treffer',
+                            style: TextStyle(color: Colors.grey.shade600)),
+                      )
+                    else
+                      SizedBox(
+                        height: 240,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: results.length,
+                          itemBuilder: (_, i) {
+                            final r = results[i];
+                            final admin = [
+                              r['admin1'], r['country'],
+                            ].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
+                            return ListTile(
+                              dense: true,
+                              leading: Icon(Icons.place, color: Colors.blue.shade700),
+                              title: Text(r['name']?.toString() ?? '—'),
+                              subtitle: admin.isEmpty ? null : Text(admin),
+                              onTap: () async {
+                                final name = r['name']?.toString() ?? '';
+                                final lat = (r['latitude'] as num?)?.toDouble();
+                                final lon = (r['longitude'] as num?)?.toDouble();
+                                if (lat != null && lon != null) {
+                                  await widget.service.updateLocation(
+                                      name, lat: lat, lon: lon);
+                                  if (mounted) setState(() {});
+                                }
+                                if (ctx.mounted) Navigator.pop(ctx);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Änderung ist temporär — nächste GPS-Aktualisierung '
+                      'oder Neustart zeigt wieder deinen Profil-Standort.',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    debounce?.cancel();
   }
 
   Widget _buildAktuellTab(WeatherData weather, List<WeatherAlert> alerts) {
@@ -842,18 +1092,13 @@ class _WeatherDialogState extends State<WeatherDialog> {
     );
   }
 
-  Widget _buildDreiTageTab(List<DailyForecast> next3Days, DateFormat dfDay) {
-    if (next3Days.isEmpty) return const Center(child: Text('Keine Vorhersage verfügbar'));
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: next3Days.map((d) => _buildDayForecastCard(d, dfDay)).toList(),
-      ),
-    );
-  }
-
   Widget _buildWocheTab(List<DailyForecast> weekForecast, DateFormat dfDayShort, DateTime now) {
     if (weekForecast.isEmpty) return const Center(child: Text('Keine Vorhersage verfügbar'));
+    final dfDay = DateFormat('E dd.MM.', 'de_DE');
+    // 3 Tage merged into Woche: chart + comparison, then the first three
+    // days as full detail cards (with Anziehtipp), then the compact 7-day
+    // list. Removes the redundant "3 Tage" tab we used to keep.
+    final first3 = weekForecast.take(3).toList();
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       child: Column(
@@ -867,6 +1112,8 @@ class _WeatherDialogState extends State<WeatherDialog> {
             isLoading: _historyLoading,
           ),
           const SizedBox(height: 12),
+          ...first3.map((d) => _buildDayForecastCard(d, dfDay)),
+          const SizedBox(height: 8),
           ..._buildWeekList(weekForecast, dfDayShort, now),
         ],
       ),
