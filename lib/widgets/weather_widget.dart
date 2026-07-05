@@ -15,7 +15,10 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/clothing_advice.dart';
 import '../services/weather_history_service.dart';
+import '../services/weather_profile_service.dart';
 import '../services/weather_service.dart';
+import '../utils/weather_pdf_generator.dart';
+import 'weather_profile_dialog.dart';
 
 /// Emoji font fallback list — applied per-Text ONLY on widgets that render
 /// emoji characters. Avoids setting this on the ThemeData level (which would
@@ -367,6 +370,106 @@ class _WeatherDialogState extends State<WeatherDialog> {
     return map[compass] ?? compass;
   }
 
+  /// Bottom-sheet with full forecast detail for one 15-min or hourly slot.
+  /// Reused by the sticky-bar timeline and the Stündlich list.
+  void showForecastDetailSheet({
+    required BuildContext context,
+    required DateTime time,
+    required int weatherCode,
+    required String emoji,
+    required String description,
+    required double temperature,
+    double? apparentTemperature,
+    required double windSpeed,
+    String? windCompass,
+    int? humidity,
+    double? precipitation,
+    int? precipitationProbability,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(emoji, style: _emojiStyle(fontSize: 40)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(description,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(
+                        DateFormat("EEEE, dd.MM. HH:mm 'Uhr'", 'de_DE').format(time),
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _detailKV('Temperatur', '${temperature.toStringAsFixed(1)}°C',
+                Icons.thermostat, Colors.orange.shade700),
+            if (apparentTemperature != null &&
+                (apparentTemperature - temperature).abs() >= 0.5)
+              _detailKV('Gefühlt', '${apparentTemperature.toStringAsFixed(1)}°C',
+                  Icons.device_thermostat, Colors.deepOrange.shade700),
+            _detailKV(
+              'Wind',
+              '${windSpeed.toStringAsFixed(0)} km/h '
+                  '${windCompass ?? ""} · ${BeaufortScale.labelForKmh(windSpeed)} '
+                  '(${BeaufortScale.forKmh(windSpeed)} Bft)',
+              Icons.air,
+              Colors.blueGrey.shade700,
+            ),
+            if (humidity != null)
+              _detailKV('Feuchtigkeit', '$humidity %',
+                  Icons.water_drop, Colors.blue.shade700),
+            if (precipitation != null && precipitation > 0)
+              _detailKV('Niederschlag', '${precipitation.toStringAsFixed(1)} mm/h',
+                  Icons.grain, Colors.blue.shade900),
+            if (precipitationProbability != null && precipitationProbability > 0)
+              _detailKV('Regenwahrscheinlichkeit', '$precipitationProbability %',
+                  Icons.umbrella, Colors.blue.shade500),
+            const SizedBox(height: 8),
+            Text(
+              'WMO-Code $weatherCode',
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailKV(String key, String value, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 170,
+            child: Text(key, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     widget.service.onWeatherUpdate = _prevWeatherCb;
@@ -486,6 +589,34 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 onPressed: () => _toggleTts(weather),
               ),
               IconButton(
+                icon: const Icon(Icons.picture_as_pdf, size: 20),
+                tooltip: 'Wochenübersicht als PDF',
+                onPressed: () async {
+                  await generateAndShareWeatherPdf(service: widget.service);
+                },
+              ),
+              ValueListenableBuilder<WeatherProfile>(
+                valueListenable: WeatherProfileService.instance.notifier,
+                builder: (_, p, __) => IconButton(
+                  icon: Icon(
+                    Icons.tune,
+                    size: 20,
+                    color: (p.coldSensitive || p.heatSensitive || p.asthma ||
+                            p.photoSensitive || p.anyAllergy)
+                        ? Colors.teal.shade400
+                        : null,
+                  ),
+                  tooltip: 'Mein Wetter-Profil',
+                  onPressed: () async {
+                    await showDialog(
+                      context: context,
+                      builder: (_) => const WeatherProfileDialog(),
+                    );
+                    if (mounted) setState(() {}); // refresh in case allergies changed pollen highlight
+                  },
+                ),
+              ),
+              IconButton(
                 icon: const Icon(Icons.refresh, size: 20),
                 tooltip: 'Aktualisieren',
                 onPressed: () async {
@@ -559,7 +690,12 @@ class _WeatherDialogState extends State<WeatherDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _detailColumn('Temperatur', '${weather.temperature.toStringAsFixed(1)}°C', Icons.thermostat),
-                _detailColumn('Wind', '${weather.windSpeed.toStringAsFixed(0)} km/h ${weather.windCompass}', Icons.air),
+                _detailColumn(
+                  'Wind · ${weather.beaufortLabel}',
+                  '${weather.windSpeed.toStringAsFixed(0)} km/h ${weather.windCompass} '
+                      '(${weather.beaufort} Bft)',
+                  Icons.air,
+                ),
                 _detailColumn('Feuchtigkeit', '${weather.humidity}%', Icons.water_drop),
               ],
             ),
@@ -1809,7 +1945,23 @@ class _StuendlichViewState extends State<_StuendlichView> {
     // Hour row.
     final h = row.h!;
     final isNow = row.isNow;
-    return Container(
+    return GestureDetector(
+      onLongPress: () {
+        final state = context.findAncestorStateOfType<_WeatherDialogState>();
+        state?.showForecastDetailSheet(
+          context: context,
+          time: h.time,
+          weatherCode: h.weatherCode,
+          emoji: h.icon,
+          description: h.description,
+          temperature: h.temperature,
+          windSpeed: h.windSpeed,
+          humidity: h.humidity,
+          precipitation: h.precipitation,
+          precipitationProbability: h.precipitationProbability,
+        );
+      },
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -1888,6 +2040,7 @@ class _StuendlichViewState extends State<_StuendlichView> {
           ),
         ],
       ),
+    ),
     );
   }
 }

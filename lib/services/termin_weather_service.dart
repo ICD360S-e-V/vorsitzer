@@ -32,6 +32,11 @@ class TerminWeatherHint {
   final double apparentTemperature;
   final double windSpeed;
   final int weatherCode;
+  // Only present when the current Termin hour has hasWarning and a
+  // materially better slot exists on the same day. Rendered as a card
+  // suggestion in the Termin dialog.
+  final DateTime? suggestedBetterSlot;
+  final String? suggestedBetterSlotSummary;
 
   TerminWeatherHint({
     required this.terminId,
@@ -48,6 +53,8 @@ class TerminWeatherHint {
     required this.apparentTemperature,
     required this.windSpeed,
     required this.weatherCode,
+    this.suggestedBetterSlot,
+    this.suggestedBetterSlotSummary,
   });
 }
 
@@ -333,6 +340,35 @@ class TerminWeatherService {
         ? _renderKind(kind, temp, apparent, wind, precipProb)
         : _renderNormal(code, temp);
 
+    // Look for a materially better hour in the same 08–18 window ONLY when the
+    // current termin slot has a warning — otherwise the suggestion is noise.
+    DateTime? bestSlot;
+    String? bestSummary;
+    if (hasWarning) {
+      final currScore = _slotScore(code, temp, apparent, wind, precip, precipProb);
+      double bestBenefit = 3; // must beat current by ≥3 points to matter
+      for (int h = 8; h <= 17; h++) {
+        if (h == hour.hour) continue;
+        final candidate = DateTime(hour.year, hour.month, hour.day, h);
+        final f = await _forecastFor(lat, lon, candidate);
+        if (f == null) continue;
+        final cCode = (f['weather_code'] as num).toInt();
+        final cTemp = (f['temperature_2m'] as num).toDouble();
+        final cApp = (f['apparent_temperature'] as num?)?.toDouble() ?? cTemp;
+        final cWind = (f['wind_speed_10m'] as num?)?.toDouble() ?? 0;
+        final cPrec = (f['precipitation'] as num?)?.toDouble() ?? 0;
+        final cPP = (f['precipitation_probability'] as num?)?.toInt() ?? 0;
+        final s = _slotScore(cCode, cTemp, cApp, cWind, cPrec, cPP);
+        final benefit = currScore - s;
+        if (benefit > bestBenefit) {
+          bestBenefit = benefit;
+          bestSlot = candidate;
+          bestSummary = '${cTemp.toStringAsFixed(0)}°C · '
+              '${_shortDesc(cCode)}${cPP > 0 ? " · $cPP%" : ""}';
+        }
+      }
+    }
+
     return TerminWeatherHint(
       terminId: termin.id,
       kind: kind ?? TerminWeatherKind.normal,
@@ -351,7 +387,37 @@ class TerminWeatherService {
       apparentTemperature: apparent,
       windSpeed: wind,
       weatherCode: code,
+      suggestedBetterSlot: bestSlot,
+      suggestedBetterSlotSummary: bestSummary,
     );
+  }
+
+  /// Lower is nicer. Heuristic slot score for the "better time" suggestion:
+  /// heavily penalise thunder/snow/rain, then wind, then extreme temperatures.
+  double _slotScore(int code, double temp, double apparent, double wind,
+      double precip, int precipProb) {
+    double s = 0;
+    if (code >= 95) s += 20; // thunder
+    else if (code >= 71 && code <= 86) s += 12; // snow/sleet
+    else if (code >= 51 && code <= 82) s += 6; // rain
+    if (precipProb >= 70) s += 4;
+    else if (precipProb >= 40) s += 2;
+    if (precip >= 1) s += 3;
+    if (wind >= 60) s += 8;
+    else if (wind >= 40) s += 4;
+    else if (wind >= 20) s += 1;
+    if (apparent >= 32) s += (apparent - 32).clamp(0, 10);
+    if (apparent <= 0) s += (-apparent).clamp(0, 10);
+    return s;
+  }
+
+  String _shortDesc(int code) {
+    if (code == 0) return 'sonnig';
+    if (code <= 3) return 'teils bewölkt';
+    if (code >= 95) return 'Gewitter';
+    if (code >= 71 && code <= 86) return 'Schnee';
+    if (code >= 51 && code <= 82) return 'Regen';
+    return 'bewölkt';
   }
 
   /// Non-warning renderer — pick the plain WMO emoji + a short descriptor.

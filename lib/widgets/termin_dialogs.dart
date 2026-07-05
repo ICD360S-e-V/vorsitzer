@@ -1154,6 +1154,57 @@ ICD360S e.V. Vorstand''';
     );
   }
 
+  /// "Bester Zeitpunkt"-Vorschlag when the same day has a materially better
+  /// slot. Not a schedule change — only a hint the Vorsitzer can act on.
+  Widget _buildBetterSlotCard(TerminWeatherHint hint) {
+    final slot = hint.suggestedBetterSlot!;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.green.shade200),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.schedule, color: Colors.green.shade700, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Besserer Zeitpunkt am selben Tag',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade900,
+                        letterSpacing: 0.3),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${DateFormat('HH:mm').format(slot)} Uhr wäre laut Prognose '
+                    'ruhiger: ${hint.suggestedBetterSlotSummary ?? "sonniger, weniger Regen"}.',
+                    style: const TextStyle(fontSize: 12, height: 1.35),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Nur ein Vorschlag — Termin bleibt wie geplant.',
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Personalised clothing/gear list for this exact Termin. Independent of
   /// hasWarning — a sunny 22°C Termin still shows "T-Shirt + Sonnencreme".
   Widget _buildTerminClothingCard(TerminWeatherHint hint) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,12 +19,16 @@ import 'widgets/global_chat_overlay.dart';
 // Desktop-only packages (compile on all platforms, but only used on desktop)
 import 'package:window_manager/window_manager.dart';
 import 'services/tray_service.dart';
+import 'services/weather_profile_service.dart';
 
 // Windows-only package
 import 'package:windows_single_instance/windows_single_instance.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Load the on-device Weather-sensitivity profile so the first fetch already
+  // uses personalised thresholds (cold/heat/PM/UV shifts).
+  unawaited(WeatherProfileService.instance.load());
 
   // ──────────────────────────────────────────────────────────────────
   // StartupDiagnostics: open the on-disk transcript at the FIRST line of

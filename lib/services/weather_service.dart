@@ -6,6 +6,7 @@ import 'package:http/io_client.dart';
 import 'notification_service.dart';
 import 'logger_service.dart';
 import 'http_client_factory.dart';
+import 'weather_profile_service.dart';
 
 final _log = LoggerService();
 
@@ -106,6 +107,48 @@ class WeatherData {
   String get windCompass {
     const dirs = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
     return dirs[((windDirection % 360) / 45).round() % 8];
+  }
+
+  int get beaufort => BeaufortScale.forKmh(windSpeed);
+  String get beaufortLabel => BeaufortScale.labelForKmh(windSpeed);
+}
+
+/// German Beaufort wind-force scale (0-12). Used everywhere we display a
+/// wind-speed in km/h to give the number semantic meaning ("35 km/h ·
+/// Frische Brise" is more useful than "35 km/h" alone).
+class BeaufortScale {
+  static int forKmh(double kmh) {
+    if (kmh < 1) return 0;
+    if (kmh <= 5) return 1;
+    if (kmh <= 11) return 2;
+    if (kmh <= 19) return 3;
+    if (kmh <= 28) return 4;
+    if (kmh <= 38) return 5;
+    if (kmh <= 49) return 6;
+    if (kmh <= 61) return 7;
+    if (kmh <= 74) return 8;
+    if (kmh <= 88) return 9;
+    if (kmh <= 102) return 10;
+    if (kmh <= 117) return 11;
+    return 12;
+  }
+
+  static String labelForKmh(double kmh) {
+    switch (forKmh(kmh)) {
+      case 0: return 'Windstille';
+      case 1: return 'Leiser Zug';
+      case 2: return 'Leichte Brise';
+      case 3: return 'Schwache Brise';
+      case 4: return 'Mäßige Brise';
+      case 5: return 'Frische Brise';
+      case 6: return 'Starker Wind';
+      case 7: return 'Steifer Wind';
+      case 8: return 'Stürmischer Wind';
+      case 9: return 'Sturm';
+      case 10: return 'Schwerer Sturm';
+      case 11: return 'Orkanartiger Sturm';
+      default: return 'Orkan';
+    }
   }
 }
 
@@ -227,7 +270,7 @@ class WeatherAlert {
 /// weather / air-quality fetch. Alerts are dispatched to the UI via
 /// [WeatherService.onHealthAlertsUpdate] and acknowledged by the user via
 /// [WeatherService.acknowledgeHealthAlert] (dedup within the same UTC day).
-enum HealthAlertKind { heat, cold, uv, pm25, ozone }
+enum HealthAlertKind { heat, cold, uv, pm25, ozone, pollen }
 
 /// A currently-active vulnerability warning generated locally from weather +
 /// air-quality data. Not the same as [WeatherAlert] (which comes from the DWD).
@@ -261,6 +304,7 @@ class HealthAlert {
       case HealthAlertKind.uv: return '🔆';
       case HealthAlertKind.pm25: return '😷';
       case HealthAlertKind.ozone: return '💨';
+      case HealthAlertKind.pollen: return '🌾';
     }
   }
 }
@@ -519,6 +563,64 @@ class WeatherService {
     }
     return false;
   }
+
+  /// Fires the daily 07:00 morning weather report exactly once per calendar
+  /// day. Called from _fetchWeather so we piggyback on the existing 5-min
+  /// refresh loop — no extra timer needed. Dedup via SharedPreferences.
+  static const _spKeyMorningReport = 'weather_morning_report_last_ymd';
+  Future<void> _maybeSendMorningReport() async {
+    final now = DateTime.now();
+    // Only fire between 07:00 and 07:59, so the user finds it at breakfast.
+    if (now.hour != 7) return;
+    final w = currentWeather;
+    if (w == null) return;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final ymd = '${now.year}-${now.month}-${now.day}';
+      if (sp.getString(_spKeyMorningReport) == ymd) return;
+
+      // Compose the message: today's summary + astronomy + pollen headline.
+      final today = dailyForecast.isNotEmpty ? dailyForecast.first : null;
+      final aq = currentAirQuality;
+      final astro = currentAstronomy;
+
+      String title = '☀️ Guten Morgen · $_city';
+      if (today != null) {
+        title = '${today.icon} $_city heute: max ${today.tempMax.toStringAsFixed(0)}°C';
+      }
+      final body = StringBuffer();
+      if (today != null) {
+        body.write('${today.description}, '
+            '${today.tempMin.toStringAsFixed(0)}–${today.tempMax.toStringAsFixed(0)}°C');
+        if (today.precipitationSum > 0.5) {
+          body.write(' · ${today.precipitationSum.toStringAsFixed(0)} mm Regen');
+        }
+      } else {
+        body.write('${w.description}, ${w.temperature.toStringAsFixed(0)}°C');
+      }
+      if (astro?.sunrise != null && astro?.sunset != null) {
+        body.write('\n🌅 ${_hm(astro!.sunrise!)} · 🌇 ${_hm(astro.sunset!)}');
+      }
+      if (aq != null) {
+        final active = <String>[
+          if ((aq.grassPollen ?? 0) >= 20) 'Gräser',
+          if ((aq.birchPollen ?? 0) >= 20) 'Birke',
+          if ((aq.alderPollen ?? 0) >= 20) 'Erle',
+          if ((aq.ragweedPollen ?? 0) >= 20) 'Ambrosia',
+        ];
+        if (active.isNotEmpty) body.write('\n🌾 Pollen hoch: ${active.join(", ")}');
+      }
+
+      await NotificationService().show(title: title, body: body.toString());
+      await sp.setString(_spKeyMorningReport, ymd);
+      _log.info('Weather: morning report sent ($ymd)', tag: 'WEATHER');
+    } catch (e) {
+      _log.debug('Weather: morning report skipped: $e', tag: 'WEATHER');
+    }
+  }
+
+  static String _hm(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   /// Best-effort weather emoji + short label for a future point in time.
   /// Used by cross-service notifications (e.g. "Neuer Termin morgen 10:00 • 🌧 Regen").
@@ -1041,6 +1143,9 @@ class WeatherService {
     } catch (e) {
       _log.error('Weather: Fetch failed: $e', tag: 'WEATHER');
     }
+    // Piggyback on the 5-min refresh loop for the 07:00 morning report —
+    // internally deduplicated so it fires at most once per calendar day.
+    unawaited(_maybeSendMorningReport());
   }
 
   /// Fetch Open-Meteo Air Quality API — free, CAMS-driven. PM2.5/PM10, ozone,
@@ -1194,10 +1299,16 @@ class WeatherService {
     final now = DateTime.now();
     final w = currentWeather;
     final aq = currentAirQuality;
+    final profile = WeatherProfileService.instance.current;
+    // Sensitivity offsets — cold/heat threshold tighten by 3°C, PM/UV by 20%.
+    final heatFrom = profile.heatSensitive ? 29.0 : 32.0;
+    final coldFrom = profile.coldSensitive ? 3.0 : 0.0;
+    final uvFrom = profile.photoSensitive ? 4.5 : 6.0;
+    final pmFrom = profile.asthma ? 35.0 : 50.0;
     final alerts = <HealthAlert>[];
 
     if (w != null) {
-      if (w.apparentTemperature >= 32) {
+      if (w.apparentTemperature >= heatFrom) {
         final severe = w.apparentTemperature >= 38;
         alerts.add(HealthAlert(
           kind: HealthAlertKind.heat,
@@ -1210,7 +1321,7 @@ class WeatherService {
           timestamp: now,
         ));
       }
-      if (w.temperature <= 0) {
+      if (w.temperature <= coldFrom) {
         final severe = w.temperature <= -10;
         alerts.add(HealthAlert(
           kind: HealthAlertKind.cold,
@@ -1228,7 +1339,7 @@ class WeatherService {
 
     if (aq != null) {
       final uv = aq.uvIndex ?? 0;
-      if (uv >= 6) {
+      if (uv >= uvFrom) {
         final severe = uv >= 8;
         alerts.add(HealthAlert(
           kind: HealthAlertKind.uv,
@@ -1243,7 +1354,7 @@ class WeatherService {
         ));
       }
       final pm = aq.pm25 ?? 0;
-      if (pm >= 50) {
+      if (pm >= pmFrom) {
         final severe = pm >= 75;
         alerts.add(HealthAlert(
           kind: HealthAlertKind.pm25,
@@ -1269,6 +1380,29 @@ class WeatherService {
               'Empfindliche Personen (Kinder, Senioren, Atemwegserkrankte) sollten drinnen bleiben.',
           timestamp: now,
         ));
+      }
+
+      // Personalised pollen alert — only when the user has actually flagged
+      // a specific allergy AND the corresponding count crosses ≥30 grains/m³.
+      if (profile.anyAllergy) {
+        final active = <String>[];
+        if (profile.allergyErle && (aq.alderPollen ?? 0) >= 30) active.add('Erle');
+        if (profile.allergyBirke && (aq.birchPollen ?? 0) >= 30) active.add('Birke');
+        if (profile.allergyGraeser && (aq.grassPollen ?? 0) >= 30) active.add('Gräser');
+        if (profile.allergyBeifuss && (aq.mugwortPollen ?? 0) >= 30) active.add('Beifuß');
+        if (profile.allergyOlive && (aq.olivePollen ?? 0) >= 30) active.add('Olive');
+        if (profile.allergyAmbrosia && (aq.ragweedPollen ?? 0) >= 30) active.add('Ambrosia');
+        if (active.isNotEmpty) {
+          alerts.add(HealthAlert(
+            kind: HealthAlertKind.pollen,
+            severity: 'moderate',
+            title: 'Pollen-Warnung: ${active.join(", ")}',
+            body: 'Belastung erhöht in ${w?.city ?? "deiner Region"}.',
+            recommendation: 'Antihistaminika bereithalten, Fenster tagsüber '
+                'geschlossen halten, nach Aufenthalt draußen Haare waschen.',
+            timestamp: now,
+          ));
+        }
       }
     }
 
