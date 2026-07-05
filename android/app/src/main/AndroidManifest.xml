@@ -18,6 +18,10 @@
     <!-- Auto-start / Background -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <!-- Android 14+ demands a typed foreground service permission per data-source.
+         LOCATION is used by the ÖPNV Ausstieg-Alarm to keep GPS running while the
+         user has pocketed the phone during the bus ride. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
 
     <!-- File access for attachments -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>

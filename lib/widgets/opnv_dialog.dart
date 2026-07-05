@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import 'dart:io' show Platform;
+import '../services/notification_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_favorites_service.dart';
@@ -2492,12 +2494,29 @@ class _TripMapViewState extends State<_TripMapView> {
     // Pause the coarse (100m) dashboard stream while we run a fine (5m) one.
     // Running both = ~2× battery drain and duplicate FusedLocation callbacks.
     widget.transitService.pauseCoarseTracking();
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
-      ),
-    ).listen(
+
+    // On Android, promote the GPS stream to a foreground service so it keeps
+    // firing when the user pockets the phone / switches to WhatsApp / locks
+    // the screen — otherwise the Ausstieg-Alarm dies the moment the user
+    // stops looking at the map. iOS handles this via the "when in use"
+    // permission but doesn't need the extra config.
+    final settings = Platform.isAndroid
+        ? AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 5,
+            foregroundNotificationConfig: const ForegroundNotificationConfig(
+              notificationTitle: 'ÖPNV-Alarm aktiv',
+              notificationText: 'Vibriert wenn du deine Ausstieg-Haltestelle erreichst.',
+              enableWakeLock: true,
+              setOngoing: true,
+            ),
+          )
+        : const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 5,
+          );
+
+    _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
       (pos) {
         if (!mounted) return;
         final userLl = LatLng(pos.latitude, pos.longitude);
@@ -2537,6 +2556,16 @@ class _TripMapViewState extends State<_TripMapView> {
           Future.delayed(const Duration(milliseconds: 250), HapticFeedback.heavyImpact);
           Future.delayed(const Duration(milliseconds: 500), HapticFeedback.heavyImpact);
           if (_ttsEnabled) _tts.speak('Aussteigen: ${target.name}!');
+          // Fire a heads-up local notification — critical for the background
+          // case where the user has pocketed the phone. The GPS stream
+          // continues via foreground service on Android, so this callback
+          // still fires; the notification wakes the screen + plays sound.
+          NotificationService().show(
+            title: '🚨 Aussteigen: ${target.name}',
+            body: 'Deine Ziel-Haltestelle ist erreicht — jetzt aussteigen!',
+            payload: 'opnv:ausstieg:${target.stopID}',
+            duration: const Duration(seconds: 10),
+          );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               backgroundColor: Colors.red.shade700,
@@ -2885,16 +2914,27 @@ class _TripMapViewState extends State<_TripMapView> {
                     const Icon(Icons.notifications_active, size: 14, color: Colors.white),
                     const SizedBox(width: 6),
                     Flexible(
-                      child: Text(
-                        () {
-                          final s = widget.stops.firstWhere(
-                            (x) => x.stopID == widget.targetStopId,
-                            orElse: () => TripStop(name: '?', stopID: '', plannedTime: DateTime.now()),
-                          );
-                          return 'Alarm bei: ${s.name}';
-                        }(),
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            () {
+                              final s = widget.stops.firstWhere(
+                                (x) => x.stopID == widget.targetStopId,
+                                orElse: () => TripStop(name: '?', stopID: '', plannedTime: DateTime.now()),
+                              );
+                              return 'Alarm bei: ${s.name}';
+                            }(),
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (Platform.isAndroid)
+                            const Text(
+                              'auch im Hintergrund aktiv',
+                              style: TextStyle(color: Colors.white70, fontSize: 8),
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),
