@@ -318,6 +318,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
   };
 
   static const _statusLabels = {
+    'geplant': 'Geplant',
     'eingereicht': 'Eingereicht',
     'in_bearbeitung': 'In Bearbeitung',
     'unterlagen_nachgefordert': 'Unterlagen nachgefordert',
@@ -330,6 +331,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
   };
 
   static const _statusColors = {
+    'geplant': Colors.indigo,
     'eingereicht': Colors.blue,
     'in_bearbeitung': Colors.orange,
     'unterlagen_nachgefordert': Colors.amber,
@@ -347,7 +349,14 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
     final datumC = TextEditingController();
     final aktenzeichenC = TextEditingController();
     final notizC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+      // WBA (Weiterbewilligung) hat einen einfacheren Flow: nur Art + Status +
+      // Datum. Aktenzeichen und Notiz sind erst später beim Bescheid relevant
+      // — sie würden im Neuanlage-Dialog nur ablenken.
+      final isWba = art == 'weiterbewilligung';
+      // Für WBA ist 'geplant' der natürliche Startstatus.
+      if (isWba && status == 'eingereicht') status = 'geplant';
+      return AlertDialog(
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.red.shade700), const SizedBox(width: 8), const Text('Neuer Antrag', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(
@@ -364,10 +373,12 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
         const SizedBox(height: 10),
         TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
-        const SizedBox(height: 10),
-        TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', isDense: true, prefixIcon: const Icon(Icons.bookmark, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 10),
-        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        if (!isWba) ...[
+          const SizedBox(height: 10),
+          TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', isDense: true, prefixIcon: const Icon(Icons.bookmark, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ],
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -377,7 +388,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
           await widget.onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white), child: const Text('Hinzufügen')),
       ],
-    )));
+    );})));
   }
 
   void _openDetail(Map<String, dynamic> antrag) {
@@ -508,16 +519,28 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
             Tab(text: 'Bescheid'),
             Tab(text: 'Brief-Generator', icon: Icon(Icons.picture_as_pdf, size: 16)),
           ]
-        : const [
-            Tab(text: 'Details'),
-            Tab(text: 'Korrespondenz'),
-            Tab(text: 'Terminen'),
-            Tab(text: 'Bewilligungsbescheid'),
-            Tab(text: 'EGV'),
-            Tab(text: 'Sanktionen'),
-            Tab(text: 'Begutachtung'),
-            Tab(text: 'Anhörung'),
-          ];
+        : (_isWba
+            ? const [
+                Tab(text: 'Details'),
+                Tab(text: 'Generator WBA', icon: Icon(Icons.picture_as_pdf, size: 16)),
+                Tab(text: 'Korrespondenz'),
+                Tab(text: 'Terminen'),
+                Tab(text: 'Bewilligungsbescheid'),
+                Tab(text: 'EGV'),
+                Tab(text: 'Sanktionen'),
+                Tab(text: 'Begutachtung'),
+                Tab(text: 'Anhörung'),
+              ]
+            : const [
+                Tab(text: 'Details'),
+                Tab(text: 'Korrespondenz'),
+                Tab(text: 'Terminen'),
+                Tab(text: 'Bewilligungsbescheid'),
+                Tab(text: 'EGV'),
+                Tab(text: 'Sanktionen'),
+                Tab(text: 'Begutachtung'),
+                Tab(text: 'Anhörung'),
+              ]);
     final views = _isBetriebskosten
         ? [
             _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -526,16 +549,28 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
             _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
             _BetriebskostenBriefGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
           ]
-        : [
-            _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-            _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
-            _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
-            _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-            _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-            _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-            _AntragBegutachtungTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-            _AntragAnhoerungTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
-          ];
+        : (_isWba
+            ? [
+                _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _WbaGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
+                _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+                _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
+                _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragBegutachtungTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragAnhoerungTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+              ]
+            : [
+                _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+                _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
+                _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragEgvTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragSanktionenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragBegutachtungTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragAnhoerungTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
+              ]);
     return Column(children: [
       Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
         child: Row(children: [
@@ -6131,5 +6166,111 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
       _loadKorr();
     }
     datumC.dispose(); betreffC.dispose(); notizC.dispose();
+  }
+}
+
+// ══════════════════ WBA PDF-Generator Tab ══════════════════
+// Erscheint nur für Anträge vom Typ „weiterbewilligung". Der Server befüllt
+// das offizielle BA-PDF (weiterbewilligung-sgb2_ba042699.pdf) via pdftk
+// fill_form mit Stammdaten aus Stufe 1 (users.vorname/nachname/geburtsdatum/
+// strasse/hausnummer/plz/ort) sowie Jobcenter-Stammdaten (BG-Nr.,
+// Bewilligungszeitraum-Ende). Ergebnis wird lokal gespeichert und geöffnet.
+class _WbaGeneratorTab extends StatefulWidget {
+  final Map<String, dynamic> antrag;
+  final ApiService apiService;
+  final int userId;
+  const _WbaGeneratorTab({required this.antrag, required this.apiService, required this.userId});
+  @override
+  State<_WbaGeneratorTab> createState() => _WbaGeneratorTabState();
+}
+
+class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
+  bool _busy = false;
+  String? _lastPath;
+  String? _lastError;
+
+  Future<void> _download() async {
+    setState(() { _busy = true; _lastError = null; });
+    try {
+      final antragId = int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+      final bytes = await widget.apiService.generateWbaPdf(userId: widget.userId, antragId: antragId);
+      if (bytes == null) {
+        setState(() { _busy = false; _lastError = 'Server lieferte kein PDF zurück. Bitte Logs prüfen.'; });
+        return;
+      }
+      Directory? dir;
+      try { dir = await getDownloadsDirectory(); } catch (_) {}
+      dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
+      final filename = 'WBA_Antrag_${widget.userId}_$antragId.pdf';
+      final path = '${dir.path}${Platform.pathSeparator}$filename';
+      await File(path).writeAsBytes(bytes);
+      if (!mounted) return;
+      setState(() { _busy = false; _lastPath = path; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('PDF gespeichert: $path'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _busy = false; _lastError = 'Fehler: $e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
+        const SizedBox(width: 8),
+        const Text('Weiterbewilligungsantrag (BA042699)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+      ]),
+      const SizedBox(height: 10),
+      Text(
+        'Das offizielle Formular der Arbeitsagentur wird auf dem Server mit den '
+        'hinterlegten Daten des Mitglieds vorbefüllt: Vorname, Nachname, '
+        'Geburtsdatum, Anschrift (aus Stufe 1) sowie BG-Nummer und '
+        'Bewilligungszeitraum-Ende (aus den Jobcenter-Stammdaten). Anschließend '
+        'prüfen, ergänzen, unterschreiben und beim Jobcenter einreichen.',
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+      ),
+      const SizedBox(height: 16),
+      FilledButton.icon(
+        icon: _busy
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.download, size: 18),
+        label: Text(_busy ? 'Wird erstellt…' : 'PDF herunterladen'),
+        style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+        onPressed: _busy ? null : _download,
+      ),
+      if (_lastPath != null) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+          child: Row(children: [
+            Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_lastPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'), onPressed: () => OpenFilex.open(_lastPath!)),
+          ]),
+        ),
+      ],
+      if (_lastError != null) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade300)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_lastError!, style: TextStyle(fontSize: 11, color: Colors.red.shade800))),
+          ]),
+        ),
+      ],
+      const SizedBox(height: 16),
+      Text('Quelle: arbeitsagentur.de/datei/weiterbewilligung-sgb2_ba042699.pdf',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+    ]));
   }
 }
