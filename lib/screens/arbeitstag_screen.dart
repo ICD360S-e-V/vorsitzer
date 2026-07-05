@@ -325,10 +325,15 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         ? ''
         : '${DateFormat('dd.MM').format(data.monday)} – ${DateFormat('dd.MM.yyyy').format(data.sunday)}';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: theme.colorScheme.surface,
-      child: Row(
-        children: [
+      // Horizontal scroll ca pe mobile utilizatorul să poată ajunge la
+      // chevron_right + Heute + stats + refresh + archive care altfel s-ar
+      // duce off-screen pe telefon.
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
           IconButton(
             onPressed: () => _shiftKw(-1),
             icon: const Icon(Icons.chevron_left),
@@ -359,7 +364,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               icon: const Icon(Icons.today, size: 16),
               label: const Text('Heute'),
             ),
-          const Spacer(),
+          const SizedBox(width: 16),
           if (stats != null) ...[
             Tooltip(
               message: 'Ticket + Termin + Routine erledigt (Notfall optional)',
@@ -385,6 +390,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
           ),
           _buildArchiveToggle(),
         ],
+      ),
       ),
     );
   }
@@ -639,40 +645,57 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final isOffen = state == 'offen';
     // #14: dim chipul offen când n-are ce alege (badgeCount=0)
     final noAvailable = isOffen && badgeCount == 0;
+    // Fără onLongPress → nu mai blochează scroll pe touchscreen. Menu-ul
+    // e accesibil prin butonul ↩ separat (când state != offen).
     return Opacity(
       opacity: noAvailable ? 0.35 : 1.0,
-      child: InkWell(
-        onTap: () => _handleChipTap(m, typ),
-        onLongPress: () => _handleChipLongPress(m, typ),
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => _handleChipTap(m, typ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withValues(alpha: 0.4)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: 6),
+                  Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+                  if (isOffen && badgeCount > 0) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text('$badgeCount',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 6),
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-              if (isOffen && badgeCount > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text('$badgeCount',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                ),
-              ],
-            ],
-          ),
-        ),
+          // Buton ↩ separat pentru Rückgängig/Reset menu (când state != offen).
+          // Touchscreen-friendly — nu blochează scroll.
+          if (!isOffen)
+            IconButton(
+              onPressed: () => _handleChipLongPress(m, typ),
+              icon: Icon(Icons.more_vert, size: 16, color: color.withValues(alpha: 0.7)),
+              tooltip: 'Optionen',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
       ),
     );
   }
