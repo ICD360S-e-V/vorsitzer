@@ -6489,7 +6489,7 @@ class ApiService {
       final r = await _client.get(
         Uri.parse('$baseUrl/admin/wba_pdf_generate.php').replace(queryParameters: qp),
         headers: _headers,
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 60));
       if (r.statusCode == 200 && r.bodyBytes.length > 1000 &&
           r.bodyBytes[0] == 0x25 && r.bodyBytes[1] == 0x50 && r.bodyBytes[2] == 0x44 && r.bodyBytes[3] == 0x46) {
         return r.bodyBytes;
