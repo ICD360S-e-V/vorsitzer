@@ -122,7 +122,8 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         _load();
         break;
       case 'erledigt':
-        // already done — no-op on tap, long-press pentru reset
+        // Tap on erledigt = open menu with Reset + Zurück-Optionen
+        await _handleChipLongPress(m, typ);
         break;
     }
   }
