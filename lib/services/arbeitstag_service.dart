@@ -74,11 +74,13 @@ class ArbeitstagMember {
   final int prioritaet;
   final String? prioGrund;
   final int? bearbeiterUserId;
+  final String? bearbeiterName;
   final String? notiz;
 
   final int openTicketsCount;
   final int termineKwCount;
   final int routinesKwCount;
+  final int notfallKwCount;
 
   final DateTime? archivedAt;
   final int? archivedBy;
@@ -113,10 +115,12 @@ class ArbeitstagMember {
     required this.prioritaet,
     this.prioGrund,
     this.bearbeiterUserId,
+    this.bearbeiterName,
     this.notiz,
     required this.openTicketsCount,
     required this.termineKwCount,
     required this.routinesKwCount,
+    this.notfallKwCount = 0,
     this.archivedAt,
     this.archivedBy,
     this.archivGrund,
@@ -170,10 +174,12 @@ class ArbeitstagMember {
         prioritaet: _int(j['prioritaet']),
         prioGrund: j['prio_grund'],
         bearbeiterUserId: _intN(j['bearbeiter_user_id']),
+        bearbeiterName: j['bearbeiter_name'],
         notiz: j['notiz'],
         openTicketsCount: _int(j['open_tickets_count']),
         termineKwCount: _int(j['termine_kw_count']),
         routinesKwCount: _int(j['routines_kw_count']),
+        notfallKwCount: _int(j['notfall_kw_count']),
         archivedAt: _dt(j['archived_at']),
         archivedBy: _intN(j['archived_by']),
         archivGrund: j['archiv_grund'],

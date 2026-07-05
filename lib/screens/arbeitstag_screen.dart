@@ -4,7 +4,12 @@ import 'package:intl/date_symbol_data_local.dart';
 import '../services/arbeitstag_service.dart';
 
 class ArbeitstagScreen extends StatefulWidget {
-  const ArbeitstagScreen({super.key});
+  /// Callback pentru deep-link către alt tab. Deocamdată doar comută sidebar-ul
+  /// la menuIndex (2=Ticketverwaltung, 3=Terminverwaltung, 10=Routinenaufgaben).
+  /// Focus pe ID specific = follow-up (necesită props pe target screens).
+  final void Function(int menuIndex)? onNavigate;
+
+  const ArbeitstagScreen({super.key, this.onNavigate});
 
   @override
   State<ArbeitstagScreen> createState() => _ArbeitstagScreenState();
@@ -130,6 +135,11 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
 
   Future<void> _handleChipLongPress(ArbeitstagMember m, String typ) async {
     final state = m.stateFor(typ);
+    // Când state=offen și n-are ce alege, deschide direct picker (nu meniu gol)
+    if (state == 'offen') {
+      await _openPicker(m, typ);
+      return;
+    }
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -142,22 +152,25 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                   style: Theme.of(context).textTheme.titleMedium),
             ),
             const Divider(height: 1),
-            if (state != 'offen') ListTile(
+            ListTile(
               leading: const Icon(Icons.swap_horiz),
               title: const Text('Auswahl ändern'),
               onTap: () => Navigator.pop(ctx, 'change'),
             ),
-            if (state == 'in_bearbeitung' || state == 'erledigt') ListTile(
-              leading: const Icon(Icons.hourglass_bottom, color: Colors.orange),
-              title: const Text('Zurück zu Geplant'),
-              onTap: () => Navigator.pop(ctx, 'geplant'),
-            ),
-            if (state == 'erledigt') ListTile(
-              leading: const Icon(Icons.autorenew, color: Colors.blue),
-              title: const Text('Zurück zu In Bearbeitung'),
-              onTap: () => Navigator.pop(ctx, 'in_bearbeitung'),
-            ),
-            if (state != 'offen') ListTile(
+            // Rückgängig — un pas înapoi în workflow, nu meniu cu 3 opțiuni
+            if (state == 'in_bearbeitung')
+              ListTile(
+                leading: const Icon(Icons.undo, color: Colors.orange),
+                title: const Text('Rückgängig → Geplant'),
+                onTap: () => Navigator.pop(ctx, 'geplant'),
+              )
+            else if (state == 'erledigt')
+              ListTile(
+                leading: const Icon(Icons.undo, color: Colors.blue),
+                title: const Text('Rückgängig → In Bearbeitung'),
+                onTap: () => Navigator.pop(ctx, 'in_bearbeitung'),
+              ),
+            ListTile(
               leading: const Icon(Icons.close, color: Colors.red),
               title: const Text('Reset (offen)'),
               onTap: () => Navigator.pop(ctx, 'offen'),
@@ -347,10 +360,13 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             ),
           const Spacer(),
           if (stats != null) ...[
-            _statChip(
-              icon: Icons.check_circle,
-              label: '${stats.totalDone} / ${stats.totalMembers} DONE',
-              color: Colors.green,
+            Tooltip(
+              message: 'Ticket + Termin + Routine erledigt (Notfall optional)',
+              child: _statChip(
+                icon: Icons.check_circle,
+                label: '${stats.totalDone} / ${stats.totalMembers} bearbeitet',
+                color: Colors.green,
+              ),
             ),
             const SizedBox(width: 8),
             if (stats.totalUrgent > 0)
@@ -534,24 +550,23 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                       ),
                     ],
                   ),
-                  if (m.ticketSubject != null || m.terminTitle != null || m.routineTitle != null || m.notfallTerminTitle != null)
+                  if (m.ticketSubject != null || m.terminTitle != null || m.routineTitle != null || m.notfallTerminTitle != null || m.bearbeiterName != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Wrap(
                         spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           if (m.ticketSubject != null)
-                            Text('🎫 ${m.ticketSubject}',
-                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+                            _linkTitle('🎫', m.ticketSubject!, Colors.green.shade700, 2),
                           if (m.terminTitle != null)
-                            Text('📅 ${m.terminTitle}',
-                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+                            _linkTitle('📅', m.terminTitle!, Colors.green.shade700, 3),
                           if (m.routineTitle != null)
-                            Text('🔄 ${m.routineTitle}',
-                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.green.shade700)),
+                            _linkTitle('🔄', m.routineTitle!, Colors.green.shade700, 10),
                           if (m.notfallTerminTitle != null)
-                            Text('🚨 ${m.notfallTerminTitle}',
-                                style: theme.textTheme.bodySmall?.copyWith(color: Colors.red.shade700)),
+                            _linkTitle('🚨', m.notfallTerminTitle!, Colors.red.shade700, 3),
+                          if (m.bearbeiterName != null)
+                            _bearbeiterBadge(m.bearbeiterName!),
                         ],
                       ),
                     ),
@@ -565,7 +580,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               const SizedBox(width: 6),
               _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
               const SizedBox(width: 6),
-              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.termineKwCount),
+              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () => _archiveMember(m),
@@ -620,35 +635,87 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final color = _colorFor(state);
     final icon = _iconFor(typ, state);
     final isOffen = state == 'offen';
+    // #14: dim chipul offen când n-are ce alege (badgeCount=0)
+    final noAvailable = isOffen && badgeCount == 0;
+    return Opacity(
+      opacity: noAvailable ? 0.35 : 1.0,
+      child: InkWell(
+        onTap: () => _handleChipTap(m, typ),
+        onLongPress: () => _handleChipLongPress(m, typ),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+              if (isOffen && badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text('$badgeCount',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _linkTitle(String emoji, String title, Color color, int menuIndex) {
     return InkWell(
-      onTap: () => _handleChipTap(m, typ),
-      onLongPress: () => _handleChipLongPress(m, typ),
-      borderRadius: BorderRadius.circular(20),
+      onTap: widget.onNavigate == null ? null : () => widget.onNavigate!(menuIndex),
+      borderRadius: BorderRadius.circular(4),
+      child: Tooltip(
+        message: widget.onNavigate == null ? title : '$title — zur Verwaltung wechseln',
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+          child: Text('$emoji $title',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: color,
+                decoration: widget.onNavigate == null ? null : TextDecoration.underline,
+                decorationStyle: TextDecorationStyle.dotted,
+              )),
+        ),
+      ),
+    );
+  }
+
+  Widget _bearbeiterBadge(String name) {
+    final parts = name.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+    final initials = parts.isEmpty
+        ? '?'
+        : parts.length == 1 ? parts[0].substring(0, 1).toUpperCase()
+        : '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    return Tooltip(
+      message: 'bearbeitet von $name',
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.4)),
+          color: Colors.blueGrey.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-            if (isOffen && badgeCount > 0) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text('$badgeCount',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-              ),
-            ],
+            Icon(Icons.person, size: 11, color: Colors.blueGrey.shade700),
+            const SizedBox(width: 3),
+            Text(initials,
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blueGrey.shade800)),
           ],
         ),
       ),

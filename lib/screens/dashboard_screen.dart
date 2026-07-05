@@ -1468,7 +1468,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 13:
         return EinstellungenScreen(apiService: _apiService);
       case 14:
-        return const ArbeitstagScreen();
+        return ArbeitstagScreen(
+          onNavigate: (idx) => setState(() => _selectedMenuIndex = idx),
+        );
       default:
         return _buildDashboardOverview();
     }
