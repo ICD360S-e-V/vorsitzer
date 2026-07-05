@@ -6328,6 +6328,36 @@ class ApiService {
     final r = await _client.post(Uri.parse('$baseUrl/admin/pflegegrad_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  /// Termin über termine_create.php erstellen. Wird u.a. vom Pflegegrad-Antrag
+  /// verwendet, um bei Setzen eines Begutachtungstermins automatisch einen
+  /// Eintrag in der Terminverwaltung anzulegen.
+  Future<Map<String, dynamic>> createTermin({
+    required String title,
+    required String category,
+    required String description,
+    required DateTime terminDate,
+    required int durationMinutes,
+    required String location,
+    required List<int> participantIds,
+    bool brauchtMich = false,
+  }) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/termine_create.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'title': title,
+        'category': category,
+        'description': description,
+        'termin_date': terminDate.toIso8601String().substring(0, 19).replaceAll('T', ' '),
+        'duration_minutes': durationMinutes,
+        'location': location,
+        'participant_ids': participantIds,
+        'braucht_mich': brauchtMich ? 1 : 0,
+      }),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   /// Öffentliche Referenzdaten: alle Medizinischen Dienste (15 regional + MD Bund).
   Future<Map<String, dynamic>> listMedizinischerDienst() async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/pflegegrad_manage.php?action=list_md'), headers: _headers).timeout(const Duration(seconds: 15));

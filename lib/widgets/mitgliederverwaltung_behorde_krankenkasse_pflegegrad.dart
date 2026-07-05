@@ -372,6 +372,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
       begutachtungsorte: _begutachtungsorte,
       prettyStatus: _prettyStatus,
       memberBundesland: widget.member?.bundesland,
+      member: widget.member,
       onSaved: () => _load(),
       onEdit: () { Navigator.pop(ctx); _showAntragDialog(existing: antrag); },
     ));
@@ -390,6 +391,8 @@ class _AntragDetailModal extends StatefulWidget {
   final List<String> begutachtungsorte;
   final String Function(String) prettyStatus;
   final String? memberBundesland;
+  /// Volles User-Objekt für Adresse (Zuhause-Termine) — optional.
+  final User? member;
   final VoidCallback onSaved;
   final VoidCallback onEdit;
 
@@ -404,6 +407,7 @@ class _AntragDetailModal extends StatefulWidget {
     required this.begutachtungsorte,
     required this.prettyStatus,
     this.memberBundesland,
+    this.member,
     required this.onSaved,
     required this.onEdit,
   });
@@ -418,6 +422,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
 
   // Tab 2: Begutachtung
   late TextEditingController _begutachtungDatumC;
+  late TextEditingController _begutachtungUhrzeitC;
+  late TextEditingController _begutachtungDauerC;
   late TextEditingController _gutachterC;
   String _begutachtungsort = '';
 
@@ -432,6 +438,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   late TextEditingController _wsAnwaltNameC;
   late TextEditingController _wsBegC;
   late TextEditingController _wsZgDatumC;
+  late TextEditingController _wsZgUhrzeitC;
+  late TextEditingController _wsZgDauerC;
+  String _wsZgOrt = '';
   String _wsMethode = 'schriftlich per Post';
   String _wsAnwalt = 'nein';
 
@@ -452,6 +461,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
 
   // Tab 8: Drittgutachten (durch das Sozialgericht bestellt)
   late TextEditingController _dgDatumC;
+  late TextEditingController _dgUhrzeitC;
+  late TextEditingController _dgDauerC;
+  String _dgOrt = '';
 
   // Tab 9: Urteil (Klage-Bescheid)
   late TextEditingController _klageUrteilDatumC;
@@ -475,6 +487,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     _a = Map<String, dynamic>.from(widget.antrag);
     // Begutachtung
     _begutachtungDatumC = TextEditingController(text: _s('begutachtung_datum'));
+    _begutachtungUhrzeitC = TextEditingController(text: _s('begutachtung_uhrzeit'));
+    _begutachtungDauerC = TextEditingController(text: _s('begutachtung_dauer_stunden'));
     _gutachterC = TextEditingController(text: _s('gutachter_name'));
     _begutachtungsort = _s('begutachtung_ort');
     // Erst-Bescheid
@@ -487,6 +501,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     _wsAnwaltNameC = TextEditingController(text: _s('widerspruch_anwalt_name'));
     _wsBegC = TextEditingController(text: _s('widerspruch_begruendung'));
     _wsZgDatumC = TextEditingController(text: _s('widerspruch_zweitgutachten_datum'));
+    _wsZgUhrzeitC = TextEditingController(text: _s('widerspruch_zweitgutachten_uhrzeit'));
+    _wsZgDauerC = TextEditingController(text: _s('widerspruch_zweitgutachten_dauer_stunden'));
+    _wsZgOrt = _s('widerspruch_zweitgutachten_ort');
     _wsMethode = _wsMethoden.contains(_s('widerspruch_methode')) ? _s('widerspruch_methode') : _wsMethoden.first;
     _wsAnwalt = _s('widerspruch_anwalt').toLowerCase() == 'ja' ? 'ja' : 'nein';
     // Widerspruchs-Bescheid
@@ -504,6 +521,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     _klageAnwalt = _s('klage_anwalt').toLowerCase() == 'ja' ? 'ja' : 'nein';
     // Drittgutachten
     _dgDatumC = TextEditingController(text: _s('drittgutachten_datum'));
+    _dgUhrzeitC = TextEditingController(text: _s('drittgutachten_uhrzeit'));
+    _dgDauerC = TextEditingController(text: _s('drittgutachten_dauer_stunden'));
+    _dgOrt = _s('drittgutachten_ort');
     // Urteil
     _klageUrteilDatumC = TextEditingController(text: _s('klage_urteil_datum'));
     _klageUrteilErgC = TextEditingController(text: _s('klage_urteil_ergebnis'));
@@ -605,6 +625,122 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     return _s('status').isEmpty ? 'offen' : _s('status');
   }
 
+  /// Baut die Adresse des Mitglieds für „Zuhause"-Termine aus dem User-Objekt.
+  String _memberHomeAddress() {
+    final u = widget.member;
+    if (u == null) return 'Zuhause';
+    final parts = <String>[];
+    final strasse = (u.strasse ?? '').trim();
+    final hnr = (u.hausnummer ?? '').trim();
+    if (strasse.isNotEmpty) parts.add(strasse + (hnr.isNotEmpty ? ' $hnr' : ''));
+    final plz = (u.plz ?? '').trim();
+    final ort = (u.ort ?? '').trim();
+    if (plz.isNotEmpty || ort.isNotEmpty) parts.add('${plz.isNotEmpty ? '$plz ' : ''}$ort'.trim());
+    return parts.isEmpty ? 'Zuhause' : 'Zuhause: ${parts.join(', ')}';
+  }
+
+  /// Parst dd.mm.yyyy + HH:MM zu DateTime.
+  DateTime? _parseDateTime(String datum, String uhrzeit) {
+    if (datum.isEmpty) return null;
+    final dm = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(datum);
+    if (dm == null) return null;
+    final day = int.parse(dm.group(1)!);
+    final mon = int.parse(dm.group(2)!);
+    final year = int.parse(dm.group(3)!);
+    int hour = 9, minute = 0;
+    if (uhrzeit.isNotEmpty) {
+      final um = RegExp(r'^(\d{1,2}):(\d{1,2})').firstMatch(uhrzeit);
+      if (um != null) { hour = int.parse(um.group(1)!); minute = int.parse(um.group(2)!); }
+    }
+    try { return DateTime(year, mon, day, hour, minute); } catch (_) { return null; }
+  }
+
+  int _stundenToMinutes(String s) {
+    if (s.trim().isEmpty) return 60;
+    final n = double.tryParse(s.trim().replaceAll(',', '.'));
+    if (n == null || n <= 0) return 60;
+    return (n * 60).round();
+  }
+
+  /// Location: falls Ort „Zuhause" ist → Adresse des Mitglieds, sonst
+  /// der ausgewählte Name oder MD-Name.
+  String _terminLocation(String ort, String? mdName) {
+    final l = ort.toLowerCase();
+    if (l.contains('zuhause')) return _memberHomeAddress();
+    if (mdName != null && mdName.isNotEmpty) return '$ort — $mdName';
+    return ort.isEmpty ? 'MD-Termin' : ort;
+  }
+
+  /// Legt für jede Begutachtung (Erst/Zweit/Dritt) mit gesetztem Datum
+  /// automatisch einen Termin in der Terminverwaltung an. Bereits vorhandene
+  /// Termine werden nicht erneut erzeugt (Marker in _a).
+  Future<List<String>> _createBegutachtungsTermine() async {
+    final msgs = <String>[];
+    final specs = [
+      {
+        'flag': '_termin_created_erst',
+        'title': 'MD-Erstbegutachtung',
+        'category': 'begutachtung',
+        'datum': _begutachtungDatumC.text.trim(),
+        'uhrzeit': _begutachtungUhrzeitC.text.trim(),
+        'dauer': _begutachtungDauerC.text.trim(),
+        'ort': _begutachtungsort,
+        'md_name': null,
+        'label': 'Erstbegutachtung',
+      },
+      {
+        'flag': '_termin_created_zweit',
+        'title': 'MD-Zweitgutachten (Widerspruch)',
+        'category': 'begutachtung',
+        'datum': _wsZgDatumC.text.trim(),
+        'uhrzeit': _wsZgUhrzeitC.text.trim(),
+        'dauer': _wsZgDauerC.text.trim(),
+        'ort': _wsZgOrt,
+        'md_name': _s('zweitgutachten_md_name'),
+        'label': 'Zweitgutachten',
+      },
+      {
+        'flag': '_termin_created_dritt',
+        'title': 'MD-Drittgutachten (Sozialgericht)',
+        'category': 'begutachtung',
+        'datum': _dgDatumC.text.trim(),
+        'uhrzeit': _dgUhrzeitC.text.trim(),
+        'dauer': _dgDauerC.text.trim(),
+        'ort': _dgOrt,
+        'md_name': _s('drittgutachten_md_name'),
+        'label': 'Drittgutachten',
+      },
+    ];
+    for (final s in specs) {
+      final datum = s['datum'] as String;
+      if (datum.isEmpty) continue;
+      // Simple Deduplication: track pro Antrag+Kategorie im _a-Blob.
+      final marker = '${s['flag']}:${datum}_${s['uhrzeit']}';
+      if (_a[s['flag']] == marker) continue;
+      final dt = _parseDateTime(datum, s['uhrzeit'] as String);
+      if (dt == null) continue;
+      final loc = _terminLocation(s['ort'] as String, s['md_name'] as String?);
+      try {
+        final res = await widget.apiService.createTermin(
+          title: s['title'] as String,
+          category: s['category'] as String,
+          description: 'Automatisch angelegt aus Pflegegrad-Antrag (${s['label']}).'
+              '${(s['md_name'] ?? '').toString().isNotEmpty ? "\nMD: ${s['md_name']}" : ""}',
+          terminDate: dt,
+          durationMinutes: _stundenToMinutes(s['dauer'] as String),
+          location: loc,
+          participantIds: [widget.userId],
+          brauchtMich: false,
+        );
+        if (res['success'] == true) {
+          _a[s['flag'] as String] = marker;
+          msgs.add('Termin „${s['label']}" angelegt');
+        }
+      } catch (_) {}
+    }
+    return msgs;
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
@@ -622,6 +758,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'notiz': _s('notiz'),
         // Tab 2: Begutachtung
         'begutachtung_datum': _begutachtungDatumC.text.trim(),
+        'begutachtung_uhrzeit': _begutachtungUhrzeitC.text.trim(),
+        'begutachtung_dauer_stunden': _begutachtungDauerC.text.trim(),
         'begutachtung_ort': _begutachtungsort,
         'gutachter_name': _gutachterC.text.trim(),
         // Tab 3: Erst-Bescheid
@@ -636,6 +774,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'widerspruch_anwalt_name': _wsAnwaltNameC.text.trim(),
         'widerspruch_begruendung': _wsBegC.text.trim(),
         'widerspruch_zweitgutachten_datum': _wsZgDatumC.text.trim(),
+        'widerspruch_zweitgutachten_uhrzeit': _wsZgUhrzeitC.text.trim(),
+        'widerspruch_zweitgutachten_dauer_stunden': _wsZgDauerC.text.trim(),
+        'widerspruch_zweitgutachten_ort': _wsZgOrt,
         'zweitgutachten_md_id': _s('zweitgutachten_md_id'),
         'zweitgutachten_md_name': _s('zweitgutachten_md_name'),
         'zweitgutachten_gutachter_id': _s('zweitgutachten_gutachter_id'),
@@ -655,6 +796,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'klage_verhandlung_datum': _klageVerhandlungC.text.trim(),
         // Tab 8: Drittgutachten
         'drittgutachten_datum': _dgDatumC.text.trim(),
+        'drittgutachten_uhrzeit': _dgUhrzeitC.text.trim(),
+        'drittgutachten_dauer_stunden': _dgDauerC.text.trim(),
+        'drittgutachten_ort': _dgOrt,
         'drittgutachten_md_id': _s('drittgutachten_md_id'),
         'drittgutachten_md_name': _s('drittgutachten_md_name'),
         'drittgutachten_gutachter_id': _s('drittgutachten_gutachter_id'),
@@ -667,6 +811,15 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       final res = await widget.apiService.savePflegegradAntrag(widget.userId, payload);
       if (res['success'] != true) throw Exception('Server-Fehler: ${res['message'] ?? res.toString()}');
       _a.addAll(payload);
+      // Nach dem Speichern: Termine in Terminverwaltung erzeugen wo passend.
+      final terminMsgs = await _createBegutachtungsTermine();
+      if (terminMsgs.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(terminMsgs.join(' • ')),
+          backgroundColor: Colors.blue.shade700,
+          duration: const Duration(seconds: 5),
+        ));
+      }
       widget.onSaved();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
@@ -798,23 +951,69 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       ),
       const SizedBox(height: 14),
       Row(children: [
-        Expanded(child: TextField(
+        Expanded(flex: 2, child: TextField(
           controller: _begutachtungDatumC, readOnly: true,
           onTap: () => _pickDate(_begutachtungDatumC),
-          decoration: const InputDecoration(labelText: 'Begutachtungsdatum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+          decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
         )),
         const SizedBox(width: 10),
-        Expanded(child: DropdownButtonFormField<String>(
-          initialValue: widget.begutachtungsorte.contains(_begutachtungsort) ? _begutachtungsort : null,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Wo?', isDense: true, border: OutlineInputBorder()),
-          items: widget.begutachtungsorte.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
-          onChanged: (v) => setState(() => _begutachtungsort = v ?? ''),
+        Expanded(child: TextField(
+          controller: _begutachtungUhrzeitC, readOnly: true,
+          onTap: () => _pickTime(_begutachtungUhrzeitC),
+          decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(
+          controller: _begutachtungDauerC,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Dauer (Std.)', isDense: true, border: OutlineInputBorder(), hintText: 'z.B. 1,5'),
         )),
       ]),
       const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: widget.begutachtungsorte.contains(_begutachtungsort) ? _begutachtungsort : null,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Wo?', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.place, size: 18)),
+        items: widget.begutachtungsorte.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
+        onChanged: (v) => setState(() => _begutachtungsort = v ?? ''),
+      ),
+      if (_begutachtungsort.toLowerCase().contains('zuhause')) _homeAddressHint(),
+      const SizedBox(height: 10),
       TextField(controller: _gutachterC, decoration: const InputDecoration(labelText: 'Gutachter (Name / MDK-Nr.)', isDense: true, border: OutlineInputBorder())),
+      _autoTerminHint('Erstbegutachtung'),
     ]));
+  }
+
+  /// Info-Banner: zeigt die Adresse an, die für „Zuhause"-Termine verwendet wird.
+  Widget _homeAddressHint() {
+    return Padding(padding: const EdgeInsets.only(top: 6), child: Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+      child: Row(children: [
+        Icon(Icons.home, size: 14, color: Colors.blue.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text('Termin-Adresse: ${_memberHomeAddress()}',
+          style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+      ]),
+    ));
+  }
+
+  Widget _autoTerminHint(String label) {
+    return Padding(padding: const EdgeInsets.only(top: 10), child: Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+      child: Row(children: [
+        Icon(Icons.event_available, size: 14, color: Colors.grey.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text('Bei „Alle Änderungen speichern" wird ein Termin für „$label" in der Terminverwaltung angelegt.',
+          style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
+      ]),
+    ));
+  }
+
+  Future<void> _pickTime(TextEditingController c) async {
+    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+    if (t != null) c.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildBescheidTab() {
@@ -952,10 +1151,32 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         ),
       ),
       const SizedBox(height: 14),
-      TextField(
-        controller: _wsZgDatumC, readOnly: true, onTap: () => _pickDate(_wsZgDatumC),
-        decoration: const InputDecoration(labelText: 'Zweitgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+      Row(children: [
+        Expanded(flex: 2, child: TextField(
+          controller: _wsZgDatumC, readOnly: true, onTap: () => _pickDate(_wsZgDatumC),
+          decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(
+          controller: _wsZgUhrzeitC, readOnly: true, onTap: () => _pickTime(_wsZgUhrzeitC),
+          decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(
+          controller: _wsZgDauerC,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Dauer (Std.)', isDense: true, border: OutlineInputBorder(), hintText: 'z.B. 1,5'),
+        )),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: widget.begutachtungsorte.contains(_wsZgOrt) ? _wsZgOrt : null,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Wo?', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.place, size: 18)),
+        items: widget.begutachtungsorte.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
+        onChanged: (v) => setState(() => _wsZgOrt = v ?? ''),
       ),
+      if (_wsZgOrt.toLowerCase().contains('zuhause')) _homeAddressHint(),
       const SizedBox(height: 12),
       _buildMdAutocomplete(prefix: 'zweitgutachten'),
       const SizedBox(height: 16),
@@ -973,6 +1194,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           korrespondenzId: antragId,
         ),
       ),
+      _autoTerminHint('Zweitgutachten'),
     ]));
   }
 
@@ -1120,10 +1342,32 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         ),
       ),
       const SizedBox(height: 14),
-      TextField(
-        controller: _dgDatumC, readOnly: true, onTap: () => _pickDate(_dgDatumC),
-        decoration: const InputDecoration(labelText: 'Drittgutachten-Termin', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+      Row(children: [
+        Expanded(flex: 2, child: TextField(
+          controller: _dgDatumC, readOnly: true, onTap: () => _pickDate(_dgDatumC),
+          decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(
+          controller: _dgUhrzeitC, readOnly: true, onTap: () => _pickTime(_dgUhrzeitC),
+          decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(
+          controller: _dgDauerC,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Dauer (Std.)', isDense: true, border: OutlineInputBorder(), hintText: 'z.B. 1,5'),
+        )),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        initialValue: widget.begutachtungsorte.contains(_dgOrt) ? _dgOrt : null,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Wo?', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.place, size: 18)),
+        items: widget.begutachtungsorte.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
+        onChanged: (v) => setState(() => _dgOrt = v ?? ''),
       ),
+      if (_dgOrt.toLowerCase().contains('zuhause')) _homeAddressHint(),
       const SizedBox(height: 12),
       _buildMdAutocomplete(prefix: 'drittgutachten'),
       const SizedBox(height: 16),
@@ -1141,6 +1385,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           korrespondenzId: antragId,
         ),
       ),
+      _autoTerminHint('Drittgutachten'),
     ]));
   }
 
