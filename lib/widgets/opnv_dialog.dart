@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/transit_service.dart';
@@ -924,6 +927,10 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
   TripRoute? _route;
   bool _loading = true;
   late TabController _tabController;
+  /// stopID of the "Ausstieg" target — set by tapping a stop in either the
+  /// list or the map. The map's GPS listener uses this to fire the
+  /// Ausstieg-Alarm when the user is within ~150m of that stop.
+  String? _targetStopId;
 
   @override
   void initState() {
@@ -944,6 +951,12 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
     setState(() {
       _route = r;
       _loading = false;
+    });
+  }
+
+  void _setTarget(String? id) {
+    setState(() {
+      _targetStopId = (_targetStopId == id) ? null : id;
     });
   }
 
@@ -1055,9 +1068,15 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                 isLast: i == stops.length - 1,
                                 beforeCurrent: currentIdx > 0 && i < currentIdx,
                                 lineColor: lineColor,
+                                isTarget: stops[i].stopID == _targetStopId,
+                                onSetTarget: () => _setTarget(stops[i].stopID),
                               ),
                             ),
-                            _TripMapView(stops: stops, path: path, lineColor: lineColor),
+                            _TripMapView(
+                              stops: stops, path: path, lineColor: lineColor,
+                              targetStopId: _targetStopId,
+                              onSetTarget: _setTarget,
+                            ),
                           ],
                         ),
             ),
@@ -1092,6 +1111,8 @@ class _TripStopRow extends StatelessWidget {
   final bool isLast;
   final bool beforeCurrent;
   final Color lineColor;
+  final bool isTarget;
+  final VoidCallback? onSetTarget;
 
   const _TripStopRow({
     required this.stop,
@@ -1099,6 +1120,8 @@ class _TripStopRow extends StatelessWidget {
     required this.isLast,
     required this.beforeCurrent,
     required this.lineColor,
+    this.isTarget = false,
+    this.onSetTarget,
   });
 
   @override
@@ -1106,13 +1129,15 @@ class _TripStopRow extends StatelessWidget {
     final isCurrent = stop.isCurrent;
     final dotColor = isCurrent
         ? Colors.green.shade600
-        : (beforeCurrent ? Colors.grey.shade400 : lineColor);
+        : (isTarget ? Colors.red.shade600 : (beforeCurrent ? Colors.grey.shade400 : lineColor));
     final textColor = isCurrent
         ? Colors.green.shade900
-        : (beforeCurrent ? Colors.grey.shade500 : Colors.black87);
-    final fontWeight = isCurrent ? FontWeight.bold : FontWeight.w500;
+        : (isTarget ? Colors.red.shade900 : (beforeCurrent ? Colors.grey.shade500 : Colors.black87));
+    final fontWeight = (isCurrent || isTarget) ? FontWeight.bold : FontWeight.w500;
 
-    return IntrinsicHeight(
+    return InkWell(
+      onTap: (isCurrent || onSetTarget == null) ? null : onSetTarget,
+      child: IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1141,19 +1166,21 @@ class _TripStopRow extends StatelessWidget {
                 ),
                 // Dot
                 Container(
-                  width: isCurrent ? 18 : (isFirst || isLast ? 14 : 10),
-                  height: isCurrent ? 18 : (isFirst || isLast ? 14 : 10),
+                  width: (isCurrent || isTarget) ? 18 : (isFirst || isLast ? 14 : 10),
+                  height: (isCurrent || isTarget) ? 18 : (isFirst || isLast ? 14 : 10),
                   decoration: BoxDecoration(
                     color: dotColor,
                     shape: BoxShape.circle,
-                    border: isCurrent
+                    border: (isCurrent || isTarget)
                         ? Border.all(color: Colors.white, width: 3)
                         : (isFirst || isLast
                             ? Border.all(color: Colors.white, width: 2)
                             : null),
                     boxShadow: isCurrent
                         ? [BoxShadow(color: Colors.green.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 2)]
-                        : null,
+                        : isTarget
+                            ? [BoxShadow(color: Colors.red.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 2)]
+                            : null,
                   ),
                 ),
               ],
@@ -1178,6 +1205,21 @@ class _TripStopRow extends StatelessWidget {
                           ),
                           child: const Text('HIER',
                               style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      if (isTarget && !isCurrent) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade600,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.notifications_active, size: 10, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text('ZIEL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ]),
                         ),
                         const SizedBox(width: 6),
                       ],
@@ -1239,6 +1281,7 @@ class _TripStopRow extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -1657,8 +1700,16 @@ class _TripMapView extends StatefulWidget {
   final List<TripStop> stops;
   final List<(double, double)> path;
   final Color lineColor;
+  final String? targetStopId;
+  final ValueChanged<String?>? onSetTarget;
 
-  const _TripMapView({required this.stops, required this.path, required this.lineColor});
+  const _TripMapView({
+    required this.stops,
+    required this.path,
+    required this.lineColor,
+    this.targetStopId,
+    this.onSetTarget,
+  });
 
   @override
   State<_TripMapView> createState() => _TripMapViewState();
@@ -1669,12 +1720,28 @@ class _TripMapViewState extends State<_TripMapView> {
   LatLng? _userPosition;
   final _mapController = MapController();
   bool _followUser = true;
+  bool _ttsEnabled = false;
+  final FlutterTts _tts = FlutterTts();
+  String? _lastAnnouncedStopId;
+  bool _targetAlarmFired = false;
+
+  /// Haversine distance in metres between two points.
+  double _distMeters(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final dLat = (b.latitude - a.latitude) * math.pi / 180;
+    final dLon = (b.longitude - a.longitude) * math.pi / 180;
+    final s = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(a.latitude * math.pi / 180) *
+            math.cos(b.latitude * math.pi / 180) *
+            math.sin(dLon / 2) * math.sin(dLon / 2);
+    return r * 2 * math.atan2(math.sqrt(s), math.sqrt(1 - s));
+  }
 
   @override
   void initState() {
     super.initState();
-    // Live GPS tracking — 5m distance filter, high accuracy.
-    // User inside vehicle → user's position IS the vehicle position.
+    _tts.setLanguage('de-DE');
+    _tts.setSpeechRate(0.55);
     _positionSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -1683,18 +1750,85 @@ class _TripMapViewState extends State<_TripMapView> {
     ).listen(
       (pos) {
         if (!mounted) return;
-        setState(() => _userPosition = LatLng(pos.latitude, pos.longitude));
-        if (_followUser && _userPosition != null) {
-          _mapController.move(_userPosition!, _mapController.camera.zoom);
+        final userLl = LatLng(pos.latitude, pos.longitude);
+        setState(() => _userPosition = userLl);
+        if (_followUser) {
+          _mapController.move(userLl, _mapController.camera.zoom);
         }
+        _handleProximity(userLl);
       },
       onError: (_) {},
     );
   }
 
+  /// GPS-driven side effects: Ausstieg-Alarm + TTS "Nächste Haltestelle".
+  ///
+  /// - **Target alarm** (one-shot per target): user's chosen Ausstieg-Ziel
+  ///   within 150 m → heavy haptic × 3 + speak "Aussteigen: X!" + snackbar.
+  /// - **TTS announcement**: for the *next* stop on the route (not the
+  ///   boarding stop), speak "Nächste Haltestelle: X" when within 200 m.
+  void _handleProximity(LatLng user) {
+    final targetId = widget.targetStopId;
+    if (targetId != null && !_targetAlarmFired) {
+      final target = widget.stops.firstWhere(
+        (s) => s.stopID == targetId,
+        orElse: () => TripStop(name: '', stopID: '', plannedTime: DateTime.now()),
+      );
+      if (target.lat != null && target.lon != null) {
+        final d = _distMeters(user, LatLng(target.lat!, target.lon!));
+        if (d < 150) {
+          _targetAlarmFired = true;
+          HapticFeedback.heavyImpact();
+          Future.delayed(const Duration(milliseconds: 250), HapticFeedback.heavyImpact);
+          Future.delayed(const Duration(milliseconds: 500), HapticFeedback.heavyImpact);
+          if (_ttsEnabled) _tts.speak('Aussteigen: ${target.name}!');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              backgroundColor: Colors.red.shade700,
+              duration: const Duration(seconds: 6),
+              content: Row(children: [
+                const Icon(Icons.notifications_active, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Aussteigen: ${target.name}!',
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ]),
+            ));
+          }
+        }
+      }
+    }
+
+    if (_ttsEnabled) {
+      for (final s in widget.stops) {
+        if (s.isCurrent) continue;
+        if (s.stopID == _lastAnnouncedStopId) continue;
+        if (s.lat == null || s.lon == null) continue;
+        final d = _distMeters(user, LatLng(s.lat!, s.lon!));
+        if (d < 200) {
+          _lastAnnouncedStopId = s.stopID;
+          _tts.speak('Nächste Haltestelle: ${s.name}');
+          break;
+        }
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _TripMapView old) {
+    super.didUpdateWidget(old);
+    if (old.targetStopId != widget.targetStopId) {
+      _targetAlarmFired = false;
+    }
+  }
+
   @override
   void dispose() {
     _positionSub?.cancel();
+    _tts.stop();
     super.dispose();
   }
 
@@ -1760,24 +1894,39 @@ class _TripMapViewState extends State<_TripMapView> {
                 if (s.lat != null && s.lon != null)
                   Marker(
                     point: LatLng(s.lat!, s.lon!),
-                    width: s.isCurrent ? 30 : 14,
-                    height: s.isCurrent ? 30 : 14,
-                    child: s.isCurrent
-                        ? Container(
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade600,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: [BoxShadow(color: Colors.green.withValues(alpha: 0.5), blurRadius: 8)],
-                            ),
-                          )
-                        : Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: widget.lineColor, width: 2.5),
-                            ),
-                          ),
+                    width: (s.isCurrent || s.stopID == widget.targetStopId) ? 32 : 22,
+                    height: (s.isCurrent || s.stopID == widget.targetStopId) ? 32 : 22,
+                    child: GestureDetector(
+                      onTap: s.isCurrent || widget.onSetTarget == null
+                          ? null
+                          : () => widget.onSetTarget?.call(s.stopID),
+                      child: s.isCurrent
+                          ? Container(
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade600,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: [BoxShadow(color: Colors.green.withValues(alpha: 0.5), blurRadius: 8)],
+                              ),
+                            )
+                          : s.stopID == widget.targetStopId
+                              ? Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade600,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 3),
+                                    boxShadow: [BoxShadow(color: Colors.red.withValues(alpha: 0.5), blurRadius: 8)],
+                                  ),
+                                  child: const Icon(Icons.notifications_active, size: 16, color: Colors.white),
+                                )
+                              : Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: widget.lineColor, width: 2.5),
+                                  ),
+                                ),
+                    ),
                   ),
             ]),
             if (_userPosition != null)
@@ -1851,10 +2000,99 @@ class _TripMapViewState extends State<_TripMapView> {
                 Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.green.shade600, shape: BoxShape.circle)),
                 const SizedBox(width: 4),
                 const Text('Einstieg', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                if (widget.targetStopId != null) ...[
+                  const SizedBox(width: 8),
+                  Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.red.shade600, shape: BoxShape.circle)),
+                  const SizedBox(width: 4),
+                  const Text('Ziel', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                ],
               ],
             ),
           ),
         ),
+        // Top-right — TTS toggle
+        Positioned(
+          right: 8, top: 8,
+          child: Material(
+            color: _ttsEnabled ? Colors.teal.shade600 : Colors.white.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(6),
+            elevation: 3,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () async {
+                setState(() {
+                  _ttsEnabled = !_ttsEnabled;
+                  if (!_ttsEnabled) _tts.stop();
+                });
+                if (_ttsEnabled) {
+                  await _tts.speak('Sprachansagen aktiviert');
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+                      size: 14,
+                      color: _ttsEnabled ? Colors.white : Colors.grey.shade700,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Ansagen',
+                      style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w600,
+                        color: _ttsEnabled ? Colors.white : Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Center-bottom — target status banner
+        if (widget.targetStopId != null)
+          Positioned(
+            left: 0, right: 0, bottom: 60,
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 60),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade700.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 6)],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.notifications_active, size: 14, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        () {
+                          final s = widget.stops.firstWhere(
+                            (x) => x.stopID == widget.targetStopId,
+                            orElse: () => TripStop(name: '?', stopID: '', plannedTime: DateTime.now()),
+                          );
+                          return 'Alarm bei: ${s.name}';
+                        }(),
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () => widget.onSetTarget?.call(null),
+                      child: const Icon(Icons.close, size: 14, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
