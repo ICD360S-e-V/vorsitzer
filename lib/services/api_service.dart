@@ -6498,6 +6498,27 @@ class ApiService {
     return null;
   }
 
+  /// Generiert die vorausgefüllte Anlage VM (Vermögensverhältnisse, BA033055).
+  /// Selbe Signatur wie [generateWbaPdf] — der antragId-Parameter wird
+  /// serverseitig aktuell ignoriert (Anlage VM ist Stammdaten-basiert), bleibt
+  /// aber vorhanden für zukünftige Erweiterungen (z.B. Antrag-spezifische
+  /// Vermögenslage-Snapshots).
+  Future<List<int>?> generateVmPdf({required int userId, int? antragId}) async {
+    try {
+      final qp = <String, String>{'user_id': userId.toString()};
+      if (antragId != null && antragId > 0) qp['antrag_id'] = antragId.toString();
+      final r = await _client.get(
+        Uri.parse('$baseUrl/admin/vm_pdf_generate.php').replace(queryParameters: qp),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 60));
+      if (r.statusCode == 200 && r.bodyBytes.length > 1000 &&
+          r.bodyBytes[0] == 0x25 && r.bodyBytes[1] == 0x50 && r.bodyBytes[2] == 0x44 && r.bodyBytes[3] == 0x46) {
+        return r.bodyBytes;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Scan the user's incoming Jobcenter-Korrespondenz for keywords like
   /// "Rentenauskunft" so the Brief-Generator tab can pre-propose templates.
   /// Returns the parsed JSON (success + matches[]).

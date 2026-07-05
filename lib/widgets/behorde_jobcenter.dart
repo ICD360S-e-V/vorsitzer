@@ -501,7 +501,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
     // WBA (Weiterbewilligung) has a 9-tab layout with a dedicated Generator WBA tab
     // right after Details. All other Antrag types keep the full 8-tab layout
     // (Bewilligungsbescheid, EGV, Sanktionen, Begutachtung, Anhörung).
-    _tabC = TabController(length: _isBetriebskosten ? 5 : (_isWba ? 9 : 8), vsync: this);
+    _tabC = TabController(length: _isBetriebskosten ? 5 : (_isWba ? 10 : 8), vsync: this);
   }
 
   @override
@@ -525,6 +525,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
             ? const [
                 Tab(text: 'Details'),
                 Tab(text: 'Generator WBA', icon: Icon(Icons.picture_as_pdf, size: 16)),
+                Tab(text: 'Generator VM', icon: Icon(Icons.account_balance_wallet, size: 16)),
                 Tab(text: 'Korrespondenz'),
                 Tab(text: 'Terminen'),
                 Tab(text: 'Bewilligungsbescheid'),
@@ -555,6 +556,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
             ? [
                 _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
                 _WbaGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
+                _VmGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
                 _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
                 _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
                 _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -6168,6 +6170,114 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
       _loadKorr();
     }
     datumC.dispose(); betreffC.dispose(); notizC.dispose();
+  }
+}
+
+// ══════════════════ Anlage VM (Vermögen) PDF-Generator Tab ══════════════════
+// Erscheint neben dem WBA-Generator und befüllt die Anlage VM (BA033055)
+// mit Stammdaten aus Stufe 1, BG-Nummer sowie — falls vorhanden — dem in
+// user_finanzen_bank hinterlegten Bankkonto (IBAN + Kontoart). Alle
+// weiteren Vermögensfelder (Kfz, Bargeld, Wertpapiere, Immobilien) müssen
+// händisch nachgetragen werden, weil das Vorsitzer-Portal dazu momentan
+// keine strukturierten Daten sammelt.
+class _VmGeneratorTab extends StatefulWidget {
+  final Map<String, dynamic> antrag;
+  final ApiService apiService;
+  final int userId;
+  const _VmGeneratorTab({required this.antrag, required this.apiService, required this.userId});
+  @override
+  State<_VmGeneratorTab> createState() => _VmGeneratorTabState();
+}
+
+class _VmGeneratorTabState extends State<_VmGeneratorTab> {
+  bool _busy = false;
+  String? _lastPath;
+  String? _lastError;
+
+  Future<void> _download() async {
+    setState(() { _busy = true; _lastError = null; });
+    try {
+      final antragId = int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+      final bytes = await widget.apiService.generateVmPdf(userId: widget.userId, antragId: antragId);
+      if (bytes == null) {
+        setState(() { _busy = false; _lastError = 'Server lieferte kein PDF zurück. Bitte Logs prüfen.'; });
+        return;
+      }
+      Directory? dir;
+      try { dir = await getDownloadsDirectory(); } catch (_) {}
+      dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
+      final filename = 'AnlageVM_${widget.userId}_$antragId.pdf';
+      final path = '${dir.path}${Platform.pathSeparator}$filename';
+      await File(path).writeAsBytes(bytes);
+      if (!mounted) return;
+      setState(() { _busy = false; _lastPath = path; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('PDF gespeichert: $path'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _busy = false; _lastError = 'Fehler: $e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.account_balance_wallet, color: Colors.teal.shade700),
+        const SizedBox(width: 8),
+        const Text('Anlage VM — Vermögensverhältnisse (BA033055)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+      ]),
+      const SizedBox(height: 10),
+      Text(
+        'Die offizielle Anlage VM der Arbeitsagentur wird mit den vorhandenen '
+        'Stammdaten vorbefüllt: Vorname, Nachname, Geburtsdatum (Stufe 1), '
+        'BG-Nummer (Jobcenter) sowie — falls hinterlegt — Kontoinhaber, '
+        'Kontoart und IBAN aus dem Bankkonto des Mitglieds. Kraftfahrzeuge, '
+        'Bargeld, Wertpapiere und Immobilien werden nicht vorbefüllt und '
+        'müssen bei Bedarf händisch ergänzt werden.',
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+      ),
+      const SizedBox(height: 16),
+      FilledButton.icon(
+        icon: _busy
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(Icons.download, size: 18),
+        label: Text(_busy ? 'Wird erstellt…' : 'PDF herunterladen'),
+        style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade700),
+        onPressed: _busy ? null : _download,
+      ),
+      if (_lastPath != null) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+          child: Row(children: [
+            Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_lastPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'), onPressed: () => OpenFilex.open(_lastPath!)),
+          ]),
+        ),
+      ],
+      if (_lastError != null) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade300)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_lastError!, style: TextStyle(fontSize: 11, color: Colors.red.shade800))),
+          ]),
+        ),
+      ],
+      const SizedBox(height: 16),
+      Text('Quelle: arbeitsagentur.de/datei/anlagevm_ba033055.pdf',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+    ]));
   }
 }
 
