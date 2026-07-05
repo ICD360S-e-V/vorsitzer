@@ -32,6 +32,7 @@ import '../widgets/legal_footer.dart';
 import '../widgets/admin_chat_dialog.dart';
 import '../widgets/chat_bubble_overlay.dart';
 import '../widgets/weather_widget.dart';
+import '../services/weather_auto_broadcast_service.dart';
 import '../widgets/sturmwarnung_broadcast_dialog.dart';
 import '../widgets/chat_bubble_popup.dart';
 import '../services/global_chat_service.dart';
@@ -673,13 +674,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         setState(() {
           _users = usersList.map((u) => User.fromJson(u)).toList();
         });
-        // Publish users + apiService to the global broadcast context so the
-        // weather-dialog's "Mitglieder warnen"-button can open the broadcast
-        // dialog without any prop drilling.
+        // Publish users + apiService to the global broadcast context (used
+        // by the read-only log viewer in the weather dialog).
         SturmwarnungBroadcastContext.instance
           ..apiService = _apiService
           ..users = _users
           ..adminMitgliedernummer = widget.currentMitgliedernummer;
+        // Kick off the fully-automated DWD → Chat broadcast loop. Sweeps
+        // every 30 min, sends at most once per (alert, user, day).
+        WeatherAutoBroadcastService.instance.start(
+          apiService: _apiService,
+          users: _users,
+          adminMitgliedernummer: widget.currentMitgliedernummer,
+        );
         // Refresh "Mein Vote" pending list in background — independent of
         // _users fetch.
         _refreshPendingMyVote();

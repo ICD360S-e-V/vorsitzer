@@ -1032,12 +1032,12 @@ class _WeatherDialogState extends State<WeatherDialog> {
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.red),
                 ),
                 const Spacer(),
-                // Vorsitzer-tool: open the targeted broadcast dialog. Lives
-                // right beside the DWD list so it's obvious "warn members"
-                // is meant per address, not spam-all.
+                // Read-only log of the auto-broadcast that already went out.
+                // The sending itself is fully automated by
+                // WeatherAutoBroadcastService (30-min sweeps + dedup).
                 TextButton.icon(
                   icon: const Icon(Icons.notifications_active, size: 16),
-                  label: const Text('Mitglieder warnen',
+                  label: const Text('Auto-Warnung Log',
                       style: TextStyle(fontSize: 11)),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.red.shade700,
