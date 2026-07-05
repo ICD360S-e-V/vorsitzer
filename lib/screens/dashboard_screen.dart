@@ -529,6 +529,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           _log.info('Dashboard: Location changed → $city ($lat, $lon)', tag: 'WEATHER');
           await _weatherService.updateLocation(city, lat: lat, lon: lon);
           await _newsService.start(lat: lat, lon: lon);
+          // GPS-city changed → recompute Störungen region filter.
+          _publishRegionTokens();
         };
 
         // Start transit first (it gets GPS) then share coordinates with weather
@@ -537,6 +539,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // Start disruption polling (15 min interval, badge on bus icon)
         _disruptionsService.start();
         _disruptionsService.addListener(_onDisruptionsChanged);
+        // First region-token publish now that GPS + provider are ready.
+        // (_users may still be loading — _loadUsers() calls again when ready.)
+        _publishRegionTokens();
 
         // Scan upcoming termine (next 24h) and surface a local notification
         // for any whose ÖPNV departure is within the next 3 hours and hasn't
@@ -594,6 +599,53 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     setState(() {});
   }
 
+  /// Publish the logged-in user's region tokens to TransitDisruptionsService.
+  /// Sources (union — the more, the better the match rate):
+  ///   1. Verifizierung Stufe 1 = user profile from Mitgliederverwaltung
+  ///      (User.ort / User.bundesland / User.plz first 2 digits as region hint).
+  ///   2. GPS-detected city (TransitService.gpsCity).
+  ///   3. Active transit provider display name (e.g. "DING", "VBB", "VRR").
+  ///
+  /// If none of these are resolved yet, the set stays empty and the service
+  /// falls back to nationwide display (fail-open — better false positives
+  /// than a silent zero when data is missing).
+  void _publishRegionTokens() {
+    final tokens = <String>{};
+    // (1) My own Stufe-1 profile.
+    User? me;
+    try {
+      me = _users.firstWhere(
+        (u) => u.mitgliedernummer == widget.currentMitgliedernummer,
+      );
+    } catch (_) {}
+    if (me != null) {
+      if (me.ort != null && me.ort!.trim().isNotEmpty) tokens.add(me.ort!.trim());
+      if (me.bundesland != null && me.bundesland!.trim().isNotEmpty) tokens.add(me.bundesland!.trim());
+      // If the city contains a hyphen ("Neu-Ulm" → also match "Ulm"),
+      // add each hyphen-split segment as its own token — many HIM messages
+      // only mention the base name.
+      final ort = me.ort?.trim() ?? '';
+      if (ort.contains('-')) {
+        for (final part in ort.split('-')) {
+          if (part.trim().length >= 3) tokens.add(part.trim());
+        }
+      }
+    }
+    // (2) GPS-detected city.
+    final gpsCity = _transitService.gpsCity;
+    if (gpsCity != null && gpsCity.isNotEmpty) tokens.add(gpsCity);
+    // (3) Active provider name.
+    final provider = _transitService.activeProvider;
+    if (provider != null) {
+      tokens.add(provider.name);
+      // Also add the human-readable "displayName" — often "Verkehrsverbund X"
+      // which the HIM feed likes to name-drop in text.
+      // Some configs have both; both are pushed.
+      tokens.add(provider.displayName);
+    }
+    _disruptionsService.setRegionTokens(tokens);
+  }
+
   void _showTransitDialog() {
     showDialog(
       context: context,
@@ -631,6 +683,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // Refresh "Mein Vote" pending list in background — independent of
         // _users fetch.
         _refreshPendingMyVote();
+        // Once we have _users + widget.currentMitgliedernummer, extract the
+        // logged-in user's Stufe-1-Adresse (city/bundesland) and publish it
+        // to TransitDisruptionsService so the badge only counts geographically
+        // relevant Störungen instead of all national ones.
+        _publishRegionTokens();
         // Kick off activity-indicator fetch in background. Do NOT await — the
         // user list should appear immediately; the green dots fill in when ready.
         _loadMemberActivity();
@@ -1243,7 +1300,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               IconButton(
                 icon: const Icon(Icons.directions_bus),
                 tooltip: _disruptionsService.count > 0
-                    ? 'ÖPNV Abfahrten — ${_disruptionsService.count} aktive Störung${_disruptionsService.count == 1 ? "" : "en"}'
+                    ? 'ÖPNV Abfahrten — ${_disruptionsService.count} '
+                        'Störung${_disruptionsService.count == 1 ? "" : "en"} in deiner Region'
                     : 'ÖPNV Abfahrten',
                 onPressed: _showTransitDialog,
               ),

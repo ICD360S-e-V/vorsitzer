@@ -1999,7 +1999,9 @@ class _DisruptionsBannerState extends State<_DisruptionsBanner> {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  '${_svc.count} aktive Störung${_svc.count == 1 ? "" : "en"} bundesweit',
+                  _svc.bypassRegionFilter
+                      ? '${_svc.count} Störung${_svc.count == 1 ? "" : "en"} bundesweit'
+                      : '${_svc.count} Störung${_svc.count == 1 ? "" : "en"} in deiner Region',
                   style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w600,
                     color: high ? Colors.red.shade400 : Colors.orange.shade600,
@@ -2015,13 +2017,40 @@ class _DisruptionsBannerState extends State<_DisruptionsBanner> {
   }
 }
 
-class _DisruptionsListDialog extends StatelessWidget {
+class _DisruptionsListDialog extends StatefulWidget {
   const _DisruptionsListDialog();
+
+  @override
+  State<_DisruptionsListDialog> createState() => _DisruptionsListDialogState();
+}
+
+class _DisruptionsListDialogState extends State<_DisruptionsListDialog> {
+  final _svc = TransitDisruptionsService();
+
+  @override
+  void initState() {
+    super.initState();
+    _svc.addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    _svc.removeListener(_rebuild);
+    super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
-    final svc = TransitDisruptionsService();
+    final bypass = _svc.bypassRegionFilter;
+    final filteredCount = _svc.count;
+    final allCount = _svc.allCount;
+    final regionalHidden = !bypass && allCount > filteredCount;
+
     return Dialog(
       backgroundColor: p.bg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2040,18 +2069,31 @@ class _DisruptionsListDialog extends StatelessWidget {
                   Icon(Icons.warning_amber_rounded, size: 20, color: Colors.orange.shade600),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      'Aktive Störungen (${svc.count})',
-                      style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.bold,
-                        color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          bypass
+                              ? 'Störungen bundesweit ($allCount)'
+                              : 'Störungen in deiner Region ($filteredCount)',
+                          style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold,
+                            color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                          ),
+                        ),
+                        if (regionalHidden)
+                          Text(
+                            '${allCount - filteredCount} weitere bundesweit',
+                            style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
+                          ),
+                      ],
                     ),
                   ),
                   IconButton(
                     icon: Icon(Icons.refresh, size: 18, color: p.onSurface),
                     tooltip: 'Neu laden',
-                    onPressed: () => svc.fetch(force: true),
+                    onPressed: () => _svc.fetch(force: true),
                   ),
                   IconButton(
                     icon: Icon(Icons.close, size: 18, color: p.onSurface),
@@ -2061,21 +2103,65 @@ class _DisruptionsListDialog extends StatelessWidget {
                 ],
               ),
             ),
+            // Region filter toggle
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: p.surface,
+                border: Border(bottom: BorderSide(color: p.divider)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    bypass ? Icons.public : Icons.location_on,
+                    size: 14,
+                    color: p.onSurfaceDim,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      bypass
+                          ? 'Zeige alle bundesweiten Störungen'
+                          : 'Nur regional relevante Störungen',
+                      style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+                    ),
+                  ),
+                  Semantics(
+                    button: true,
+                    label: bypass
+                        ? 'Zurück zum Regionalfilter'
+                        : 'Auch bundesweite Störungen anzeigen',
+                    child: Switch(
+                      value: bypass,
+                      onChanged: (v) => _svc.bypassRegionFilter = v,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Expanded(
-              child: svc.disruptions.isEmpty
+              child: _svc.disruptions.isEmpty
                   ? Center(
-                      child: Text(
-                        'Keine aktiven Störungen',
-                        style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle_outline, size: 40, color: Colors.green.shade400),
+                          const SizedBox(height: 8),
+                          Text(
+                            bypass ? 'Keine aktiven Störungen' : 'Keine Störungen in deiner Region',
+                            style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.separated(
-                      itemCount: svc.disruptions.length,
+                      itemCount: _svc.disruptions.length,
                       separatorBuilder: (_, __) => Divider(height: 1, color: p.divider),
-                      itemBuilder: (_, i) => _DisruptionRow(d: svc.disruptions[i]),
+                      itemBuilder: (_, i) => _DisruptionRow(d: _svc.disruptions[i]),
                     ),
             ),
-            if (svc.lastFetch != null)
+            if (_svc.lastFetch != null)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
@@ -2083,7 +2169,7 @@ class _DisruptionsListDialog extends StatelessWidget {
                   borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
                 ),
                 child: Text(
-                  'Aktualisiert ${svc.lastFetch!.hour}:${svc.lastFetch!.minute.toString().padLeft(2, '0')} • bahn.de HIM',
+                  'Aktualisiert ${_svc.lastFetch!.hour}:${_svc.lastFetch!.minute.toString().padLeft(2, '0')} • bahn.de HIM',
                   style: TextStyle(fontSize: 9, color: p.onSurfaceFaint),
                 ),
               ),

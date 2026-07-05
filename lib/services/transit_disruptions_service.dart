@@ -51,10 +51,64 @@ class TransitDisruptionsService extends ChangeNotifier {
   DateTime? _lastFetch;
   Timer? _timer;
 
-  List<TransitDisruption> get disruptions => List.unmodifiable(_disruptions);
-  int get count => _disruptions.length;
-  int get highPriorityCount => _disruptions.where((d) => d.isHigh).length;
+  /// When non-empty, only disruptions whose headline+text+affected mention
+  /// one of these tokens (lowercased substring match) are counted / shown.
+  /// Tokens come from user's Stufe-1-Adresse (city, bundesland), current GPS
+  /// city, and active transit provider name.
+  ///
+  /// Empty set → national mode: everything is shown (fallback while profile
+  /// still loading).
+  final Set<String> _regionTokens = {};
+
+  /// When true, the region filter is bypassed and every active nationwide
+  /// disruption is surfaced. Persisted separately by UI code.
+  bool _bypassRegionFilter = false;
+  bool get bypassRegionFilter => _bypassRegionFilter;
+  set bypassRegionFilter(bool v) {
+    if (v == _bypassRegionFilter) return;
+    _bypassRegionFilter = v;
+    notifyListeners();
+  }
+
+  /// Replace the region-token set. Called by dashboard once user profile
+  /// (Verifizierung Stufe 1 = strasse/plz/ort/bundesland from user_details.php)
+  /// AND GPS reverse-geocode are both resolved.
+  void setRegionTokens(Iterable<String> tokens) {
+    final normalized = tokens
+        .map((t) => t.trim().toLowerCase())
+        .where((t) => t.length >= 3)
+        .toSet();
+    if (setEquals(normalized, _regionTokens)) return;
+    _regionTokens
+      ..clear()
+      ..addAll(normalized);
+    _log.info('Disruptions: region tokens set to ${_regionTokens.join(", ")}', tag: 'DISRUPT');
+    notifyListeners();
+  }
+
+  /// Full nationwide list (unfiltered) — used by "Auch bundesweit anzeigen".
+  List<TransitDisruption> get allDisruptions => List.unmodifiable(_disruptions);
+  int get allCount => _disruptions.length;
+
+  /// Filtered, ranked list (region-relevant first if filter active).
+  List<TransitDisruption> get disruptions {
+    if (_bypassRegionFilter || _regionTokens.isEmpty) {
+      return List.unmodifiable(_disruptions);
+    }
+    return List.unmodifiable(_disruptions.where(_matchesRegion));
+  }
+
+  int get count => disruptions.length;
+  int get highPriorityCount => disruptions.where((d) => d.isHigh).length;
   DateTime? get lastFetch => _lastFetch;
+
+  bool _matchesRegion(TransitDisruption d) {
+    final hay = '${d.headline} ${d.text ?? ""} ${d.affected ?? ""}'.toLowerCase();
+    for (final t in _regionTokens) {
+      if (hay.contains(t)) return true;
+    }
+    return false;
+  }
 
   /// Kick off periodic fetching. Idempotent — safe to call from dashboard init.
   void start() {
