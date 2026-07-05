@@ -123,7 +123,7 @@ class _SturmwarnungBroadcastDialogState
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '${log.length} Einträge im Log · Sweep alle 30 Min',
+                      '${log.length} Einträge im Log · Sweep alle 6 Std',
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
                       textAlign: TextAlign.end,
                     ),

@@ -44,7 +44,9 @@ class AutoBroadcastLogEntry {
 ///   • Nur Severity moderate/severe/extreme werden verschickt; leichte
 ///     Warnungen bleiben stumm damit niemand alle drei Wochen mit einer
 ///     Nebel-Meldung geweckt wird
-///   • Timer läuft alle 30 Min; zusätzlich manuelles refreshNow() für den
+///   • Timer läuft alle 6 Stunden — DWD-Warnungen ändern sich selten schneller
+///     als das, und häufigere Sweeps würden nur unnötig Handy-Akku und
+///     API-Kontingent kosten. Zusätzlich manuelles refreshNow() für den
 ///     Vorsitzer, falls er sofort einen Sweep triggern will
 class WeatherAutoBroadcastService {
   WeatherAutoBroadcastService._();
@@ -76,7 +78,7 @@ class WeatherAutoBroadcastService {
     _users = users;
     _adminMitgliedernummer = adminMitgliedernummer;
     if (_timer != null) return; // already running
-    _timer = Timer.periodic(const Duration(minutes: 30), (_) => _sweep());
+    _timer = Timer.periodic(const Duration(hours: 6), (_) => _sweep());
     // First sweep 30 seconds after start so we don't hammer the API in the
     // exact same second as everything else the dashboard is loading.
     Timer(const Duration(seconds: 30), _sweep);
