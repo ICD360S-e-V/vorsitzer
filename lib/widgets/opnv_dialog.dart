@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/transit_service.dart';
 import '../services/transit_favorites_service.dart';
 
@@ -2065,6 +2066,56 @@ class _TripMapViewState extends State<_TripMapView> {
     super.dispose();
   }
 
+  /// Deep-link to Google/Apple Maps walking navigation from user's current
+  /// position to the Ausstiegs-Ziel. Used after the alarm fires so the last
+  /// 300-800 m are covered by pedestrian nav.
+  ///
+  /// Fallback chain:
+  ///   1) Native Maps app if installed (geo: / maps: URI).
+  ///   2) Browser to google.com/maps if no app.
+  ///   3) SnackBar if all fail.
+  Future<void> _openWalkingNav() async {
+    final targetId = widget.targetStopId;
+    if (targetId == null) return;
+    final target = widget.stops.firstWhere(
+      (s) => s.stopID == targetId,
+      orElse: () => TripStop(name: '', stopID: '', plannedTime: DateTime.now()),
+    );
+    if (target.lat == null || target.lon == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Keine Koordinaten für das Ziel bekannt')),
+        );
+      }
+      return;
+    }
+    final lat = target.lat!;
+    final lon = target.lon!;
+
+    // Try platform-native URI first (opens Maps app directly).
+    // - Android: google.navigation with mode=w for walking
+    // - iOS: maps.apple.com with dirflg=w
+    // - Web fallback: universal https URL that works everywhere.
+    final candidates = [
+      Uri.parse('google.navigation:q=$lat,$lon&mode=w'),
+      Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lon&travelmode=walking'),
+      Uri.parse('https://maps.apple.com/?daddr=$lat,$lon&dirflg=w'),
+    ];
+    for (final uri in candidates) {
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Konnte keine Karten-App öffnen')),
+      );
+    }
+  }
+
   LatLngBounds? _computeBounds() {
     final all = <LatLng>[];
     for (final p in widget.path) {
@@ -2285,13 +2336,13 @@ class _TripMapViewState extends State<_TripMapView> {
             ),
           ),
         ),
-        // Center-bottom — target status banner
+        // Center-bottom — target status banner + walking-nav button
         if (widget.targetStopId != null)
           Positioned(
             left: 0, right: 0, bottom: 60,
             child: Center(
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 60),
+                margin: const EdgeInsets.symmetric(horizontal: 40),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.red.shade700.withValues(alpha: 0.92),
@@ -2317,9 +2368,30 @@ class _TripMapViewState extends State<_TripMapView> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    InkWell(
-                      onTap: () => widget.onSetTarget?.call(null),
-                      child: const Icon(Icons.close, size: 14, color: Colors.white),
+                    // Walking-nav deep-link → Google/Apple Maps for the last few
+                    // hundred meters after Ausstieg.
+                    Semantics(
+                      button: true,
+                      label: 'Zu Fuß mit Google Maps zum Ziel navigieren',
+                      child: InkWell(
+                        onTap: _openWalkingNav,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                          child: Icon(Icons.directions_walk, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Semantics(
+                      button: true,
+                      label: 'Ausstiegs-Ziel entfernen',
+                      child: InkWell(
+                        onTap: () => widget.onSetTarget?.call(null),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                          child: Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
                     ),
                   ],
                 ),
