@@ -8,6 +8,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user.dart';
+import '../services/api_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_favorites_service.dart';
 
@@ -23,6 +25,10 @@ class OpnvDialog extends StatefulWidget {
   final TransitLocation? initialFrom;
   final TransitLocation? initialTo;
   final DateTime? initialArrivalTime;
+  /// Own Mitgliedernummer — used as sender when Route-an-Mitglied posts to chat.
+  final String? currentMitgliedernummer;
+  /// Active member roster — used by the "Route senden" picker.
+  final List<User>? users;
 
   const OpnvDialog({
     super.key,
@@ -32,6 +38,8 @@ class OpnvDialog extends StatefulWidget {
     this.initialFrom,
     this.initialTo,
     this.initialArrivalTime,
+    this.currentMitgliedernummer,
+    this.users,
   });
 
   @override
@@ -96,6 +104,8 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
                     initialFrom: widget.initialFrom,
                     initialTo: widget.initialTo,
                     initialArrivalTime: widget.initialArrivalTime,
+                    currentMitgliedernummer: widget.currentMitgliedernummer,
+                    users: widget.users,
                   ),
                 ],
               ),
@@ -1431,11 +1441,15 @@ class _VerbindungTab extends StatefulWidget {
   final TransitLocation? initialFrom;
   final TransitLocation? initialTo;
   final DateTime? initialArrivalTime;
+  final String? currentMitgliedernummer;
+  final List<User>? users;
   const _VerbindungTab({
     required this.transitService,
     this.initialFrom,
     this.initialTo,
     this.initialArrivalTime,
+    this.currentMitgliedernummer,
+    this.users,
   });
 
   @override
@@ -1544,6 +1558,77 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         _error = 'Fehler: $e';
       });
     }
+  }
+
+  /// Formats one Journey as a plain-text chat message and posts it to the
+  /// chosen member's DM conversation. Uses the same admin_start endpoint
+  /// as admin_chat_dialog so a new conversation is created if needed.
+  Future<void> _sendRoute(Journey journey) async {
+    final me = widget.currentMitgliedernummer;
+    final users = widget.users;
+    if (me == null || users == null || users.isEmpty) return;
+
+    final target = await showDialog<User>(
+      context: context,
+      builder: (ctx) => _MemberPickerDialog(users: users, currentMitgliedernummer: me),
+    );
+    if (target == null || !mounted) return;
+
+    final text = _formatJourneyForChat(journey);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+          const SizedBox(width: 12),
+          Text('Sende Route an ${target.name}…'),
+        ]),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final api = ApiService();
+      final conv = await api.adminStartChat(me, target.mitgliedernummer);
+      if (conv['success'] != true) {
+        throw Exception(conv['message'] ?? 'Konversation konnte nicht gestartet werden');
+      }
+      final convId = conv['conversation_id'] as int?;
+      if (convId == null) throw Exception('Keine conversation_id erhalten');
+
+      final res = await api.sendChatMessage(convId, me, text, skipTranslation: true);
+      if (!mounted) return;
+      if (res['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Route an ${target.name} gesendet'),
+          backgroundColor: Colors.green.shade600,
+        ));
+      } else {
+        throw Exception(res['message'] ?? 'send failed');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Fehler: $e'),
+        backgroundColor: Colors.red.shade600,
+      ));
+    }
+  }
+
+  static String _formatJourneyForChat(Journey j) {
+    String hhmm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
+    final buf = StringBuffer();
+    buf.writeln('🚌 ÖPNV-Verbindung');
+    buf.writeln('${j.legs.first.fromName} → ${j.legs.last.toName}');
+    buf.writeln('${hhmm(j.depTime)} → ${hhmm(j.arrTime)}  (${j.duration.inMinutes} Min.)');
+    for (final leg in j.legs) {
+      if (leg.isWalk) {
+        buf.writeln('  🚶 ${leg.arrTime.difference(leg.depTime).inMinutes} Min. Fußweg');
+      } else {
+        buf.writeln('  ${leg.line}: ${leg.fromName} ${hhmm(leg.depTime)} → ${leg.toName} ${hhmm(leg.arrTime)}');
+      }
+    }
+    return buf.toString();
   }
 
   Future<void> _pickTime() async {
@@ -1681,7 +1766,12 @@ class _VerbindungTabState extends State<_VerbindungTab> {
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   itemCount: _results!.length,
-                  itemBuilder: (_, i) => _JourneyCard(journey: _results![i]),
+                  itemBuilder: (_, i) => _JourneyCard(
+                    journey: _results![i],
+                    onSend: (widget.currentMitgliedernummer != null && widget.users != null && widget.users!.isNotEmpty)
+                        ? () => _sendRoute(_results![i])
+                        : null,
+                  ),
                 ),
         ),
       ],
@@ -1847,9 +1937,130 @@ class _LocationField extends StatelessWidget {
   }
 }
 
+/// Modal that lists all active members with a search box; returns the picked
+/// User to the caller. Used by "Route an Mitglied schicken".
+class _MemberPickerDialog extends StatefulWidget {
+  final List<User> users;
+  final String currentMitgliedernummer;
+  const _MemberPickerDialog({required this.users, required this.currentMitgliedernummer});
+
+  @override
+  State<_MemberPickerDialog> createState() => _MemberPickerDialogState();
+}
+
+class _MemberPickerDialogState extends State<_MemberPickerDialog> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final query = _q.trim().toLowerCase();
+    // Never send to yourself; hide deactivated accounts.
+    final filtered = widget.users
+        .where((u) => u.mitgliedernummer != widget.currentMitgliedernummer)
+        .where((u) => u.status.toLowerCase() != 'deaktiviert' && u.status.toLowerCase() != 'inaktiv')
+        .where((u) => query.isEmpty ||
+            u.name.toLowerCase().contains(query) ||
+            u.mitgliedernummer.toLowerCase().contains(query))
+        .toList();
+    filtered.sort((a, b) => a.name.compareTo(b.name));
+
+    return Dialog(
+      backgroundColor: p.bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SizedBox(
+        width: 420,
+        height: 520,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
+              decoration: BoxDecoration(
+                color: p.accentTint,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.send, size: 20, color: Colors.teal.shade400),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Route an Mitglied senden',
+                      style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold,
+                        color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 18, color: p.onSurface),
+                    tooltip: 'Abbrechen',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: TextField(
+                autofocus: true,
+                onChanged: (v) => setState(() => _q = v),
+                decoration: InputDecoration(
+                  prefixIcon: Icon(Icons.search, size: 18, color: p.onSurfaceDim),
+                  hintText: 'Name oder V-Nummer suchen',
+                  hintStyle: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
+                style: TextStyle(color: p.onSurface, fontSize: 13),
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Keine Mitglieder gefunden',
+                        style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: p.divider),
+                      itemBuilder: (_, i) {
+                        final u = filtered[i];
+                        return Semantics(
+                          button: true,
+                          label: 'An ${u.name}, ${u.mitgliedernummer} senden',
+                          child: ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Colors.teal.shade400,
+                              child: Text(
+                                u.name.isNotEmpty ? u.name.substring(0, 1).toUpperCase() : '?',
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            title: Text(u.name, style: TextStyle(color: p.onSurface, fontSize: 13)),
+                            subtitle: Text(u.mitgliedernummer, style: TextStyle(color: p.onSurfaceDim, fontSize: 11)),
+                            trailing: Icon(Icons.chevron_right, size: 18, color: p.onSurfaceFaint),
+                            onTap: () => Navigator.of(context).pop(u),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _JourneyCard extends StatelessWidget {
   final Journey journey;
-  const _JourneyCard({required this.journey});
+  final VoidCallback? onSend;
+  const _JourneyCard({required this.journey, this.onSend});
 
   String _hhmm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
 
@@ -1926,10 +2137,43 @@ class _JourneyCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              '${journey.legs.first.fromName} → ${journey.legs.last.toName}',
-              style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
-              overflow: TextOverflow.ellipsis,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${journey.legs.first.fromName} → ${journey.legs.last.toName}',
+                    style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (onSend != null)
+                  Semantics(
+                    button: true,
+                    label: 'Diese Verbindung an ein Mitglied senden',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: onSend,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.send, size: 12, color: Colors.teal.shade400),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Senden',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: p.dark ? Colors.teal.shade100 : Colors.teal.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),

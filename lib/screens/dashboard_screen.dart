@@ -578,6 +578,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         transitService: _transitService,
         initialDepartures: _departures,
         city: _weatherData?.city ?? '',
+        currentMitgliedernummer: widget.currentMitgliedernummer,
+        users: _users,
       ),
     );
   }
