@@ -15,6 +15,7 @@ import '../services/notification_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_favorites_service.dart';
+import '../services/weather_service.dart';
 
 /// ÖPNV dialog — two tabs:
 ///   1. Echtzeit — live departures grouped by nearest stops (GPS auto-refresh 60s)
@@ -2658,6 +2659,45 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
   }
 }
 
+/// One transfer/depart/arrive moment with an "adverse" weather forecast.
+/// Attached to the Journey card as a warning line. "Adverse" = rain, snow,
+/// thunderstorm or dense fog per WMO code. Sunny/cloudy = no warning.
+class _WeatherAlert {
+  final String stopName;
+  final DateTime time;
+  final String emoji;
+  final String label;
+  const _WeatherAlert(this.stopName, this.time, this.emoji, this.label);
+
+  static bool _isAdverse(String emoji) {
+    // Match against the icons emitted by WeatherCode.icon().
+    return emoji == '🌧️' || emoji == '🌨️' || emoji == '⛈️' || emoji == '🌫️';
+  }
+
+  static List<_WeatherAlert> forJourney(Journey j) {
+    final ws = WeatherService.instance;
+    final alerts = <_WeatherAlert>[];
+    void tryAdd(String name, DateTime time) {
+      final hint = ws.weatherHintAt(time);
+      if (hint == null) return;
+      if (!_isAdverse(hint.emoji)) return;
+      // Skip if already have alert for the same time — one weather line per moment.
+      if (alerts.any((a) => a.time == time)) return;
+      alerts.add(_WeatherAlert(name, time, hint.emoji, hint.label));
+    }
+    // Warn for departure, every Umstieg, and arrival.
+    if (j.legs.isNotEmpty) {
+      tryAdd('Abfahrt ${j.legs.first.fromName}', j.depTime);
+      for (int i = 0; i < j.legs.length - 1; i++) {
+        final at = j.legs[i].arrTime;
+        tryAdd('Umstieg ${j.legs[i].toName}', at);
+      }
+      tryAdd('Ankunft ${j.legs.last.toName}', j.arrTime);
+    }
+    return alerts;
+  }
+}
+
 /// Small icon + tooltip that surfaces the DB FaSta elevator status for a
 /// journey. Null status renders nothing (result not in yet).
 ///
@@ -2787,6 +2827,23 @@ class _JourneyCard extends StatelessWidget {
                     'Aufzug defekt: ${accessibility!.brokenAt.take(2).join(", ")}'
                         '${accessibility!.brokenAt.length > 2 ? " +${accessibility!.brokenAt.length - 2}" : ""}',
                     style: TextStyle(fontSize: 10.5, color: Colors.red.shade400, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ]),
+            ],
+            // Weather warning lines — one per adverse-weather moment on the
+            // route (depart/umstieg/arrive). Uses the existing dashboard
+            // WeatherService.hourlyForecast — zero extra network calls.
+            for (final w in _WeatherAlert.forJourney(journey)) ...[
+              const SizedBox(height: 3),
+              Row(children: [
+                Text(w.emoji, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    '${w.label} bei ${w.stopName} (${w.time.hour.toString().padLeft(2, "0")}:${w.time.minute.toString().padLeft(2, "0")})',
+                    style: TextStyle(fontSize: 10.5, color: Colors.blue.shade400, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
