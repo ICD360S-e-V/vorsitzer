@@ -15,6 +15,7 @@ import '../services/notification_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_favorites_service.dart';
+import '../services/transit_translations.dart';
 import '../services/weather_service.dart';
 
 /// ÖPNV dialog — two tabs:
@@ -33,6 +34,11 @@ class OpnvDialog extends StatefulWidget {
   final String? currentMitgliedernummer;
   /// Active member roster — used by the "Route senden" picker.
   final List<User>? users;
+  /// Logged-in user's Muttersprache from Verifizierung Stufe 1. When set to
+  /// a non-German language, the TripMap TTS speaks announcements in BOTH
+  /// German and this language after a short delay ("Nächste Haltestelle: X"
+  /// then "Următoarea stație: X").
+  final String? userMuttersprache;
 
   const OpnvDialog({
     super.key,
@@ -44,6 +50,7 @@ class OpnvDialog extends StatefulWidget {
     this.initialArrivalTime,
     this.currentMitgliedernummer,
     this.users,
+    this.userMuttersprache,
   });
 
   @override
@@ -102,6 +109,7 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
                     transitService: widget.transitService,
                     initialDepartures: widget.initialDepartures,
                     city: widget.city,
+                    userMuttersprache: widget.userMuttersprache,
                   ),
                   _VerbindungTab(
                     transitService: widget.transitService,
@@ -211,11 +219,13 @@ class _EchtzeitTab extends StatefulWidget {
   final TransitService transitService;
   final List<Departure> initialDepartures;
   final String city;
+  final String? userMuttersprache;
 
   const _EchtzeitTab({
     required this.transitService,
     required this.initialDepartures,
     required this.city,
+    this.userMuttersprache,
   });
 
   @override
@@ -434,6 +444,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                             stop: stop,
                             departures: grouped[stop.name] ?? [],
                             transitService: widget.transitService,
+                            userMuttersprache: widget.userMuttersprache,
                           ),
                       ],
                     ),
@@ -551,7 +562,13 @@ class _StopSection extends StatelessWidget {
   final TransitStop stop;
   final List<Departure> departures;
   final TransitService transitService;
-  const _StopSection({required this.stop, required this.departures, required this.transitService});
+  final String? userMuttersprache;
+  const _StopSection({
+    required this.stop,
+    required this.departures,
+    required this.transitService,
+    this.userMuttersprache,
+  });
 
   String get _distStr {
     if (stop.distance >= 1000) return '${(stop.distance / 1000).toStringAsFixed(1)} km';
@@ -644,7 +661,10 @@ class _StopSection extends StatelessWidget {
               child: Text('Keine Abfahrten in Kürze', style: TextStyle(fontSize: 12, color: p.onSurfaceFaint)),
             )
           else
-            ...departures.take(6).map((d) => _DepartureRow(dep: d, transitService: transitService)),
+            ...departures.take(6).map((d) => _DepartureRow(
+                dep: d, transitService: transitService,
+                userMuttersprache: userMuttersprache,
+            )),
         ],
       ),
     ));
@@ -859,7 +879,12 @@ class _FacilityRow extends StatelessWidget {
 class _DepartureRow extends StatelessWidget {
   final Departure dep;
   final TransitService transitService;
-  const _DepartureRow({required this.dep, required this.transitService});
+  final String? userMuttersprache;
+  const _DepartureRow({
+    required this.dep,
+    required this.transitService,
+    this.userMuttersprache,
+  });
 
   Color _lineColor() {
     switch (dep.productType) {
@@ -909,7 +934,11 @@ class _DepartureRow extends StatelessWidget {
       onTap: canOpenSequence
           ? () => showDialog(
                 context: context,
-                builder: (_) => _TripSequenceDialog(dep: dep, transitService: transitService),
+                builder: (_) => _TripSequenceDialog(
+                  dep: dep,
+                  transitService: transitService,
+                  userMuttersprache: userMuttersprache,
+                ),
               )
           : null,
       child: Container(
@@ -1017,7 +1046,12 @@ class _DepartureRow extends StatelessWidget {
 class _TripSequenceDialog extends StatefulWidget {
   final Departure dep;
   final TransitService transitService;
-  const _TripSequenceDialog({required this.dep, required this.transitService});
+  final String? userMuttersprache;
+  const _TripSequenceDialog({
+    required this.dep,
+    required this.transitService,
+    this.userMuttersprache,
+  });
 
   @override
   State<_TripSequenceDialog> createState() => _TripSequenceDialogState();
@@ -1289,6 +1323,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                               targetStopId: _targetStopId,
                               onSetTarget: _setTarget,
                               transitService: widget.transitService,
+                              userMuttersprache: widget.userMuttersprache,
                             ),
                           ],
                         ),
@@ -3055,6 +3090,9 @@ class _TripMapView extends StatefulWidget {
   final String? targetStopId;
   final ValueChanged<String?>? onSetTarget;
   final TransitService transitService;
+  /// User's Muttersprache from Verifizierung Stufe 1 — when set to a
+  /// non-German language TTS speaks bilingual announcements.
+  final String? userMuttersprache;
 
   const _TripMapView({
     required this.stops,
@@ -3063,6 +3101,7 @@ class _TripMapView extends StatefulWidget {
     required this.transitService,
     this.targetStopId,
     this.onSetTarget,
+    this.userMuttersprache,
   });
 
   @override
@@ -3076,8 +3115,26 @@ class _TripMapViewState extends State<_TripMapView> {
   bool _followUser = true;
   bool _ttsEnabled = false;
   final FlutterTts _tts = FlutterTts();
+  /// Second TTS instance in the user's Muttersprache (RO/UK/TR/EN/…).
+  /// Only allocated if the language is supported and non-German. The
+  /// German TTS speaks first; this one follows after a short delay.
+  FlutterTts? _ttsMuttersprache;
+  /// Normalized language code (e.g. 'ro' from 'Rumänisch').
+  String? _muttersprache;
   String? _lastAnnouncedStopId;
   bool _targetAlarmFired = false;
+
+  /// Speak the given text in the user's Muttersprache TTS after a short
+  /// delay so the German announcement isn't cut off. No-op if the second
+  /// TTS wasn't allocated (user language is German or unsupported).
+  void _speakMuttersprache(String text) {
+    final tts = _ttsMuttersprache;
+    if (tts == null) return;
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (!mounted) return;
+      tts.speak(text);
+    });
+  }
 
   /// Haversine distance in metres between two points.
   double _distMeters(LatLng a, LatLng b) {
@@ -3096,6 +3153,16 @@ class _TripMapViewState extends State<_TripMapView> {
     super.initState();
     _tts.setLanguage('de-DE');
     _tts.setSpeechRate(0.55);
+    // Muttersprache TTS — only if user Verifizierung Stufe 1 has a supported
+    // non-German language recorded. Announcements will be bilingual.
+    final lang = TransitTranslations.normalize(widget.userMuttersprache);
+    if (lang != null && lang != 'de') {
+      _muttersprache = lang;
+      final tts = FlutterTts();
+      tts.setLanguage(TransitTranslations.bcpForLangCode(lang));
+      tts.setSpeechRate(0.55);
+      _ttsMuttersprache = tts;
+    }
     // Pause the coarse (100m) dashboard stream while we run a fine (5m) one.
     // Running both = ~2× battery drain and duplicate FusedLocation callbacks.
     widget.transitService.pauseCoarseTracking();
@@ -3160,7 +3227,10 @@ class _TripMapViewState extends State<_TripMapView> {
           HapticFeedback.heavyImpact();
           Future.delayed(const Duration(milliseconds: 250), HapticFeedback.heavyImpact);
           Future.delayed(const Duration(milliseconds: 500), HapticFeedback.heavyImpact);
-          if (_ttsEnabled) _tts.speak('Aussteigen: ${target.name}!');
+          if (_ttsEnabled) {
+            _tts.speak('Aussteigen: ${target.name}!');
+            _speakMuttersprache(TransitTranslations.getOff(_muttersprache ?? '', target.name));
+          }
           // Fire a heads-up local notification — critical for the background
           // case where the user has pocketed the phone. The GPS stream
           // continues via foreground service on Android, so this callback
@@ -3206,6 +3276,7 @@ class _TripMapViewState extends State<_TripMapView> {
         if (d < 200) {
           _lastAnnouncedStopId = s.stopID;
           _tts.speak('Nächste Haltestelle: ${s.name}');
+          _speakMuttersprache(TransitTranslations.nextStop(_muttersprache ?? '', s.name));
           break;
         }
       }
@@ -3228,6 +3299,7 @@ class _TripMapViewState extends State<_TripMapView> {
     _positionSub?.cancel();
     widget.transitService.resumeCoarseTracking();
     _tts.stop();
+    _ttsMuttersprache?.stop();
     super.dispose();
   }
 

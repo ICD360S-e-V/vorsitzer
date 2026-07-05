@@ -648,6 +648,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   void _showTransitDialog() {
+    // Look up the logged-in user's muttersprache from the roster so TripMap
+    // TTS can announce in both German + the user's native language.
+    User? me;
+    try {
+      me = _users.firstWhere((u) => u.mitgliedernummer == widget.currentMitgliedernummer);
+    } catch (_) {}
     showDialog(
       context: context,
       builder: (ctx) => OpnvDialog(
@@ -656,6 +662,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         city: _weatherData?.city ?? '',
         currentMitgliedernummer: widget.currentMitgliedernummer,
         users: _users,
+        userMuttersprache: me?.muttersprache,
       ),
     );
   }
