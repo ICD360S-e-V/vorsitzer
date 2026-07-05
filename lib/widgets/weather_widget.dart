@@ -3329,7 +3329,12 @@ class _RainRadarViewState extends State<_RainRadarView> {
 
     final frame = _frames[_currentFrameIndex];
     final center = LatLng(widget.centerLat, widget.centerLon);
-    final tileUrl = '${frame.path}/256/{z}/{x}/{y}/2/1_1.png';
+    // RainViewer palette 4 = "The Weather Channel" (green → yellow → red →
+    // magenta) — matches the DWD-style intensity coding and the legend
+    // rendered below the map. Palette 2 (which we used before) was
+    // Universal-Blue-only, so the tile colours never lined up with the
+    // green/yellow/red labels in the legend.
+    final tileUrl = '${frame.path}/256/{z}/{x}/{y}/4/1_1.png';
 
     return Column(
       children: [
@@ -3427,12 +3432,13 @@ class _RainRadarViewState extends State<_RainRadarView> {
                   style: TextStyle(
                       fontSize: 10, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
               const SizedBox(width: 6),
-              _radarLegendChip(const Color(0xFF7FFF7F), 'sehr leicht'),
-              _radarLegendChip(const Color(0xFF3ACC3A), 'leicht'),
+              // Colours sampled from RainViewer palette 4 (Weather Channel).
+              _radarLegendChip(const Color(0xFF00BB00), 'sehr leicht'),
+              _radarLegendChip(const Color(0xFF008800), 'leicht'),
               _radarLegendChip(const Color(0xFFFFFF00), 'mäßig'),
-              _radarLegendChip(const Color(0xFFFF9500), 'stark'),
-              _radarLegendChip(const Color(0xFFFF2A2A), 'Starkregen'),
-              _radarLegendChip(const Color(0xFFB100FF), 'extrem'),
+              _radarLegendChip(const Color(0xFFFF9900), 'stark'),
+              _radarLegendChip(const Color(0xFFDD0000), 'Starkregen'),
+              _radarLegendChip(const Color(0xFFCC00CC), 'extrem'),
             ],
           ),
         ),
