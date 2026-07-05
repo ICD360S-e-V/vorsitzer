@@ -62,7 +62,9 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
     final dialogW = isCompact ? size.width - 16 : 560.0;
     final dialogH = isCompact ? size.height - 80 : 620.0;
 
+    final p = _Palette.of(context);
     return Dialog(
+      backgroundColor: p.bg,
       insetPadding: EdgeInsets.symmetric(
         horizontal: isCompact ? 8 : 40,
         vertical: isCompact ? 40 : 24,
@@ -103,6 +105,33 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
 }
 
 // ══════════════════════════════════════════════════════════════
+// Palette — adaptive light/dark colors
+// ══════════════════════════════════════════════════════════════
+//
+// The app forces Brightness.light globally, but this dialog opts out by
+// reading the DEVICE brightness directly (MediaQuery.platformBrightnessOf).
+// So a user with system dark mode on their Samsung tablet sees a dark
+// ÖPNV dialog even though the rest of the app is light. Contrast ratios
+// tuned to WCAG AA (≥4.5:1 for body text) for BFSG 2025 compliance.
+class _Palette {
+  final bool dark;
+  const _Palette._(this.dark);
+  factory _Palette.of(BuildContext ctx) =>
+      _Palette._(MediaQuery.platformBrightnessOf(ctx) == Brightness.dark);
+
+  Color get bg => dark ? const Color(0xFF1E1E1E) : Colors.white;
+  Color get surface => dark ? const Color(0xFF2A2A2A) : Colors.grey.shade50;
+  Color get card => dark ? const Color(0xFF262626) : Colors.white;
+  Color get border => dark ? const Color(0xFF3A3A3A) : Colors.grey.shade200;
+  Color get divider => dark ? const Color(0xFF333333) : Colors.grey.shade100;
+  Color get accentTint => dark ? const Color(0xFF0F3A3A) : Colors.teal.shade50;
+  Color get onSurface => dark ? Colors.white70 : Colors.black87;
+  Color get onSurfaceDim => dark ? Colors.white54 : Colors.grey.shade700;
+  Color get onSurfaceFaint => dark ? Colors.white38 : Colors.grey.shade500;
+  Color get iconMuted => dark ? Colors.white38 : Colors.grey.shade400;
+}
+
+// ══════════════════════════════════════════════════════════════
 // Header — icon + title + close
 // ══════════════════════════════════════════════════════════════
 
@@ -114,32 +143,37 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
       decoration: BoxDecoration(
-        color: Colors.teal.shade50,
+        color: p.accentTint,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Icon(Icons.directions_bus, color: Colors.teal.shade700, size: 24),
+              Icon(Icons.directions_bus, color: Colors.teal.shade400, size: 24),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'ÖPNV',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800),
                 ),
               ),
-              IconButton(icon: const Icon(Icons.close, size: 20), onPressed: onClose),
+              IconButton(
+                icon: Icon(Icons.close, size: 20, color: p.onSurface),
+                tooltip: 'Schließen',
+                onPressed: onClose,
+              ),
             ],
           ),
           TabBar(
             controller: tabController,
-            labelColor: Colors.teal.shade800,
-            unselectedLabelColor: Colors.grey.shade600,
-            indicatorColor: Colors.teal.shade700,
+            labelColor: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+            unselectedLabelColor: p.onSurfaceDim,
+            indicatorColor: Colors.teal.shade400,
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             tabs: const [
               Tab(icon: Icon(Icons.access_time_filled, size: 18), text: 'Echtzeit'),
@@ -292,12 +326,17 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
       LocationSource.none => '',
     };
 
+    final p = _Palette.of(context);
     return Column(
       children: [
         // Location bar with accuracy indicator
-        Container(
+        Semantics(
+          label: 'Aktueller Standort: ${locLabel.isNotEmpty ? locLabel : 'wird ermittelt'}. '
+              'GPS-Genauigkeit: $accLabel${accQuality.isNotEmpty ? ", $accQuality" : ""}.',
+          container: true,
+          child: Container(
           padding: const EdgeInsets.fromLTRB(14, 8, 8, 6),
-          color: Colors.grey.shade50,
+          color: p.surface,
           child: Column(
             children: [
               Row(
@@ -307,12 +346,12 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                   Expanded(
                     child: Text(
                       locLabel.isNotEmpty ? locLabel : 'Standort wird ermittelt…',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: p.onSurface),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (provider != null)
-                    Text(provider.name, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text(provider.name, style: TextStyle(fontSize: 10, color: p.onSurfaceDim)),
                   const SizedBox(width: 6),
                   if (_isLoading)
                     const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
@@ -320,7 +359,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      icon: const Icon(Icons.refresh, size: 18),
+                      icon: Icon(Icons.refresh, size: 18, color: p.onSurface),
                       tooltip: 'Aktualisieren',
                       onPressed: _refresh,
                     ),
@@ -348,14 +387,14 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                     ],
                     if (sourceLabel.isNotEmpty) ...[
                       const SizedBox(width: 6),
-                      Text('• $sourceLabel', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text('• $sourceLabel', style: TextStyle(fontSize: 10, color: p.onSurfaceDim)),
                     ],
                   ],
                 ),
               ),
             ],
           ),
-        ),
+        )),
         // Body — if accuracy is too coarse, refuse to show stops
         Expanded(
           child: !isPrecise
@@ -501,9 +540,16 @@ class _StopSection extends StatelessWidget {
 
   /// True if this stop is a mainline station or has rail departures.
   /// Only mainline stations have DB Aufzüge data.
+  ///
+  /// Strict token match — "Klinikum am Bahnhof" / "Bahnhofstraße" are bus
+  /// stops, not railway stations, so they don't get an Aufzüge button.
+  static final RegExp _stationRe = RegExp(
+    r'(^|\s)(hbf|hauptbahnhof)(\s|$)|^bahnhof\s+\S',
+    caseSensitive: false,
+  );
   bool get _isRailwayStation {
     final n = stop.name.toLowerCase();
-    if (n.contains('hbf') || n.contains('hauptbahnhof') || n.contains('bahnhof')) {
+    if (!n.contains('bahnhofstr') && !n.contains('bahnhofspl') && _stationRe.hasMatch(n)) {
       return true;
     }
     return departures.any((d) =>
@@ -515,12 +561,16 @@ class _StopSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final p = _Palette.of(context);
+    return Semantics(
+      label: 'Haltestelle ${stop.name}, ${stop.distance} Meter entfernt. ${departures.length} Abfahrten.',
+      container: true,
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: p.card,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: p.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,35 +578,39 @@ class _StopSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
             decoration: BoxDecoration(
-              color: Colors.teal.shade50,
+              color: p.accentTint,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
             ),
             child: Row(
               children: [
-                Icon(Icons.directions_bus, size: 16, color: Colors.teal.shade700),
+                Icon(Icons.directions_bus, size: 16, color: Colors.teal.shade400),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     stop.name,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Text(_distStr, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(_distStr, style: TextStyle(fontSize: 11, color: p.onSurfaceDim)),
                 if (_isRailwayStation) ...[
                   const SizedBox(width: 6),
-                  InkWell(
-                    onTap: () => _openFacilitiesDialog(context),
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('🛗', style: const TextStyle(fontSize: 12)),
-                          const SizedBox(width: 3),
-                          Text('Aufzüge', style: TextStyle(fontSize: 10, color: Colors.teal.shade800, fontWeight: FontWeight.w600)),
-                        ],
+                  Semantics(
+                    button: true,
+                    label: 'Aufzugsstatus anzeigen für ${stop.name}',
+                    child: InkWell(
+                      onTap: () => _openFacilitiesDialog(context),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('🛗', style: TextStyle(fontSize: 12)),
+                            const SizedBox(width: 3),
+                            Text('Aufzüge', style: TextStyle(fontSize: 10, color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -567,13 +621,13 @@ class _StopSection extends StatelessWidget {
           if (departures.isEmpty)
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Text('Keine Abfahrten in Kürze', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              child: Text('Keine Abfahrten in Kürze', style: TextStyle(fontSize: 12, color: p.onSurfaceFaint)),
             )
           else
             ...departures.take(6).map((d) => _DepartureRow(dep: d, transitService: transitService)),
         ],
       ),
-    );
+    ));
   }
 
   void _openFacilitiesDialog(BuildContext context) {
@@ -800,13 +854,38 @@ class _DepartureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     final mins = dep.minutesUntil;
     final isImminent = mins <= 2;
     final isSoon = mins <= 5;
     final isLive = dep.realtimeTime != null;
 
     final canOpenSequence = dep.stopID != null && dep.destID != null;
-    return InkWell(
+    final productLabel = switch (dep.productType) {
+      'tram' => 'Straßenbahn',
+      'subway' => 'U-Bahn',
+      'suburban' => 'S-Bahn',
+      'train' || 'regional' => 'Zug',
+      'bus' => 'Bus',
+      _ => 'Fahrzeug',
+    };
+    final delayLabel = dep.delay > 0 ? ', ${dep.delay} Minuten Verspätung' : '';
+    final liveLabel = isLive ? 'Live-Daten' : 'Fahrplan';
+    final minsLabel = mins == 0 ? 'jetzt' : 'in $mins Minuten';
+    final sem = '$productLabel Linie ${dep.line} nach ${dep.direction}, '
+        'Abfahrt $minsLabel um ${dep.timeString}$delayLabel. $liveLabel.'
+        '${dep.platform != null ? " Gleis ${dep.platform}." : ""}';
+
+    Color? bg;
+    if (isImminent) bg = p.dark ? const Color(0xFF3D1F1F) : Colors.red.shade50;
+    else if (isSoon) bg = p.dark ? const Color(0xFF3D2F1A) : Colors.orange.shade50;
+
+    return Semantics(
+      label: sem,
+      button: canOpenSequence,
+      hint: canOpenSequence ? 'Antippen für Haltestellenreihenfolge' : null,
+      excludeSemantics: true,
+      child: InkWell(
       onTap: canOpenSequence
           ? () => showDialog(
                 context: context,
@@ -816,8 +895,8 @@ class _DepartureRow extends StatelessWidget {
       child: Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.grey.shade100)),
-        color: isImminent ? Colors.red.shade50 : (isSoon ? Colors.orange.shade50 : null),
+        border: Border(top: BorderSide(color: p.divider)),
+        color: bg,
       ),
       child: Row(
         children: [
@@ -862,14 +941,14 @@ class _DepartureRow extends StatelessWidget {
           ],
           // Platform
           if (dep.platform != null) ...[
-            Text(dep.platform!, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+            Text(dep.platform!, style: TextStyle(fontSize: 10, color: p.onSurfaceFaint)),
             const SizedBox(width: 6),
           ],
           // Live/Plan indicator
           Container(
             width: 8, height: 8,
             decoration: BoxDecoration(
-              color: isLive ? Colors.green.shade500 : Colors.grey.shade400,
+              color: isLive ? Colors.green.shade500 : p.iconMuted,
               shape: BoxShape.circle,
             ),
           ),
@@ -878,7 +957,7 @@ class _DepartureRow extends StatelessWidget {
             isLive ? 'Live' : 'Plan',
             style: TextStyle(
               fontSize: 9,
-              color: isLive ? Colors.green.shade700 : Colors.grey.shade500,
+              color: isLive ? Colors.green.shade500 : p.onSurfaceFaint,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -887,7 +966,7 @@ class _DepartureRow extends StatelessWidget {
           Text(
             dep.timeString,
             style: TextStyle(
-              fontSize: 12, color: Colors.grey.shade700,
+              fontSize: 12, color: p.onSurfaceDim,
               decoration: dep.delay > 0 ? TextDecoration.lineThrough : null,
             ),
           ),
@@ -900,12 +979,13 @@ class _DepartureRow extends StatelessWidget {
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 12, fontWeight: FontWeight.bold,
-                color: isImminent ? Colors.red.shade700 : (isSoon ? Colors.orange.shade700 : Colors.teal.shade700),
+                color: isImminent ? Colors.red.shade400 : (isSoon ? Colors.orange.shade400 : Colors.teal.shade400),
               ),
             ),
           ),
         ],
       ),
+    ),
     ),
     );
   }
@@ -1076,6 +1156,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                               stops: stops, path: path, lineColor: lineColor,
                               targetStopId: _targetStopId,
                               onSetTarget: _setTarget,
+                              transitService: widget.transitService,
                             ),
                           ],
                         ),
@@ -1126,16 +1207,34 @@ class _TripStopRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     final isCurrent = stop.isCurrent;
     final dotColor = isCurrent
         ? Colors.green.shade600
         : (isTarget ? Colors.red.shade600 : (beforeCurrent ? Colors.grey.shade400 : lineColor));
     final textColor = isCurrent
-        ? Colors.green.shade900
-        : (isTarget ? Colors.red.shade900 : (beforeCurrent ? Colors.grey.shade500 : Colors.black87));
+        ? (p.dark ? Colors.green.shade200 : Colors.green.shade900)
+        : (isTarget
+            ? (p.dark ? Colors.red.shade200 : Colors.red.shade900)
+            : (beforeCurrent ? p.onSurfaceFaint : p.onSurface));
     final fontWeight = (isCurrent || isTarget) ? FontWeight.bold : FontWeight.w500;
 
-    return InkWell(
+    // Screen-reader description:
+    // "Aktuelle Haltestelle: X, 08:32" / "Ziel-Haltestelle: X" / "Haltestelle X, 08:35"
+    final semStatus = isCurrent
+        ? 'Aktuelle Haltestelle'
+        : (isTarget
+            ? 'Ausstiegs-Ziel'
+            : (beforeCurrent ? 'Bereits vorbei' : 'Haltestelle'));
+    final delayNote = stop.delay > 0 ? ', ${stop.delay} Minuten Verspätung' : '';
+    final sem = '$semStatus: ${stop.name}, ${stop.timeString}$delayNote';
+
+    return Semantics(
+      label: sem,
+      button: !isCurrent && onSetTarget != null,
+      hint: !isCurrent && onSetTarget != null ? 'Antippen um als Ausstiegs-Ziel zu wählen' : null,
+      excludeSemantics: true,
+      child: InkWell(
       onTap: (isCurrent || onSetTarget == null) ? null : onSetTarget,
       child: IntrinsicHeight(
       child: Row(
@@ -1274,13 +1373,14 @@ class _TripStopRow extends StatelessWidget {
                   ),
                   if (stop.platform != null)
                     Text('Gl. ${stop.platform}',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                        style: TextStyle(fontSize: 10, color: p.onSurfaceFaint)),
                 ],
               ),
             ),
           ),
         ],
       ),
+    ),
     ),
     );
   }
@@ -1293,10 +1393,11 @@ class _Footer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: p.surface,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
       ),
       child: Row(
@@ -1304,13 +1405,13 @@ class _Footer extends StatelessWidget {
           Expanded(
             child: Text(
               'Daten: $providerName • GPS ⟳ 60s',
-              style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 9, color: p.onSurfaceFaint),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           Text(
             '${lastUpdate.hour}:${lastUpdate.minute.toString().padLeft(2, '0')}',
-            style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 9, color: p.onSurfaceFaint),
           ),
         ],
       ),
@@ -1598,17 +1699,26 @@ class _JourneyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     final vehicleLegs = journey.legs.where((l) => !l.isWalk).length;
     final transfers = vehicleLegs > 0 ? vehicleLegs - 1 : 0;
     final durMin = journey.duration.inMinutes;
     final durStr = durMin >= 60 ? '${durMin ~/ 60}h ${durMin % 60}m' : '${durMin}m';
+    final sem = 'Verbindung von ${journey.legs.first.fromName} nach '
+        '${journey.legs.last.toName}. Abfahrt ${_hhmm(journey.depTime)}, '
+        'Ankunft ${_hhmm(journey.arrTime)}. Dauer $durMin Minuten. '
+        '${transfers == 0 ? "Direktverbindung" : "$transfers Umstiege"}.';
 
-    return Container(
+    return Semantics(
+      label: sem,
+      container: true,
+      excludeSemantics: true,
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: p.card,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: p.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -1619,20 +1729,20 @@ class _JourneyCard extends StatelessWidget {
               children: [
                 Text(
                   '${_hhmm(journey.depTime)} → ${_hhmm(journey.arrTime)}',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: p.onSurface),
                 ),
                 const Spacer(),
-                Text(durStr, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                Text(durStr, style: TextStyle(fontSize: 12, color: p.onSurfaceDim, fontWeight: FontWeight.w600)),
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: p.divider,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     transfers == 0 ? 'direkt' : '$transfers ×',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                    style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
                   ),
                 ),
               ],
@@ -1643,7 +1753,7 @@ class _JourneyCard extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 for (int i = 0; i < journey.legs.length; i++) ...[
-                  if (i > 0) Icon(Icons.chevron_right, size: 14, color: Colors.grey.shade400),
+                  if (i > 0) Icon(Icons.chevron_right, size: 14, color: p.iconMuted),
                   _LegChip(leg: journey.legs[i], color: _colorFor(journey.legs[i].productType)),
                 ],
               ],
@@ -1651,13 +1761,13 @@ class _JourneyCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${journey.legs.first.fromName} → ${journey.legs.last.toName}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
               overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -1702,11 +1812,13 @@ class _TripMapView extends StatefulWidget {
   final Color lineColor;
   final String? targetStopId;
   final ValueChanged<String?>? onSetTarget;
+  final TransitService transitService;
 
   const _TripMapView({
     required this.stops,
     required this.path,
     required this.lineColor,
+    required this.transitService,
     this.targetStopId,
     this.onSetTarget,
   });
@@ -1742,6 +1854,9 @@ class _TripMapViewState extends State<_TripMapView> {
     super.initState();
     _tts.setLanguage('de-DE');
     _tts.setSpeechRate(0.55);
+    // Pause the coarse (100m) dashboard stream while we run a fine (5m) one.
+    // Running both = ~2× battery drain and duplicate FusedLocation callbacks.
+    widget.transitService.pauseCoarseTracking();
     _positionSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -1763,20 +1878,25 @@ class _TripMapViewState extends State<_TripMapView> {
 
   /// GPS-driven side effects: Ausstieg-Alarm + TTS "Nächste Haltestelle".
   ///
-  /// - **Target alarm** (one-shot per target): user's chosen Ausstieg-Ziel
-  ///   within 150 m → heavy haptic × 3 + speak "Aussteigen: X!" + snackbar.
-  /// - **TTS announcement**: for the *next* stop on the route (not the
-  ///   boarding stop), speak "Nächste Haltestelle: X" when within 200 m.
+  /// - **Target alarm** (hysteresis): fires when user first enters <150 m of
+  ///   the Ausstieg-Ziel. Won't repeat until they exit >400 m — so a bus
+  ///   idling next to the stop doesn't spam alarms, but a round-trip that
+  ///   passes the target twice DOES trigger both times.
+  /// - **TTS "Nächste Haltestelle"** at <200 m for non-current stops.
+  ///   Same hysteresis: once announced, the stop must be >400 m away to
+  ///   re-arm — supports loop lines that visit the same stop twice.
   void _handleProximity(LatLng user) {
     final targetId = widget.targetStopId;
-    if (targetId != null && !_targetAlarmFired) {
+    if (targetId != null) {
       final target = widget.stops.firstWhere(
         (s) => s.stopID == targetId,
         orElse: () => TripStop(name: '', stopID: '', plannedTime: DateTime.now()),
       );
       if (target.lat != null && target.lon != null) {
         final d = _distMeters(user, LatLng(target.lat!, target.lon!));
-        if (d < 150) {
+        // Re-arm once we've clearly moved past the target.
+        if (_targetAlarmFired && d > 400) _targetAlarmFired = false;
+        if (!_targetAlarmFired && d < 150) {
           _targetAlarmFired = true;
           HapticFeedback.heavyImpact();
           Future.delayed(const Duration(milliseconds: 250), HapticFeedback.heavyImpact);
@@ -1805,9 +1925,14 @@ class _TripMapViewState extends State<_TripMapView> {
     if (_ttsEnabled) {
       for (final s in widget.stops) {
         if (s.isCurrent) continue;
-        if (s.stopID == _lastAnnouncedStopId) continue;
         if (s.lat == null || s.lon == null) continue;
         final d = _distMeters(user, LatLng(s.lat!, s.lon!));
+        // Re-arm TTS for this stop if user has left the area — supports
+        // round-trip / loop lines.
+        if (_lastAnnouncedStopId == s.stopID && d > 400) {
+          _lastAnnouncedStopId = null;
+        }
+        if (_lastAnnouncedStopId == s.stopID) continue;
         if (d < 200) {
           _lastAnnouncedStopId = s.stopID;
           _tts.speak('Nächste Haltestelle: ${s.name}');
@@ -1821,13 +1946,17 @@ class _TripMapViewState extends State<_TripMapView> {
   void didUpdateWidget(covariant _TripMapView old) {
     super.didUpdateWidget(old);
     if (old.targetStopId != widget.targetStopId) {
+      // New target chosen (or cleared) → reset both alarm-fired and TTS
+      // cursor so the next stop announcements/alarms fire cleanly.
       _targetAlarmFired = false;
+      _lastAnnouncedStopId = null;
     }
   }
 
   @override
   void dispose() {
     _positionSub?.cancel();
+    widget.transitService.resumeCoarseTracking();
     _tts.stop();
     super.dispose();
   }

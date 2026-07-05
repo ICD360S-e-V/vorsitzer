@@ -659,6 +659,35 @@ class TransitService {
     _log.info('Transit: Stopped', tag: 'TRANSIT');
   }
 
+  /// True while the coarse (100m-filter, dashboard) stream is paused because
+  /// a fine-grained consumer (trip map, Ausstieg-Alarm) is active. Prevents
+  /// running two Geolocator streams in parallel = ~2× battery drain.
+  bool _coarseTrackingPaused = false;
+  int _fineConsumerCount = 0;
+
+  /// Called by TripMapView on initState. If it's the first fine consumer,
+  /// suspends the coarse tracker until [resumeCoarseTracking] balances it.
+  void pauseCoarseTracking() {
+    _fineConsumerCount++;
+    if (_fineConsumerCount == 1 && _positionSub != null) {
+      _coarseTrackingPaused = true;
+      _positionSub?.cancel();
+      _positionSub = null;
+      _log.debug('Transit: coarse tracking paused (fine consumer active)', tag: 'TRANSIT');
+    }
+  }
+
+  /// Called by TripMapView on dispose. Restarts the coarse stream when the
+  /// last fine consumer leaves.
+  void resumeCoarseTracking() {
+    if (_fineConsumerCount > 0) _fineConsumerCount--;
+    if (_fineConsumerCount == 0 && _coarseTrackingPaused && _useGps) {
+      _coarseTrackingPaused = false;
+      _startPositionStream();
+      _log.debug('Transit: coarse tracking resumed', tag: 'TRANSIT');
+    }
+  }
+
   /// Map of provider → set of city/Landkreis names it serves.
   /// Compiled from each Verkehrsverbund's official coverage page (Wikipedia
   /// tarifgebiet lists + Verbund-Websites), covering all cities with ≥20k
@@ -1355,15 +1384,18 @@ class TransitService {
 
   /// For every visible stop whose name matches a mainline station pattern,
   /// fetch DB (HAFAS via transport.rest) departures in parallel and merge them.
+  ///
+  /// Match is strict: token-boundary on "Hbf" / "Hauptbahnhof", or the name
+  /// STARTS with "Bahnhof <Ort>". This avoids false positives like
+  /// "Klinikum am Bahnhof" or "Am Bahnhof 12" which are bus stops, not
+  /// railway stations, and don't need DB augmentation.
   Future<void> _augmentWithDbRailDepartures() async {
     if (nearbyStops.isEmpty) return;
-    final railwayStops = nearbyStops.where((s) {
-      final n = s.name.toLowerCase();
-      return n.contains('hbf') || n.contains('hauptbahnhof') || n.contains('bahnhof');
-    }).toList();
+    final railwayStops = nearbyStops.where(_isMainlineStation).toList();
     if (railwayStops.isEmpty) return;
 
     _log.info('Transit: augmenting ${railwayStops.length} railway stops with DB data', tag: 'TRANSIT');
+    // Helper isolated so the strict match logic is shared and testable.
     final futures = railwayStops.map((s) => fetchDbDepartures(s.name)).toList();
     final results = await Future.wait(futures);
 
@@ -1404,6 +1436,20 @@ class TransitService {
       final tb = b.realtimeTime ?? b.plannedTime;
       return ta.compareTo(tb);
     });
+  }
+
+  /// Strict token-boundary match for mainline stations. Positives:
+  /// "Ulm Hbf", "München Hauptbahnhof", "Bahnhof Neu-Ulm".
+  /// Negatives (bus stops): "Klinikum am Bahnhof", "Am Bahnhof 12", "Bahnhofstraße".
+  static final RegExp _stationRe = RegExp(
+    r'(^|\s)(hbf|hauptbahnhof)(\s|$)|^bahnhof\s+\S',
+    caseSensitive: false,
+  );
+  bool _isMainlineStation(TransitStop s) {
+    final n = s.name.toLowerCase();
+    // "bahnhofstraße"/"bahnhofsplatz" etc. must not match.
+    if (n.contains('bahnhofstr') || n.contains('bahnhofspl')) return false;
+    return _stationRe.hasMatch(n);
   }
 
   /// Fetch departures for a specific stop by name (EFA only)
