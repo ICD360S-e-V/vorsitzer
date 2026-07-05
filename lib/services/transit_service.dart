@@ -530,21 +530,166 @@ class TransitService {
     _log.info('Transit: Stopped', tag: 'TRANSIT');
   }
 
-  /// Detect which transit provider to use based on coordinates
+  /// Map of provider → set of city/Landkreis names it serves.
+  /// Compiled from each Verkehrsverbund's official coverage page — used as
+  /// the primary match signal before falling back to bounding-box geometry.
+  /// All names lowercased; matching is substring both ways so "Neu-Ulm"
+  /// still matches "neu-ulm" and vice versa.
+  static const Map<TransitProviderType, Set<String>> _providerCities = {
+    TransitProviderType.ding: {
+      'ulm', 'neu-ulm', 'ehingen', 'blaubeuren', 'laichingen', 'illertissen',
+      'vöhringen', 'senden', 'weißenhorn', 'riedlingen', 'biberach',
+      'alb-donau-kreis', 'landkreis neu-ulm', 'landkreis biberach',
+    },
+    TransitProviderType.mvv: {
+      'münchen', 'munich', 'freising', 'erding', 'ebersberg', 'dachau',
+      'fürstenfeldbruck', 'starnberg', 'wolfratshausen', 'bad tölz', 'miesbach',
+      'garmisch-partenkirchen',
+    },
+    TransitProviderType.vvs: {
+      'stuttgart', 'ludwigsburg', 'böblingen', 'sindelfingen', 'esslingen',
+      'nürtingen', 'göppingen', 'waiblingen', 'kirchheim unter teck',
+      'rems-murr-kreis', 'landkreis göppingen',
+    },
+    TransitProviderType.kvv: {
+      'karlsruhe', 'bruchsal', 'ettlingen', 'rastatt', 'baden-baden', 'bretten',
+      'enzkreis', 'landkreis karlsruhe',
+    },
+    TransitProviderType.naldo: {
+      'tübingen', 'reutlingen', 'rottenburg', 'balingen', 'sigmaringen',
+      'metzingen', 'zollernalbkreis', 'landkreis tübingen',
+    },
+    TransitProviderType.vrn: {
+      'mannheim', 'heidelberg', 'ludwigshafen', 'speyer', 'frankenthal',
+      'weinheim', 'sinsheim', 'neustadt', 'rhein-neckar-kreis',
+      'rhein-pfalz-kreis', 'bergstraße',
+    },
+    TransitProviderType.vgn: {
+      'nürnberg', 'nurnberg', 'fürth', 'erlangen', 'bamberg', 'ansbach',
+      'schwabach', 'forchheim', 'nürnberger land', 'roth',
+    },
+    TransitProviderType.avv: {
+      'aachen', 'düren', 'heinsberg', 'erkelenz', 'alsdorf', 'herzogenrath',
+      'stolberg', 'eschweiler',
+    },
+    TransitProviderType.vrr: {
+      'essen', 'duisburg', 'dortmund', 'düsseldorf', 'wuppertal', 'bochum',
+      'gelsenkirchen', 'oberhausen', 'krefeld', 'mönchengladbach', 'hagen',
+      'solingen', 'neuss', 'mülheim', 'remscheid', 'moers', 'bottrop',
+      'recklinghausen', 'herne', 'ruhr', 'rhein-ruhr',
+    },
+    TransitProviderType.vvo: {
+      'dresden', 'meißen', 'radebeul', 'freital', 'pirna', 'kamenz',
+      'bautzen', 'sächsische schweiz',
+    },
+    TransitProviderType.saarvv: {
+      'saarland', 'saarbrücken', 'saarbrucken', 'neunkirchen', 'völklingen',
+      'homburg', 'st. wendel', 'merzig', 'saarlouis', 'blieskastel',
+      'dillingen', 'sulzbach',
+    },
+    TransitProviderType.nvv: {
+      'kassel', 'fulda', 'bad hersfeld', 'marburg', 'wolfhagen', 'rotenburg',
+      'werra-meißner', 'waldeck-frankenberg', 'hersfeld-rotenburg',
+      'schwalm-eder',
+    },
+    TransitProviderType.rmv: {
+      'frankfurt am main', 'frankfurt', 'wiesbaden', 'mainz', 'offenbach',
+      'darmstadt', 'hanau', 'bad homburg', 'aschaffenburg', 'limburg',
+      'rüsselsheim', 'gießen', 'wetzlar',
+    },
+    TransitProviderType.nahsh: {
+      'schleswig-holstein', 'kiel', 'lübeck', 'flensburg', 'neumünster',
+      'norderstedt', 'elmshorn', 'pinneberg', 'itzehoe', 'rendsburg',
+      'heide', 'husum',
+    },
+    TransitProviderType.insa: {
+      'sachsen-anhalt', 'magdeburg', 'halle', 'dessau', 'wittenberg',
+      'bernburg', 'naumburg', 'wernigerode', 'merseburg', 'bitterfeld',
+      'stendal', 'salzwedel',
+    },
+    TransitProviderType.vbn: {
+      'bremen', 'bremerhaven', 'osnabrück', 'oldenburg', 'wilhelmshaven',
+      'cuxhaven', 'delmenhorst', 'nordenham', 'vechta', 'diepholz',
+    },
+    TransitProviderType.vbb: {
+      'berlin', 'brandenburg', 'potsdam', 'cottbus', 'frankfurt (oder)',
+      'frankfurt/oder', 'eberswalde', 'oranienburg', 'bernau', 'strausberg',
+      'königs wusterhausen', 'ludwigsfelde', 'falkensee',
+    },
+  };
+
+  /// Detect which transit provider best matches the current location.
+  ///
+  /// Three-step:
+  ///   1. **City name match** — if reverse geocode gave us `gpsCity`, look it
+  ///      up in the per-provider city catalog. Most accurate signal — knows
+  ///      that Göppingen belongs to VVS even though it's inside DING's box.
+  ///   2. **Bounding-box + nearest centre** — if no name match, use geometry.
+  ///      Overlapping boxes resolved by nearest bounding-box centre so DING
+  ///      no longer wins by list order.
+  ///   3. **Nearest-centre-under-150 km fallback** — for uncovered cities
+  ///      like Rostock or Chemnitz. Beyond 150 km, leave `activeProvider` null
+  ///      and trip search falls through to bahn.de.
   void _detectProvider() {
     if (_latitude == null || _longitude == null) return;
+    final lat = _latitude!;
+    final lon = _longitude!;
 
-    for (final p in _providers) {
-      if (p.containsCoord(_latitude!, _longitude!)) {
-        activeProvider = p;
-        _log.info('Transit: Detected provider ${p.name} for ($_latitude, $_longitude)', tag: 'TRANSIT');
-        return;
+    // Step 1: city name match
+    if (gpsCity != null && gpsCity!.isNotEmpty) {
+      final cityLower = gpsCity!.toLowerCase();
+      for (final p in _providers) {
+        final cities = _providerCities[p.type];
+        if (cities == null) continue;
+        for (final c in cities) {
+          if (cityLower.contains(c) || c.contains(cityLower)) {
+            activeProvider = p;
+            _log.info('Transit: gpsCity "$gpsCity" matches ${p.name} (via "$c")', tag: 'TRANSIT');
+            return;
+          }
+        }
       }
+      _log.info('Transit: gpsCity "$gpsCity" not in any provider catalog, using geometry', tag: 'TRANSIT');
     }
 
-    // Default to DING if no match
-    activeProvider = _providers.first;
-    _log.info('Transit: No matching provider, defaulting to ${activeProvider!.name}', tag: 'TRANSIT');
+    double centerDistKm(TransitProviderConfig p) {
+      final cLat = (p.minLat + p.maxLat) / 2;
+      final cLon = (p.minLon + p.maxLon) / 2;
+      return _distanceKm(lat, lon, cLat, cLon);
+    }
+
+    // Step 2: containing providers, pick nearest centre
+    final containing = _providers.where((p) => p.containsCoord(lat, lon)).toList();
+    if (containing.isNotEmpty) {
+      containing.sort((a, b) => centerDistKm(a).compareTo(centerDistKm(b)));
+      activeProvider = containing.first;
+      _log.info(
+        'Transit: Provider ${activeProvider!.name} '
+        '(bounding-box match, ${containing.length} candidate${containing.length > 1 ? "s" : ""})',
+        tag: 'TRANSIT',
+      );
+      return;
+    }
+
+    // Step 3: no box contains — nearest centre within 150 km
+    final sorted = List<TransitProviderConfig>.from(_providers)
+      ..sort((a, b) => centerDistKm(a).compareTo(centerDistKm(b)));
+    final nearest = sorted.first;
+    final distKm = centerDistKm(nearest);
+    if (distKm < 150) {
+      activeProvider = nearest;
+      _log.info(
+        'Transit: nearest provider ${nearest.name} (${distKm.toStringAsFixed(0)} km) for ($lat, $lon)',
+        tag: 'TRANSIT',
+      );
+      return;
+    }
+
+    activeProvider = null;
+    _log.info(
+      'Transit: ${distKm.toStringAsFixed(0)} km from nearest provider — bahn.de fallback',
+      tag: 'TRANSIT',
+    );
   }
 
   /// Force UTF-8 decoding of HTTP body regardless of `Content-Type` header.
@@ -804,8 +949,14 @@ class TransitService {
     isLoading = true;
 
     try {
-      final provider = activeProvider ?? _providers.first;
-      if (provider.api == TransitApiType.hafas) {
+      final provider = activeProvider;
+      if (provider == null) {
+        // Uncovered region — no local provider knows this coord. Skip local
+        // fetch; the Verbindungssuche tab still works via bahn.de fallback.
+        _log.info('Transit: fetchDepartures skipped — no local provider active', tag: 'TRANSIT');
+        nearbyStops = [];
+        departures = [];
+      } else if (provider.api == TransitApiType.hafas) {
         await _fetchHafasDepartures();
       } else {
         await _fetchEfaDepartures(baseUrl: '${provider.baseUrl}/XSLT_DM_REQUEST');
