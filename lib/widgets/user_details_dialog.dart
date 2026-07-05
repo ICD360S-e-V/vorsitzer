@@ -15,6 +15,7 @@ import '../services/verwarnung_service.dart';
 import '../services/dokumente_service.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
+import '../services/weather_stats_service.dart';
 import '../models/user.dart';
 import '../utils/role_helpers.dart';
 import '../screens/ordnungsmassnahmen_screen.dart';
@@ -163,7 +164,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   // Termine
   final _terminService = TerminService();
+  late final _weatherStatsService = WeatherStatsService(_terminService);
   List<Termin> _memberTermine = [];
+  WeatherStatsSummary? _weatherStats;
+  bool _weatherStatsLoading = false;
   bool _isLoadingTermine = false;
 
   @override
@@ -6788,6 +6792,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Future<void> _loadMemberTermine() async {
     setState(() => _isLoadingTermine = true);
+    // Kick off weather-stats correlation as soon as we know we're on this tab —
+    // it lives in a separate widget so it can render its own skeleton while
+    // the termine list is still fetching.
+    _loadWeatherStats();
     try {
       final result = await _terminService.getAllTermine(participantId: widget.user.id);
       if (mounted && result['success'] == true) {
@@ -6802,6 +6810,168 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     } catch (e) {
       if (mounted) setState(() => _isLoadingTermine = false);
     }
+  }
+
+  Future<void> _loadWeatherStats() async {
+    if (_weatherStatsLoading) return;
+    setState(() {
+      _weatherStatsLoading = true;
+      _weatherStats = null;
+    });
+    final summary = await _weatherStatsService.computeForUser(widget.user.id);
+    if (!mounted) return;
+    setState(() {
+      _weatherStats = summary;
+      _weatherStatsLoading = false;
+    });
+  }
+
+  Widget _buildWeatherStatsCard() {
+    if (_weatherStatsLoading) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+                width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 12),
+            Text('Wetter-Statistik wird berechnet …',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          ],
+        ),
+      );
+    }
+    final s = _weatherStats;
+    if (s == null || s.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.indigo.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.indigo.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.insights, size: 18, color: Colors.indigo.shade700),
+              const SizedBox(width: 8),
+              Text('Wetter-Statistik letzte 90 Tage',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo.shade900,
+                      letterSpacing: 0.3)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 16),
+                tooltip: 'Neu berechnen',
+                onPressed: _loadWeatherStats,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _statChip('Gesamt', s.totalTermine, Colors.indigo.shade700),
+              const SizedBox(width: 6),
+              _statChip('Wahrgenommen', s.totalAttended, Colors.green.shade700),
+              const SizedBox(width: 6),
+              _statChip('Nicht wahrg.', s.totalNoShow, Colors.red.shade700),
+              const SizedBox(width: 6),
+              if (s.totalOffen > 0)
+                _statChip('Offen', s.totalOffen, Colors.grey.shade600),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text('Nach Wetterlage',
+              style: TextStyle(
+                  fontSize: 10, color: Colors.indigo.shade700, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          ...WeatherCategory.values.where((c) => (s.countByCategory[c] ?? 0) > 0).map((c) {
+            final total = s.countByCategory[c] ?? 0;
+            final ns = s.noShowByCategory[c] ?? 0;
+            final pct = total > 0 ? (ns * 100 / total).round() : 0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Text(c.emoji, style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 90,
+                    child: Text(c.label, style: const TextStyle(fontSize: 12)),
+                  ),
+                  Expanded(
+                    child: Text('$total Termine',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  ),
+                  if (ns > 0)
+                    Text('$ns nicht wahrg. ($pct%)',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: pct >= 30 ? Colors.red.shade700 : Colors.orange.shade700))
+                  else
+                    Text('alle wahrg.',
+                        style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+                ],
+              ),
+            );
+          }),
+          if (s.badWeatherNoShowPct != null && s.goodWeatherNoShowPct != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '💡 No-Show-Rate bei schlechtem Wetter: ${s.badWeatherNoShowPct}% '
+                'vs. ${s.goodWeatherNoShowPct}% bei gutem Wetter',
+                style: const TextStyle(fontSize: 11, height: 1.3),
+              ),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Text(
+            'Daten: Open-Meteo Archive · Korrelation gilt nur für Termine mit '
+            'markierter Rückmeldung.',
+            style: TextStyle(fontSize: 8, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statChip(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$count',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(width: 3),
+          Text(label, style: TextStyle(fontSize: 10, color: color)),
+        ],
+      ),
+    );
   }
 
   Widget _buildTermineTab() {
@@ -6865,6 +7035,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           child: ListView(
             padding: const EdgeInsets.all(12),
             children: [
+              _buildWeatherStatsCard(),
               if (upcoming.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
