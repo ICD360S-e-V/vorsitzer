@@ -3339,6 +3339,68 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ─── Mitglied Karten (Kundenkarten / Treuekarten, column-level encrypted) ──
+  // Pilot: Vorsitzer-only loyalty cards per member. Sensitive columns
+  // (Kartennummer, Barcode, PIN, Notiz) are AES-256-CBC encrypted at rest.
+  Future<Map<String, dynamic>> _kartenPost(Map<String, dynamic> body) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/mitglied_karten_manage.php'),
+      headers: _headers, body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<Map<String, dynamic>> listMitgliedKarten(int userId) =>
+      _kartenPost({'action': 'list', 'user_id': userId});
+  Future<Map<String, dynamic>> saveMitgliedKarte(int userId, Map<String, dynamic> karte) =>
+      _kartenPost({'action': 'save', 'user_id': userId, 'karte': karte});
+  Future<Map<String, dynamic>> deleteMitgliedKarte(int id) =>
+      _kartenPost({'action': 'delete', 'id': id});
+  Future<Map<String, dynamic>> listMitgliedKartenDocs({required int kartenId}) =>
+      _kartenPost({'action': 'list_docs', 'karten_id': kartenId});
+  Future<Map<String, dynamic>> deleteMitgliedKartenDoc(int docId) =>
+      _kartenPost({'action': 'delete_doc', 'doc_id': docId});
+
+  Future<Map<String, dynamic>> uploadMitgliedKartenDoc({
+    required int kartenId, required int userId, required String kartenUuid,
+    required String docType,
+    required String filePath, required String fileName,
+    String? notiz,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/mitglied_karten_doc_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['karten_id']   = kartenId.toString();
+    request.fields['user_id']     = userId.toString();
+    request.fields['karten_uuid'] = kartenUuid;
+    request.fields['doc_type']    = docType;
+    if (notiz != null && notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<http.Response> downloadMitgliedKartenDoc(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/mitglied_karten_doc_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  // ─── Shops-Datenbank (Katalog für Kundenkarten, Klartext) ──────
+  Future<Map<String, dynamic>> _shopsPost(Map<String, dynamic> body) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/shops_datenbank.php'),
+      headers: _headers, body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<Map<String, dynamic>> listShops({bool includeInactive = false}) =>
+      _shopsPost({'action': 'list', 'include_inactive': includeInactive});
+  Future<Map<String, dynamic>> saveShop(Map<String, dynamic> shop) =>
+      _shopsPost({'action': 'save', 'shop': shop});
+  Future<Map<String, dynamic>> deleteShop(int id) =>
+      _shopsPost({'action': 'delete', 'id': id});
+
   // ─── Rente Bescheide (annual pension notification per antrag) ──
   Future<Map<String, dynamic>> listRenteBescheide({required String antragId}) async {
     final r = await _client.post(
