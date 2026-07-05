@@ -97,6 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // target screen le consumă în initState + apelează onFocusConsumed → clear.
   int? _pendingFocusTicketId;
   int? _pendingFocusTerminId;
+  int? _pendingFocusRoutineExecutionId;
 
   // Unread chat messages counter
   int _unreadChatCount = 0;
@@ -1471,6 +1472,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return RoutinenaufgabenScreen(
           users: _users,
           currentMitgliedernummer: widget.currentMitgliedernummer,
+          initialFocusRoutineExecutionId: _pendingFocusRoutineExecutionId,
+          onFocusConsumed: () => setState(() => _pendingFocusRoutineExecutionId = null),
         );
       case 11:
         return BugReportsScreen(currentMitgliedernummer: widget.currentMitgliedernummer);
@@ -1480,10 +1483,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return EinstellungenScreen(apiService: _apiService);
       case 14:
         return ArbeitstagScreen(
-          onNavigate: (idx, {int? focusTicketId, int? focusTerminId}) => setState(() {
+          onNavigate: (idx, {int? focusTicketId, int? focusTerminId, int? focusRoutineExecutionId}) => setState(() {
             _selectedMenuIndex = idx;
             _pendingFocusTicketId = focusTicketId;
             _pendingFocusTerminId = focusTerminId;
+            _pendingFocusRoutineExecutionId = focusRoutineExecutionId;
           }),
         );
       default:

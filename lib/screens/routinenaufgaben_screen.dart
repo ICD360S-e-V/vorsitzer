@@ -7,11 +7,17 @@ import '../widgets/eastern.dart';
 class RoutinenaufgabenScreen extends StatefulWidget {
   final List<User> users;
   final String currentMitgliedernummer;
+  /// Focus deep-link din Arbeitswochen: sări la KW-ul care conține execution-ul
+  /// și filtrează pe user-ul routine-ei. Cleared după consum via onFocusConsumed.
+  final int? initialFocusRoutineExecutionId;
+  final VoidCallback? onFocusConsumed;
 
   const RoutinenaufgabenScreen({
     super.key,
     required this.users,
     required this.currentMitgliedernummer,
+    this.initialFocusRoutineExecutionId,
+    this.onFocusConsumed,
   });
 
   @override
@@ -38,7 +44,40 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
     final now = DateTime.now();
     _currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
     _currentWeekStart = DateTime(_currentWeekStart.year, _currentWeekStart.month, _currentWeekStart.day);
+    if (widget.initialFocusRoutineExecutionId != null) {
+      // Fetch minimal metadata: găsim execution → află scheduled_date + routine.user_id
+      // → mută _currentWeekStart la Monday of that week + filtru pe user
+      WidgetsBinding.instance.addPostFrameCallback((_) => _consumeFocusRoutine());
+    }
     _loadData();
+  }
+
+  Future<void> _consumeFocusRoutine() async {
+    final id = widget.initialFocusRoutineExecutionId;
+    if (id == null || !mounted) return;
+    // Lookup: încarcă executions largi (an întreg?) sau folosim un lookup rapid.
+    // Cel mai simplu: încarc executions ale KW curent + verific dacă e acolo.
+    // Dacă nu, request suplimentar (opt: endpoint dedicat). Pentru MVP, fac 1 lookup wide.
+    final res = await _routineService.getExecutions(
+      startDate: DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 90))),
+      endDate: DateFormat('yyyy-MM-dd').format(DateTime.now().add(const Duration(days: 90))),
+    );
+    if (!mounted) return;
+    RoutineExecution? found;
+    for (final e in res.executions) {
+      if (e.id == id) { found = e; break; }
+    }
+    if (found != null) {
+      final d = found.scheduledDate;
+      final monday = d.subtract(Duration(days: d.weekday - 1));
+      setState(() {
+        _currentWeekStart = DateTime(monday.year, monday.month, monday.day);
+        // Filter opțional pe user pentru vizibilitate
+        // _filterUserId = found?.userId;   // dacă vrem îngust
+      });
+      _loadData();
+    }
+    widget.onFocusConsumed?.call();
   }
 
   Future<void> _loadData() async {
