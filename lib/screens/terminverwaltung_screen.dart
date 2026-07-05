@@ -38,10 +38,15 @@ class _DiagonalStripesPainter extends CustomPainter {
 
 class TerminverwaltungScreen extends StatefulWidget {
   final String currentMitgliedernummer;
+  /// Termin id to auto-open dialog on first frame (deep-link din Arbeitswochen)
+  final int? initialFocusTerminId;
+  final VoidCallback? onFocusConsumed;
 
   const TerminverwaltungScreen({
     super.key,
     required this.currentMitgliedernummer,
+    this.initialFocusTerminId,
+    this.onFocusConsumed,
   });
 
   @override
@@ -60,6 +65,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   List<User> _users = [];
   List<Ticket> _tickets = [];
   bool _isLoadingTermine = false;
+  int? _pendingFocusTerminId;
   DateTime _currentWeekStart = DateTime.now().subtract(Duration(days: DateTime.now().weekday - 1));
   String _selectedBundesland = 'ALL';
 
@@ -87,7 +93,37 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   void initState() {
     super.initState();
     initializeDateFormatting('de_DE', null);
+    _pendingFocusTerminId = widget.initialFocusTerminId;
     _loadData();
+  }
+
+  void _consumeFocusTerminIfPossible() {
+    final id = _pendingFocusTerminId;
+    if (id == null || !mounted) return;
+    Termin? found;
+    for (final t in _termine) {
+      if (t.id == id) { found = t; break; }
+    }
+    if (found == null) return;
+    _pendingFocusTerminId = null;
+    widget.onFocusConsumed?.call();
+    final termin = found;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => EditTerminDialog(
+          termin: termin,
+          terminService: _terminService,
+          users: _users,
+          tickets: _tickets,
+          onTerminUpdated: _loadTermine,
+          currentMitgliedernummer: widget.currentMitgliedernummer,
+          weatherHint: _terminWeather.hintFor(termin.id),
+        ),
+      );
+    });
   }
 
   Future<void> _loadData() async {
@@ -131,6 +167,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
         _feiertage = feiertageList.cast<Map<String, dynamic>>();
         _isLoadingTermine = false;
       });
+      _consumeFocusTerminIfPossible();
       // Kick off weather advisory computation in the background — the calendar
       // renders immediately, weather badges pop in a moment later.
       unawaited(_terminWeather.refreshForTermine(_termine).then((_) {

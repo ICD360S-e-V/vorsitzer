@@ -4,10 +4,10 @@ import 'package:intl/date_symbol_data_local.dart';
 import '../services/arbeitstag_service.dart';
 
 class ArbeitstagScreen extends StatefulWidget {
-  /// Callback pentru deep-link către alt tab. Deocamdată doar comută sidebar-ul
-  /// la menuIndex (2=Ticketverwaltung, 3=Terminverwaltung, 10=Routinenaufgaben).
-  /// Focus pe ID specific = follow-up (necesită props pe target screens).
-  final void Function(int menuIndex)? onNavigate;
+  /// Callback deep-link către alt tab. Comută sidebar la menuIndex
+  /// (2=Ticketverwaltung, 3=Terminverwaltung, 10=Routinenaufgaben) și
+  /// pasează focus ID care va deschide automat dialogul detaliilor.
+  final void Function(int menuIndex, {int? focusTicketId, int? focusTerminId})? onNavigate;
 
   const ArbeitstagScreen({super.key, this.onNavigate});
 
@@ -558,13 +558,13 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           if (m.ticketSubject != null)
-                            _linkTitle('🎫', m.ticketSubject!, Colors.green.shade700, 2),
+                            _linkTitle('🎫', m.ticketSubject!, Colors.green.shade700, 2, focusTicketId: m.ticketId),
                           if (m.terminTitle != null)
-                            _linkTitle('📅', m.terminTitle!, Colors.green.shade700, 3),
+                            _linkTitle('📅', m.terminTitle!, Colors.green.shade700, 3, focusTerminId: m.terminId),
                           if (m.routineTitle != null)
                             _linkTitle('🔄', m.routineTitle!, Colors.green.shade700, 10),
                           if (m.notfallTerminTitle != null)
-                            _linkTitle('🚨', m.notfallTerminTitle!, Colors.red.shade700, 3),
+                            _linkTitle('🚨', m.notfallTerminTitle!, Colors.red.shade700, 3, focusTerminId: m.notfallTerminId),
                           if (m.bearbeiterName != null)
                             _bearbeiterBadge(m.bearbeiterName!),
                         ],
@@ -675,12 +675,15 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     );
   }
 
-  Widget _linkTitle(String emoji, String title, Color color, int menuIndex) {
+  Widget _linkTitle(String emoji, String title, Color color, int menuIndex,
+      {int? focusTicketId, int? focusTerminId}) {
     return InkWell(
-      onTap: widget.onNavigate == null ? null : () => widget.onNavigate!(menuIndex),
+      onTap: widget.onNavigate == null
+          ? null
+          : () => widget.onNavigate!(menuIndex, focusTicketId: focusTicketId, focusTerminId: focusTerminId),
       borderRadius: BorderRadius.circular(4),
       child: Tooltip(
-        message: widget.onNavigate == null ? title : '$title — zur Verwaltung wechseln',
+        message: widget.onNavigate == null ? title : '$title — öffnen',
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
           child: Text('$emoji $title',

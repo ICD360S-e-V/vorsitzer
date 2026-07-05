@@ -93,6 +93,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Sidebar navigation
   int _selectedMenuIndex = 0;
 
+  // Deep-link focus IDs — set când Arbeitswochen navighează prin tap pe title;
+  // target screen le consumă în initState + apelează onFocusConsumed → clear.
+  int? _pendingFocusTicketId;
+  int? _pendingFocusTerminId;
+
   // Unread chat messages counter
   int _unreadChatCount = 0;
   StreamSubscription<ChatMessage>? _messageSubscription;
@@ -1436,9 +1441,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             _loadTickets(filter: filter == 'all' ? null : filter);
           },
           onTicketAction: _updateTicket,
+          initialFocusTicketId: _pendingFocusTicketId,
+          onFocusConsumed: () => setState(() => _pendingFocusTicketId = null),
         );
       case 3:
-        return TerminverwaltungScreen(currentMitgliedernummer: widget.currentMitgliedernummer);
+        return TerminverwaltungScreen(
+          currentMitgliedernummer: widget.currentMitgliedernummer,
+          initialFocusTerminId: _pendingFocusTerminId,
+          onFocusConsumed: () => setState(() => _pendingFocusTerminId = null),
+        );
       case 4:
         return VereinverwaltungScreen(
           apiService: _apiService,
@@ -1469,7 +1480,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return EinstellungenScreen(apiService: _apiService);
       case 14:
         return ArbeitstagScreen(
-          onNavigate: (idx) => setState(() => _selectedMenuIndex = idx),
+          onNavigate: (idx, {int? focusTicketId, int? focusTerminId}) => setState(() {
+            _selectedMenuIndex = idx;
+            _pendingFocusTicketId = focusTicketId;
+            _pendingFocusTerminId = focusTerminId;
+          }),
         );
       default:
         return _buildDashboardOverview();

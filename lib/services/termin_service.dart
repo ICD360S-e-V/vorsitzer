@@ -24,6 +24,7 @@ class Termin {
   /// a "Zum Rezept" badge and lets the server keep the two in sync.
   final int? rezeptId;
   final bool brauchtMich;
+  final bool isNotfall;
   final String status; // scheduled, completed, cancelled
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -73,6 +74,7 @@ class Termin {
     this.ticketSubject,
     this.rezeptId,
     this.brauchtMich = false,
+    this.isNotfall = false,
     required this.status,
     required this.createdAt,
     this.updatedAt,
@@ -122,6 +124,7 @@ class Termin {
           ? (json['rezept_id'] is int ? json['rezept_id'] : int.tryParse(json['rezept_id'].toString()))
           : null,
       brauchtMich: json['braucht_mich'] == 1 || json['braucht_mich'] == '1' || json['braucht_mich'] == true,
+      isNotfall: json['is_notfall'] == 1 || json['is_notfall'] == '1' || json['is_notfall'] == true,
       status: json['status'] ?? 'scheduled',
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
@@ -427,6 +430,7 @@ class TerminService {
     required List<int> participantIds,
     int? ticketId,
     bool brauchtMich = false,
+    bool isNotfall = false,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/termine_create.php'),
@@ -441,6 +445,7 @@ class TerminService {
         'participant_ids': participantIds,
         if (ticketId != null) 'ticket_id': ticketId,
         'braucht_mich': brauchtMich ? 1 : 0,
+        'is_notfall': isNotfall ? 1 : 0,
       }),
     ).timeout(const Duration(seconds: 15));
 
@@ -511,6 +516,7 @@ class TerminService {
     List<int>? participantIds,
     int? ticketId,
     bool? brauchtMich,
+    bool? isNotfall,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/termine_update.php'),
@@ -527,6 +533,7 @@ class TerminService {
         if (participantIds != null) 'participant_ids': participantIds,
         if (ticketId != null) 'ticket_id': ticketId,
         if (brauchtMich != null) 'braucht_mich': brauchtMich ? 1 : 0,
+        if (isNotfall != null) 'is_notfall': isNotfall ? 1 : 0,
       }),
     ).timeout(const Duration(seconds: 15));
 

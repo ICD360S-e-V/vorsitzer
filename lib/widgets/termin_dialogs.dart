@@ -42,6 +42,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
   Set<int> _selectedParticipants = {};
   int? _selectedTicketId;
   bool _brauchtMich = false;
+  bool _isNotfall = false;
   bool _isCreating = false;
 
   @override
@@ -105,6 +106,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
         participantIds: _selectedParticipants.toList(),
         ticketId: _selectedTicketId,
         brauchtMich: _brauchtMich,
+        isNotfall: _isNotfall,
       );
 
       if (!mounted) return;
@@ -399,6 +401,18 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                         activeThumbColor: Colors.red.shade700,
                         contentPadding: EdgeInsets.zero,
                       ),
+                      SwitchListTile(
+                        value: _isNotfall,
+                        onChanged: (val) => setState(() => _isNotfall = val),
+                        title: const Text('Notfall', style: TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: const Text('Erscheint în Arbeitswochen als Notfall-Slot'),
+                        secondary: Icon(
+                          Icons.emergency,
+                          color: _isNotfall ? Colors.red.shade700 : Colors.grey,
+                        ),
+                        activeThumbColor: Colors.red.shade700,
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ],
                   ),
                 ),
@@ -481,6 +495,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
   late TimeOfDay _selectedTime;
   late int? _selectedTicketId;
   late bool _brauchtMich;
+  late bool _isNotfall;
   bool _isUpdating = false;
   bool _isDeleting = false;
   bool _isEditing = false;
@@ -504,6 +519,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
     _selectedTime = TimeOfDay.fromDateTime(widget.termin.terminDate);
     _selectedTicketId = widget.termin.ticketId;
     _brauchtMich = widget.termin.brauchtMich;
+    _isNotfall = widget.termin.isNotfall;
     _routeService = TerminRouteService(ApiService(), _transitService);
   }
 
@@ -571,6 +587,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
         location: _locationController.text.trim(),
         ticketId: _selectedTicketId,
         brauchtMich: _brauchtMich,
+        isNotfall: _isNotfall,
       );
 
       if (!mounted) return;
@@ -868,6 +885,8 @@ ICD360S e.V. Vorstand''';
                     if (termin.location.isNotEmpty)
                       _readOnlyRow(Icons.location_on, 'Ort', termin.location),
                     if (widget.weatherHint != null) _buildWeatherHintCard(widget.weatherHint!),
+                    if (widget.weatherHint?.suggestedBetterSlot != null)
+                      _buildBetterSlotCard(widget.weatherHint!),
                     if (widget.weatherHint != null) _buildTerminClothingCard(widget.weatherHint!),
                     if (widget.termin.location.trim().isNotEmpty) _buildRouteCard(),
                     if (termin.description.isNotEmpty)
@@ -988,6 +1007,15 @@ ICD360S e.V. Vorstand''';
                           title: const Text('Braucht mich', style: TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: const Text('Meine Anwesenheit ist erforderlich'),
                           secondary: Icon(Icons.person_pin_circle, color: _brauchtMich ? Colors.red.shade700 : Colors.grey),
+                          activeThumbColor: Colors.red.shade700,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        SwitchListTile(
+                          value: _isNotfall,
+                          onChanged: (val) => setState(() => _isNotfall = val),
+                          title: const Text('Notfall', style: TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: const Text('Erscheint în Arbeitswochen als Notfall-Slot'),
+                          secondary: Icon(Icons.emergency, color: _isNotfall ? Colors.red.shade700 : Colors.grey),
                           activeThumbColor: Colors.red.shade700,
                           contentPadding: EdgeInsets.zero,
                         ),

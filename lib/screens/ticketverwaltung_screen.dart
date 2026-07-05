@@ -16,6 +16,11 @@ class TicketverwaltungScreen extends StatefulWidget {
   final Function() onRefresh;
   final Function(String) onFilterChanged;
   final Function(int, String, {String? scheduledDate}) onTicketAction;
+  /// Ticket id to auto-open in details dialog on first frame (deep-link
+  /// din Arbeitswochen). Callback `onFocusConsumed` clears the state
+  /// carrier în dashboard, ca să nu se re-declanșeze la switch de tab.
+  final int? initialFocusTicketId;
+  final VoidCallback? onFocusConsumed;
 
   const TicketverwaltungScreen({
     super.key,
@@ -28,6 +33,8 @@ class TicketverwaltungScreen extends StatefulWidget {
     required this.onRefresh,
     required this.onFilterChanged,
     required this.onTicketAction,
+    this.initialFocusTicketId,
+    this.onFocusConsumed,
   });
 
   @override
@@ -46,6 +53,22 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
     final now = DateTime.now();
     _currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
     _currentWeekStart = DateTime(_currentWeekStart.year, _currentWeekStart.month, _currentWeekStart.day);
+    if (widget.initialFocusTicketId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _autoOpenFocusTicket());
+    }
+  }
+
+  void _autoOpenFocusTicket() {
+    final id = widget.initialFocusTicketId;
+    if (id == null || !mounted) return;
+    Ticket? found;
+    for (final t in widget.tickets) {
+      if (t.id == id) { found = t; break; }
+    }
+    if (found != null) {
+      _showTicketDetailsDialog(context, found);
+    }
+    widget.onFocusConsumed?.call();
   }
 
   int _getWeekNumber(DateTime date) {
