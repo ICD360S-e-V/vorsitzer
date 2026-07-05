@@ -214,6 +214,8 @@ enum TransitApiType { efa, hafas }
 enum TransitProviderType {
   ding, mvv, vvs, vrn, vrr, kvv, vvo, vgn, naldo,
   saarvv, vbb, nvv, rmv, nahsh, insa, vbn, avv,
+  // Added 2026-07: 8 providers verified live via agent research
+  vms, vmt, vvw, vmv, vrt, vrs, wtp, vos,
 }
 
 class TransitProviderConfig {
@@ -387,6 +389,71 @@ const _providers = [
     hafasAid: 'hafas-vbb-webapp',
     hafasClientId: 'VBB', hafasClientVersion: '10000', hafasClientName: 'VBB',
     minLat: 51.3, maxLat: 53.6, minLon: 11.2, maxLon: 14.8,
+  ),
+
+  // ── Added 2026-07: 8 providers verified live via agent research ─────
+
+  TransitProviderConfig(
+    type: TransitProviderType.vms, api: TransitApiType.efa,
+    name: 'VMS', displayName: 'VMS (Verkehrsverbund Mittelsachsen)',
+    baseUrl: 'https://efa.vvo-online.de/VMSSL3',
+    minLat: 50.10, maxLat: 51.05, minLon: 12.10, maxLon: 13.55,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vmt, api: TransitApiType.hafas,
+    name: 'VMT', displayName: 'VMT (Verkehrsverbund Mittelthüringen)',
+    baseUrl: 'https://vmt.hafas.de/bin/ticketing/mgate.exe',
+    hafasAid: 't2h7u1e6r4i8n3g7e0n',
+    hafasClientId: 'HAFAS', hafasClientVersion: '2040100', hafasClientName: 'VMT',
+    hafasClientType: 'IPH', hafasVer: '1.18',
+    minLat: 50.37, maxLat: 51.12, minLon: 10.16, maxLon: 12.17,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vvw, api: TransitApiType.hafas,
+    name: 'VVW', displayName: 'VVW / RSAG (Verkehrsverbund Warnow)',
+    baseUrl: 'https://fahrplan.rsag-online.de/bin/mgate.exe',
+    hafasAid: 'tF5JTs25rzUhGrrl',
+    hafasClientId: 'RSAG', hafasClientName: 'webapp',
+    hafasClientType: 'WEB', hafasVer: '1.24', hafasExt: 'VBN.2',
+    minLat: 53.63, maxLat: 54.27, minLon: 11.50, maxLon: 12.82,
+  ),
+  TransitProviderConfig(
+    // NVBW/bwegt EFA install (nvbw3L path)
+    type: TransitProviderType.vmv, api: TransitApiType.efa,
+    name: 'VMV', displayName: 'VMV (Mecklenburg-Vorpommern)',
+    baseUrl: 'https://www.efa-bw.de/nvbw3L',
+    minLat: 53.05, maxLat: 54.92, minLon: 10.51, maxLon: 14.42,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vrt, api: TransitApiType.efa,
+    name: 'VRT', displayName: 'VRT (Verkehrsverbund Region Trier)',
+    baseUrl: 'https://www.vrt-info.de/fahrplanauskunft',
+    minLat: 49.53, maxLat: 50.39, minLon: 6.13, maxLon: 7.26,
+  ),
+  TransitProviderConfig(
+    // KVB HAFAS backend serves Köln/Bonn + Rhein-Sieg-Kreis
+    type: TransitProviderType.vrs, api: TransitApiType.hafas,
+    name: 'VRS', displayName: 'VRS (Rhein-Sieg via KVB)',
+    baseUrl: 'https://auskunft.kvb.koeln/gate',
+    hafasAid: 'Rt6foY5zcTTRXMQs',
+    hafasClientId: 'HAFAS', hafasClientVersion: '10008', hafasClientName: 'webapp',
+    hafasClientType: 'WEB', hafasVer: '1.78',
+    minLat: 50.5, maxLat: 51.2, minLon: 6.4, maxLon: 7.7,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.wtp, api: TransitApiType.efa,
+    name: 'WestfalenTarif', displayName: 'WestfalenTarif (Münster/Bielefeld/Paderborn)',
+    baseUrl: 'https://westfalenfahrplan.de/std3',
+    minLat: 50.7, maxLat: 52.6, minLon: 6.6, maxLon: 9.5,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vos, api: TransitApiType.hafas,
+    name: 'VOS', displayName: 'VOS (Verkehrsgemeinschaft Osnabrück)',
+    baseUrl: 'https://fahrplan.vos.info/bin/mgate.exe',
+    hafasAid: 'PnYowCQP7Tp1V',
+    hafasClientId: 'SWO', hafasClientName: 'webapp',
+    hafasClientType: 'WEB', hafasVer: '1.24',
+    minLat: 52.10, maxLat: 52.65, minLon: 7.60, maxLon: 8.55,
   ),
 ];
 
@@ -693,6 +760,11 @@ class TransitService {
       'limburg', 'aschaffenburg', 'oberursel', 'kronberg', 'königstein',
       'dreieich', 'langen', 'hofheim am taunus', 'hofheim', 'eschborn',
       'bad vilbel', 'bad soden', 'bad nauheim', 'bensheim',
+      // VRM Rhein-Mosel (Koblenz) served by RMV HAFAS backend
+      'koblenz', 'neuwied', 'andernach', 'mayen', 'bad ems',
+      'landkreis mayen-koblenz', 'landkreis neuwied', 'landkreis cochem-zell',
+      'westerwaldkreis', 'rhein-lahn-kreis', 'rhein-hunsrück-kreis',
+      // Original RMV
       'landkreis darmstadt-dieburg', 'landkreis fulda', 'landkreis gießen',
       'landkreis groß-gerau', 'hochtaunuskreis', 'lahn-dill-kreis',
       'landkreis limburg-weilburg', 'main-kinzig-kreis', 'main-taunus-kreis',
@@ -719,6 +791,10 @@ class TransitService {
       'schönebeck (elbe)', 'schönebeck', 'zeitz', 'sangerhausen',
       'zerbst/anhalt', 'zerbst', 'aschersleben', 'staßfurt', 'quedlinburg',
       'haldensleben', 'oschersleben', 'thale', 'wittenberg',
+      // MDV — Mitteldeutscher Verkehrsverbund is served by INSA/NASA HAFAS
+      'leipzig', 'landkreis leipzig', 'landkreis nordsachsen', 'grimma',
+      'delitzsch', 'wurzen', 'markkleeberg', 'borna', 'schkeuditz', 'oschatz',
+      // Original INSA
       'altmarkkreis salzwedel', 'salzwedel',
       'landkreis anhalt-bitterfeld', 'landkreis börde', 'burgenlandkreis',
       'landkreis harz', 'landkreis jerichower land',
@@ -726,9 +802,18 @@ class TransitService {
       'landkreis stendal', 'landkreis wittenberg',
     },
     TransitProviderType.vbn: {
-      'bremen', 'bremerhaven', 'oldenburg', 'delmenhorst', 'osnabrück',
+      'bremen', 'bremerhaven', 'oldenburg', 'delmenhorst',
       'wilhelmshaven', 'cuxhaven', 'nordenham', 'vechta', 'diepholz',
       'aurich', 'emden', 'leer', 'papenburg', 'jever', 'varel',
+      // GVH (Hannover) & VRB (Braunschweig/Wolfsburg) served by VBN HAFAS
+      'hannover', 'garbsen', 'langenhagen', 'laatzen', 'hemmingen',
+      'ronnenberg', 'seelze', 'burgdorf', 'lehrte', 'wunstorf',
+      'landkreis hannover', 'region hannover',
+      'braunschweig', 'wolfsburg', 'salzgitter', 'peine', 'gifhorn',
+      'wolfenbüttel', 'goslar', 'landkreis peine', 'landkreis gifhorn',
+      'landkreis wolfenbüttel', 'landkreis helmstedt', 'landkreis goslar',
+      'landkreis northeim',
+      // Original VBN Landkreise
       'landkreis ammerland', 'landkreis diepholz', 'landkreis oldenburg',
       'landkreis osterholz', 'landkreis verden', 'landkreis wesermarsch',
       'landkreis cuxhaven', 'landkreis nienburg',
@@ -750,6 +835,79 @@ class TransitService {
       'landkreis prignitz', 'landkreis spree-neiße',
       'landkreis teltow-fläming', 'landkreis uckermark',
     },
+
+    // ── 8 newly-added providers (verified live 2026-07) ──
+
+    TransitProviderType.vms: {
+      'chemnitz', 'zwickau', 'plauen', 'freiberg', 'mittweida',
+      'annaberg-buchholz', 'aue', 'schwarzenberg', 'stollberg', 'werdau',
+      'crimmitschau', 'reichenbach im vogtland', 'oelsnitz',
+      'landkreis mittelsachsen', 'landkreis zwickau', 'erzgebirgskreis',
+      'vogtlandkreis',
+    },
+    TransitProviderType.vmt: {
+      'erfurt', 'jena', 'weimar', 'gera', 'eisenach', 'gotha', 'mühlhausen',
+      'nordhausen', 'suhl', 'meiningen', 'arnstadt', 'apolda', 'sonneberg',
+      'saalfeld', 'ilmenau', 'greiz', 'altenburg', 'sömmerda', 'bad langensalza',
+      'schmalkalden', 'rudolstadt', 'landkreis gotha', 'landkreis nordhausen',
+      'landkreis eichsfeld', 'landkreis kyffhäuserkreis', 'kyffhäuserkreis',
+      'landkreis sömmerda', 'landkreis weimarer land', 'landkreis saale-holzland',
+      'landkreis saale-orla-kreis', 'landkreis saalfeld-rudolstadt',
+      'landkreis ilm-kreis', 'ilm-kreis', 'landkreis unstrut-hainich-kreis',
+      'unstrut-hainich-kreis', 'landkreis wartburgkreis', 'wartburgkreis',
+      'landkreis schmalkalden-meiningen', 'landkreis hildburghausen',
+      'landkreis sonneberg', 'landkreis greiz', 'landkreis altenburger land',
+      'altenburger land', 'thüringen',
+    },
+    TransitProviderType.vvw: {
+      'rostock', 'bad doberan', 'ribnitz-damgarten', 'graal-müritz',
+      'kühlungsborn', 'warnemünde', 'güstrow', 'teterow',
+      'landkreis rostock', 'landkreis bad doberan',
+    },
+    TransitProviderType.vmv: {
+      'schwerin', 'wismar', 'greifswald', 'stralsund', 'neubrandenburg',
+      'neustrelitz', 'waren (müritz)', 'waren', 'parchim', 'ludwigslust',
+      'anklam', 'demmin', 'bergen auf rügen', 'bergen', 'ueckermünde',
+      'pasewalk', 'malchin', 'landkreis nordwestmecklenburg',
+      'landkreis ludwigslust-parchim', 'landkreis mecklenburgische seenplatte',
+      'landkreis vorpommern-greifswald', 'landkreis vorpommern-rügen',
+      'mecklenburg-vorpommern',
+    },
+    TransitProviderType.vrt: {
+      'trier', 'bitburg', 'wittlich', 'daun', 'prüm', 'saarburg',
+      'hermeskeil', 'gerolstein', 'landkreis trier-saarburg',
+      'eifelkreis bitburg-prüm', 'landkreis bernkastel-wittlich',
+      'landkreis vulkaneifel',
+    },
+    TransitProviderType.vrs: {
+      // Rhein-Sieg — Köln/Bonn agglomeration + Bergisch Land
+      'köln', 'koeln', 'bonn', 'leverkusen', 'rösrath', 'bergisch gladbach',
+      'siegburg', 'sankt augustin', 'troisdorf', 'hennef', 'lohmar',
+      'niederkassel', 'wesseling', 'brühl', 'hürth', 'frechen', 'pulheim',
+      'bergheim', 'kerpen', 'erftstadt', 'euskirchen', 'mechernich',
+      'schleiden', 'rhein-sieg-kreis', 'rhein-erft-kreis',
+      'rheinisch-bergischer kreis', 'oberbergischer kreis',
+      'kreis euskirchen',
+    },
+    TransitProviderType.wtp: {
+      // WestfalenTarif — Nordrhein-Westfalen east + Münsterland
+      'münster', 'muenster', 'bielefeld', 'paderborn', 'gütersloh',
+      'minden', 'detmold', 'lippstadt', 'lüdenscheid', 'iserlohn',
+      'siegen', 'arnsberg', 'hamm', 'unna', 'soest', 'coesfeld',
+      'ahlen', 'rheine', 'gronau', 'ibbenbüren', 'warendorf', 'beckum',
+      'oelde', 'bad salzuflen', 'herford', 'löhne', 'bünde',
+      'landkreis borken', 'landkreis coesfeld', 'landkreis steinfurt',
+      'landkreis warendorf', 'landkreis gütersloh', 'landkreis herford',
+      'landkreis lippe', 'landkreis minden-lübbecke', 'landkreis höxter',
+      'landkreis paderborn', 'kreis soest', 'hochsauerlandkreis',
+      'märkischer kreis', 'landkreis olpe', 'landkreis siegen-wittgenstein',
+      'kreis unna', 'westfalen',
+    },
+    TransitProviderType.vos: {
+      'osnabrück', 'osnabrueck', 'melle', 'georgsmarienhütte', 'bramsche',
+      'quakenbrück', 'bad iburg', 'dissen', 'wallenhorst',
+      'landkreis osnabrück',
+    },
   };
 
   /// Detect which transit provider best matches the current location.
@@ -769,16 +927,40 @@ class TransitService {
     final lat = _latitude!;
     final lon = _longitude!;
 
-    // Step 1: city name match
+    // Step 1: city name match — 3 passes to avoid false substring matches
+    //   Pass 1: EXACT match (city == catalog entry) — strongest, wins first
+    //   Pass 2: WORD-BOUNDARY match (catalog entry is a whole token in city
+    //           name, or vice versa) — catches "Bergisch Gladbach" via "bonn"
+    //           without letting "Neubrandenburg" false-match "brandenburg"
+    //   Pass 3: fall through to bounding-box geometry
     if (gpsCity != null && gpsCity!.isNotEmpty) {
       final cityLower = gpsCity!.toLowerCase();
+      final cityTokens = cityLower.split(RegExp(r'[\s,\-()/]+')).where((t) => t.isNotEmpty).toSet();
+
+      // Pass 1 — exact match on whole gpsCity string
+      for (final p in _providers) {
+        final cities = _providerCities[p.type];
+        if (cities == null) continue;
+        if (cities.contains(cityLower)) {
+          activeProvider = p;
+          _log.info('Transit: gpsCity "$gpsCity" EXACT match ${p.name}', tag: 'TRANSIT');
+          return;
+        }
+      }
+
+      // Pass 2 — word-boundary. A catalog entry counts as a token match if
+      // every one of its own tokens appears in the city's token set (so
+      // "münster" doesn't match "neumünster", and "gera" doesn't match
+      // "landkreis groß-gerau").
       for (final p in _providers) {
         final cities = _providerCities[p.type];
         if (cities == null) continue;
         for (final c in cities) {
-          if (cityLower.contains(c) || c.contains(cityLower)) {
+          final catTokens = c.split(RegExp(r'[\s,\-()/]+')).where((t) => t.isNotEmpty).toList();
+          if (catTokens.isEmpty) continue;
+          if (catTokens.every(cityTokens.contains)) {
             activeProvider = p;
-            _log.info('Transit: gpsCity "$gpsCity" matches ${p.name} (via "$c")', tag: 'TRANSIT');
+            _log.info('Transit: gpsCity "$gpsCity" TOKEN match ${p.name} (via "$c")', tag: 'TRANSIT');
             return;
           }
         }
