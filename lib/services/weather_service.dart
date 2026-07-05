@@ -265,6 +265,46 @@ class HealthAlert {
   }
 }
 
+/// One day of aggregated air-quality forecast (max values from Open-Meteo daily).
+class DailyAirQuality {
+  final DateTime date;
+  final double? europeanAqi;      // daily max
+  final double? pm25Max;
+  final double? pm10Max;
+  final double? ozoneMax;
+  final double? uvIndexMax;
+  // Peak pollen counts for the day, if reported.
+  final double? alderPollenMax;
+  final double? birchPollenMax;
+  final double? grassPollenMax;
+  final double? mugwortPollenMax;
+  final double? olivePollenMax;
+  final double? ragweedPollenMax;
+
+  const DailyAirQuality({
+    required this.date,
+    this.europeanAqi,
+    this.pm25Max,
+    this.pm10Max,
+    this.ozoneMax,
+    this.uvIndexMax,
+    this.alderPollenMax,
+    this.birchPollenMax,
+    this.grassPollenMax,
+    this.mugwortPollenMax,
+    this.olivePollenMax,
+    this.ragweedPollenMax,
+  });
+
+  bool get anyPollenNoticeable =>
+      (alderPollenMax ?? 0) > 10 ||
+      (birchPollenMax ?? 0) > 10 ||
+      (grassPollenMax ?? 0) > 10 ||
+      (mugwortPollenMax ?? 0) > 10 ||
+      (olivePollenMax ?? 0) > 10 ||
+      (ragweedPollenMax ?? 0) > 10;
+}
+
 /// Snapshot of air-quality + pollen data (Open-Meteo air-quality API, free, CAMS).
 ///
 /// Levels follow the German UBA / European classification where practical.
@@ -286,6 +326,15 @@ class AirQualityData {
   final double? ragweedPollen;
   final DateTime timestamp;
 
+  // Yesterday's daily average (from past_days=1) — used to render the
+  // "besser/schlechter als gestern" delta in the Umwelt tab.
+  final double? yesterdayPm25Avg;
+  final double? yesterdayPm10Avg;
+  final double? yesterdayOzoneAvg;
+  final double? yesterdayAqiAvg;
+  // Next 3 days at daily resolution.
+  final List<DailyAirQuality> forecast;
+
   AirQualityData({
     this.pm25,
     this.pm10,
@@ -302,6 +351,11 @@ class AirQualityData {
     this.olivePollen,
     this.ragweedPollen,
     required this.timestamp,
+    this.yesterdayPm25Avg,
+    this.yesterdayPm10Avg,
+    this.yesterdayOzoneAvg,
+    this.yesterdayAqiAvg,
+    this.forecast = const [],
   });
 
   /// Coarse label for the European AQI (UBA/EEA scale).
@@ -958,12 +1012,18 @@ class WeatherService {
   Future<void> _fetchAirQuality() async {
     if (_latitude == null || _longitude == null) return;
     try {
+      // Single call bundles: current values + yesterday hourly (past_days=1)
+      // to compute a "gestern"-average + 3-day daily forecast including pollen
+      // peaks. All within the free tier — no key, no rate-limit for our load.
       final uri = Uri.parse(
         'https://air-quality-api.open-meteo.com/v1/air-quality'
         '?latitude=$_latitude&longitude=$_longitude'
         '&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,'
         'uv_index,european_aqi,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,'
         'olive_pollen,ragweed_pollen'
+        '&hourly=pm2_5,pm10,ozone,european_aqi,alder_pollen,birch_pollen,grass_pollen,'
+        'mugwort_pollen,olive_pollen,ragweed_pollen'
+        '&past_days=1&forecast_days=3'
         '&timezone=Europe/Berlin',
       );
       final response = await _client.get(uri).timeout(const Duration(seconds: 15));
@@ -974,6 +1034,75 @@ class WeatherService {
       if (c == null) return;
 
       double? d(String k) => (c[k] as num?)?.toDouble();
+
+      // ── Yesterday averages from hourly + past_days=1 ──
+      final hourly = data['hourly'] as Map<String, dynamic>?;
+      double? yPm25, yPm10, yOzone, yAqi;
+      List<DailyAirQuality> forecast = const [];
+      if (hourly != null) {
+        final times = (hourly['time'] as List?)?.cast<String>() ?? const [];
+        final pm25L = (hourly['pm2_5'] as List?) ?? const [];
+        final pm10L = (hourly['pm10'] as List?) ?? const [];
+        final ozL = (hourly['ozone'] as List?) ?? const [];
+        final aqiL = (hourly['european_aqi'] as List?) ?? const [];
+
+        final now = DateTime.now();
+        final yesterday = DateTime(now.year, now.month, now.day)
+            .subtract(const Duration(days: 1));
+        final today = DateTime(now.year, now.month, now.day);
+
+        // Bucket hourly values by day so we can average yesterday + peak today+.
+        final buckets = <DateTime, _DayBucket>{};
+        for (int i = 0; i < times.length; i++) {
+          final t = DateTime.tryParse(times[i]);
+          if (t == null) continue;
+          final day = DateTime(t.year, t.month, t.day);
+          final b = buckets.putIfAbsent(day, _DayBucket.new);
+          double? read(List l) => i < l.length ? (l[i] as num?)?.toDouble() : null;
+          b.pm25.add(read(pm25L));
+          b.pm10.add(read(pm10L));
+          b.ozone.add(read(ozL));
+          b.aqi.add(read(aqiL));
+          b.alder.add(read((hourly['alder_pollen'] as List?) ?? const []));
+          b.birch.add(read((hourly['birch_pollen'] as List?) ?? const []));
+          b.grass.add(read((hourly['grass_pollen'] as List?) ?? const []));
+          b.mugwort.add(read((hourly['mugwort_pollen'] as List?) ?? const []));
+          b.olive.add(read((hourly['olive_pollen'] as List?) ?? const []));
+          b.ragweed.add(read((hourly['ragweed_pollen'] as List?) ?? const []));
+          b.uv.add(null);
+        }
+
+        final yBucket = buckets[yesterday];
+        if (yBucket != null) {
+          yPm25 = yBucket.pm25.avg;
+          yPm10 = yBucket.pm10.avg;
+          yOzone = yBucket.ozone.avg;
+          yAqi = yBucket.aqi.avg;
+        }
+
+        // Forecast: today + next 2 days = 3 total. Skip if bucket empty.
+        final list = <DailyAirQuality>[];
+        for (int i = 0; i < 3; i++) {
+          final day = today.add(Duration(days: i));
+          final b = buckets[day];
+          if (b == null) continue;
+          list.add(DailyAirQuality(
+            date: day,
+            europeanAqi: b.aqi.max,
+            pm25Max: b.pm25.max,
+            pm10Max: b.pm10.max,
+            ozoneMax: b.ozone.max,
+            uvIndexMax: null, // uv missing from hourly bucket
+            alderPollenMax: b.alder.max,
+            birchPollenMax: b.birch.max,
+            grassPollenMax: b.grass.max,
+            mugwortPollenMax: b.mugwort.max,
+            olivePollenMax: b.olive.max,
+            ragweedPollenMax: b.ragweed.max,
+          ));
+        }
+        forecast = list;
+      }
 
       final aq = AirQualityData(
         pm25: d('pm2_5'),
@@ -991,13 +1120,19 @@ class WeatherService {
         olivePollen: d('olive_pollen'),
         ragweedPollen: d('ragweed_pollen'),
         timestamp: DateTime.now(),
+        yesterdayPm25Avg: yPm25,
+        yesterdayPm10Avg: yPm10,
+        yesterdayOzoneAvg: yOzone,
+        yesterdayAqiAvg: yAqi,
+        forecast: forecast,
       );
 
       currentAirQuality = aq;
       onAirQualityUpdate?.call(aq);
       _log.info(
         'AirQuality: AQI=${aq.europeanAqi?.toStringAsFixed(0) ?? "?"} (${aq.aqiLabel}), '
-        'PM2.5=${aq.pm25?.toStringAsFixed(1) ?? "?"} µg/m³, pollen=${aq.pollenActive ? "yes" : "no"}',
+        'PM2.5=${aq.pm25?.toStringAsFixed(1) ?? "?"} µg/m³, pollen=${aq.pollenActive ? "yes" : "no"}, '
+        'forecast=${forecast.length} days, yesterdayPm25=${yPm25?.toStringAsFixed(1) ?? "?"}',
         tag: 'WEATHER',
       );
     } catch (e) {
@@ -1255,4 +1390,28 @@ class WeatherService {
     await _fetchAlerts();
     await _fetchAirQuality();
   }
+}
+
+/// Helper: collect one series of hourly values per day-of-week bucket, then
+/// return their average or peak. Used only inside _fetchAirQuality to derive
+/// yesterday's averages and per-day forecast maxes without re-parsing arrays.
+class _DayBucket {
+  final _Stats pm25 = _Stats();
+  final _Stats pm10 = _Stats();
+  final _Stats ozone = _Stats();
+  final _Stats aqi = _Stats();
+  final _Stats uv = _Stats();
+  final _Stats alder = _Stats();
+  final _Stats birch = _Stats();
+  final _Stats grass = _Stats();
+  final _Stats mugwort = _Stats();
+  final _Stats olive = _Stats();
+  final _Stats ragweed = _Stats();
+}
+
+class _Stats {
+  final List<double> _v = [];
+  void add(double? x) { if (x != null) _v.add(x); }
+  double? get avg => _v.isEmpty ? null : _v.reduce((a, b) => a + b) / _v.length;
+  double? get max => _v.isEmpty ? null : _v.reduce((a, b) => a > b ? a : b);
 }

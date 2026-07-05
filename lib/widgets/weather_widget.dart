@@ -1099,17 +1099,30 @@ class _WeatherDialogState extends State<WeatherDialog> {
             ),
           ),
           const SizedBox(height: 14),
-          Text('Schadstoffe (µg/m³)',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Row(
+            children: [
+              Text('Schadstoffe (µg/m³)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              const SizedBox(width: 6),
+              Text('· tippen für Details',
+                  style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+            ],
+          ),
           const SizedBox(height: 6),
-          _pollutantRow('Feinstaub PM2.5', aq.pm25, warnAbove: 25, dangerAbove: 50),
-          _pollutantRow('Feinstaub PM10', aq.pm10, warnAbove: 50, dangerAbove: 100),
-          _pollutantRow('Ozon (O₃)', aq.ozone, warnAbove: 120, dangerAbove: 180),
-          _pollutantRow('Stickstoffdioxid (NO₂)', aq.nitrogenDioxide, warnAbove: 40, dangerAbove: 200),
+          _pollutantRow('Feinstaub PM2.5', aq.pm25,
+              warnAbove: 25, dangerAbove: 50, code: 'pm25', yesterday: aq.yesterdayPm25Avg),
+          _pollutantRow('Feinstaub PM10', aq.pm10,
+              warnAbove: 50, dangerAbove: 100, code: 'pm10', yesterday: aq.yesterdayPm10Avg),
+          _pollutantRow('Ozon (O₃)', aq.ozone,
+              warnAbove: 120, dangerAbove: 180, code: 'o3', yesterday: aq.yesterdayOzoneAvg),
+          _pollutantRow('Stickstoffdioxid (NO₂)', aq.nitrogenDioxide,
+              warnAbove: 40, dangerAbove: 200, code: 'no2'),
           if (aq.sulphurDioxide != null && aq.sulphurDioxide! > 0)
-            _pollutantRow('Schwefeldioxid (SO₂)', aq.sulphurDioxide, warnAbove: 40, dangerAbove: 250),
+            _pollutantRow('Schwefeldioxid (SO₂)', aq.sulphurDioxide,
+                warnAbove: 40, dangerAbove: 250, code: 'so2'),
           if (aq.carbonMonoxide != null && aq.carbonMonoxide! > 0)
-            _pollutantRow('Kohlenmonoxid (CO)', aq.carbonMonoxide, warnAbove: 4000, dangerAbove: 10000),
+            _pollutantRow('Kohlenmonoxid (CO)', aq.carbonMonoxide,
+                warnAbove: 4000, dangerAbove: 10000, code: 'co'),
           if (aq.uvIndex != null) ...[
             const SizedBox(height: 14),
             _uvIndexBar(aq.uvIndex!),
@@ -1136,6 +1149,16 @@ class _WeatherDialogState extends State<WeatherDialog> {
               child: Text('Keine Pollen-Daten für diesen Standort verfügbar',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
             ),
+          // 3-day forecast (AQI + PM peaks + active pollen). Only when the
+          // API returned daily buckets we could aggregate from hourly.
+          if (aq.forecast.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('3-Tages-Vorschau',
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 6),
+            ...aq.forecast.map(_dailyAirQualityCard),
+          ],
           const SizedBox(height: 12),
           Text(
             'Daten: CAMS via Open-Meteo Air Quality API',
@@ -1156,7 +1179,10 @@ class _WeatherDialogState extends State<WeatherDialog> {
   }
 
   Widget _pollutantRow(String label, double? value,
-      {required double warnAbove, required double dangerAbove}) {
+      {required double warnAbove,
+      required double dangerAbove,
+      required String code,
+      double? yesterday}) {
     final v = value;
     final color = v == null
         ? Colors.grey
@@ -1164,44 +1190,225 @@ class _WeatherDialogState extends State<WeatherDialog> {
             ? Colors.red.shade700
             : (v >= warnAbove ? Colors.orange.shade700 : Colors.green.shade700));
     final ratio = v == null ? 0.0 : (v / dangerAbove).clamp(0.0, 1.0);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(label, style: const TextStyle(fontSize: 12)),
-          ),
-          Expanded(
-            child: Container(
-              height: 6,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(3),
+    return InkWell(
+      onTap: () => _showPollutantInfo(code, label, v, warnAbove, dangerAbove, yesterday),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 148,
+              child: Row(
+                children: [
+                  Flexible(child: Text(label, style: const TextStyle(fontSize: 12))),
+                  const SizedBox(width: 3),
+                  Icon(Icons.info_outline, size: 11, color: Colors.grey.shade500),
+                ],
               ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: ratio,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(3),
+            ),
+            Expanded(
+              child: Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: ratio,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 60,
-            child: Text(
-              v == null ? '—' : v.toStringAsFixed(1),
-              textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 70,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    v == null ? '—' : v.toStringAsFixed(1),
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+                  ),
+                  if (yesterday != null && v != null) _yesterdayDelta(v, yesterday),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  /// Compact "besser/schlechter als gestern" chip below the current value.
+  /// Green when today is lower (cleaner air), red when higher.
+  Widget _yesterdayDelta(double today, double yesterday) {
+    final delta = today - yesterday;
+    if (delta.abs() < 0.5) {
+      return Text('≈ gestern',
+          style: TextStyle(fontSize: 9, color: Colors.grey.shade500));
+    }
+    final worse = delta > 0;
+    final pct = yesterday > 0 ? (delta.abs() / yesterday * 100).round() : 0;
+    return Text(
+      '${worse ? "↑" : "↓"} ${pct > 0 ? "$pct% " : ""}vs. gestern',
+      style: TextStyle(
+        fontSize: 9,
+        fontWeight: FontWeight.w600,
+        color: worse ? Colors.red.shade600 : Colors.green.shade700,
+      ),
+    );
+  }
+
+  void _showPollutantInfo(String code, String label, double? value,
+      double warn, double danger, double? yesterday) {
+    final info = _pollutantInfoText(code);
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(info.what,
+                style: const TextStyle(fontSize: 13, height: 1.35)),
+            const SizedBox(height: 12),
+            _bottomSheetSection('Wer sollte aufpassen',
+                info.affected, Icons.person, Colors.orange.shade700),
+            const SizedBox(height: 8),
+            _bottomSheetSection('Empfehlung',
+                info.advice, Icons.lightbulb_outline, Colors.blue.shade700),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Grenzwerte (µg/m³)',
+                      style: TextStyle(
+                          fontSize: 10, color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('gut  <  ${warn.toStringAsFixed(0)}  <  erhöht  <  '
+                      '${danger.toStringAsFixed(0)}  <  hoch',
+                      style: const TextStyle(fontSize: 12)),
+                  if (value != null) ...[
+                    const SizedBox(height: 6),
+                    Text('Aktuell: ${value.toStringAsFixed(1)} µg/m³',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
+                  if (yesterday != null) ...[
+                    const SizedBox(height: 2),
+                    Text('Ø gestern: ${yesterday.toStringAsFixed(1)} µg/m³',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomSheetSection(String title, String body, IconData icon, Color color) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title,
+                  style: TextStyle(
+                      fontSize: 11, color: color, fontWeight: FontWeight.bold, letterSpacing: 0.3)),
+              const SizedBox(height: 2),
+              Text(body, style: const TextStyle(fontSize: 12, height: 1.4)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// German-language descriptions for the six pollutants Umwelt-Tab surfaces.
+  /// Sources: UBA, WHO air-quality guidelines.
+  _PollutantInfo _pollutantInfoText(String code) {
+    switch (code) {
+      case 'pm25':
+        return const _PollutantInfo(
+          what: 'Feinstaub PM2.5: winzige Partikel unter 2,5 µm aus '
+              'Verkehr, Heizung und Industrie. Dringt tief in die Lunge und '
+              'sogar in die Blutbahn ein.',
+          affected: 'Asthmatiker, COPD-Patienten, Herz-Kreislauf-Kranke, '
+              'Kinder, Senioren, Schwangere.',
+          advice: 'Bei erhöhten Werten: körperliche Anstrengung im Freien '
+              'meiden, Fenster geschlossen halten, ggf. FFP2-Maske.',
+        );
+      case 'pm10':
+        return const _PollutantInfo(
+          what: 'Feinstaub PM10: gröbere Partikel unter 10 µm, u.a. aus '
+              'Reifenabrieb und Baustellenstaub. Reizt die Atemwege.',
+          affected: 'Personen mit Atemwegserkrankungen, Allergiker.',
+          advice: 'Aktivitäten in verkehrsarme Gebiete verlegen. Bei '
+              'Belastung > 50 µg/m³ Innenräume mit Filterlüftung bevorzugen.',
+        );
+      case 'o3':
+        return const _PollutantInfo(
+          what: 'Bodennahes Ozon (O₃) entsteht bei Sonne aus Autoabgasen. '
+              'Reizt Schleimhäute und Lunge, oft nachmittags am höchsten.',
+          affected: 'Asthmatiker, Kinder, Senioren, sportlich Aktive.',
+          advice: 'Anstrengende Aktivitäten im Freien auf frühen Morgen '
+              'oder Abend verlegen. Werte > 180 µg/m³: drinnen bleiben.',
+        );
+      case 'no2':
+        return const _PollutantInfo(
+          what: 'Stickstoffdioxid (NO₂) aus Dieselmotoren und Heizungen. '
+              'Reizt Atemwege, verstärkt Asthma-Anfälle.',
+          affected: 'Kinder, Asthmatiker, Anwohner an Hauptstraßen.',
+          advice: 'Bei Werten > 40 µg/m³: Wege abseits verkehrsreicher '
+              'Straßen wählen. Fenster zur Straße geschlossen halten.',
+        );
+      case 'so2':
+        return const _PollutantInfo(
+          what: 'Schwefeldioxid (SO₂) aus Kohle-/Ölverbrennung und '
+              'Vulkantätigkeit. Reizt Schleimhäute, kann Asthma auslösen.',
+          affected: 'Asthmatiker, Personen mit Herz-Lungen-Erkrankungen.',
+          advice: 'In Deutschland selten hoch. Bei > 40 µg/m³ Innenräume '
+              'bevorzugen und tief einatmen vermeiden.',
+        );
+      case 'co':
+        return const _PollutantInfo(
+          what: 'Kohlenmonoxid (CO) ist ein farb- und geruchloses Gas aus '
+              'unvollständiger Verbrennung. Bindet an Hämoglobin und blockiert '
+              'den Sauerstofftransport.',
+          affected: 'Alle — besonders Herzkranke, Schwangere, Kinder.',
+          advice: 'Werte im Freien sind meist unbedenklich. Innenraum-'
+              'Belastung durch defekte Heizung ist gefährlich — CO-Melder!',
+        );
+    }
+    return const _PollutantInfo(
+      what: 'Keine Zusatzinfo verfügbar.',
+      affected: '—',
+      advice: '—',
     );
   }
 
@@ -1263,6 +1470,95 @@ class _WeatherDialogState extends State<WeatherDialog> {
           ),
         ],
       ),
+    );
+  }
+
+  /// One-day summary card for the 3-Tages-Vorschau in Umwelt tab.
+  /// Shows AQI + peak pollutants + which pollens will be noticeable.
+  Widget _dailyAirQualityCard(DailyAirQuality d) {
+    const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    final now = DateTime.now();
+    final isToday = d.date.day == now.day && d.date.month == now.month;
+    final isTomorrow = d.date.difference(DateTime(now.year, now.month, now.day)).inDays == 1;
+    final label = isToday ? 'Heute' : (isTomorrow ? 'Morgen' :
+        '${dayNames[(d.date.weekday - 1) % 7]} ${d.date.day.toString().padLeft(2, '0')}.${d.date.month.toString().padLeft(2, '0')}.');
+    final active = <String>[
+      if ((d.alderPollenMax ?? 0) > 10) 'Erle',
+      if ((d.birchPollenMax ?? 0) > 10) 'Birke',
+      if ((d.grassPollenMax ?? 0) > 10) 'Gräser',
+      if ((d.mugwortPollenMax ?? 0) > 10) 'Beifuß',
+      if ((d.olivePollenMax ?? 0) > 10) 'Olive',
+      if ((d.ragweedPollenMax ?? 0) > 10) 'Ambrosia',
+    ];
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isToday ? Colors.blue.shade50 : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: isToday ? Border.all(color: Colors.blue.shade200) : null,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 55,
+            child: Text(label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                  color: isToday ? Colors.blue.shade900 : null,
+                )),
+          ),
+          if (d.europeanAqi != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _aqiColor(d.europeanAqi).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text('AQI ${d.europeanAqi!.toStringAsFixed(0)}',
+                  style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.bold, color: _aqiColor(d.europeanAqi))),
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (d.pm25Max != null)
+            _dailyMiniBadge('PM2.5', d.pm25Max!, warn: 25, danger: 50),
+          if (d.ozoneMax != null) ...[
+            const SizedBox(width: 4),
+            _dailyMiniBadge('O₃', d.ozoneMax!, warn: 120, danger: 180),
+          ],
+          const Spacer(),
+          if (active.isNotEmpty)
+            Flexible(
+              child: Text(
+                '🌾 ${active.join(", ")}',
+                style: TextStyle(fontSize: 10, color: Colors.orange.shade900),
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+              ),
+            )
+          else
+            Text('Pollen ruhig',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _dailyMiniBadge(String label, double value,
+      {required double warn, required double danger}) {
+    final color = value >= danger
+        ? Colors.red.shade700
+        : (value >= warn ? Colors.orange.shade700 : Colors.green.shade700);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text('$label ${value.toStringAsFixed(0)}',
+          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: color)),
     );
   }
 
@@ -2972,4 +3268,18 @@ class _RadarFrame {
   final String path;   // tilecache.rainviewer.com/v2/radar/<hash>
   final bool isForecast;
   _RadarFrame({required this.time, required this.path, required this.isForecast});
+}
+
+/// Static German-language description block used by the pollutant info bottom
+/// sheet. `what` = one-paragraph explanation, `affected` = risk groups,
+/// `advice` = what to do when levels are elevated.
+class _PollutantInfo {
+  final String what;
+  final String affected;
+  final String advice;
+  const _PollutantInfo({
+    required this.what,
+    required this.affected,
+    required this.advice,
+  });
 }
