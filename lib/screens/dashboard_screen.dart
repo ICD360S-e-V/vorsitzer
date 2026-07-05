@@ -621,6 +621,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         setState(() {
           _users = usersList.map((u) => User.fromJson(u)).toList();
         });
+        // Publish users + apiService to the global broadcast context so the
+        // weather-dialog's "Mitglieder warnen"-button can open the broadcast
+        // dialog without any prop drilling.
+        SturmwarnungBroadcastContext.instance
+          ..apiService = _apiService
+          ..users = _users
+          ..adminMitgliedernummer = widget.currentMitgliedernummer;
         // Refresh "Mein Vote" pending list in background — independent of
         // _users fetch.
         _refreshPendingMyVote();
@@ -1065,27 +1072,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _showAdminChatDialogInternal(null);
   }
 
-  /// Öffnet den Sturmwarnung-Broadcast-Dialog. Dedicated Vorsitzer-Tool:
-  /// pro Mitglied-Adresse werden aktive DWD-Warnungen geladen und der
-  /// Vorsitzer wählt aus, wer eine dringende Chat-Nachricht bekommt.
-  void _showSturmwarnungBroadcast() {
-    if (_users.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mitglieder-Liste noch nicht geladen.')),
-      );
-      return;
-    }
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => SturmwarnungBroadcastDialog(
-        apiService: _apiService,
-        users: _users,
-        adminMitgliedernummer: widget.currentMitgliedernummer,
-      ),
-    );
-  }
-
   void _showAdminChatDialogWithCall() {
     _showAdminChatDialogInternal(_pendingCall);
   }
@@ -1296,13 +1282,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               tooltip: 'Test Chat Bubble',
               onPressed: () => GlobalChatService().debugInjectTestBubble(name: 'TEST'),
             ),
-          // Sturm-Broadcast: targeted DWD-warnings per Mitglied-Adresse.
-          // Only shows when we have loaded users; otherwise silently hidden.
-          IconButton(
-            icon: const Icon(Icons.thunderstorm),
-            tooltip: 'Wetter-Warnung an Mitglieder',
-            onPressed: _showSturmwarnungBroadcast,
-          ),
           // Live Chat (Admin can chat with members) with unread badge
           Stack(
             children: [

@@ -18,6 +18,7 @@ import '../services/weather_history_service.dart';
 import '../services/weather_profile_service.dart';
 import '../services/weather_service.dart';
 import '../utils/weather_pdf_generator.dart';
+import 'sturmwarnung_broadcast_dialog.dart';
 import 'weather_profile_dialog.dart';
 
 /// Emoji font fallback list — applied per-Text ONLY on widgets that render
@@ -1029,6 +1030,22 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 Text(
                   'DWD Warnungen (${alerts.length})',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.red),
+                ),
+                const Spacer(),
+                // Vorsitzer-tool: open the targeted broadcast dialog. Lives
+                // right beside the DWD list so it's obvious "warn members"
+                // is meant per address, not spam-all.
+                TextButton.icon(
+                  icon: const Icon(Icons.notifications_active, size: 16),
+                  label: const Text('Mitglieder warnen',
+                      style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () => openSturmwarnungBroadcast(context),
                 ),
               ],
             ),
@@ -3576,12 +3593,13 @@ class _RainRadarViewState extends State<_RainRadarView> {
 
     final frame = _frames[_currentFrameIndex];
     final center = LatLng(widget.centerLat, widget.centerLon);
-    // RainViewer palette 4 = "The Weather Channel" (green → yellow → red →
-    // magenta) — matches the DWD-style intensity coding and the legend
-    // rendered below the map. Palette 2 (which we used before) was
-    // Universal-Blue-only, so the tile colours never lined up with the
-    // green/yellow/red labels in the legend.
-    final tileUrl = '${frame.path}/256/{z}/{x}/{y}/4/1_1.png';
+    // RainViewer palette 2 = "Universal Blue" — the classic wetter.com/DWD
+    // style: light cyan for weak rain, deep indigo/dark-blue for extreme
+    // rainfall. Palette 4 (Weather Channel) produced greens/yellows/reds
+    // that didn't line up with what actually rendered on the tile, so we
+    // stay with the blue gradient the user reports seeing and rebuild the
+    // legend to match those shades.
+    final tileUrl = '${frame.path}/256/{z}/{x}/{y}/2/1_1.png';
 
     return Column(
       children: [
@@ -3679,13 +3697,16 @@ class _RainRadarViewState extends State<_RainRadarView> {
                   style: TextStyle(
                       fontSize: 10, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
               const SizedBox(width: 6),
-              // Colours sampled from RainViewer palette 4 (Weather Channel).
-              _radarLegendChip(const Color(0xFF00BB00), 'sehr leicht'),
-              _radarLegendChip(const Color(0xFF008800), 'leicht'),
-              _radarLegendChip(const Color(0xFFFFFF00), 'mäßig'),
-              _radarLegendChip(const Color(0xFFFF9900), 'stark'),
-              _radarLegendChip(const Color(0xFFDD0000), 'Starkregen'),
-              _radarLegendChip(const Color(0xFFCC00CC), 'extrem'),
+              // Colours approximated from RainViewer palette 2 (Universal Blue).
+              // Blue-only gradient matches what the user reports seeing on the
+              // tiles: light cyan for weak rain deepening into dark navy/
+              // indigo as intensity climbs.
+              _radarLegendChip(const Color(0xFFB8E6F5), 'sehr leicht'),
+              _radarLegendChip(const Color(0xFF6EB8E0), 'leicht'),
+              _radarLegendChip(const Color(0xFF2A78C4), 'mäßig'),
+              _radarLegendChip(const Color(0xFF1450A0), 'stark'),
+              _radarLegendChip(const Color(0xFF0D2A70), 'Starkregen'),
+              _radarLegendChip(const Color(0xFF06134D), 'extrem'),
             ],
           ),
         ),

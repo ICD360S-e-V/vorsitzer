@@ -12,6 +12,39 @@ import '../services/weather_service.dart' show WeatherAlert;
 
 final _log = LoggerService();
 
+/// Global registration slot so the weather-dialog (which lives inside its
+/// own subtree) can open the broadcast without threading callbacks through
+/// half the widget tree. The dashboard populates this once at startup.
+class SturmwarnungBroadcastContext {
+  ApiService? apiService;
+  List<User> users = const [];
+  String adminMitgliedernummer = '';
+  static final SturmwarnungBroadcastContext instance =
+      SturmwarnungBroadcastContext._();
+  SturmwarnungBroadcastContext._();
+}
+
+/// Convenience: open the broadcast dialog with the globally-registered
+/// context. Callable from any widget without prop-drilling.
+Future<void> openSturmwarnungBroadcast(BuildContext context) async {
+  final ctx = SturmwarnungBroadcastContext.instance;
+  if (ctx.apiService == null || ctx.users.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mitglieder-Liste noch nicht geladen.')),
+    );
+    return;
+  }
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => SturmwarnungBroadcastDialog(
+      apiService: ctx.apiService!,
+      users: ctx.users,
+      adminMitgliedernummer: ctx.adminMitgliedernummer,
+    ),
+  );
+}
+
 /// Vorsitzer-Tool: targeted Wetter-Broadcast an Members.
 ///
 /// Pro Members-Adresse (PLZ + Ort) wird die DWD-Warn-Liste von Bright Sky
