@@ -1663,6 +1663,10 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   /// `_checkAccessibility()` after each search. When `_barrierFrei` toggle
   /// is on, journeys with brokenElevator status are hidden from the list.
   final Map<int, JourneyAccessibility> _accessibility = {};
+  /// Line names the user asked to avoid via "Alternative suchen" — resets
+  /// on every explicit search. Persists across re-search so the second
+  /// alternative call keeps excluding all previously vetoed lines.
+  final Set<String> _excludedLines = {};
 
   @override
   void initState() {
@@ -1741,7 +1745,30 @@ class _VerbindungTabState extends State<_VerbindungTab> {
     setState(() {
       _from = fav.fromLocation;
       _to = fav.toLocation;
+      _excludedLines.clear();
     });
+    await _search();
+  }
+
+  /// User tapped "Alternative suchen" on a card whose primary line has
+  /// an active HIM disruption. Add all affected lines from that journey
+  /// to the exclusion set and re-run the search.
+  Future<void> _findAlternativeForJourney(Journey j) async {
+    final svc = TransitDisruptionsService();
+    // Collect every vehicle-leg line that is mentioned in an active disruption.
+    final linesToAvoid = <String>{};
+    for (final leg in j.legs) {
+      if (leg.isWalk) continue;
+      if (svc.disruptionsMentioning(leg.line).isNotEmpty) {
+        linesToAvoid.add(leg.line);
+      }
+    }
+    if (linesToAvoid.isEmpty) return;
+    setState(() => _excludedLines.addAll(linesToAvoid));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 3),
+      content: Text('Alternative gesucht ohne: ${linesToAvoid.join(", ")}'),
+    ));
     await _search();
   }
 
@@ -1761,6 +1788,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         departureTime: _arriveBy ? null : _when,
         arrivalTime: _arriveBy ? _when : null,
         onlyDeutschlandTicket: _onlyDTicket,
+        excludedLines: _excludedLines.isEmpty ? null : _excludedLines,
       );
       if (!mounted) return;
       setState(() {
@@ -1929,7 +1957,12 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                       backgroundColor: Colors.teal.shade400,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: _searching ? null : _search,
+                    // Manual search resets any previous "Alternative suchen"
+                    // exclusions — user starts fresh.
+                    onPressed: _searching ? null : () {
+                      _excludedLines.clear();
+                      _search();
+                    },
                   ),
                 ],
               ),
@@ -2007,6 +2040,21 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                       'Defekte Aufzüge ausgeblendet',
                       style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
                     ),
+                  if (_excludedLines.isNotEmpty)
+                    InputChip(
+                      label: Text('ohne ${_excludedLines.join(", ")}',
+                          style: const TextStyle(fontSize: 10)),
+                      avatar: Icon(Icons.autorenew, size: 12, color: Colors.orange.shade700),
+                      backgroundColor: Colors.orange.shade50,
+                      side: BorderSide(color: Colors.orange.shade200),
+                      onDeleted: () {
+                        setState(() => _excludedLines.clear());
+                        _search();
+                      },
+                      deleteButtonTooltipMessage: 'Alternative-Filter aufheben',
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
                 ],
               ),
             ],
@@ -2065,6 +2113,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                         onSend: (widget.currentMitgliedernummer != null && widget.users != null && widget.users!.isNotEmpty)
                             ? () => _sendRoute(_results![i])
                             : null,
+                        onFindAlternative: _findAlternativeForJourney,
                       );
                     },
                   );
@@ -2743,7 +2792,16 @@ class _JourneyCard extends StatelessWidget {
   /// loading (shown as a subtle "prüft…" hint). Populated in
   /// _VerbindungTabState._checkAccessibility.
   final JourneyAccessibility? accessibility;
-  const _JourneyCard({required this.journey, this.onSend, this.accessibility});
+  /// When set, "Alternative suchen" button appears if any of this journey's
+  /// lines has an active HIM disruption. Tapping asks parent to re-search
+  /// excluding the affected lines.
+  final ValueChanged<Journey>? onFindAlternative;
+  const _JourneyCard({
+    required this.journey,
+    this.onSend,
+    this.accessibility,
+    this.onFindAlternative,
+  });
 
   String _hhmm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
 
@@ -2831,6 +2889,55 @@ class _JourneyCard extends StatelessWidget {
                   ),
                 ),
               ]),
+            ],
+            // Störung-Warning + "Alternative suchen" button — surfaces when
+            // any vehicle-leg line matches an active HIM disruption. Cheap
+            // client-side check against TransitDisruptionsService cache.
+            if (onFindAlternative != null) ...[
+              Builder(builder: (_) {
+                final svc = TransitDisruptionsService();
+                final hitLines = <String>[];
+                for (final leg in journey.legs) {
+                  if (leg.isWalk) continue;
+                  if (svc.disruptionsMentioning(leg.line).isNotEmpty) {
+                    if (!hitLines.contains(leg.line)) hitLines.add(leg.line);
+                  }
+                }
+                if (hitLines.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 12, color: Colors.orange.shade600),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          'Störung auf ${hitLines.join(", ")}',
+                          style: TextStyle(fontSize: 10.5, color: Colors.orange.shade600, fontWeight: FontWeight.w500),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Semantics(
+                        button: true,
+                        label: 'Alternative Route ohne ${hitLines.join(", ")} suchen',
+                        child: InkWell(
+                          onTap: () => onFindAlternative!(journey),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.autorenew, size: 12, color: Colors.orange.shade700),
+                              const SizedBox(width: 3),
+                              Text('Alternative',
+                                  style: TextStyle(fontSize: 10, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
             ],
             // Weather warning lines — one per adverse-weather moment on the
             // route (depart/umstieg/arrive). Uses the existing dashboard

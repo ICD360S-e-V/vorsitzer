@@ -106,6 +106,31 @@ class TransitDisruptionsService extends ChangeNotifier {
   int get highPriorityCount => disruptions.where((d) => d.isHigh).length;
   DateTime? get lastFetch => _lastFetch;
 
+  /// Return the currently active disruptions that explicitly mention a line
+  /// like "S1", "IC 2013", "Bus 5", "RE 4". Word-boundary substring match
+  /// against headline + text + affected. Used by the Verbindung tab to
+  /// mark journey cards whose actual line has an active disruption.
+  ///
+  /// Match is greedy — a disruption that mentions "S1 und S2" surfaces for
+  /// both "S1" and "S2" queries.
+  List<TransitDisruption> disruptionsMentioning(String line) {
+    final needle = line.trim().toLowerCase();
+    if (needle.length < 2) return const [];
+    return _disruptions.where((d) {
+      final hay = '${d.headline} ${d.text ?? ""} ${d.affected ?? ""}'.toLowerCase();
+      final idx = hay.indexOf(needle);
+      if (idx < 0) return false;
+      final startOk = idx == 0 || !_isAlphanumeric(hay.codeUnitAt(idx - 1));
+      final endIdx = idx + needle.length;
+      final endOk = endIdx >= hay.length || !_isAlphanumeric(hay.codeUnitAt(endIdx));
+      return startOk && endOk;
+    }).toList();
+  }
+
+  bool _isAlphanumeric(int c) {
+    return (c >= 0x30 && c <= 0x39) || _isLetter(c);
+  }
+
   /// Word-boundary substring match. Prevents "Ulm" from matching
   /// "Neumünster", "Baden" from matching "Wiesbaden", etc. Boundary
   /// characters are ASCII non-letters (space, punctuation, digits, hyphen).

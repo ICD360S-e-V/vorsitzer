@@ -2696,6 +2696,11 @@ class TransitService {
     /// Deutschlandticket. bahn.de gets the native flag; EFA/HAFAS results
     /// are stripped client-side (drop journeys containing ICE/IC/EC/IR legs).
     bool onlyDeutschlandTicket = false,
+    /// Case-insensitive line names to exclude from results — e.g. {"S1"}.
+    /// Used by "Alternative suchen" when the primary journey's line is hit
+    /// by an active HIM disruption. Any Journey whose vehicle-leg `line`
+    /// (trim + lowercase) matches an entry is dropped.
+    Set<String>? excludedLines,
   }) async {
     final arriveBy = arrivalTime != null;
     final when = arrivalTime ?? departureTime ?? DateTime.now();
@@ -2739,6 +2744,17 @@ class TransitService {
       final before = results.length;
       results = results.where(_isDeutschlandTicketOnly).toList();
       _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys', tag: 'TRANSIT');
+    }
+
+    // Alternative-line filter (client-side): drop journeys that use any of
+    // the excluded line names. Case-insensitive exact-match on leg.line.
+    if (excludedLines != null && excludedLines.isNotEmpty && results.isNotEmpty) {
+      final excl = excludedLines.map((s) => s.trim().toLowerCase()).toSet();
+      final before = results.length;
+      results = results.where((j) => !j.legs.any(
+        (l) => !l.isWalk && excl.contains(l.line.trim().toLowerCase()),
+      )).toList();
+      _log.info('Transit: excluded lines filter kept ${results.length}/$before journeys', tag: 'TRANSIT');
     }
 
     return results;
