@@ -32,6 +32,7 @@ import '../widgets/legal_footer.dart';
 import '../widgets/admin_chat_dialog.dart';
 import '../widgets/chat_bubble_overlay.dart';
 import '../widgets/weather_widget.dart';
+import '../widgets/sturmwarnung_broadcast_dialog.dart';
 import '../widgets/chat_bubble_popup.dart';
 import '../services/global_chat_service.dart';
 import '../widgets/update_dialog.dart';
@@ -1064,6 +1065,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _showAdminChatDialogInternal(null);
   }
 
+  /// Öffnet den Sturmwarnung-Broadcast-Dialog. Dedicated Vorsitzer-Tool:
+  /// pro Mitglied-Adresse werden aktive DWD-Warnungen geladen und der
+  /// Vorsitzer wählt aus, wer eine dringende Chat-Nachricht bekommt.
+  void _showSturmwarnungBroadcast() {
+    if (_users.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mitglieder-Liste noch nicht geladen.')),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => SturmwarnungBroadcastDialog(
+        apiService: _apiService,
+        users: _users,
+        adminMitgliedernummer: widget.currentMitgliedernummer,
+      ),
+    );
+  }
+
   void _showAdminChatDialogWithCall() {
     _showAdminChatDialogInternal(_pendingCall);
   }
@@ -1274,6 +1296,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               tooltip: 'Test Chat Bubble',
               onPressed: () => GlobalChatService().debugInjectTestBubble(name: 'TEST'),
             ),
+          // Sturm-Broadcast: targeted DWD-warnings per Mitglied-Adresse.
+          // Only shows when we have loaded users; otherwise silently hidden.
+          IconButton(
+            icon: const Icon(Icons.thunderstorm),
+            tooltip: 'Wetter-Warnung an Mitglieder',
+            onPressed: _showSturmwarnungBroadcast,
+          ),
           // Live Chat (Admin can chat with members) with unread badge
           Stack(
             children: [
