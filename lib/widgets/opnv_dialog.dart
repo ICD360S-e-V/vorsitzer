@@ -2573,8 +2573,7 @@ class _JourneyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
-    final vehicleLegs = journey.legs.where((l) => !l.isWalk).length;
-    final transfers = vehicleLegs > 0 ? vehicleLegs - 1 : 0;
+    final transfers = journey.transfers;
     final durMin = journey.duration.inMinutes;
     final durStr = durMin >= 60 ? '${durMin ~/ 60}h ${durMin % 60}m' : '${durMin}m';
     final sem = 'Verbindung von ${journey.legs.first.fromName} nach '

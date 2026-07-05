@@ -73,10 +73,14 @@ class TransitDisruptionsService extends ChangeNotifier {
   /// Replace the region-token set. Called by dashboard once user profile
   /// (Verifizierung Stufe 1 = strasse/plz/ort/bundesland from user_details.php)
   /// AND GPS reverse-geocode are both resolved.
+  ///
+  /// Tokens shorter than 4 chars are dropped — a token like "ding" would
+  /// match "bindung" / "verbindung" / "erledigung" as substring and let
+  /// most nationwide disruption spam through the filter.
   void setRegionTokens(Iterable<String> tokens) {
     final normalized = tokens
         .map((t) => t.trim().toLowerCase())
-        .where((t) => t.length >= 3)
+        .where((t) => t.length >= 4)
         .toSet();
     if (setEquals(normalized, _regionTokens)) return;
     _regionTokens
@@ -102,12 +106,30 @@ class TransitDisruptionsService extends ChangeNotifier {
   int get highPriorityCount => disruptions.where((d) => d.isHigh).length;
   DateTime? get lastFetch => _lastFetch;
 
+  /// Word-boundary substring match. Prevents "Ulm" from matching
+  /// "Neumünster", "Baden" from matching "Wiesbaden", etc. Boundary
+  /// characters are ASCII non-letters (space, punctuation, digits, hyphen).
   bool _matchesRegion(TransitDisruption d) {
     final hay = '${d.headline} ${d.text ?? ""} ${d.affected ?? ""}'.toLowerCase();
     for (final t in _regionTokens) {
-      if (hay.contains(t)) return true;
+      final idx = hay.indexOf(t);
+      if (idx < 0) continue;
+      // Word start: at index 0 or previous char is non-letter.
+      final startOk = idx == 0 || !_isLetter(hay.codeUnitAt(idx - 1));
+      // Word end: at end of string or next char is non-letter.
+      final endIdx = idx + t.length;
+      final endOk = endIdx >= hay.length || !_isLetter(hay.codeUnitAt(endIdx));
+      if (startOk && endOk) return true;
     }
     return false;
+  }
+
+  /// True for ASCII letters + common German umlauts (ä ö ü ß).
+  bool _isLetter(int c) {
+    if (c >= 0x61 && c <= 0x7A) return true; // a-z
+    if (c >= 0x41 && c <= 0x5A) return true; // A-Z
+    return c == 0xE4 || c == 0xF6 || c == 0xFC || c == 0xDF ||
+           c == 0xC4 || c == 0xD6 || c == 0xDC;
   }
 
   /// Kick off periodic fetching. Idempotent — safe to call from dashboard init.

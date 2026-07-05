@@ -1292,7 +1292,7 @@ ICD360S e.V. Vorstand''';
     final dur = j.duration.inMinutes;
     final durStr = dur >= 60 ? '${dur ~/ 60}h ${dur % 60}m' : '${dur}m';
     final minutesBefore = r.minutesBeforeTermin(widget.termin.terminDate);
-    final transfers = j.legs.where((l) => !l.isWalk).length - 1;
+    final transfers = j.transfers;
 
     return Padding(
       padding: const EdgeInsets.all(12),

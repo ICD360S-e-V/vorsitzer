@@ -252,7 +252,14 @@ class Journey {
 
   Journey({required this.legs, required this.depTime, required this.arrTime});
 
-  int get transfers => legs.where((l) => !l.isWalk).length - 1;
+  /// Number of vehicle-to-vehicle transfers on this journey. Zero for
+  /// direct connections OR walking-only routes (bahn.de sometimes returns
+  /// pure Fußweg journeys under 500m — those aren't "transfers" either).
+  /// Clamped at 0 so UI never renders "-1 ×".
+  int get transfers {
+    final vehicleLegs = legs.where((l) => !l.isWalk).length;
+    return vehicleLegs > 0 ? vehicleLegs - 1 : 0;
+  }
   Duration get duration => arrTime.difference(depTime);
 }
 
@@ -2598,9 +2605,9 @@ class TransitService {
     required TransitLocation to,
     DateTime? departureTime,
     DateTime? arrivalTime,
-    /// When true, bahn.de is queried with `nurDeutschlandTicketVerbindungen=true`
-    /// so ICE/IC/EC (nicht D-Ticket-fähig) werden herausgefiltert. Lokale
-    /// EFA/HAFAS-Verbünde geben ohnehin nur D-Ticket-gedeckten Verkehr zurück.
+    /// When true, filter results to only journeys covered by the 49€
+    /// Deutschlandticket. bahn.de gets the native flag; EFA/HAFAS results
+    /// are stripped client-side (drop journeys containing ICE/IC/EC/IR legs).
     bool onlyDeutschlandTicket = false,
   }) async {
     final arriveBy = arrivalTime != null;
@@ -2636,7 +2643,42 @@ class TransitService {
       }
     }
 
+    // Client-side D-Ticket filter for local provider results (EFA/HAFAS
+    // don't support the flag server-side). Some EFA services return REs
+    // that cross tariff zones without D-Ticket coverage, and many HAFAS
+    // regional endpoints happily surface IC/EC. Filter journeys whose
+    // legs include known non-D-Ticket product categories.
+    if (onlyDeutschlandTicket && results.isNotEmpty) {
+      final before = results.length;
+      results = results.where(_isDeutschlandTicketOnly).toList();
+      _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys', tag: 'TRANSIT');
+    }
+
     return results;
+  }
+
+  /// Journey qualifies for the 49€ Deutschlandticket iff none of its
+  /// vehicle legs is a long-distance product. Walking legs are always OK.
+  ///
+  /// Non-D-Ticket products: ICE, IC, EC, IR, TGV, RJ, ECE, NJ (Nightjet),
+  /// TER, plus generic 'long_distance'. Product-type strings vary between
+  /// EFA and HAFAS so we check both the `productType` field and the `line`
+  /// prefix (case-insensitive).
+  static final RegExp _nonDTicketLineRe = RegExp(
+    r'^(ice|ic|ec|ir|tgv|rj|ecx|ece|nj|en|thalys|flixt|flx)\b',
+    caseSensitive: false,
+  );
+  bool _isDeutschlandTicketOnly(Journey j) {
+    for (final leg in j.legs) {
+      if (leg.isWalk) continue;
+      final pt = leg.productType.toLowerCase();
+      if (pt == 'long_distance' || pt == 'nationalexpress' || pt == 'national' ||
+          pt == 'ice' || pt == 'ic' || pt == 'ec' || pt == 'ir') {
+        return false;
+      }
+      if (_nonDTicketLineRe.hasMatch(leg.line.trim())) return false;
+    }
+    return true;
   }
 
   /// bahn.de journey search that resolves location names to bahn.de IDs first.

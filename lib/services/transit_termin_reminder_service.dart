@@ -46,9 +46,14 @@ class TransitTerminReminderService {
       final res = await _termin.getMyTermine(filter: 'upcoming');
       if (res['success'] != true) return;
       final List<dynamic> raw = res['termine'] as List? ?? [];
+      // Filter out terminal states rather than whitelisting 'scheduled' —
+      // backend may return 'confirmed', 'geplant', 'aktiv', etc. Excluding
+      // completed/cancelled catches every non-terminal case regardless of
+      // spelling. Empty string also passes through (treat as scheduled).
+      const terminalStatuses = {'completed', 'cancelled', 'canceled', 'abgesagt', 'storniert'};
       final termine = raw
           .map((j) => Termin.fromJson(j as Map<String, dynamic>))
-          .where((t) => t.status.toLowerCase() == 'scheduled')
+          .where((t) => !terminalStatuses.contains(t.status.toLowerCase()))
           .where((t) => t.location.trim().isNotEmpty)
           .toList();
 
