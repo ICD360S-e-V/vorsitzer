@@ -1072,16 +1072,52 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     final dep = widget.dep;
     final stops = _route?.stops ?? const <TripStop>[];
     final path = _route?.path ?? const <(double, double)>[];
+    // Where the user is boarding — flagged by transit_service via isCurrent.
     final currentIdx = stops.indexWhere((s) => s.isCurrent);
+    // Bus's estimated current position on the route: the last stop whose
+    // planned/realtime time is already in the past. -1 = not yet started.
+    final now = DateTime.now();
+    int busCurrentIdx = -1;
+    for (int i = 0; i < stops.length; i++) {
+      final t = stops[i].realtimeTime ?? stops[i].plannedTime;
+      if (!t.isAfter(now)) busCurrentIdx = i;
+    }
     final lineColor = _lineColor();
 
+    // Rich header context — three sub-lines: Start->Ziel, Bus-Status, User-ETA.
+    final startStop = stops.isNotEmpty ? stops.first.name : null;
+    final endStop = stops.isNotEmpty ? stops.last.name : dep.direction;
+    final boardStop = currentIdx >= 0 ? stops[currentIdx].name : dep.stopName;
+    String busStatus;
+    if (stops.isEmpty) {
+      busStatus = '';
+    } else if (busCurrentIdx < 0) {
+      busStatus = 'Bus startet bald bei ${stops.first.name}';
+    } else if (busCurrentIdx >= stops.length - 1) {
+      busStatus = 'Bus am Endhaltestelle';
+    } else {
+      busStatus = 'Bus zw. ${stops[busCurrentIdx].name} und ${stops[busCurrentIdx + 1].name}';
+    }
+    String? boardEta;
+    if (currentIdx >= 0) {
+      if (busCurrentIdx < currentIdx) {
+        final t = stops[currentIdx].realtimeTime ?? stops[currentIdx].plannedTime;
+        final mins = t.difference(now).inMinutes;
+        boardEta = mins <= 0 ? 'gleich bei dir' : 'in $mins Min. bei dir';
+      } else if (busCurrentIdx >= currentIdx) {
+        boardEta = 'schon vorbei';
+      }
+    }
+
     return Dialog(
+      backgroundColor: p.bg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 640),
+        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 700),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1108,22 +1144,75 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('→ ${dep.direction}',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                            overflow: TextOverflow.ellipsis),
-                        Text(
-                          'Abfahrt ${dep.timeString}${dep.delay > 0 ? "  +${dep.delay} Min" : ""}',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                        ),
+                        // Line 1: Start-Haltestelle -> Ziel (Endhaltestelle)
+                        Row(children: [
+                          if (startStop != null) ...[
+                            Icon(Icons.play_circle_filled, size: 13, color: Colors.green.shade600),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(
+                                startStop,
+                                style: TextStyle(fontSize: 11.5, color: p.onSurfaceDim),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.arrow_right_alt, size: 14, color: p.onSurfaceFaint),
+                            const SizedBox(width: 4),
+                          ],
+                          Icon(Icons.flag, size: 13, color: Colors.red.shade400),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              endStop,
+                              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: p.onSurface),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ]),
+                        // Line 2: Bus-Status (wo ist das Fahrzeug jetzt)
+                        if (busStatus.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Row(children: [
+                            Icon(Icons.directions_bus, size: 12, color: Colors.orange.shade600),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(
+                                busStatus,
+                                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w500, color: p.onSurfaceDim),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ]),
+                        ],
+                        // Line 3: Deine Einstiegs-Haltestelle + ETA
+                        const SizedBox(height: 2),
+                        Row(children: [
+                          Icon(Icons.person_pin_circle, size: 12, color: Colors.teal.shade400),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              'Du: \$boardStop'
+                                  '\${boardEta != null ? " -- \$boardEta" : " -- \${dep.timeString}"}'
+                                  '\${dep.delay > 0 ? "  +\${dep.delay}min" : ""}',
+                              style: TextStyle(fontSize: 10.5, color: p.onSurfaceDim),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ]),
                       ],
                     ),
                   ),
-                  IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.pop(context)),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 20, color: p.onSurface),
+                    tooltip: 'Schließen',
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ],
               ), TabBar(
                 controller: _tabController,
                 labelColor: lineColor,
-                unselectedLabelColor: Colors.grey.shade600,
+                unselectedLabelColor: p.onSurfaceDim,
                 indicatorColor: lineColor,
                 labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 tabs: const [
@@ -1158,7 +1247,28 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                       : TabBarView(
                           controller: _tabController,
                           children: [
-                            ListView.builder(
+                            Column(children: [
+                              // Compact legend so the badges are self-explanatory.
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: p.surface,
+                                  border: Border(bottom: BorderSide(color: p.divider)),
+                                ),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 2,
+                                  children: [
+                                    _LegendChip(color: Colors.green.shade700, label: 'Start'),
+                                    _LegendChip(color: Colors.orange.shade600, label: 'Bus jetzt'),
+                                    _LegendChip(color: Colors.teal.shade500, label: 'Du'),
+                                    if (_targetStopId != null)
+                                      _LegendChip(color: Colors.red.shade600, label: 'Ziel'),
+                                    _LegendChip(color: Colors.red.shade700, label: 'Ende'),
+                                  ],
+                                ),
+                              ),
+                              Expanded(child: ListView.builder(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               itemCount: stops.length,
                               itemBuilder: (_, i) => _TripStopRow(
@@ -1166,11 +1276,13 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                 isFirst: i == 0,
                                 isLast: i == stops.length - 1,
                                 beforeCurrent: currentIdx > 0 && i < currentIdx,
+                                isBusHere: i == busCurrentIdx,
                                 lineColor: lineColor,
                                 isTarget: stops[i].stopID == _targetStopId,
                                 onSetTarget: () => _setTarget(stops[i].stopID),
                               ),
-                            ),
+                            )),
+                            ]),
                             _TripMapView(
                               stops: stops, path: path, lineColor: lineColor,
                               targetStopId: _targetStopId,
@@ -1205,11 +1317,35 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
   }
 }
 
+/// Small colored dot + label used in the trip-sequence Liste legend row.
+class _LegendChip extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendChip({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 8, height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 4),
+      Text(label, style: TextStyle(fontSize: 10, color: p.onSurfaceDim, fontWeight: FontWeight.w500)),
+    ]);
+  }
+}
+
 class _TripStopRow extends StatelessWidget {
   final TripStop stop;
   final bool isFirst;
   final bool isLast;
   final bool beforeCurrent;
+  /// Bus's currently-estimated position on the route (last stop whose
+  /// time is in the past). Independent of `stop.isCurrent`, which marks
+  /// the user's own boarding stop.
+  final bool isBusHere;
   final Color lineColor;
   final bool isTarget;
   final VoidCallback? onSetTarget;
@@ -1220,6 +1356,7 @@ class _TripStopRow extends StatelessWidget {
     required this.isLast,
     required this.beforeCurrent,
     required this.lineColor,
+    this.isBusHere = false,
     this.isTarget = false,
     this.onSetTarget,
   });
@@ -1228,23 +1365,28 @@ class _TripStopRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
     final isCurrent = stop.isCurrent;
-    final dotColor = isCurrent
-        ? Colors.green.shade600
-        : (isTarget ? Colors.red.shade600 : (beforeCurrent ? Colors.grey.shade400 : lineColor));
+    final dotColor = isBusHere
+        ? Colors.orange.shade600
+        : (isCurrent
+            ? Colors.green.shade600
+            : (isTarget ? Colors.red.shade600 : (beforeCurrent ? Colors.grey.shade400 : lineColor)));
     final textColor = isCurrent
         ? (p.dark ? Colors.green.shade200 : Colors.green.shade900)
         : (isTarget
             ? (p.dark ? Colors.red.shade200 : Colors.red.shade900)
             : (beforeCurrent ? p.onSurfaceFaint : p.onSurface));
-    final fontWeight = (isCurrent || isTarget) ? FontWeight.bold : FontWeight.w500;
+    final fontWeight = (isCurrent || isTarget || isBusHere) ? FontWeight.bold : FontWeight.w500;
 
-    // Screen-reader description:
-    // "Aktuelle Haltestelle: X, 08:32" / "Ziel-Haltestelle: X" / "Haltestelle X, 08:35"
-    final semStatus = isCurrent
-        ? 'Aktuelle Haltestelle'
-        : (isTarget
-            ? 'Ausstiegs-Ziel'
-            : (beforeCurrent ? 'Bereits vorbei' : 'Haltestelle'));
+    // Screen-reader description merges up to 3 states:
+    //   "Bus fährt hier gerade. Aktuelle Haltestelle: X, 08:32."
+    final semStatus = [
+      if (isBusHere) 'Bus hier',
+      if (isFirst) 'Start-Haltestelle',
+      if (isCurrent) 'Deine Einstiegs-Haltestelle',
+      if (isTarget) 'Ausstiegs-Ziel',
+      if (isLast) 'Endhaltestelle',
+      if (beforeCurrent && !isBusHere) 'Bereits vorbei',
+    ].join(', ');
     final delayNote = stop.delay > 0 ? ', ${stop.delay} Minuten Verspätung' : '';
     final sem = '$semStatus: ${stop.name}, ${stop.timeString}$delayNote';
 
@@ -1284,21 +1426,23 @@ class _TripStopRow extends StatelessWidget {
                 ),
                 // Dot
                 Container(
-                  width: (isCurrent || isTarget) ? 18 : (isFirst || isLast ? 14 : 10),
-                  height: (isCurrent || isTarget) ? 18 : (isFirst || isLast ? 14 : 10),
+                  width: (isBusHere || isCurrent || isTarget) ? 18 : (isFirst || isLast ? 14 : 10),
+                  height: (isBusHere || isCurrent || isTarget) ? 18 : (isFirst || isLast ? 14 : 10),
                   decoration: BoxDecoration(
                     color: dotColor,
                     shape: BoxShape.circle,
-                    border: (isCurrent || isTarget)
+                    border: (isBusHere || isCurrent || isTarget)
                         ? Border.all(color: Colors.white, width: 3)
                         : (isFirst || isLast
                             ? Border.all(color: Colors.white, width: 2)
                             : null),
-                    boxShadow: isCurrent
-                        ? [BoxShadow(color: Colors.green.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 2)]
-                        : isTarget
-                            ? [BoxShadow(color: Colors.red.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 2)]
-                            : null,
+                    boxShadow: isBusHere
+                        ? [BoxShadow(color: Colors.orange.withValues(alpha: 0.5), blurRadius: 8, spreadRadius: 3)]
+                        : isCurrent
+                            ? [BoxShadow(color: Colors.green.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 2)]
+                            : isTarget
+                                ? [BoxShadow(color: Colors.red.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 2)]
+                                : null,
                   ),
                 ),
               ],
@@ -1314,15 +1458,47 @@ class _TripStopRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      // BUS-HERE badge: bus is currently at (or just left) this
+                      // stop — appears in addition to any other status badge.
+                      if (isBusHere) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade600,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.directions_bus, size: 10, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text('BUS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ]),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      if (isFirst) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade700,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: const Text('START',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       if (isCurrent) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
-                            color: Colors.green.shade600,
+                            color: Colors.teal.shade500,
                             borderRadius: BorderRadius.circular(3),
                           ),
-                          child: const Text('HIER',
-                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.person_pin_circle, size: 10, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text('DU', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ]),
                         ),
                         const SizedBox(width: 6),
                       ],
@@ -1341,22 +1517,29 @@ class _TripStopRow extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                       ],
-                      if (isFirst && !isCurrent) ...[
-                        Icon(Icons.play_arrow, size: 12, color: Colors.grey.shade500),
-                        const SizedBox(width: 3),
-                      ],
                       if (isLast) ...[
-                        Icon(Icons.flag, size: 12, color: lineColor),
-                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade700,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.flag, size: 10, color: Colors.white),
+                            SizedBox(width: 3),
+                            Text('ENDE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ]),
+                        ),
+                        const SizedBox(width: 6),
                       ],
                       Expanded(
                         child: Text(
                           stop.name,
                           style: TextStyle(
-                            fontSize: isCurrent ? 13.5 : 12.5,
+                            fontSize: (isCurrent || isBusHere) ? 13.5 : 12.5,
                             fontWeight: fontWeight,
-                            color: textColor,
-                            decoration: beforeCurrent ? TextDecoration.lineThrough : null,
+                            color: isBusHere ? Colors.orange.shade700 : textColor,
+                            decoration: beforeCurrent && !isBusHere ? TextDecoration.lineThrough : null,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
