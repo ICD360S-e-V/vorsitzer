@@ -15,6 +15,7 @@ import '../services/notification_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_favorites_service.dart';
+import '../services/transit_history_service.dart';
 import '../services/transit_offline_cache.dart';
 import '../services/transit_translations.dart';
 import '../services/weather_service.dart';
@@ -101,6 +102,10 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
             _Header(
               tabController: _tabController,
               onClose: () => Navigator.pop(context),
+              onOpenHistory: () => showDialog(
+                context: context,
+                builder: (_) => const _HistoryDialog(),
+              ),
             ),
             Expanded(
               child: TabBarView(
@@ -164,8 +169,9 @@ class _Palette {
 class _Header extends StatelessWidget {
   final TabController tabController;
   final VoidCallback onClose;
+  final VoidCallback? onOpenHistory;
 
-  const _Header({required this.tabController, required this.onClose});
+  const _Header({required this.tabController, required this.onClose, this.onOpenHistory});
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +194,12 @@ class _Header extends StatelessWidget {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800),
                 ),
               ),
+              if (onOpenHistory != null)
+                IconButton(
+                  icon: Icon(Icons.history, size: 20, color: p.onSurface),
+                  tooltip: 'Historie deiner Fahrten',
+                  onPressed: onOpenHistory,
+                ),
               IconButton(
                 icon: Icon(Icons.close, size: 20, color: p.onSurface),
                 tooltip: 'Schließen',
@@ -467,6 +479,218 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
         _Footer(providerName: provider?.displayName ?? 'ÖPNV', lastUpdate: _lastUpdate),
       ],
     );
+  }
+}
+
+/// Modal that lists the last 20 trips the user opened (planned, boarded,
+/// arrived, missed) with an icon per status. Data source is
+/// TransitHistoryService (SharedPreferences-backed, 20 entry cap).
+class _HistoryDialog extends StatefulWidget {
+  const _HistoryDialog();
+
+  @override
+  State<_HistoryDialog> createState() => _HistoryDialogState();
+}
+
+class _HistoryDialogState extends State<_HistoryDialog> {
+  List<TransitHistoryEntry>? _entries;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final list = await TransitHistoryService.load();
+    if (!mounted) return;
+    setState(() => _entries = list);
+  }
+
+  Future<void> _confirmClear() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Historie leeren?'),
+        content: const Text('Alle 20 letzten Fahrten werden gelöscht.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Leeren')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await TransitHistoryService.clear();
+    await _load();
+  }
+
+  IconData _iconFor(TransitTripStatus s) {
+    switch (s) {
+      case TransitTripStatus.arrived:   return Icons.check_circle;
+      case TransitTripStatus.boarded:   return Icons.directions_bus;
+      case TransitTripStatus.missed:    return Icons.cancel;
+      case TransitTripStatus.cancelled: return Icons.remove_circle_outline;
+    }
+  }
+  Color _colorFor(TransitTripStatus s) {
+    switch (s) {
+      case TransitTripStatus.arrived:   return Colors.green.shade500;
+      case TransitTripStatus.boarded:   return Colors.teal.shade400;
+      case TransitTripStatus.missed:    return Colors.red.shade400;
+      case TransitTripStatus.cancelled: return Colors.grey.shade400;
+    }
+  }
+  String _labelFor(TransitTripStatus s) {
+    switch (s) {
+      case TransitTripStatus.arrived:   return 'Angekommen';
+      case TransitTripStatus.boarded:   return 'Eingestiegen';
+      case TransitTripStatus.missed:    return 'Verpasst';
+      case TransitTripStatus.cancelled: return 'Abgebrochen';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final list = _entries;
+    return Dialog(
+      backgroundColor: p.bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SizedBox(
+        width: 460, height: 560,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+              decoration: BoxDecoration(
+                color: p.accentTint,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.history, size: 20, color: Colors.teal.shade400),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Fahrten-Historie${list != null ? " (${list.length})" : ""}',
+                      style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold,
+                        color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                      ),
+                    ),
+                  ),
+                  if (list != null && list.isNotEmpty)
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, size: 18, color: p.onSurface),
+                      tooltip: 'Alle löschen',
+                      onPressed: _confirmClear,
+                    ),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 18, color: p.onSurface),
+                    tooltip: 'Schließen',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: list == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : list.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.history_toggle_off, size: 40, color: p.iconMuted),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Noch keine Fahrten aufgezeichnet.\n'
+                                'Öffne eine Abfahrt aus Echtzeit und wähle ein Ausstiegs-Ziel.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: p.onSurfaceFaint, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => Divider(height: 1, color: p.divider),
+                          itemBuilder: (_, i) {
+                            final e = list[i];
+                            final dep = e.plannedDep;
+                            final dayLabel = _dayLabel(dep);
+                            final hhmm = '${dep.hour.toString().padLeft(2, "0")}:${dep.minute.toString().padLeft(2, "0")}';
+                            return Semantics(
+                              label: '${_labelFor(e.status)}: Linie ${e.line} nach ${e.direction}, '
+                                  '$dayLabel um $hhmm${e.toStop != null ? ", Ausstieg ${e.toStop}" : ""}',
+                              container: true,
+                              excludeSemantics: true,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                child: Row(children: [
+                                  Icon(_iconFor(e.status), size: 20, color: _colorFor(e.status)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Row(children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: _colorFor(e.status).withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(3),
+                                            ),
+                                            child: Text(e.line, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _colorFor(e.status))),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              '→ ${e.direction}',
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: p.onSurface),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ]),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '$dayLabel · $hhmm'
+                                              '${e.fromStop != null ? " · von ${e.fromStop}" : ""}'
+                                              '${e.toStop != null ? " · Ziel ${e.toStop}" : ""}',
+                                          style: TextStyle(fontSize: 10.5, color: p.onSurfaceDim),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _labelFor(e.status),
+                                    style: TextStyle(fontSize: 10, color: _colorFor(e.status), fontWeight: FontWeight.w600),
+                                  ),
+                                ]),
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Relative day label: "heute", "gestern", "vor 3 Tagen", or DD.MM.
+  static String _dayLabel(DateTime t) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final that = DateTime(t.year, t.month, t.day);
+    final diff = today.difference(that).inDays;
+    if (diff == 0) return 'heute';
+    if (diff == 1) return 'gestern';
+    if (diff < 7) return 'vor $diff Tagen';
+    return '${t.day.toString().padLeft(2, "0")}.${t.month.toString().padLeft(2, "0")}.';
   }
 }
 
@@ -1137,6 +1361,9 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
   /// list or the map. The map's GPS listener uses this to fire the
   /// Ausstieg-Alarm when the user is within ~150m of that stop.
   String? _targetStopId;
+  /// True once the Ausstieg-Alarm fired for the current target. Read by
+  /// dispose() to record an "arrived" (success) rather than "missed".
+  bool _alarmFired = false;
 
   @override
   void initState() {
@@ -1148,7 +1375,41 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
   @override
   void dispose() {
     _tabController.dispose();
+    _recordHistoryOnClose();
     super.dispose();
+  }
+
+  /// Fire-and-forget history entry when the dialog closes. Status ladder:
+  ///   - no target picked → cancelled
+  ///   - target picked but alarm didn't fire → boarded (or missed if the
+  ///     planned dep time is already >5 min old, meaning bus is gone)
+  ///   - alarm fired → arrived (success)
+  void _recordHistoryOnClose() {
+    final dep = widget.dep;
+    TransitTripStatus status;
+    if (_alarmFired) {
+      status = TransitTripStatus.arrived;
+    } else if (_targetStopId != null) {
+      final depAgo = DateTime.now().difference(dep.plannedTime).inMinutes;
+      status = depAgo > 5 ? TransitTripStatus.missed : TransitTripStatus.boarded;
+    } else {
+      status = TransitTripStatus.cancelled;
+    }
+    String? toStop;
+    if (_targetStopId != null && _route != null) {
+      try {
+        toStop = _route!.stops.firstWhere((s) => s.stopID == _targetStopId).name;
+      } catch (_) {}
+    }
+    TransitHistoryService.record(TransitHistoryEntry(
+      line: dep.line,
+      direction: dep.direction,
+      fromStop: dep.stopName,
+      toStop: toStop,
+      plannedDep: dep.plannedTime,
+      recordedAt: DateTime.now(),
+      status: status,
+    ));
   }
 
   Future<void> _fetch() async {
@@ -1396,6 +1657,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                               onSetTarget: _setTarget,
                               transitService: widget.transitService,
                               userMuttersprache: widget.userMuttersprache,
+                              onAlarmFired: () => _alarmFired = true,
                             ),
                           ],
                         ),
@@ -3165,6 +3427,10 @@ class _TripMapView extends StatefulWidget {
   /// User's Muttersprache from Verifizierung Stufe 1 — when set to a
   /// non-German language TTS speaks bilingual announcements.
   final String? userMuttersprache;
+  /// Notified once, when the target-stop alarm fires for the first time.
+  /// Used by parent [_TripSequenceDialog] to mark the history entry as
+  /// "arrived" instead of "boarded" on dispose.
+  final VoidCallback? onAlarmFired;
 
   const _TripMapView({
     required this.stops,
@@ -3174,6 +3440,7 @@ class _TripMapView extends StatefulWidget {
     this.targetStopId,
     this.onSetTarget,
     this.userMuttersprache,
+    this.onAlarmFired,
   });
 
   @override
@@ -3296,6 +3563,7 @@ class _TripMapViewState extends State<_TripMapView> {
         if (_targetAlarmFired && d > 400) _targetAlarmFired = false;
         if (!_targetAlarmFired && d < 150) {
           _targetAlarmFired = true;
+          widget.onAlarmFired?.call();
           HapticFeedback.heavyImpact();
           Future.delayed(const Duration(milliseconds: 250), HapticFeedback.heavyImpact);
           Future.delayed(const Duration(milliseconds: 500), HapticFeedback.heavyImpact);
