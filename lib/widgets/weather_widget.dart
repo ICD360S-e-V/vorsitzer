@@ -520,11 +520,20 @@ class _WeatherDialogState extends State<WeatherDialog> {
                     _detailColumn('UV-Index', weather.uvIndex!.toStringAsFixed(1), Icons.wb_sunny),
                   if (weather.cloudCover != null)
                     _detailColumn('Bewölkung', '${weather.cloudCover}%', Icons.cloud),
-                  _detailColumn(weather.isDay ? 'Tag' : 'Nacht',
-                      weather.isDay ? '☀️' : '🌙', Icons.access_time),
+                  _detailColumn(
+                    'Beobachtung',
+                    DateFormat('HH:mm').format(weather.timestamp),
+                    Icons.schedule,
+                  ),
                 ],
               ),
             ),
+          ],
+          // Quick AQI/pollen summary — tap to jump to the Umwelt tab. Saves
+          // the user a full navigation just to check "is the air OK today?".
+          if (widget.service.currentAirQuality != null) ...[
+            const SizedBox(height: 10),
+            _buildAqiPollenSummaryCard(widget.service.currentAirQuality!),
           ],
           // Astronomy — sunrise/sunset + moon phase
           if (widget.service.currentAstronomy != null) ...[
@@ -592,81 +601,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
   }
 
   Widget _buildStuendlichTab(List<HourlyForecast> next24h, DateFormat df) {
-    if (next24h.isEmpty) return const Center(child: Text('Keine stündlichen Daten verfügbar'));
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: next24h.length,
-      itemBuilder: (_, i) {
-        final h = next24h[i];
-        final isNow = i == 0;
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: isNow ? Colors.blue.shade50 : (i.isEven ? Colors.grey.shade50 : null),
-            borderRadius: BorderRadius.circular(6),
-            border: isNow ? Border.all(color: Colors.blue.shade200) : null,
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 45,
-                child: Text(
-                  df.format(h.time),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
-                    color: isNow ? Colors.blue.shade800 : null,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(h.icon, style: _emojiStyle(fontSize: 18)),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 50,
-                child: Text(
-                  '${h.temperature.toStringAsFixed(1)}°',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: h.temperature < 0 ? Colors.blue.shade800 : Colors.orange.shade800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(Icons.air, size: 14, color: Colors.grey.shade500),
-              const SizedBox(width: 2),
-              SizedBox(
-                width: 55,
-                child: Text(
-                  '${h.windSpeed.toStringAsFixed(0)} km/h',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-              ),
-              if (h.precipitation > 0) ...[
-                Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400),
-                const SizedBox(width: 2),
-                Text(
-                  '${h.precipitation.toStringAsFixed(1)} mm',
-                  style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
-                ),
-              ],
-              const Spacer(),
-              SizedBox(
-                width: 90,
-                child: Text(
-                  h.description,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    return _StuendlichView(next24h: next24h, df: df);
   }
+
 
   Widget _buildRadarTab() {
     final lat = widget.service.latitude;
@@ -904,6 +841,22 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 _smallInfo(Icons.water_drop, '${day.precipitationSum.toStringAsFixed(1)} mm'),
               ],
             ),
+            const SizedBox(height: 10),
+            // Anziehtipp derived from the day's max temp — approximates
+            // "what to wear during the warmest hours". Daily data has no
+            // apparent-temp/humidity, so we pass tempMax as the best proxy.
+            ClothingAdviceCard(
+              advice: computeClothingAdvice(
+                apparentTemp: day.tempMax,
+                temp: day.tempMax,
+                weatherCode: day.weatherCode,
+                wind: day.windSpeedMax,
+                precipProb: day.precipitationSum >= 2 ? 70 : (day.precipitationSum >= 0.5 ? 40 : 0),
+                precip: day.precipitationSum / 24, // rough hourly avg
+                durationMinutes: 60,
+              ),
+              headline: isToday ? 'für heute tagsüber' : 'für ${dfDay.format(day.date)}',
+            ),
           ],
         ),
       ),
@@ -1030,6 +983,67 @@ class _WeatherDialogState extends State<WeatherDialog> {
               ],
             ),
         ],
+      ),
+    );
+  }
+
+  /// Small tappable summary of air-quality + active pollen shown on the
+  /// Aktuell tab. Tap → jumps to the Umwelt tab for the full breakdown.
+  Widget _buildAqiPollenSummaryCard(AirQualityData aq) {
+    // Which pollens are currently noticeable (≥10 grains/m³ ≈ start of light).
+    final activePollens = <String>[
+      if ((aq.alderPollen ?? 0) >= 10) 'Erle',
+      if ((aq.birchPollen ?? 0) >= 10) 'Birke',
+      if ((aq.grassPollen ?? 0) >= 10) 'Gräser',
+      if ((aq.mugwortPollen ?? 0) >= 10) 'Beifuß',
+      if ((aq.olivePollen ?? 0) >= 10) 'Olive',
+      if ((aq.ragweedPollen ?? 0) >= 10) 'Ambrosia',
+    ];
+    return InkWell(
+      onTap: () {
+        final controller = DefaultTabController.maybeOf(context);
+        controller?.animateTo(2); // 0=Aktuell 1=Stündlich 2=Umwelt
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.teal.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.teal.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.air, size: 22, color: _aqiColor(aq.europeanAqi)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    aq.europeanAqi != null
+                        ? 'Luftqualität: ${aq.aqiLabel} (AQI ${aq.europeanAqi!.toStringAsFixed(0)})'
+                        : 'Luftqualität: unbekannt',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: _aqiColor(aq.europeanAqi),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    activePollens.isEmpty
+                        ? 'Pollen: keine aktiven Belastungen'
+                        : 'Pollen aktiv: ${activePollens.join(", ")}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Colors.teal.shade700),
+          ],
+        ),
       ),
     );
   }
@@ -1266,6 +1280,249 @@ class _WeatherDialogState extends State<WeatherDialog> {
   }
 }
 
+/// Stündlich tab with a `ScrollController` so we can jump to the "jetzt" row
+/// on first paint. Also injects sunrise/sunset markers between rows and
+/// midnight separators so a 24 h list stays readable when it crosses days.
+class _StuendlichView extends StatefulWidget {
+  final List<HourlyForecast> next24h;
+  final DateFormat df;
+
+  const _StuendlichView({required this.next24h, required this.df});
+
+  @override
+  State<_StuendlichView> createState() => _StuendlichViewState();
+}
+
+class _StuendlichViewState extends State<_StuendlichView> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.next24h.isEmpty) {
+      return const Center(child: Text('Keine stündlichen Daten verfügbar'));
+    }
+    final now = DateTime.now();
+    // Build interleaved rows: hours + sunrise/sunset markers + midnight bars.
+    final rows = <_HourRow>[];
+    final sunrise = _findAncestorAstronomy(context)?.sunrise;
+    final sunset = _findAncestorAstronomy(context)?.sunset;
+    int nowRowIndex = -1;
+
+    DateTime? lastTime;
+    for (int i = 0; i < widget.next24h.length; i++) {
+      final h = widget.next24h[i];
+      final isNow = !h.time.isAfter(now) &&
+          h.time.add(const Duration(hours: 1)).isAfter(now);
+      if (isNow && nowRowIndex < 0) nowRowIndex = rows.length;
+      // Sunrise/sunset between last hour and this hour → inject marker.
+      if (lastTime != null) {
+        if (sunrise != null &&
+            sunrise.isAfter(lastTime) &&
+            !sunrise.isAfter(h.time)) {
+          rows.add(_HourRow.sunEvent(time: sunrise, isSunrise: true));
+        }
+        if (sunset != null &&
+            sunset.isAfter(lastTime) &&
+            !sunset.isAfter(h.time)) {
+          rows.add(_HourRow.sunEvent(time: sunset, isSunrise: false));
+        }
+        // Day change → midnight separator.
+        if (h.time.day != lastTime.day) {
+          rows.add(_HourRow.dayBreak(time: h.time));
+        }
+      }
+      rows.add(_HourRow.hour(h: h, isNow: isNow));
+      lastTime = h.time;
+    }
+
+    // Scroll to "jetzt" once we know the layout. Approx row height 42 px.
+    if (nowRowIndex > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scroll.hasClients) return;
+        final target = (nowRowIndex * 42.0 - 40)
+            .clamp(0.0, _scroll.position.maxScrollExtent);
+        _scroll.jumpTo(target);
+      });
+    }
+
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: rows.length,
+      itemBuilder: (_, i) => _renderRow(rows[i], i),
+    );
+  }
+
+  AstronomyData? _findAncestorAstronomy(BuildContext ctx) {
+    // Walk up the widget tree to grab the shared WeatherService via the
+    // enclosing _WeatherDialogState. Cheaper than plumbing another prop.
+    final state = ctx.findAncestorStateOfType<_WeatherDialogState>();
+    return state?.widget.service.currentAstronomy;
+  }
+
+  Widget _renderRow(_HourRow row, int idx) {
+    if (row.type == _HourRowType.sunrise || row.type == _HourRowType.sunset) {
+      final isSunrise = row.type == _HourRowType.sunrise;
+      final color = isSunrise ? Colors.orange.shade700 : Colors.deepOrange.shade800;
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            color.withValues(alpha: 0.08),
+            color.withValues(alpha: 0.02),
+          ]),
+          borderRadius: BorderRadius.circular(4),
+          border: Border(left: BorderSide(color: color, width: 2)),
+        ),
+        child: Row(
+          children: [
+            Text(isSunrise ? '🌅' : '🌇',
+                style: _emojiStyle(fontSize: 15)),
+            const SizedBox(width: 8),
+            Text(
+              isSunrise ? 'Sonnenaufgang' : 'Sonnenuntergang',
+              style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            Text(
+              DateFormat('HH:mm', 'de_DE').format(row.time!),
+              style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+    if (row.type == _HourRowType.dayBreak) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: Row(
+          children: [
+            Expanded(child: Divider(color: Colors.grey.shade400)),
+            const SizedBox(width: 8),
+            Text(
+              DateFormat('EEEE, dd.MM.', 'de_DE').format(row.time!),
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Divider(color: Colors.grey.shade400)),
+          ],
+        ),
+      );
+    }
+    // Hour row.
+    final h = row.h!;
+    final isNow = row.isNow;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isNow ? Colors.blue.shade50 : (idx.isEven ? Colors.grey.shade50 : null),
+        borderRadius: BorderRadius.circular(6),
+        border: isNow ? Border.all(color: Colors.blue.shade200) : null,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 45,
+            child: Text(
+              widget.df.format(h.time),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
+                color: isNow ? Colors.blue.shade800 : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(h.icon, style: _emojiStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 50,
+            child: Text(
+              '${h.temperature.toStringAsFixed(1)}°',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: h.temperature < 0 ? Colors.blue.shade800 : Colors.orange.shade800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.air, size: 14, color: Colors.grey.shade500),
+          const SizedBox(width: 2),
+          SizedBox(
+            width: 55,
+            child: Text(
+              '${h.windSpeed.toStringAsFixed(0)} km/h',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+          ),
+          if (h.precipitation > 0) ...[
+            Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400),
+            const SizedBox(width: 2),
+            Text(
+              '${h.precipitation.toStringAsFixed(1)} mm',
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+            ),
+          ],
+          if ((h.precipitationProbability ?? 0) >= 10) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.umbrella, size: 12, color: Colors.blue.shade300),
+            const SizedBox(width: 1),
+            Text(
+              '${h.precipitationProbability}%',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: (h.precipitationProbability ?? 0) >= 70
+                    ? Colors.blue.shade900
+                    : Colors.blue.shade600,
+              ),
+            ),
+          ],
+          const Spacer(),
+          SizedBox(
+            width: 90,
+            child: Text(
+              h.description,
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _HourRowType { hour, sunrise, sunset, dayBreak }
+
+class _HourRow {
+  final _HourRowType type;
+  final HourlyForecast? h;
+  final DateTime? time;
+  final bool isNow;
+
+  const _HourRow._({required this.type, this.h, this.time, this.isNow = false});
+
+  factory _HourRow.hour({required HourlyForecast h, required bool isNow}) =>
+      _HourRow._(type: _HourRowType.hour, h: h, isNow: isNow);
+  factory _HourRow.sunEvent({required DateTime time, required bool isSunrise}) =>
+      _HourRow._(type: isSunrise ? _HourRowType.sunrise : _HourRowType.sunset, time: time);
+  factory _HourRow.dayBreak({required DateTime time}) =>
+      _HourRow._(type: _HourRowType.dayBreak, time: time);
+}
+
 /// Horizontal 15-min timeline (wetter.com-style). Scrollable.
 /// Each cell: HH:mm • weather emoji • temperature • precip probability • precipitation bar.
 /// The current cell (the one containing "now") is highlighted with a blue border.
@@ -1296,22 +1553,54 @@ class WeatherMinutelyBar extends StatelessWidget {
   }
 }
 
-class _MinutelyTimeline extends StatelessWidget {
+class _MinutelyTimeline extends StatefulWidget {
   final List<MinutelyForecast> entries;
   final bool compact;
 
   const _MinutelyTimeline({required this.entries, this.compact = false});
 
   @override
+  State<_MinutelyTimeline> createState() => _MinutelyTimelineState();
+}
+
+class _MinutelyTimelineState extends State<_MinutelyTimeline> {
+  final _scroll = ScrollController();
+  static const _cellWidth = 48.0; // 46 px + 2 px horizontal margin
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Scroll so the "jetzt" cell lands ~one cell in from the left edge.
+  void _scrollToNow(int currentIdx) {
+    if (!_scroll.hasClients) return;
+    final target = ((currentIdx - 1) * _cellWidth).clamp(
+      0.0,
+      _scroll.position.maxScrollExtent,
+    );
+    _scroll.jumpTo(target);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (entries.isEmpty) return const SizedBox.shrink();
+    if (widget.entries.isEmpty) return const SizedBox.shrink();
 
     final now = DateTime.now();
     // Only future/current slots (drop stale rows if the API returned them).
-    final visible = entries
+    final visible = widget.entries
         .where((e) => !e.time.isBefore(now.subtract(const Duration(minutes: 15))))
         .toList();
 
+    // Find index of the "now" cell so we can scroll to it on first frame.
+    final nowIdx = visible.indexWhere((e) =>
+        !e.time.isAfter(now) && e.time.add(const Duration(minutes: 15)).isAfter(now));
+    if (nowIdx > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToNow(nowIdx));
+    }
+
+    final compact = widget.compact;
     // Max precipitation for bar normalization — 2 mm/15min is heavy rain.
     final maxPrecip = visible.fold<double>(
       2.0,
@@ -1328,6 +1617,7 @@ class _MinutelyTimeline extends StatelessWidget {
         border: compact ? null : Border.all(color: Colors.blue.shade100),
       ),
       child: ListView.builder(
+        controller: _scroll,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         itemCount: visible.length,
