@@ -36,6 +36,12 @@ class Departure {
   final String productType; // bus, tram, train, etc.
   final String operator;
   final String stopName;
+  // Fields required for stop-sequence lookup ("where does this bus go?").
+  // Not always present — some HAFAS variants omit them, in which case the
+  // sequence dialog degrades to just "from → destination".
+  final String? stopID;    // ID of the boarding stop (where the user is)
+  final String? destID;    // ID of the line's final stop (for EFA trip search)
+  final String? tripID;    // HAFAS-style trip ID (for transport.rest /trips)
 
   Departure({
     required this.line,
@@ -47,6 +53,9 @@ class Departure {
     required this.productType,
     required this.operator,
     required this.stopName,
+    this.stopID,
+    this.destID,
+    this.tripID,
   });
 
   /// Minutes until departure (from now, using realtime if available)
@@ -73,6 +82,36 @@ class Departure {
   }
 
   /// Formatted departure time
+  String get timeString {
+    final t = realtimeTime ?? plannedTime;
+    return '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// A single stop on a vehicle's route — returned by `fetchTripStops` and
+/// rendered as a vertical timeline in the "Wo fährt der Bus hin?" dialog.
+///
+/// The user's current stop is flagged so the UI can highlight it with a
+/// coloured "here" marker.
+class TripStop {
+  final String name;
+  final String stopID;
+  final DateTime plannedTime;
+  final DateTime? realtimeTime;
+  final int delay;      // minutes
+  final bool isCurrent; // true = this is where the user is boarding
+  final String? platform;
+
+  TripStop({
+    required this.name,
+    required this.stopID,
+    required this.plannedTime,
+    this.realtimeTime,
+    this.delay = 0,
+    this.isCurrent = false,
+    this.platform,
+  });
+
   String get timeString {
     final t = realtimeTime ?? plannedTime;
     return '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
@@ -156,6 +195,12 @@ class _CachedDepartures {
   final List<Departure> departures;
   final DateTime at;
   _CachedDepartures(this.departures, this.at);
+}
+
+class _CachedTripStops {
+  final List<TripStop> stops;
+  final DateTime at;
+  _CachedTripStops(this.stops, this.at);
 }
 
 /// A station facility — elevator (Aufzug) or escalator (Fahrtreppe) with
@@ -1532,6 +1577,8 @@ class TransitService {
             productType: productType,
             operator: servingLine['operator']?['publicName']?.toString() ?? '',
             stopName: stopName,
+            stopID: dep['stopID']?.toString(),
+            destID: servingLine['destID']?.toString(),
           ));
         } catch (e) {
           // Skip malformed entries
@@ -2184,6 +2231,189 @@ class TransitService {
       ));
     }
     return out;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // TRIP STOP SEQUENCE — "Wo fährt der Bus hin?"
+  // ══════════════════════════════════════════════════════════════
+
+  final _tripStopsCache = <String, _CachedTripStops>{};
+
+  /// Fetch the full stop sequence for one departure — every station between
+  /// the user's boarding stop and the line's final stop, with planned +
+  /// realtime times. Used by the "Wo fährt der Bus hin?" dialog.
+  ///
+  /// Strategy: run `XSLT_TRIP_REQUEST2` (EFA) or HAFAS TripSearch between
+  /// the boarding stop and the line's `destID`. The first returned leg is
+  /// this line's route; its `stopSeq` / `stopL` yields every intermediate
+  /// station.
+  ///
+  /// Cached 60 seconds per (stopID, destID, line) so re-opening the dialog
+  /// doesn't hammer the API.
+  Future<List<TripStop>> fetchTripStops(Departure dep) async {
+    final fromId = dep.stopID;
+    final toId = dep.destID;
+    if (fromId == null || fromId.isEmpty || toId == null || toId.isEmpty) {
+      _log.info('Transit: fetchTripStops skipped — missing stopID/destID', tag: 'TRANSIT');
+      return [];
+    }
+    final cacheKey = '$fromId|$toId|${dep.line}|${dep.plannedTime.toIso8601String()}';
+    final cached = _tripStopsCache[cacheKey];
+    if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 60)) {
+      return cached.stops;
+    }
+
+    final provider = activeProvider;
+    if (provider == null) return [];
+    List<TripStop> stops = [];
+    try {
+      if (provider.api == TransitApiType.efa) {
+        stops = await _efaTripStops(provider, dep);
+      } else {
+        stops = await _hafasTripStops(provider, dep);
+      }
+    } catch (e) {
+      _log.error('Transit: fetchTripStops failed for line ${dep.line}: $e', tag: 'TRANSIT');
+    }
+    _tripStopsCache[cacheKey] = _CachedTripStops(stops, DateTime.now());
+    _log.info('Transit: fetchTripStops line ${dep.line} → ${stops.length} stops', tag: 'TRANSIT');
+    return stops;
+  }
+
+  Future<List<TripStop>> _efaTripStops(TransitProviderConfig p, Departure dep) async {
+    final when = dep.realtimeTime ?? dep.plannedTime;
+    final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
+    final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}';
+    final uri = Uri.parse(
+      '${p.baseUrl}/XSLT_TRIP_REQUEST2'
+      '?outputFormat=JSON&locationServerActive=1&useRealtime=1&calcNumberOfTrips=1'
+      '&type_origin=stop&name_origin=${Uri.encodeComponent(dep.stopID!)}'
+      '&type_destination=stop&name_destination=${Uri.encodeComponent(dep.destID!)}'
+      '&itdDate=$dateStr&itdTime=$timeStr',
+    );
+    final resp = await _client.get(uri).timeout(const Duration(seconds: 12));
+    if (resp.statusCode != 200) return [];
+    final data = jsonDecode(_decodeUtf8(resp));
+    // DING returns `trips` as {trip: [...]} or {trip: {...}}; MVV returns a bare list.
+    dynamic tripsRoot = data['trips'];
+    dynamic firstTrip;
+    if (tripsRoot is List && tripsRoot.isNotEmpty) {
+      firstTrip = tripsRoot.first;
+    } else if (tripsRoot is Map) {
+      final t = tripsRoot['trip'];
+      firstTrip = t is List ? (t.isNotEmpty ? t.first : null) : t;
+    }
+    if (firstTrip is! Map) return [];
+    final legs = firstTrip['legs'] as List? ?? [];
+    // Find the leg matching this line (skip walks)
+    for (final leg in legs) {
+      final mode = leg['mode'] as Map? ?? {};
+      if (mode['type']?.toString() == '100' || mode['type']?.toString() == '99') continue;
+      final lineNum = mode['number']?.toString() ?? mode['symbol']?.toString() ?? '';
+      if (lineNum != dep.line && !lineNum.contains(dep.line)) continue;
+      final seqRaw = leg['stopSeq'];
+      final seq = seqRaw is List ? seqRaw : (seqRaw is Map ? (seqRaw['stop'] as List? ?? []) : []);
+      return _parseEfaStopSequence(seq, dep.stopID!);
+    }
+    return [];
+  }
+
+  List<TripStop> _parseEfaStopSequence(List seq, String currentStopId) {
+    final out = <TripStop>[];
+    for (final s in seq) {
+      if (s is! Map) continue;
+      final name = s['name']?.toString() ?? '';
+      final ref = s['ref'] is Map ? s['ref'] as Map : {};
+      final id = ref['id']?.toString() ?? s['stopID']?.toString() ?? '';
+      if (name.isEmpty) continue;
+      final dt = s['dateTime'];
+      final planned = _parseEfaTripDateTime(dt) ?? _parseEfaDateTime(dt is Map ? Map<String, dynamic>.from(dt) : {});
+      if (planned == null) continue;
+      DateTime? rt;
+      if (dt is Map && (dt['rtDate'] != null || dt['rtTime'] != null)) {
+        rt = _parseEfaTripDateTime({
+          'date': dt['rtDate'] ?? dt['date'],
+          'time': dt['rtTime'] ?? dt['time'],
+        });
+      }
+      final delayMin = (rt != null) ? rt.difference(planned).inMinutes : 0;
+      out.add(TripStop(
+        name: name,
+        stopID: id,
+        plannedTime: planned,
+        realtimeTime: rt,
+        delay: delayMin > 0 ? delayMin : 0,
+        isCurrent: id == currentStopId,
+        platform: _cleanEfaPlatform(s['platform']),
+      ));
+    }
+    return out;
+  }
+
+  Future<List<TripStop>> _hafasTripStops(TransitProviderConfig p, Departure dep) async {
+    final when = dep.realtimeTime ?? dep.plannedTime;
+    final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
+    final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
+    final req = _hafasRequest([
+      {
+        'meth': 'TripSearch',
+        'req': {
+          'depLocL': [{'lid': dep.stopID}],
+          'arrLocL': [{'lid': dep.destID}],
+          'outDate': dateStr,
+          'outTime': timeStr,
+          'numF': 1,
+          'getPasslist': true, // include intermediate stops
+          'outFrwd': true,
+        },
+      },
+    ]);
+    final resp = await _client.post(Uri.parse(p.baseUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(req)).timeout(const Duration(seconds: 12));
+    if (resp.statusCode != 200) return [];
+    final data = jsonDecode(_decodeUtf8(resp));
+    if (data['err']?.toString() != null && data['err'] != 'OK') return [];
+    final svc = data['svcResL']?[0]?['res'];
+    if (svc is! Map) return [];
+    final common = svc['common'] ?? {};
+    final locL = common['locL'] as List? ?? [];
+    final conL = svc['outConL'] as List? ?? [];
+    if (conL.isEmpty) return [];
+    final firstCon = conL.first;
+    final date = firstCon['date']?.toString() ?? dateStr;
+    final secL = firstCon['secL'] as List? ?? [];
+    for (final sec in secL) {
+      if (sec['type']?.toString() != 'JNY') continue;
+      final jny = sec['jny'] ?? {};
+      final stopL = jny['stopL'] as List? ?? [];
+      final out = <TripStop>[];
+      for (final s in stopL) {
+        if (s is! Map) continue;
+        final locX = s['locX'] as int? ?? -1;
+        if (locX < 0 || locX >= locL.length) continue;
+        final loc = locL[locX] as Map;
+        final name = loc['name']?.toString() ?? '';
+        final id = loc['lid']?.toString() ?? loc['extId']?.toString() ?? '';
+        if (name.isEmpty) continue;
+        final planned = _parseHafasDateTime(date, (s['dTimeS'] ?? s['aTimeS'] ?? '').toString());
+        if (planned == null) continue;
+        final rtStr = (s['dTimeR'] ?? s['aTimeR'] ?? '').toString();
+        final rt = rtStr.isNotEmpty ? _parseHafasDateTime(date, rtStr) : null;
+        final delayMin = (rt != null) ? rt.difference(planned).inMinutes : 0;
+        out.add(TripStop(
+          name: name,
+          stopID: id,
+          plannedTime: planned,
+          realtimeTime: rt,
+          delay: delayMin > 0 ? delayMin : 0,
+          isCurrent: id == dep.stopID,
+          platform: s['dPlatfR']?.toString() ?? s['dPlatfS']?.toString(),
+        ));
+      }
+      return out;
+    }
+    return [];
   }
 
   // ══════════════════════════════════════════════════════════════

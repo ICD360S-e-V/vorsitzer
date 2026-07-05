@@ -564,7 +564,7 @@ class _StopSection extends StatelessWidget {
               child: Text('Keine Abfahrten in Kürze', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
             )
           else
-            ...departures.take(6).map((d) => _DepartureRow(dep: d)),
+            ...departures.take(6).map((d) => _DepartureRow(dep: d, transitService: transitService)),
         ],
       ),
     );
@@ -778,7 +778,8 @@ class _FacilityRow extends StatelessWidget {
 
 class _DepartureRow extends StatelessWidget {
   final Departure dep;
-  const _DepartureRow({required this.dep});
+  final TransitService transitService;
+  const _DepartureRow({required this.dep, required this.transitService});
 
   Color _lineColor() {
     switch (dep.productType) {
@@ -798,7 +799,15 @@ class _DepartureRow extends StatelessWidget {
     final isSoon = mins <= 5;
     final isLive = dep.realtimeTime != null;
 
-    return Container(
+    final canOpenSequence = dep.stopID != null && dep.destID != null;
+    return InkWell(
+      onTap: canOpenSequence
+          ? () => showDialog(
+                context: context,
+                builder: (_) => _TripSequenceDialog(dep: dep, transitService: transitService),
+              )
+          : null,
+      child: Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: Colors.grey.shade100)),
@@ -886,6 +895,318 @@ class _DepartureRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12, fontWeight: FontWeight.bold,
                 color: isImminent ? Colors.red.shade700 : (isSoon ? Colors.orange.shade700 : Colors.teal.shade700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    );
+  }
+}
+
+/// Modal that shows every stop this bus/tram/train visits on its way to its
+/// terminus. The user's boarding stop is highlighted so they can see how far
+/// along the route they are getting on. Cached 60s in the transit service.
+class _TripSequenceDialog extends StatefulWidget {
+  final Departure dep;
+  final TransitService transitService;
+  const _TripSequenceDialog({required this.dep, required this.transitService});
+
+  @override
+  State<_TripSequenceDialog> createState() => _TripSequenceDialogState();
+}
+
+class _TripSequenceDialogState extends State<_TripSequenceDialog> {
+  List<TripStop>? _stops;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    final s = await widget.transitService.fetchTripStops(widget.dep);
+    if (!mounted) return;
+    setState(() {
+      _stops = s;
+      _loading = false;
+    });
+  }
+
+  Color _lineColor() {
+    switch (widget.dep.productType) {
+      case 'tram': return Colors.blue.shade700;
+      case 'subway': return Colors.indigo.shade700;
+      case 'train':
+      case 'regional': return Colors.red.shade700;
+      case 'suburban': return Colors.green.shade700;
+      default: return Colors.teal.shade700;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dep = widget.dep;
+    final stops = _stops ?? [];
+    final currentIdx = stops.indexWhere((s) => s.isCurrent);
+    final lineColor = _lineColor();
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 640),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+              decoration: BoxDecoration(
+                color: lineColor.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                border: Border(bottom: BorderSide(color: lineColor.withValues(alpha: 0.3))),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: lineColor, borderRadius: BorderRadius.circular(4)),
+                    child: Text(
+                      dep.line,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('→ ${dep.direction}',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis),
+                        Text(
+                          'Abfahrt ${dep.timeString}${dep.delay > 0 ? "  +${dep.delay} Min" : ""}',
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+            ),
+            // Body — vertical timeline
+            Flexible(
+              child: _loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : stops.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.route, size: 44, color: Colors.grey.shade400),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Streckenverlauf konnte nicht ermittelt werden.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: stops.length,
+                          itemBuilder: (_, i) => _TripStopRow(
+                            stop: stops[i],
+                            isFirst: i == 0,
+                            isLast: i == stops.length - 1,
+                            beforeCurrent: currentIdx > 0 && i < currentIdx,
+                            lineColor: lineColor,
+                          ),
+                        ),
+            ),
+            // Footer
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('${stops.length} Haltestellen',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  if (currentIdx >= 0 && stops.isNotEmpty)
+                    Text('${stops.length - currentIdx - 1} bis Endstation',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TripStopRow extends StatelessWidget {
+  final TripStop stop;
+  final bool isFirst;
+  final bool isLast;
+  final bool beforeCurrent;
+  final Color lineColor;
+
+  const _TripStopRow({
+    required this.stop,
+    required this.isFirst,
+    required this.isLast,
+    required this.beforeCurrent,
+    required this.lineColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isCurrent = stop.isCurrent;
+    final dotColor = isCurrent
+        ? Colors.green.shade600
+        : (beforeCurrent ? Colors.grey.shade400 : lineColor);
+    final textColor = isCurrent
+        ? Colors.green.shade900
+        : (beforeCurrent ? Colors.grey.shade500 : Colors.black87);
+    final fontWeight = isCurrent ? FontWeight.bold : FontWeight.w500;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Timeline column: vertical line + dot
+          SizedBox(
+            width: 32,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Vertical connecting line
+                Column(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        color: isFirst ? Colors.transparent : (beforeCurrent ? Colors.grey.shade300 : lineColor.withValues(alpha: 0.6)),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        color: isLast ? Colors.transparent : (beforeCurrent || isCurrent ? lineColor.withValues(alpha: 0.6) : lineColor.withValues(alpha: 0.6)),
+                      ),
+                    ),
+                  ],
+                ),
+                // Dot
+                Container(
+                  width: isCurrent ? 18 : (isFirst || isLast ? 14 : 10),
+                  height: isCurrent ? 18 : (isFirst || isLast ? 14 : 10),
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                    border: isCurrent
+                        ? Border.all(color: Colors.white, width: 3)
+                        : (isFirst || isLast
+                            ? Border.all(color: Colors.white, width: 2)
+                            : null),
+                    boxShadow: isCurrent
+                        ? [BoxShadow(color: Colors.green.withValues(alpha: 0.4), blurRadius: 6, spreadRadius: 2)]
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Stop content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      if (isCurrent) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade600,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: const Text('HIER',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      if (isFirst && !isCurrent) ...[
+                        Icon(Icons.play_arrow, size: 12, color: Colors.grey.shade500),
+                        const SizedBox(width: 3),
+                      ],
+                      if (isLast) ...[
+                        Icon(Icons.flag, size: 12, color: lineColor),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          stop.name,
+                          style: TextStyle(
+                            fontSize: isCurrent ? 13.5 : 12.5,
+                            fontWeight: fontWeight,
+                            color: textColor,
+                            decoration: beforeCurrent ? TextDecoration.lineThrough : null,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        stop.timeString,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: textColor,
+                          fontWeight: fontWeight,
+                          decoration: stop.delay > 0 ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                      if (stop.delay > 0) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            color: stop.delay >= 5 ? Colors.red.shade100 : Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: Text(
+                            '+${stop.delay}',
+                            style: TextStyle(
+                              fontSize: 9, fontWeight: FontWeight.bold,
+                              color: stop.delay >= 5 ? Colors.red.shade800 : Colors.orange.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (stop.platform != null)
+                    Text('Gl. ${stop.platform}',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                ],
               ),
             ),
           ),
