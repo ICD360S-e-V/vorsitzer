@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/transit_service.dart';
+import '../services/transit_disruptions_service.dart';
 import '../services/transit_favorites_service.dart';
 
 /// ÖPNV dialog — two tabs:
@@ -408,6 +409,9 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
             ],
           ),
         )),
+        // Störungen-Banner: shows a compact strip if any HIM messages are
+        // currently active. Tap to open full list dialog.
+        _DisruptionsBanner(),
         // Body — if accuracy is too coarse, refuse to show stops
         Expanded(
           child: !isPrecise
@@ -1933,6 +1937,226 @@ class _LocationField extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Compact strip that surfaces active nationwide disruptions inside the
+/// Echtzeit tab. Listens to TransitDisruptionsService for reactive count.
+class _DisruptionsBanner extends StatefulWidget {
+  @override
+  State<_DisruptionsBanner> createState() => _DisruptionsBannerState();
+}
+
+class _DisruptionsBannerState extends State<_DisruptionsBanner> {
+  final _svc = TransitDisruptionsService();
+
+  @override
+  void initState() {
+    super.initState();
+    _svc.addListener(_onChanged);
+    _svc.start();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _svc.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_svc.count == 0) return const SizedBox.shrink();
+    final p = _Palette.of(context);
+    final high = _svc.highPriorityCount > 0;
+    return Semantics(
+      button: true,
+      label: '${_svc.count} aktive Störungen. Antippen für Details.',
+      child: InkWell(
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => const _DisruptionsListDialog(),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: (high ? Colors.red : Colors.orange).withValues(alpha: p.dark ? 0.2 : 0.1),
+            border: Border(bottom: BorderSide(color: p.divider)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 16,
+                color: high ? Colors.red.shade400 : Colors.orange.shade600,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${_svc.count} aktive Störung${_svc.count == 1 ? "" : "en"} bundesweit',
+                  style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600,
+                    color: high ? Colors.red.shade400 : Colors.orange.shade600,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 16, color: p.onSurfaceDim),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DisruptionsListDialog extends StatelessWidget {
+  const _DisruptionsListDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final svc = TransitDisruptionsService();
+    return Dialog(
+      backgroundColor: p.bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SizedBox(
+        width: 480, height: 560,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+              decoration: BoxDecoration(
+                color: p.accentTint,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, size: 20, color: Colors.orange.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Aktive Störungen (${svc.count})',
+                      style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold,
+                        color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.refresh, size: 18, color: p.onSurface),
+                    tooltip: 'Neu laden',
+                    onPressed: () => svc.fetch(force: true),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 18, color: p.onSurface),
+                    tooltip: 'Schließen',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: svc.disruptions.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Keine aktiven Störungen',
+                        style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: svc.disruptions.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: p.divider),
+                      itemBuilder: (_, i) => _DisruptionRow(d: svc.disruptions[i]),
+                    ),
+            ),
+            if (svc.lastFetch != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                ),
+                child: Text(
+                  'Aktualisiert ${svc.lastFetch!.hour}:${svc.lastFetch!.minute.toString().padLeft(2, '0')} • bahn.de HIM',
+                  style: TextStyle(fontSize: 9, color: p.onSurfaceFaint),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisruptionRow extends StatelessWidget {
+  final TransitDisruption d;
+  const _DisruptionRow({required this.d});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    return Semantics(
+      label: '${d.isHigh ? "Wichtige " : ""}Störung: ${d.headline}. '
+          '${d.affected != null ? "Betroffen: ${d.affected}. " : ""}'
+          '${d.text ?? ""}',
+      container: true,
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 4, height: 40,
+              margin: const EdgeInsets.only(right: 8, top: 2),
+              decoration: BoxDecoration(
+                color: d.isHigh ? Colors.red.shade400 : Colors.orange.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.headline,
+                    style: TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.bold, color: p.onSurface,
+                    ),
+                  ),
+                  if (d.affected != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      d.affected!,
+                      style: TextStyle(fontSize: 11, color: Colors.teal.shade400, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                  if (d.text != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      d.text!,
+                      style: TextStyle(fontSize: 11, color: p.onSurfaceDim, height: 1.3),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (d.validUntil != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      'Gültig bis: ${d.validUntil!.day}.${d.validUntil!.month}. ${d.validUntil!.hour}:${d.validUntil!.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(fontSize: 9, color: p.onSurfaceFaint),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

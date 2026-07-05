@@ -15,6 +15,7 @@ import '../services/routine_service.dart';
 import '../services/notification_service.dart';
 import '../services/weather_service.dart';
 import '../services/transit_service.dart';
+import '../services/transit_disruptions_service.dart';
 import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
 import '../services/radio_service.dart';
@@ -129,6 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   // Transit (DING EFA)
   final _transitService = TransitService();
+  final _disruptionsService = TransitDisruptionsService();
   List<Departure> _departures = [];
 
   // News (Tagesschau RSS)
@@ -266,6 +268,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _autoUpdateTimer?.cancel();
     _weatherService.stop();
     _transitService.stop();
+    _disruptionsService.removeListener(_onDisruptionsChanged);
+    _disruptionsService.stop();
     _newsService.stop();
     _radioService.dispose();
     super.dispose();
@@ -525,6 +529,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // Start transit first (it gets GPS) then share coordinates with weather
         await _transitService.start(ort);
 
+        // Start disruption polling (15 min interval, badge on bus icon)
+        _disruptionsService.start();
+        _disruptionsService.addListener(_onDisruptionsChanged);
+
         // Use GPS coordinates from transit if available, else city fallback.
         // followGps: true → re-reads device GPS every 15 min and updates city on movement >5km.
         if (_transitService.latitude != null && _transitService.longitude != null) {
@@ -570,6 +578,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   // ── Transit Dialog ──────────────────────────────────────────
+
+  void _onDisruptionsChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
 
   void _showTransitDialog() {
     showDialog(
@@ -1204,11 +1217,46 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               tooltip: 'Nachrichten',
               onPressed: _showNewsDialog,
             ),
-          // Transit (ÖPNV departures) — visible on all screen sizes
-          IconButton(
-            icon: const Icon(Icons.directions_bus),
-            tooltip: 'ÖPNV Abfahrten',
-            onPressed: _showTransitDialog,
+          // Transit (ÖPNV departures) — visible on all screen sizes.
+          // Badge shows count of active national disruptions (bahn.de HIM feed,
+          // refreshed every 15 min). Red for high-priority, orange otherwise.
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.directions_bus),
+                tooltip: _disruptionsService.count > 0
+                    ? 'ÖPNV Abfahrten — ${_disruptionsService.count} aktive Störung${_disruptionsService.count == 1 ? "" : "en"}'
+                    : 'ÖPNV Abfahrten',
+                onPressed: _showTransitDialog,
+              ),
+              if (_disruptionsService.count > 0)
+                Positioned(
+                  right: 4, top: 4,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      decoration: BoxDecoration(
+                        color: _disruptionsService.highPriorityCount > 0
+                            ? Colors.red.shade600
+                            : Colors.orange.shade600,
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(color: Colors.white, width: 1),
+                      ),
+                      child: Text(
+                        _disruptionsService.count > 99 ? '99+' : '${_disruptionsService.count}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           // Debug: inject test bubble pentru a confirma rendering overlay global
           if (!isMobile)
