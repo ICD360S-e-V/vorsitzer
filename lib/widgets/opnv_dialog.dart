@@ -7,6 +7,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/transit_service.dart';
+import '../services/transit_favorites_service.dart';
 
 /// ÖPNV dialog — two tabs:
 ///   1. Echtzeit — live departures grouped by nearest stops (GPS auto-refresh 60s)
@@ -1447,6 +1448,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   bool _searching = false;
   List<Journey>? _results;
   String? _error;
+  List<TransitFavorite> _favorites = [];
 
   @override
   void initState() {
@@ -1468,6 +1470,21 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         _from = TransitLocation(id: gpsCity, name: gpsCity);
       }
     }
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final picks = await TransitFavoritesService.topPicks();
+    if (!mounted) return;
+    setState(() => _favorites = picks);
+  }
+
+  Future<void> _applyFavorite(TransitFavorite fav) async {
+    setState(() {
+      _from = fav.fromLocation;
+      _to = fav.toLocation;
+    });
+    await _search();
   }
 
   Future<void> _search() async {
@@ -1492,6 +1509,12 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         _searching = false;
         if (journeys.isEmpty) _error = 'Keine Verbindungen gefunden';
       });
+      // Only record searches that actually returned results — random typos
+      // or dead-end lookups shouldn't clutter the quick-pick row.
+      if (journeys.isNotEmpty) {
+        await TransitFavoritesService.record(_from!, _to!);
+        await _loadFavorites();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -1518,8 +1541,18 @@ class _VerbindungTabState extends State<_VerbindungTab> {
 
   @override
   Widget build(BuildContext context) {
+    final p = _Palette.of(context);
     return Column(
       children: [
+        if (_favorites.isNotEmpty)
+          _FavoritesChipRow(
+            favorites: _favorites,
+            onPick: _applyFavorite,
+            onDelete: (fav) async {
+              await TransitFavoritesService.remove(fav);
+              await _loadFavorites();
+            },
+          ),
         Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -1572,14 +1605,14 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(_error!, style: TextStyle(color: Colors.orange.shade700, fontSize: 12)),
+            child: Text(_error!, style: TextStyle(color: Colors.orange.shade400, fontSize: 12)),
           ),
         Expanded(
           child: _results == null
               ? Center(
                   child: Text(
                     _searching ? 'Suche läuft…' : 'Von–Nach eingeben und suchen',
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                    style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
                   ),
                 )
               : ListView.builder(
@@ -1589,6 +1622,77 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// Horizontal quick-pick chip row of ranked favorite routes.
+/// Shown above the Von/Nach fields — one tap fills both and auto-searches.
+class _FavoritesChipRow extends StatelessWidget {
+  final List<TransitFavorite> favorites;
+  final ValueChanged<TransitFavorite> onPick;
+  final ValueChanged<TransitFavorite> onDelete;
+  const _FavoritesChipRow({
+    required this.favorites,
+    required this.onPick,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+      decoration: BoxDecoration(
+        color: p.surface,
+        border: Border(bottom: BorderSide(color: p.divider)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.star, size: 12, color: Colors.amber.shade600),
+              const SizedBox(width: 4),
+              Text(
+                'Häufig gesucht',
+                style: TextStyle(fontSize: 10, color: p.onSurfaceDim, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 32,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: favorites.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final fav = favorites[i];
+                return Semantics(
+                  button: true,
+                  label: 'Route von ${fav.fromName} nach ${fav.toName}. '
+                      '${fav.hits} mal gesucht. Antippen um erneut zu suchen.',
+                  child: InputChip(
+                    label: Text(fav.chipLabel, style: const TextStyle(fontSize: 11)),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: EdgeInsets.zero,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: p.card,
+                    side: BorderSide(color: p.border),
+                    avatar: Icon(Icons.replay, size: 14, color: Colors.teal.shade400),
+                    onDeleted: () => onDelete(fav),
+                    deleteIconColor: p.onSurfaceFaint,
+                    deleteButtonTooltipMessage: 'Aus Favoriten entfernen',
+                    onPressed: () => onPick(fav),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
