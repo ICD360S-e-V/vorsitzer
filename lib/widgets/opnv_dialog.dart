@@ -15,6 +15,7 @@ import '../services/notification_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_favorites_service.dart';
+import '../services/transit_offline_cache.dart';
 import '../services/transit_translations.dart';
 import '../services/weather_service.dart';
 
@@ -237,6 +238,9 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
   bool _isLoading = false;
   Timer? _refreshTimer;
   DateTime _lastUpdate = DateTime.now();
+  /// Non-null when the current UI is populated from the persisted offline
+  /// snapshot rather than a live fetch. Shows a freshness banner.
+  TransitOfflineSnapshot? _offline;
 
   @override
   void initState() {
@@ -258,8 +262,18 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
     setState(() => _isLoading = true);
     await widget.transitService.refresh();
     if (!mounted) return;
+    var live = List<Departure>.from(widget.transitService.departures);
+    TransitOfflineSnapshot? offlineSnap;
+    // If refresh returned nothing (network down / provider unreachable),
+    // fall back to the last persisted snapshot so the tab isn't empty.
+    if (live.isEmpty && widget.transitService.nearbyStops.isEmpty) {
+      offlineSnap = await widget.transitService.loadOfflineSnapshotIfEmpty();
+      if (offlineSnap != null) live = List.from(widget.transitService.departures);
+    }
+    if (!mounted) return;
     setState(() {
-      _departures = List.from(widget.transitService.departures);
+      _departures = live;
+      _offline = offlineSnap;
       _lastUpdate = DateTime.now();
       _isLoading = false;
     });
@@ -356,6 +370,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
     final p = _Palette.of(context);
     return Column(
       children: [
+        if (_offline != null) _OfflineBanner(snap: _offline!, onRetry: _refresh),
         // Location bar with accuracy indicator
         Semantics(
           label: 'Aktueller Standort: ${locLabel.isNotEmpty ? locLabel : 'wird ermittelt'}. '
@@ -451,6 +466,63 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
         ),
         _Footer(providerName: provider?.displayName ?? 'ÖPNV', lastUpdate: _lastUpdate),
       ],
+    );
+  }
+}
+
+/// Banner shown when the Echtzeit tab is populated from the persisted
+/// SharedPreferences snapshot rather than a live fetch. Includes the
+/// snapshot's captured-at time so the user can gauge how stale the data is.
+class _OfflineBanner extends StatelessWidget {
+  final TransitOfflineSnapshot snap;
+  final VoidCallback onRetry;
+  const _OfflineBanner({required this.snap, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final t = snap.capturedAt;
+    final hhmm = '${t.hour.toString().padLeft(2, "0")}:${t.minute.toString().padLeft(2, "0")}';
+    final minutesAgo = snap.age.inMinutes;
+    final ageLabel = minutesAgo < 60
+        ? 'vor $minutesAgo Min'
+        : 'vor ${(minutesAgo / 60).floor()}h ${minutesAgo % 60}m';
+    // Color grades with age: <15m green-ish, up to 4h orange, older red.
+    final Color bg;
+    final Color fg;
+    if (snap.isFresh) {
+      bg = Colors.orange.shade100.withValues(alpha: p.dark ? 0.25 : 1.0);
+      fg = Colors.orange.shade700;
+    } else if (snap.isStale) {
+      bg = Colors.red.shade100.withValues(alpha: p.dark ? 0.25 : 1.0);
+      fg = Colors.red.shade600;
+    } else {
+      bg = Colors.orange.shade50.withValues(alpha: p.dark ? 0.25 : 1.0);
+      fg = Colors.orange.shade600;
+    }
+    return Semantics(
+      label: 'Offline-Modus, Daten von $hhmm, $ageLabel. Antippen um erneut zu versuchen.',
+      child: InkWell(
+        onTap: onRetry,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          color: bg,
+          child: Row(
+            children: [
+              Icon(Icons.wifi_off, size: 14, color: fg),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Ohne Internet — Daten von $hhmm ($ageLabel)',
+                  style: TextStyle(fontSize: 11.5, color: fg, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.refresh, size: 14, color: fg),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'logger_service.dart';
 import 'http_client_factory.dart';
+import 'transit_offline_cache.dart';
 
 final _log = LoggerService();
 
@@ -23,6 +24,19 @@ class TransitStop {
     required this.distance,
     this.platform,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'distance': distance,
+        'platform': platform,
+      };
+  factory TransitStop.fromJson(Map<String, dynamic> j) => TransitStop(
+        id: j['id'] as String? ?? '',
+        name: j['name'] as String? ?? '',
+        distance: (j['distance'] as num?)?.toInt() ?? 0,
+        platform: j['platform'] as String?,
+      );
 }
 
 /// A single departure from a stop
@@ -57,6 +71,36 @@ class Departure {
     this.destID,
     this.tripID,
   });
+
+  Map<String, dynamic> toJson() => {
+        'line': line,
+        'direction': direction,
+        'plannedTime': plannedTime.toIso8601String(),
+        'realtimeTime': realtimeTime?.toIso8601String(),
+        'delay': delay,
+        'platform': platform,
+        'productType': productType,
+        'operator': operator,
+        'stopName': stopName,
+        'stopID': stopID,
+        'destID': destID,
+        'tripID': tripID,
+      };
+
+  factory Departure.fromJson(Map<String, dynamic> j) => Departure(
+        line: j['line'] as String? ?? '',
+        direction: j['direction'] as String? ?? '',
+        plannedTime: DateTime.tryParse(j['plannedTime'] as String? ?? '') ?? DateTime.now(),
+        realtimeTime: (j['realtimeTime'] is String) ? DateTime.tryParse(j['realtimeTime'] as String) : null,
+        delay: (j['delay'] as num?)?.toInt() ?? 0,
+        platform: j['platform'] as String?,
+        productType: j['productType'] as String? ?? 'bus',
+        operator: j['operator'] as String? ?? '',
+        stopName: j['stopName'] as String? ?? '',
+        stopID: j['stopID'] as String?,
+        destID: j['destID'] as String?,
+        tripID: j['tripID'] as String?,
+      );
 
   /// Minutes until departure (from now, using realtime if available)
   int get minutesUntil {
@@ -1425,6 +1469,32 @@ class TransitService {
 
     isLoading = false;
     onDeparturesUpdate?.call(departures);
+
+    // Persist the successful snapshot for offline fallback. Best-effort;
+    // failure to write is silent (SharedPreferences errors shouldn't
+    // affect the current fetch flow).
+    if (departures.isNotEmpty || nearbyStops.isNotEmpty) {
+      TransitOfflineCache.save(
+        stops: nearbyStops,
+        departures: departures,
+        city: gpsCity ?? city,
+      );
+    }
+  }
+
+  /// Best-effort offline fallback: if the current in-memory departures list
+  /// is empty AND we have a persisted snapshot, populate from cache and
+  /// return the snapshot for freshness-banner rendering. Returns null if
+  /// no snapshot exists or if live data is already present.
+  Future<TransitOfflineSnapshot?> loadOfflineSnapshotIfEmpty() async {
+    if (departures.isNotEmpty || nearbyStops.isNotEmpty) return null;
+    final snap = await TransitOfflineCache.load();
+    if (snap == null) return null;
+    nearbyStops = snap.stops;
+    departures = snap.departures;
+    if (snap.city.isNotEmpty && gpsCity == null) gpsCity = snap.city;
+    onDeparturesUpdate?.call(departures);
+    return snap;
   }
 
   /// For every visible stop whose name matches a mainline station pattern,
