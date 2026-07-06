@@ -5531,6 +5531,59 @@ class ApiService {
     }
   }
 
+  // ========== AUGENARZT (relational, eigene Tabellen augenarzt_*) ==========
+
+  /// Alle Instanzen (Kern + vorsorge + selected_arzt + Blob-Tabs) eines Mitglieds.
+  Future<Map<String, dynamic>> getAugenarztInstances(int userId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_get.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Eine Instanz speichern (Kern + Blob-Tabs, je nach data-Map-Keys).
+  Future<Map<String, dynamic>> saveAugenarztInstance(int userId, int instance, Map<String, dynamic> data) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'data': data}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Eine Instanz (Arzt) samt aller Tabs löschen.
+  Future<Map<String, dynamic>> deleteAugenarztInstance(int userId, int instance) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'action': 'delete'}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Ärzte-Suche im entkoppelten Augenarzt-Katalog (augenarzt_datenbank).
+  Future<Map<String, dynamic>> searchAugenarztDatenbank({String search = '', String fachrichtung = 'Augenheilkunde'}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'search', 'search': search, 'fachrichtung': fachrichtung}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Neuen Augenarzt in den entkoppelten Katalog aufnehmen.
+  Future<Map<String, dynamic>> addAugenarztDatenbank(Map<String, dynamic> arzt) async {
+    final payload = {...arzt, 'action': 'add', 'fachrichtung': arzt['fachrichtung'] ?? 'Augenheilkunde'};
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   Future<Map<String, dynamic>> fruehfoerderungAction(Map<String, dynamic> data) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/fruehfoerderung_manage.php'),
