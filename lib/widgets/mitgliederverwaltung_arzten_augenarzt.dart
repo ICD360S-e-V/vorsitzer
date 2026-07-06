@@ -6268,7 +6268,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
     if (_arztTermineLoading[type] == true) return;
     _arztTermineLoading[type] = true;
     try {
-      final result = await widget.apiService.getArztTermine(widget.user.id, type);
+      final result = await widget.apiService.getAugenarztTermine(widget.user.id, type);
       if (mounted) {
         setState(() {
           final loaded = List<Map<String, dynamic>>.from(result['termine'] ?? []);
@@ -6454,7 +6454,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                   ),
                                 );
                                 if (confirm == true) {
-                                  await widget.apiService.saveArztTermin({
+                                  await widget.apiService.saveAugenarztTermin({
                                     'action': 'delete',
                                     'user_id': widget.user.id,
                                     'arzt_type': type,
@@ -6698,7 +6698,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                                             copy.remove('_editing');
                                                             return copy;
                                                           }).toList();
-                                                          await widget.apiService.saveArztTermin({
+                                                          await widget.apiService.saveAugenarztTermin({
                                                             'action': 'update',
                                                             'user_id': widget.user.id,
                                                             'arzt_type': type,
@@ -6797,7 +6797,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                                       copy.remove('_editing');
                                                       return copy;
                                                     }).toList();
-                                                    await widget.apiService.saveArztTermin({
+                                                    await widget.apiService.saveAugenarztTermin({
                                                       'action': 'update',
                                                       'user_id': widget.user.id,
                                                       'arzt_type': type,
@@ -6875,7 +6875,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                                 Navigator.pop(dlg);
                                                 // Save to server
                                                 try {
-                                                  await widget.apiService.saveArztTermin({
+                                                  await widget.apiService.saveAugenarztTermin({
                                                     'action': 'update_notizen',
                                                     'user_id': widget.user.id,
                                                     'arzt_type': type,
@@ -6934,7 +6934,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                                     notizenListe.removeAt(i);
                                                     termin['notizen_liste'] = notizenListe;
                                                     try {
-                                                      await widget.apiService.saveArztTermin({
+                                                      await widget.apiService.saveAugenarztTermin({
                                                         'action': 'update_notizen',
                                                         'user_id': widget.user.id,
                                                         'termin_id': terminId,
@@ -7277,7 +7277,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                     if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
                   ].join(', ');
 
-                  final result = await widget.apiService.saveArztTermin({
+                  final result = await widget.apiService.saveAugenarztTermin({
                     'action': 'add',
                     'user_id': widget.user.id,
                     'arzt_type': type,
@@ -7581,7 +7581,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                     if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
                   ].join(', ');
 
-                  final result = await widget.apiService.saveArztTermin({
+                  final result = await widget.apiService.saveAugenarztTermin({
                     'action': 'add',
                     'user_id': widget.user.id,
                     'arzt_type': type,
@@ -7959,7 +7959,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                   ].join(', ');
 
                   // Save as new appointment entry with typ='verschoben'
-                  final result = await widget.apiService.saveArztTermin({
+                  final result = await widget.apiService.saveAugenarztTermin({
                     'action': 'add',
                     'user_id': widget.user.id,
                     'arzt_type': type,
@@ -8319,7 +8319,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                         if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
                       ].join(', ');
 
-                      await widget.apiService.saveArztTermin({
+                      await widget.apiService.saveAugenarztTermin({
                         'action': isEdit ? 'update' : 'add',
                         'user_id': widget.user.id,
                         'arzt_type': type,
@@ -8374,7 +8374,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
     if (_arztMedikamenteLoading[type] == true) return;
     _arztMedikamenteLoading[type] = true;
     try {
-      final result = await widget.apiService.getArztMedikamente(widget.user.id, type);
+      final result = await widget.apiService.getAugenarztMedikamente(widget.user.id, type);
       if (mounted) {
         setState(() {
           _arztMedikamente[type] = List<Map<String, dynamic>>.from(result['medikamente'] ?? []);
@@ -8685,7 +8685,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                   ),
                                 );
                                 if (confirm == true) {
-                                  await widget.apiService.saveArztMedikament({
+                                  await widget.apiService.saveAugenarztMedikament({
                                     'action': 'delete',
                                     'user_id': widget.user.id,
                                     'arzt_type': type,
@@ -8953,7 +8953,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                     }
                     setDialogState(() => saving = true);
                     try {
-                      await widget.apiService.saveArztMedikament({
+                      await widget.apiService.saveAugenarztMedikament({
                         'action': isEdit ? 'update' : 'add',
                         'user_id': widget.user.id,
                         'arzt_type': type,

@@ -5886,6 +5886,25 @@ class ApiService {
     }
   }
 
+  // Augenarzt-eigene Termine (augenarzt_termin + korr/notiz children, GCM).
+  Future<Map<String, dynamic>> getAugenarztTermine(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_termine_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveAugenarztTermin(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_termine_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   // ========== ARZT MEDIKAMENTE (per Mitglied) ==========
 
   Future<Map<String, dynamic>> getArztMedikamente(int userId, String arztType) async {
@@ -5912,6 +5931,25 @@ class ApiService {
     } on FormatException {
       return {'success': false, 'message': 'Invalid server response'};
     }
+  }
+
+  // Augenarzt-eigene Medikamente (augenarzt_medikament, GCM).
+  Future<Map<String, dynamic>> getAugenarztMedikamente(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_medikamente_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveAugenarztMedikament(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_medikamente_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
   // ========== ÄRZTE DATENBANK ==========
