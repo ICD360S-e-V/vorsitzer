@@ -915,6 +915,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                       userId: widget.user.id,
                       arztType: type,
                       arztTitle: arztTitle,
+                      augenarzt: true,
                       arztName: (data['selected_arzt'] is Map
                           ? (data['selected_arzt']['arzt_name']?.toString()
                               ?? data['selected_arzt']['praxis_name']?.toString())

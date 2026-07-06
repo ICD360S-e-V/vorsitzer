@@ -5649,6 +5649,16 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Augenarzt-eigenes Hilfsmittel-Rezept (augenarzt_hilfsmittel + _status).
+  Future<Map<String, dynamic>> augenarztRezeptAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_hilfsmittel_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> searchPflegedienst({String search = ''}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/pflegedienst_search.php'),
