@@ -3294,7 +3294,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
 
   static const _vorsorgeScreenings = [
     // Augenärztliche Vorsorge / Früherkennung (statt der generischen GKV-Screenings).
-    (key: 'glaukom', label: 'Glaukom-Früherkennung (Grüner Star)', icon: Icons.visibility, color: Colors.teal, nurFrauen: false, nurMaenner: false, abAlter: 40, intervallJung: 12, intervallAlt: 12, altersgrenze: 0, beschreibungJung: 'Ab 40 J., jährlich · IGeL ~20–40€ (GKV nur bei Verdacht) · OCT 90–140€, Pachymetrie ~30€', beschreibungAlt: 'Ab 40 J., jährlich · IGeL ~20–40€ (GKV nur bei Verdacht) · OCT 90–140€, Pachymetrie ~30€'),
+    (key: 'glaukom', label: 'Glaukom-Früherkennung (Grüner Star)', icon: Icons.visibility, color: Colors.teal, nurFrauen: false, nurMaenner: false, abAlter: 40, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: '40–59 J.: alle 3–5 J. · ab 60 od. bei Risiko: alle 1–2 J. (DOG/BVA) · IGeL ~20–40€ (GKV bei Verdacht)', beschreibungAlt: '40–59 J.: alle 3–5 J. · ab 60 od. bei Risiko: alle 1–2 J. (DOG/BVA) · IGeL ~20–40€ (GKV bei Verdacht)'),
     (key: 'amd', label: 'Makuladegeneration (AMD) Früherkennung', icon: Icons.remove_red_eye, color: Colors.orange, nurFrauen: false, nurMaenner: false, abAlter: 60, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Ab 60 J., alle 2 J. · IGeL ~90–140€ mit OCT (GKV bei Risiko/Verdacht)', beschreibungAlt: 'Ab 60 J., alle 2 J. · IGeL ~90–140€ mit OCT (GKV bei Risiko/Verdacht)'),
     (key: 'retinopathie', label: 'Diabetische Retinopathie (Netzhaut)', icon: Icons.bloodtype, color: Colors.red, nurFrauen: false, nurMaenner: false, abAlter: 18, intervallJung: 12, intervallAlt: 12, altersgrenze: 0, beschreibungJung: 'Jährlich bei Diabetes · GKV kostenlos (Netzhaut + Visus) · OCT bei Makulaödem GKV', beschreibungAlt: 'Jährlich bei Diabetes · GKV kostenlos (Netzhaut + Visus) · OCT bei Makulaödem GKV'),
     (key: 'katarakt', label: 'Grauer Star (Katarakt) Kontrolle', icon: Icons.lens_blur, color: Colors.blueGrey, nurFrauen: false, nurMaenner: false, abAlter: 60, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Ab 60 J., alle 2 J. · Vorsorge/Kontrolle IGeL; OP bei Bedarf GKV', beschreibungAlt: 'Ab 60 J., alle 2 J. · Vorsorge/Kontrolle IGeL; OP bei Bedarf GKV'),
@@ -3369,6 +3369,73 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
     );
   }
 
+  // Info-Panel: Erklärung jeder Vorsorge (Was ist es? Für wen?) + Glaukom-Stufen.
+  Widget _buildVorsorgeErklaerung() {
+    const erkl = [
+      (label: 'Glaukom-Früherkennung (Grüner Star)',
+       was: 'Prüfung von Sehnerv + Augeninnendruck. Ein Glaukom schädigt den Sehnerv schleichend und schmerzlos — unbemerkt, bis Teile des Gesichtsfelds ausfallen.',
+       wen: 'Alle ab 40 J. Häufiger bei: Glaukom in der Familie, Kurzsichtigkeit ab –4 dpt, Diabetes, Bluthochdruck, Männer, höheres Alter.'),
+      (label: 'Makuladegeneration (AMD)',
+       was: 'Untersuchung der Makula (Punkt des schärfsten Sehens) + Augenhintergrund/OCT. AMD ist die häufigste Erblindungsursache in Deutschland.',
+       wen: 'Ab 60 J. Risiko: Rauchen, AMD in der Familie, helle Augen, UV-Belastung, Bluthochdruck.'),
+      (label: 'Diabetische Retinopathie (Netzhaut)',
+       was: 'Kontrolle der Netzhaut bei erweiterter Pupille auf Diabetes-Schäden (Blutungen, Makulaödem) — Vorstufe von Erblindung.',
+       wen: 'Alle Diabetiker (Typ 1 + Typ 2), jährlich. Wird von der GKV bezahlt.'),
+      (label: 'Grauer Star (Katarakt)',
+       was: 'Prüfung der Augenlinse auf Trübung → verschwommenes Sehen, Blendempfindlichkeit. Behandelbar per OP (neue Linse).',
+       wen: 'Ab 60 J. (Alterskatarakt). Auch bei Diabetes, nach Augenverletzung oder Kortison-Therapie.'),
+      (label: 'Sehtest / Refraktion / Führerschein',
+       was: 'Bestimmung der Sehschärfe (Visus) und Brillenstärke. Der Führerschein-Sehtest ist gesetzlich vorgeschrieben (FeV).',
+       wen: 'Alle bei nachlassendem Sehen / Brillenanpassung; Führerschein-Bewerber.'),
+    ];
+    return Container(
+      decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.shade200)),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          leading: Icon(Icons.menu_book, color: Colors.teal.shade700, size: 20),
+          title: Text('Was bedeutet welche Vorsorge — und für wen?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+          children: [
+            ...erkl.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(e.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                Padding(padding: const EdgeInsets.only(left: 2, top: 2), child: RichText(text: TextSpan(style: TextStyle(fontSize: 10.5, color: Colors.grey.shade800, height: 1.35), children: [
+                  const TextSpan(text: 'Was: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: e.was),
+                ]))),
+                Padding(padding: const EdgeInsets.only(left: 2, top: 1), child: RichText(text: TextSpan(style: TextStyle(fontSize: 10.5, color: Colors.grey.shade800, height: 1.35), children: [
+                  const TextSpan(text: 'Für wen: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: e.wen),
+                ]))),
+              ]),
+            )),
+            // Glaukom-Stufen (Basis -> erweitert -> GKV)
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [Icon(Icons.stairs, size: 15, color: Colors.teal.shade700), const SizedBox(width: 5),
+                  Text('Glaukom-Diagnostik in Stufen', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.teal.shade800))]),
+                const SizedBox(height: 5),
+                RichText(text: TextSpan(style: TextStyle(fontSize: 10.5, color: Colors.grey.shade800, height: 1.4), children: [
+                  const TextSpan(text: '1. Basis (IGeL): ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const TextSpan(text: 'Augeninnendruck (Tonometrie) + Sehnerv (Spaltlampe).\n'),
+                  const TextSpan(text: '2. Bei Verdacht → erweitert: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const TextSpan(text: 'OCT (Nervenfasern, erkennt Schäden 3–5 J. früher), Pachymetrie (Hornhautdicke korrigiert den Druckwert), Gesichtsfeld/Perimetrie (Ausfälle).\n'),
+                  TextSpan(text: '→ Ab Verdacht/Diagnose zahlt die GKV', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                  const TextSpan(text: ' (Druck 1×/Quartal, Gesichtsfeld 1×/Jahr, OCT-Verlaufskontrolle). Reines Screening ohne Verdacht = IGeL.'),
+                ])),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVorsorgeTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
     final geb = widget.user.geburtsdatum;
     int? alter;
@@ -3386,6 +3453,8 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
       if (alter != null) Text('Alter: $alter Jahre${isFrau ? ' (weiblich)' : isMann ? ' (männlich)' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
       const SizedBox(height: 12),
       _buildGkvIgelInfo(),
+      const SizedBox(height: 8),
+      _buildVorsorgeErklaerung(),
       const SizedBox(height: 12),
       ...screenings.map((s) {
         final vorsorge = data['vorsorge_${s.key}'] is Map ? Map<String, dynamic>.from(data['vorsorge_${s.key}'] as Map) : <String, dynamic>{};
