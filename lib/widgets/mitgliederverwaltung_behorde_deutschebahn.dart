@@ -45,6 +45,9 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   Map<String, dynamic> _data = {};
   List<Map<String, dynamic>> _vorfaelle = [];
   List<Map<String, dynamic>> _institutionen = [];
+  List<Map<String, dynamic>> _dticketVertraege = [];
+  bool _gesundheitHoergeraete = false;
+  String _gesundheitHoergeraeteSeite = '';
 
   static const _hilfeTypen = [
     'Einsteigehilfe',
@@ -67,7 +70,12 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     'Sonstige',
   ];
 
-  static const _statusList = ['angemeldet', 'bestätigt', 'wahrgenommen', 'nicht wahrgenommen', 'storniert', 'abgelehnt'];
+  static const _statusList = ['geplant', 'angemeldet', 'bestätigt', 'wahrgenommen', 'nicht wahrgenommen', 'storniert', 'abgelehnt'];
+
+  /// Fahrkarte-Auswahl im Vorfall-Dialog. „Deutschland Ticket" zieht die Daten
+  /// (Abo-Nr., Preis, Gültigkeit) aus dem Deutschlandticket-Vertrag des Mitglieds
+  /// (Behörde → Deutschlandticket → Vertrag).
+  static const _ticketArten = ['Deutschland Ticket', 'Kein / Sonstiges'];
 
   @override
   void initState() {
@@ -100,6 +108,17 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       final inst = await widget.apiService.listDeutscheBahnInstitutionen();
       if (inst['success'] == true && mounted) {
         _institutionen = (inst['institutionen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      // Deutschlandticket-Verträge des Mitglieds — Quelle für Fahrkarte-Autofill.
+      final dt = await widget.apiService.getDticketData(widget.userId);
+      if (dt['success'] == true && mounted) {
+        _dticketVertraege = (dt['vertraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      // Gesundheitsprofil — Hörgeräte-Flag markiert Schwerhörigkeit für die MSZ-Anmeldung.
+      final gp = await widget.apiService.getGesundheitsProfil(widget.userId);
+      if (gp['success'] == true && mounted) {
+        _gesundheitHoergeraete = gp['hoergeraete']?.toString() == '1';
+        _gesundheitHoergeraeteSeite = gp['hoergeraete_seite']?.toString() ?? '';
       }
     } catch (_) {}
     if (mounted) setState(() { _loading = false; _loaded = true; });
@@ -273,6 +292,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             final sc = status == 'wahrgenommen' ? Colors.green
                 : status == 'bestätigt' ? Colors.blue
                 : status == 'storniert' || status == 'abgelehnt' || status == 'nicht wahrgenommen' ? Colors.red
+                : status == 'geplant' ? Colors.grey
                 : Colors.orange;
             final von = v['von_bahnhof']?.toString() ?? '';
             final nach = v['nach_bahnhof']?.toString() ?? '';
@@ -285,9 +305,15 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if (route.isNotEmpty) Text(route, style: const TextStyle(fontSize: 11)),
                   if ((v['reise_datum']?.toString() ?? '').isNotEmpty || (v['reise_uhrzeit']?.toString() ?? '').isNotEmpty)
-                    Text('Reise: ${v['reise_datum'] ?? ''} ${v['reise_uhrzeit'] ?? ''}'.trim(), style: const TextStyle(fontSize: 11)),
+                    Text('Hin: ${v['reise_datum'] ?? ''} ${v['reise_uhrzeit'] ?? ''}'.trim(), style: const TextStyle(fontSize: 11)),
+                  if ((v['rueck_datum']?.toString() ?? '').isNotEmpty || (v['rueck_uhrzeit']?.toString() ?? '').isNotEmpty)
+                    Text('Rück: ${v['rueck_datum'] ?? ''} ${v['rueck_uhrzeit'] ?? ''}'.trim(), style: const TextStyle(fontSize: 11)),
                   if ((v['zug_typ']?.toString() ?? '').isNotEmpty || (v['zug_nummer']?.toString() ?? '').isNotEmpty)
                     Text('Zug: ${v['zug_typ'] ?? ''} ${v['zug_nummer'] ?? ''}'.trim(), style: const TextStyle(fontSize: 11)),
+                  if ((v['ticket_art']?.toString() ?? '').isNotEmpty && v['ticket_art'].toString() != 'Kein / Sonstiges')
+                    Text('Ticket: ${v['ticket_art']}${(v['ticket_abo_nr']?.toString() ?? '').isNotEmpty ? ' (${v['ticket_abo_nr']})' : ''}', style: const TextStyle(fontSize: 11)),
+                  if ((v['schwerhoerig']?.toString() ?? '') == 'ja')
+                    Text('Hörbehinderung: schwerhörig${(v['hoergeraete_seite']?.toString() ?? '').isNotEmpty ? ' (${v['hoergeraete_seite']})' : ''}', style: const TextStyle(fontSize: 11)),
                   Text('Status: $status', style: TextStyle(fontSize: 11, color: sc.shade700, fontWeight: FontWeight.w500)),
                 ]),
                 trailing: PopupMenuButton<String>(
@@ -336,6 +362,56 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return (widget.user.telefonFix ?? '').trim();
   }
 
+  /// Aktiver (nicht gekündigter) Deutschlandticket-Vertrag des Mitglieds —
+  /// Quelle für den Fahrkarte-Autofill. Fällt auf den neuesten Vertrag zurück.
+  Map<String, dynamic>? get _activeDticket {
+    if (_dticketVertraege.isEmpty) return null;
+    return _dticketVertraege.firstWhere(
+      (v) => (v['status']?.toString() ?? '') != 'gekündigt',
+      orElse: () => _dticketVertraege.first,
+    );
+  }
+
+  /// Read-only Info-Karte mit den aus dem Deutschlandticket-Vertrag
+  /// übernommenen Daten (Abo-Nr., Preis, Gültigkeit).
+  Widget _dticketInfoCard(Map<String, dynamic>? dt) {
+    if (dt == null) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.orange.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Kein Deutschland-Ticket-Vertrag hinterlegt (Behörde → Deutschlandticket → Vertrag).',
+            style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+        ]),
+      );
+    }
+    final abo = dt['abo_nr']?.toString() ?? '';
+    final preis = dt['preis']?.toString() ?? '';
+    final ab = dt['gueltig_ab']?.toString() ?? '';
+    final bis = dt['gueltig_bis']?.toString() ?? '';
+    final gek = (dt['status']?.toString() ?? '') == 'gekündigt';
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.confirmation_number, size: 14, color: Colors.green.shade700),
+          const SizedBox(width: 6),
+          Text('Deutschland Ticket — aus Vertrag übernommen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade900)),
+          const Spacer(),
+          if (gek) Text('gekündigt', style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontStyle: FontStyle.italic)),
+        ]),
+        const SizedBox(height: 6),
+        Text('Abo-Nr.: ${abo.isNotEmpty ? abo : '—'}', style: const TextStyle(fontSize: 11)),
+        Text('Preis: ${preis.isNotEmpty ? '$preis €/Mo' : '—'}', style: const TextStyle(fontSize: 11)),
+        if (ab.isNotEmpty || bis.isNotEmpty)
+          Text('Gültig: ${ab.isNotEmpty ? ab : '—'}${bis.isNotEmpty ? ' bis $bis' : ''}', style: const TextStyle(fontSize: 11)),
+      ]),
+    );
+  }
+
   void _showVorfallDialog({Map<String, dynamic>? existing}) {
     final isEdit = existing != null;
     String hilfeTyp = existing?['hilfe_typ']?.toString().isNotEmpty == true ? existing!['hilfe_typ'].toString() : _hilfeTypen.first;
@@ -343,16 +419,22 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     String zugTyp = existing?['zug_typ']?.toString().isNotEmpty == true ? existing!['zug_typ'].toString() : _zugTypen.first;
     String hilfsmittel = existing?['hilfsmittel']?.toString().isNotEmpty == true ? existing!['hilfsmittel'].toString() : _hilfsmittel.first;
     String begleit = existing?['begleitperson']?.toString().isNotEmpty == true ? existing!['begleitperson'].toString() : 'nein';
+    // Fahrkarte: Default „Deutschland Ticket" wenn ein Vertrag hinterlegt ist.
+    String ticketArt = existing?['ticket_art']?.toString().isNotEmpty == true
+        ? existing!['ticket_art'].toString()
+        : (_activeDticket != null ? _ticketArten.first : _ticketArten.last);
+    // Schwerhörigkeit — vorbelegt aus dem Gesundheitsprofil (Hörgeräte hinterlegt).
+    bool schwerhoerig = isEdit
+        ? (existing['schwerhoerig']?.toString() == 'ja' || existing['schwerhoerig']?.toString() == '1')
+        : _gesundheitHoergeraete;
     final datumC = TextEditingController(text: existing?['reise_datum']?.toString() ?? '');
     final uhrzeitC = TextEditingController(text: existing?['reise_uhrzeit']?.toString() ?? '');
+    final rueckDatumC = TextEditingController(text: existing?['rueck_datum']?.toString() ?? '');
+    final rueckUhrzeitC = TextEditingController(text: existing?['rueck_uhrzeit']?.toString() ?? '');
     final vonC = TextEditingController(text: existing?['von_bahnhof']?.toString() ?? '');
     final nachC = TextEditingController(text: existing?['nach_bahnhof']?.toString() ?? '');
     final zugNrC = TextEditingController(text: existing?['zug_nummer']?.toString() ?? '');
     final begleitAnzC = TextEditingController(text: existing?['begleitperson_anzahl']?.toString() ?? '');
-    final buchungC = TextEditingController(text: existing?['buchungsnummer']?.toString() ?? '');
-    final bahnbonusC = TextEditingController(text: existing?['bahnbonus_nummer']?.toString() ?? '');
-    final aktenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
-    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
     // Schritt 4: Kontakt — autofilled aus Stufe 1 der Verifizierung.
     final kontaktNameC = TextEditingController(text: _userFullName);
     final kontaktEmailC = TextEditingController(text: widget.user.email);
@@ -365,6 +447,14 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     Future<void> pickTime() async {
       final p = await showTimePicker(context: context, initialTime: TimeOfDay.now());
       if (p != null) uhrzeitC.text = '${p.hour.toString().padLeft(2, '0')}:${p.minute.toString().padLeft(2, '0')}';
+    }
+    Future<void> pickRueckDate() async {
+      final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 30)), lastDate: DateTime(2040), locale: const Locale('de'));
+      if (p != null) rueckDatumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
+    }
+    Future<void> pickRueckTime() async {
+      final p = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+      if (p != null) rueckUhrzeitC.text = '${p.hour.toString().padLeft(2, '0')}:${p.minute.toString().padLeft(2, '0')}';
     }
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
@@ -405,6 +495,18 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           const SizedBox(width: 10),
           Expanded(flex: 3, child: TextField(controller: zugNrC, decoration: const InputDecoration(labelText: 'Zug-Nr. (z.B. ICE 599)', isDense: true, border: OutlineInputBorder()))),
         ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          Icon(Icons.keyboard_return, size: 14, color: Colors.grey.shade600),
+          const SizedBox(width: 6),
+          const Text('Rückfahrt (optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ]),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: TextField(controller: rueckDatumC, readOnly: true, onTap: pickRueckDate, decoration: const InputDecoration(labelText: 'Rückreisedatum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(controller: rueckUhrzeitC, readOnly: true, onTap: pickRueckTime, decoration: const InputDecoration(labelText: 'Rück-Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)))),
+        ]),
         const SizedBox(height: 14),
         const Text('Hilfsmittel & Begleitung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
@@ -415,6 +517,27 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           items: _hilfsmittel.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setD(() => hilfsmittel = v ?? _hilfsmittel.first),
         ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+          decoration: BoxDecoration(
+            color: schwerhoerig ? Colors.indigo.shade50 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: schwerhoerig ? Colors.indigo.shade200 : Colors.grey.shade300),
+          ),
+          child: Row(children: [
+            Icon(Icons.hearing, size: 16, color: schwerhoerig ? Colors.indigo.shade600 : Colors.grey.shade500),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Schwerhörig / Hörbehinderung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+            if (schwerhoerig && _gesundheitHoergeraeteSeite.isNotEmpty)
+              Padding(padding: const EdgeInsets.only(right: 6),
+                child: Text('Hörgerät: $_gesundheitHoergeraeteSeite', style: TextStyle(fontSize: 10, color: Colors.indigo.shade700, fontWeight: FontWeight.w500))),
+            Switch(value: schwerhoerig, activeThumbColor: Colors.indigo.shade600, onChanged: (v) => setD(() => schwerhoerig = v)),
+          ]),
+        ),
+        if (!isEdit && _gesundheitHoergeraete)
+          Padding(padding: const EdgeInsets.only(top: 3, left: 4),
+            child: Text('automatisch aus Gesundheitsprofil (Hörgeräte hinterlegt)', style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic))),
         const SizedBox(height: 10),
         Row(children: [
           Expanded(flex: 2, child: DropdownButtonFormField<String>(
@@ -434,15 +557,19 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           )),
         ]),
         const SizedBox(height: 14),
-        const Text('Buchung & Referenzen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const Text('Fahrkarte / Ticket', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
-        Row(children: [
-          Expanded(child: TextField(controller: buchungC, decoration: const InputDecoration(labelText: 'Buchungsnummer', isDense: true, border: OutlineInputBorder()))),
-          const SizedBox(width: 10),
-          Expanded(child: TextField(controller: bahnbonusC, decoration: const InputDecoration(labelText: 'BahnBonus-Nr.', isDense: true, border: OutlineInputBorder()))),
-        ]),
-        const SizedBox(height: 10),
-        TextField(controller: aktenC, decoration: const InputDecoration(labelText: 'MSZ-Aktenzeichen (falls vergeben)', isDense: true, border: OutlineInputBorder())),
+        DropdownButtonFormField<String>(
+          initialValue: ticketArt,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+          items: _ticketArten.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setD(() => ticketArt = v ?? _ticketArten.last),
+        ),
+        if (ticketArt == 'Deutschland Ticket') ...[
+          const SizedBox(height: 8),
+          _dticketInfoCard(_activeDticket),
+        ],
         const SizedBox(height: 14),
         DropdownButtonFormField<String>(
           initialValue: status,
@@ -450,8 +577,6 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           items: _statusList.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setD(() => status = v ?? 'angemeldet'),
         ),
-        const SizedBox(height: 10),
-        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
 
         // ─── Schritt 4: Kontakt (autofilled aus Stufe 1) ────────────────────
         const SizedBox(height: 18),
@@ -492,6 +617,8 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             status: status,
             reiseDatum: datumC.text.trim(),
             reiseUhrzeit: uhrzeitC.text.trim(),
+            rueckDatum: rueckDatumC.text.trim(),
+            rueckUhrzeit: rueckUhrzeitC.text.trim(),
             vonBahnhof: vonC.text.trim(),
             nachBahnhof: nachC.text.trim(),
             zugTyp: zugTyp,
@@ -499,10 +626,10 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             hilfsmittel: hilfsmittel,
             begleitperson: begleit,
             begleitAnzahl: begleitAnzC.text.trim(),
-            buchungsnummer: buchungC.text.trim(),
-            bahnbonusNummer: bahnbonusC.text.trim(),
-            aktenzeichen: aktenC.text.trim(),
-            notiz: notizC.text.trim(),
+            schwerhoerig: schwerhoerig,
+            hoergeraeteSeite: schwerhoerig ? _gesundheitHoergeraeteSeite : '',
+            ticketArt: ticketArt,
+            ticketAboNr: ticketArt == 'Deutschland Ticket' ? (_activeDticket?['abo_nr']?.toString() ?? '') : '',
             kontaktName: kontaktNameC.text.trim(),
             kontaktEmail: kontaktEmailC.text.trim(),
             kontaktTelefon: kontaktTelC.text.trim(),
@@ -520,6 +647,8 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
                 'status': status,
                 'reise_datum': datumC.text.trim(),
                 'reise_uhrzeit': uhrzeitC.text.trim(),
+                'rueck_datum': rueckDatumC.text.trim(),
+                'rueck_uhrzeit': rueckUhrzeitC.text.trim(),
                 'von_bahnhof': vonC.text.trim(),
                 'nach_bahnhof': nachC.text.trim(),
                 'zug_typ': zugTyp,
@@ -528,10 +657,10 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
                 'hilfsmittel': hilfsmittel,
                 'begleitperson': begleit,
                 'begleitperson_anzahl': begleitAnzC.text.trim(),
-                'buchungsnummer': buchungC.text.trim(),
-                'bahnbonus_nummer': bahnbonusC.text.trim(),
-                'aktenzeichen': aktenC.text.trim(),
-                'notiz': notizC.text.trim(),
+                'schwerhoerig': schwerhoerig ? 'ja' : 'nein',
+                'hoergeraete_seite': schwerhoerig ? _gesundheitHoergeraeteSeite : '',
+                'ticket_art': ticketArt,
+                'ticket_abo_nr': ticketArt == 'Deutschland Ticket' ? (_activeDticket?['abo_nr']?.toString() ?? '') : '',
               });
               if (ctx.mounted) Navigator.pop(ctx);
               _load();
@@ -557,6 +686,8 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     required String status,
     required String reiseDatum,
     required String reiseUhrzeit,
+    required String rueckDatum,
+    required String rueckUhrzeit,
     required String vonBahnhof,
     required String nachBahnhof,
     required String zugTyp,
@@ -564,18 +695,20 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     required String hilfsmittel,
     required String begleitperson,
     required String begleitAnzahl,
-    required String buchungsnummer,
-    required String bahnbonusNummer,
-    required String aktenzeichen,
-    required String notiz,
+    required bool schwerhoerig,
+    required String hoergeraeteSeite,
+    required String ticketArt,
+    required String ticketAboNr,
     required String kontaktName,
     required String kontaktEmail,
     required String kontaktTelefon,
   }) {
     final route = [vonBahnhof, nachBahnhof].where((s) => s.isNotEmpty).join(' → ');
+    final hatRueck = rueckDatum.isNotEmpty || rueckUhrzeit.isNotEmpty;
     final subject = 'Anmeldung Mobilitätshilfe: $hilfeTyp'
         '${route.isNotEmpty ? " ($route)" : ""}'
-        '${reiseDatum.isNotEmpty ? " am $reiseDatum" : ""}';
+        '${reiseDatum.isNotEmpty ? " am $reiseDatum" : ""}'
+        '${hatRueck ? " (Hin- und Rückfahrt)" : ""}';
 
     final lines = <String>[
       'Sehr geehrte Damen und Herren der Mobilitätsservice-Zentrale,',
@@ -583,31 +716,39 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       'ich möchte hiermit eine Hilfeleistung für folgende Reise anmelden:',
       '',
       '── SCHRITT 1: REISEVERBINDUNG ──',
-      if (vonBahnhof.isNotEmpty)     'Von:              $vonBahnhof',
-      if (nachBahnhof.isNotEmpty)    'Nach:             $nachBahnhof',
-      if (reiseDatum.isNotEmpty)     'Reisedatum:       $reiseDatum',
-      if (reiseUhrzeit.isNotEmpty)   'Uhrzeit:          $reiseUhrzeit',
-      if (zugTyp.isNotEmpty)         'Zugart:           $zugTyp',
-      if (zugNummer.isNotEmpty)      'Zug-Nr.:          $zugNummer',
+      'HINFAHRT:',
+      if (vonBahnhof.isNotEmpty)     '  Von:            $vonBahnhof',
+      if (nachBahnhof.isNotEmpty)    '  Nach:           $nachBahnhof',
+      if (reiseDatum.isNotEmpty)     '  Reisedatum:     $reiseDatum',
+      if (reiseUhrzeit.isNotEmpty)   '  Uhrzeit:        $reiseUhrzeit',
+      if (zugTyp.isNotEmpty)         '  Zugart:         $zugTyp',
+      if (zugNummer.isNotEmpty)      '  Zug-Nr.:        $zugNummer',
+      if (hatRueck) ...[
+        '',
+        'RÜCKFAHRT:',
+        if (nachBahnhof.isNotEmpty)  '  Von:            $nachBahnhof',
+        if (vonBahnhof.isNotEmpty)   '  Nach:           $vonBahnhof',
+        if (rueckDatum.isNotEmpty)   '  Reisedatum:     $rueckDatum',
+        if (rueckUhrzeit.isNotEmpty) '  Uhrzeit:        $rueckUhrzeit',
+      ],
       '',
       '── SCHRITT 2: REISENDER ──',
       'Hilfsmittel:      $hilfsmittel',
+      if (schwerhoerig) 'Hörbehinderung:   schwerhörig${hoergeraeteSeite.isNotEmpty ? " (Hörgerät: $hoergeraeteSeite)" : ""}',
       'Begleitperson:    $begleitperson${begleitAnzahl.isNotEmpty ? " (Anzahl: $begleitAnzahl)" : ""}',
       '',
       '── SCHRITT 3: UNTERSTÜTZUNGSBEDARF ──',
       'Art der Hilfe:    $hilfeTyp',
-      if (notiz.isNotEmpty)          'Zusatzinfo:       $notiz',
       '',
       '── SCHRITT 4: KONTAKT ──',
       if (kontaktName.isNotEmpty)    'Name:             $kontaktName',
       if (kontaktEmail.isNotEmpty)   'E-Mail:           $kontaktEmail',
       if (kontaktTelefon.isNotEmpty) 'Telefon / Handy:  $kontaktTelefon',
       '',
-      if (buchungsnummer.isNotEmpty || bahnbonusNummer.isNotEmpty || aktenzeichen.isNotEmpty) ...[
-        '── REFERENZEN ──',
-        if (buchungsnummer.isNotEmpty) 'Buchungsnummer:   $buchungsnummer',
-        if (bahnbonusNummer.isNotEmpty) 'BahnBonus-Nr.:    $bahnbonusNummer',
-        if (aktenzeichen.isNotEmpty)   'Aktenzeichen:     $aktenzeichen',
+      if (ticketArt == 'Deutschland Ticket') ...[
+        '── FAHRKARTE ──',
+        'Ticket:           Deutschland Ticket',
+        if (ticketAboNr.isNotEmpty)  'Abo-Nr.:          $ticketAboNr',
         '',
       ],
       'Bitte um Bestätigung.',
