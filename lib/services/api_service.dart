@@ -5877,6 +5877,35 @@ class ApiService {
     }
   }
 
+  // ===== Augenarzt-eigene Dokumente (augenarzt_dokument + uploads/augenarzt_docs) =====
+  Future<Map<String, dynamic>> augenarztUploadGesundheitDokument({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_doc_upload.php'));
+    final headers = Map<String, String>.from(_headers); headers.remove('Content-Type');
+    request.headers.addAll(headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<http.Response> augenarztDownloadGesundheitDokument(int docId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+  }
+  Future<Map<String, dynamic>> augenarztDeleteGesundheitDokument(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/augenarzt_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+  Future<Map<String, dynamic>> augenarztListGesundheitDokumente(int userId, String gesundheitType, String analyseId) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/augenarzt_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   // ========== ARZT TERMINE (per Mitglied) ==========
 
   Future<Map<String, dynamic>> getArztTermine(int userId, String arztType) async {
@@ -7365,6 +7394,37 @@ class ApiService {
     final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
     final body = await streamed.stream.bytesToString();
     return jsonDecode(body);
+  }
+
+  // ===== Augenarzt-eigene Dokumente (Doc-Variante) — augenarzt_doc_*.php =====
+  Future<Map<String, dynamic>> uploadAugenarztDoc({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_doc_upload.php'));
+    final h = Map<String, String>.from(_headers); h.remove('Content-Type');
+    request.headers.addAll(h);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+  Future<Map<String, dynamic>> listAugenarztDocs({required int userId, required String gesundheitType, required String analyseId}) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/augenarzt_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<List<int>?> downloadAugenarztDoc(int docId) async {
+    final response = await _client.get(Uri.parse('$baseUrl/admin/augenarzt_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+    if (response.statusCode == 200 && response.headers['content-type'] != 'application/json') { return response.bodyBytes; }
+    return null;
+  }
+  Future<Map<String, dynamic>> deleteAugenarztDoc(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/augenarzt_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
   }
 
   Future<Map<String, dynamic>> searchMedikamente(String query) async {

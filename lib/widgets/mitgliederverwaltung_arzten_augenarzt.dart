@@ -1787,7 +1787,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
     // Load existing documents async
     void loadDocs(StateSetter setD) async {
       try {
-        final result = await widget.apiService.listGesundheitDokumente(
+        final result = await widget.apiService.augenarztListGesundheitDokumente(
           widget.user.id, type, analyseId,
         );
         if (result['success'] == true) {
@@ -2374,7 +2374,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                         for (final p in paths) {
                           final fileName = p.split('/').last;
                           try {
-                            final res = await widget.apiService.uploadGesundheitDokument(
+                            final res = await widget.apiService.augenarztUploadGesundheitDokument(
                               userId: widget.user.id,
                               gesundheitType: type,
                               analyseId: analyseId,
@@ -2493,7 +2493,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                       tooltip: 'Vorschau',
                       onPressed: () async {
                         try {
-                          final response = await widget.apiService.downloadGesundheitDokument(int.parse(doc['id'].toString()));
+                          final response = await widget.apiService.augenarztDownloadGesundheitDokument(int.parse(doc['id'].toString()));
                           if (response.statusCode == 200 && mounted) {
                             final mime = doc['mime_type']?.toString() ?? '';
                             final filename = doc['filename']?.toString() ?? '';
@@ -2586,7 +2586,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                       tooltip: 'Herunterladen',
                       onPressed: () async {
                         try {
-                          final response = await widget.apiService.downloadGesundheitDokument(int.parse(doc['id'].toString()));
+                          final response = await widget.apiService.augenarztDownloadGesundheitDokument(int.parse(doc['id'].toString()));
                           if (response.statusCode == 200) {
                             final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
                             final file = File('${dir.path}/${doc['filename']}');
@@ -2635,7 +2635,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                           ),
                         );
                         if (confirm == true) {
-                          await widget.apiService.deleteGesundheitDokument(int.parse(doc['id'].toString()));
+                          await widget.apiService.augenarztDeleteGesundheitDokument(int.parse(doc['id'].toString()));
                           reloadDocs();
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -8406,7 +8406,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
       // Lazy load docs
       if (!_berichtDocs.containsKey(key) && _berichtDocsLoading[key] != true) {
         _berichtDocsLoading[key] = true;
-        widget.apiService.listGesundheitDocs(userId: widget.user.id, gesundheitType: type, analyseId: berichtId).then((result) {
+        widget.apiService.listAugenarztDocs(userId: widget.user.id, gesundheitType: type, analyseId: berichtId).then((result) {
           _berichtDocs[key] = List<Map<String, dynamic>>.from(result['documents'] ?? []);
           _berichtDocsLoading[key] = false;
           if (mounted) setState(() {});
@@ -8444,7 +8444,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
                     if (result == null || result.files.isEmpty || !mounted) return;
                     for (final f in result.files.where((f) => f.path != null)) {
-                      final res = await widget.apiService.uploadGesundheitDoc(
+                      final res = await widget.apiService.uploadAugenarztDoc(
                         userId: widget.user.id,
                         gesundheitType: type,
                         analyseId: berichtId,
@@ -8485,7 +8485,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                   child: InkWell(
                     onTap: () async {
                       try {
-                        final response = await widget.apiService.downloadGesundheitDokument(docId);
+                        final response = await widget.apiService.augenarztDownloadGesundheitDokument(docId);
                         if (response.statusCode == 200 && mounted) {
                           await FileViewerDialog.showFromBytes(context, response.bodyBytes, docName);
                         }
@@ -8507,7 +8507,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                       InkWell(
                         onTap: () async {
                           try {
-                            await widget.apiService.deleteGesundheitDokument(docId);
+                            await widget.apiService.augenarztDeleteGesundheitDokument(docId);
                             _berichtDocs.remove(key);
                             _berichtDocsLoading.remove(key);
                             rebuildAll();
@@ -10810,7 +10810,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                     int newlyAdded = 0;
                                     for (final f in result.files.where((f) => f.path != null)) {
                                       try {
-                                        final res = await widget.apiService.uploadGesundheitDoc(
+                                        final res = await widget.apiService.uploadAugenarztDoc(
                                           userId: widget.user.id,
                                           gesundheitType: type,
                                           analyseId: analyseId,
@@ -10872,7 +10872,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         onPressed: canOpen ? () async {
                                           try {
-                                            final res = await widget.apiService.downloadGesundheitDokument(docId);
+                                            final res = await widget.apiService.augenarztDownloadGesundheitDokument(docId);
                                             if (res.statusCode != 200) {
                                               if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
                                               return;
@@ -10894,7 +10894,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         onPressed: canOpen ? () async {
                                           try {
-                                            final res = await widget.apiService.downloadGesundheitDokument(docId);
+                                            final res = await widget.apiService.augenarztDownloadGesundheitDokument(docId);
                                             if (res.statusCode != 200) {
                                               if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
                                               return;
@@ -14526,7 +14526,7 @@ $vollName$footer''';
   /// Re-uses the existing gesundheit_doc_* API system.
   Widget _buildBerichteDokumente(String docType, String berichtId, int userId) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: widget.apiService.listGesundheitDocs(
+      future: widget.apiService.listAugenarztDocs(
         userId: userId,
         gesundheitType: docType,
         analyseId: berichtId,
@@ -14572,7 +14572,7 @@ $vollName$footer''';
                     for (final f in files.files) {
                       if (f.path == null) continue;
                       try {
-                        await widget.apiService.uploadGesundheitDoc(
+                        await widget.apiService.uploadAugenarztDoc(
                           userId: userId,
                           gesundheitType: docType,
                           analyseId: berichtId,
@@ -14622,7 +14622,7 @@ $vollName$footer''';
                         icon: const Icon(Icons.visibility, size: 16),
                         tooltip: 'Anzeigen',
                         onPressed: () async {
-                          final bytes = await widget.apiService.downloadGesundheitDoc(docId);
+                          final bytes = await widget.apiService.downloadAugenarztDoc(docId);
                           if (!context.mounted || bytes == null) return;
                           showDialog(
                             context: context,
@@ -14637,7 +14637,7 @@ $vollName$footer''';
                         icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
                         tooltip: 'Loeschen',
                         onPressed: () async {
-                          await widget.apiService.deleteGesundheitDoc(docId);
+                          await widget.apiService.deleteAugenarztDoc(docId);
                           if (mounted) setState(() {});
                         },
                       ),
@@ -15308,7 +15308,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
 
   Future<void> _load() async {
     try {
-      final res = await widget.apiService.listGesundheitDocs(
+      final res = await widget.apiService.listAugenarztDocs(
         userId: widget.userId,
         gesundheitType: _docType,
         analyseId: widget.arztType,
@@ -15338,7 +15338,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
     if (!mounted) return;
     setState(() => _uploading = true);
     try {
-      await widget.apiService.uploadGesundheitDoc(
+      await widget.apiService.uploadAugenarztDoc(
         userId: widget.userId,
         gesundheitType: _docType,
         analyseId: widget.arztType,
@@ -15361,7 +15361,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
   }
 
   Future<void> _view(int docId, String fileName) async {
-    final bytes = await widget.apiService.downloadGesundheitDoc(docId);
+    final bytes = await widget.apiService.downloadAugenarztDoc(docId);
     if (!mounted || bytes == null) return;
     showDialog(
       context: context,
@@ -15389,7 +15389,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
       ),
     );
     if (confirm != true) return;
-    await widget.apiService.deleteGesundheitDoc(docId);
+    await widget.apiService.deleteAugenarztDoc(docId);
     await _load();
   }
 
