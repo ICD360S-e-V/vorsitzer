@@ -66,6 +66,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   final _egkGueltigBisController = TextEditingController();
   final _ehicKennummerController = TextEditingController();
   final _ehicInstitutionskennzeichenController = TextEditingController();
+  final _egkFotoDatumController = TextEditingController();
   final _pflegekasseNameController = TextEditingController();
   final _pflegedienstNameController = TextEditingController();
   Map<String, dynamic> _selectedPflegedienst = {};
@@ -150,6 +151,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _egkGueltigBisController.text = data['egk_gueltig_bis'] ?? '';
       _ehicKennummerController.text = data['ehic_kennnummer'] ?? '';
       _ehicInstitutionskennzeichenController.text = data['ehic_institutionskennzeichen'] ?? '';
+      _egkFotoDatumController.text = data['egk_foto_datum'] ?? '';
       _pflegekasseNameController.text = (data['pflegekasse_name'] ?? '').toString().isNotEmpty ? data['pflegekasse_name'] : (data['name'] ?? '');
       _pflegedienstNameController.text = data['pflegedienst_name'] ?? '';
       if (data['selected_pflegedienst'] is Map) _selectedPflegedienst = Map<String, dynamic>.from(data['selected_pflegedienst'] as Map);
@@ -185,6 +187,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _egkGueltigBisController.dispose();
     _ehicKennummerController.dispose();
     _ehicInstitutionskennzeichenController.dispose();
+    _egkFotoDatumController.dispose();
     _pflegekasseNameController.dispose();
     _pflegedienstNameController.dispose();
     _pflegegradSeitController.dispose();
@@ -1281,6 +1284,64 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     return d;
   }
 
+  String _fmtD(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  DateTime? _parseDeDate(String s) {
+    final m = RegExp(r'^(\d{2})\.(\d{2})\.(\d{4})$').firstMatch(s.trim());
+    if (m == null) return null;
+    final d = int.tryParse(m.group(1)!);
+    final mo = int.tryParse(m.group(2)!);
+    final y = int.tryParse(m.group(3)!);
+    if (d == null || mo == null || y == null) return null;
+    return DateTime(y, mo, d);
+  }
+
+  Widget _fotoOptionRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(children: [
+        Icon(icon, size: 14, color: Colors.teal.shade600),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+      ]),
+    );
+  }
+
+  /// Erinnerungs-Ticket für die naechste eGK-Foto-Aktualisierung (gesetzlich alle 10 Jahre).
+  /// Faellig = letztes Einreichungsdatum + 10 Jahre, sonst heute + 10 Jahre.
+  Future<void> _createFotoErinnerung(DateTime? faellig) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final now = DateTime.now();
+    final due = faellig ?? DateTime(now.year + 10, now.month, now.day);
+    final scheduledStr = '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}';
+    final kasse = _krankenkasseNameController.text.trim();
+    final result = await widget.ticketService.createTicketForMember(
+      adminMitgliedernummer: widget.adminMitgliedernummer,
+      memberMitgliedernummer: widget.user.mitgliedernummer,
+      subject: 'eGK: Neues Lichtbild einreichen',
+      message: 'Das Lichtbild für die elektronische Gesundheitskarte muss gesetzlich alle 10 Jahre '
+          'bei der Krankenkasse aktualisiert werden (Pflicht ab dem 15. Lebensjahr).\n\n'
+          'Bitte ein neues Foto bei der Krankenkasse${kasse.isNotEmpty ? ' ($kasse)' : ''} einreichen '
+          '(Online-Upload-Tool, Kassen-App oder per Post).\n\n'
+          'Fällig: ${_fmtD(due)}\n'
+          'Versicherten-Nr. (KVNR): ${_kvnrController.text.trim()}',
+      priority: 'medium',
+      scheduledDate: scheduledStr,
+    );
+    if (!mounted) return;
+    if (result.containsKey('ticket')) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Foto-Erinnerung erstellt (geplant: ${_fmtD(due)})'),
+        backgroundColor: Colors.green,
+      ));
+    } else {
+      messenger.showSnackBar(SnackBar(
+        content: Text(result['error']?.toString() ?? 'Fehler beim Erstellen des Tickets'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
   void _copyValue(String value, String label) {
     final v = value.trim();
     if (v.isEmpty) return;
@@ -1615,6 +1676,87 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 TextField(controller: _ehicInstitutionskennzeichenController, onChanged: (_) => setCard(() {}), style: const TextStyle(fontSize: 13), decoration: deco('Institutionskennzeichen der Krankenkasse', Icons.business)),
               ]),
             ),
+            const SizedBox(height: 16),
+            Builder(builder: (context) {
+              final fotoDatum = _parseDeDate(_egkFotoDatumController.text);
+              final faellig = fotoDatum == null ? null : DateTime(fotoDatum.year + 10, fotoDatum.month, fotoDatum.day);
+              final now = DateTime.now();
+              Color statusColor;
+              IconData statusIcon;
+              String statusText;
+              if (faellig == null) {
+                statusColor = Colors.grey.shade600;
+                statusIcon = Icons.help_outline;
+                statusText = 'Kein Einreichungsdatum erfasst';
+              } else if (now.isAfter(faellig)) {
+                statusColor = Colors.red.shade700;
+                statusIcon = Icons.error_outline;
+                statusText = 'Überfällig — seit ${_fmtD(faellig)} fällig';
+              } else if (faellig.difference(now).inDays <= 365) {
+                statusColor = Colors.orange.shade800;
+                statusIcon = Icons.hourglass_bottom;
+                statusText = 'Bald fällig am ${_fmtD(faellig)}';
+              } else {
+                statusColor = Colors.green.shade700;
+                statusIcon = Icons.check_circle_outline;
+                statusText = 'Aktuell — nächste Aktualisierung am ${_fmtD(faellig)}';
+              }
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.teal.shade200),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.photo_camera, size: 18, color: Colors.teal.shade700),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Lichtbild (Foto) — Aktualisierung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text('Gesetzlich muss das Lichtbild alle 10 Jahre bei der Krankenkasse aktualisiert werden (Pflicht ab dem 15. Lebensjahr). Die Kasse löscht das alte Foto nach spätestens 10 Jahren.', style: TextStyle(fontSize: 10.5, color: Colors.teal.shade900)),
+                  const SizedBox(height: 10),
+                  label('Foto zuletzt eingereicht am'),
+                  dateField(_egkFotoDatumController, 'Datum der Einreichung…', Icons.event_available, DateTime.now()),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.40)),
+                    ),
+                    child: Row(children: [
+                      Icon(statusIcon, size: 16, color: statusColor),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(statusText, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: statusColor))),
+                    ]),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Einreichungswege für ein neues Foto:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  _fotoOptionRow(Icons.cloud_upload, 'Online Foto-Upload-Tool der Krankenkasse'),
+                  _fotoOptionRow(Icons.smartphone, 'App der Krankenkasse (Foto-Funktion)'),
+                  _fotoOptionRow(Icons.local_post_office, 'Per Post an die Krankenkasse'),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _createFotoErinnerung(faellig),
+                      icon: const Icon(Icons.assignment_add, size: 16),
+                      label: Text('Erinnerung erstellen (Ticket ${(faellig ?? DateTime(now.year + 10, now.month, now.day)).year})', style: const TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                ]),
+              );
+            }),
           ],
         ),
       );
@@ -1954,6 +2096,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               'egk_gueltig_bis': _egkGueltigBisController.text.trim(),
               'ehic_kennnummer': _ehicKennummerController.text.trim(),
               'ehic_institutionskennzeichen': _ehicInstitutionskennzeichenController.text.trim(),
+              'egk_foto_datum': _egkFotoDatumController.text.trim(),
               'befreiungskarte': _befreiungskarte.toString(),
               'befreiung_jahr': _befreiungJahr,
               'befreiung_gueltig_bis': _befreiungGueltigBisController.text.trim(),
