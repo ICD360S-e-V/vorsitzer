@@ -3525,13 +3525,28 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                   if (!hist.any((e) => e['datum'] == ds)) hist.insert(0, {'datum': ds, 'ergebnis': '', 'notiz': ''});
                   vorsorge['history'] = hist;
                   data['vorsorge_${s.key}'] = vorsorge;
-                }); saveAll(); }
+                }); saveAll();
+                  // Nach Datumsauswahl direkt das Detail-Modal öffnen (Rechnung + Status erfassen).
+                  if (context.mounted) _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0);
+                }
               }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(6)),
                 child: Row(children: [Icon(Icons.calendar_today, size: 14, color: s.color.shade500), const SizedBox(width: 4),
                   Text(letztes.isEmpty ? 'Datum eintragen' : 'Letztes: $letztes', style: TextStyle(fontSize: 11, color: letztes.isEmpty ? Colors.grey.shade400 : Colors.black87))])))),
                 if (naechst != null) ...[const SizedBox(width: 8),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(color: overdue ? Colors.red.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-                    child: Text('Nächstes: ${fmt(naechst)}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: overdue ? Colors.red.shade700 : Colors.green.shade700)))]])],
+                    child: Text('Nächstes: ${fmt(naechst)}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: overdue ? Colors.red.shade700 : Colors.green.shade700)))]]),
+              // Ticket-Status + Anzahl Historie-Einträge
+              Builder(builder: (_) {
+                final ticketSent = vorsorge[ticketKey] == true;
+                final histCount = vorsorge['history'] is List ? (vorsorge['history'] as List).length : 0;
+                if (!ticketSent && histCount == 0) return const SizedBox.shrink();
+                return Padding(padding: const EdgeInsets.only(top: 5), child: Row(children: [
+                  if (ticketSent) ...[Icon(Icons.confirmation_num, size: 12, color: Colors.blue.shade600), const SizedBox(width: 3),
+                    Text('Ticket erstellt', style: TextStyle(fontSize: 9.5, color: Colors.blue.shade700)), const SizedBox(width: 10)],
+                  if (histCount > 0) ...[Icon(Icons.history, size: 12, color: Colors.grey.shade600), const SizedBox(width: 3),
+                    Text('$histCount Eintrag${histCount == 1 ? '' : 'e'}', style: TextStyle(fontSize: 9.5, color: Colors.grey.shade600))],
+                ]));
+              })],
           ]),
         ));
       }),
@@ -3546,7 +3561,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
       return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 580, height: 520, child: DefaultTabController(length: 2, child: Column(children: [
+        child: SizedBox(width: 580, height: 520, child: DefaultTabController(length: 2, initialIndex: isHpv ? 0 : 1, child: Column(children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(color: color.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -3558,7 +3573,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
           ),
           TabBar(labelColor: color.shade700, indicatorColor: color.shade700, tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
-            Tab(icon: Icon(Icons.description, size: 18), text: 'Berichte'),
+            Tab(icon: Icon(Icons.history, size: 18), text: 'Historie · Rechnung · Status'),
           ]),
           Expanded(child: TabBarView(children: [
             // TAB 1: DETAILS
