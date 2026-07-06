@@ -3301,6 +3301,74 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
     (key: 'sehtest', label: 'Sehtest / Refraktion / Führerschein-Sehtest', icon: Icons.visibility_outlined, color: Colors.blue, nurFrauen: false, nurMaenner: false, abAlter: 18, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Führerschein/Refraktion · Optiker ~gratis–10€, Augenarzt (GOÄ) 40–100€', beschreibungAlt: 'Führerschein/Refraktion · Optiker ~gratis–10€, Augenarzt (GOÄ) 40–100€'),
   ];
 
+  Widget _kostenBadge(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+    child: Text(text, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
+  );
+
+  // Info-Panel: was zahlt die GKV (gratis), was ist IGeL/Selbstzahler (Richtpreise).
+  Widget _buildGkvIgelInfo() {
+    const rows = [
+      (label: 'Glaukom-Screening (Grüner Star)', kt: 'IGeL', cost: '20–40 €', note: 'GKV nur bei Verdacht'),
+      (label: '↳ + OCT (Sehnerv)', kt: 'IGeL', cost: '90–140 €', note: ''),
+      (label: '↳ + Pachymetrie (Hornhaut)', kt: 'IGeL', cost: '~30 €', note: ''),
+      (label: '↳ + Gesichtsfeld (Perimetrie)', kt: 'IGeL', cost: '20–40 €', note: ''),
+      (label: 'Makuladegeneration (AMD)', kt: 'IGeL', cost: '90–140 €', note: 'GKV bei Risiko/Verdacht'),
+      (label: 'Diabetische Retinopathie', kt: 'GKV', cost: '0 €', note: 'jährlich bei Diabetes'),
+      (label: '↳ OCT bei Makulaödem', kt: 'GKV', cost: '0 €', note: ''),
+      (label: 'Grauer Star (Katarakt)', kt: 'IGeL', cost: 'in Kontrolle', note: 'OP bei Bedarf = GKV'),
+      (label: 'Sehtest / Refraktion (Erw.)', kt: 'Selbst', cost: 'Optiker 0–10 €', note: ''),
+      (label: 'Führerschein-Sehtest', kt: 'Selbst', cost: 'Augenarzt 40–100 €', note: ''),
+    ];
+    Color ktColor(String kt) => kt == 'GKV' ? Colors.green.shade600 : Colors.orange.shade700;
+    return Container(
+      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          leading: Icon(Icons.euro_symbol, color: Colors.blue.shade700, size: 20),
+          title: Text('GKV (gratis) vs IGeL (Selbstzahler)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+          subtitle: Text('Ohne Symptome = IGeL · mit Verdacht/Diagnose = GKV', style: TextStyle(fontSize: 10.5, color: Colors.blue.shade600)),
+          children: [
+            Row(children: [
+              _kostenBadge('GKV', Colors.green.shade600), const SizedBox(width: 4),
+              Text('Kasse zahlt (0 €)', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+              const SizedBox(width: 12),
+              _kostenBadge('IGeL', Colors.orange.shade700), const SizedBox(width: 4),
+              Text('selbst zahlen', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+            ]),
+            const SizedBox(height: 8),
+            ...rows.map((r) => Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SizedBox(width: 54, child: _kostenBadge(r.kt, ktColor(r.kt))),
+                const SizedBox(width: 6),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(r.label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500)),
+                  if (r.note.isNotEmpty) Text(r.note, style: TextStyle(fontSize: 9.5, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                ])),
+                const SizedBox(width: 6),
+                Text(r.cost, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.kt == 'GKV' ? Colors.green.shade700 : Colors.orange.shade800)),
+              ]),
+            )),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800), const SizedBox(width: 6),
+                Expanded(child: Text('Faustregel: solange keine Symptome/Diagnose → IGeL (selbst zahlen); ab Verdacht/Diagnose → GKV. Diabetiker: Netzhaut-Kontrolle jährlich immer GKV. Glaukom-Screening: Nutzen laut IGeL-Monitor „tendenziell negativ".', style: TextStyle(fontSize: 9.5, color: Colors.amber.shade900, height: 1.3))),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVorsorgeTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
     final geb = widget.user.geburtsdatum;
     int? alter;
@@ -3314,8 +3382,10 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [Icon(Icons.health_and_safety, size: 22, color: Colors.teal.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Vorsorgeuntersuchungen', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)))]),
+        Expanded(child: Text('Augenärztliche Vorsorge / Früherkennung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)))]),
       if (alter != null) Text('Alter: $alter Jahre${isFrau ? ' (weiblich)' : isMann ? ' (männlich)' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      const SizedBox(height: 12),
+      _buildGkvIgelInfo(),
       const SizedBox(height: 12),
       ...screenings.map((s) {
         final vorsorge = data['vorsorge_${s.key}'] is Map ? Map<String, dynamic>.from(data['vorsorge_${s.key}'] as Map) : <String, dynamic>{};
