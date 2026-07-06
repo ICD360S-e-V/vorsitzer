@@ -3517,7 +3517,15 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
             else if (berechtigt) ...[const SizedBox(height: 6),
               Row(children: [Expanded(child: InkWell(onTap: () async {
                 final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(letztes) ?? DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
-                if (p != null) { setLocalState(() { vorsorge['letztes_datum'] = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}'; data['vorsorge_${s.key}'] = vorsorge; }); saveAll(); }
+                if (p != null) { setLocalState(() {
+                  final ds = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+                  vorsorge['letztes_datum'] = ds;
+                  // Automatisch Historie-Eintrag anlegen (falls für dieses Datum noch keiner da ist).
+                  final hist = vorsorge['history'] is List ? List<Map<String, dynamic>>.from((vorsorge['history'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
+                  if (!hist.any((e) => e['datum'] == ds)) hist.insert(0, {'datum': ds, 'ergebnis': '', 'notiz': ''});
+                  vorsorge['history'] = hist;
+                  data['vorsorge_${s.key}'] = vorsorge;
+                }); saveAll(); }
               }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(6)),
                 child: Row(children: [Icon(Icons.calendar_today, size: 14, color: s.color.shade500), const SizedBox(width: 4),
                   Text(letztes.isEmpty ? 'Datum eintragen' : 'Letztes: $letztes', style: TextStyle(fontSize: 11, color: letztes.isEmpty ? Colors.grey.shade400 : Colors.black87))])))),
@@ -3708,9 +3716,11 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                     final h = history[i];
                     final hDatum = h['datum']?.toString() ?? '';
                     final attachId = hDatum.replaceAll('-', '').hashCode.abs() % 999999;
-                    return Card(child: Column(children: [
+                    final erg = h['ergebnis']?.toString() ?? '';
+                    return Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       ListTile(
-                        leading: Icon(Icons.description, color: color.shade600),
+                        leading: Icon(erg == 'OK' ? Icons.check_circle : erg == 'Nicht OK' ? Icons.cancel : erg == 'Kontrolle nötig' ? Icons.warning : Icons.event_available,
+                          color: erg == 'OK' ? Colors.green : erg == 'Nicht OK' ? Colors.red : erg == 'Kontrolle nötig' ? Colors.orange : color.shade600),
                         title: InkWell(
                           onTap: () async {
                             final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(hDatum) ?? DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
@@ -3721,13 +3731,35 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                             const SizedBox(width: 4), Icon(Icons.edit_calendar, size: 14, color: Colors.grey.shade400),
                           ]),
                         ),
-                        subtitle: Text(h['ergebnis']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                         trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () {
                           setD(() { history.removeAt(i); vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll();
                         }),
                       ),
-                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        child: KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId)),
+                      // Ergebnis: OK / Nicht OK / Kontrolle nötig
+                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 4), child: Row(children: [
+                        Text('Ergebnis:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                        const SizedBox(width: 8),
+                        ...[('OK', Colors.green), ('Nicht OK', Colors.red), ('Kontrolle nötig', Colors.orange)].map((e) => Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: ChoiceChip(
+                            label: Text(e.$1, style: TextStyle(fontSize: 10, color: erg == e.$1 ? Colors.white : Colors.black87)),
+                            selected: erg == e.$1, selectedColor: e.$2, visualDensity: VisualDensity.compact,
+                            onSelected: (_) { setD(() { h['ergebnis'] = erg == e.$1 ? '' : e.$1; vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll(); },
+                          ),
+                        )),
+                      ])),
+                      // Text / Befund
+                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 6), child: TextField(
+                        controller: TextEditingController(text: h['notiz']?.toString() ?? ''),
+                        maxLines: 2, style: const TextStyle(fontSize: 12),
+                        decoration: InputDecoration(labelText: 'Text / Befund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                        onChanged: (val) { h['notiz'] = val; vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; saveAll(); },
+                      )),
+                      // Rechnung / Befund anhängen
+                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Rechnung / Befund anhängen:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId),
+                      ])),
                     ]));
                   })),
             ]),
