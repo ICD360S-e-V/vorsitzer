@@ -705,6 +705,7 @@ class TicketService {
     String priority = 'medium',
     required String scheduledDate,
     bool systemAuto = false,
+    bool dedupeSubject = false,
   }) async {
     try {
       final body = <String, dynamic>{
@@ -715,6 +716,7 @@ class TicketService {
         'priority': priority,
         'scheduled_date': scheduledDate,
         if (systemAuto) 'system_auto': true,
+        if (dedupeSubject) 'dedupe_subject': true,
       };
 
       final response = await _client.post(
@@ -724,6 +726,11 @@ class TicketService {
       ).timeout(const Duration(seconds: 15));
 
       final data = jsonDecode(response.body);
+
+      // Server-side de-dup: an open ticket with this subject already exists for the member.
+      if (data['duplicate'] == true) {
+        return {'duplicate': true, 'scheduled_date': data['scheduled_date']};
+      }
 
       if (response.statusCode == 201 && data['success'] == true) {
         return {'ticket': Ticket.fromJson(data['ticket'])};

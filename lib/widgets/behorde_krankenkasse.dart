@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -80,6 +82,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   // Class-level state (persists across tabs)
   String _versicherungsart = '';
   String _versichertenstatus = '';
+  String _egkFotoSchreibenErhalten = ''; // '', 'ja', 'nein' — Krankenkasse-Schreiben zur Foto-Aktualisierung erhalten?
+  String _egkFotoUploadWeg = '';         // '', 'post', 'online' — wie wurde das Foto eingereicht
   bool _befreiungskarte = false;
   String _befreiungJahr = '';
   // Krankengeld dossier count — surfaced by the new tab via callback,
@@ -162,6 +166,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _pflegeboxNotizenController.text = data['pflegebox_notizen'] ?? '';
       _versicherungsart = data['versicherungsart'] ?? '';
       _versichertenstatus = data['versichertenstatus'] ?? '';
+      _egkFotoSchreibenErhalten = data['egk_foto_schreiben_erhalten'] ?? '';
+      _egkFotoUploadWeg = data['egk_foto_upload_weg'] ?? '';
       _befreiungskarte = data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1';
       _befreiungJahr = data['befreiung_jahr'] ?? DateTime.now().year.toString();
       _pflegegrad = data['pflegegrad'] ?? '';
@@ -1296,29 +1302,324 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     return DateTime(y, mo, d);
   }
 
-  Widget _fotoOptionRow(IconData icon, String text) {
+  Widget _stepHeader(String num, String title, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.only(top: 2, bottom: 6),
       child: Row(children: [
-        Icon(icon, size: 14, color: Colors.teal.shade600),
-        const SizedBox(width: 6),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+        Container(
+          width: 20, height: 20, alignment: Alignment.center,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Text(num, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color))),
       ]),
     );
   }
 
+  /// Schritt 1: Aufforderungs-Schreiben der Krankenkasse anhängen (max. 20 Dateien),
+  /// gespeichert als eingehende KK-Korrespondenz.
+  Future<void> _uploadFotoSchreiben() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await FilePickerHelper.pickFiles(
+        type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    if (picked == null || picked.files.isEmpty) return;
+    final files = picked.files.take(20).toList();
+    final heute = _fmtD(DateTime.now());
+    int ok = 0;
+    for (final f in files) {
+      if (f.path == null) continue;
+      try {
+        final r = await widget.apiService.uploadKKKorrespondenz(
+          userId: widget.user.id,
+          richtung: 'eingang',
+          titel: 'Lichtbild-Aufforderung (eGK)',
+          datum: heute,
+          betreff: 'Lichtbild-Aufforderung (eGK)',
+          notiz: 'Aufforderung zur Aktualisierung des eGK-Lichtbilds',
+          filePath: f.path,
+          fileName: f.name,
+        );
+        if (r['success'] == true) ok++;
+      } catch (_) {}
+    }
+    _kkKorrLoaded = false; // KK-Korrespondenz beim nächsten Öffnen neu laden
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text('$ok/${files.length} Datei(en) als KK-Korrespondenz gespeichert'),
+      backgroundColor: ok > 0 ? Colors.green : Colors.red,
+    ));
+  }
+
+  // Ziel-Maße Passbild (35:45 @ 300 dpi ≈ 413×531 px)
+  static const int _fotoTargetW = 413;
+  static const int _fotoTargetH = 531;
+
+  Future<ui.Image?> _decodeImg(Uint8List bytes) {
+    final c = Completer<ui.Image?>();
+    try {
+      ui.decodeImageFromList(bytes, (img) => c.complete(img));
+    } catch (_) {
+      c.complete(null);
+    }
+    return c.future;
+  }
+
+  /// Prüft ein Lichtbild gegen die eGK-Anforderungen (Format, Größe, Auflösung, Seitenverhältnis).
+  _FotoCheck _checkImage(PlatformFile f, ui.Image? img) {
+    final issues = <String>[];
+    final warns = <String>[];
+    final ext = (f.extension ?? '').toLowerCase();
+    if (!['jpg', 'jpeg', 'png'].contains(ext)) {
+      issues.add('Format ${ext.isEmpty ? '?' : '.$ext'} — nur JPG/PNG erlaubt');
+    }
+    final sizeMB = f.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      issues.add('Datei zu groß: ${sizeMB.toStringAsFixed(1)} MB (max. 10 MB)');
+    } else if (sizeMB > 5) {
+      warns.add('Datei ${sizeMB.toStringAsFixed(1)} MB — manche Kassen erlauben nur 5 MB');
+    }
+    if (img == null) {
+      warns.add('Bildmaße konnten nicht automatisch geprüft werden');
+    } else {
+      final w = img.width, h = img.height;
+      if (w < 320 || h < 411) {
+        issues.add('Auflösung zu gering: ${w}×$h px (mind. 320×411 px)');
+      } else if (w < _fotoTargetW || h < _fotoTargetH) {
+        warns.add('Auflösung ${w}×$h px — empfohlen mind. ${_fotoTargetW}×$_fotoTargetH px');
+      }
+      if (h < w) {
+        issues.add('Querformat (${w}×$h px) — ein Passbild muss Hochformat sein');
+      } else {
+        final ratio = w / h;
+        const ideal = 35 / 45; // 0,778
+        if ((ratio - ideal).abs() > 0.06) {
+          warns.add('Seitenverhältnis ${ratio.toStringAsFixed(2)} ≠ 35:45 (0,78) — Zuschnitt nötig');
+        }
+      }
+    }
+    return _FotoCheck(issues, warns, imgW: img?.width, imgH: img?.height);
+  }
+
+  /// Passt ein Bild automatisch an: mittiger Zuschnitt auf 35:45 und Skalierung auf 413×531 px (PNG).
+  Future<Uint8List?> _adaptLichtbild(ui.Image src) async {
+    try {
+      final sw = src.width.toDouble(), sh = src.height.toDouble();
+      const targetRatio = _fotoTargetW / _fotoTargetH;
+      double cropW, cropH;
+      if (sw / sh > targetRatio) {
+        cropH = sh;
+        cropW = sh * targetRatio;
+      } else {
+        cropW = sw;
+        cropH = sw / targetRatio;
+      }
+      final srcRect = Rect.fromLTWH((sw - cropW) / 2, (sh - cropH) / 2, cropW, cropH);
+      final dstRect = Rect.fromLTWH(0, 0, _fotoTargetW.toDouble(), _fotoTargetH.toDouble());
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawRect(dstRect, Paint()..color = const Color(0xFFFFFFFF));
+      canvas.drawImageRect(src, srcRect, dstRect, Paint()..filterQuality = FilterQuality.high..isAntiAlias = true);
+      final outImg = await recorder.endRecording().toImage(_fotoTargetW, _fotoTargetH);
+      final bd = await outImg.toByteData(format: ui.ImageByteFormat.png);
+      return bd?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String> _writeTemp(Uint8List bytes, String name) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(bytes);
+    return file.path;
+  }
+
+  /// Schritt 2: Lichtbild hochladen — mit Anforderungs-Prüfung und optionaler
+  /// automatischer Anpassung (Zuschnitt/Skalierung) inkl. Vorher/Nachher-Vorschau.
+  Future<void> _uploadLichtbildFoto() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await FilePickerHelper.pickFiles(
+        type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png'], allowMultiple: false);
+    if (picked == null || picked.files.isEmpty) return;
+    final f = picked.files.first;
+    if (f.path == null) return;
+    Uint8List origBytes;
+    try {
+      origBytes = await File(f.path!).readAsBytes();
+    } catch (_) {
+      return;
+    }
+    final img = await _decodeImg(origBytes);
+    final check = _checkImage(f, img);
+    if (!mounted) return;
+
+    // Bereits konform → direkt hochladen.
+    if (check.perfect) {
+      await _doUploadLichtbild(f.name, f.path!, messenger, 'Anforderungen erfüllt');
+      return;
+    }
+
+    // Nicht konform → angepasste Version erzeugen und Vorher/Nachher zeigen.
+    final adapted = img == null ? null : await _adaptLichtbild(img);
+    if (!mounted) return;
+    final choice = await _showFotoAdaptDialog(origBytes, adapted, check, f.name);
+    if (choice == null || !mounted) return;
+    if (choice == 'adapted' && adapted != null) {
+      final path = await _writeTemp(adapted, 'egk_lichtbild_${DateTime.now().millisecondsSinceEpoch}.png');
+      await _doUploadLichtbild('eGK-Lichtbild_${_fotoTargetW}x$_fotoTargetH.png', path, messenger, 'automatisch angepasst auf ${_fotoTargetW}×$_fotoTargetH px');
+    } else {
+      await _doUploadLichtbild(f.name, f.path!, messenger, 'Original (nicht angepasst)');
+    }
+  }
+
+  Future<void> _doUploadLichtbild(String fileName, String path, ScaffoldMessengerState messenger, String? note) async {
+    try {
+      final r = await widget.apiService.uploadKKKorrespondenz(
+        userId: widget.user.id,
+        richtung: 'ausgang',
+        titel: 'eGK-Lichtbild (Foto)',
+        datum: _fmtD(DateTime.now()),
+        betreff: 'eGK-Lichtbild (Foto)',
+        notiz: 'Lichtbild für die eGK${note != null ? ' — $note' : ''}',
+        filePath: path,
+        fileName: fileName,
+      );
+      _kkKorrLoaded = false;
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(r['success'] == true
+            ? 'Lichtbild „$fileName" gespeichert${note != null ? ' ($note)' : ''}'
+            : 'Fehler beim Hochladen des Lichtbilds'),
+        backgroundColor: r['success'] == true ? Colors.green : Colors.red,
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(content: Text('Fehler beim Hochladen des Lichtbilds'), backgroundColor: Colors.red));
+    }
+  }
+
+  /// Vorher/Nachher-Dialog. Rückgabe: 'adapted', 'original' oder null (Abbruch).
+  Future<String?> _showFotoAdaptDialog(Uint8List origBytes, Uint8List? adaptedBytes, _FotoCheck check, String fileName) {
+    Widget frame(String caption, Widget child, Color c) => Expanded(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(caption, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c)),
+            const SizedBox(height: 4),
+            AspectRatio(
+              aspectRatio: 35 / 45,
+              child: Container(
+                decoration: BoxDecoration(border: Border.all(color: c, width: 1.5), borderRadius: BorderRadius.circular(4)),
+                clipBehavior: Clip.antiAlias,
+                child: child,
+              ),
+            ),
+          ]),
+        );
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          Icon(check.hasHardFail ? Icons.error_outline : Icons.warning_amber, color: check.hasHardFail ? Colors.red : Colors.orange, size: 22),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('Foto-Prüfung & Anpassung', style: TextStyle(fontSize: 16))),
+        ]),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(fileName, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 8),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              frame('Original${check.imgW != null ? ' (${check.imgW}×${check.imgH})' : ''}', Image.memory(origBytes, fit: BoxFit.cover), Colors.grey.shade500),
+              const SizedBox(width: 8),
+              Icon(Icons.arrow_forward, size: 18, color: Colors.teal.shade600),
+              const SizedBox(width: 8),
+              adaptedBytes != null
+                  ? frame('Angepasst (${_fotoTargetW}×$_fotoTargetH)', Image.memory(adaptedBytes, fit: BoxFit.cover), Colors.teal.shade600)
+                  : frame('Angepasst', Container(color: Colors.grey.shade100, child: Icon(Icons.block, color: Colors.grey.shade400)), Colors.grey.shade400),
+            ]),
+            const SizedBox(height: 10),
+            Text('Prüfung des Originals:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            const SizedBox(height: 3),
+            ...check.issues.map((s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.cancel, size: 14, color: Colors.red.shade600),
+                    const SizedBox(width: 5),
+                    Expanded(child: Text(s, style: TextStyle(fontSize: 11, color: Colors.red.shade800))),
+                  ]),
+                )),
+            ...check.warns.map((s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.warning_amber, size: 14, color: Colors.orange.shade700),
+                    const SizedBox(width: 5),
+                    Expanded(child: Text(s, style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                  ]),
+                )),
+            const SizedBox(height: 6),
+            Text('„Angepasst" schneidet mittig auf 35:45 zu und skaliert auf ${_fotoTargetW}×$_fotoTargetH px (PNG).', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'original'), child: const Text('Original')),
+          if (adaptedBytes != null)
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'adapted'),
+              icon: const Icon(Icons.auto_fix_high, size: 16),
+              label: const Text('Angepasst hochladen'),
+              style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade700),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Schritt 1: Ticket zur Bearbeitung erstellen (neues Foto beim Mitglied einholen),
+  /// mit Duplikat-Prüfung.
+  Future<void> _createFotoBearbeitenTicket() async {
+    final messenger = ScaffoldMessenger.of(context);
+    const subject = 'eGK: Lichtbild-Aufforderung bearbeiten';
+    final kasse = _krankenkasseNameController.text.trim();
+    final now = DateTime.now();
+    // Server prüft atomar auf ein bereits vorhandenes offenes Ticket (dedupeSubject).
+    final result = await widget.ticketService.createTicketForMember(
+      adminMitgliedernummer: widget.adminMitgliedernummer,
+      memberMitgliedernummer: widget.user.mitgliedernummer,
+      subject: subject,
+      message: 'Die Krankenkasse${kasse.isNotEmpty ? ' ($kasse)' : ''} hat ein Schreiben zur Aktualisierung '
+          'des eGK-Lichtbilds geschickt (in der KK-Korrespondenz hinterlegt).\n\n'
+          'Bitte ein neues Foto vom Mitglied einholen und bei der Krankenkasse einreichen.',
+      priority: 'high',
+      scheduledDate: '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+      dedupeSubject: true,
+    );
+    if (!mounted) return;
+    if (result['duplicate'] == true) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Es existiert bereits ein offenes Bearbeitungs-Ticket für dieses Mitglied.'), backgroundColor: Colors.orange));
+    } else if (result.containsKey('ticket')) {
+      messenger.showSnackBar(const SnackBar(content: Text('Bearbeitungs-Ticket erstellt'), backgroundColor: Colors.green));
+    } else {
+      messenger.showSnackBar(SnackBar(content: Text(result['error']?.toString() ?? 'Fehler beim Erstellen des Tickets'), backgroundColor: Colors.red));
+    }
+  }
+
   /// Erinnerungs-Ticket für die naechste eGK-Foto-Aktualisierung (gesetzlich alle 10 Jahre).
   /// Faellig = letztes Einreichungsdatum + 10 Jahre, sonst heute + 10 Jahre.
+  /// Prüft vorher auf ein bereits existierendes Erinnerungs-Ticket (keine Duplikate).
   Future<void> _createFotoErinnerung(DateTime? faellig) async {
     final messenger = ScaffoldMessenger.of(context);
+    const subject = 'eGK: Neues Lichtbild einreichen';
     final now = DateTime.now();
     final due = faellig ?? DateTime(now.year + 10, now.month, now.day);
     final scheduledStr = '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}';
     final kasse = _krankenkasseNameController.text.trim();
+    // Server prüft atomar, ob für dieses Mitglied bereits ein solches Erinnerungs-
+    // Ticket existiert (dedupeSubject) — kein Duplikat für die 10-Jahres-Erinnerung.
     final result = await widget.ticketService.createTicketForMember(
       adminMitgliedernummer: widget.adminMitgliedernummer,
       memberMitgliedernummer: widget.user.mitgliedernummer,
-      subject: 'eGK: Neues Lichtbild einreichen',
+      subject: subject,
       message: 'Das Lichtbild für die elektronische Gesundheitskarte muss gesetzlich alle 10 Jahre '
           'bei der Krankenkasse aktualisiert werden (Pflicht ab dem 15. Lebensjahr).\n\n'
           'Bitte ein neues Foto bei der Krankenkasse${kasse.isNotEmpty ? ' ($kasse)' : ''} einreichen '
@@ -1327,9 +1628,17 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           'Versicherten-Nr. (KVNR): ${_kvnrController.text.trim()}',
       priority: 'medium',
       scheduledDate: scheduledStr,
+      dedupeSubject: true,
     );
     if (!mounted) return;
-    if (result.containsKey('ticket')) {
+    if (result['duplicate'] == true) {
+      final sd = result['scheduled_date']?.toString() ?? '';
+      final jahr = sd.length >= 4 ? sd.substring(0, 4) : '';
+      messenger.showSnackBar(SnackBar(
+        content: Text('Für dieses Mitglied existiert bereits ein Erinnerungs-Ticket${jahr.isNotEmpty ? ' (geplant $jahr)' : ''}.'),
+        backgroundColor: Colors.orange,
+      ));
+    } else if (result.containsKey('ticket')) {
       messenger.showSnackBar(SnackBar(
         content: Text('Foto-Erinnerung erstellt (geplant: ${_fmtD(due)})'),
         backgroundColor: Colors.green,
@@ -1701,6 +2010,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 statusIcon = Icons.check_circle_outline;
                 statusText = 'Aktuell — nächste Aktualisierung am ${_fmtD(faellig)}';
               }
+              final teal = Colors.teal.shade700;
+              final schreiben = _egkFotoSchreibenErhalten;
+              Widget divider() => Divider(height: 18, color: Colors.teal.shade100);
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -1710,16 +2022,104 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Icon(Icons.photo_camera, size: 18, color: Colors.teal.shade700),
+                    Icon(Icons.photo_camera, size: 18, color: teal),
                     const SizedBox(width: 6),
-                    Expanded(child: Text('Lichtbild (Foto) — Aktualisierung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+                    Expanded(child: Text('Lichtbild (Foto) — Aktualisierung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: teal))),
                   ]),
                   const SizedBox(height: 4),
                   Text('Gesetzlich muss das Lichtbild alle 10 Jahre bei der Krankenkasse aktualisiert werden (Pflicht ab dem 15. Lebensjahr). Die Kasse löscht das alte Foto nach spätestens 10 Jahren.', style: TextStyle(fontSize: 10.5, color: Colors.teal.shade900)),
+                  divider(),
+
+                  // ── Schritt 1: Schreiben der Krankenkasse ──
+                  _stepHeader('1', 'Schreiben der Krankenkasse erhalten?', teal),
+                  Wrap(spacing: 8, children: [
+                    ChoiceChip(
+                      label: const Text('Ja', style: TextStyle(fontSize: 12)),
+                      selected: schreiben == 'ja',
+                      selectedColor: Colors.teal.shade200,
+                      onSelected: (_) => setCard(() => _egkFotoSchreibenErhalten = schreiben == 'ja' ? '' : 'ja'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Nein', style: TextStyle(fontSize: 12)),
+                      selected: schreiben == 'nein',
+                      selectedColor: Colors.teal.shade200,
+                      onSelected: (_) => setCard(() => _egkFotoSchreibenErhalten = schreiben == 'nein' ? '' : 'nein'),
+                    ),
+                  ]),
+                  if (schreiben == 'ja') ...[
+                    const SizedBox(height: 8),
+                    Text('Aufforderung anhängen und zur Bearbeitung einreichen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    const SizedBox(height: 6),
+                    OutlinedButton.icon(
+                      icon: Icon(Icons.attach_file, size: 16, color: teal),
+                      label: const Text('Schreiben anhängen (max. 20)', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 38)),
+                      onPressed: _uploadFotoSchreiben,
+                    ),
+                    const SizedBox(height: 6),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.assignment_turned_in, size: 16),
+                      label: const Text('Zur Bearbeitung einreichen', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 38)),
+                      onPressed: _createFotoBearbeitenTicket,
+                    ),
+                  ],
+                  divider(),
+
+                  // ── Schritt 2: Foto eingereicht ──
+                  _stepHeader('2', 'Foto eingereicht', teal),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+                        const SizedBox(width: 4),
+                        Text('Foto-Anforderungen (Passbild)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+                      ]),
+                      const SizedBox(height: 3),
+                      Text(
+                        '• 35 × 45 mm, biometrisch, frontal, neutraler Hintergrund\n'
+                        '• Digital: JPG/PNG, mind. ~413 × 531 px (300 dpi)\n'
+                        '• Dateigröße je nach Kasse max. 5–10 MB\n'
+                        '• Genaue Vorgaben im Upload-Tool der Krankenkasse prüfen',
+                        style: TextStyle(fontSize: 10, color: Colors.blue.shade900, height: 1.35),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: Icon(Icons.add_a_photo, size: 16, color: teal),
+                    label: const Text('Lichtbild hochladen (JPG/PNG)', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 38)),
+                    onPressed: _uploadLichtbildFoto,
+                  ),
                   const SizedBox(height: 10),
-                  label('Foto zuletzt eingereicht am'),
+                  label('Foto eingereicht am'),
                   dateField(_egkFotoDatumController, 'Datum der Einreichung…', Icons.event_available, DateTime.now()),
+                  const SizedBox(height: 8),
+                  Text('Einreichungsweg', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
                   const SizedBox(height: 4),
+                  Wrap(spacing: 8, children: [
+                    ChoiceChip(
+                      avatar: Icon(Icons.local_post_office, size: 15, color: _egkFotoUploadWeg == 'post' ? Colors.white : Colors.grey.shade600),
+                      label: const Text('Per Post', style: TextStyle(fontSize: 12)),
+                      selected: _egkFotoUploadWeg == 'post',
+                      selectedColor: teal,
+                      labelStyle: TextStyle(color: _egkFotoUploadWeg == 'post' ? Colors.white : Colors.black87),
+                      onSelected: (_) => setCard(() => _egkFotoUploadWeg = _egkFotoUploadWeg == 'post' ? '' : 'post'),
+                    ),
+                    ChoiceChip(
+                      avatar: Icon(Icons.cloud_upload, size: 15, color: _egkFotoUploadWeg == 'online' ? Colors.white : Colors.grey.shade600),
+                      label: const Text('Online (Tool/App)', style: TextStyle(fontSize: 12)),
+                      selected: _egkFotoUploadWeg == 'online',
+                      selectedColor: teal,
+                      labelStyle: TextStyle(color: _egkFotoUploadWeg == 'online' ? Colors.white : Colors.black87),
+                      onSelected: (_) => setCard(() => _egkFotoUploadWeg = _egkFotoUploadWeg == 'online' ? '' : 'online'),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1734,13 +2134,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       Expanded(child: Text(statusText, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: statusColor))),
                     ]),
                   ),
-                  const SizedBox(height: 10),
-                  Text('Einreichungswege für ein neues Foto:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                  const SizedBox(height: 4),
-                  _fotoOptionRow(Icons.cloud_upload, 'Online Foto-Upload-Tool der Krankenkasse'),
-                  _fotoOptionRow(Icons.smartphone, 'App der Krankenkasse (Foto-Funktion)'),
-                  _fotoOptionRow(Icons.local_post_office, 'Per Post an die Krankenkasse'),
-                  const SizedBox(height: 12),
+                  divider(),
+
+                  // ── Schritt 3: Erinnerung in 10 Jahren ──
+                  _stepHeader('3', 'Erinnerung (alle 10 Jahre)', teal),
+                  Text('Legt ein Ticket an, das das Mitglied in 10 Jahren an ein neues Foto erinnert. Prüft auf bereits vorhandene Tickets (keine Duplikate).', style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700)),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -1748,7 +2147,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       icon: const Icon(Icons.assignment_add, size: 16),
                       label: Text('Erinnerung erstellen (Ticket ${(faellig ?? DateTime(now.year + 10, now.month, now.day)).year})', style: const TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal.shade700,
+                        backgroundColor: teal,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 8),
                       ),
@@ -2097,6 +2496,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               'ehic_kennnummer': _ehicKennummerController.text.trim(),
               'ehic_institutionskennzeichen': _ehicInstitutionskennzeichenController.text.trim(),
               'egk_foto_datum': _egkFotoDatumController.text.trim(),
+              'egk_foto_schreiben_erhalten': _egkFotoSchreibenErhalten,
+              'egk_foto_upload_weg': _egkFotoUploadWeg,
               'befreiungskarte': _befreiungskarte.toString(),
               'befreiung_jahr': _befreiungJahr,
               'befreiung_gueltig_bis': _befreiungGueltigBisController.text.trim(),
@@ -3972,6 +4373,17 @@ class _EgkTheme {
   final Color onPrimary;
   final String? mark;
   const _EgkTheme(this.primary, this.primaryDark, this.onPrimary, this.mark);
+}
+
+/// Ergebnis der eGK-Lichtbild-Prüfung: harte Fehler (issues) und Warnungen (warns).
+class _FotoCheck {
+  final List<String> issues;
+  final List<String> warns;
+  final int? imgW;
+  final int? imgH;
+  const _FotoCheck(this.issues, this.warns, {this.imgW, this.imgH});
+  bool get perfect => issues.isEmpty && warns.isEmpty;
+  bool get hasHardFail => issues.isNotEmpty;
 }
 
 /// Zeichnet den EU-Sternenkranz (12 goldene Sterne im Kreis) fuer die EHIC-Rueckseite.
