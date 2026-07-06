@@ -8673,6 +8673,16 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Augenarzt-eigenes DMP (augenarzt_dmp).
+  Future<Map<String, dynamic>> augenarztDmpAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_dmp_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<http.Response> downloadArztEinwilligungPdf(int id, {String type = 'pdf'}) async {
     return await _client.get(
       Uri.parse('$baseUrl/admin/arzt_einwilligung_pdf.php?id=$id&type=$type'),

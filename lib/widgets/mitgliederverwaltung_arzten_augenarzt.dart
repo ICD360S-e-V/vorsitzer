@@ -18163,7 +18163,7 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
     try {
-      final r = await widget.apiService.arztDmpAction({
+      final r = await widget.apiService.augenarztDmpAction({
         'action': 'list',
         'user_id': widget.userId,
         'arzt_typ': widget.arztTyp,
@@ -18270,7 +18270,7 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
     );
 
     if (saved == true) {
-      await widget.apiService.arztDmpAction({
+      await widget.apiService.augenarztDmpAction({
         'action': 'save',
         'user_id': widget.userId,
         'arzt_typ': widget.arztTyp,
@@ -18308,7 +18308,7 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
       ),
     );
     if (ok != true) return;
-    await widget.apiService.arztDmpAction({
+    await widget.apiService.augenarztDmpAction({
       'action': 'delete',
       'user_id': widget.userId,
       'id': id,
