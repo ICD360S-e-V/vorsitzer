@@ -4,6 +4,8 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 
+String _deFmt(DateTime p) => '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
+
 class BehordeEinwohnermeldeamtContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
@@ -36,6 +38,16 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
   Map<String, dynamic> _data = {};
   List<Map<String, dynamic>> _vorfaelle = [];
 
+  static const _lobbyCardTyp = 'Tafelladen-Kundenkarte (LobbyCard)';
+  static const _lobbyGruende = [
+    'Bürgergeld (SGB II)',
+    'Sozialhilfe (SGB XII)',
+    'Grundsicherung',
+    'Wohngeld',
+    'Geringes Einkommen',
+    'Sonstiges',
+  ];
+
   static const _vorfallTypen = [
     'Anmeldung (Wohnsitz)',
     'Ummeldung (Wohnsitz)',
@@ -49,6 +61,7 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     'Beglaubigung',
     'Wohnungsgeberbestätigung',
     'Steuerliche Lebensbescheinigung',
+    _lobbyCardTyp,
     'Sonstiges',
   ];
 
@@ -255,7 +268,11 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     final meldeadresseC = TextEditingController();
     final nebenwohnsitzC = TextEditingController();
     final meldebescheinigungNrC = TextEditingController();
+    final ausgestelltC = TextEditingController();
+    final gueltigC = TextEditingController();
     String typ = '';
+    String lobbyGrund = '';
+    bool lcNachweis = false, lcPassbild = false;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 14))]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -270,20 +287,55 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
         const SizedBox(height: 12),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 16),
-        const Divider(height: 1),
-        const SizedBox(height: 12),
-        Row(children: [
-          Icon(Icons.home, size: 14, color: Colors.teal.shade600), const SizedBox(width: 6),
-          Text('Meldedaten (optional)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-        ]),
-        const SizedBox(height: 8),
-        _dateField('Einzugsdatum', einzugsdatumC, ctx),
-        const SizedBox(height: 10),
-        TextField(controller: meldeadresseC, maxLines: 2, decoration: InputDecoration(labelText: 'Meldeadresse (Hauptwohnsitz)', hintText: 'Straße Nr, PLZ Ort', prefixIcon: const Icon(Icons.location_on, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 10),
-        TextField(controller: nebenwohnsitzC, decoration: InputDecoration(labelText: 'Nebenwohnsitz', hintText: 'Falls vorhanden', prefixIcon: const Icon(Icons.home_work, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 10),
-        TextField(controller: meldebescheinigungNrC, decoration: InputDecoration(labelText: 'Meldebescheinigung-Nr.', prefixIcon: const Icon(Icons.description, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        if (typ == _lobbyCardTyp) ...[
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(children: [
+            Icon(Icons.card_membership, size: 14, color: Colors.teal.shade600), const SizedBox(width: 6),
+            Text('Tafelladen-Kundenkarte (LobbyCard)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+          ]),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(isExpanded: true, initialValue: lobbyGrund.isEmpty ? null : lobbyGrund,
+            decoration: InputDecoration(labelText: 'Berechtigungsgrund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            items: _lobbyGruende.map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 13)))).toList(),
+            onChanged: (g) => setDlg(() => lobbyGrund = g ?? '')),
+          const SizedBox(height: 12),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Ausgestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
+            TextField(controller: ausgestelltC, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.event_available, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+              onTap: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (p != null) setDlg(() { ausgestelltC.text = _deFmt(p); gueltigC.text = _deFmt(DateTime(p.year + 1, p.month, p.day)); }); }),
+          ]),
+          const SizedBox(height: 10),
+          _dateField('Gültig bis', gueltigC, ctx),
+          const SizedBox(height: 4),
+          CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
+            value: lcNachweis, onChanged: (val) => setDlg(() => lcNachweis = val ?? false),
+            title: const Text('Einkommensnachweis vorgelegt', style: TextStyle(fontSize: 12))),
+          CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
+            value: lcPassbild, onChanged: (val) => setDlg(() => lcPassbild = val ?? false),
+            title: const Text('Passbild vorgelegt', style: TextStyle(fontSize: 12))),
+          const SizedBox(height: 4),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
+            child: Row(children: [
+              Icon(Icons.notifications_active, size: 14, color: Colors.amber.shade800), const SizedBox(width: 6),
+              Expanded(child: Text('Erinnerungs-Ticket wird automatisch 2 Wochen vor Ablauf erstellt (Verlängerung im Bürgerbüro Neu-Ulm).', style: TextStyle(fontSize: 10, color: Colors.amber.shade900))),
+            ])),
+        ] else ...[
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(children: [
+            Icon(Icons.home, size: 14, color: Colors.teal.shade600), const SizedBox(width: 6),
+            Text('Meldedaten (optional)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+          ]),
+          const SizedBox(height: 8),
+          _dateField('Einzugsdatum', einzugsdatumC, ctx),
+          const SizedBox(height: 10),
+          TextField(controller: meldeadresseC, maxLines: 2, decoration: InputDecoration(labelText: 'Meldeadresse (Hauptwohnsitz)', hintText: 'Straße Nr, PLZ Ort', prefixIcon: const Icon(Icons.location_on, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 10),
+          TextField(controller: nebenwohnsitzC, decoration: InputDecoration(labelText: 'Nebenwohnsitz', hintText: 'Falls vorhanden', prefixIcon: const Icon(Icons.home_work, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(height: 10),
+          TextField(controller: meldebescheinigungNrC, decoration: InputDecoration(labelText: 'Meldebescheinigung-Nr.', prefixIcon: const Icon(Icons.description, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ],
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -297,6 +349,11 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
             'meldeadresse': meldeadresseC.text.trim(),
             'nebenwohnsitz': nebenwohnsitzC.text.trim(),
             'meldebescheinigung_nr': meldebescheinigungNrC.text.trim(),
+            'lobbycard_grund': lobbyGrund,
+            'lobbycard_nachweis': lcNachweis,
+            'lobbycard_passbild': lcPassbild,
+            'lobbycard_ausgestellt': ausgestelltC.text.trim(),
+            'lobbycard_gueltig_bis': gueltigC.text.trim(),
           });
           if (ctx.mounted) Navigator.pop(ctx); await _load();
         }, child: const Text('Speichern')),
@@ -388,12 +445,40 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
   Widget _buildDetails(Map<String, dynamic> v) {
     final hasMeldedaten = ['einzugsdatum', 'meldeadresse', 'nebenwohnsitz', 'meldebescheinigung_nr']
         .any((k) => (v[k]?.toString() ?? '').isNotEmpty);
+    final isLobby = (v['typ']?.toString() ?? '').contains('LobbyCard') || (v['lobbycard_gueltig_bis']?.toString() ?? '').isNotEmpty;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _infoRow(Icons.category, 'Typ', v['typ']),
       _infoRow(Icons.title, 'Titel', v['titel']),
       _infoRow(Icons.calendar_today, 'Datum', v['datum']),
       _infoRow(Icons.folder, 'Aktenzeichen', v['aktenzeichen']),
       _infoRow(Icons.flag, 'Status', v['status']),
+      if (isLobby) ...[
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 8),
+        Row(children: [Icon(Icons.card_membership, size: 13, color: Colors.teal.shade600), const SizedBox(width: 6), Text('Tafelladen-Kundenkarte (LobbyCard)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700))]),
+        const SizedBox(height: 6),
+        _infoRow(Icons.verified_user, 'Berechtigungsgrund', v['lobbycard_grund']),
+        _infoRow(Icons.event_available, 'Ausgestellt am', v['lobbycard_ausgestellt']),
+        _infoRow(Icons.event_busy, 'Gültig bis', v['lobbycard_gueltig_bis']),
+        _lcBoolRow('Einkommensnachweis vorgelegt', (v['lobbycard_nachweis'] ?? 0).toString() == '1'),
+        _lcBoolRow('Passbild vorgelegt', (v['lobbycard_passbild'] ?? 0).toString() == '1'),
+        if (v['lobbycard_ticket_id'] != null) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+          Icon(Icons.notifications_active, size: 14, color: Colors.amber.shade800), const SizedBox(width: 8),
+          Expanded(child: Text('Erinnerungs-Ticket #${v['lobbycard_ticket_id']} aktiv — 2 Wochen vor Ablauf', style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+        ])),
+        const SizedBox(height: 10),
+        Align(alignment: Alignment.centerLeft, child: FilledButton.icon(icon: const Icon(Icons.autorenew, size: 16), label: const Text('Karte verlängert (+1 Jahr)', style: TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          onPressed: () async {
+            final now = DateTime.now();
+            final ausg = _deFmt(now), gueltig = _deFmt(DateTime(now.year + 1, now.month, now.day));
+            await widget.apiService.saveBuergeramtVorfall(widget.userId, {...v, 'lobbycard_ausgestellt': ausg, 'lobbycard_gueltig_bis': gueltig});
+            v['lobbycard_ausgestellt'] = ausg; v['lobbycard_gueltig_bis'] = gueltig; v['lobbycard_ticket_id'] = null;
+            widget.onChanged();
+            if (mounted) { setState(() {}); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Karte verlängert — neues Erinnerungs-Ticket geplant'))); }
+          })),
+      ],
       if (hasMeldedaten) ...[
         const SizedBox(height: 12),
         const Divider(height: 1),
@@ -420,6 +505,13 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
       Icon(icon, size: 14, color: Colors.teal.shade600), const SizedBox(width: 8),
       Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
       Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+    ]));
+  }
+
+  Widget _lcBoolRow(String label, bool ok) {
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+      Icon(ok ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: ok ? Colors.green.shade600 : Colors.grey.shade400), const SizedBox(width: 8),
+      Text(label, style: TextStyle(fontSize: 12, color: ok ? Colors.grey.shade800 : Colors.grey.shade500)),
     ]));
   }
 
