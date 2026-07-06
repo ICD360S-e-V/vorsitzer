@@ -8711,6 +8711,57 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ===== Augenarzt-eigene Vollmacht (augenarzt_vollmacht* Tabellen/Endpunkte) =====
+  Future<Map<String, dynamic>> augenarztCreateArztVollmacht(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/augenarzt_vollmacht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztArztVollmachtAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/augenarzt_vollmacht_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> augenarztDownloadArztVollmachtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_vollmacht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  Future<Map<String, dynamic>> augenarztUploadArztVollmachtSignature({required int vollmachtId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_vollmacht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztDeleteArztVollmachtSignatureById({required int signatureId}) async {
+    return await augenarztArztVollmachtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+  Future<http.Response> augenarztDownloadArztVollmachtSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_vollmacht_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  Future<Map<String, dynamic>> augenarztCreateArztVollmachtVersand({required int vollmachtId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_vollmacht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztDeleteArztVollmachtVersand({required int versandId}) async {
+    return await augenarztArztVollmachtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+  Future<http.Response> augenarztDownloadArztVollmachtVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_vollmacht_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   // === ARZT-EINWILLIGUNG (DSGVO Art. 6 + Art. 9 — consent for storing and
   //     processing health data. Separate from Schweigepflicht and Vollmacht:
   //     Schweigepflicht releases the doctor from confidentiality (info flow),
@@ -8826,6 +8877,57 @@ class ApiService {
       Uri.parse('$baseUrl/admin/arzt_einwilligung_pdf.php?type=versand_confirmation&versand_id=$versandId'),
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
+  }
+
+  // ===== Augenarzt-eigene Einwilligung (augenarzt_einwilligung* Tabellen/Endpunkte) =====
+  Future<Map<String, dynamic>> augenarztCreateArztEinwilligung(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/augenarzt_einwilligung_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztArztEinwilligungAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/augenarzt_einwilligung_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> augenarztDownloadArztEinwilligungPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_einwilligung_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  Future<Map<String, dynamic>> augenarztUploadArztEinwilligungSignature({required int einwilligungId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_einwilligung_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztDeleteArztEinwilligungSignatureById({required int signatureId}) async {
+    return await augenarztArztEinwilligungAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+  Future<http.Response> augenarztDownloadArztEinwilligungSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_einwilligung_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  Future<Map<String, dynamic>> augenarztCreateArztEinwilligungVersand({required int einwilligungId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_einwilligung_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztDeleteArztEinwilligungVersand({required int versandId}) async {
+    return await augenarztArztEinwilligungAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+  Future<http.Response> augenarztDownloadArztEinwilligungVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_einwilligung_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
   }
 
   // === ARZT-KORRESPONDENZ (per arzt-tab, with attachments) ===

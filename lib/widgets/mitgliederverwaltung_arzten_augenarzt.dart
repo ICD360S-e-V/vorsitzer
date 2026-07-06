@@ -17328,7 +17328,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.arztVollmachtAction({
+    final res = await widget.apiService.augenarztArztVollmachtAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -17375,7 +17375,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
   }
 
   Future<void> _openPdf(int id, {String type = 'pdf'}) async {
-    final res = await widget.apiService.downloadArztVollmachtPdf(id, type: type);
+    final res = await widget.apiService.augenarztDownloadArztVollmachtPdf(id, type: type);
     if (!mounted) return;
     if (res.statusCode == 200) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, type == 'translation' ? 'vollmacht_uebersetzung.pdf' : 'vollmacht.pdf');
@@ -17394,7 +17394,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
       ],
     ));
     if (ok != true) return;
-    await widget.apiService.arztVollmachtAction({'action': 'revoke', 'id': id});
+    await widget.apiService.augenarztArztVollmachtAction({'action': 'revoke', 'id': id});
     _load();
   }
 
@@ -17531,7 +17531,7 @@ class _VollmachtArztGenerateDialogState extends State<_VollmachtArztGenerateDial
     if (_busy) return;
     setState(() => _busy = true);
     final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
-    final r = await widget.apiService.createArztVollmacht({
+    final r = await widget.apiService.augenarztCreateArztVollmacht({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
       if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
@@ -17642,7 +17642,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.arztEinwilligungAction({
+    final res = await widget.apiService.augenarztArztEinwilligungAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -17689,7 +17689,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
   }
 
   Future<void> _openPdf(int id, {String type = 'pdf'}) async {
-    final res = await widget.apiService.downloadArztEinwilligungPdf(id, type: type);
+    final res = await widget.apiService.augenarztDownloadArztEinwilligungPdf(id, type: type);
     if (!mounted) return;
     if (res.statusCode == 200) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, type == 'translation' ? 'einwilligung_uebersetzung.pdf' : 'einwilligung.pdf');
@@ -17708,7 +17708,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
       ],
     ));
     if (ok != true) return;
-    await widget.apiService.arztEinwilligungAction({'action': 'revoke', 'id': id});
+    await widget.apiService.augenarztArztEinwilligungAction({'action': 'revoke', 'id': id});
     _load();
   }
 
@@ -17820,7 +17820,7 @@ class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenera
     if (_busy) return;
     setState(() => _busy = true);
     final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
-    final r = await widget.apiService.createArztEinwilligung({
+    final r = await widget.apiService.augenarztCreateArztEinwilligung({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
       if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
