@@ -85,6 +85,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   String _egkFotoSchreibenErhalten = ''; // '', 'ja', 'nein' — Krankenkasse-Schreiben zur Foto-Aktualisierung erhalten?
   String _egkFotoUploadWeg = '';         // '', 'post', 'online' — wie wurde das Foto eingereicht
   bool _fotoSchreibenUploading = false;  // Upload des Aufforderungs-Schreibens läuft
+  bool _karteEditMode = false;           // Sub-Tab „Karte": Detaildaten bearbeiten (sonst read-only)
   bool _befreiungskarte = false;
   String _befreiungJahr = '';
   // Krankengeld dossier count — surfaced by the new tab via callback,
@@ -1923,13 +1924,40 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             },
           );
 
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionHeader(Icons.credit_card, 'Versicherungskarte', t.primary),
-            const SizedBox(height: 8),
+      Widget roRow(IconData icon, String lbl, String val) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(icon, size: 15, color: Colors.grey.shade500),
+              const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(lbl, style: TextStyle(fontSize: 10.5, color: Colors.grey.shade500)),
+                const SizedBox(height: 1),
+                Text(val.trim().isEmpty ? '—' : val, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: val.trim().isEmpty ? Colors.grey.shade400 : Colors.black87)),
+              ])),
+            ]),
+          );
+      final editMode = _karteEditMode;
+
+      return DefaultTabController(
+        length: 2,
+        child: Column(children: [
+          TabBar(
+            labelColor: t.primary,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: t.primary,
+            tabs: const [
+              Tab(icon: Icon(Icons.credit_card, size: 18), text: 'Karte'),
+              Tab(icon: Icon(Icons.photo_camera, size: 18), text: 'Lichtbild'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(children: [
+              // ══ Sub-Tab: KARTE ══
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
@@ -1960,8 +1988,27 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             const SizedBox(height: 22),
             const Divider(),
             const SizedBox(height: 4),
-            _sectionHeader(Icons.edit_note, 'Kartendaten bearbeiten', Colors.blueGrey),
+            Row(children: [
+              Icon(Icons.badge_outlined, size: 18, color: Colors.blueGrey.shade600),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Kartendaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700))),
+              TextButton.icon(
+                icon: Icon(editMode ? Icons.check : Icons.edit_outlined, size: 16),
+                label: Text(editMode ? 'Fertig' : 'Bearbeiten', style: const TextStyle(fontSize: 12)),
+                onPressed: () => setCard(() => _karteEditMode = !_karteEditMode),
+              ),
+            ]),
             const SizedBox(height: 8),
+            if (!editMode) ...[
+              roRow(Icons.person, 'Name, Vorname', _holderNameZeile()),
+              roRow(Icons.badge, 'Versicherten-Nr. (KVNR)', _kvnrController.text),
+              roRow(Icons.numbers, 'Kartennummer', _kartennummerController.text),
+              roRow(Icons.tag, 'Kartenfolge-Nr.', _kartenfolgenummerController.text),
+              roRow(Icons.calendar_today, 'Gültig ab', _egkGueltigAbController.text),
+              roRow(Icons.event_busy, 'Gültig bis', _egkGueltigBisController.text),
+              roRow(Icons.person_pin, 'EHIC — Persönliche Kennnummer', _ehicKennummerController.text),
+              roRow(Icons.business, 'Kennnummer der Institution (IK)', _ehicInstitutionskennzeichenController.text),
+            ] else ...[
             label('Krankenversichertennummer (KVNR)'),
             TextField(
               controller: _kvnrController,
@@ -2023,8 +2070,25 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 TextField(controller: _ehicInstitutionskennzeichenController, onChanged: (_) => setCard(() {}), style: const TextStyle(fontSize: 13), decoration: deco('Institutionskennzeichen der Krankenkasse', Icons.business)),
               ]),
             ),
-            const SizedBox(height: 16),
-            Builder(builder: (context) {
+            ],
+                  ],
+                ),
+              ),
+              // ══ Sub-Tab: LICHTBILD ══
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Icon(Icons.photo_camera, size: 18, color: Colors.teal.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('Neue Lichtbild-Karte hinterlegen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+                    ]),
+                    const SizedBox(height: 6),
+                    Text('Formular zur Aktualisierung des eGK-Lichtbilds (gesetzlich alle 10 Jahre).', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    const SizedBox(height: 12),
+                    Builder(builder: (context) {
               final fotoDatum = _parseDeDate(_egkFotoDatumController.text);
               final faellig = fotoDatum == null ? null : DateTime(fotoDatum.year + 10, fotoDatum.month, fotoDatum.day);
               final now = DateTime.now();
@@ -2226,9 +2290,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   ),
                 ]),
               );
-            }),
-          ],
-        ),
+                    }),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ]),
       );
     });
   }
