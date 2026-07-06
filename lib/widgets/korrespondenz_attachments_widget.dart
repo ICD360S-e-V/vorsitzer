@@ -11,12 +11,15 @@ class KorrAttachmentsWidget extends StatefulWidget {
   final ApiService apiService;
   final String modul;
   final int korrespondenzId;
+  /// true = eigene augenarzt_attachment-Speicherung (entkoppelt, eigener Ordner).
+  final bool augenarzt;
 
   const KorrAttachmentsWidget({
     super.key,
     required this.apiService,
     required this.modul,
     required this.korrespondenzId,
+    this.augenarzt = false,
   });
 
   @override
@@ -26,6 +29,18 @@ class KorrAttachmentsWidget extends StatefulWidget {
 class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   List<Map<String, dynamic>> _attachments = [];
   bool _loaded = false;
+
+  // Routet Attachment-Aktionen: für Augenarzt auf augenarzt_attachment.php.
+  Future<Map<String, dynamic>> _apiList() => widget.augenarzt
+      ? widget.apiService.augenarztListKorrAttachments(widget.modul, widget.korrespondenzId)
+      : widget.apiService.listKorrAttachments(widget.modul, widget.korrespondenzId);
+  Future<Map<String, dynamic>> _apiUpload(String filePath, String fileName) => widget.augenarzt
+      ? widget.apiService.augenarztUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
+      : widget.apiService.uploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName);
+  Future<Map<String, dynamic>> _apiDelete(int id) => widget.augenarzt
+      ? widget.apiService.augenarztDeleteKorrAttachment(id) : widget.apiService.deleteKorrAttachment(id);
+  Future _apiDownload(int id) => widget.augenarzt
+      ? widget.apiService.augenarztDownloadKorrAttachment(id) : widget.apiService.downloadKorrAttachment(id);
 
   @override
   void initState() { super.initState(); _load(); }
@@ -44,7 +59,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   }
 
   Future<void> _load() async {
-    final r = await widget.apiService.listKorrAttachments(widget.modul, widget.korrespondenzId);
+    final r = await _apiList();
     if (!mounted) return;
     setState(() {
       if (r['success'] == true && r['data'] is List) {
@@ -60,7 +75,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     for (final file in result.files.where((f) => f.path != null)) {
-      await widget.apiService.uploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: file.path!, fileName: file.name);
+      await _apiUpload(file.path!, file.name);
     }
     _load();
   }
@@ -92,7 +107,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
             Expanded(child: Text(a['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
             InkWell(onTap: () async {
               try {
-                final resp = await widget.apiService.downloadKorrAttachment(a['id'] as int);
+                final resp = await _apiDownload(a['id'] as int);
                 if (resp.statusCode == 200 && mounted) {
                   final dir = await getTemporaryDirectory();
                   final file = File('${dir.path}/${a['datei_name']}');
@@ -103,7 +118,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
             }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 14, color: Colors.indigo.shade600))),
             InkWell(onTap: () async {
               try {
-                final resp = await widget.apiService.downloadKorrAttachment(a['id'] as int);
+                final resp = await _apiDownload(a['id'] as int);
                 if (resp.statusCode == 200 && mounted) {
                   final dir = await getTemporaryDirectory();
                   final file = File('${dir.path}/${a['datei_name']}');
@@ -113,7 +128,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
               } catch (_) {}
             }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.download, size: 14, color: Colors.green.shade700))),
             InkWell(onTap: () async {
-              await widget.apiService.deleteKorrAttachment(a['id'] as int);
+              await _apiDelete(a['id'] as int);
               _load();
             }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.close, size: 14, color: Colors.red.shade400))),
           ]),

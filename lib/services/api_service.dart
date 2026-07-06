@@ -4291,6 +4291,26 @@ class ApiService {
     return await _client.get(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
   }
 
+  // ===== Augenarzt-eigene Attachments (augenarzt_attachment + uploads/augenarzt_attachment) =====
+  Future<Map<String, dynamic>> augenarztListKorrAttachments(String modul, int korrespondenzId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/augenarzt_attachment.php?modul=$modul&korrespondenz_id=$korrespondenzId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztUploadKorrAttachment({required String modul, required int korrespondenzId, required String filePath, required String fileName}) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_attachment.php')); request.headers.addAll(_headers);
+    request.fields['modul'] = modul; request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> augenarztDeleteKorrAttachment(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/augenarzt_attachment.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> augenarztDownloadKorrAttachment(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/augenarzt_attachment.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   // ========== BEWERBUNGSÜBERSICHT (encrypted in DB) ==========
 
   Future<Map<String, dynamic>> listBewerbungen(int userId) async {
