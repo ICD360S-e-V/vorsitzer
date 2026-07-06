@@ -84,6 +84,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   String _versichertenstatus = '';
   String _egkFotoSchreibenErhalten = ''; // '', 'ja', 'nein' — Krankenkasse-Schreiben zur Foto-Aktualisierung erhalten?
   String _egkFotoUploadWeg = '';         // '', 'post', 'online' — wie wurde das Foto eingereicht
+  bool _fotoSchreibenUploading = false;  // Upload des Aufforderungs-Schreibens läuft
   bool _befreiungskarte = false;
   String _befreiungJahr = '';
   // Krankengeld dossier count — surfaced by the new tab via callback,
@@ -1325,6 +1326,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (picked == null || picked.files.isEmpty) return;
     final files = picked.files.take(20).toList();
+    if (mounted) setState(() => _fotoSchreibenUploading = true);
     final heute = _fmtD(DateTime.now());
     int ok = 0;
     for (final f in files) {
@@ -1343,12 +1345,48 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         if (r['success'] == true) ok++;
       } catch (_) {}
     }
-    _kkKorrLoaded = false; // KK-Korrespondenz beim nächsten Öffnen neu laden
+    // Neu laden, damit die angehängten Schreiben direkt in der Sektion erscheinen.
+    _kkKorrLoaded = false;
+    await _loadKKKorrespondenz();
     if (!mounted) return;
+    setState(() => _fotoSchreibenUploading = false);
     messenger.showSnackBar(SnackBar(
-      content: Text('$ok/${files.length} Datei(en) als KK-Korrespondenz gespeichert'),
+      content: Text(ok > 0 ? '$ok/${files.length} Schreiben angehängt' : 'Upload fehlgeschlagen (0/${files.length})'),
       backgroundColor: ok > 0 ? Colors.green : Colors.red,
     ));
+  }
+
+  /// Die angehängten „Lichtbild-Aufforderung"-Dokumente aus der KK-Korrespondenz.
+  List<Map<String, dynamic>> _lichtbildAufforderungDocs() {
+    final out = <Map<String, dynamic>>[];
+    for (final k in _kkKorrespondenz) {
+      if ((k['titel']?.toString() ?? '').contains('Lichtbild-Aufforderung') && k['dokumente'] is List) {
+        for (final d in (k['dokumente'] as List)) {
+          if (d is Map) out.add(Map<String, dynamic>.from(d));
+        }
+      }
+    }
+    return out;
+  }
+
+  Future<void> _openKKKorrDoc(int id, String name) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final response = await widget.apiService.downloadKKKorrespondenzDoc(id);
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$name');
+        await file.writeAsBytes(response.bodyBytes);
+        if (!mounted) return;
+        await FileViewerDialog.show(context, file.path, name);
+      } else {
+        if (!mounted) return;
+        messenger.showSnackBar(const SnackBar(content: Text('Dokument konnte nicht geladen werden'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
   }
 
   // Ziel-Maße Passbild (35:45 @ 300 dpi ≈ 413×531 px)
@@ -2051,12 +2089,45 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                     Text('Aufforderung anhängen und zur Bearbeitung einreichen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
                     const SizedBox(height: 6),
                     OutlinedButton.icon(
-                      icon: Icon(Icons.attach_file, size: 16, color: teal),
-                      label: const Text('Schreiben anhängen (max. 20)', style: TextStyle(fontSize: 12)),
+                      icon: _fotoSchreibenUploading
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(Icons.attach_file, size: 16, color: teal),
+                      label: Text(_fotoSchreibenUploading ? 'Wird hochgeladen…' : 'Schreiben anhängen (max. 20)', style: const TextStyle(fontSize: 12)),
                       style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 38)),
-                      onPressed: _uploadFotoSchreiben,
+                      onPressed: _fotoSchreibenUploading ? null : _uploadFotoSchreiben,
                     ),
-                    const SizedBox(height: 6),
+                    Builder(builder: (_) {
+                      if (!_kkKorrLoaded) _loadKKKorrespondenz();
+                      final docs = _lichtbildAufforderungDocs();
+                      if (docs.isEmpty) return const SizedBox(height: 6);
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Angehängte Schreiben (${docs.length}):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                          const SizedBox(height: 2),
+                          ...docs.map((d) {
+                            final id = d['id'];
+                            final did = id is int ? id : int.tryParse('$id');
+                            final name = d['name']?.toString() ?? 'Dokument';
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Row(children: [
+                                Icon(Icons.description, size: 14, color: teal),
+                                const SizedBox(width: 5),
+                                Expanded(child: Text(name, style: TextStyle(fontSize: 11, color: Colors.grey.shade800), overflow: TextOverflow.ellipsis)),
+                                if (did != null)
+                                  InkWell(
+                                    onTap: () => _openKKKorrDoc(did, name),
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 16, color: teal)),
+                                  ),
+                              ]),
+                            );
+                          }),
+                        ]),
+                      );
+                    }),
+                    const SizedBox(height: 8),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.assignment_turned_in, size: 16),
                       label: const Text('Zur Bearbeitung einreichen', style: TextStyle(fontSize: 12)),
