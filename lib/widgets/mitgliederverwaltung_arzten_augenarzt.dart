@@ -433,7 +433,8 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: isZahnarzt ? 16 : 15,
+          // Augenarzt: 20 feste Sub-Tabs (kein Härtefall — nur Zahnarzt).
+          length: 20,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
