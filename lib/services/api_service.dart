@@ -5617,6 +5617,15 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  Future<Map<String, dynamic>> augenarztRechnungAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_rechnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> gesundheitRechnungAction(Map<String, dynamic> data) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/gesundheit_rechnung_manage.php'),

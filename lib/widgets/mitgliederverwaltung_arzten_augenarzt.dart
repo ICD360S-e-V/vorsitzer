@@ -14677,7 +14677,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
 
   Future<void> _load() async {
     try {
-      final res = await widget.apiService.gesundheitRechnungAction({'action': 'list', 'user_id': widget.userId, 'arzt_type': widget.arztType});
+      final res = await widget.apiService.augenarztRechnungAction({'action': 'list', 'user_id': widget.userId, 'arzt_type': widget.arztType});
       if (res['success'] == true && res['rechnungen'] is List) _rechnungen = List<Map<String, dynamic>>.from((res['rechnungen'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
@@ -14752,7 +14752,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          await widget.apiService.gesundheitRechnungAction({'action': 'save', 'user_id': widget.userId, 'arzt_type': widget.arztType,
+          await widget.apiService.augenarztRechnungAction({'action': 'save', 'user_id': widget.userId, 'arzt_type': widget.arztType,
             'data': {'grund': grund, 'betrag': betragC.text.trim(), 'erstellt_am': erstelltC.text, 'erhalten_am': erhaltenC.text, 'notiz': notizC.text.trim()}});
           if (ctx.mounted) Navigator.pop(ctx);
           _load();
@@ -14797,7 +14797,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
   Future<void> _loadKorr() async {
     try {
-      final res = await widget.apiService.gesundheitRechnungAction({'action': 'list_korr', 'rechnung_id': _rid});
+      final res = await widget.apiService.augenarztRechnungAction({'action': 'list_korr', 'rechnung_id': _rid});
       if (res['success'] == true && res['korrespondenz'] is List) _korr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loadingK = false);
@@ -14805,7 +14805,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
   Future<void> _loadInkassoBuero() async {
     try {
-      final res = await widget.apiService.gesundheitRechnungAction({'action': 'list_inkasso_buero'});
+      final res = await widget.apiService.augenarztRechnungAction({'action': 'list_inkasso_buero'});
       if (res['success'] == true && res['buero'] is List) _inkassoBuero = List<Map<String, dynamic>>.from((res['buero'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loadingInkassoBuero = false);
@@ -14813,7 +14813,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
   Future<void> _loadInkassoKorr() async {
     try {
-      final res = await widget.apiService.gesundheitRechnungAction({'action': 'list_inkasso_korr', 'rechnung_id': _rid});
+      final res = await widget.apiService.augenarztRechnungAction({'action': 'list_inkasso_korr', 'rechnung_id': _rid});
       if (res['success'] == true && res['korrespondenz'] is List) _inkassoKorr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loadingInkassoKorr = false);
@@ -14901,7 +14901,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    onPressed: () async { await widget.apiService.gesundheitRechnungAction({'action': 'delete_korr', 'id': k['id']}); _loadKorr(); }),
+                    onPressed: () async { await widget.apiService.augenarztRechnungAction({'action': 'delete_korr', 'id': k['id']}); _loadKorr(); }),
                 ]),
               )));
           })),
@@ -14927,7 +14927,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
-          await widget.apiService.gesundheitRechnungAction({'action': 'save_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
+          await widget.apiService.augenarztRechnungAction({'action': 'save_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
           if (ctx.mounted) Navigator.pop(ctx); _loadKorr();
         }, child: const Text('Speichern')),
       ],
@@ -14993,7 +14993,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: () async {
-        await widget.apiService.gesundheitRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.augenarztRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung, 'widerspruch_datum': datumC.text, 'widerspruch_methode': methode, 'widerspruch_notiz': notizC.text.trim(), 'status': 'widerspruch'}});
         widget.onSaved();
         if (ctx.mounted) { widget.rechnung['widerspruch_datum'] = datumC.text; widget.rechnung['widerspruch_methode'] = methode; widget.rechnung['widerspruch_notiz'] = notizC.text; widget.rechnung['status'] = 'widerspruch';
@@ -15081,7 +15081,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum und Inkasso-Büro sind erforderlich'), backgroundColor: Colors.orange));
           return;
         }
-        await widget.apiService.gesundheitRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.augenarztRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung,
             'inkasso_datum': datumC.text,
             'inkasso_buero_id': bueroId,
@@ -15161,7 +15161,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    onPressed: () async { await widget.apiService.gesundheitRechnungAction({'action': 'delete_inkasso_korr', 'id': k['id']}); _loadInkassoKorr(); }),
+                    onPressed: () async { await widget.apiService.augenarztRechnungAction({'action': 'delete_inkasso_korr', 'id': k['id']}); _loadInkassoKorr(); }),
                 ]),
               )));
           })),
@@ -15187,7 +15187,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
-          await widget.apiService.gesundheitRechnungAction({'action': 'save_inkasso_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
+          await widget.apiService.augenarztRechnungAction({'action': 'save_inkasso_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
           if (ctx.mounted) Navigator.pop(ctx); _loadInkassoKorr();
         }, child: const Text('Speichern')),
       ],
@@ -15256,7 +15256,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: () async {
-        await widget.apiService.gesundheitRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.augenarztRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung,
             'inkasso_widerspruch_datum': datumC.text,
             'inkasso_widerspruch_methode': methode,
