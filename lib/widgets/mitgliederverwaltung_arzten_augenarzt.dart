@@ -15834,7 +15834,7 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.schweigepflichtAction({
+    final res = await widget.apiService.augenarztSchweigepflichtAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -16061,7 +16061,7 @@ class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerate
     }
     setState(() => _saving = true);
     final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
-    final res = await widget.apiService.createSchweigepflicht({
+    final res = await widget.apiService.augenarztCreateSchweigepflicht({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
       if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
@@ -16184,7 +16184,7 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
   int get _id => int.tryParse(_sp['id'].toString()) ?? 0;
 
   Future<void> _refresh() async {
-    final res = await widget.apiService.schweigepflichtAction({'action': 'list', 'user_id': widget.user.id, 'arzt_typ': _sp['arzt_typ']});
+    final res = await widget.apiService.augenarztSchweigepflichtAction({'action': 'list', 'user_id': widget.user.id, 'arzt_typ': _sp['arzt_typ']});
     if (!mounted) return;
     final all = List<Map<String, dynamic>>.from(res['schweigepflichten'] ?? []);
     final updated = all.firstWhere((e) => (int.tryParse(e['id'].toString()) ?? 0) == _id, orElse: () => _sp);
@@ -16212,7 +16212,7 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
   }
 
   Future<void> _openPdf(String type) async {
-    final res = await widget.apiService.downloadSchweigepflichtPdf(_id, type: type);
+    final res = await widget.apiService.augenarztDownloadSchweigepflichtPdf(_id, type: type);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, _viewerNameForType(type));
@@ -16231,7 +16231,7 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
       ],
     ));
     if (ok != true) return;
-    await widget.apiService.schweigepflichtAction({'action': 'revoke', 'id': _id});
+    await widget.apiService.augenarztSchweigepflichtAction({'action': 'revoke', 'id': _id});
     await _refresh();
   }
 
@@ -16348,7 +16348,7 @@ class _ManagementViewState extends State<_ManagementView> {
     int ok = 0, fail = 0;
     for (final f in picked.files) {
       if (f.bytes == null) { fail++; continue; }
-      final res = await widget.apiService.uploadSchweigepflichtSignature(
+      final res = await widget.apiService.augenarztUploadSchweigepflichtSignature(
         schweigepflichtId: _id, type: type, bytes: f.bytes!, filename: f.name,
       );
       if (res['success'] == true) {
@@ -16382,7 +16382,7 @@ class _ManagementViewState extends State<_ManagementView> {
       ],
     ));
     if (ok != true) return;
-    final res = await widget.apiService.deleteSchweigepflichtSignatureById(signatureId: signatureId);
+    final res = await widget.apiService.augenarztDeleteSchweigepflichtSignatureById(signatureId: signatureId);
     if (!mounted) return;
     if (res['success'] == true) {
       await widget.onRefresh();
@@ -16392,7 +16392,7 @@ class _ManagementViewState extends State<_ManagementView> {
   }
 
   Future<void> _openSignature(int signatureId, String filename) async {
-    final res = await widget.apiService.downloadSchweigepflichtSignatureFile(signatureId);
+    final res = await widget.apiService.augenarztDownloadSchweigepflichtSignatureFile(signatureId);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, filename);
@@ -16532,7 +16532,7 @@ class _ManagementViewState extends State<_ManagementView> {
       ],
     ));
     if (ok != true) return;
-    final res = await widget.apiService.deleteSchweigepflichtVersand(versandId: versandId);
+    final res = await widget.apiService.augenarztDeleteSchweigepflichtVersand(versandId: versandId);
     if (!mounted) return;
     if (res['success'] == true) {
       await widget.onRefresh();
@@ -16542,7 +16542,7 @@ class _ManagementViewState extends State<_ManagementView> {
   }
 
   Future<void> _openVersandConfirmation(int versandId, String filename) async {
-    final res = await widget.apiService.downloadSchweigepflichtVersandConfirmation(versandId);
+    final res = await widget.apiService.augenarztDownloadSchweigepflichtVersandConfirmation(versandId);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, filename.isNotEmpty ? filename : 'versand_confirmation_$versandId.pdf');
@@ -16665,7 +16665,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
     setState(() => _saving = true);
     String two(int n) => n.toString().padLeft(2, '0');
     final datumStr = '${_datum.year}-${two(_datum.month)}-${two(_datum.day)} ${two(_datum.hour)}:${two(_datum.minute)}:00';
-    final res = await widget.apiService.createSchweigepflichtVersand(
+    final res = await widget.apiService.augenarztCreateSchweigepflichtVersand(
       schweigepflichtId: widget.schweigepflichtId,
       methode: _methode,
       datum: datumStr,
