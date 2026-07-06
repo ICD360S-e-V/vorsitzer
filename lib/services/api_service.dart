@@ -8785,6 +8785,37 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // Augenarzt-eigene Korrespondenz (augenarzt_korrespondenz + _anhaenge, eigener Upload-Ordner).
+  Future<Map<String, dynamic>> augenarztKorrespondenzAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/augenarzt_korrespondenz_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadAugenarztKorrespondenzAnhang({
+    required int korrespondenzId,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/augenarzt_korrespondenz_anhang_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['korrespondenz_id'] = korrespondenzId.toString();
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadAugenarztKorrespondenzAnhang(int anhangId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/augenarzt_korrespondenz_pdf.php?anhang_id=$anhangId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // === JOBCENTER SANKTIONEN (refactored: list + modal Details/Korrespondenz/Widerspruch) ===
   Future<Map<String, dynamic>> jobcenterSanktionAction(Map<String, dynamic> body) async {
     final response = await _client.post(

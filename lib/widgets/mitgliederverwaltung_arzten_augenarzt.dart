@@ -16782,7 +16782,7 @@ class _ArztKorrespondenzTabState extends State<_ArztKorrespondenzTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.arztKorrespondenzAction({
+    final res = await widget.apiService.augenarztKorrespondenzAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -16990,8 +16990,8 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
       'notiz': _notizC.text.trim(),
     };
     final res = widget.existing == null
-        ? await widget.apiService.arztKorrespondenzAction({'action': 'create', 'user_id': widget.userId, 'arzt_typ': widget.arztTyp, 'korr': payload})
-        : await widget.apiService.arztKorrespondenzAction({'action': 'update', 'id': widget.existing!['id'], 'korr': payload});
+        ? await widget.apiService.augenarztKorrespondenzAction({'action': 'create', 'user_id': widget.userId, 'arzt_typ': widget.arztTyp, 'korr': payload})
+        : await widget.apiService.augenarztKorrespondenzAction({'action': 'update', 'id': widget.existing!['id'], 'korr': payload});
     if (!mounted) return;
     if (res['success'] != true) {
       setState(() => _saving = false);
@@ -17002,7 +17002,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
     int ok = 0, fail = 0;
     for (final f in _pendingFiles) {
       if (f.bytes == null) { fail++; continue; }
-      final ur = await widget.apiService.uploadArztKorrespondenzAnhang(korrespondenzId: kid, bytes: f.bytes!, filename: f.name);
+      final ur = await widget.apiService.uploadAugenarztKorrespondenzAnhang(korrespondenzId: kid, bytes: f.bytes!, filename: f.name);
       if (ur['success'] == true) {
         ok++;
       } else {
@@ -17120,7 +17120,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   int get _id => int.tryParse(_k['id'].toString()) ?? 0;
 
   Future<void> _refresh() async {
-    final res = await widget.apiService.arztKorrespondenzAction({
+    final res = await widget.apiService.augenarztKorrespondenzAction({
       'action': 'list', 'user_id': _k['user_id'], 'arzt_typ': _k['arzt_typ'],
     });
     if (!mounted) return;
@@ -17150,7 +17150,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
       ],
     ));
     if (ok != true) return;
-    final res = await widget.apiService.arztKorrespondenzAction({'action': 'delete', 'id': _id});
+    final res = await widget.apiService.augenarztKorrespondenzAction({'action': 'delete', 'id': _id});
     if (!mounted) return;
     if (res['success'] == true) {
       Navigator.pop(context, true);
@@ -17169,7 +17169,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     int ok = 0, fail = 0;
     for (final f in picked.files) {
       if (f.bytes == null) { fail++; continue; }
-      final r = await widget.apiService.uploadArztKorrespondenzAnhang(korrespondenzId: _id, bytes: f.bytes!, filename: f.name);
+      final r = await widget.apiService.uploadAugenarztKorrespondenzAnhang(korrespondenzId: _id, bytes: f.bytes!, filename: f.name);
       if (r['success'] == true) {
         ok++;
       } else {
@@ -17187,12 +17187,12 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
     ));
     if (ok != true) return;
-    await widget.apiService.arztKorrespondenzAction({'action': 'delete_anhang', 'anhang_id': aid});
+    await widget.apiService.augenarztKorrespondenzAction({'action': 'delete_anhang', 'anhang_id': aid});
     await _refresh();
   }
 
   Future<void> _openAttachment(int aid, String filename) async {
-    final res = await widget.apiService.downloadArztKorrespondenzAnhang(aid);
+    final res = await widget.apiService.downloadAugenarztKorrespondenzAnhang(aid);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, filename);
