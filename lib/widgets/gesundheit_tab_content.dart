@@ -26,6 +26,7 @@ import 'file_viewer_dialog.dart';
 import 'sanitaetshaus.dart';
 import 'rettungsdienst.dart';
 import 'hilfsmittel_rezept_section.dart';
+import 'mitgliederverwaltung_arzten_augenarzt.dart';
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -335,7 +336,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               children: [
                 _buildArztContent('gesundheit_hausarzt', 'Hausarzt', 'Allgemeinmedizin / Innere Medizin'),
                 _buildArztContent('gesundheit_lungenarzt', 'Lungenarzt', 'Pneumologie / Pulmologie'),
-                _buildArztContent('gesundheit_augenarzt', 'Augenarzt', 'Ophthalmologie'),
+                // Augenarzt: eigenständiges, entkoppeltes Widget mit eigenen
+                // augenarzt_*-Tabellen (relational, GCM) statt des shared Blobs.
+                MitgliederverwaltungArztenAugenarzt(
+                  user: widget.user,
+                  apiService: widget.apiService,
+                  ticketService: widget.ticketService,
+                  terminService: widget.terminService,
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
+                ),
                 _buildArztContent('gesundheit_hno', 'HNO-Arzt', 'Hals-Nasen-Ohren-Heilkunde'),
                 _buildArztContent('gesundheit_psychiater', 'Psychiater / Psychologe', 'Psychiatrie / Psychotherapie'),
                 _buildArztContent('gesundheit_kardiologe', 'Kardiologe', 'Kardiologie / Herzmedizin'),
