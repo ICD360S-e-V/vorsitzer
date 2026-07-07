@@ -18096,18 +18096,16 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
 }
 
 // ====================================================================
-// DMP — Disease-Management-Programm tab (per Arzt-Beziehung)
+// DMP — Augenärztlicher Untersuchungsbogen (DMP Diabetes)
 // ====================================================================
-// Records the Teilnahme- und Einwilligungserklärung for one or more
-// G-BA-anerkannte chronic-disease programmes the member is enrolled in
-// via this specific Arzt. Each row carries an indikation, the
-// einschreibedatum (when the Erklärung was signed), an optional first-
-// documentation date, status (aktiv / widerrufen) + widerruf-Datum,
-// and a free notiz. BSNR / LANR are NOT stored on the DMP row — they
-// come from the joined aerzte_datenbank entry so they stay live if the
-// Vorstand updates the Praxis details. Each row owns a multi-file
-// attachment bucket (up to 20 PDF/JPG/PNG) keyed on the generic
-// korrespondenz_attachments table under modul='arzt_dmp'.
+// Der Augenarzt ist im DMP Diabetes beteiligter Facharzt (NICHT Koordinator):
+// er führt die Netzhaut-Untersuchung durch und dokumentiert den Befund auf dem
+// Augenärztlichen Untersuchungsbogen, der an den koordinierenden Arzt
+// (Hausarzt/Diabetologe) übermittelt wird. Jede Zeile: Untersuchungsdatum,
+// Retinopathie-Stadium je Auge, Makulopathie je Auge, Visus, andere Befunde,
+// nächste Kontrolle, Übermittlungs-Status. BSNR/LANR kommen live aus
+// augenarzt_datenbank. Anhänge (Untersuchungsbogen-Scan) liegen in
+// augenarzt_attachment unter modul='augenarzt_dmp_befund'.
 
 class _ArztDmpTab extends StatefulWidget {
   final ApiService apiService;
@@ -18172,10 +18170,18 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
 
   Future<void> _showCreateOrEdit({Map<String, dynamic>? existing}) async {
     String indik = existing?['indikation']?.toString() ?? 'diabetes_typ2';
-    String status = existing?['status']?.toString() ?? 'aktiv';
-    final einschreibeC = TextEditingController(text: existing?['einschreibedatum']?.toString() ?? '');
-    final erstdokuC = TextEditingController(text: existing?['erstdoku_datum']?.toString() ?? '');
-    final widerrufC = TextEditingController(text: existing?['widerruf_datum']?.toString() ?? '');
+    final untersuchungC = TextEditingController(text: existing?['untersuchungsdatum']?.toString() ?? '');
+    bool netzhautErweitert = existing?['netzhaut_erweitert'] == true;
+    String retiRechts = existing?['retinopathie_rechts']?.toString() ?? '';
+    String retiLinks = existing?['retinopathie_links']?.toString() ?? '';
+    bool makuRechts = existing?['makulopathie_rechts'] == true;
+    bool makuLinks = existing?['makulopathie_links'] == true;
+    final visusRC = TextEditingController(text: existing?['visus_rechts']?.toString() ?? '');
+    final visusLC = TextEditingController(text: existing?['visus_links']?.toString() ?? '');
+    final andereC = TextEditingController(text: existing?['andere_befunde']?.toString() ?? '');
+    String kontrolle = existing?['naechste_kontrolle_monate']?.toString() ?? '12';
+    bool uebermittelt = existing?['befund_uebermittelt'] == true;
+    final befundDatumC = TextEditingController(text: existing?['befund_datum']?.toString() ?? '');
     final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
     final arztEintragId = existing?['arzt_eintrag_id'] ??
         (widget.arzt['id'] is int ? widget.arzt['id'] : int.tryParse(widget.arzt['id']?.toString() ?? ''));
@@ -18185,113 +18191,113 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
       try {
         if (c.text.isNotEmpty) {
           final parts = c.text.split('.');
-          if (parts.length == 3) {
-            initial = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-          }
+          if (parts.length == 3) initial = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
         }
       } catch (_) {}
-      final d = await showDatePicker(
-        context: ctx, initialDate: initial,
-        firstDate: DateTime(2000), lastDate: DateTime(2050),
-        locale: const Locale('de'),
-      );
-      if (d != null) {
-        c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-      }
+      final d = await showDatePicker(context: ctx, initialDate: initial, firstDate: DateTime(2000), lastDate: DateTime(2050), locale: const Locale('de'));
+      if (d != null) c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
     }
 
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
-        title: Text(existing == null ? 'Neue DMP-Teilnahme' : 'DMP-Teilnahme bearbeiten'),
-        content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          DropdownButtonFormField<String>(
-            initialValue: indik,
-            decoration: const InputDecoration(labelText: 'Indikation', prefixIcon: Icon(Icons.coronavirus, size: 18), isDense: true, border: OutlineInputBorder()),
-            items: _indikationLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
-            onChanged: (v) => setD(() => indik = v ?? 'diabetes_typ2'),
-          ),
-          const SizedBox(height: 10),
-          TextField(controller: einschreibeC, readOnly: true,
-            decoration: const InputDecoration(labelText: 'Einschreibedatum (Erklärung)', prefixIcon: Icon(Icons.event_note, size: 18), isDense: true, border: OutlineInputBorder()),
-            onTap: () async { await pickInto(ctx2, einschreibeC); setD(() {}); }),
-          const SizedBox(height: 10),
-          TextField(controller: erstdokuC, readOnly: true,
-            decoration: const InputDecoration(labelText: 'Datum Erstdokumentation (optional)', prefixIcon: Icon(Icons.event, size: 18), isDense: true, border: OutlineInputBorder()),
-            onTap: () async { await pickInto(ctx2, erstdokuC); setD(() {}); }),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            initialValue: status,
-            decoration: const InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag, size: 18), isDense: true, border: OutlineInputBorder()),
-            items: const [
-              DropdownMenuItem(value: 'aktiv', child: Text('Aktiv (unbefristet)', style: TextStyle(fontSize: 13))),
-              DropdownMenuItem(value: 'widerrufen', child: Text('Widerrufen', style: TextStyle(fontSize: 13))),
-            ],
-            onChanged: (v) => setD(() => status = v ?? 'aktiv'),
-          ),
-          if (status == 'widerrufen') ...[
-            const SizedBox(height: 10),
-            TextField(controller: widerrufC, readOnly: true,
-              decoration: const InputDecoration(labelText: 'Datum Widerruf', prefixIcon: Icon(Icons.cancel, size: 18), isDense: true, border: OutlineInputBorder()),
-              onTap: () async { await pickInto(ctx2, widerrufC); setD(() {}); }),
-          ],
-          const SizedBox(height: 10),
-          TextField(controller: notizC, maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.teal.shade50,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.teal.shade100),
-            ),
-            child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.teal.shade700),
-              const SizedBox(width: 6),
-              Expanded(child: Text(
-                'BSNR / LANR werden automatisch aus der Ärzte-Datenbank des '
-                'zugeordneten Arztes übernommen — nicht hier eintragen.',
-                style: TextStyle(fontSize: 10, color: Colors.teal.shade800),
-              )),
-            ]),
-          ),
-        ]))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
-        ],
-      )),
-    );
+    const retiOptions = [
+      ('', '—'), ('keine', 'Keine Retinopathie'), ('mild', 'Milde NPDR'),
+      ('maessig', 'Mäßige NPDR'), ('schwer', 'Schwere NPDR'), ('proliferativ', 'Proliferative DR (PDR)'),
+    ];
+
+    final saved = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      title: Row(children: [Icon(Icons.visibility, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Expanded(child: Text(existing == null ? 'Augenärztl. Untersuchung (DMP)' : 'Untersuchung bearbeiten', style: const TextStyle(fontSize: 15)))]),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        DropdownButtonFormField<String>(initialValue: indik,
+          decoration: const InputDecoration(labelText: 'DMP-Indikation', prefixIcon: Icon(Icons.medical_information, size: 18), isDense: true, border: OutlineInputBorder()),
+          items: _indikationLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
+          onChanged: (v) => setD(() => indik = v ?? 'diabetes_typ2')),
+        const SizedBox(height: 10),
+        TextField(controller: untersuchungC, readOnly: true,
+          decoration: const InputDecoration(labelText: 'Untersuchungsdatum', prefixIcon: Icon(Icons.event, size: 18), isDense: true, border: OutlineInputBorder()),
+          onTap: () async { await pickInto(ctx2, untersuchungC); setD(() {}); }),
+        SwitchListTile(contentPadding: EdgeInsets.zero, dense: true, value: netzhautErweitert,
+          title: const Text('Netzhaut bei erweiterter Pupille untersucht', style: TextStyle(fontSize: 12)),
+          onChanged: (v) => setD(() => netzhautErweitert = v)),
+        const Divider(),
+        Text('Diabetische Retinopathie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(initialValue: retiRechts,
+          decoration: const InputDecoration(labelText: 'Rechtes Auge', isDense: true, border: OutlineInputBorder()),
+          items: retiOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setD(() => retiRechts = v ?? '')),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(initialValue: retiLinks,
+          decoration: const InputDecoration(labelText: 'Linkes Auge', isDense: true, border: OutlineInputBorder()),
+          items: retiOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 12)))).toList(),
+          onChanged: (v) => setD(() => retiLinks = v ?? '')),
+        Row(children: [
+          Expanded(child: CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true, value: makuRechts, title: const Text('Makulopathie re.', style: TextStyle(fontSize: 11)), onChanged: (v) => setD(() => makuRechts = v ?? false))),
+          Expanded(child: CheckboxListTile(contentPadding: EdgeInsets.zero, dense: true, value: makuLinks, title: const Text('Makulopathie li.', style: TextStyle(fontSize: 11)), onChanged: (v) => setD(() => makuLinks = v ?? false))),
+        ]),
+        Row(children: [
+          Expanded(child: TextField(controller: visusRC, decoration: const InputDecoration(labelText: 'Visus re.', isDense: true, border: OutlineInputBorder()), style: const TextStyle(fontSize: 12))),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: visusLC, decoration: const InputDecoration(labelText: 'Visus li.', isDense: true, border: OutlineInputBorder()), style: const TextStyle(fontSize: 12))),
+        ]),
+        const SizedBox(height: 10),
+        TextField(controller: andereC, maxLines: 2, style: const TextStyle(fontSize: 12),
+          decoration: const InputDecoration(labelText: 'Andere Augenbefunde', isDense: true, border: OutlineInputBorder())),
+        const Divider(),
+        DropdownButtonFormField<String>(initialValue: kontrolle,
+          decoration: const InputDecoration(labelText: 'Nächste Kontrolle', prefixIcon: Icon(Icons.schedule, size: 18), isDense: true, border: OutlineInputBorder()),
+          items: const [
+            DropdownMenuItem(value: '12', child: Text('in 12 Monaten (Standard)', style: TextStyle(fontSize: 12))),
+            DropdownMenuItem(value: '6', child: Text('in 6 Monaten', style: TextStyle(fontSize: 12))),
+            DropdownMenuItem(value: '3', child: Text('in 3 Monaten', style: TextStyle(fontSize: 12))),
+            DropdownMenuItem(value: '24', child: Text('in 24 Monaten', style: TextStyle(fontSize: 12))),
+          ], onChanged: (v) => setD(() => kontrolle = v ?? '12')),
+        SwitchListTile(contentPadding: EdgeInsets.zero, dense: true, value: uebermittelt,
+          title: const Text('Befund an koordinierenden Arzt übermittelt', style: TextStyle(fontSize: 12)),
+          onChanged: (v) => setD(() => uebermittelt = v)),
+        if (uebermittelt) TextField(controller: befundDatumC, readOnly: true,
+          decoration: const InputDecoration(labelText: 'Übermittelt am', prefixIcon: Icon(Icons.send, size: 16), isDense: true, border: OutlineInputBorder()),
+          onTap: () async { await pickInto(ctx2, befundDatumC); setD(() {}); }),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, style: const TextStyle(fontSize: 12),
+          decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
+      ],
+    )));
 
     if (saved == true) {
       await widget.apiService.augenarztDmpAction({
-        'action': 'save',
-        'user_id': widget.userId,
-        'arzt_typ': widget.arztTyp,
+        'action': 'save', 'user_id': widget.userId, 'arzt_typ': widget.arztTyp,
         'dmp': {
           if (existing != null) 'id': existing['id'],
           'arzt_typ': widget.arztTyp,
           if (arztEintragId != null) 'arzt_eintrag_id': arztEintragId,
           'indikation': indik,
-          'einschreibedatum': einschreibeC.text.trim(),
-          'erstdoku_datum': erstdokuC.text.trim(),
-          'status': status,
-          'widerruf_datum': status == 'widerrufen' ? widerrufC.text.trim() : '',
+          'untersuchungsdatum': untersuchungC.text.trim(),
+          'netzhaut_erweitert': netzhautErweitert,
+          'retinopathie_rechts': retiRechts, 'retinopathie_links': retiLinks,
+          'makulopathie_rechts': makuRechts, 'makulopathie_links': makuLinks,
+          'visus_rechts': visusRC.text.trim(), 'visus_links': visusLC.text.trim(),
+          'andere_befunde': andereC.text.trim(),
+          'naechste_kontrolle_monate': kontrolle,
+          'befund_uebermittelt': uebermittelt,
+          'befund_datum': uebermittelt ? befundDatumC.text.trim() : '',
           'notiz': notizC.text.trim(),
         },
       });
       await _load();
     }
-    einschreibeC.dispose(); erstdokuC.dispose(); widerrufC.dispose(); notizC.dispose();
+    untersuchungC.dispose(); visusRC.dispose(); visusLC.dispose(); andereC.dispose(); befundDatumC.dispose(); notizC.dispose();
   }
 
   Future<void> _delete(int id) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('DMP-Teilnahme löschen?'),
-        content: const Text('Erklärung-Anhänge werden ebenfalls gelöscht.'),
+        title: const Text('Untersuchung löschen?'),
+        content: const Text('Befund-Anhänge werden ebenfalls gelöscht.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
           TextButton(
@@ -18323,7 +18329,7 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'DMP-Teilnahmen (${_list.length})',
+              'DMP Diabetes — Untersuchungen (${_list.length})',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
             ),
           ),
@@ -18350,25 +18356,26 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Text(
-          'Teilnahme- und Einwilligungserklärung zu strukturierten Behandlungs-'
-          'programmen nach § 137f SGB V (G-BA). Seit 2021 unbefristet gültig — '
-          'Widerruf jederzeit möglich.',
+          'Augenärztliche Netzhaut-Untersuchung im Rahmen des DMP Diabetes. Der '
+          'Augenarzt ist beteiligter Facharzt (nicht Koordinator): Befund per '
+          'Augenärztlichem Untersuchungsbogen dokumentieren und an den '
+          'koordinierenden Arzt (Hausarzt/Diabetologe) übermitteln.',
           style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
         ),
       ),
       const SizedBox(height: 6),
       Expanded(child: _list.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.medical_information_outlined, size: 40, color: Colors.grey.shade300),
+            Icon(Icons.visibility_outlined, size: 40, color: Colors.grey.shade300),
             const SizedBox(height: 8),
-            Text('Keine DMP-Teilnahmen erfasst',
+            Text('Keine Untersuchungen erfasst',
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
-                'Mit "Neu" Indikation und Einschreibedatum erfassen, danach den '
-                'Scan der Erklärung im Detail-Dialog (bis 20 Dateien gleichzeitig) hochladen.',
+                'Mit "Neu" die augenärztliche Netzhaut-Untersuchung (Retinopathie-'
+                'Befund) erfassen und den Untersuchungsbogen im Detail hochladen.',
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
@@ -18385,99 +18392,54 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
   Widget _buildDmpCard(Map<String, dynamic> d) {
     final indik = d['indikation']?.toString() ?? '';
     final indikLabel = _indikationLabels[indik] ?? indik;
-    final status = d['status']?.toString() ?? 'aktiv';
-    final isAktiv = status == 'aktiv';
     final id = d['id'] as int;
+    final untersuchung = d['untersuchungsdatum']?.toString() ?? '';
+    final uebermittelt = d['befund_uebermittelt'] == true;
+    final kontrolle = d['naechste_kontrolle_monate']?.toString() ?? '';
+    String retiLabel(String v) => const {'keine': 'Keine', 'mild': 'Mild', 'maessig': 'Mäßig', 'schwer': 'Schwer', 'proliferativ': 'PDR'}[v] ?? (v.isEmpty ? '–' : v);
+    final rR = d['retinopathie_rechts']?.toString() ?? '';
+    final rL = d['retinopathie_links']?.toString() ?? '';
+    final anyReti = (rR.isNotEmpty && rR != 'keine') || (rL.isNotEmpty && rL != 'keine');
     final bsnr = d['arzt_bsnr']?.toString() ?? '';
     final lanr = d['arzt_lanr']?.toString() ?? '';
     final praxis = d['praxis_name']?.toString() ?? '';
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      child: ExpansionTile(
-        leading: Icon(
-          isAktiv ? Icons.verified : Icons.cancel,
-          color: isAktiv ? Colors.green.shade700 : Colors.red.shade400,
-        ),
-        title: Row(children: [
-          Expanded(
-            child: Text(indikLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                overflow: TextOverflow.ellipsis),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: isAktiv ? Colors.green.shade50 : Colors.red.shade50,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              isAktiv ? 'aktiv' : 'widerrufen',
-              style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.bold,
-                color: isAktiv ? Colors.green.shade800 : Colors.red.shade700,
-              ),
-            ),
-          ),
-        ]),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if ((d['einschreibedatum']?.toString() ?? '').isNotEmpty)
-            Text('Einschreibung: ${d['einschreibedatum']}',
-                style: const TextStyle(fontSize: 11)),
-          if (!isAktiv && (d['widerruf_datum']?.toString() ?? '').isNotEmpty)
-            Text('Widerruf: ${d['widerruf_datum']}',
-                style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
-        ]),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if ((d['erstdoku_datum']?.toString() ?? '').isNotEmpty)
-                _kv('Erstdokumentation', d['erstdoku_datum'].toString()),
-              if (praxis.isNotEmpty) _kv('Praxis', praxis),
-              if (bsnr.isNotEmpty) _kv('BSNR', bsnr),
-              if (lanr.isNotEmpty) _kv('LANR', lanr),
-              if ((d['notiz']?.toString() ?? '').isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Text(d['notiz'].toString(), style: const TextStyle(fontSize: 12)),
-                ),
-              ],
-              const SizedBox(height: 10),
-              Text('Erklärung (Scan)',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              KorrAttachmentsWidget(
-                apiService: widget.apiService,
-                modul: 'arzt_dmp',
-                korrespondenzId: id,
-              ),
-              const SizedBox(height: 10),
-              Row(children: [
-                const Spacer(),
-                TextButton.icon(
-                  icon: const Icon(Icons.edit, size: 14),
-                  label: const Text('Bearbeiten', style: TextStyle(fontSize: 11)),
-                  onPressed: () => _showCreateOrEdit(existing: d),
-                ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400),
-                  label: Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red.shade400)),
-                  onPressed: () => _delete(id),
-                ),
-              ]),
-            ]),
-          ),
+    return Card(margin: const EdgeInsets.only(bottom: 6), child: ExpansionTile(
+      leading: Icon(anyReti ? Icons.warning_amber : Icons.visibility, color: anyReti ? Colors.orange.shade700 : Colors.green.shade700),
+      title: Row(children: [
+        Expanded(child: Text(untersuchung.isEmpty ? indikLabel : 'Untersuchung $untersuchung', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
+        if (uebermittelt) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
+          child: Text('übermittelt', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+      ]),
+      subtitle: Text('Retinopathie: re. ${retiLabel(rR)} · li. ${retiLabel(rL)}${kontrolle.isNotEmpty ? ' · Kontrolle in $kontrolle Mon.' : ''}', style: const TextStyle(fontSize: 11)),
+      children: [Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _kv('Indikation', indikLabel),
+        if ((d['visus_rechts']?.toString() ?? '').isNotEmpty || (d['visus_links']?.toString() ?? '').isNotEmpty)
+          _kv('Visus', 're. ${(d['visus_rechts']?.toString() ?? '').isEmpty ? '–' : d['visus_rechts']} · li. ${(d['visus_links']?.toString() ?? '').isEmpty ? '–' : d['visus_links']}'),
+        _kv('Makulopathie', 're. ${d['makulopathie_rechts'] == true ? 'ja' : 'nein'} · li. ${d['makulopathie_links'] == true ? 'ja' : 'nein'}'),
+        if ((d['andere_befunde']?.toString() ?? '').isNotEmpty) _kv('Andere Befunde', d['andere_befunde'].toString()),
+        if (uebermittelt && (d['befund_datum']?.toString() ?? '').isNotEmpty) _kv('Übermittelt am', d['befund_datum'].toString()),
+        if (praxis.isNotEmpty) _kv('Praxis', praxis),
+        if (bsnr.isNotEmpty) _kv('BSNR', bsnr),
+        if (lanr.isNotEmpty) _kv('LANR', lanr),
+        if ((d['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Container(width: double.infinity, padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(d['notiz'].toString(), style: const TextStyle(fontSize: 12))),
         ],
-      ),
-    );
+        const SizedBox(height: 10),
+        Text('Befundbogen / Anhang (Scan)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'augenarzt_dmp_befund', korrespondenzId: id),
+        const SizedBox(height: 10),
+        Row(children: [
+          const Spacer(),
+          TextButton.icon(icon: const Icon(Icons.edit, size: 14), label: const Text('Bearbeiten', style: TextStyle(fontSize: 11)), onPressed: () => _showCreateOrEdit(existing: d)),
+          const SizedBox(width: 4),
+          TextButton.icon(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), label: Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red.shade400)), onPressed: () => _delete(id)),
+        ]),
+      ]))],
+    ));
   }
 
   Widget _kv(String label, String value) {
