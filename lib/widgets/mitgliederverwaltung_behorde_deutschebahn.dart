@@ -463,11 +463,12 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     }
     if (blindstock || blindfuehr) checks.add('blind oder sehbeeinträchtigt');
     // Eigenständige Kategorie (unabhängig vom Hilfsmittel): Hörgeräte im
-    // Gesundheitsprofil → „Andere Einschränkungen" + otherImpairment-Select.
-    // ACHTUNG: dieser Select nutzt das LABEL als option-value (options:{value:NT[e]})
-    // und liest onChange den selectedIndex — daher das Label übergeben, nicht das Enum.
+    // Gesundheitsprofil → otherImpairment-Select auf „Taubheit oder Schwerhörigkeit".
+    // „Andere Einschränkungen oder Hilfebedarf" ist KEINE Checkbox — es ist eine
+    // Karte mit <b>-Titel und direkt sichtbarem <select> (kein Ankreuzen nötig).
+    // Der Select nutzt das LABEL als option-value und liest onChange den
+    // selectedIndex — daher das Label übergeben, nicht das Enum.
     if (schwerhoerig) {
-      checks.add('Andere Einschränkungen');
       combo.add('Taubheit oder Schwerhörigkeit');
     }
     if (begleit == 'ja') checks.add('Begleitperson');
