@@ -27,6 +27,7 @@ import 'sanitaetshaus.dart';
 import 'rettungsdienst.dart';
 import 'hilfsmittel_rezept_section.dart';
 import 'mitgliederverwaltung_arzten_augenarzt.dart';
+import 'mitgliederverwaltung_arzten_hno.dart';
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -345,7 +346,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   terminService: widget.terminService,
                   adminMitgliedernummer: widget.adminMitgliedernummer,
                 ),
-                _buildArztContent('gesundheit_hno', 'HNO-Arzt', 'Hals-Nasen-Ohren-Heilkunde'),
+                // HNO-Arzt: eigenständiges, entkoppeltes Widget mit eigenen
+                // hno_*-Tabellen (relational, GCM) statt des shared Blobs.
+                MitgliederverwaltungArztenHno(
+                  user: widget.user,
+                  apiService: widget.apiService,
+                  ticketService: widget.ticketService,
+                  terminService: widget.terminService,
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
+                ),
                 _buildArztContent('gesundheit_psychiater', 'Psychiater / Psychologe', 'Psychiatrie / Psychotherapie'),
                 _buildArztContent('gesundheit_kardiologe', 'Kardiologe', 'Kardiologie / Herzmedizin'),
                 _buildArztContent('gesundheit_neurologe', 'Neurologe', 'Neurologie / Nervenheilkunde'),
