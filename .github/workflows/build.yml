@@ -76,6 +76,20 @@ jobs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
     steps:
+      # Self-hosted runner: a cancelled/failed Flatpak build leaves
+      # flatpak-builder rofiles-fuse mounts locked under flatpak/.flatpak-builder/
+      # (flatpak-builder runs with working-directory: flatpak, so its state dir
+      # lands in the checked-out tree). The next run's actions/checkout then dies
+      # while resetting the workspace with "EBUSY: resource busy or locked, rmdir
+      # ... rofiles-XXXXXX", taking down the whole pipeline right here at Version
+      # Info. Unmount any stragglers and drop the state dir BEFORE checkout so it
+      # can clean the tree. Runs on the leftover workspace; safe no-op when fresh.
+      - name: Cleanup stale flatpak-builder mounts
+        run: |
+          for m in $(mount 2>/dev/null | awk '/\.flatpak-builder\/rofiles\/rofiles-/{print $3}'); do
+            fusermount -u "$m" 2>/dev/null || umount -l "$m" 2>/dev/null || true
+          done
+          rm -rf "${GITHUB_WORKSPACE:-.}/flatpak/.flatpak-builder" 2>/dev/null || true
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Extract version from pubspec.yaml
         id: version
