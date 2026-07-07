@@ -89,7 +89,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 2, vsync: this);
     _load();
   }
 
@@ -173,18 +173,13 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             const SizedBox(width: 4), const Text('Zuständige Deutsche Bahn'),
           ])),
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red),
-            const SizedBox(width: 4), const Icon(Icons.accessible, size: 16),
-            const SizedBox(width: 4), const Text('Vorfall'),
-          ])),
-          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.circle, size: 8, color: _reiseverbindungen.isNotEmpty ? Colors.green : Colors.grey.shade400),
             const SizedBox(width: 4), const Icon(Icons.route, size: 16),
             const SizedBox(width: 4), const Text('Reiseverbindung'),
           ])),
         ],
       ),
-      Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildInstitutionTab(), _buildVorfallTab(), _buildReiseverbindungTab()])),
+      Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildInstitutionTab(), _buildReiseverbindungTab()])),
     ]);
   }
 
