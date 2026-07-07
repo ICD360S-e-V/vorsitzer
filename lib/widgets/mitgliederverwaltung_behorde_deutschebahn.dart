@@ -464,8 +464,8 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             final start = rv['start_bahnhof']?.toString() ?? '';
             final ziel = rv['ziel_bahnhof']?.toString() ?? '';
             final route = [start, ziel].where((s) => s.isNotEmpty).join(' → ');
-            final hin = '${rv['hin_datum'] ?? ''} ${rv['hin_uhrzeit'] ?? ''}'.trim();
-            final rueck = '${rv['rueck_datum'] ?? ''} ${rv['rueck_uhrzeit'] ?? ''}'.trim();
+            final hin = '${rv['hin_datum'] ?? ''}'.trim();
+            final rueck = '${rv['rueck_datum'] ?? ''}'.trim();
             final name = rv['name']?.toString() ?? '';
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
@@ -521,17 +521,11 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     final startC = TextEditingController(text: existing?['start_bahnhof']?.toString() ?? '');
     final zielC = TextEditingController(text: existing?['ziel_bahnhof']?.toString() ?? '');
     final hinDatumC = TextEditingController(text: existing?['hin_datum']?.toString() ?? '');
-    final hinUhrzeitC = TextEditingController(text: existing?['hin_uhrzeit']?.toString() ?? '');
     final rueckDatumC = TextEditingController(text: existing?['rueck_datum']?.toString() ?? '');
-    final rueckUhrzeitC = TextEditingController(text: existing?['rueck_uhrzeit']?.toString() ?? '');
 
     Future<void> pickDate(TextEditingController c) async {
       final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime(2040), locale: const Locale('de'));
       if (p != null) c.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
-    }
-    Future<void> pickTime(TextEditingController c) async {
-      final p = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-      if (p != null) c.text = '${p.hour.toString().padLeft(2, '0')}:${p.minute.toString().padLeft(2, '0')}';
     }
 
     showDialog(context: context, builder: (ctx) => AlertDialog(
@@ -546,21 +540,13 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         const SizedBox(height: 10),
         TextField(controller: zielC, decoration: const InputDecoration(labelText: 'Ziel-Bahnhof (z. B. Saarbrücken Hbf)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.flag, size: 16))),
         const SizedBox(height: 14),
-        const Text('Hinfahrt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const Text('Hinfahrt (Datum)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        Row(children: [
-          Expanded(child: TextField(controller: hinDatumC, readOnly: true, onTap: () => pickDate(hinDatumC), decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
-          const SizedBox(width: 10),
-          Expanded(child: TextField(controller: hinUhrzeitC, readOnly: true, onTap: () => pickTime(hinUhrzeitC), decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)))),
-        ]),
+        TextField(controller: hinDatumC, readOnly: true, onTap: () => pickDate(hinDatumC), decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16))),
         const SizedBox(height: 14),
-        const Text('Rückfahrt (optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const Text('Rückfahrt (Datum, optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        Row(children: [
-          Expanded(child: TextField(controller: rueckDatumC, readOnly: true, onTap: () => pickDate(rueckDatumC), decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
-          const SizedBox(width: 10),
-          Expanded(child: TextField(controller: rueckUhrzeitC, readOnly: true, onTap: () => pickTime(rueckUhrzeitC), decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)))),
-        ]),
+        TextField(controller: rueckDatumC, readOnly: true, onTap: () => pickDate(rueckDatumC), decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16))),
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -577,9 +563,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
               'start_bahnhof': startC.text.trim(),
               'ziel_bahnhof': zielC.text.trim(),
               'hin_datum': hinDatumC.text.trim(),
-              'hin_uhrzeit': hinUhrzeitC.text.trim(),
               'rueck_datum': rueckDatumC.text.trim(),
-              'rueck_uhrzeit': rueckUhrzeitC.text.trim(),
             });
             if (ctx.mounted) Navigator.pop(ctx);
             _load();
@@ -805,15 +789,28 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return false;
   };
 
-  // ── Schritt 2 (Reiseverbindung): Bahnhof-Autocomplete tippen + Vorschlag wählen ──
-  // Rückgabe: 'done' | 'pending' | 'absent'. absent = Feld (noch) nicht da (= nicht
-  // auf Schritt 2) → blockiert das Polling nicht.
-  const fillStation = (key, value, matchRe) => {
+  // ── Schritt 2 (Reiseverbindung) ──
+  // MSZ ist eine SPA: der Wechsel Schritt 1 → 2 lädt KEIN neues Dokument, das Skript
+  // wird also NICHT neu injiziert. Deshalb bleibt DIESE Schleife aktiv (langer
+  // Timeout, solange RV gesetzt), bis Schritt 2 gefüllt ist.
+  // Struktur laut Bundle: startStopPlace/endStopPlace = <input type=search> mit
+  // floating Label „Startbahnhof"/„Zielbahnhof" + <ul><li>-Vorschlägen; tripType =
+  // role=tab-Segmente („Einfache Fahrt" / „Hin- und Rückfahrt"); Datum = <input type=date>.
+  const de2iso = (d) => { const m = /^(\\d{2})\\.(\\d{2})\\.(\\d{4})\$/.exec((d || '').trim()); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+
+  const stationInput = (labelRe) => {
+    return [...document.querySelectorAll('input')].filter(isUsable).find(i => {
+      const id = i.getAttribute('id');
+      const lbl = id ? document.querySelector('label[for="' + id + '"]') : null;
+      const blob = (i.getAttribute('aria-label') || '') + ' ' + (lbl ? lbl.textContent : '') + ' ' + ((i.closest('div,section,fieldset') || {}).innerText || '');
+      return labelRe.test(blob);
+    }) || null;
+  };
+
+  // Rückgabe: 'done' | 'pending' | 'absent'.
+  const fillStation = (key, value, labelRe) => {
     if (!value || S.acted[key] === 'done') return 'done';
-    const inp = [...document.querySelectorAll('input')].filter(isUsable).find(i =>
-      matchRe.test(i.getAttribute('placeholder') || '') ||
-      matchRe.test(i.getAttribute('aria-label') || '') ||
-      matchRe.test(((i.closest('label,div,fieldset,section') || {}).innerText) || ''));
+    const inp = stationInput(labelRe);
     if (!inp) return 'absent';
     if (S.acted[key] !== 'typed') {
       inp.focus();
@@ -821,32 +818,57 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
       inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
       S.acted[key] = 'typed';
-      log('Schritt2 Bahnhof getippt', key, JSON.stringify(value));
+      log('S2 Bahnhof getippt', key, JSON.stringify(value));
       return 'pending';
     }
     const nt = norm(value.split(/[ ,(]/)[0]);
-    const opt = [...document.querySelectorAll('li,[role=option]')].filter(isUsable).find(o => norm(o.textContent).includes(nt));
+    const opt = [...document.querySelectorAll('li')].filter(isUsable).find(o => norm(o.textContent).includes(nt));
     if (!opt) return 'pending';
     opt.click();
     S.acted[key] = 'done';
-    log('Schritt2 Bahnhof gewählt', key, JSON.stringify((opt.textContent || '').trim()));
+    log('S2 Bahnhof gewählt', key, JSON.stringify((opt.textContent || '').trim()));
     return 'done';
   };
 
+  const clickTripTwoWay = () => {
+    if (S.acted.tripType) return;
+    if (!RV.rueck_datum) { S.acted.tripType = 1; return; }   // ohne Rückdatum: einfache Fahrt reicht
+    const seg = [...document.querySelectorAll('[role=tab],button,label,span,div')].filter(isUsable)
+      .find(el => norm(el.innerText || el.textContent) === 'hin- und rückfahrt');
+    if (seg) { seg.click(); S.acted.tripType = 1; log('S2 Hin- und Rückfahrt gewählt'); }
+  };
+
+  const fillDates = () => {
+    const dates = [...document.querySelectorAll('input[type=date]')].filter(isUsable);
+    if (dates[0] && RV.hin_datum && !S.acted.s2_hin_d) {
+      const iso = de2iso(RV.hin_datum);
+      if (iso) { setNativeValue(dates[0], iso); S.acted.s2_hin_d = 1; log('S2 Hindatum', iso); }
+    }
+    if (dates[1] && RV.rueck_datum && !S.acted.s2_rueck_d) {
+      const iso = de2iso(RV.rueck_datum);
+      if (iso) { setNativeValue(dates[1], iso); S.acted.s2_rueck_d = 1; log('S2 Rückdatum', iso); }
+    }
+  };
+
   const fillSchritt2 = () => {
-    if (!RV || !RV.start) return true;                    // keine Reiseverbindung
-    const s = fillStation('s2_start', RV.start, /start|abfahrt|abgangs/i);
-    if (s === 'absent') return true;                      // nicht auf Schritt 2 → nicht blockieren
-    if (s !== 'done') return false;                       // Start zuerst fertigstellen
-    const z = fillStation('s2_ziel', RV.ziel, /ziel|ankunft|nach\\b/i);
-    return z === 'done' || z === 'absent';
+    if (!RV || !RV.start) return true;                       // keine Reiseverbindung
+    const s = fillStation('s2_start', RV.start, /start/i);
+    if (s === 'absent') return false;                        // noch nicht auf Schritt 2 → Schleife am Leben halten
+    clickTripTwoWay();
+    fillDates();
+    if (s !== 'done') return false;
+    const z = fillStation('s2_ziel', RV.ziel, /ziel/i);
+    return z === 'done';
   };
 
   const start = Date.now();
+  // Bei gesetzter Reiseverbindung länger laufen — der Nutzer navigiert selbst zu
+  // Schritt 2 (SPA, kein Reload), die Schleife muss so lange am Leben bleiben.
+  const MAX_MS = (RV && RV.start) ? 300000 : 45000;
   let n = 0;
   const tick = () => {
     n++;
-    if (Date.now() - start > 45000) { S.loopRunning = false; log('timeout', JSON.stringify(S.acted)); return; }
+    if (Date.now() - start > MAX_MS) { S.loopRunning = false; log('timeout', JSON.stringify(S.acted)); return; }
     let remaining = 0;
     for (const c of CHECKS) if (!ensureChecked(c)) remaining++;
     for (const o of COMBO) {
