@@ -13,6 +13,8 @@ class KorrAttachmentsWidget extends StatefulWidget {
   final int korrespondenzId;
   /// true = eigene augenarzt_attachment-Speicherung (entkoppelt, eigener Ordner).
   final bool augenarzt;
+  /// true = eigene hno_attachment-Speicherung (entkoppelt, eigener Ordner).
+  final bool hno;
 
   const KorrAttachmentsWidget({
     super.key,
@@ -20,6 +22,7 @@ class KorrAttachmentsWidget extends StatefulWidget {
     required this.modul,
     required this.korrespondenzId,
     this.augenarzt = false,
+    this.hno = false,
   });
 
   @override
@@ -30,17 +33,26 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   List<Map<String, dynamic>> _attachments = [];
   bool _loaded = false;
 
-  // Routet Attachment-Aktionen: für Augenarzt auf augenarzt_attachment.php.
-  Future<Map<String, dynamic>> _apiList() => widget.augenarzt
-      ? widget.apiService.augenarztListKorrAttachments(widget.modul, widget.korrespondenzId)
-      : widget.apiService.listKorrAttachments(widget.modul, widget.korrespondenzId);
-  Future<Map<String, dynamic>> _apiUpload(String filePath, String fileName) => widget.augenarzt
-      ? widget.apiService.augenarztUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
-      : widget.apiService.uploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName);
-  Future<Map<String, dynamic>> _apiDelete(int id) => widget.augenarzt
-      ? widget.apiService.augenarztDeleteKorrAttachment(id) : widget.apiService.deleteKorrAttachment(id);
-  Future _apiDownload(int id) => widget.augenarzt
-      ? widget.apiService.augenarztDownloadKorrAttachment(id) : widget.apiService.downloadKorrAttachment(id);
+  // Routet Attachment-Aktionen: für Augenarzt auf augenarzt_attachment.php,
+  // für HNO auf hno_attachment.php, sonst generisch.
+  Future<Map<String, dynamic>> _apiList() => widget.hno
+      ? widget.apiService.hnoListKorrAttachments(widget.modul, widget.korrespondenzId)
+      : widget.augenarzt
+          ? widget.apiService.augenarztListKorrAttachments(widget.modul, widget.korrespondenzId)
+          : widget.apiService.listKorrAttachments(widget.modul, widget.korrespondenzId);
+  Future<Map<String, dynamic>> _apiUpload(String filePath, String fileName) => widget.hno
+      ? widget.apiService.hnoUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
+      : widget.augenarzt
+          ? widget.apiService.augenarztUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
+          : widget.apiService.uploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName);
+  Future<Map<String, dynamic>> _apiDelete(int id) => widget.hno
+      ? widget.apiService.hnoDeleteKorrAttachment(id)
+      : widget.augenarzt
+          ? widget.apiService.augenarztDeleteKorrAttachment(id) : widget.apiService.deleteKorrAttachment(id);
+  Future _apiDownload(int id) => widget.hno
+      ? widget.apiService.hnoDownloadKorrAttachment(id)
+      : widget.augenarzt
+          ? widget.apiService.augenarztDownloadKorrAttachment(id) : widget.apiService.downloadKorrAttachment(id);
 
   @override
   void initState() { super.initState(); _load(); }

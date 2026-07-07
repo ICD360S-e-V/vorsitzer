@@ -9051,6 +9051,414 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // ===================================================================
+  // HNO-Arzt — eigene Endpunkte (hno_*), Klon der Augenarzt-Methoden
+  // ===================================================================
+  Future<Map<String, dynamic>> hnoListKorrAttachments(String modul, int korrespondenzId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/hno_attachment.php?modul=$modul&korrespondenz_id=$korrespondenzId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoUploadKorrAttachment({required String modul, required int korrespondenzId, required String filePath, required String fileName}) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_attachment.php')); request.headers.addAll(_headers);
+    request.fields['modul'] = modul; request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteKorrAttachment(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_attachment.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> hnoDownloadKorrAttachment(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_attachment.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> getHnoInstances(int userId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_get.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveHnoInstance(int userId, int instance, Map<String, dynamic> data) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'data': data}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> deleteHnoInstance(int userId, int instance) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'action': 'delete'}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> searchHnoDatenbank({String search = '', String fachrichtung = 'Augenheilkunde'}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'search', 'search': search, 'fachrichtung': fachrichtung}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> addHnoDatenbank(Map<String, dynamic> arzt) async {
+    final payload = {...arzt, 'action': 'add', 'fachrichtung': arzt['fachrichtung'] ?? 'Augenheilkunde'};
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> hnoRechnungAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_rechnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoRezeptAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_hilfsmittel_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoUploadGesundheitDokument({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_doc_upload.php'));
+    final headers = Map<String, String>.from(_headers); headers.remove('Content-Type');
+    request.headers.addAll(headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> hnoDownloadGesundheitDokument(int docId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteGesundheitDokument(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/hno_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> hnoListGesundheitDokumente(int userId, String gesundheitType, String analyseId) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/hno_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> getHnoTermine(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_termine_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveHnoTermin(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_termine_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> getHnoMedikamente(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_medikamente_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveHnoMedikament(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_medikamente_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> uploadHnoDoc({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_doc_upload.php'));
+    final h = Map<String, String>.from(_headers); h.remove('Content-Type');
+    request.headers.addAll(h);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> listHnoDocs({required int userId, required String gesundheitType, required String analyseId}) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/hno_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<List<int>?> downloadHnoDoc(int docId) async {
+    final response = await _client.get(Uri.parse('$baseUrl/admin/hno_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+    if (response.statusCode == 200 && response.headers['content-type'] != 'application/json') { return response.bodyBytes; }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> deleteHnoDoc(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/hno_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> hnoCreateSchweigepflicht(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_schweigepflicht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoSchweigepflichtAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_schweigepflicht_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> hnoDownloadSchweigepflichtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_schweigepflicht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoUploadSchweigepflichtSignature({required int schweigepflichtId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_schweigepflicht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteSchweigepflichtSignature({required int schweigepflichtId, required String type}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_schweigepflicht_signature_upload.php'), headers: _headers, body: jsonEncode({'schweigepflicht_id': schweigepflichtId, 'type': type, 'delete': true})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteSchweigepflichtSignatureById({required int signatureId}) async {
+    return await hnoSchweigepflichtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> hnoDownloadSchweigepflichtSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_schweigepflicht_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoCreateSchweigepflichtVersand({required int schweigepflichtId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_schweigepflicht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteSchweigepflichtVersand({required int versandId}) async {
+    return await hnoSchweigepflichtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> hnoDownloadSchweigepflichtVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_schweigepflicht_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoCreateArztVollmacht(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_vollmacht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoArztVollmachtAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_vollmacht_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> hnoDownloadArztVollmachtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_vollmacht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoUploadArztVollmachtSignature({required int vollmachtId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_vollmacht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteArztVollmachtSignatureById({required int signatureId}) async {
+    return await hnoArztVollmachtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> hnoDownloadArztVollmachtSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_vollmacht_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoCreateArztVollmachtVersand({required int vollmachtId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_vollmacht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteArztVollmachtVersand({required int versandId}) async {
+    return await hnoArztVollmachtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> hnoDownloadArztVollmachtVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_vollmacht_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoDmpAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_dmp_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoCreateArztEinwilligung(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_einwilligung_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoArztEinwilligungAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/hno_einwilligung_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> hnoDownloadArztEinwilligungPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_einwilligung_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoUploadArztEinwilligungSignature({required int einwilligungId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_einwilligung_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteArztEinwilligungSignatureById({required int signatureId}) async {
+    return await hnoArztEinwilligungAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> hnoDownloadArztEinwilligungSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_einwilligung_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoCreateArztEinwilligungVersand({required int einwilligungId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_einwilligung_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> hnoDeleteArztEinwilligungVersand({required int versandId}) async {
+    return await hnoArztEinwilligungAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> hnoDownloadArztEinwilligungVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/hno_einwilligung_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> hnoKorrespondenzAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/hno_korrespondenz_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadHnoKorrespondenzAnhang({
+    required int korrespondenzId,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/hno_korrespondenz_anhang_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['korrespondenz_id'] = korrespondenzId.toString();
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadHnoKorrespondenzAnhang(int anhangId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/hno_korrespondenz_pdf.php?anhang_id=$anhangId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+
   Future<Map<String, dynamic>> uploadAugenarztKorrespondenzAnhang({
     required int korrespondenzId,
     required Uint8List bytes,
