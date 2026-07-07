@@ -1243,12 +1243,6 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
       'blutfette':      {'label': 'Blutfette (Gesamt-Cholesterin, LDL, HDL, Triglyceride)', 'gkv': 'Check-up 35'},
       'urin':           {'label': 'Urinuntersuchung (Eiweiß, Glukose, Blut, Leukozyten, Nitrit)', 'gkv': 'Check-up 35'},
       'hepatitis':      {'label': 'Hepatitis B + C Screening (einmalig ab 35)', 'gkv': 'Check-up 35 (einmalig)'},
-      'stuhltest':      {'label': 'Stuhltest auf Blut / iFOBT (Darmkrebs ab 50)', 'gkv': 'Krebsvorsorge'},
-      'koloskopie':     {'label': 'Koloskopie (Darmkrebs ab 55, alle 10 Jahre)', 'gkv': 'Krebsvorsorge'},
-      'hautkrebs':      {'label': 'Hautkrebs-Screening (ab 35, alle 2 Jahre)', 'gkv': 'Krebsvorsorge'},
-      'psa_vorsorge':   {'label': 'Prostata-Untersuchung (Männer ab 45, jährlich)', 'gkv': 'Krebsvorsorge'},
-      'zervix':         {'label': 'Gebärmutterhals-Abstrich / PAP (Frauen ab 20, jährlich)', 'gkv': 'Krebsvorsorge'},
-      'mammographie':   {'label': 'Mammographie-Screening (Frauen 50-69, alle 2 Jahre)', 'gkv': 'Krebsvorsorge'},
       'grosses_blutbild': {'label': 'Großes Blutbild', 'gkv': 'Nur bei Indikation'},
       'kleines_blutbild': {'label': 'Kleines Blutbild', 'gkv': 'Nur bei Indikation'},
       'leberwerte':     {'label': 'Leberwerte (GOT, GPT, GGT, AP)', 'gkv': 'Nur bei Indikation'},
@@ -1262,8 +1256,6 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
       'harnsaeure':     {'label': 'Harnsäure', 'gkv': 'Nur bei Indikation'},
       'vitamin_d':      {'label': 'Vitamin D (25-OH-D3)', 'gkv': 'GKV bei Verdacht auf Mangel'},
       'vitamin_b12':    {'label': 'Vitamin B12 / Folsäure', 'gkv': 'GKV bei Verdacht auf Mangel'},
-      'psa_blut':       {'label': 'PSA Bluttest (Prostata)', 'gkv': 'IGeL (Selbstzahler)'},
-      'tumormarker':    {'label': 'Tumormarker (ohne Tumorverdacht)', 'gkv': 'IGeL (Selbstzahler)'},
     };
 
     Future<void> saveBlutHistory() async {
@@ -5588,7 +5580,6 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                                                     DropdownMenuItem(value: 'ct', child: Text('CT-Befund', style: TextStyle(fontSize: 13))),
                                                     DropdownMenuItem(value: 'op_bericht', child: Text('OP-Bericht', style: TextStyle(fontSize: 13))),
                                                     DropdownMenuItem(value: 'therapiebericht', child: Text('Therapiebericht', style: TextStyle(fontSize: 13))),
-                                                    DropdownMenuItem(value: 'zervixkarzinom', child: Text('Zervixkarzinom-Screening (HPV/Pap)', style: TextStyle(fontSize: 13))),
                                                     DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges', style: TextStyle(fontSize: 13))),
                                                   ],
                                                   onChanged: (v) => setAddState(() => berichtTyp = v ?? 'befund'),
@@ -13406,7 +13397,6 @@ $vollName$footer''';
         'Befundbericht', 'Arztbrief', 'OP-Bericht', 'Entlassungsbericht',
         'Laborbericht', 'Radiologie / Bildgebung', 'Pathologie',
         'Gutachten', 'Rehabilitationsbericht',
-        'Zervixkarzinom-Screening (HPV/Pap)',
         'Sonstiges',
       ];
 
@@ -18141,15 +18131,11 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
   List<Map<String, dynamic>> _list = [];
   bool _loading = true;
 
+  // Augenrelevante DMP-Indikationen: nur Diabetes (diabetische Retinopathie ist
+  // Teil des DMP Diabetes). Andere Indikationen betreffen andere Fachrichtungen.
   static const Map<String, String> _indikationLabels = {
     'diabetes_typ1': 'Diabetes Typ 1',
     'diabetes_typ2': 'Diabetes Typ 2',
-    'khk': 'Koronare Herzkrankheit (KHK)',
-    'asthma': 'Asthma bronchiale',
-    'copd': 'COPD',
-    'brustkrebs': 'Brustkrebs',
-    'osteoporose': 'Osteoporose',
-    'rheumatoide_arthritis': 'Rheumatoide Arthritis',
     'andere': 'Andere',
   };
 
