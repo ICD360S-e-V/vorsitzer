@@ -6615,6 +6615,17 @@ class ApiService {
     final r = await _client.post(Uri.parse('$baseUrl/admin/deutschebahn_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_vorfall', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  // Gespeicherte Reiseverbindungen (Start/Ziel + Hin/Rück) — pro Mitglied, für
+  // den MSZ-Online-Autofill von Schritt 2. getDeutscheBahnData liefert sie
+  // unter 'reiseverbindungen' mit.
+  Future<Map<String, dynamic>> saveDeutscheBahnReiseverbindung(int userId, Map<String, dynamic> rv) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/deutschebahn_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'save_reiseverbindung', 'reiseverbindung': rv})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteDeutscheBahnReiseverbindung(int userId, int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/deutschebahn_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'action': 'delete_reiseverbindung', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   Future<Map<String, dynamic>> listDeutscheBahnInstitutionen() async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/deutschebahn_manage.php?action=institutionen'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
