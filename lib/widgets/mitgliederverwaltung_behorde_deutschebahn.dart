@@ -454,6 +454,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       checks.add('reise mit einem Hilfsmittel');
       if (eRoll) {
         combo.add('WheelchairElectric');   // Elektrorollstuhl, Elektromobil
+        combo.add('UpTo250kg');            // Gesamtgewicht (Rollstuhl + Person + Gepäck) bis 250 kg
       } else if (rollator) {
         combo.add('Rollator');
       } else if (manualRoll) {
@@ -586,9 +587,11 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
-  // Findet das <select>, das eine <option> mit diesem Enum-Value hat, und setzt sie.
-  // (Nicht auf Sichtbarkeit filtern — db-select versteckt evtl. das native <select>
-  //  hinter eigener UI, das Setzen+change funktioniert trotzdem.)
+  // Setzt einen Formularwert per Enum-Value. Deckt beide MSZ-Muster ab:
+  //   1) natives <select> mit <option value=…>  (Hilfsmittel, Gewicht)
+  //   2) Radio-Button (input[type=radio] oder [role=radio]) mit value=…
+  // Nicht auf Sichtbarkeit filtern — db-Komponenten verstecken evtl. das native
+  // Element hinter eigener UI; value setzen + change funktioniert trotzdem.
   const selectAid = (enumValue) => {
     for (const sel of document.querySelectorAll('select')) {
       const opt = [...(sel.options || [])].find(o => o.value === enumValue);
@@ -596,7 +599,16 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       if (sel.value === enumValue) return true; // schon gesetzt
       sel.scrollIntoView({ block: 'center' });
       setSelectValue(sel, enumValue);
-      log('Hilfsmittel-Select →', enumValue, JSON.stringify((opt.textContent || '').trim()));
+      log('Select →', enumValue, JSON.stringify((opt.textContent || '').trim()));
+      return true;
+    }
+    for (const r of document.querySelectorAll('input[type=radio],[role=radio]')) {
+      const v = r.value || r.getAttribute('value') || '';
+      if (v !== enumValue) continue;
+      if (r.checked || r.getAttribute('aria-checked') === 'true') return true; // schon gesetzt
+      r.scrollIntoView({ block: 'center' });
+      r.click();
+      log('Radio →', enumValue);
       return true;
     }
     return false;
