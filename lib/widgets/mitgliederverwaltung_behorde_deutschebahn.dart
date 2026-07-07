@@ -53,6 +53,10 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   /// Hilfsmittel-Rezepte des Mitglieds (mitglied_rezepte, alle Arzt-Typen) —
   /// Quelle für die automatische MSZ-Online-Auswahl (E-Rollstuhl etc.).
   List<Map<String, dynamic>> _hilfsmittelRezepte = [];
+  /// Gespeicherte Reiseverbindungen (Start/Ziel/Hin/Rück) des Mitglieds —
+  /// jede kann per Globus-Button die MSZ-Online-Anmeldung starten (Schritt 1
+  /// aus den Mitgliedsdaten, Schritt 2 aus dieser Verbindung).
+  List<Map<String, dynamic>> _reiseverbindungen = [];
 
   static const _hilfeTypen = [
     'Einsteigehilfe',
@@ -85,7 +89,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -109,6 +113,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           }
         }
         _vorfaelle = (res['vorfaelle'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _reiseverbindungen = (res['reiseverbindungen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
       final inst = await widget.apiService.listDeutscheBahnInstitutionen();
       if (inst['success'] == true && mounted) {
@@ -172,9 +177,14 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             const SizedBox(width: 4), const Icon(Icons.accessible, size: 16),
             const SizedBox(width: 4), const Text('Vorfall'),
           ])),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.circle, size: 8, color: _reiseverbindungen.isNotEmpty ? Colors.green : Colors.grey.shade400),
+            const SizedBox(width: 4), const Icon(Icons.route, size: 16),
+            const SizedBox(width: 4), const Text('Reiseverbindung'),
+          ])),
         ],
       ),
-      Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildInstitutionTab(), _buildVorfallTab()])),
+      Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildInstitutionTab(), _buildVorfallTab(), _buildReiseverbindungTab()])),
     ]);
   }
 
@@ -423,6 +433,163 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     );
   }
 
+  // ────────────────────────── Tab 3: Gespeicherte Reiseverbindungen ──────────────────────────
+  Widget _buildReiseverbindungTab() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 4), child: Row(children: [
+        Icon(Icons.route, size: 18, color: Colors.red.shade700), const SizedBox(width: 8),
+        Text('${_reiseverbindungen.length} gespeicherte Verbindungen', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const Spacer(),
+        FilledButton.icon(
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Neue Reiseverbindung', style: TextStyle(fontSize: 12)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          onPressed: () => _showReiseverbindungDialog(),
+        ),
+      ])),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+        Expanded(child: Text('Häufige Strecken speichern (z. B. Ulm → Saarbrücken). Der 🌐-Button öffnet die MSZ-Online-Anmeldung: Schritt 1 automatisch aus den Mitgliedsdaten, Schritt 2 aus dieser Verbindung.',
+          style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+      ])),
+      const SizedBox(height: 8),
+      Expanded(child: _reiseverbindungen.isEmpty
+        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.route, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text('Keine Reiseverbindungen gespeichert', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          ]))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _reiseverbindungen.length, itemBuilder: (_, i) {
+            final rv = _reiseverbindungen[i];
+            final start = rv['start_bahnhof']?.toString() ?? '';
+            final ziel = rv['ziel_bahnhof']?.toString() ?? '';
+            final route = [start, ziel].where((s) => s.isNotEmpty).join(' → ');
+            final hin = '${rv['hin_datum'] ?? ''} ${rv['hin_uhrzeit'] ?? ''}'.trim();
+            final rueck = '${rv['rueck_datum'] ?? ''} ${rv['rueck_uhrzeit'] ?? ''}'.trim();
+            final name = rv['name']?.toString() ?? '';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: CircleAvatar(backgroundColor: Colors.red.shade50, child: Icon(Icons.route, size: 18, color: Colors.red.shade700)),
+                title: Text(name.isNotEmpty ? name : (route.isNotEmpty ? route : '—'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (name.isNotEmpty && route.isNotEmpty) Text(route, style: const TextStyle(fontSize: 11)),
+                  if (hin.isNotEmpty) Text('Hin: $hin', style: const TextStyle(fontSize: 11)),
+                  if (rueck.isNotEmpty) Text('Rück: $rueck', style: const TextStyle(fontSize: 11)),
+                ]),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    tooltip: 'Online anmelden (MSZ) — Schritt 1 + 2 automatisch',
+                    icon: Icon(Icons.public, color: Colors.indigo.shade600),
+                    onPressed: () => _launchMszOnline(reiseverbindung: rv),
+                  ),
+                  PopupMenuButton<String>(
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 16), SizedBox(width: 8), Text('Bearbeiten')])),
+                      const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, size: 16, color: Colors.red), SizedBox(width: 8), Text('Löschen', style: TextStyle(color: Colors.red))])),
+                    ],
+                    onSelected: (a) {
+                      if (a == 'edit') _showReiseverbindungDialog(existing: rv);
+                      if (a == 'delete') _deleteReiseverbindung(rv);
+                    },
+                  ),
+                ]),
+                onTap: () => _showReiseverbindungDialog(existing: rv),
+              ),
+            );
+          })),
+    ]);
+  }
+
+  Future<void> _deleteReiseverbindung(Map<String, dynamic> rv) async {
+    final c = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
+      title: const Text('Reiseverbindung löschen?'),
+      content: Text(rv['name']?.toString().isNotEmpty == true ? rv['name'].toString() : '${rv['start_bahnhof'] ?? ''} → ${rv['ziel_bahnhof'] ?? ''}'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(d, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Löschen')),
+      ],
+    ));
+    if (c != true) return;
+    await widget.apiService.deleteDeutscheBahnReiseverbindung(widget.userId, int.tryParse(rv['id'].toString()) ?? 0);
+    _load();
+  }
+
+  void _showReiseverbindungDialog({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    final nameC = TextEditingController(text: existing?['name']?.toString() ?? '');
+    final startC = TextEditingController(text: existing?['start_bahnhof']?.toString() ?? '');
+    final zielC = TextEditingController(text: existing?['ziel_bahnhof']?.toString() ?? '');
+    final hinDatumC = TextEditingController(text: existing?['hin_datum']?.toString() ?? '');
+    final hinUhrzeitC = TextEditingController(text: existing?['hin_uhrzeit']?.toString() ?? '');
+    final rueckDatumC = TextEditingController(text: existing?['rueck_datum']?.toString() ?? '');
+    final rueckUhrzeitC = TextEditingController(text: existing?['rueck_uhrzeit']?.toString() ?? '');
+
+    Future<void> pickDate(TextEditingController c) async {
+      final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime(2040), locale: const Locale('de'));
+      if (p != null) c.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
+    }
+    Future<void> pickTime(TextEditingController c) async {
+      final p = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+      if (p != null) c.text = '${p.hour.toString().padLeft(2, '0')}:${p.minute.toString().padLeft(2, '0')}';
+    }
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Text(isEdit ? 'Reiseverbindung bearbeiten' : 'Neue Reiseverbindung'),
+      content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Name (optional, z. B. Heimreise)', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 12),
+        const Text('Strecke', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        TextField(controller: startC, decoration: const InputDecoration(labelText: 'Start-Bahnhof (z. B. Ulm Hbf)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.train, size: 16))),
+        const SizedBox(height: 10),
+        TextField(controller: zielC, decoration: const InputDecoration(labelText: 'Ziel-Bahnhof (z. B. Saarbrücken Hbf)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.flag, size: 16))),
+        const SizedBox(height: 14),
+        const Text('Hinfahrt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: TextField(controller: hinDatumC, readOnly: true, onTap: () => pickDate(hinDatumC), decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(controller: hinUhrzeitC, readOnly: true, onTap: () => pickTime(hinUhrzeitC), decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)))),
+        ]),
+        const SizedBox(height: 14),
+        const Text('Rückfahrt (optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: TextField(controller: rueckDatumC, readOnly: true, onTap: () => pickDate(rueckDatumC), decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(controller: rueckUhrzeitC, readOnly: true, onTap: () => pickTime(rueckUhrzeitC), decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.schedule, size: 16)))),
+        ]),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+          onPressed: () async {
+            if (startC.text.trim().isEmpty || zielC.text.trim().isEmpty) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Start- und Ziel-Bahnhof sind Pflicht'), backgroundColor: Colors.red));
+              return;
+            }
+            await widget.apiService.saveDeutscheBahnReiseverbindung(widget.userId, {
+              if (isEdit) 'id': existing['id'],
+              'name': nameC.text.trim(),
+              'start_bahnhof': startC.text.trim(),
+              'ziel_bahnhof': zielC.text.trim(),
+              'hin_datum': hinDatumC.text.trim(),
+              'hin_uhrzeit': hinUhrzeitC.text.trim(),
+              'rueck_datum': rueckDatumC.text.trim(),
+              'rueck_uhrzeit': rueckUhrzeitC.text.trim(),
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
+            _load();
+          },
+          child: Text(isEdit ? 'Speichern' : 'Anlegen'),
+        ),
+      ],
+    ));
+  }
+
   // ────────────────────────── MSZ Online-Anmeldung (Chromium extern + Auto-Fill) ──────────────────────────
   static const _mszOnlineUrl = 'https://msz.bahnhof.de/unterstuetzungsbedarf';
 
@@ -476,12 +643,26 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return (checks: checks, combo: combo);
   }
 
-  Future<void> _launchMszOnline({required String hilfsmittel, required bool schwerhoerig, required String begleit}) async {
-    final picks = _computeMszPicks(hilfsmittel: hilfsmittel, schwerhoerig: schwerhoerig, begleit: begleit);
-    final weitere = schwerhoerig
+  /// Öffnet das MSZ-Portal im externen Chromium und füllt aus:
+  ///   • Schritt 1 — aus den Mitgliedsdaten (Hilfsmittel-Rezepte, Hörgeräte).
+  ///     Vom Vorfall-Dialog werden hilfsmittel/schwerhoerig/begleit übergeben;
+  ///     vom Reiseverbindung-Globus greifen die Mitglieds-Defaults.
+  ///   • Schritt 2 — aus [reiseverbindung] (Start/Ziel/Hin/Rück), falls gesetzt.
+  Future<void> _launchMszOnline({String hilfsmittel = '', bool? schwerhoerig, String begleit = 'nein', Map<String, dynamic>? reiseverbindung}) async {
+    final sh = schwerhoerig ?? _gesundheitHoergeraete;
+    final picks = _computeMszPicks(hilfsmittel: hilfsmittel, schwerhoerig: sh, begleit: begleit);
+    final weitere = sh
         ? 'Schwerhörig / Hörbehinderung${_gesundheitHoergeraeteSeite.isNotEmpty ? " (Hörgerät: $_gesundheitHoergeraeteSeite)" : ""}'
         : '';
-    final all = [...picks.checks, ...picks.combo];
+    final rv = reiseverbindung == null ? <String, String>{} : {
+      'start': reiseverbindung['start_bahnhof']?.toString() ?? '',
+      'ziel': reiseverbindung['ziel_bahnhof']?.toString() ?? '',
+      'hin_datum': reiseverbindung['hin_datum']?.toString() ?? '',
+      'hin_uhrzeit': reiseverbindung['hin_uhrzeit']?.toString() ?? '',
+      'rueck_datum': reiseverbindung['rueck_datum']?.toString() ?? '',
+      'rueck_uhrzeit': reiseverbindung['rueck_uhrzeit']?.toString() ?? '',
+    };
+    final all = [...picks.checks, ...picks.combo, if (rv['start']?.isNotEmpty == true) '${rv['start']} → ${rv['ziel']}'];
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(all.isEmpty
@@ -492,7 +673,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     }
     final err = await ExternalBrowserService.openWithAutoFill(
       url: _mszOnlineUrl,
-      autoFillJs: _buildMszAutoFillJs(picks.checks, picks.combo, weitere),
+      autoFillJs: _buildMszAutoFillJs(picks.checks, picks.combo, weitere, rv),
     );
     if (err != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err), backgroundColor: Colors.red, duration: const Duration(seconds: 8)));
@@ -509,10 +690,11 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   /// Polling deckt gestufte Reveals ab. Alle Aktionen loggen als [ICD-MSZ]
   /// in die Browser-Konsole (CSP blockt nur manuelles Konsolen-Einfügen,
   /// nicht die per CDP injizierten Skripte).
-  String _buildMszAutoFillJs(List<String> checks, List<String> combo, String weitere) {
+  String _buildMszAutoFillJs(List<String> checks, List<String> combo, String weitere, Map<String, String> rv) {
     final checksJson = jsonEncode(checks);
     final comboJson = jsonEncode(combo);
     final weitereJson = jsonEncode(weitere);
+    final rvJson = jsonEncode(rv);
     return '''
 (() => {
   // Gemeinsamer Zustand pro Frame — überlebt Re-Injektionen (evaluateOnNewDocument
@@ -522,6 +704,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   const log = (...a) => { try { console.warn('[ICD-MSZ]', ...a); } catch (_) {} };
   if (S.loopRunning) { log('loop läuft bereits in diesem Frame — skip'); return; }
   S.loopRunning = true;
+  const RV = $rvJson;  // Schritt 2: {start, ziel, hin_datum, hin_uhrzeit, rueck_datum, rueck_uhrzeit}
 
   const CHECKS = $checksJson;
   const COMBO  = $comboJson;
@@ -622,6 +805,43 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return false;
   };
 
+  // ── Schritt 2 (Reiseverbindung): Bahnhof-Autocomplete tippen + Vorschlag wählen ──
+  // Rückgabe: 'done' | 'pending' | 'absent'. absent = Feld (noch) nicht da (= nicht
+  // auf Schritt 2) → blockiert das Polling nicht.
+  const fillStation = (key, value, matchRe) => {
+    if (!value || S.acted[key] === 'done') return 'done';
+    const inp = [...document.querySelectorAll('input')].filter(isUsable).find(i =>
+      matchRe.test(i.getAttribute('placeholder') || '') ||
+      matchRe.test(i.getAttribute('aria-label') || '') ||
+      matchRe.test(((i.closest('label,div,fieldset,section') || {}).innerText) || ''));
+    if (!inp) return 'absent';
+    if (S.acted[key] !== 'typed') {
+      inp.focus();
+      setNativeValue(inp, value);
+      inp.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+      inp.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+      S.acted[key] = 'typed';
+      log('Schritt2 Bahnhof getippt', key, JSON.stringify(value));
+      return 'pending';
+    }
+    const nt = norm(value.split(/[ ,(]/)[0]);
+    const opt = [...document.querySelectorAll('li,[role=option]')].filter(isUsable).find(o => norm(o.textContent).includes(nt));
+    if (!opt) return 'pending';
+    opt.click();
+    S.acted[key] = 'done';
+    log('Schritt2 Bahnhof gewählt', key, JSON.stringify((opt.textContent || '').trim()));
+    return 'done';
+  };
+
+  const fillSchritt2 = () => {
+    if (!RV || !RV.start) return true;                    // keine Reiseverbindung
+    const s = fillStation('s2_start', RV.start, /start|abfahrt|abgangs/i);
+    if (s === 'absent') return true;                      // nicht auf Schritt 2 → nicht blockieren
+    if (s !== 'done') return false;                       // Start zuerst fertigstellen
+    const z = fillStation('s2_ziel', RV.ziel, /ziel|ankunft|nach\\b/i);
+    return z === 'done' || z === 'absent';
+  };
+
   const start = Date.now();
   let n = 0;
   const tick = () => {
@@ -633,6 +853,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       if (S.acted['o:' + o]) continue;
       if (selectAid(o)) S.acted['o:' + o] = 1; else remaining++;
     }
+    if (!fillSchritt2()) remaining++;
     if (WEITERE && !S.acted.weitere) {
       const ta = [...document.querySelectorAll('textarea')].filter(isUsable)[0];
       if (ta) { setNativeValue(ta, WEITERE); S.acted.weitere = 1; log('Weitere Hilfe gefüllt'); }
