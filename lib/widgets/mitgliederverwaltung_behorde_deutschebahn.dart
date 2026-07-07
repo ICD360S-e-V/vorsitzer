@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/external_browser_service.dart';
 import '../utils/clipboard_helper.dart';
 
 /// Deutsche Bahn — Mobilitätsservice-Zentrale (MSZ)
@@ -48,6 +50,9 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   List<Map<String, dynamic>> _dticketVertraege = [];
   bool _gesundheitHoergeraete = false;
   String _gesundheitHoergeraeteSeite = '';
+  /// Hilfsmittel-Rezepte des Mitglieds (mitglied_rezepte, alle Arzt-Typen) —
+  /// Quelle für die automatische MSZ-Online-Auswahl (E-Rollstuhl etc.).
+  List<Map<String, dynamic>> _hilfsmittelRezepte = [];
 
   static const _hilfeTypen = [
     'Einsteigehilfe',
@@ -119,6 +124,12 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       if (gp['success'] == true && mounted) {
         _gesundheitHoergeraete = gp['hoergeraete']?.toString() == '1';
         _gesundheitHoergeraeteSeite = gp['hoergeraete_seite']?.toString() ?? '';
+      }
+      // Hilfsmittel-Rezepte (alle Arzt-Typen, kein arzt_type-Filter) — für die
+      // automatische Auswahl auf dem MSZ-Portal (z. B. E-Rollstuhl → Elektrorollstuhl).
+      final rz = await widget.apiService.rezeptAction({'action': 'list', 'user_id': widget.userId});
+      if (rz['rezepte'] is List && mounted) {
+        _hilfsmittelRezepte = (rz['rezepte'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     } catch (_) {}
     if (mounted) setState(() { _loading = false; _loaded = true; });
@@ -412,6 +423,197 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     );
   }
 
+  // ────────────────────────── MSZ Online-Anmeldung (Chromium extern + Auto-Fill) ──────────────────────────
+  static const _mszOnlineUrl = 'https://msz.bahnhof.de/unterstuetzungsbedarf';
+
+  /// Leitet aus den vorhandenen Daten (Hilfsmittel-Rezepte + Dialog-Eingaben)
+  /// die auf dem MSZ-Portal anzuklickenden Optionen ab. Rückgabe: Liste
+  /// sichtbarer Options-Texte, die das Auto-Fill-JS auf msz.bahnhof.de anklickt.
+  /// checks = Checkbox-Kategorien (per Klick auf sichtbaren Text), combo =
+  /// Optionen der react-select-Hilfsmittel-Combobox (öffnen → <li> anklicken).
+  /// Labels exakt aus dem MSZ-Bundle (index-*.js): „Elektrorollstuhl, Elektromobil",
+  /// „Manueller Rollstuhl", „Rollator".
+  ({List<String> checks, List<String> combo}) _computeMszPicks({required String hilfsmittel, required bool schwerhoerig, required String begleit}) {
+    final sources = <String>[
+      ..._hilfsmittelRezepte.map((r) => (r['hilfsmittel'] ?? '').toString().toLowerCase()),
+      hilfsmittel.toLowerCase(),
+    ];
+    bool has(List<String> needles) => sources.any((s) => needles.any((n) => s.contains(n)));
+    final eRoll      = has(['e-roll', 'elektroroll', 'elektro-roll', 'elektromobil', 'elektrisch']);
+    final rollator   = has(['rollator']);
+    final manualRoll = has(['rollstuhl']) && !eRoll;
+    final blindfuehr = has(['blindenführhund', 'führhund', 'assistenzhund']);
+    final blindstock = has(['blindenstock', 'langstock']);
+
+    final checks = <String>[];
+    final combo = <String>[];
+    if (eRoll || rollator || manualRoll) {
+      checks.add('reise mit einem Hilfsmittel');
+      if (eRoll) {
+        combo.add('Elektrorollstuhl, Elektromobil');
+      } else if (rollator) {
+        combo.add('Rollator');
+      } else if (manualRoll) {
+        combo.add('Manueller Rollstuhl');
+      }
+    }
+    if (blindstock || blindfuehr) checks.add('blind oder sehbeeinträchtigt');
+    if (schwerhoerig) checks.add('Andere Einschränkungen');
+    if (begleit == 'ja') checks.add('Begleitperson');
+    if (blindfuehr) checks.add('Assistenzhund');
+    return (checks: checks, combo: combo);
+  }
+
+  Future<void> _launchMszOnline({required String hilfsmittel, required bool schwerhoerig, required String begleit}) async {
+    final picks = _computeMszPicks(hilfsmittel: hilfsmittel, schwerhoerig: schwerhoerig, begleit: begleit);
+    final weitere = schwerhoerig
+        ? 'Schwerhörig / Hörbehinderung${_gesundheitHoergeraeteSeite.isNotEmpty ? " (Hörgerät: $_gesundheitHoergeraeteSeite)" : ""}'
+        : '';
+    final all = [...picks.checks, ...picks.combo];
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(all.isEmpty
+            ? 'MSZ-Portal wird geöffnet (keine Auto-Auswahl — keine passenden Daten hinterlegt)'
+            : 'MSZ-Portal wird geöffnet — Auto-Auswahl: ${all.join(", ")}'),
+        backgroundColor: Colors.blue,
+      ));
+    }
+    final err = await ExternalBrowserService.openWithAutoFill(
+      url: _mszOnlineUrl,
+      autoFillJs: _buildMszAutoFillJs(picks.checks, picks.combo, weitere),
+    );
+    if (err != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err), backgroundColor: Colors.red, duration: const Duration(seconds: 8)));
+    }
+  }
+
+  /// Auto-Fill-JS für das MSZ-Portal (msz.bahnhof.de, Vite/React-SPA).
+  ///
+  /// Struktur laut Bundle:
+  ///   • Unterstützungsbedarf-Kategorien + Begleitung/Assistenzhund = Checkboxen
+  ///     → per sichtbarem Text anklicken (nur wenn nicht bereits gesetzt).
+  ///   • Hilfsmittel = react-select-Multiselect (Combobox + <li>-Optionen)
+  ///     → Combobox öffnen/filtern, dann das passende <li> anklicken.
+  /// Polling deckt gestufte Reveals ab. Alle Aktionen loggen als [ICD-MSZ]
+  /// in die Browser-Konsole (CSP blockt nur manuelles Konsolen-Einfügen,
+  /// nicht die per CDP injizierten Skripte).
+  String _buildMszAutoFillJs(List<String> checks, List<String> combo, String weitere) {
+    final checksJson = jsonEncode(checks);
+    final comboJson = jsonEncode(combo);
+    final weitereJson = jsonEncode(weitere);
+    return '''
+(() => {
+  if (window.__icd_msz_running) { try { console.warn('[ICD-MSZ] already running'); } catch (_) {} return; }
+  window.__icd_msz_running = true;
+  const CHECKS = $checksJson;
+  const COMBO  = $comboJson;
+  const WEITERE = $weitereJson;
+  const log = (...a) => { try { console.warn('[ICD-MSZ]', ...a); } catch (_) {} };
+  const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+
+  const isUsable = (el) => {
+    if (!el) return false;
+    const st = window.getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return false;
+    return true;
+  };
+
+  const setNativeValue = (el, value) => {
+    const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  // Kleinstes sichtbares Element, dessen Text `needle` enthält (= spezifischste Option).
+  const findByText = (needle, selector) => {
+    const n = norm(needle);
+    const nodes = Array.from(document.querySelectorAll(selector)).filter(isUsable);
+    let best = null, bestLen = Infinity;
+    for (const el of nodes) {
+      const t = norm(el.innerText || el.textContent || '');
+      if (!t || !t.includes(n)) continue;
+      if (t.length < bestLen) { best = el; bestLen = t.length; }
+    }
+    return best;
+  };
+
+  // Checkbox-Kategorie per sichtbarem Text setzen (idempotent).
+  const checkOption = (text) => {
+    const el = findByText(text, 'label,[role=checkbox],button,li,div,span,p');
+    if (!el) return false;
+    const cb = (el.matches && el.matches('input[type=checkbox]')) ? el : el.querySelector('input[type=checkbox]');
+    if (cb && cb.checked) return true; // schon gesetzt → fertig
+    el.scrollIntoView({ block: 'center' });
+    el.click();
+    log('checked', JSON.stringify(text));
+    return true;
+  };
+
+  // Sucht das <input> der Hilfsmittel-Combobox (Abschnitt enthält "Hilfsmittel").
+  const findAidInput = () => {
+    const inputs = Array.from(document.querySelectorAll('input')).filter(isUsable);
+    for (const inp of inputs) {
+      const box = inp.closest('div,section,fieldset');
+      if (box && /hilfsmittel/i.test(box.innerText || '')) return inp;
+    }
+    return null;
+  };
+
+  // Combobox öffnen + nach dem ersten Wort der Option filtern.
+  const openAidCombo = (optText) => {
+    const inp = findAidInput();
+    if (!inp) return false;
+    inp.focus();
+    try { inp.click(); } catch (_) {}
+    const filter = (optText || '').split(/[ ,]/)[0];
+    if (filter) setNativeValue(inp, filter);
+    log('opened Hilfsmittel-Combobox; filter=', JSON.stringify(filter));
+    return true;
+  };
+
+  // Offene <li>/Option der Combobox anklicken.
+  const pickComboOption = (text) => {
+    const el = findByText(text, 'li,[role=option],[role=menuitem]');
+    if (!el) return false;
+    el.scrollIntoView({ block: 'center' });
+    el.click();
+    log('combo-picked', JSON.stringify(text));
+    return true;
+  };
+
+  const doneC = {}, doneO = {};
+  let lastOpen = -10;
+  const start = Date.now();
+  let tickN = 0;
+  const tick = () => {
+    tickN++;
+    if (Date.now() - start > 60000) { log('timeout', tickN, 'ticks; checks=', JSON.stringify(doneC), 'combo=', JSON.stringify(doneO)); return; }
+    let remaining = 0;
+    for (const c of CHECKS) { if (doneC[c]) continue; if (checkOption(c)) doneC[c] = true; else remaining++; }
+    for (const o of COMBO) {
+      if (doneO[o]) continue;
+      if (pickComboOption(o)) { doneO[o] = true; }
+      else { remaining++; if (tickN - lastOpen > 2) { if (openAidCombo(o)) lastOpen = tickN; } }
+    }
+    if (WEITERE && !window.__icd_msz_weitere) {
+      const ta = Array.from(document.querySelectorAll('textarea')).filter(isUsable)[0];
+      if (ta) { setNativeValue(ta, WEITERE); window.__icd_msz_weitere = true; log('filled Weitere Hilfe'); }
+    }
+    if (tickN === 1 || tickN % 5 === 0) log('tick', tickN, 'remaining', remaining);
+    const weitereLeft = WEITERE && !window.__icd_msz_weitere;
+    if (remaining > 0 || weitereLeft) setTimeout(tick, 800);
+    else log('DONE checks=', JSON.stringify(doneC), 'combo=', JSON.stringify(doneO));
+  };
+  log('start; url=', location.href, 'CHECKS=', JSON.stringify(CHECKS), 'COMBO=', JSON.stringify(COMBO));
+  setTimeout(tick, 900);
+})();
+''';
+  }
+
   void _showVorfallDialog({Map<String, dynamic>? existing}) {
     final isEdit = existing != null;
     String hilfeTyp = existing?['hilfe_typ']?.toString().isNotEmpty == true ? existing!['hilfe_typ'].toString() : _hilfeTypen.first;
@@ -608,6 +810,12 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.open_in_browser, size: 16),
+          label: const Text('Online anmelden', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.indigo.shade700, side: BorderSide(color: Colors.indigo.shade400)),
+          onPressed: () => _launchMszOnline(hilfsmittel: hilfsmittel, schwerhoerig: schwerhoerig, begleit: begleit),
+        ),
         OutlinedButton.icon(
           icon: const Icon(Icons.mail_outline, size: 16),
           label: const Text('E-Mail an MSZ', style: TextStyle(fontSize: 12)),
