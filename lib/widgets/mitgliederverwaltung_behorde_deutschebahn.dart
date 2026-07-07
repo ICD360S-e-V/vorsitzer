@@ -640,6 +640,9 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       'hin_uhrzeit': reiseverbindung['hin_uhrzeit']?.toString() ?? '',
       'rueck_datum': reiseverbindung['rueck_datum']?.toString() ?? '',
       'rueck_uhrzeit': reiseverbindung['rueck_uhrzeit']?.toString() ?? '',
+      // „Nur Nahverkehr" nur setzen, wenn das Mitglied ein Deutschland-Ticket hat
+      // (Behörde → Deutschlandticket → Vertrag vorhanden).
+      'nur_nahverkehr': _dticketVertraege.isNotEmpty ? '1' : '',
     };
     final all = [...picks.checks, ...picks.combo, if (rv['start']?.isNotEmpty == true) '${rv['start']} → ${rv['ziel']}'];
     if (mounted) {
@@ -802,6 +805,16 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     }) || null;
   };
 
+  // Klick, der auch Combobox-/Menü-Optionen zuverlässig auswählt: viele reagieren
+  // auf mousedown (onClick käme nach dem Blur, wenn die Liste schon zu ist). Deshalb
+  // brauchte der Zielbahnhof-Vorschlag bisher eine manuelle Bestätigung.
+  const fireClick = (el) => {
+    el.scrollIntoView({ block: 'center' });
+    for (const t of ['pointerdown', 'mousedown', 'mouseup', 'click']) {
+      el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
+    }
+  };
+
   // Rückgabe: 'done' | 'pending' | 'absent'.
   const fillStation = (key, value, labelRe) => {
     if (!value || S.acted[key] === 'done') return 'done';
@@ -817,9 +830,9 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       return 'pending';
     }
     const nt = norm(value.split(/[ ,(]/)[0]);
-    const opt = [...document.querySelectorAll('li')].filter(isUsable).find(o => norm(o.textContent).includes(nt));
+    const opt = [...document.querySelectorAll('li,[role=option]')].filter(isUsable).find(o => norm(o.textContent).includes(nt));
     if (!opt) return 'pending';
-    opt.click();
+    fireClick(opt);
     S.acted[key] = 'done';
     log('S2 Bahnhof gewählt', key, JSON.stringify((opt.textContent || '').trim()));
     return 'done';
@@ -830,7 +843,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     if (!RV.rueck_datum) { S.acted.tripType = 1; return; }   // ohne Rückdatum: einfache Fahrt reicht
     const seg = [...document.querySelectorAll('[role=tab],button,label,span,div')].filter(isUsable)
       .find(el => norm(el.innerText || el.textContent) === 'hin- und rückfahrt');
-    if (seg) { seg.click(); S.acted.tripType = 1; log('S2 Hin- und Rückfahrt gewählt'); }
+    if (seg) { fireClick(seg); S.acted.tripType = 1; log('S2 Hin- und Rückfahrt gewählt'); }
   };
 
   const fillDates = () => {
@@ -845,15 +858,33 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     }
   };
 
+  // „Verkehrsmittel auswählen" → „Nur Nahverkehr" (Iu.LOCAL) — NUR wenn das Mitglied
+  // ein Deutschland-Ticket hat. Das Dropdown klappt nach unten auf: erst den Trigger
+  // klicken, dann die Option „Nur Nahverkehr".
+  const selectNahverkehr = () => {
+    if (!RV.nur_nahverkehr || S.acted.nahverkehr) return true;
+    const opt = [...document.querySelectorAll('li,[role=option],[role=menuitem],button,a,span,div')].filter(isUsable)
+      .find(el => norm(el.innerText || el.textContent) === 'nur nahverkehr');
+    if (opt) { fireClick(opt); S.acted.nahverkehr = 1; log('S2 Nur Nahverkehr gewählt'); return true; }
+    if ((S.acted.vmOpen || 0) < 5) {
+      const cands = [...document.querySelectorAll('button,[role=button],[aria-haspopup],summary,div,span')].filter(isUsable)
+        .filter(el => /verkehrsmittel/i.test((el.innerText || el.textContent || '') + ' ' + (el.getAttribute('aria-label') || '')));
+      const trig = cands.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length)[0];
+      if (trig) { fireClick(trig); S.acted.vmOpen = (S.acted.vmOpen || 0) + 1; log('S2 Verkehrsmittel-Dropdown geöffnet #' + S.acted.vmOpen); }
+    }
+    return false;
+  };
+
   const fillSchritt2 = () => {
     if (!RV || !RV.start) return true;                       // keine Reiseverbindung
     const s = fillStation('s2_start', RV.start, /start/i);
     if (s === 'absent') return false;                        // noch nicht auf Schritt 2 → Schleife am Leben halten
     clickTripTwoWay();
     fillDates();
-    if (s !== 'done') return false;
+    const nv = selectNahverkehr();
+    if (s !== 'done') return false;                          // Start zuerst fertig
     const z = fillStation('s2_ziel', RV.ziel, /ziel/i);
-    return z === 'done';
+    return z === 'done' && nv;
   };
 
   const start = Date.now();
