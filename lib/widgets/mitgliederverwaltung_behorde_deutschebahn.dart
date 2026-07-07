@@ -445,16 +445,19 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     final blindfuehr = has(['blindenführhund', 'führhund', 'assistenzhund']);
     final blindstock = has(['blindenstock', 'langstock']);
 
+    // combo = Enum-VALUES des nativen <select> (nicht Labels!) — das MSZ-Formular
+    // rendert ein natives <select><optgroup label="Rollstuhl"><option value="WheelchairElectric">
+    // Elektrorollstuhl, Elektromobil</option>… und liest e.target.value.
     final checks = <String>[];
     final combo = <String>[];
     if (eRoll || rollator || manualRoll) {
       checks.add('reise mit einem Hilfsmittel');
       if (eRoll) {
-        combo.add('Elektrorollstuhl, Elektromobil');
+        combo.add('WheelchairElectric');   // Elektrorollstuhl, Elektromobil
       } else if (rollator) {
         combo.add('Rollator');
       } else if (manualRoll) {
-        combo.add('Manueller Rollstuhl');
+        combo.add('Wheelchair');           // Manueller Rollstuhl
       }
     }
     if (blindstock || blindfuehr) checks.add('blind oder sehbeeinträchtigt');
@@ -573,41 +576,30 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return true;
   };
 
-  // Sucht das <input> der Hilfsmittel-Combobox (Abschnitt enthält "Hilfsmittel").
-  const findAidInput = () => {
-    for (const inp of document.querySelectorAll('input')) {
-      if (!isUsable(inp)) continue;
-      const box = inp.closest('div,section,fieldset');
-      if (box && /hilfsmittel/i.test(box.innerText || '')) return inp;
+  // Hilfsmittel ist ein natives <select> (db-select) mit <optgroup>/<option
+  // value="WheelchairElectric">…, KEIN Combobox. Also value setzen + change
+  // feuern (das Formular liest onChange e.target.value) — nicht klicken/öffnen.
+  const setSelectValue = (sel, value) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
+    if (setter) setter.call(sel, value); else sel.value = value;
+    sel.dispatchEvent(new Event('input', { bubbles: true }));
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  // Findet das <select>, das eine <option> mit diesem Enum-Value hat, und setzt sie.
+  // (Nicht auf Sichtbarkeit filtern — db-select versteckt evtl. das native <select>
+  //  hinter eigener UI, das Setzen+change funktioniert trotzdem.)
+  const selectAid = (enumValue) => {
+    for (const sel of document.querySelectorAll('select')) {
+      const opt = [...(sel.options || [])].find(o => o.value === enumValue);
+      if (!opt) continue;
+      if (sel.value === enumValue) return true; // schon gesetzt
+      sel.scrollIntoView({ block: 'center' });
+      setSelectValue(sel, enumValue);
+      log('Hilfsmittel-Select →', enumValue, JSON.stringify((opt.textContent || '').trim()));
+      return true;
     }
-    return null;
-  };
-
-  // Combobox öffnen + nach dem ersten Wort der Option filtern (max. 4×, damit sie
-  // nicht im Loop auf/zu klappt).
-  const openAidCombo = (optText) => {
-    if (S.comboOpened >= 4) return false;
-    const inp = findAidInput();
-    if (!inp) return false;
-    inp.focus();
-    try { inp.click(); } catch (_) {}
-    const f = (optText || '').split(/[ ,]/)[0];
-    if (f) setNativeValue(inp, f);
-    S.comboOpened++;
-    log('Combobox geöffnet #' + S.comboOpened, 'filter=', JSON.stringify(f));
-    return true;
-  };
-
-  // Offene <li>/Option der Combobox EINMALIG anklicken.
-  const pickCombo = (text) => {
-    if (S.acted['o:' + text]) return true;
-    const el = findByText(text, 'li,[role=option],[role=menuitem]');
-    if (!el) return false;
-    el.scrollIntoView({ block: 'center' });
-    el.click();
-    S.acted['o:' + text] = 1;
-    log('Combo gewählt', JSON.stringify(text));
-    return true;
+    return false;
   };
 
   const start = Date.now();
@@ -619,7 +611,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     for (const c of CHECKS) if (!ensureChecked(c)) remaining++;
     for (const o of COMBO) {
       if (S.acted['o:' + o]) continue;
-      if (!pickCombo(o)) { remaining++; if (n % 3 === 0) openAidCombo(o); }
+      if (selectAid(o)) S.acted['o:' + o] = 1; else remaining++;
     }
     if (WEITERE && !S.acted.weitere) {
       const ta = [...document.querySelectorAll('textarea')].filter(isUsable)[0];
