@@ -50,7 +50,14 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
+          # fetch-depth: 0 = volle Historie (nötig für `git describe`, um das
+          # letzte Tag zu finden). ABER filter: blob:none macht daraus einen
+          # Partial-Clone: nur Commits/Trees, KEINE Blob-Inhalte. Der Bump-Job
+          # braucht nur Commit-/Tree-Metadaten (git describe / diff --name-status
+          # / log) — nicht die 3,2 GB Blobs in der Historie (Alt-Artefakte:
+          # 2317 Flatpak repo/objects/*.filez + Installer). Spart ~7 Min Klonzeit.
           fetch-depth: 0
+          filter: blob:none
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure git
