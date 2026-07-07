@@ -463,11 +463,12 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     }
     if (blindstock || blindfuehr) checks.add('blind oder sehbeeinträchtigt');
     // Eigenständige Kategorie (unabhängig vom Hilfsmittel): Hörgeräte im
-    // Gesundheitsprofil → „Andere Einschränkungen" + otherImpairment-Select
-    // (natives <select><option value="Deafness">Taubheit oder Schwerhörigkeit).
+    // Gesundheitsprofil → „Andere Einschränkungen" + otherImpairment-Select.
+    // ACHTUNG: dieser Select nutzt das LABEL als option-value (options:{value:NT[e]})
+    // und liest onChange den selectedIndex — daher das Label übergeben, nicht das Enum.
     if (schwerhoerig) {
       checks.add('Andere Einschränkungen');
-      combo.add('Deafness');
+      combo.add('Taubheit oder Schwerhörigkeit');
     }
     if (begleit == 'ja') checks.add('Begleitperson');
     if (blindfuehr) checks.add('Assistenzhund');
@@ -583,38 +584,38 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return true;
   };
 
-  // Hilfsmittel ist ein natives <select> (db-select) mit <optgroup>/<option
-  // value="WheelchairElectric">…, KEIN Combobox. Also value setzen + change
-  // feuern (das Formular liest onChange e.target.value) — nicht klicken/öffnen.
-  const setSelectValue = (sel, value) => {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
-    if (setter) setter.call(sel, value); else sel.value = value;
-    sel.dispatchEvent(new Event('input', { bubbles: true }));
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-  };
-
-  // Setzt einen Formularwert per Enum-Value. Deckt beide MSZ-Muster ab:
-  //   1) natives <select> mit <option value=…>  (Hilfsmittel, Gewicht)
-  //   2) Radio-Button (input[type=radio] oder [role=radio]) mit value=…
-  // Nicht auf Sichtbarkeit filtern — db-Komponenten verstecken evtl. das native
-  // Element hinter eigener UI; value setzen + change funktioniert trotzdem.
-  const selectAid = (enumValue) => {
+  // Setzt einen Formularwert per Ziel-String. Deckt die MSZ-Muster ab:
+  //   1) natives <select> — option matcht per VALUE (Hilfsmittel: value=Enum
+  //      "WheelchairElectric") ODER per sichtbarem TEXT/Label (otherImpairment:
+  //      value=Label "Taubheit oder Schwerhörigkeit", onChange liest selectedIndex).
+  //      Deshalb: value setzen UND selectedIndex explizit setzen + change feuern.
+  //   2) Radio-Button (input[type=radio] oder [role=radio]) mit value=… (Gewicht).
+  // Nicht auf Sichtbarkeit filtern — db-Komponenten verstecken evtl. das native Element.
+  const selectAid = (target) => {
+    const nt = norm(target);
     for (const sel of document.querySelectorAll('select')) {
-      const opt = [...(sel.options || [])].find(o => o.value === enumValue);
+      const opts = [...(sel.options || [])];
+      let opt = opts.find(o => o.value === target);
+      if (!opt) opt = opts.find(o => norm(o.textContent) === nt);
+      if (!opt && nt.length > 4) opt = opts.find(o => norm(o.textContent).includes(nt) || norm(o.value).includes(nt));
       if (!opt) continue;
-      if (sel.value === enumValue) return true; // schon gesetzt
+      if (sel.selectedIndex === opt.index) return true; // schon gesetzt
       sel.scrollIntoView({ block: 'center' });
-      setSelectValue(sel, enumValue);
-      log('Select →', enumValue, JSON.stringify((opt.textContent || '').trim()));
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')?.set;
+      if (setter) setter.call(sel, opt.value); else sel.value = opt.value;
+      sel.selectedIndex = opt.index;   // manche Felder lesen onChange den selectedIndex
+      sel.dispatchEvent(new Event('input', { bubbles: true }));
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      log('Select →', target, 'idx=' + opt.index, JSON.stringify((opt.textContent || opt.value || '').trim()));
       return true;
     }
     for (const r of document.querySelectorAll('input[type=radio],[role=radio]')) {
       const v = r.value || r.getAttribute('value') || '';
-      if (v !== enumValue) continue;
+      if (v !== target && norm(r.getAttribute('aria-label') || '') !== nt) continue;
       if (r.checked || r.getAttribute('aria-checked') === 'true') return true; // schon gesetzt
       r.scrollIntoView({ block: 'center' });
       r.click();
-      log('Radio →', enumValue);
+      log('Radio →', target);
       return true;
     }
     return false;
