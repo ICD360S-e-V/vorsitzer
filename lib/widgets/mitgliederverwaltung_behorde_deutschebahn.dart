@@ -503,12 +503,17 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     final weitereJson = jsonEncode(weitere);
     return '''
 (() => {
-  if (window.__icd_msz_running) { try { console.warn('[ICD-MSZ] already running'); } catch (_) {} return; }
-  window.__icd_msz_running = true;
+  // Gemeinsamer Zustand pro Frame — überlebt Re-Injektionen (evaluateOnNewDocument
+  // + onLoad + evaluate feuern das Skript mehrfach). Damit klickt KEINE zweite
+  // Skript-Instanz eine schon gesetzte Option erneut → kein Umschalten (Toggle).
+  const S = (window.__icd_msz = window.__icd_msz || { acted: {}, comboOpened: 0 });
+  const log = (...a) => { try { console.warn('[ICD-MSZ]', ...a); } catch (_) {} };
+  if (S.loopRunning) { log('loop läuft bereits in diesem Frame — skip'); return; }
+  S.loopRunning = true;
+
   const CHECKS = $checksJson;
   const COMBO  = $comboJson;
   const WEITERE = $weitereJson;
-  const log = (...a) => { try { console.warn('[ICD-MSZ]', ...a); } catch (_) {} };
   const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
 
   const isUsable = (el) => {
@@ -516,8 +521,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     const st = window.getComputedStyle(el);
     if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
     const r = el.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) return false;
-    return true;
+    return !(r.width === 0 && r.height === 0);
   };
 
   const setNativeValue = (el, value) => {
@@ -531,9 +535,9 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   // Kleinstes sichtbares Element, dessen Text `needle` enthält (= spezifischste Option).
   const findByText = (needle, selector) => {
     const n = norm(needle);
-    const nodes = Array.from(document.querySelectorAll(selector)).filter(isUsable);
     let best = null, bestLen = Infinity;
-    for (const el of nodes) {
+    for (const el of document.querySelectorAll(selector)) {
+      if (!isUsable(el)) continue;
       const t = norm(el.innerText || el.textContent || '');
       if (!t || !t.includes(n)) continue;
       if (t.length < bestLen) { best = el; bestLen = t.length; }
@@ -541,74 +545,91 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return best;
   };
 
-  // Checkbox-Kategorie per sichtbarem Text setzen (idempotent).
-  const checkOption = (text) => {
-    const el = findByText(text, 'label,[role=checkbox],button,li,div,span,p');
+  // Findet die Checkbox zu einem Label-Element (Kind, label[for] oder im Container).
+  const checkboxFor = (el) => {
+    if (!el) return null;
+    if (el.matches && el.matches('input[type=checkbox]')) return el;
+    let cb = el.querySelector && el.querySelector('input[type=checkbox]');
+    if (cb) return cb;
+    const forId = el.getAttribute && el.getAttribute('for');
+    if (forId) { const t = document.getElementById(forId); if (t && t.type === 'checkbox') return t; }
+    let p = el;
+    for (let i = 0; i < 4 && p; i++) { p = p.parentElement; if (p) { cb = p.querySelector('input[type=checkbox]'); if (cb) return cb; } }
+    return null;
+  };
+
+  // Checkbox EINMALIG setzen — nie erneut klicken, nie eine bereits gesetzte umschalten.
+  const ensureChecked = (text) => {
+    if (S.acted['c:' + text]) return true;
+    const el = findByText(text, 'label,[role=checkbox],[role=switch],button,li,div,span,p');
     if (!el) return false;
-    const cb = (el.matches && el.matches('input[type=checkbox]')) ? el : el.querySelector('input[type=checkbox]');
-    if (cb && cb.checked) return true; // schon gesetzt → fertig
-    el.scrollIntoView({ block: 'center' });
-    el.click();
-    log('checked', JSON.stringify(text));
+    const cb = checkboxFor(el);
+    if (cb && cb.checked) { S.acted['c:' + text] = 1; log('bereits gesetzt', JSON.stringify(text)); return true; }
+    const target = cb || el;
+    target.scrollIntoView({ block: 'center' });
+    target.click();
+    S.acted['c:' + text] = 1;   // EGAL was passiert: genau EIN Klick, nie wieder → kein Toggle
+    log('geklickt', JSON.stringify(text), (el.outerHTML || '').slice(0, 140));
     return true;
   };
 
   // Sucht das <input> der Hilfsmittel-Combobox (Abschnitt enthält "Hilfsmittel").
   const findAidInput = () => {
-    const inputs = Array.from(document.querySelectorAll('input')).filter(isUsable);
-    for (const inp of inputs) {
+    for (const inp of document.querySelectorAll('input')) {
+      if (!isUsable(inp)) continue;
       const box = inp.closest('div,section,fieldset');
       if (box && /hilfsmittel/i.test(box.innerText || '')) return inp;
     }
     return null;
   };
 
-  // Combobox öffnen + nach dem ersten Wort der Option filtern.
+  // Combobox öffnen + nach dem ersten Wort der Option filtern (max. 4×, damit sie
+  // nicht im Loop auf/zu klappt).
   const openAidCombo = (optText) => {
+    if (S.comboOpened >= 4) return false;
     const inp = findAidInput();
     if (!inp) return false;
     inp.focus();
     try { inp.click(); } catch (_) {}
-    const filter = (optText || '').split(/[ ,]/)[0];
-    if (filter) setNativeValue(inp, filter);
-    log('opened Hilfsmittel-Combobox; filter=', JSON.stringify(filter));
+    const f = (optText || '').split(/[ ,]/)[0];
+    if (f) setNativeValue(inp, f);
+    S.comboOpened++;
+    log('Combobox geöffnet #' + S.comboOpened, 'filter=', JSON.stringify(f));
     return true;
   };
 
-  // Offene <li>/Option der Combobox anklicken.
-  const pickComboOption = (text) => {
+  // Offene <li>/Option der Combobox EINMALIG anklicken.
+  const pickCombo = (text) => {
+    if (S.acted['o:' + text]) return true;
     const el = findByText(text, 'li,[role=option],[role=menuitem]');
     if (!el) return false;
     el.scrollIntoView({ block: 'center' });
     el.click();
-    log('combo-picked', JSON.stringify(text));
+    S.acted['o:' + text] = 1;
+    log('Combo gewählt', JSON.stringify(text));
     return true;
   };
 
-  const doneC = {}, doneO = {};
-  let lastOpen = -10;
   const start = Date.now();
-  let tickN = 0;
+  let n = 0;
   const tick = () => {
-    tickN++;
-    if (Date.now() - start > 60000) { log('timeout', tickN, 'ticks; checks=', JSON.stringify(doneC), 'combo=', JSON.stringify(doneO)); return; }
+    n++;
+    if (Date.now() - start > 45000) { S.loopRunning = false; log('timeout', JSON.stringify(S.acted)); return; }
     let remaining = 0;
-    for (const c of CHECKS) { if (doneC[c]) continue; if (checkOption(c)) doneC[c] = true; else remaining++; }
+    for (const c of CHECKS) if (!ensureChecked(c)) remaining++;
     for (const o of COMBO) {
-      if (doneO[o]) continue;
-      if (pickComboOption(o)) { doneO[o] = true; }
-      else { remaining++; if (tickN - lastOpen > 2) { if (openAidCombo(o)) lastOpen = tickN; } }
+      if (S.acted['o:' + o]) continue;
+      if (!pickCombo(o)) { remaining++; if (n % 3 === 0) openAidCombo(o); }
     }
-    if (WEITERE && !window.__icd_msz_weitere) {
-      const ta = Array.from(document.querySelectorAll('textarea')).filter(isUsable)[0];
-      if (ta) { setNativeValue(ta, WEITERE); window.__icd_msz_weitere = true; log('filled Weitere Hilfe'); }
+    if (WEITERE && !S.acted.weitere) {
+      const ta = [...document.querySelectorAll('textarea')].filter(isUsable)[0];
+      if (ta) { setNativeValue(ta, WEITERE); S.acted.weitere = 1; log('Weitere Hilfe gefüllt'); }
     }
-    if (tickN === 1 || tickN % 5 === 0) log('tick', tickN, 'remaining', remaining);
-    const weitereLeft = WEITERE && !window.__icd_msz_weitere;
-    if (remaining > 0 || weitereLeft) setTimeout(tick, 800);
-    else log('DONE checks=', JSON.stringify(doneC), 'combo=', JSON.stringify(doneO));
+    if (n === 1 || n % 5 === 0) log('tick', n, 'remaining', remaining);
+    if (remaining > 0) setTimeout(tick, 800);
+    else { S.loopRunning = false; log('FERTIG', JSON.stringify(S.acted)); }
   };
-  log('start; url=', location.href, 'CHECKS=', JSON.stringify(CHECKS), 'COMBO=', JSON.stringify(COMBO));
+  log('start', location.href, 'CHECKS=', JSON.stringify(CHECKS), 'COMBO=', JSON.stringify(COMBO));
   setTimeout(tick, 900);
 })();
 ''';
