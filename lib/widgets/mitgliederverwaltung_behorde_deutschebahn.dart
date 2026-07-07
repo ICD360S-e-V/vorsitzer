@@ -462,7 +462,13 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       }
     }
     if (blindstock || blindfuehr) checks.add('blind oder sehbeeinträchtigt');
-    if (schwerhoerig) checks.add('Andere Einschränkungen');
+    // Eigenständige Kategorie (unabhängig vom Hilfsmittel): Hörgeräte im
+    // Gesundheitsprofil → „Andere Einschränkungen" + otherImpairment-Select
+    // (natives <select><option value="Deafness">Taubheit oder Schwerhörigkeit).
+    if (schwerhoerig) {
+      checks.add('Andere Einschränkungen');
+      combo.add('Deafness');
+    }
     if (begleit == 'ja') checks.add('Begleitperson');
     if (blindfuehr) checks.add('Assistenzhund');
     return (checks: checks, combo: combo);
