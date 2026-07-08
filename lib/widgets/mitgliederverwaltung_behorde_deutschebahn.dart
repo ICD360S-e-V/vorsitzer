@@ -622,6 +622,15 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return (checks: checks, combo: combo);
   }
 
+  /// MSZ-Anrede aus dem Geschlecht: männlich → „Herr", weiblich → „Frau",
+  /// sonst leer (MSZ hat zusätzlich „Neutrale Anrede", die lassen wir offen).
+  String _anredeVonGeschlecht(String? g) {
+    final s = (g ?? '').trim().toLowerCase();
+    if (s == 'm' || s == 'männlich' || s == 'herr' || s == 'male') return 'Herr';
+    if (s == 'w' || s == 'weiblich' || s == 'frau' || s == 'female') return 'Frau';
+    return '';
+  }
+
   /// Öffnet das MSZ-Portal im externen Chromium und füllt aus:
   ///   • Schritt 1 — aus den Mitgliedsdaten (Hilfsmittel-Rezepte, Hörgeräte).
   ///     Vom Vorfall-Dialog werden hilfsmittel/schwerhoerig/begleit übergeben;
@@ -644,6 +653,18 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       // (Behörde → Deutschlandticket → Vertrag vorhanden).
       'nur_nahverkehr': _dticketVertraege.isNotEmpty ? '1' : '',
     };
+    // Schritt 3 „Reisende:r" — Kontakt aus Verifizierung Stufe 1 (widget.user).
+    // Anrede aus geschlecht; E-Mail fest icd@icd360s.de (unabhängig vom Mitglied);
+    // Telefon = Mobil > Festnetz.
+    final contact = {
+      'anrede': _anredeVonGeschlecht(widget.user.geschlecht),
+      'vorname': (widget.user.vorname ?? '').trim(),
+      'nachname': (widget.user.nachname ?? '').trim(),
+      'email': 'icd@icd360s.de',
+      'telefon': ((widget.user.telefonMobil ?? '').trim().isNotEmpty
+          ? (widget.user.telefonMobil ?? '')
+          : (widget.user.telefonFix ?? '')).trim(),
+    };
     final all = [...picks.checks, ...picks.combo, if (rv['start']?.isNotEmpty == true) '${rv['start']} → ${rv['ziel']}'];
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -655,7 +676,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     }
     final err = await ExternalBrowserService.openWithAutoFill(
       url: _mszOnlineUrl,
-      autoFillJs: _buildMszAutoFillJs(picks.checks, picks.combo, weitere, rv),
+      autoFillJs: _buildMszAutoFillJs(picks.checks, picks.combo, weitere, rv, contact),
     );
     if (err != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err), backgroundColor: Colors.red, duration: const Duration(seconds: 8)));
@@ -672,11 +693,12 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   /// Polling deckt gestufte Reveals ab. Alle Aktionen loggen als [ICD-MSZ]
   /// in die Browser-Konsole (CSP blockt nur manuelles Konsolen-Einfügen,
   /// nicht die per CDP injizierten Skripte).
-  String _buildMszAutoFillJs(List<String> checks, List<String> combo, String weitere, Map<String, String> rv) {
+  String _buildMszAutoFillJs(List<String> checks, List<String> combo, String weitere, Map<String, String> rv, Map<String, String> contact) {
     final checksJson = jsonEncode(checks);
     final comboJson = jsonEncode(combo);
     final weitereJson = jsonEncode(weitere);
     final rvJson = jsonEncode(rv);
+    final contactJson = jsonEncode(contact);
     return '''
 (() => {
   // Gemeinsamer Zustand pro Frame — überlebt Re-Injektionen (evaluateOnNewDocument
@@ -686,7 +708,8 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   const log = (...a) => { try { console.warn('[ICD-MSZ]', ...a); } catch (_) {} };
   if (S.loopRunning) { log('loop läuft bereits in diesem Frame — skip'); return; }
   S.loopRunning = true;
-  const RV = $rvJson;  // Schritt 2: {start, ziel, hin_datum, hin_uhrzeit, rueck_datum, rueck_uhrzeit}
+  const RV = $rvJson;  // Schritt 2: {start, ziel, hin_datum, rueck_datum, nur_nahverkehr}
+  const C3 = $contactJson;  // Schritt 3: {anrede, vorname, nachname, email, telefon}
 
   const CHECKS = $checksJson;
   const COMBO  = $comboJson;
@@ -887,6 +910,37 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return z === 'done' && nv;
   };
 
+  // ── Schritt 3 (Reisende:r) — Kontakt. Anrede = <select> (Herr/Frau/Neutrale
+  // Anrede; option-value = Enum, Label = Text) → selectAid per Label. Vorname/
+  // Nachname/E-Mail/Mobilfunknummer = Textfelder mit floating Label.
+  const fillTextByLabel = (key, value, labelRe) => {
+    if (!value || S.acted[key] === 'done') return 'done';
+    const inp = [...document.querySelectorAll('input,textarea')].filter(isUsable).find(i => {
+      const id = i.getAttribute('id');
+      const lbl = id ? document.querySelector('label[for="' + id + '"]') : null;
+      const own = (i.getAttribute('aria-label') || '') + ' ' + (i.getAttribute('name') || '') + ' ' + (i.getAttribute('placeholder') || '') + ' ' + (lbl ? lbl.textContent : '');
+      return labelRe.test(own);
+    });
+    if (!inp) return 'absent';
+    inp.focus();
+    setNativeValue(inp, value);
+    inp.dispatchEvent(new Event('blur', { bubbles: true }));
+    S.acted[key] = 'done';
+    log('S3 Feld gefüllt', key, JSON.stringify(value));
+    return 'done';
+  };
+
+  const fillSchritt3 = () => {
+    if (!C3) return true;
+    const vn = fillTextByLabel('s3_vorname', C3.vorname, /vorname/i);
+    if (vn === 'absent') return false;                       // nicht auf Schritt 3 → Schleife am Leben halten
+    fillTextByLabel('s3_nachname', C3.nachname, /nachname/i);
+    fillTextByLabel('s3_email', C3.email, /e-?mail/i);
+    fillTextByLabel('s3_tel', C3.telefon, /mobilfunk|mobil|telefon|handy/i);
+    if (C3.anrede && !S.acted.s3_anrede && selectAid(C3.anrede)) S.acted.s3_anrede = 1;
+    return !!S.acted.s3_vorname && (!C3.anrede || !!S.acted.s3_anrede);
+  };
+
   const start = Date.now();
   // Bei gesetzter Reiseverbindung länger laufen — der Nutzer navigiert selbst zu
   // Schritt 2 (SPA, kein Reload), die Schleife muss so lange am Leben bleiben.
@@ -902,6 +956,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       if (selectAid(o)) S.acted['o:' + o] = 1; else remaining++;
     }
     if (!fillSchritt2()) remaining++;
+    if (!fillSchritt3()) remaining++;
     if (WEITERE && !S.acted.weitere) {
       const ta = [...document.querySelectorAll('textarea')].filter(isUsable)[0];
       if (ta) { setNativeValue(ta, WEITERE); S.acted.weitere = 1; log('Weitere Hilfe gefüllt'); }
