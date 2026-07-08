@@ -687,6 +687,36 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
             child: Text('• Betrag: ${status['zuzahlung_betrag']} €${(status['zuzahlung_befreit'] == 1 || status['zuzahlung_befreit'] == '1') ? '  (befreit)' : ''}',
               style: TextStyle(fontSize: 11, color: color.shade800)),
           ),
+          // Auftragsunterlagen — Kostenvoranschlag, Bestellbestätigung,
+          // Musterlieferschein etc. Wie bei „Zuzahlung" (unten) erst
+          // anzeigen, wenn der Status-Row bereits gespeichert ist — sonst
+          // fehlt der korrespondenz_id für die Attachment-Zuordnung.
+          if (key == 'bestellt' && status['id'] != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 6, right: 6),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: color.shade200),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.folder_open, size: 14, color: color.shade700),
+                    const SizedBox(width: 6),
+                    Text('Auftrag Unterlagen',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.shade900)),
+                  ]),
+                  const SizedBox(height: 4),
+                  KorrAttachmentsWidget(
+                    apiService: widget.apiService,
+                    modul: 'rezept_bestellung',
+                    korrespondenzId: int.tryParse(status['id'].toString()) ?? 0,
+                  ),
+                ]),
+              ),
+            ),
           // Zahlungsbelege — Rechnung / Kassenzettel als Nachweis der
           // Zuzahlung. Nur anzeigen wenn der Zuzahlungs-Status-Row schon
           // existiert (sonst kein korrespondenz_id) UND der Mitglied nicht
