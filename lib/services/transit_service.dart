@@ -2024,9 +2024,12 @@ class TransitService {
     if (ver.isNotEmpty && p?.hafasClientType != 'WEB') {
       final intVer = int.tryParse(ver);
       client['v'] = intVer ?? ver;
-    } else if (p?.hafasClientVersion != null) {
-      final intVer = int.tryParse(p!.hafasClientVersion);
-      client['v'] = intVer ?? p.hafasClientVersion;
+    } else {
+      final wv = p?.hafasClientVersion;
+      if (wv != null) {
+        final intVer = int.tryParse(wv);
+        client['v'] = intVer ?? wv;
+      }
     }
     final req = <String, dynamic>{
       'ver': p?.hafasVer ?? '1.40',
