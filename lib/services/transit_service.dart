@@ -477,8 +477,17 @@ const _providers = [
     name: 'saarVV', displayName: 'saarVV (Saarländischer Verkehrsverbund)',
     baseUrl: 'https://saarfahrplan.de/bin/mgate.exe',
     hafasClientId: 'ZPS-SAAR', hafasClientVersion: '1000070', hafasClientName: 'Saarfahrplan',
-    // saarVV AID injected via --dart-define at build time (see _resolveAid)
-    minLat: 49.0, maxLat: 49.7, minLon: 6.3, maxLon: 7.5,
+    // Public AID from hafas-client repo (`p/saarfahrplan/base.js`). Env var
+    // via `HAFAS_AID` --dart-define still overrides at build time (see
+    // `_resolveAid`), so existing signed builds keep working; new builds
+    // don't need the secret anymore.
+    hafasAid: '51XfsVqgbdA6oXzHrx75jhlocRg6Xe',
+    hafasClientType: 'AND', hafasVer: '1.40',
+    // Bounding box widened to include Saarbrücken metro area's cross-border
+    // stops (Forbach FR, Luxembourg City, Trier). Saarland-proper is
+    // 49.09-49.65 / 6.30-7.405 — the extra padding catches through-services
+    // that terminate outside Saarland proper.
+    minLat: 48.95, maxLat: 49.85, minLon: 6.05, maxLon: 7.50,
   ),
   TransitProviderConfig(
     type: TransitProviderType.nvv, api: TransitApiType.hafas,
@@ -915,12 +924,29 @@ class TransitService {
       'landkreis sächsische schweiz-osterzgebirge',
     },
     TransitProviderType.saarvv: {
-      'saarland', 'saarbrücken', 'saarbrucken', 'neunkirchen', 'homburg',
-      'völklingen', 'st. ingbert', 'saarlouis', 'st. wendel', 'dillingen',
-      'merzig', 'blieskastel', 'sulzbach', 'püttlingen',
-      'regionalverband saarbrücken', 'landkreis merzig-wadern',
-      'landkreis neunkirchen', 'landkreis saarlouis', 'saarpfalz-kreis',
-      'landkreis st. wendel',
+      'saarland', 'saarbrücken', 'saarbrucken', 'saarbrueckn',
+      'neunkirchen', 'homburg', 'völklingen', 'voelklingen',
+      'st. ingbert', 'st ingbert', 'sankt ingbert',
+      'saarlouis', 'saar louis',
+      'st. wendel', 'st wendel', 'sankt wendel',
+      'dillingen', 'dillingen/saar',
+      'merzig', 'blieskastel', 'sulzbach', 'sulzbach/saar',
+      'püttlingen', 'puettlingen',
+      'regionalverband saarbrücken', 'stadtverband saarbrücken',
+      'landkreis merzig-wadern', 'kreis merzig-wadern',
+      'landkreis neunkirchen', 'kreis neunkirchen',
+      'landkreis saarlouis', 'kreis saarlouis',
+      'saarpfalz-kreis', 'saarpfalzkreis',
+      'landkreis st. wendel', 'kreis st. wendel',
+      // Small towns often geocoded from bus stops
+      'friedrichsthal', 'quierschied', 'riegelsberg', 'heusweiler',
+      'kleinblittersdorf', 'grossrosseln', 'großrosseln', 'wadgassen',
+      'ensdorf', 'schwalbach', 'bous', 'überherrn', 'ueberherrn',
+      'losheim', 'weiskirchen', 'perl', 'mettlach', 'beckingen',
+      'wadern', 'lebach', 'schmelz', 'nalbach', 'nonnweiler',
+      'nohfelden', 'tholey', 'freisen', 'namborn', 'oberthal', 'marpingen',
+      'illingen', 'ottweiler', 'eppelborn', 'spiesen-elversberg',
+      'bexbach', 'kirkel', 'mandelbachtal', 'gersheim',
     },
     TransitProviderType.nvv: {
       'kassel', 'bad hersfeld', 'baunatal', 'korbach', 'eschwege',
@@ -1892,12 +1918,19 @@ class TransitService {
       'id': p?.hafasClientId ?? 'ZPS-SAAR',
       'name': p?.hafasClientName ?? 'Saarfahrplan',
     };
-    // client.v is optional (WEB clients like RMV don't send it)
+    // client.v serialization is picky per backend:
+    //   - Android/iPhone HAFAS backends (saarVV, VBB, NAH.SH, ...) expect a
+    //     numeric `"v":1000070`. If we send `"v":"1000070"` the server accepts
+    //     the auth but silently returns zero results for LocGeoPos.
+    //   - WEB clients (RMV) omit v entirely.
+    // We try int-parse first and fall back to the string.
     final ver = p?.hafasClientVersion ?? '1000070';
     if (ver.isNotEmpty && p?.hafasClientType != 'WEB') {
-      client['v'] = ver;
+      final intVer = int.tryParse(ver);
+      client['v'] = intVer ?? ver;
     } else if (p?.hafasClientVersion != null) {
-      client['v'] = p!.hafasClientVersion;
+      final intVer = int.tryParse(p!.hafasClientVersion);
+      client['v'] = intVer ?? p.hafasClientVersion;
     }
     final req = <String, dynamic>{
       'ver': p?.hafasVer ?? '1.40',
