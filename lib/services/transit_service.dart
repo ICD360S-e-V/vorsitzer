@@ -367,6 +367,10 @@ enum TransitProviderType {
   saarvv, vbb, nvv, rmv, nahsh, insa, vbn, avv,
   // Added 2026-07: 8 providers verified live via agent research
   vms, vmt, vvw, vmv, vrt, vrs, wtp, vos,
+  // Added 2026-07-09: DEFAS Bayern (state-wide EFA — covers Würzburg,
+  // Regensburg, Passau, Landshut, Bayreuth, Kempten, Rosenheim), plus
+  // AVV Augsburg (a distinct Verbund from AVV Aachen), plus VVV Vogtland.
+  defasBayern, avvAugsburg, vve,
 }
 
 class TransitProviderConfig {
@@ -614,6 +618,41 @@ const _providers = [
     hafasClientId: 'SWO', hafasClientName: 'webapp',
     hafasClientType: 'WEB', hafasVer: '1.24',
     minLat: 52.10, maxLat: 52.65, minLon: 7.60, maxLon: 8.55,
+  ),
+
+  // ── Added 2026-07-09: 3 providers verified live via curl ─────────────
+  //
+  // DEFAS Bayern (Datenaustausch-Format der ÖPNV-Systeme in Bayern) —
+  // Bayernweiter EFA-Aggregator, deckt Würzburg (VVM), Regensburg (RVV),
+  // Passau, Landshut, Bayreuth, Kempten, Rosenheim ab. Überschneidet sich
+  // mit MVV (München) und VGN (Nürnberg): dort gewinnt der jeweilige
+  // Verbund via city-list-Match. DEFAS greift wo weder MVV noch VGN passt.
+  TransitProviderConfig(
+    type: TransitProviderType.defasBayern, api: TransitApiType.efa,
+    name: 'DEFAS-Bayern',
+    displayName: 'DEFAS Bayern (Bayernweit — Würzburg, Regensburg, Passau …)',
+    baseUrl: 'https://mobile.defas-fgi.de/beg',
+    minLat: 47.27, maxLat: 50.57, minLon: 8.98, maxLon: 13.84,
+  ),
+  // AVV Augsburg — distinct from AVV Aachen (already listed as `avv`).
+  // EFA classic endpoint, no auth.
+  TransitProviderConfig(
+    type: TransitProviderType.avvAugsburg, api: TransitApiType.efa,
+    name: 'AVV-Augsburg',
+    displayName: 'AVV Augsburg (Augsburger Verkehrs- und Tarifverbund)',
+    baseUrl: 'https://fahrtauskunft.avv-augsburg.de/efa',
+    // Stadt Augsburg + Landkreise Augsburg, Aichach-Friedberg, Dillingen.
+    // Narrower than DEFAS Bayern so it wins for Augsburg proper via
+    // nearest-centre in the geometry pass.
+    minLat: 48.15, maxLat: 48.75, minLon: 10.30, maxLon: 11.15,
+  ),
+  // VVV Vogtland — small Verkehrsverbund, Plauen/Zwickau/Reichenbach corner.
+  TransitProviderConfig(
+    type: TransitProviderType.vve, api: TransitApiType.efa,
+    name: 'VVV',
+    displayName: 'VVV (Verkehrsverbund Vogtland — Plauen, Zwickau, Reichenbach)',
+    baseUrl: 'https://vogtlandauskunft.de/std',
+    minLat: 50.29, maxLat: 50.75, minLon: 11.86, maxLon: 12.65,
   ),
 ];
 
@@ -1113,6 +1152,63 @@ class TransitService {
       'osnabrück', 'osnabrueck', 'melle', 'georgsmarienhütte', 'bramsche',
       'quakenbrück', 'bad iburg', 'dissen', 'wallenhorst',
       'landkreis osnabrück',
+    },
+    // DEFAS Bayern — state-wide aggregator, NOT for München (MVV wins) or
+    // Nürnberg-Fürth-Erlangen (VGN wins). List only Bavarian cities not
+    // covered by MVV/VGN city lists.
+    TransitProviderType.defasBayern: {
+      // Franken (excl. Nürnberg region)
+      'würzburg', 'wuerzburg', 'schweinfurt', 'aschaffenburg', 'bad kissingen',
+      'kitzingen', 'lohr am main', 'miltenberg', 'hassfurt', 'haßfurt',
+      'bad neustadt', 'bad neustadt an der saale',
+      'landkreis würzburg', 'landkreis schweinfurt', 'landkreis aschaffenburg',
+      'landkreis bad kissingen', 'landkreis kitzingen', 'landkreis miltenberg',
+      'landkreis haßberge', 'landkreis rhön-grabfeld',
+      // Oberpfalz
+      'regensburg', 'weiden', 'weiden i.d.opf.', 'amberg', 'neumarkt',
+      'schwandorf', 'cham', 'tirschenreuth',
+      'landkreis regensburg', 'landkreis cham', 'landkreis schwandorf',
+      'landkreis neumarkt in der oberpfalz', 'landkreis amberg-sulzbach',
+      // Niederbayern
+      'passau', 'landshut', 'deggendorf', 'straubing', 'kelheim', 'landau',
+      'landkreis passau', 'landkreis landshut', 'landkreis deggendorf',
+      'landkreis straubing-bogen', 'landkreis kelheim',
+      'landkreis rottal-inn', 'landkreis freyung-grafenau',
+      'landkreis regen', 'landkreis dingolfing-landau',
+      // Oberfranken
+      'bayreuth', 'bamberg', 'coburg', 'kulmbach', 'hof', 'kronach',
+      'lichtenfels', 'forchheim',
+      'landkreis bayreuth', 'landkreis bamberg', 'landkreis coburg',
+      'landkreis hof', 'landkreis kulmbach', 'landkreis kronach',
+      'landkreis lichtenfels', 'landkreis wunsiedel',
+      // Schwaben (excl. Augsburg = own AVV Augsburg provider)
+      'kempten', 'memmingen', 'kaufbeuren', 'lindau', 'sonthofen',
+      'füssen', 'fuessen', 'oberstdorf', 'bad wörishofen',
+      'landkreis oberallgäu', 'landkreis unterallgäu', 'landkreis ostallgäu',
+      'landkreis lindau', 'landkreis günzburg', 'landkreis dillingen an der donau',
+      // Oberbayern south (not MVV)
+      'rosenheim', 'traunstein', 'berchtesgaden', 'bad reichenhall',
+      'garmisch-partenkirchen', 'mühldorf', 'muehldorf', 'burghausen',
+      'weilheim', 'bad tölz',
+      'landkreis rosenheim', 'landkreis traunstein', 'landkreis mühldorf am inn',
+      'landkreis berchtesgadener land', 'landkreis altötting',
+      'landkreis garmisch-partenkirchen', 'landkreis weilheim-schongau',
+      'landkreis bad tölz-wolfratshausen', 'landkreis miesbach',
+      'landkreis eichstätt', 'ingolstadt', 'landkreis ingolstadt',
+    },
+    // AVV Augsburg — city + surrounding Landkreise
+    TransitProviderType.avvAugsburg: {
+      'augsburg', 'friedberg', 'aichach', 'meitingen', 'gersthofen',
+      'königsbrunn', 'koenigsbrunn', 'stadtbergen', 'bobingen',
+      'neusäß', 'neusaess', 'schwabmünchen', 'schwabmuenchen',
+      'landkreis augsburg', 'landkreis aichach-friedberg',
+      'landkreis dillingen', 'dillingen an der donau',
+    },
+    // VVV Vogtland
+    TransitProviderType.vve: {
+      'plauen', 'zwickau', 'reichenbach', 'auerbach', 'oelsnitz', 'klingenthal',
+      'markneukirchen', 'falkenstein', 'rodewisch', 'treuen',
+      'vogtlandkreis', 'landkreis vogtland',
     },
   };
 
