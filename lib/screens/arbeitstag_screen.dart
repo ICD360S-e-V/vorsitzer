@@ -1,7 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/arbeitstag_service.dart';
+import '../services/logger_service.dart';
+
+final _log = LoggerService();
 
 class ArbeitstagScreen extends StatefulWidget {
   /// Callback deep-link către alt tab. Comută sidebar la menuIndex
@@ -27,11 +29,11 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('[ARBEITSTAG] initState fired');
+    _log.info('[SCREEN] initState fired');
     final now = DateTime.now();
     _kwYear = _isoYear(now);
     _kwNumber = _isoWeek(now);
-    debugPrint('[ARBEITSTAG] initState → KW $_kwNumber / $_kwYear, calling _load');
+    _log.info('[SCREEN] initState → KW $_kwNumber / $_kwYear, calling _load');
     // Defer _load la end of first frame ca să nu blocheze render-ul inițial.
     // Pe Android, apel sync în initState + setState imediat poate rula
     // înainte ca frame-ul să fie flush-uit → user vede freeze la open.
@@ -53,19 +55,19 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   }
 
   Future<void> _load() async {
-    debugPrint('[ARBEITSTAG] _load START — KW $_kwNumber/$_kwYear view=$_view');
+    _log.info('[SCREEN] _load START — KW $_kwNumber/$_kwYear view=$_view');
     if (!mounted) return;
     setState(() => _loading = true);
     try {
       final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
-      debugPrint('[ARBEITSTAG] _load DONE — members=${data?.members.length ?? 'null'}');
+      _log.info('[SCREEN] _load DONE — members=${data?.members.length ?? 'null'}');
       if (!mounted) return;
       setState(() {
         _data = data;
         _loading = false;
       });
     } catch (e, st) {
-      debugPrint('[ARBEITSTAG] _load ERROR: $e\n$st');
+      _log.info('[SCREEN] _load ERROR: $e\n$st');
       if (!mounted) return;
       setState(() {
         _data = null;
@@ -323,6 +325,8 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    _log.info('[SCREEN] build — loading=$_loading data=${_data == null ? 'null' : 'set'} '
+        'membrii=${_data?.members.length ?? 0}');
     return Scaffold(
       body: Column(
         children: [
@@ -355,7 +359,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
           children: [
           IconButton(
             onPressed: () {
-              debugPrint('[ARBEITSTAG] chevron_left tapped');
+              _log.info('[SCREEN] chevron_left tapped');
               _shiftKw(-1);
             },
             icon: const Icon(Icons.chevron_left),
@@ -381,7 +385,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
           ),
           IconButton(
             onPressed: () {
-              debugPrint('[ARBEITSTAG] chevron_right tapped');
+              _log.info('[SCREEN] chevron_right tapped');
               _shiftKw(1);
             },
             icon: const Icon(Icons.chevron_right),
