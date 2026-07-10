@@ -342,48 +342,60 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final rangeStr = data == null
         ? ''
         : '${DateFormat('dd.MM').format(data.monday)} – ${DateFormat('dd.MM.yyyy').format(data.sunday)}';
-    // Wrap în loc de SingleChildScrollView(horizontal) — mai stabil pe
-    // Android (fără gesture conflicts, fără unbounded width issues care
-    // pot îngheța renderarea).
-    return Container(
+    // Material + Row (nu Wrap) — Wrap avea interacțiune buggy cu Android
+    // gesture arena. Material ensures ink splash + hit testing correct.
+    // Row poate overflow orizontal, dar butoanele-cheie (chevron + heute)
+    // sunt la stânga, deci mereu vizibile pe orice ecran.
+    return Material(
       color: theme.colorScheme.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 4,
-        runSpacing: 4,
-        children: [
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(
+          children: [
           IconButton(
-            onPressed: () => _shiftKw(-1),
+            onPressed: () {
+              debugPrint('[ARBEITSTAG] chevron_left tapped');
+              _shiftKw(-1);
+            },
             icon: const Icon(Icons.chevron_left),
             tooltip: 'Vorherige KW',
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Arbeitswochen – KW $_kwNumber / $_kwYear',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
-              if (rangeStr.isNotEmpty)
-                Text(rangeStr + (isCurrentKw ? ' (aktuelle KW)' : ''),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isCurrentKw ? theme.colorScheme.primary : null,
-                      fontWeight: isCurrentKw ? FontWeight.w600 : FontWeight.normal,
-                    )),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('KW $_kwNumber / $_kwYear',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis),
+                if (rangeStr.isNotEmpty)
+                  Text(rangeStr + (isCurrentKw ? ' (heute)' : ''),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isCurrentKw ? theme.colorScheme.primary : null,
+                        fontWeight: isCurrentKw ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
           IconButton(
-            onPressed: () => _shiftKw(1),
+            onPressed: () {
+              debugPrint('[ARBEITSTAG] chevron_right tapped');
+              _shiftKw(1);
+            },
             icon: const Icon(Icons.chevron_right),
             tooltip: 'Nächste KW',
           ),
           if (!isCurrentKw)
-            TextButton.icon(
+            IconButton(
               onPressed: _jumpToday,
-              icon: const Icon(Icons.today, size: 16),
-              label: const Text('Heute'),
+              icon: const Icon(Icons.today, size: 20),
+              tooltip: 'Heute',
             ),
-          if (stats != null) ...[
+          // Stats + refresh + archive doar pe ecrane late — pe mobile mic
+          // ele s-ar duce off-screen și blochează layout-ul.
+          if (stats != null && MediaQuery.of(context).size.width >= 600) ...[
             Tooltip(
               message: 'Ticket + Termin + Routine erledigt (Notfall optional)',
               child: _statChip(
@@ -406,6 +418,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
           ),
           _buildArchiveToggle(),
         ],
+      ),
       ),
     );
   }
