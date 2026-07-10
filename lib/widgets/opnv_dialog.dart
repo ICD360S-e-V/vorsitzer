@@ -1197,11 +1197,12 @@ class _DepartureRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
     final mins = dep.minutesUntil;
-    final isImminent = mins <= 2;
-    final isSoon = mins <= 5;
+    final isCancelled = dep.isCancelled;
+    final isImminent = !isCancelled && mins <= 2;
+    final isSoon = !isCancelled && mins <= 5;
     final isLive = dep.realtimeTime != null;
 
-    final canOpenSequence = dep.stopID != null && dep.destID != null;
+    final canOpenSequence = !isCancelled && dep.stopID != null && dep.destID != null;
     final productLabel = switch (dep.productType) {
       'tram' => 'Straßenbahn',
       'subway' => 'U-Bahn',
@@ -1211,14 +1212,15 @@ class _DepartureRow extends StatelessWidget {
       _ => 'Fahrzeug',
     };
     final delayLabel = dep.delay > 0 ? ', ${dep.delay} Minuten Verspätung' : '';
-    final liveLabel = isLive ? 'Live-Daten' : 'Fahrplan';
+    final liveLabel = isCancelled ? 'Ausgefallen' : (isLive ? 'Live-Daten' : 'Fahrplan');
     final minsLabel = mins == 0 ? 'jetzt' : 'in $mins Minuten';
     final sem = '$productLabel Linie ${dep.line} nach ${dep.direction}, '
         'Abfahrt $minsLabel um ${dep.timeString}$delayLabel. $liveLabel.'
         '${dep.platform != null ? " Gleis ${dep.platform}." : ""}';
 
     Color? bg;
-    if (isImminent) bg = p.dark ? const Color(0xFF3D1F1F) : Colors.red.shade50;
+    if (isCancelled) bg = p.dark ? const Color(0xFF3D2A2A) : Colors.red.shade100.withValues(alpha: 0.4);
+    else if (isImminent) bg = p.dark ? const Color(0xFF3D1F1F) : Colors.red.shade50;
     else if (isSoon) bg = p.dark ? const Color(0xFF3D2F1A) : Colors.orange.shade50;
 
     return Semantics(
@@ -1289,30 +1291,34 @@ class _DepartureRow extends StatelessWidget {
             Text(dep.platform!, style: TextStyle(fontSize: 10, color: p.onSurfaceFaint)),
             const SizedBox(width: 6),
           ],
-          // Live/Plan indicator
+          // Live/Plan/Cancelled indicator — Cancelled trumps everything.
           Container(
             width: 8, height: 8,
             decoration: BoxDecoration(
-              color: isLive ? Colors.green.shade500 : p.iconMuted,
+              color: isCancelled
+                  ? Colors.red.shade500
+                  : (isLive ? Colors.green.shade500 : p.iconMuted),
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 4),
           Text(
-            isLive ? 'Live' : 'Plan',
+            isCancelled ? 'Ausf.' : (isLive ? 'Live' : 'Plan'),
             style: TextStyle(
               fontSize: 9,
-              color: isLive ? Colors.green.shade500 : p.onSurfaceFaint,
+              color: isCancelled
+                  ? Colors.red.shade500
+                  : (isLive ? Colors.green.shade500 : p.onSurfaceFaint),
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: 6),
-          // Time
+          // Time — strikethrough on cancellation or delay
           Text(
             dep.timeString,
             style: TextStyle(
               fontSize: 12, color: p.onSurfaceDim,
-              decoration: dep.delay > 0 ? TextDecoration.lineThrough : null,
+              decoration: (isCancelled || dep.delay > 0) ? TextDecoration.lineThrough : null,
             ),
           ),
           const SizedBox(width: 8),
@@ -1320,11 +1326,14 @@ class _DepartureRow extends StatelessWidget {
           SizedBox(
             width: 42,
             child: Text(
-              mins == 0 ? 'jetzt' : '$mins′',
+              isCancelled ? '—' : (mins == 0 ? 'jetzt' : '$mins′'),
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 12, fontWeight: FontWeight.bold,
-                color: isImminent ? Colors.red.shade400 : (isSoon ? Colors.orange.shade400 : Colors.teal.shade400),
+                color: isCancelled
+                    ? Colors.red.shade500
+                    : (isImminent ? Colors.red.shade400 : (isSoon ? Colors.orange.shade400 : Colors.teal.shade400)),
+                decoration: isCancelled ? TextDecoration.lineThrough : null,
               ),
             ),
           ),

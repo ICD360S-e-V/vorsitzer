@@ -56,6 +56,10 @@ class Departure {
   final String? stopID;    // ID of the boarding stop (where the user is)
   final String? destID;    // ID of the line's final stop (for EFA trip search)
   final String? tripID;    // HAFAS-style trip ID (for transport.rest /trips)
+  /// True when the operator has flagged this departure as cancelled
+  /// (HAFAS `stbStop.dCncl == true`, EFA `pointCancelled != null`).
+  /// UI shows an "Ausgefallen" badge and lines through the time.
+  final bool isCancelled;
 
   Departure({
     required this.line,
@@ -70,6 +74,7 @@ class Departure {
     this.stopID,
     this.destID,
     this.tripID,
+    this.isCancelled = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -85,6 +90,7 @@ class Departure {
         'stopID': stopID,
         'destID': destID,
         'tripID': tripID,
+        'isCancelled': isCancelled,
       };
 
   factory Departure.fromJson(Map<String, dynamic> j) => Departure(
@@ -96,6 +102,7 @@ class Departure {
         platform: j['platform'] as String?,
         productType: j['productType'] as String? ?? 'bus',
         operator: j['operator'] as String? ?? '',
+        isCancelled: j['isCancelled'] as bool? ?? false,
         stopName: j['stopName'] as String? ?? '',
         stopID: j['stopID'] as String?,
         destID: j['destID'] as String?,
@@ -2190,6 +2197,11 @@ class TransitService {
             realtime = _parseHafasDateTime(date, dTimeR);
           }
 
+          // Cancellation flag — saarVV/VBB/RMV all use `dCncl:true` on the
+          // stbStop when the service is dropped. Show it as a distinct state,
+          // NOT as "Plan" (which implies the vehicle will still come).
+          final isCancelled = stbStop['dCncl'] == true;
+
           // Calculate delay
           int delay = 0;
           if (realtime != null) {
@@ -2219,19 +2231,13 @@ class TransitService {
             }
             operatorName = prod['oprX'] != null ? '' : '';
 
-            // Product class → type
-            final cls = prod['cls'] as int? ?? 0;
-            if (cls == 1 || cls == 2) {
-              productType = 'train'; // ICE, IC
-            } else if (cls == 4) {
-              productType = 'regional'; // RE, RB
-            } else if (cls == 8) {
-              productType = 'suburban'; // S-Bahn
-            } else if (cls == 16) {
-              productType = 'tram'; // Tram
-            } else {
-              productType = 'bus';
-            }
+            // Product type: prefer prodCtx.catOut (Bus/Tram/S/RE/RB/ICE/…)
+            // which is reliable across all HAFAS backends. saarVV in particular
+            // uses non-standard `cls` values (cls=8 for RE/RB, cls=64+catOut="S"
+            // for Saarbahn light-rail, cls=128 for regular buses), so a `cls`-
+            // only switch mis-classifies tram as bus and regional as S-Bahn.
+            // Fall back to `cls` only when catOut is absent.
+            productType = _hafasProductType(prod);
           }
 
           // Direction
@@ -2247,6 +2253,7 @@ class TransitService {
             productType: productType,
             operator: operatorName,
             stopName: stopName,
+            isCancelled: isCancelled,
           ));
         } catch (e) {
           // Skip malformed entries
@@ -2262,6 +2269,101 @@ class TransitService {
     });
 
     _log.debug('Transit [saarVV]: ${departures.length} departures from ${nearbyStops.length} stops', tag: 'TRANSIT');
+  }
+
+  /// Map a HAFAS prodL entry to our internal productType string.
+  ///
+  /// Uses a two-step lookup:
+  ///   1. `prodCtx.catOutL` (long name — always the most reliable when
+  ///      present, e.g. "Saarbahn" instead of the ambiguous "S", or
+  ///      "Straßenbahn" instead of catOut="STR").
+  ///   2. Fall back to `catOutS` / `catOut` / `catCode`.
+  ///   3. Last resort: numeric `cls` bitmask (varies per backend).
+  ///
+  /// Notable pitfalls this handles:
+  ///   - saarVV emits catOut="S" for Saarbahn light-rail (which is really a
+  ///     tram), but catOutL="Saarbahn" makes the distinction clear.
+  ///   - saarVV cls=64 covers *both* Saarbahn and buses (with catOutL="Bus"),
+  ///     and cls=128 also covers buses — cls alone is useless there.
+  static String _hafasProductType(Map prod) {
+    final ctx = prod['prodCtx'];
+    String catLong = '';
+    String cat = '';
+    if (ctx is Map) {
+      catLong = (ctx['catOutL'] ?? '').toString().trim().toUpperCase();
+      cat = (ctx['catOutS'] ?? ctx['catOut'] ?? ctx['catCode'] ?? '').toString().trim().toUpperCase();
+    }
+    // Long-name check first — catches operator-specific brand names.
+    if (catLong.isNotEmpty) {
+      if (catLong.contains('SAARBAHN') || catLong.contains('STRASSENBAHN') ||
+          catLong.contains('STRAßENBAHN') || catLong.contains('TRAM')) {
+        return 'tram';
+      }
+      if (catLong.contains('S-BAHN') || catLong.contains('SBAHN')) return 'suburban';
+      if (catLong.contains('U-BAHN') || catLong.contains('UBAHN')) return 'subway';
+      if (catLong == 'BUS' || catLong.endsWith(' BUS') || catLong.startsWith('BUS ')) return 'bus';
+      if (catLong.contains('FÄHRE') || catLong.contains('SCHIFF') || catLong.contains('FERRY')) return 'ferry';
+    }
+    if (cat.isNotEmpty) {
+      switch (cat) {
+        case 'ICE':
+        case 'IC':
+        case 'EC':
+        case 'EN':
+        case 'NJ':
+        case 'TGV':
+        case 'RJ':
+        case 'ECE':
+        case 'IR':
+        case 'IRE':
+        case 'FLX':
+          return 'train';
+        case 'RE':
+        case 'RB':
+        case 'MEX':
+        case 'ALX':
+        case 'BRB':
+        case 'HLB':
+        case 'HKX':
+        case 'NBE':
+          return 'regional';
+        case 'S':
+        case 'S-BAHN':
+        case 'SBAHN':
+          return 'suburban';
+        case 'U':
+        case 'U-BAHN':
+        case 'UBAHN':
+        case 'M':
+          return 'subway';
+        case 'TRAM':
+        case 'STR':
+        case 'STRAB':
+        case 'T':
+          return 'tram';
+        case 'BUS':
+        case 'SEV':
+        case 'RUF':
+        case 'AST':
+        case 'ALT':
+          return 'bus';
+        case 'F':
+        case 'FÄHRE':
+        case 'SCH':
+        case 'SCHIFF':
+          return 'ferry';
+      }
+    }
+    // Fallback to cls (best-effort — standard HAFAS mapping)
+    final cls = prod['cls'] as int? ?? 0;
+    if (cls == 1 || cls == 2) return 'train';
+    if (cls == 4 || cls == 8) return 'regional';
+    if (cls == 16) return 'suburban';
+    if (cls == 256) return 'subway';
+    if (cls == 512) return 'tram';
+    if (cls == 32) return 'bus';
+    if (cls == 64) return 'ferry';
+    return 'bus';
   }
 
   /// Parse HAFAS date+time strings → DateTime
@@ -3240,18 +3342,9 @@ class TransitService {
               final nameStr = prod['name']?.toString().trim() ?? '?';
               final m = RegExp(r'([A-Z]*\s?\d+\w*)$').firstMatch(nameStr);
               line = m?.group(1)?.trim() ?? nameStr;
-              final cls = prod['cls'] as int? ?? 0;
-              if (cls == 1 || cls == 2) {
-                productType = 'train';
-              } else if (cls == 4) {
-                productType = 'regional';
-              } else if (cls == 8) {
-                productType = 'suburban';
-              } else if (cls == 16) {
-                productType = 'tram';
-              } else {
-                productType = 'bus';
-              }
+              // Same catOut-preferred mapping as StationBoard parsing — fixes
+              // saarVV mislabeling of Saarbahn as bus and RE/RB as S-Bahn.
+              productType = _hafasProductType(prod);
             }
           }
 
