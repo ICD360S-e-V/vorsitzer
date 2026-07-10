@@ -204,12 +204,19 @@ class NotificationService {
   }
 
   /// Gestionează click pe notificare
-  /// Payload format: 'type:data' (ex: 'chat:123', 'call:456', 'update:1.0.5')
+  /// Payload format: 'type:data' (ex: 'chat:123', 'call:456', 'update:1.0.5',
+  /// 'termin:42', 'opnv:ausstieg:stopId'). Router pentru tot ce nu e stream
+  /// consumat by UI (dashboard listen la onNotificationClicked).
   void _onNotificationTapped(NotificationResponse response) {
     final payload = response.payload;
     _log.debug('Notificare apăsată: $payload', tag: 'NOTIF');
 
     if (payload == null || payload.isEmpty) return;
+
+    // Publică raw payload → dashboard poate să interpreteze context
+    // ('termin:42' → deschide OpnvDialog cu deep-link,
+    //  'opnv:ausstieg:X' → resume la trip-map dacă e activ).
+    _clickController.add(payload);
 
     // Parsează payload-ul (format: 'type:data')
     final parts = payload.split(':');
@@ -219,22 +226,28 @@ class NotificationService {
     // Acțiuni bazate pe tip
     switch (type) {
       case 'chat':
-        // Deschide chat-ul - gestionat de UI (AdminChatDialog)
         _log.info('Navigare la conversație: $data', tag: 'NOTIF');
         break;
       case 'call':
-        // Apel incoming - gestionat de VoiceCallService
         _log.info('Navigare la apel: $data', tag: 'NOTIF');
         break;
       case 'update':
-        // Update disponibil - gestionat de UpdateService
         _log.info('Navigare la update: v$data', tag: 'NOTIF');
+        break;
+      case 'termin':
+        _log.info('Deep-link termin ID: $data → OpnvDialog', tag: 'NOTIF');
+        break;
+      case 'opnv':
+        // 'opnv:ausstieg:X' sau 'opnv:reminder:X'
+        _log.info('Deep-link ÖPNV: ${parts.sublist(1).join(":")}', tag: 'NOTIF');
+        break;
+      case 'grippe':
+        _log.info('Grippewelle info tap', tag: 'NOTIF');
         break;
       case 'connection':
       case 'error':
       case 'success':
       case 'test':
-        // Notificări informative - fără navigare
         _log.debug('Notificare informativă: $type', tag: 'NOTIF');
         break;
       default:

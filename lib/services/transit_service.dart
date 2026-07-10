@@ -224,6 +224,10 @@ class JourneyLeg {
   final String? toPlatform;
   final String productType;  // bus, tram, train, suburban, walk
   final bool isWalk;
+  /// True dacă operatorul permite explicit Fahrradmitnahme pe această tură.
+  /// Sursa: HAFAS `jny.isPresale`? sau — mai des — heuristic pe productType
+  /// (RE/RB/S-Bahn/Regional permit, MEX/ICE/IC nu). null când nu știm.
+  final bool? fahrradmitnahme;
 
   JourneyLeg({
     required this.line,
@@ -238,7 +242,30 @@ class JourneyLeg {
     this.toPlatform,
     required this.productType,
     this.isWalk = false,
+    this.fahrradmitnahme,
   });
+
+  /// Heuristic-based reply când server-ul nu spune explicit. RE/RB/S-Bahn/
+  /// Tram/U-Bahn/Regional permit bicicletă gratis. ICE/IC/EC cere Reservierung.
+  /// Bus – uneori doar Faltrad, deci = null (unknown).
+  bool get bikeAllowedHeuristic {
+    if (isWalk) return true;
+    if (fahrradmitnahme != null) return fahrradmitnahme!;
+    switch (productType) {
+      case 'suburban':
+      case 'regional':
+      case 'tram':
+      case 'subway':
+        return true;
+      case 'train':
+        // Regional-Zug OK, ICE/IC/EC nu.
+        final l = line.toUpperCase();
+        if (l.startsWith('ICE') || l.startsWith('IC ') || l.startsWith('EC ')) return false;
+        return true;
+      default:
+        return false;
+    }
+  }
 
   String get icon {
     if (isWalk) return '🚶';

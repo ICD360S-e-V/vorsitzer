@@ -387,14 +387,69 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       if (!mounted) return;
       _log.info('Notification clicked with payload: $payload', tag: 'DASH');
 
-      // Parse payload format: 'type:data'
+      // Parse payload format: 'type:data[:extra]'
       final parts = payload.split(':');
       final type = parts.isNotEmpty ? parts[0] : '';
+      final data = parts.length > 1 ? parts[1] : '';
 
       if (type == 'chat' && !_isAdminChatOpen) {
         _showAdminChatDialog();
+      } else if (type == 'termin') {
+        // Reminder termin → deschide ÖPNV cu deep-link (Verein → termin loc,
+        // ArrivalTime = terminDate). Route se caută auto-la open.
+        _openTerminOpnvDeepLink(data);
+      } else if (type == 'opnv') {
+        // 'opnv:ausstieg:X' sau 'opnv:reminder:X' — deschide dialogul simplu.
+        _showTransitDialog();
+      } else if (type == 'grippe') {
+        // Doar deschide dialogul cu Störungen — userul poate vedea contextul.
+        _showTransitDialog();
       }
     });
+  }
+
+  /// Fetch termin details by ID → găsește locația → deschide OpnvDialog cu
+  /// initialFrom = Verein-Adresse, initialTo = termin location, arrivalTime.
+  Future<void> _openTerminOpnvDeepLink(String terminId) async {
+    if (terminId.isEmpty) return;
+    try {
+      final res = await _terminService.getMyTermine(filter: 'upcoming');
+      if (res['success'] != true) return;
+      final list = (res['termine'] as List?) ?? [];
+      Map<String, dynamic>? termin;
+      for (final raw in list) {
+        if (raw is Map && raw['id']?.toString() == terminId) {
+          termin = Map<String, dynamic>.from(raw);
+          break;
+        }
+      }
+      if (termin == null || !mounted) return;
+      final location = (termin['location'] ?? termin['ort'])?.toString() ?? '';
+      final dateStr = (termin['termin_date'] ?? termin['date'])?.toString() ?? '';
+      final arrivalTime = DateTime.tryParse(dateStr);
+      if (location.isEmpty) {
+        _showTransitDialog();
+        return;
+      }
+      // Verein-Adresse ca point de plecare (best-effort — pentru 24h reminder
+      // e cel mai des utilizat sursa).
+      const vereinAddr = 'ICD360S e.V., Neu-Ulm';
+      showDialog(
+        context: context,
+        builder: (ctx) => OpnvDialog(
+          transitService: _transitService,
+          initialDepartures: _departures,
+          city: _weatherData?.city ?? '',
+          currentMitgliedernummer: widget.currentMitgliedernummer,
+          users: _users,
+          initialFrom: TransitLocation(id: vereinAddr, name: vereinAddr),
+          initialTo: TransitLocation(id: location, name: location),
+          initialArrivalTime: arrivalTime,
+        ),
+      );
+    } catch (e) {
+      _log.debug('Termin deep-link failed: $e', tag: 'DASH');
+    }
   }
 
   Future<void> _connectWebSocket() async {

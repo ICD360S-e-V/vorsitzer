@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
@@ -16,7 +18,10 @@ import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_favorites_service.dart';
 import '../services/transit_history_service.dart';
+import '../services/transit_grippewelle_service.dart';
 import '../services/transit_offline_cache.dart';
+import '../services/transit_ongoing_ride_service.dart';
+import '../services/transit_pattern_service.dart';
 import '../services/transit_translations.dart';
 import '../services/weather_service.dart';
 
@@ -382,6 +387,11 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
     final p = _Palette.of(context);
     return Column(
       children: [
+        // Ride-in-progress banner — supraviețuiește închiderii trip-map.
+        // Se auto-hides când service.isRunning devine false.
+        const _OngoingRideBanner(),
+        // Grippewelle info — apare doar când RKI raportează activitate ridicată.
+        const _GrippewelleBanner(),
         if (_offline != null) _OfflineBanner(snap: _offline!, onRetry: _refresh),
         // Location bar with accuracy indicator
         Semantics(
@@ -478,6 +488,167 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
         ),
         _Footer(providerName: provider?.displayName ?? 'ÖPNV', lastUpdate: _lastUpdate),
       ],
+    );
+  }
+}
+
+/// Banner cu warning Grippewelle — arată doar când RKI raportează
+/// activitate ridicată (high / very-high). Nudge soft pentru mască în ÖPNV.
+class _GrippewelleBanner extends StatefulWidget {
+  const _GrippewelleBanner();
+
+  @override
+  State<_GrippewelleBanner> createState() => _GrippewelleBannerState();
+}
+
+class _GrippewelleBannerState extends State<_GrippewelleBanner> {
+  final _svc = TransitGrippewelleService();
+
+  @override
+  void initState() {
+    super.initState();
+    _svc.addListener(_onChanged);
+    // Fire refresh la deschidere — respect cache 24h intern.
+    _svc.refreshIfStale();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _svc.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_svc.shouldWarn) return const SizedBox.shrink();
+    final p = _Palette.of(context);
+    final isVeryHigh = _svc.level == GrippewelleLevel.veryHigh;
+    final color = isVeryHigh ? Colors.red.shade400 : Colors.orange.shade600;
+    final kwLabel = _svc.kalenderwoche != null ? ' (KW ${_svc.kalenderwoche})' : '';
+    return Semantics(
+      label: '${_svc.germanLabel}$kwLabel. In öffentlichen Verkehrsmitteln '
+          'FFP2-Maske empfohlen. Quelle RKI.',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: p.dark ? 0.20 : 0.10),
+          border: Border(bottom: BorderSide(color: color.withValues(alpha: 0.4))),
+        ),
+        child: Row(
+          children: [
+            const Text('🤧', style: TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${_svc.germanLabel}$kwLabel',
+                    style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: color,
+                    ),
+                  ),
+                  Text(
+                    isVeryHigh
+                        ? 'FFP2 im ÖPNV dringend empfohlen'
+                        : 'Maske im ÖPNV empfohlen · Quelle RKI',
+                    style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Banner care apare peste Echtzeit tab când există un ride activ
+/// (Ausstieg-Alarm activ în background). Un tap deschide dialogul cu
+/// trip-map-ul reluat. "Beenden" oprește ride-ul + notificarea persistentă.
+class _OngoingRideBanner extends StatefulWidget {
+  const _OngoingRideBanner();
+
+  @override
+  State<_OngoingRideBanner> createState() => _OngoingRideBannerState();
+}
+
+class _OngoingRideBannerState extends State<_OngoingRideBanner> {
+  final _ride = TransitOngoingRideService();
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    // Re-check every 15s ca să reflectăm eventuale stop-uri.
+    _tick = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ride.isRunning) return const SizedBox.shrink();
+    final t = _ride.target;
+    final d = _ride.departure;
+    if (t == null || d == null) return const SizedBox.shrink();
+    final p = _Palette.of(context);
+    return Semantics(
+      label: 'Aktive Fahrt: Linie ${d.line} nach ${t.name}. Ausstieg-Alarm läuft im Hintergrund.',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: p.dark ? 0.22 : 0.14),
+          border: Border(bottom: BorderSide(color: Colors.orange.shade400)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.directions_bus_filled, size: 16, color: Colors.orange.shade700),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Aktive Fahrt: Linie ${d.line} → ${t.name}',
+                style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Semantics(
+              button: true,
+              label: 'Ausstieg-Alarm beenden',
+              child: InkWell(
+                onTap: () async {
+                  await _ride.stopRide();
+                  if (mounted) setState(() {});
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.stop_circle, size: 14, color: Colors.red.shade700),
+                    const SizedBox(width: 3),
+                    Text('Beenden',
+                        style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1276,25 +1447,83 @@ class _DepartureRow extends StatelessWidget {
           ),
           // Delay
           if (dep.delay > 0) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: dep.delay >= 5 ? Colors.red.shade100 : Colors.orange.shade100,
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: Text(
-                '+${dep.delay}',
-                style: TextStyle(
-                  fontSize: 10, fontWeight: FontWeight.bold,
-                  color: dep.delay >= 5 ? Colors.red.shade800 : Colors.orange.shade800,
+            InkWell(
+              onTap: dep.delay > 15
+                  ? () {
+                      // Look up any HIM disruption mentioning this line;
+                      // afișează dialog cu explicație.
+                      final hits = TransitDisruptionsService().disruptionsMentioning(dep.line);
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Row(children: [
+                            Icon(Icons.warning_amber_rounded, color: Colors.red.shade400),
+                            const SizedBox(width: 8),
+                            Text('Ungewöhnliche Verspätung: +${dep.delay} Min.'),
+                          ]),
+                          content: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Linie ${dep.line} nach ${dep.direction}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              if (hits.isEmpty)
+                                const Text('Keine passende Störungsmeldung gefunden.\n'
+                                    'Mögliche Ursachen: Bauarbeiten, Wetter, Signalstörung.')
+                              else
+                                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text('${hits.length} aktive Störungsmeldung${hits.length == 1 ? "" : "en"}:',
+                                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 4),
+                                  ...hits.take(3).map((h) => Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text('• ${h.headline}',
+                                        style: const TextStyle(fontSize: 12)),
+                                  )),
+                                ]),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Schließen'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: dep.delay >= 5 ? Colors.red.shade100 : Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(3),
                 ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                    '+${dep.delay}',
+                    style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.bold,
+                      color: dep.delay >= 5 ? Colors.red.shade800 : Colors.orange.shade800,
+                    ),
+                  ),
+                  // "?" badge când Verspätung e anormal de mare (>15min) —
+                  // tap deschide dialog explicativ.
+                  if (dep.delay > 15) ...[
+                    const SizedBox(width: 2),
+                    Icon(Icons.help_outline, size: 10, color: Colors.red.shade800),
+                  ],
+                ]),
               ),
             ),
             const SizedBox(width: 6),
           ],
-          // Platform
+          // Platform — badge dedicat, culoare after tip peron.
+          // "Gl 3a/b" (S-Bahn) e ambiguu → warning portocaliu.
+          // "Gl 5" (simplu) = verde.
           if (dep.platform != null) ...[
-            Text(dep.platform!, style: TextStyle(fontSize: 10, color: p.onSurfaceFaint)),
+            _PlatformBadge(platform: dep.platform!, productType: dep.productType),
             const SizedBox(width: 6),
           ],
           // Live/Plan/Cancelled indicator — Cancelled trumps everything.
@@ -1347,6 +1576,49 @@ class _DepartureRow extends StatelessWidget {
       ),
     ),
     ),
+    );
+  }
+}
+
+/// Compact platform indicator. La stații mari (Hbf) platforma 3a/b poate
+/// direcționa userul spre direcție opusă → semnalizează cu portocaliu.
+class _PlatformBadge extends StatelessWidget {
+  final String platform;
+  final String productType;
+  const _PlatformBadge({required this.platform, required this.productType});
+
+  bool get _isSplitPlatform {
+    // "3a" / "3b" — jumătatea sudică vs nordică. Ambiguu pentru user.
+    final t = platform.trim().toLowerCase();
+    return t.endsWith('a') || t.endsWith('b') || t.endsWith('c') || t.endsWith('d');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final isTrainLike = productType == 'train' ||
+        productType == 'regional' ||
+        productType == 'suburban' ||
+        productType == 'subway';
+    final color = _isSplitPlatform
+        ? Colors.orange.shade600
+        : (isTrainLike ? Colors.blueGrey.shade500 : p.onSurfaceFaint);
+    return Tooltip(
+      message: _isSplitPlatform
+          ? 'Bahnsteig-Abschnitt $platform — vor Einfahrt Beschilderung prüfen'
+          : 'Gleis/Steig $platform',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.13),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: color, width: 0.6),
+        ),
+        child: Text(
+          isTrainLike ? 'Gl $platform' : 'St $platform',
+          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color),
+        ),
+      ),
     );
   }
 }
@@ -1440,6 +1712,27 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
     setState(() {
       _targetStopId = (_targetStopId == id) ? null : id;
     });
+    // Sync cu OngoingRideService — dacă utilizatorul a ales un target,
+    // pornește ride-ul persistent. Dacă a debifat, oprește-l.
+    final ride = TransitOngoingRideService();
+    final stops = _route?.stops ?? const <TripStop>[];
+    final tid = _targetStopId;
+    if (tid == null) {
+      // Un click nou pe același stop deselectă → nu oprim automat (poate
+      // vrea doar să schimbe target-ul). Se oprește din banner sau la
+      // "Alarm entfernen" în TripMapView.
+      return;
+    }
+    TripStop? tgt;
+    for (final s in stops) {
+      if (s.stopID == tid) { tgt = s; break; }
+    }
+    if (tgt == null) return;
+    if (ride.isRunning) {
+      ride.updateTarget(tgt);
+    } else {
+      ride.startRide(dep: widget.dep, target: tgt, allStops: stops);
+    }
   }
 
   Color _lineColor() {
@@ -2033,6 +2326,7 @@ class _VerbindungTab extends StatefulWidget {
 class _VerbindungTabState extends State<_VerbindungTab> {
   static const _kPrefsDTicketKey = 'opnv.filter.onlyDeutschlandTicket';
   static const _kPrefsBarrierFreiKey = 'opnv.filter.barrierFrei';
+  static const _kPrefsFahrradKey = 'opnv.filter.fahrradmitnahme';
   TransitLocation? _from;
   TransitLocation? _to;
   DateTime _when = DateTime.now();
@@ -2041,8 +2335,10 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   List<Journey>? _results;
   String? _error;
   List<TransitFavorite> _favorites = [];
+  TransitRoutinePattern? _morningPattern;
   bool _onlyDTicket = false;
   bool _barrierFrei = false;
+  bool _mitRad = false;
   /// Async accessibility check result per journey index. Populated by
   /// `_checkAccessibility()` after each search. When `_barrierFrei` toggle
   /// is on, journeys with brokenElevator status are hidden from the list.
@@ -2082,7 +2378,15 @@ class _VerbindungTabState extends State<_VerbindungTab> {
     setState(() {
       _onlyDTicket = sp.getBool(_kPrefsDTicketKey) ?? false;
       _barrierFrei = sp.getBool(_kPrefsBarrierFreiKey) ?? false;
+      _mitRad = sp.getBool(_kPrefsFahrradKey) ?? false;
     });
+  }
+
+  Future<void> _toggleMitRad(bool v) async {
+    setState(() => _mitRad = v);
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_kPrefsFahrradKey, v);
+    // Client-side only — filtrează pe legs.bikeAllowedHeuristic.
   }
 
   Future<void> _toggleDTicket(bool v) async {
@@ -2121,8 +2425,12 @@ class _VerbindungTabState extends State<_VerbindungTab> {
 
   Future<void> _loadFavorites() async {
     final picks = await TransitFavoritesService.topPicks();
+    final pattern = await TransitPatternService.detectMorningPattern();
     if (!mounted) return;
-    setState(() => _favorites = picks);
+    setState(() {
+      _favorites = picks;
+      _morningPattern = pattern;
+    });
   }
 
   Future<void> _applyFavorite(TransitFavorite fav) async {
@@ -2290,6 +2598,27 @@ class _VerbindungTabState extends State<_VerbindungTab> {
     final p = _Palette.of(context);
     return Column(
       children: [
+        // Morgen-Route chip — apare cand user-ul a călătorit >=3× aceeași linie
+        // dimineața între Lun-Vin. Tap = pre-fill Verbindung cu ora medie.
+        if (_morningPattern != null)
+          _MorgenRouteChip(
+            pattern: _morningPattern!,
+            onTap: () {
+              final pat = _morningPattern!;
+              // Setează _when pentru azi la ora medie.
+              final now = DateTime.now();
+              setState(() {
+                _when = DateTime(now.year, now.month, now.day, pat.medianHour, pat.medianMinute);
+                _arriveBy = false;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(pat.detailLabel),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            },
+          ),
         if (_favorites.isNotEmpty)
           _FavoritesChipRow(
             favorites: _favorites,
@@ -2414,9 +2743,42 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
+                  // Fahrradmitnahme — filter care ascunde rute cu leg-uri
+                  // fără bicicletă permisă (ICE/IC/EC, unele buse). Heuristic
+                  // per productType + line prefix. RE/RB/S-Bahn/Tram = OK.
+                  Semantics(
+                    button: true,
+                    label: _mitRad
+                        ? 'Nur Fahrradmitnahme-Routen aktiv'
+                        : 'Nur Routen mit Fahrradmitnahme anzeigen',
+                    child: FilterChip(
+                      label: const Text('mit Rad', style: TextStyle(fontSize: 11)),
+                      selected: _mitRad,
+                      onSelected: _toggleMitRad,
+                      avatar: Icon(
+                        _mitRad ? Icons.check_circle : Icons.directions_bike,
+                        size: 14,
+                        color: _mitRad ? Colors.white : Colors.teal.shade400,
+                      ),
+                      selectedColor: Colors.teal.shade400,
+                      labelStyle: TextStyle(
+                        fontSize: 11,
+                        color: _mitRad ? Colors.white : p.onSurface,
+                      ),
+                      backgroundColor: p.card,
+                      side: BorderSide(color: p.border),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
                   if (_onlyDTicket)
                     Text(
                       'ICE/IC/EC ausgeblendet',
+                      style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
+                    ),
+                  if (_mitRad)
+                    Text(
+                      'Nur Bahnen mit Rad',
                       style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
                     ),
                   if (_barrierFrei)
@@ -2469,6 +2831,13 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                         acc.status == JourneyAccessibilityStatus.brokenElevator) {
                       continue;
                     }
+                    if (_mitRad) {
+                      // Ascunde ruta dacă orice leg (excluzând walks) nu
+                      // permite bicicletă conform heuristic.
+                      final j = _results![i];
+                      final blocked = j.legs.any((l) => !l.isWalk && !l.bikeAllowedHeuristic);
+                      if (blocked) continue;
+                    }
                     visible.add(i);
                   }
                   if (visible.isEmpty) {
@@ -2504,6 +2873,65 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                 }),
         ),
       ],
+    );
+  }
+}
+
+/// Detected recurring morning-commute chip. Apare doar când algoritmul din
+/// TransitPatternService a găsit >=3 călătorii identice în intervalul 5-11h.
+class _MorgenRouteChip extends StatelessWidget {
+  final TransitRoutinePattern pattern;
+  final VoidCallback onTap;
+  const _MorgenRouteChip({required this.pattern, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      decoration: BoxDecoration(
+        color: p.dark
+            ? Colors.amber.withValues(alpha: 0.15)
+            : Colors.amber.shade50,
+        border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+      ),
+      child: Semantics(
+        button: true,
+        label: pattern.detailLabel,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              children: [
+                Icon(Icons.wb_twilight, size: 14, color: Colors.amber.shade700),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Muster erkannt: ${pattern.chipLabel}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: p.dark ? Colors.amber.shade200 : Colors.amber.shade900,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade600,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text('${pattern.occurrences}×',
+                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2579,7 +3007,7 @@ class _FavoritesChipRow extends StatelessWidget {
   }
 }
 
-class _LocationField extends StatelessWidget {
+class _LocationField extends StatefulWidget {
   final String label;
   final IconData icon;
   final TransitLocation? value;
@@ -2595,34 +3023,103 @@ class _LocationField extends StatelessWidget {
   });
 
   @override
+  State<_LocationField> createState() => _LocationFieldState();
+}
+
+class _LocationFieldState extends State<_LocationField> {
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _voiceReady = false;
+  bool _listening = false;
+
+  /// Doar mobil (Android/iOS) — desktop nu are runtime STT prin plugin.
+  bool get _voiceSupported {
+    if (kIsWeb) return false;
+    return Platform.isAndroid || Platform.isIOS;
+  }
+
+  Future<void> _toggleListen(TextEditingController controller) async {
+    if (!_voiceSupported) return;
+    if (_listening) {
+      await _speech.stop();
+      setState(() => _listening = false);
+      return;
+    }
+    if (!_voiceReady) {
+      _voiceReady = await _speech.initialize(
+        onError: (_) {},
+        onStatus: (s) {
+          if (s == 'done' || s == 'notListening') {
+            if (mounted) setState(() => _listening = false);
+          }
+        },
+      );
+    }
+    if (!_voiceReady || !mounted) return;
+    setState(() => _listening = true);
+    await _speech.listen(
+      localeId: 'de_DE',
+      onResult: (r) async {
+        controller.text = r.recognizedWords;
+        controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: controller.text.length),
+        );
+        if (r.finalResult && r.recognizedWords.trim().length >= 2) {
+          final list = await widget.service.searchLocations(r.recognizedWords);
+          if (list.isNotEmpty) widget.onChanged(list.first);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    if (_listening) _speech.stop();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Autocomplete<TransitLocation>(
       displayStringForOption: (loc) => loc.name,
       optionsBuilder: (textEditingValue) async {
         if (textEditingValue.text.trim().length < 2) return const [];
-        return await service.searchLocations(textEditingValue.text);
+        return await widget.service.searchLocations(textEditingValue.text);
       },
-      onSelected: onChanged,
-      initialValue: value != null ? TextEditingValue(text: value!.name) : null,
+      onSelected: widget.onChanged,
+      initialValue: widget.value != null ? TextEditingValue(text: widget.value!.name) : null,
       fieldViewBuilder: (context, controller, focusNode, onSubmit) {
         return TextField(
           controller: controller,
           focusNode: focusNode,
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, size: 18, color: Colors.teal.shade700),
-            hintText: label,
+            prefixIcon: Icon(widget.icon, size: 18, color: Colors.teal.shade700),
+            hintText: widget.label,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             isDense: true,
-            suffixIcon: controller.text.isNotEmpty
-                ? IconButton(
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_voiceSupported)
+                  IconButton(
+                    icon: Icon(
+                      _listening ? Icons.mic : Icons.mic_none,
+                      size: 18,
+                      color: _listening ? Colors.red.shade600 : Colors.teal.shade700,
+                    ),
+                    tooltip: _listening ? 'Höre zu…' : 'Ziel per Sprache eingeben',
+                    onPressed: () => _toggleListen(controller),
+                  ),
+                if (controller.text.isNotEmpty)
+                  IconButton(
                     icon: const Icon(Icons.clear, size: 16),
                     onPressed: () {
                       controller.clear();
-                      onChanged(null);
+                      widget.onChanged(null);
                     },
-                  )
-                : null,
+                  ),
+              ],
+            ),
           ),
           style: const TextStyle(fontSize: 13),
         );
@@ -3092,6 +3589,65 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
   }
 }
 
+/// Fare estimation helper — computes if journey is covered by D-Ticket
+/// (49€/lună Deutschlandticket) or dacă include ICE/IC/EC ce cere separate.
+/// Target audience ICD-Jobcenter: important să știe dacă rută costă +25-70€.
+class _FareInfo {
+  /// True dacă toate leg-urile sunt Nahverkehr (S/RB/RE/Bus/Tram/U-Bahn) →
+  /// acoperit de D-Ticket 49€.
+  final bool coveredByDTicket;
+  /// Estimare cost adăugător pentru leg-urile Fernverkehr (best-effort, se
+  /// bazează pe distanță aproximativă). null când e integral D-Ticket-abgedeckt.
+  final int? extraEuroEstimate;
+  final List<String> fernverkehrLines;
+
+  const _FareInfo({
+    required this.coveredByDTicket,
+    this.extraEuroEstimate,
+    this.fernverkehrLines = const [],
+  });
+
+  /// Heuristic: line-prefix + product type.
+  static bool _isFernverkehr(JourneyLeg leg) {
+    final line = leg.line.trim().toUpperCase();
+    // ICE 123, IC 2013, EC 27, TGV 9575, RJ 68, NJ 421 → Fernverkehr.
+    // FLX (FlixTrain) — nici D-Ticket, nici FV, dar tot >D-Ticket.
+    for (final prefix in ['ICE', 'IC ', 'EC ', 'TGV', 'RJ ', 'NJ ', 'FLX', 'THA']) {
+      if (line.startsWith(prefix)) return true;
+    }
+    // Exact match uneori
+    if (line == 'ICE' || line == 'IC' || line == 'EC') return true;
+    return false;
+  }
+
+  static _FareInfo forJourney(Journey j) {
+    final fv = <String>[];
+    for (final leg in j.legs) {
+      if (leg.isWalk) continue;
+      if (_isFernverkehr(leg)) fv.add(leg.line);
+    }
+    if (fv.isEmpty) {
+      return const _FareInfo(coveredByDTicket: true);
+    }
+    // Estimare: distanță drum aproximativ per Fernverkehr = 25-70€.
+    // Fără polyline reală, aproximăm după durata legelor FV.
+    int fvMinutes = 0;
+    for (final leg in j.legs) {
+      if (leg.isWalk) continue;
+      if (_isFernverkehr(leg)) {
+        fvMinutes += leg.arrTime.difference(leg.depTime).inMinutes;
+      }
+    }
+    // Tarif ICE mediu ~0.35€/km, viteza ~150 km/h → ~0.87€/min. Adăugăm 10€ base.
+    final estimate = (10 + fvMinutes * 0.87).clamp(15, 200).round();
+    return _FareInfo(
+      coveredByDTicket: false,
+      extraEuroEstimate: estimate,
+      fernverkehrLines: fv,
+    );
+  }
+}
+
 /// One transfer/depart/arrive moment with an "adverse" weather forecast.
 /// Attached to the Journey card as a warning line. "Adverse" = rain, snow,
 /// thunderstorm or dense fog per WMO code. Sunny/cloudy = no warning.
@@ -3126,6 +3682,25 @@ class _WeatherAlert {
         tryAdd('Umstieg ${j.legs[i].toName}', at);
       }
       tryAdd('Ankunft ${j.legs.last.toName}', j.arrTime);
+
+      // Walk-leg specific: dacă un fußweg >= 3 min traversează vreme
+      // adversă → warning separat cu 🚶 prefix. Deja detectăm start/arr
+      // deasupra, deci filtrăm doar walks intermediare cu durata utilă.
+      for (int i = 0; i < j.legs.length; i++) {
+        final leg = j.legs[i];
+        if (!leg.isWalk) continue;
+        final walkMin = leg.arrTime.difference(leg.depTime).inMinutes;
+        if (walkMin < 3) continue;
+        // Alertă la mijlocul walk-ului (compromis între dep și arr).
+        final mid = leg.depTime.add(Duration(minutes: walkMin ~/ 2));
+        final hint = ws.weatherHintAt(mid);
+        if (hint == null || !_isAdverse(hint.emoji)) continue;
+        if (alerts.any((a) => a.time == mid)) continue;
+        alerts.add(_WeatherAlert(
+          '🚶 $walkMin Min. Fußweg (${leg.fromName})',
+          mid, hint.emoji, hint.label,
+        ));
+      }
     }
     return alerts;
   }
@@ -3169,6 +3744,61 @@ class _AccessibilityBadge extends StatelessWidget {
   }
 }
 
+/// Compact badge care afișează dacă traseul e acoperit de D-Ticket 49€
+/// sau cere plată suplimentară pentru Fernverkehr (ICE/IC/EC).
+class _FareBadge extends StatelessWidget {
+  final _FareInfo info;
+  const _FareBadge({required this.info});
+
+  @override
+  Widget build(BuildContext context) {
+    if (info.coveredByDTicket) {
+      return Tooltip(
+        message: 'Alle Fahrten mit dem Deutschlandticket (49€) enthalten',
+        child: Semantics(
+          label: 'Deutschlandticket-kompatibel',
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.green.shade100,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: Colors.green.shade400),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.check_circle, size: 10, color: Colors.green.shade800),
+              const SizedBox(width: 2),
+              Text('D-Ticket',
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            ]),
+          ),
+        ),
+      );
+    }
+    final extra = info.extraEuroEstimate ?? 0;
+    return Tooltip(
+      message: 'Enthält ${info.fernverkehrLines.join(", ")} — kostet ca. $extra€ '
+          'zusätzlich zum Deutschlandticket.',
+      child: Semantics(
+        label: 'Zusatzkosten ca. $extra Euro für Fernverkehr',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: Colors.orange.shade400),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.euro_symbol, size: 10, color: Colors.orange.shade800),
+            const SizedBox(width: 2),
+            Text('~$extra€',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _JourneyCard extends StatelessWidget {
   final Journey journey;
   final VoidCallback? onSend;
@@ -3186,6 +3816,41 @@ class _JourneyCard extends StatelessWidget {
     this.accessibility,
     this.onFindAlternative,
   });
+
+  /// Construiește URL public bahn.de care preîncarcă interogarea completă
+  /// atunci când e deschis pe orice device. Fructos pentru WhatsApp / SMS.
+  static String _buildBahnDeUrl(Journey j) {
+    final from = Uri.encodeComponent(j.legs.first.fromName);
+    final to = Uri.encodeComponent(j.legs.last.toName);
+    final d = j.depTime;
+    final iso = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}'
+        'T${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:00';
+    return 'https://www.bahn.de/buchung/fahrplan/suche#!connection?'
+        'sts=true&so=$from&zo=$to&kl=2&r=13:16:KLASSENLOS:1:0&hd=$iso';
+  }
+
+  static Future<void> _shareLink(BuildContext ctx, Journey j) async {
+    final url = _buildBahnDeUrl(j);
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!ctx.mounted) return;
+    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 4),
+      content: Row(children: [
+        const Icon(Icons.link, color: Colors.white, size: 16),
+        const SizedBox(width: 6),
+        const Expanded(child: Text('Link kopiert — im Chat einfügen')),
+        TextButton(
+          onPressed: () async {
+            final uri = Uri.parse(url);
+            if (await canLaunchUrl(uri)) {
+              launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+          child: const Text('Öffnen', style: TextStyle(color: Colors.white)),
+        ),
+      ]),
+    ));
+  }
 
   String _hhmm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
 
@@ -3247,6 +3912,8 @@ class _JourneyCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 _AccessibilityBadge(status: accessibility),
+                const SizedBox(width: 4),
+                _FareBadge(info: _FareInfo.forJourney(journey)),
                 const Spacer(),
                 Text(durStr, style: TextStyle(fontSize: 12, color: p.onSurfaceDim, fontWeight: FontWeight.w600)),
                 const SizedBox(width: 8),
@@ -3366,6 +4033,28 @@ class _JourneyCard extends StatelessWidget {
                     '${journey.legs.first.fromName} → ${journey.legs.last.toName}',
                     style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
                     overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // Share link button — copiază URL bahn.de în clipboard pentru
+                // WhatsApp/SMS/orice altă aplicație de comunicare externă.
+                Semantics(
+                  button: true,
+                  label: 'Link zu bahn.de kopieren',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: () => _shareLink(context, journey),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.link, size: 12, color: Colors.blue.shade600),
+                        const SizedBox(width: 3),
+                        Text('Teilen',
+                            style: TextStyle(
+                              fontSize: 10, fontWeight: FontWeight.w600,
+                              color: p.dark ? Colors.blue.shade200 : Colors.blue.shade700,
+                            )),
+                      ]),
+                    ),
                   ),
                 ),
                 if (onSend != null)
@@ -3563,15 +4252,34 @@ class _JourneyLegCard extends StatelessWidget {
     final p = _Palette.of(context);
     if (leg.isWalk) {
       final mins = leg.arrTime.difference(leg.depTime).inMinutes;
+      // Estimare distanță: mers pe jos mediu 4.5 km/h → ~75 m/min.
+      final approxMeters = mins * 75;
+      final distLabel = approxMeters >= 1000
+          ? '${(approxMeters / 1000).toStringAsFixed(1)} km'
+          : '~$approxMeters m';
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
         child: Row(children: [
           Icon(Icons.directions_walk, size: 16, color: p.onSurfaceDim),
           const SizedBox(width: 6),
           Text(
-            '$mins Min. Fußweg',
+            '$distLabel · $mins Min. Fußweg',
             style: TextStyle(fontSize: 11.5, color: p.onSurfaceDim, fontWeight: FontWeight.w500),
           ),
+          const SizedBox(width: 6),
+          // OSM highway=steps check e prea scump în timp real (Overpass).
+          // Marker soft: dacă walk-ul e < 5min = probabil accesibil (nu trece
+          // prin Bhf-Etage); > 5min = poate include Treppen la conexiuni.
+          if (mins < 5)
+            Tooltip(
+              message: 'Kurzer Fußweg — meist ebenerdig / barrierefrei',
+              child: Icon(Icons.accessible, size: 12, color: Colors.green.shade600),
+            )
+          else
+            Tooltip(
+              message: 'Längerer Fußweg — evtl. Treppen unterwegs (nicht geprüft)',
+              child: Icon(Icons.info_outline, size: 12, color: Colors.orange.shade600),
+            ),
         ]),
       );
     }
@@ -3791,6 +4499,10 @@ class _TripMapViewState extends State<_TripMapView> {
   bool _followUser = true;
   bool _ttsEnabled = false;
   final FlutterTts _tts = FlutterTts();
+  /// Timer care re-calc poziția interpolată a vehiculului la 15s.
+  Timer? _vehicleInterpolateTimer;
+  /// Ultima poziție calculată a vehiculului (segment.lat/lon).
+  LatLng? _vehiclePosition;
   /// Second TTS instance in the user's Muttersprache (RO/UK/TR/EN/…).
   /// Only allocated if the language is supported and non-German. The
   /// German TTS speaks first; this one follows after a short delay.
@@ -3876,6 +4588,52 @@ class _TripMapViewState extends State<_TripMapView> {
       },
       onError: (_) {},
     );
+    // Rulează interpolarea imediat + la fiecare 15s.
+    _updateVehiclePosition();
+    _vehicleInterpolateTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) _updateVehiclePosition();
+    });
+  }
+
+  /// Extrapolează poziția vehiculului pe polyline între stațiile a căror
+  /// timpuri planificate/realtime încadrează `now`. Când 2 stații consecutive
+  /// au `t1 ≤ now ≤ t2` → poziție = lerp(t1.coord, t2.coord, ratio).
+  ///
+  /// Când polyline detaliat nu e disponibil, cade back la stops (drept-liniar).
+  void _updateVehiclePosition() {
+    final stops = widget.stops;
+    if (stops.length < 2) return;
+    final now = DateTime.now();
+    // Găsim segmentul curent.
+    int segIdx = -1;
+    for (int i = 0; i < stops.length - 1; i++) {
+      final t1 = stops[i].realtimeTime ?? stops[i].plannedTime;
+      final t2 = stops[i + 1].realtimeTime ?? stops[i + 1].plannedTime;
+      if (!t1.isAfter(now) && t2.isAfter(now)) {
+        segIdx = i;
+        break;
+      }
+    }
+    if (segIdx < 0) {
+      setState(() => _vehiclePosition = null);
+      return;
+    }
+    final a = stops[segIdx];
+    final b = stops[segIdx + 1];
+    if (a.lat == null || a.lon == null || b.lat == null || b.lon == null) {
+      setState(() => _vehiclePosition = null);
+      return;
+    }
+    final t1 = (a.realtimeTime ?? a.plannedTime).millisecondsSinceEpoch;
+    final t2 = (b.realtimeTime ?? b.plannedTime).millisecondsSinceEpoch;
+    if (t2 <= t1) {
+      setState(() => _vehiclePosition = LatLng(a.lat!, a.lon!));
+      return;
+    }
+    final ratio = ((now.millisecondsSinceEpoch - t1) / (t2 - t1)).clamp(0.0, 1.0);
+    final lat = a.lat! + (b.lat! - a.lat!) * ratio;
+    final lon = a.lon! + (b.lon! - a.lon!) * ratio;
+    setState(() => _vehiclePosition = LatLng(lat, lon));
   }
 
   /// GPS-driven side effects: Ausstieg-Alarm + TTS "Nächste Haltestelle".
@@ -3974,6 +4732,7 @@ class _TripMapViewState extends State<_TripMapView> {
   @override
   void dispose() {
     _positionSub?.cancel();
+    _vehicleInterpolateTimer?.cancel();
     widget.transitService.resumeCoarseTracking();
     _tts.stop();
     _ttsMuttersprache?.stop();
@@ -4127,6 +4886,26 @@ class _TripMapViewState extends State<_TripMapView> {
                     ),
                   ),
             ]),
+            // Vehicul interpolat pe polyline (portocaliu, cu pulse animat).
+            if (_vehiclePosition != null)
+              MarkerLayer(markers: [
+                Marker(
+                  point: _vehiclePosition!,
+                  width: 36, height: 36,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade700,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(color: Colors.orange.withValues(alpha: 0.7),
+                            blurRadius: 12, spreadRadius: 3),
+                      ],
+                    ),
+                    child: const Icon(Icons.directions_bus_filled, color: Colors.white, size: 18),
+                  ),
+                ),
+              ]),
             if (_userPosition != null)
               MarkerLayer(markers: [
                 Marker(
@@ -4194,6 +4973,12 @@ class _TripMapViewState extends State<_TripMapView> {
                 Icon(Icons.navigation, size: 10, color: Colors.blue.shade600),
                 const SizedBox(width: 4),
                 const Text('Ich', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                if (_vehiclePosition != null) ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.directions_bus_filled, size: 10, color: Colors.orange.shade700),
+                  const SizedBox(width: 4),
+                  const Text('Bus', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                ],
                 const SizedBox(width: 8),
                 Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.green.shade600, shape: BoxShape.circle)),
                 const SizedBox(width: 4),

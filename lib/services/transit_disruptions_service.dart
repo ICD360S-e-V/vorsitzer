@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
 
@@ -43,6 +44,7 @@ class TransitDisruptionsService extends ChangeNotifier {
   static const _url = 'https://www.bahn.de/web/api/reiseloesung/verkehrsmeldungen';
   static const _refresh = Duration(minutes: 15);
   static const _cacheTtl = Duration(minutes: 5);
+  static const _kPrefsBypassKey = 'opnv.disruption.bypass_region';
 
   final _log = LoggerService();
   final http.Client _client = IOClient(HttpClientFactory.createDefaultHttpClient());
@@ -61,13 +63,31 @@ class TransitDisruptionsService extends ChangeNotifier {
   final Set<String> _regionTokens = {};
 
   /// When true, the region filter is bypassed and every active nationwide
-  /// disruption is surfaced. Persisted separately by UI code.
+  /// disruption is surfaced. Persisted via SharedPreferences so the toggle
+  /// survives app restarts.
   bool _bypassRegionFilter = false;
+  bool _bypassLoaded = false;
   bool get bypassRegionFilter => _bypassRegionFilter;
   set bypassRegionFilter(bool v) {
     if (v == _bypassRegionFilter) return;
     _bypassRegionFilter = v;
     notifyListeners();
+    // Fire-and-forget persistence.
+    SharedPreferences.getInstance().then((sp) => sp.setBool(_kPrefsBypassKey, v));
+  }
+
+  /// One-shot load from SharedPreferences on service start.
+  Future<void> _loadBypass() async {
+    if (_bypassLoaded) return;
+    _bypassLoaded = true;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final v = sp.getBool(_kPrefsBypassKey) ?? false;
+      if (v != _bypassRegionFilter) {
+        _bypassRegionFilter = v;
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   /// Replace the region-token set. Called by dashboard once user profile
@@ -160,6 +180,7 @@ class TransitDisruptionsService extends ChangeNotifier {
   /// Kick off periodic fetching. Idempotent — safe to call from dashboard init.
   void start() {
     if (_timer != null) return;
+    _loadBypass();
     fetch();
     _timer = Timer.periodic(_refresh, (_) => fetch());
   }

@@ -218,6 +218,11 @@ dependencies:
   # bumps to 3.9.
   puppeteer: ^3.19.0
 
+  # Voice command input pentru ÖPNV Verbindung-suche. Utilizează platform-
+  # native speech recognizer (Android SpeechRecognizer / iOS Speech.framework).
+  # Zero network calls, funcționează și offline pe device-uri cu on-device STT.
+  speech_to_text: ^7.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
