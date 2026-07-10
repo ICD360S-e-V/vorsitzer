@@ -2487,7 +2487,15 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         _results = journeys;
         _searching = false;
         _accessibility.clear();
-        if (journeys.isEmpty) _error = 'Keine Verbindungen gefunden';
+        if (journeys.isEmpty) {
+          // Explicativ pentru cross-provider: userul poate să nu știe că e
+          // problemă de coverage regională sau network.
+          _error = 'Keine Verbindungen gefunden.\n\n'
+              'Mögliche Ursachen:\n'
+              '• Streckenname anders in bahn.de (versuche "Hbf" statt "Hauptbahnhof")\n'
+              '• Kein Nahverkehr — bei Fernverkehr D-Ticket-Filter deaktivieren\n'
+              '• Netzwerkproblem — später erneut versuchen';
+        }
       });
       // Only record searches that actually returned results — random typos
       // or dead-end lookups shouldn't clutter the quick-pick row.

@@ -2079,6 +2079,12 @@ class TransitService {
   /// Fetch departures via HAFAS mgate.exe (saarVV)
   /// Two-step: 1) find nearby stops  2) get departures for each
   Future<void> _fetchHafasDepartures() async {
+    // Circuit-breaker: skip complet dacă providerul e blacklist-uit.
+    final activeP = activeProvider;
+    if (activeP != null && _isHafasBlacklisted(activeP.type)) {
+      _log.debug('Transit [${activeP.name}]: skipped — blacklisted', tag: 'TRANSIT');
+      return;
+    }
     // Step 1: Find nearby stops via LocGeoPos
     final nearbyRequest = _hafasRequest([
       {
@@ -2109,17 +2115,29 @@ class TransitService {
     }
 
     final nearbyData = jsonDecode(_decodeUtf8(nearbyResponse));
+    // Root-level AUTH check (activeP may be null pre-detection).
+    final rootErr = nearbyData['err']?.toString();
+    if (rootErr == 'AUTH' && activeP != null) {
+      _markHafasAuthFail(activeP, '${nearbyData['errTxt'] ?? 'AUTH'}');
+      return;
+    }
     final nearbyRes = nearbyData['svcResL'];
     if (nearbyRes == null || nearbyRes is! List || nearbyRes.isEmpty) {
-      _log.error('Transit [saarVV]: Empty LocGeoPos response', tag: 'TRANSIT');
+      final providerName = activeP?.name ?? 'HAFAS';
+      _log.error('Transit [$providerName]: Empty LocGeoPos response', tag: 'TRANSIT');
       return;
     }
 
     final locRes = nearbyRes[0]['res'];
     if (locRes == null) {
       // Check for error
-      final err = nearbyRes[0]['err'];
-      _log.error('Transit [saarVV]: LocGeoPos error: $err', tag: 'TRANSIT');
+      final err = nearbyRes[0]['err']?.toString();
+      final providerName = activeP?.name ?? 'HAFAS';
+      if (err == 'AUTH' && activeP != null) {
+        _markHafasAuthFail(activeP, '${nearbyRes[0]['errTxt'] ?? 'AUTH'}');
+      } else {
+        _log.error('Transit [$providerName]: LocGeoPos error: $err', tag: 'TRANSIT');
+      }
       return;
     }
 
@@ -2492,6 +2510,43 @@ class TransitService {
   final _dbDeparturesCache = <String, _CachedDepartures>{};
 
   static const _restBase = 'https://v6.db.transport.rest';
+
+  // ════════════════════════════════════════════════════════════════
+  // HAFAS AUTH CIRCUIT-BREAKER — mulți provideri au migrat la request
+  // signing (MIC/MAC HMAC-SHA1); AID-ul singur nu mai e suficient și
+  // returnează `err=AUTH HCI Core: Authorization fail`. Pentru evitare
+  // spam-ului în server-side logs + latency degeaba la fiecare autocomplete
+  // keystroke, blacklist providerul 6h după primul AUTH fail. Auto-recover
+  // la expiry pentru cazul restaurării AID.
+  // ════════════════════════════════════════════════════════════════
+  final Map<TransitProviderType, DateTime> _hafasAuthBlacklist = {};
+  final Map<TransitProviderType, DateTime> _hafasLastLoggedError = {};
+  static const _hafasBlacklistTtl = Duration(hours: 6);
+  static const _hafasLogCooldown = Duration(minutes: 5);
+
+  /// True dacă acest provider e blacklist-uit — skip request-ul.
+  bool _isHafasBlacklisted(TransitProviderType t) {
+    final until = _hafasAuthBlacklist[t];
+    if (until == null) return false;
+    if (DateTime.now().isAfter(until)) {
+      _hafasAuthBlacklist.remove(t);
+      return false;
+    }
+    return true;
+  }
+
+  /// Înregistrează AUTH fail — blacklist 6h + suprima log-uri viitoare.
+  void _markHafasAuthFail(TransitProviderConfig p, String rootErr) {
+    final now = DateTime.now();
+    _hafasAuthBlacklist[p.type] = now.add(_hafasBlacklistTtl);
+    final lastLog = _hafasLastLoggedError[p.type];
+    // Log doar o dată la 5 min per provider ca să nu spamăm server-side.
+    if (lastLog == null || now.difference(lastLog) > _hafasLogCooldown) {
+      _hafasLastLoggedError[p.type] = now;
+      _log.error('Transit [${p.name}]: HAFAS auth fail ($rootErr) — '
+          'blacklisted for 6h', tag: 'TRANSIT');
+    }
+  }
   static const _restHeaders = {
     'Accept': 'application/json',
     'User-Agent': 'ICD360S-eV-App/1.0',
@@ -3194,6 +3249,40 @@ class TransitService {
       }
     }
 
+    // Secondary fallback pentru inter-city cross-provider — dacă bahn.de tot
+    // e gol (poate WAF-blocked pe device), încearcă HAFAS-ul lui `from`
+    // sau `to`. Cei mai mari HAFAS-providers (VBB, RMV, VBN) au coverage
+    // extinsă și indexează stații din toată Germania. Fiecare provider re-
+    // rezolvă numele prin LocMatch propriu ca să obțină ID-ul care merge
+    // (ID-ul saarVV nu e recunoscut de RMV, etc.).
+    if (results.isEmpty) {
+      final tryOrder = <TransitProviderConfig>[
+        if (fp != null && fp.api == TransitApiType.hafas) fp,
+        if (tp != null && tp.api == TransitApiType.hafas && tp.type != fp?.type) tp,
+      ];
+      for (final p in tryOrder) {
+        try {
+          _log.info('Transit: trying cross-provider HAFAS fallback via ${p.name}', tag: 'TRANSIT');
+          final localFrom = await _hafasLocationSearch(p, from.name);
+          final localTo = await _hafasLocationSearch(p, to.name);
+          if (localFrom.isEmpty || localTo.isEmpty) {
+            _log.debug('Transit: ${p.name} could not resolve endpoints '
+                '(from=${localFrom.length}, to=${localTo.length})', tag: 'TRANSIT');
+            continue;
+          }
+          final crossRes = await _hafasTripSearch(
+            p, localFrom.first, localTo.first, when, arriveBy: arriveBy,
+          );
+          if (crossRes.isNotEmpty) {
+            results = crossRes;
+            break;
+          }
+        } catch (e) {
+          _log.debug('Transit: cross-provider ${p.name} failed: $e', tag: 'TRANSIT');
+        }
+      }
+    }
+
     // Client-side D-Ticket filter for local provider results (EFA/HAFAS
     // don't support the flag server-side). Some EFA services return REs
     // that cross tariff zones without D-Ticket coverage, and many HAFAS
@@ -3248,21 +3337,78 @@ class TransitService {
     String fromName, String toName, DateTime when,
     {bool arriveBy = false, bool onlyDeutschlandTicket = false}
   ) async {
-    final results = await Future.wait([
-      _bahnLocationSearch(fromName),
-      _bahnLocationSearch(toName),
-    ]);
-    if (results[0].isEmpty || results[1].isEmpty) return [];
+    // Bahn.de e sensibil la format: "Saarbrücken, Hauptbahnhof" (HAFAS-style
+    // cu virgulă) nu găsește potrivire — dar "Saarbrücken Hbf" da. Încercăm
+    // 3 variante în ordinea:
+    //   1) numele original (dacă vine deja curat de la un autocomplete bahn.de)
+    //   2) fără virgulă, "Hauptbahnhof" → "Hbf" (bahn.de idiom)
+    //   3) doar prima parte înaintea virgulei ("Saarbrücken")
+    final fromVariants = _bahnNameVariants(fromName);
+    final toVariants = _bahnNameVariants(toName);
+
+    List<TransitLocation> fromResults = [];
+    for (final v in fromVariants) {
+      fromResults = await _bahnLocationSearch(v);
+      if (fromResults.isNotEmpty) {
+        _log.debug('Transit: bahn.de resolved "$fromName" via variant "$v"', tag: 'TRANSIT');
+        break;
+      }
+    }
+    if (fromResults.isEmpty) {
+      _log.info('Transit: bahn.de could not resolve fromName="$fromName" '
+          '(tried ${fromVariants.length} variants)', tag: 'TRANSIT');
+      return [];
+    }
+    List<TransitLocation> toResults = [];
+    for (final v in toVariants) {
+      toResults = await _bahnLocationSearch(v);
+      if (toResults.isNotEmpty) {
+        _log.debug('Transit: bahn.de resolved "$toName" via variant "$v"', tag: 'TRANSIT');
+        break;
+      }
+    }
+    if (toResults.isEmpty) {
+      _log.info('Transit: bahn.de could not resolve toName="$toName" '
+          '(tried ${toVariants.length} variants)', tag: 'TRANSIT');
+      return [];
+    }
     return _bahnTripSearch(
-      results[0].first, results[1].first, when,
+      fromResults.first, toResults.first, when,
       arriveBy: arriveBy,
       onlyDeutschlandTicket: onlyDeutschlandTicket,
     );
   }
 
+  /// Generate de-duped list of query variants pentru bahn.de LocSearch.
+  /// bahn.de acceptă formatare "Nume Hbf" dar respinge "Nume, Hauptbahnhof"
+  /// și e sensibil la accente. Încercăm câteva forme comune.
+  List<String> _bahnNameVariants(String raw) {
+    final variants = <String>[];
+    void add(String s) {
+      final t = s.trim();
+      if (t.isEmpty || variants.contains(t)) return;
+      variants.add(t);
+    }
+    add(raw);
+    // Idiom "Hauptbahnhof" → "Hbf".
+    add(raw.replaceAll('Hauptbahnhof', 'Hbf').replaceAll('hauptbahnhof', 'Hbf'));
+    // Strip virgulă și tot spațiu dublu.
+    add(raw.replaceAll(',', ' ').replaceAll(RegExp(r'\s+'), ' '));
+    // Combinație: virgulă + Hbf.
+    add(raw.replaceAll(',', ' ').replaceAll('Hauptbahnhof', 'Hbf')
+        .replaceAll(RegExp(r'\s+'), ' '));
+    // Doar prima parte înainte de virgulă ("Saarbrücken, Rathaus" → "Saarbrücken").
+    final commaIdx = raw.indexOf(',');
+    if (commaIdx > 0) add(raw.substring(0, commaIdx));
+    return variants;
+  }
+
   // ── EFA trip/location endpoints ────────────────────────────────
 
   Future<List<TransitLocation>> _efaLocationSearch(TransitProviderConfig p, String q) async {
+    // EFA circuit-breaker: skip dacă providerul e blacklist-uit
+    // (endpoint mutat, întorc HTML în loc de JSON etc.).
+    if (_isHafasBlacklisted(p.type)) return [];
     final uri = Uri.parse(
       '${p.baseUrl}/XSLT_STOPFINDER_REQUEST'
       '?outputFormat=JSON&locationServerActive=1&type_sf=any&anyObjFilter_sf=126'
@@ -3270,7 +3416,15 @@ class TransitService {
     );
     final response = await _client.get(uri).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
-    final data = jsonDecode(_decodeUtf8(response));
+    final body = _decodeUtf8(response);
+    // Sanity check — dacă EFA returnează HTML (endpoint mutat, redirect la
+    // landing page), blacklist providerul ca să nu spamăm log + latency.
+    final trim = body.trimLeft();
+    if (trim.startsWith('<') || trim.toLowerCase().startsWith('<!doctype')) {
+      _markHafasAuthFail(p, 'EFA returns HTML — endpoint moved/broken');
+      return [];
+    }
+    final data = jsonDecode(body);
     final points = data['stopFinder']?['points'];
     List raw;
     if (points is List) {
@@ -3382,6 +3536,8 @@ class TransitService {
   // ── HAFAS trip/location endpoints ──────────────────────────────
 
   Future<List<TransitLocation>> _hafasLocationSearch(TransitProviderConfig p, String q) async {
+    // Skip immediately dacă providerul e blacklist-uit (evită request + log spam).
+    if (_isHafasBlacklisted(p.type)) return [];
     final req = _hafasRequest([
       {
         'meth': 'LocMatch',
@@ -3404,7 +3560,12 @@ class TransitService {
     // HAFAS reports auth failures at root level, not in svcResL — check both
     final rootErr = data['err']?.toString();
     if (rootErr != null && rootErr != 'OK') {
-      _log.error('Transit [${p.name}]: HAFAS root err=$rootErr ${data['errTxt'] ?? ''}', tag: 'TRANSIT');
+      if (rootErr == 'AUTH') {
+        _markHafasAuthFail(p, '${data['errTxt'] ?? rootErr}');
+      } else {
+        _log.error('Transit [${p.name}]: HAFAS root err=$rootErr '
+            '${data['errTxt'] ?? ''}', tag: 'TRANSIT');
+      }
       return [];
     }
     final match = data['svcResL']?[0]?['res']?['match']?['locL'] as List? ?? [];
@@ -3427,6 +3588,7 @@ class TransitService {
     TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when, {
     bool arriveBy = false,
   }) async {
+    if (_isHafasBlacklisted(p.type)) return [];
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
     final req = _hafasRequest([
@@ -3449,13 +3611,19 @@ class TransitService {
     ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) return [];
     final data = jsonDecode(_decodeUtf8(response));
-    return _parseHafasTripResponse(data);
+    return _parseHafasTripResponse(data, providerHint: p);
   }
 
-  List<Journey> _parseHafasTripResponse(Map<String, dynamic> data) {
+  List<Journey> _parseHafasTripResponse(Map<String, dynamic> data,
+      {TransitProviderConfig? providerHint}) {
     final rootErr = data['err']?.toString();
     if (rootErr != null && rootErr != 'OK') {
-      _log.error('Transit: HAFAS trip root err=$rootErr ${data['errTxt'] ?? ''}', tag: 'TRANSIT');
+      if (rootErr == 'AUTH' && providerHint != null) {
+        _markHafasAuthFail(providerHint, '${data['errTxt'] ?? rootErr}');
+      } else {
+        _log.error('Transit: HAFAS trip root err=$rootErr '
+            '${data['errTxt'] ?? ''}', tag: 'TRANSIT');
+      }
       return [];
     }
     final svc = data['svcResL']?[0]?['res'];
