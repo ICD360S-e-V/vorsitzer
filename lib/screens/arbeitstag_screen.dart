@@ -324,16 +324,17 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final rangeStr = data == null
         ? ''
         : '${DateFormat('dd.MM').format(data.monday)} – ${DateFormat('dd.MM.yyyy').format(data.sunday)}';
+    // Wrap în loc de SingleChildScrollView(horizontal) — mai stabil pe
+    // Android (fără gesture conflicts, fără unbounded width issues care
+    // pot îngheța renderarea).
     return Container(
       color: theme.colorScheme.surface,
-      // Horizontal scroll ca pe mobile utilizatorul să poată ajunge la
-      // chevron_right + Heute + stats + refresh + archive care altfel s-ar
-      // duce off-screen pe telefon.
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Row(
-          children: [
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 4,
+        runSpacing: 4,
+        children: [
           IconButton(
             onPressed: () => _shiftKw(-1),
             icon: const Icon(Icons.chevron_left),
@@ -364,7 +365,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               icon: const Icon(Icons.today, size: 16),
               label: const Text('Heute'),
             ),
-          const SizedBox(width: 16),
           if (stats != null) ...[
             Tooltip(
               message: 'Ticket + Termin + Routine erledigt (Notfall optional)',
@@ -374,14 +374,12 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
                 color: Colors.green,
               ),
             ),
-            const SizedBox(width: 8),
             if (stats.totalUrgent > 0)
               _statChip(
                 icon: Icons.warning,
                 label: '${stats.totalUrgent} dringend',
                 color: Colors.red,
               ),
-            const SizedBox(width: 8),
           ],
           IconButton(
             onPressed: _loading ? null : _load,
@@ -390,7 +388,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
           ),
           _buildArchiveToggle(),
         ],
-      ),
       ),
     );
   }
@@ -455,6 +452,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         ? <ArbeitstagMember>[]
         : _data!.members.where((m) => m.allDone).toList();
     return ListView.separated(
+      // Physics explicit — asigură că scroll funcționează pe Android
+      // chiar și când conținutul e mai scurt decât viewport-ul.
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: active.length + (done.isNotEmpty ? 1 + done.length : 0),
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
