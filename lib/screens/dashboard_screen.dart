@@ -700,6 +700,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       tokens.add(provider.displayName);
     }
     _disruptionsService.setRegionTokens(tokens);
+
+    // Also publish Stufe-1 address to TransitService pentru:
+    //   • Filtrare providers la autocomplete (nu mai spam-uim 23 provideri)
+    //   • Fallback când GPS-ul e off (activeProvider derived from PLZ prefix)
+    if (me != null) {
+      _transitService.setMemberHomeRegion(
+        ort: me.ort,
+        plz: me.plz,
+        bundesland: me.bundesland,
+      );
+    }
   }
 
   void _showTransitDialog() {

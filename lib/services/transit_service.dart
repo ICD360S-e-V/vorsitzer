@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:crypto/crypto.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
@@ -422,6 +423,12 @@ class TransitProviderConfig {
   final String hafasClientType;       // "AND" (Android), "IPH" (iPhone), "WEB"
   final String hafasVer;              // protocol version ("1.30", "1.40", "1.42", "1.44")
   final String? hafasExt;             // optional ext field (e.g. "RMV.1")
+  /// Optional mic+mac request-signing salt (UTF-8 string). When set, every
+  /// HAFAS POST body is signed with MD5(body) → `mic` and
+  /// MD5(hex(mic) || salt) → `mac`, both appended as URL query params.
+  /// Sources: public-transport/hafas-client `p/<name>/base.js` — see
+  /// _hafasRequestUrl for the exact algorithm.
+  final String? hafasSalt;
 
   const TransitProviderConfig({
     required this.type,
@@ -440,6 +447,7 @@ class TransitProviderConfig {
     this.hafasClientType = 'AND',
     this.hafasVer = '1.40',
     this.hafasExt,
+    this.hafasSalt,
   });
 
   bool containsCoord(double lat, double lon) {
@@ -569,6 +577,8 @@ const _providers = [
     hafasAid: 'kaoxIXLn03zCr2KR',
     hafasClientId: 'VBN', hafasClientVersion: '6000000', hafasClientName: 'vbn',
     hafasClientType: 'IPH', hafasVer: '1.42',
+    // mic+mac signing OBLIGATORIU — salt UTF-8 din hafas-client p/vbn/base.js.
+    hafasSalt: 'SP31mBufSyCLmNxp',
     minLat: 52.0, maxLat: 54.0, minLon: 7.0, maxLon: 11.0,
   ),
   TransitProviderConfig(
@@ -600,10 +610,14 @@ const _providers = [
   TransitProviderConfig(
     type: TransitProviderType.vmt, api: TransitApiType.hafas,
     name: 'VMT', displayName: 'VMT (Verkehrsverbund Mittelthüringen)',
-    baseUrl: 'https://vmt.hafas.de/bin/ticketing/mgate.exe',
-    hafasAid: 't2h7u1e6r4i8n3g7e0n',
-    hafasClientId: 'HAFAS', hafasClientVersion: '2040100', hafasClientName: 'VMT',
-    hafasClientType: 'IPH', hafasVer: '1.18',
+    // Endpoint mutat 2026 la hafas.cloud SaaS + AID nou + ver 1.78 +
+    // mic+mac signing OBLIGATORIU (else AUTH fail). Salt UTF-8 din
+    // hafas-client p/vmt/base.js.
+    baseUrl: 'https://vmt.eks-prod-euc1.hafas.cloud/bin/mgate.exe',
+    hafasAid: 'web-vmt-qdr6c6y8s4cvfmfw',
+    hafasClientId: 'HAFAS', hafasClientName: 'webapp',
+    hafasClientType: 'WEB', hafasVer: '1.78',
+    hafasSalt: '7x8d3n2a5m1b3c6z',
     minLat: 50.37, maxLat: 51.12, minLon: 10.16, maxLon: 12.17,
   ),
   TransitProviderConfig(
@@ -612,7 +626,9 @@ const _providers = [
     baseUrl: 'https://fahrplan.rsag-online.de/bin/mgate.exe',
     hafasAid: 'tF5JTs25rzUhGrrl',
     hafasClientId: 'RSAG', hafasClientName: 'webapp',
-    hafasClientType: 'WEB', hafasVer: '1.24', hafasExt: 'VBN.2',
+    hafasClientType: 'WEB', hafasVer: '1.42', hafasExt: 'VBN.2',
+    // RSAG folosește backend-ul VBN → reuse VBN salt când primim AUTH.
+    hafasSalt: 'SP31mBufSyCLmNxp',
     minLat: 53.63, maxLat: 54.27, minLon: 11.50, maxLon: 12.82,
   ),
   TransitProviderConfig(
@@ -741,6 +757,188 @@ class TransitService {
   /// Actual city name from GPS reverse geocoding
   String? gpsCity;
 
+  // ════════════════════════════════════════════════════════════════
+  // MEMBER HOME REGION — extras din Verifizierung Stufe 1
+  // (ort/plz/bundesland al userului logat). Folosit ca fallback când
+  // GPS-ul e off + pentru filtrarea providerilor la autocomplete →
+  // interogăm doar cei relevanți geografic, nu toți 23.
+  //
+  // Prioritate rezolvare provider:
+  //   1) GPS activat + fix precis → activeProvider = detected
+  //   2) GPS off + Stufe-1 setat → activeProvider = derived from
+  //      _memberHomeOrt / _memberHomePlz / _memberHomeBundesland
+  //   3) Nimic → fallback la toți providerii (autocomplete lent)
+  // ════════════════════════════════════════════════════════════════
+  String? _memberHomeOrt;
+  String? _memberHomePlz;
+  String? _memberHomeBundesland;
+
+  /// Setează adresa Verifizierung Stufe 1 al membrului logat.
+  /// Called de dashboard când `_users` conține detaliile.
+  /// null-values dezactivează câmpul respectiv.
+  void setMemberHomeRegion({String? ort, String? plz, String? bundesland}) {
+    _memberHomeOrt = ort?.trim().toLowerCase();
+    _memberHomePlz = plz?.trim();
+    _memberHomeBundesland = bundesland?.trim().toLowerCase();
+    _log.info('Transit: home region set ort=$_memberHomeOrt plz=$_memberHomePlz '
+        'bundesland=$_memberHomeBundesland', tag: 'TRANSIT');
+    // Dacă nu am detectat provider încă (GPS off), încearcă acum din Stufe 1.
+    if (activeProvider == null && (_memberHomeOrt != null || _memberHomePlz != null)) {
+      _detectProviderFromMemberHome();
+    }
+  }
+
+  /// Detectează activeProvider din Verifizierung Stufe 1 (ort/plz/bundesland).
+  /// Folosit când GPS-ul e off / lipsește. Setează _latitude/_longitude la
+  /// centrul provider-ului găsit ca fallback pentru fetchDepartures.
+  void _detectProviderFromMemberHome() {
+    final ort = _memberHomeOrt;
+    final plz = _memberHomePlz;
+    final bl = _memberHomeBundesland;
+    if (ort == null && plz == null && bl == null) return;
+
+    // Match după city set — cea mai reliable metodă (~450 orașe mapate).
+    for (final entry in _providerCities.entries) {
+      for (final city in entry.value) {
+        final cLow = city.toLowerCase();
+        if (ort != null && (cLow == ort || cLow.contains(ort) || ort.contains(cLow))) {
+          final p = _providers.firstWhere((x) => x.type == entry.key);
+          activeProvider = p;
+          // Center la mijloc bounding box.
+          _latitude = (p.minLat + p.maxLat) / 2;
+          _longitude = (p.minLon + p.maxLon) / 2;
+          gpsCity = ort;
+          city = ort;
+          _log.info('Transit: provider ${p.name} matched from Stufe-1 ort=$ort',
+              tag: 'TRANSIT');
+          return;
+        }
+      }
+    }
+    // PLZ prefix fallback: primele 2 cifre indică region (ex. 66xxx=Saarland).
+    // Map soft: PLZ 60-65 → RMV, 66 → saarVV, 89 → DING, 10-14 → VBB, etc.
+    if (plz != null && plz.length >= 2) {
+      final prefix = plz.substring(0, 2);
+      TransitProviderType? guess;
+      switch (prefix) {
+        case '01': case '02': guess = TransitProviderType.vvo; break;   // Dresden
+        case '04': guess = TransitProviderType.insa; break;              // Leipzig
+        case '06': case '07': case '08': case '09':
+          guess = TransitProviderType.insa; break;                       // Sachsen-Anhalt
+        case '10': case '11': case '12': case '13': case '14':
+          guess = TransitProviderType.vbb; break;                        // Berlin/Brandenburg
+        case '15': case '16': case '17': case '18': case '19':
+          guess = TransitProviderType.vbb; break;                        // Brandenburg/MV
+        case '20': case '21': case '22':
+          guess = TransitProviderType.vbn; break;                        // Hamburg-adjacent
+        case '23': case '24': case '25':
+          guess = TransitProviderType.nahsh; break;                      // Schleswig-Holstein
+        case '26': case '27': case '28': case '29':
+          guess = TransitProviderType.vbn; break;                        // Bremen/Niedersachsen
+        case '30': case '31': case '32': case '33': case '37': case '38':
+          guess = TransitProviderType.vbn; break;                        // Hannover/Braunschweig
+        case '34': case '35': case '36':
+          guess = TransitProviderType.nvv; break;                        // Nordhessen
+        case '40': case '41': case '42': case '43': case '44': case '45': case '46': case '47':
+          guess = TransitProviderType.vrr; break;                        // Rhein-Ruhr
+        case '48': case '49':
+          guess = TransitProviderType.wtp; break;                        // Westfalen
+        case '50': case '51': case '53':
+          guess = TransitProviderType.vrs; break;                        // Köln/Bonn
+        case '52':
+          guess = TransitProviderType.avv; break;                        // Aachen
+        case '55': case '56': case '57':
+          guess = TransitProviderType.rmv; break;                        // Rhein-Main/RLP
+        case '58': case '59':
+          guess = TransitProviderType.vrr; break;                        // Ruhr
+        case '60': case '61': case '63': case '64': case '65':
+          guess = TransitProviderType.rmv; break;                        // Frankfurt/RMV
+        case '66':
+          guess = TransitProviderType.saarvv; break;                     // Saarland
+        case '67': case '68': case '69':
+          guess = TransitProviderType.vrn; break;                        // Rhein-Neckar
+        case '70': case '71': case '72': case '73': case '74':
+          guess = TransitProviderType.vvs; break;                        // Stuttgart
+        case '75': case '76':
+          guess = TransitProviderType.kvv; break;                        // Karlsruhe
+        case '77': case '78': case '79':
+          guess = TransitProviderType.naldo; break;                      // Tübingen/Reutlingen
+        case '80': case '81': case '82': case '83': case '84': case '85':
+          guess = TransitProviderType.mvv; break;                        // München
+        case '86':
+          guess = TransitProviderType.avvAugsburg; break;                // Augsburg
+        case '87': case '88':
+          guess = TransitProviderType.defasBayern; break;                // Kempten/Rosenheim
+        case '89':
+          guess = TransitProviderType.ding; break;                       // Ulm
+        case '90': case '91': case '92':
+          guess = TransitProviderType.vgn; break;                        // Nürnberg
+        case '93': case '94': case '95':
+          guess = TransitProviderType.defasBayern; break;                // Regensburg/Passau
+        case '96': case '97':
+          guess = TransitProviderType.vgn; break;                        // Bamberg/Würzburg
+        case '98': case '99':
+          guess = TransitProviderType.vmt; break;                        // Thüringen
+      }
+      if (guess != null) {
+        try {
+          final p = _providers.firstWhere((x) => x.type == guess);
+          activeProvider = p;
+          _latitude = (p.minLat + p.maxLat) / 2;
+          _longitude = (p.minLon + p.maxLon) / 2;
+          _log.info('Transit: provider ${p.name} matched from Stufe-1 PLZ=$plz '
+              '(prefix $prefix)', tag: 'TRANSIT');
+          return;
+        } catch (_) {}
+      }
+    }
+    _log.debug('Transit: could not match provider from Stufe-1 '
+        'ort=$ort plz=$plz bundesland=$bl', tag: 'TRANSIT');
+  }
+
+  /// Returnează providerii relevanți pentru membrul curent (Stufe-1 + GPS).
+  /// Reduce lista de la 23 la 3-6 candidați → autocomplete 3× mai rapid +
+  /// zero AUTH-spam de la provideri nerelevanți.
+  ///
+  /// Include:
+  ///   • activeProvider (dacă e setat)
+  ///   • provideri ale căror bounding-box include coords GPS (dacă avem GPS)
+  ///   • provideri ale căror city-list overlaps cu ort-ul membrului
+  ///
+  /// Dacă nu găsim niciun match → returnăm toată lista (fallback fail-open).
+  List<TransitProviderConfig> _relevantProviders() {
+    final relevant = <TransitProviderConfig>{};
+    if (activeProvider != null) relevant.add(activeProvider!);
+
+    // GPS-based: bounding box hit.
+    final lat = _latitude;
+    final lon = _longitude;
+    if (lat != null && lon != null) {
+      for (final p in _providers) {
+        if (p.containsCoord(lat, lon)) relevant.add(p);
+      }
+    }
+
+    // Stufe-1 based: match după ort în city list.
+    final ort = _memberHomeOrt;
+    if (ort != null && ort.isNotEmpty) {
+      for (final entry in _providerCities.entries) {
+        for (final city in entry.value) {
+          if (city.toLowerCase().contains(ort) || ort.contains(city.toLowerCase())) {
+            try {
+              final p = _providers.firstWhere((x) => x.type == entry.key);
+              relevant.add(p);
+              break;
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    if (relevant.isEmpty) return _providers; // fallback fail-open
+    return relevant.toList();
+  }
+
   /// Start transit monitoring — tries GPS first, falls back to city geocoding
   Future<void> start(String cityName) async {
     city = cityName;
@@ -752,6 +950,13 @@ class TransitService {
       _log.info('Transit: Using GPS location ($_latitude, $_longitude)', tag: 'TRANSIT');
       // Reverse geocode to get actual city name
       await _reverseGeocode();
+    } else if (_memberHomeOrt != null || _memberHomePlz != null) {
+      // GPS denied/unavailable → derive provider din Verifizierung Stufe 1.
+      _detectProviderFromMemberHome();
+      if (activeProvider == null) {
+        _log.info('Transit: No provider derivable from Stufe-1, skipping', tag: 'TRANSIT');
+        return;
+      }
     } else if (cityName.isNotEmpty) {
       // Fallback: geocode city name
       final geocodeSuccess = await _geocodeCity(city);
@@ -765,8 +970,8 @@ class TransitService {
       return;
     }
 
-    // Detect provider based on coordinates
-    _detectProvider();
+    // Detect provider based on coordinates (dacă nu e deja setat via Stufe-1)
+    if (activeProvider == null) _detectProvider();
 
     // Initial fetch
     await fetchDepartures();
@@ -2041,8 +2246,12 @@ class TransitService {
     return p?.hafasAid ?? '';
   }
 
-  Map<String, dynamic> _hafasRequest(List<Map<String, dynamic>> svcReqL) {
-    final p = activeProvider;
+  Map<String, dynamic> _hafasRequest(List<Map<String, dynamic>> svcReqL,
+      {TransitProviderConfig? providerOverride}) {
+    // Prefer explicit override → activeProvider fallback. Cross-provider
+    // trip searches pass their own provider (LocMatch pe fp/tp) — without
+    // this override, client-config leaked from activeProvider era buggy.
+    final p = providerOverride ?? activeProvider;
     final client = <String, dynamic>{
       'type': p?.hafasClientType ?? 'AND',
       'id': p?.hafasClientId ?? 'ZPS-SAAR',
@@ -2076,6 +2285,41 @@ class TransitService {
     return req;
   }
 
+  /// Build the final POST URL, appending mic+mac signature query params
+  /// dacă providerul are `hafasSalt`.
+  ///
+  /// Algoritm (după `public-transport/hafas-client lib/request.js`):
+  ///   1. mic = MD5(body_bytes)                    → hex string
+  ///   2. mac = MD5(hex(mic) || salt_utf8_bytes)   → hex string
+  ///   3. URL = baseUrl?mic=<hex>&mac=<hex>
+  ///
+  /// Provideri care NU au salt → returnează baseUrl neschimbat.
+  String _hafasSignedUrl(TransitProviderConfig? p, String body) {
+    final base = p?.baseUrl ?? _hafasEndpoint;
+    final salt = p?.hafasSalt;
+    if (salt == null || salt.isEmpty) return base;
+    final bodyBytes = utf8.encode(body);
+    final micDigest = md5.convert(bodyBytes);
+    final micHex = micDigest.toString(); // lowercase hex
+    // Concatenăm hex(mic) + salt (raw UTF-8 bytes), apoi MD5.
+    final macInput = utf8.encode(micHex) + utf8.encode(salt);
+    final macDigest = md5.convert(macInput);
+    final macHex = macDigest.toString();
+    // Append la URL. Base poate deja să conțină '?' — improbabil pentru mgate.
+    final sep = base.contains('?') ? '&' : '?';
+    return '$base${sep}mic=$micHex&mac=$macHex';
+  }
+
+  /// Convenience: build request map, JSON-serialize, sign URL — returns
+  /// both pentru un singur call site care POST-ează.
+  ({String url, String body}) _buildSignedHafasCall(
+      TransitProviderConfig? p, List<Map<String, dynamic>> svcReqL) {
+    final reqMap = _hafasRequest(svcReqL, providerOverride: p);
+    final body = jsonEncode(reqMap);
+    final url = _hafasSignedUrl(p, body);
+    return (url: url, body: body);
+  }
+
   /// Fetch departures via HAFAS mgate.exe (saarVV)
   /// Two-step: 1) find nearby stops  2) get departures for each
   Future<void> _fetchHafasDepartures() async {
@@ -2086,7 +2330,7 @@ class TransitService {
       return;
     }
     // Step 1: Find nearby stops via LocGeoPos
-    final nearbyRequest = _hafasRequest([
+    final nearbyCall = _buildSignedHafasCall(activeP, [
       {
         'meth': 'LocGeoPos',
         'req': {
@@ -2104,9 +2348,9 @@ class TransitService {
     ]);
 
     final nearbyResponse = await _client.post(
-      Uri.parse(activeProvider?.baseUrl ?? _hafasEndpoint),
+      Uri.parse(nearbyCall.url),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(nearbyRequest),
+      body: nearbyCall.body,
     ).timeout(const Duration(seconds: 15));
 
     if (nearbyResponse.statusCode != 200) {
@@ -2192,11 +2436,11 @@ class TransitService {
       },
     }).toList();
 
-    final depRequest = _hafasRequest(stbRequests);
+    final depCall = _buildSignedHafasCall(activeP, stbRequests);
     final depResponse = await _client.post(
-      Uri.parse(activeProvider?.baseUrl ?? _hafasEndpoint),
+      Uri.parse(depCall.url),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(depRequest),
+      body: depCall.body,
     ).timeout(const Duration(seconds: 15));
 
     if (depResponse.statusCode != 200) {
@@ -2968,7 +3212,7 @@ class TransitService {
     final empty = TripRoute(stops: const [], path: const []);
     final jid = dep.tripID;
     if (jid == null || jid.isEmpty) return empty;
-    final req = _hafasRequest([
+    final call = _buildSignedHafasCall(p, [
       {
         'meth': 'JourneyDetails',
         'req': {
@@ -2979,9 +3223,9 @@ class TransitService {
       },
     ]);
     try {
-      final resp = await _client.post(Uri.parse(p.baseUrl),
+      final resp = await _client.post(Uri.parse(call.url),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(req)).timeout(const Duration(seconds: 12));
+          body: call.body).timeout(const Duration(seconds: 12));
       if (resp.statusCode != 200) return empty;
       final data = jsonDecode(_decodeUtf8(resp));
       final res = data['svcResL']?[0];
@@ -3057,7 +3301,7 @@ class TransitService {
     if (dep.destID == null || dep.destID!.isEmpty) {
       return TripRoute(stops: const [], path: const []);
     }
-    final req = _hafasRequest([
+    final call = _buildSignedHafasCall(p, [
       {
         'meth': 'TripSearch',
         'req': {
@@ -3071,9 +3315,9 @@ class TransitService {
         },
       },
     ]);
-    final resp = await _client.post(Uri.parse(p.baseUrl),
+    final resp = await _client.post(Uri.parse(call.url),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(req)).timeout(const Duration(seconds: 12));
+        body: call.body).timeout(const Duration(seconds: 12));
     final empty = TripRoute(stops: const [], path: const []);
     if (resp.statusCode != 200) return empty;
     final data = jsonDecode(_decodeUtf8(resp));
@@ -3144,9 +3388,16 @@ class TransitService {
   Future<List<TransitLocation>> searchLocations(String query) async {
     if (query.trim().length < 2) return [];
 
-    // Fire all providers + bahn.de in parallel. Individual failures → empty list.
+    // Fire relevant providers + bahn.de in parallel. Individual failures → empty list.
+    // Restricționat la providerii geografic relevanți pentru user pentru:
+    //   • ~3× mai rapid autocomplete (3-6 provideri vs. 23)
+    //   • Zero AUTH-spam de la HAFAS-provideri nerelevanți
+    //   • Battery friendly pe mobile (mai puțin radio activ per keystroke)
+    final providersToQuery = _relevantProviders();
+    _log.debug('Transit: searchLocations querying ${providersToQuery.length} '
+        'of ${_providers.length} providers', tag: 'TRANSIT');
     final futures = <Future<List<TransitLocation>>>[];
-    for (final p in _providers) {
+    for (final p in providersToQuery) {
       final search = p.api == TransitApiType.efa
           ? _efaLocationSearch(p, query)
           : _hafasLocationSearch(p, query);
@@ -3538,7 +3789,7 @@ class TransitService {
   Future<List<TransitLocation>> _hafasLocationSearch(TransitProviderConfig p, String q) async {
     // Skip immediately dacă providerul e blacklist-uit (evită request + log spam).
     if (_isHafasBlacklisted(p.type)) return [];
-    final req = _hafasRequest([
+    final call = _buildSignedHafasCall(p, [
       {
         'meth': 'LocMatch',
         'req': {
@@ -3551,9 +3802,9 @@ class TransitService {
       },
     ]);
     final response = await _client.post(
-      Uri.parse(p.baseUrl),
+      Uri.parse(call.url),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(req),
+      body: call.body,
     ).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
     final data = jsonDecode(_decodeUtf8(response));
@@ -3591,7 +3842,7 @@ class TransitService {
     if (_isHafasBlacklisted(p.type)) return [];
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
-    final req = _hafasRequest([
+    final call = _buildSignedHafasCall(p, [
       {
         'meth': 'TripSearch',
         'req': {
@@ -3605,9 +3856,9 @@ class TransitService {
       },
     ]);
     final response = await _client.post(
-      Uri.parse(p.baseUrl),
+      Uri.parse(call.url),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(req),
+      body: call.body,
     ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) return [];
     final data = jsonDecode(_decodeUtf8(response));
