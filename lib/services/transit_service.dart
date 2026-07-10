@@ -3661,6 +3661,10 @@ class TransitService {
     return false;
   }
 
+  /// Public wrapper pentru unit tests. Rulează același filter ca cel din
+  /// `searchJourneys(onlyDeutschlandTicket: true)`.
+  bool isJourneyDTicketCompatible(Journey j) => _isDeutschlandTicketOnly(j);
+
   bool _isDeutschlandTicketOnly(Journey j) {
     for (final leg in j.legs) {
       if (leg.isWalk) continue;
