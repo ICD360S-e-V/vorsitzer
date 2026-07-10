@@ -2623,17 +2623,26 @@ class TransitService {
         case 'RJ':
         case 'ECE':
         case 'IR':
-        case 'IRE':
         case 'FLX':
           return 'train';
+        // IRE = Interregio-Express — REGIONAL service (D-Ticket eligible),
+        // nu Fernverkehr! Was misclassified pre-2026-07.
+        case 'IRE':
         case 'RE':
         case 'RB':
+        case 'RS':
         case 'MEX':
         case 'ALX':
         case 'BRB':
         case 'HLB':
         case 'HKX':
         case 'NBE':
+        case 'NWB':
+        case 'ODEG':
+        case 'ERB':
+        case 'MRB':
+        case 'VIAS':
+        case 'ENO':
           return 'regional';
         case 'S':
         case 'S-BAHN':
@@ -3558,26 +3567,147 @@ class TransitService {
     return results;
   }
 
-  /// Journey qualifies for the 49€ Deutschlandticket iff none of its
-  /// vehicle legs is a long-distance product. Walking legs are always OK.
+  /// Journey qualifies for the 49€ Deutschlandticket. Walking legs always OK.
   ///
-  /// Non-D-Ticket products: ICE, IC, EC, IR, TGV, RJ, ECE, NJ (Nightjet),
-  /// TER, plus generic 'long_distance'. Product-type strings vary between
-  /// EFA and HAFAS so we check both the `productType` field and the `line`
-  /// prefix (case-insensitive).
-  static final RegExp _nonDTicketLineRe = RegExp(
-    r'^(ice|ic|ec|ir|tgv|rj|ecx|ece|nj|en|thalys|flixt|flx)\b',
-    caseSensitive: false,
-  );
+  /// Approach: WHITELIST by productType (most reliable) + line-prefix BLACKLIST
+  /// pentru cazul când productType e ambiguu ('train' poate fi Regional-IRE
+  /// sau Fernverkehr-ICE).
+  ///
+  /// D-Ticket ACCEPTĂ (Nahverkehr):
+  ///   productType: regional, suburban, subway, tram, bus, ferry, walk
+  ///   Prefixes: RE, RB, RS, RJX (regional), IRE, MEX, ALX, BRB, HLB, HKX,
+  ///             NBE, NWB, ENO, ODEG, VIAS, VBG, ERB, MRB, WFB, WEG,
+  ///             erixx, metronom, vlexx, meridian, BOB, agilis, eurobahn,
+  ///             Abellio, DB Regio, Chiemgau, Cantus, Trilex, TLX,
+  ///             S (S-Bahn), U (U-Bahn), STR, T (Tram), M (München-Tram)
+  ///
+  /// D-Ticket RESPINGE (Fernverkehr):
+  ///   productType: train (ICE/IC/EC/IR)
+  ///   Prefixes: ICE, IC, EC, IR, TGV, RJ, NJ, ECE, EN, WESTbahn, Thalys,
+  ///             FLX (FlixTrain), CNL, EIC, TER
+  ///
+  /// EXCEPȚII (IC-Linien acceptate ca Nahverkehr conform DB 2024+):
+  ///   - IC 61: Bebra ↔ Erfurt ↔ Chemnitz (Sachsen, Thüringen, Hessen)
+  ///   - IC 62: Aachen ↔ Kassel (NRW/Hessen segment specific)
+  ///   - IC 68: Berlin ↔ Cottbus (Brandenburg)
+  ///   Aceste linii cu numărul concret sunt acceptate — verificate pe leg.line.
+  ///
+  /// Case-insensitive, strips leading/trailing whitespace înainte de check.
+  static const _dTicketAllowedProductTypes = <String>{
+    'regional', 'suburban', 'subway', 'tram', 'bus', 'ferry', 'walk',
+  };
+
+  /// IC-Linien speciale care sunt integrate în tarife locale (D-Ticket OK).
+  /// Actualizat 2026 din bahn.de/service/nahverkehrsfreigabe.
+  ///
+  /// Kanonische Liste 2026:
+  /// • Dresden ↔ Freiberg ↔ Chemnitz (alle IC — cover via number match)
+  /// • Dortmund ↔ Iserlohn-Letmathe ↔ Dillenburg (IC 2222-2226, 2320,
+  ///   2323-2327)
+  /// • Bremen ↔ Emden Außenhafen / Norddeich Mole (alle IC)
+  /// • Rostock ↔ Stralsund (alle IC)
+  /// • Erfurt ↔ Weimar ↔ Jena ↔ Gera (alle IC — ex "IC 61")
+  /// • Stuttgart ↔ Singen ↔ Konstanz (Gäubahn, alle IC)
+  /// • Westerland (Sylt) ↔ Niebüll (IC 2075, doar Mo-Fr)
+  ///
+  /// Wegfall ab 2025-12-14 (VBB-cancel):
+  /// • Berlin ↔ Elsterwerda (IC) — NU mai e valabil
+  /// • Berlin ↔ Prenzlau (IC/ICE) — NU mai e valabil
+  /// • Potsdam ↔ Cottbus (IC) — NU mai e valabil
+  static const _dTicketIcLines = <String>{
+    // Cu spațiu
+    'IC 2222', 'IC 2223', 'IC 2224', 'IC 2225', 'IC 2226',
+    'IC 2320', 'IC 2323', 'IC 2324', 'IC 2325', 'IC 2326', 'IC 2327',
+    'IC 2075',
+    // Fără spațiu
+    'IC2222', 'IC2223', 'IC2224', 'IC2225', 'IC2226',
+    'IC2320', 'IC2323', 'IC2324', 'IC2325', 'IC2326', 'IC2327',
+    'IC2075',
+  };
+
+  /// Prefixes stricte Fernverkehr — respinge chiar dacă productType e ambiguu.
+  /// Ordonat descrescător după lungime pentru a nu matcha prefix scurt când
+  /// există unul mai lung ("ECE" înainte de "EC", "ICE" înainte de "IC").
+  static const _fernverkehrPrefixes = <String>[
+    'ICE', 'ECE', 'ECX', 'THALYS', 'FLIXT',
+    'IC', 'EC', 'IR', 'TGV', 'RJ', 'NJ', 'EN', 'FLX', 'CNL', 'EIC', 'TER',
+  ];
+
+  /// True dacă `line` este marcat ca Fernverkehr (nu D-Ticket).
+  bool _lineIsFernverkehr(String line) {
+    final l = line.trim().toUpperCase();
+    if (l.isEmpty) return false;
+    for (final prefix in _fernverkehrPrefixes) {
+      if (l == prefix) return true;
+      // Prefix urmat de spațiu, cifră sau `-` (ICE100, ICE 100, ICE-T, IC-1)
+      if (l.length > prefix.length && l.startsWith(prefix)) {
+        final next = l[prefix.length];
+        if (next == ' ' || next == '-' || next == '.' || (next.codeUnitAt(0) >= 0x30 && next.codeUnitAt(0) <= 0x39)) {
+          // Extra check: exception pentru IC 61/62/68.
+          if (prefix == 'IC') {
+            // Extract IC number (până la primul non-digit după prefix).
+            final m = RegExp(r'^IC\s?(\d+)').firstMatch(l);
+            if (m != null) {
+              final key = 'IC ${m.group(1)}';
+              if (_dTicketIcLines.contains(key) || _dTicketIcLines.contains('IC${m.group(1)}')) {
+                return false; // IC 61/62/68 → NU e Fernverkehr, e Nahverkehr!
+              }
+            }
+          }
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   bool _isDeutschlandTicketOnly(Journey j) {
     for (final leg in j.legs) {
       if (leg.isWalk) continue;
       final pt = leg.productType.toLowerCase();
-      if (pt == 'long_distance' || pt == 'nationalexpress' || pt == 'national' ||
-          pt == 'ice' || pt == 'ic' || pt == 'ec' || pt == 'ir') {
-        return false;
+      // Whitelist per productType (cel mai reliable).
+      if (_dTicketAllowedProductTypes.contains(pt)) {
+        // Extra double-check pentru 'regional' — HAFAS mislabelează uneori
+        // IC ca 'regional' (rare, dar posibil). Line prefix decide final.
+        if (_lineIsFernverkehr(leg.line)) return false;
+        continue;
       }
-      if (_nonDTicketLineRe.hasMatch(leg.line.trim())) return false;
+      // Non-whitelist productType: 'train', 'long_distance', 'nationalexpress'
+      // sau necunoscut → verifică line prefix.
+      if (_lineIsFernverkehr(leg.line)) return false;
+      // Dacă productType e 'train' + line NU pare Fernverkehr → putem accepta
+      // (poate fi IRE, un regional-express rar categorisit ca 'train').
+      // Conservative: dacă nici prefix nu e clar Nahverkehr → respinge.
+      final l = leg.line.trim().toUpperCase();
+      const knownNahverkehrPrefixes = [
+        'RE', 'RB', 'RS', 'RJX', 'IRE', 'MEX', 'ALX', 'BRB', 'HLB', 'HKX',
+        'NBE', 'NWB', 'ENO', 'ODEG', 'VIAS', 'VBG', 'ERB', 'MRB', 'WFB',
+        'WEG', 'ERX', 'TLX', 'ABR', 'RTB', 'BOB', 'CAN', 'DPN', 'FEG',
+        'FLB', 'HZL', 'MEG', 'NEB', 'OPB', 'OSB', 'PRE', 'SBB', 'SBS',
+        'STB', 'SWE', 'UBB', 'VEC', 'VEN', 'WBA', 'DLB', 'DAB', 'AVG',
+        'BSB', 'BLB', 'ESB',
+      ];
+      bool isNah = false;
+      for (final p in knownNahverkehrPrefixes) {
+        if (l == p || l.startsWith('$p ') || l.startsWith('$p-') ||
+            (l.length > p.length && l.startsWith(p) &&
+             l.codeUnitAt(p.length) >= 0x30 && l.codeUnitAt(p.length) <= 0x39)) {
+          isNah = true;
+          break;
+        }
+      }
+      // Brand-names (metronom, erixx, meridian, etc.) — regional companies
+      // whose lines are always D-Ticket eligible.
+      const brandNames = ['METRONOM', 'ERIXX', 'MERIDIAN', 'AGILIS', 'EUROBAHN',
+        'ABELLIO', 'CANTUS', 'TRILEX', 'VLEXX', 'BAYERISCHE OBERLANDBAHN',
+        'CHIEMGAU', 'ALLGÄU', 'BAYERN', 'ILMEBAHN', 'HANSEATISCHE',
+      ];
+      if (!isNah) {
+        for (final b in brandNames) {
+          if (l.contains(b)) { isNah = true; break; }
+        }
+      }
+      if (!isNah) return false; // conservative: unknown → likely Fernverkehr
     }
     return true;
   }

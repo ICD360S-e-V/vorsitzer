@@ -2704,7 +2704,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                         ? 'Nur Deutschlandticket-Verbindungen aktiv, Antippen zum Deaktivieren'
                         : 'Nur Deutschlandticket-Verbindungen anzeigen',
                     child: FilterChip(
-                      label: const Text('Nur 49€-Ticket', style: TextStyle(fontSize: 11)),
+                      label: const Text('Nur D-Ticket 63€', style: TextStyle(fontSize: 11)),
                       selected: _onlyDTicket,
                       onSelected: _toggleDTicket,
                       avatar: Icon(
@@ -2781,7 +2781,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                   ),
                   if (_onlyDTicket)
                     Text(
-                      'ICE/IC/EC ausgeblendet',
+                      'Nur Nahverkehr (RE/RB/S/U/Bus/Tram)',
                       style: TextStyle(fontSize: 10, color: p.onSurfaceDim),
                     ),
                   if (_mitRad)
@@ -3598,11 +3598,11 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
 }
 
 /// Fare estimation helper — computes if journey is covered by D-Ticket
-/// (49€/lună Deutschlandticket) or dacă include ICE/IC/EC ce cere separate.
+/// (63€/lună Deutschlandticket 2026) or dacă include Fernverkehr.
 /// Target audience ICD-Jobcenter: important să știe dacă rută costă +25-70€.
 class _FareInfo {
-  /// True dacă toate leg-urile sunt Nahverkehr (S/RB/RE/Bus/Tram/U-Bahn) →
-  /// acoperit de D-Ticket 49€.
+  /// True dacă toate leg-urile sunt Nahverkehr (S/RB/RE/IRE/MEX/Bus/Tram/U) →
+  /// acoperit de D-Ticket 63€.
   final bool coveredByDTicket;
   /// Estimare cost adăugător pentru leg-urile Fernverkehr (best-effort, se
   /// bazează pe distanță aproximativă). null când e integral D-Ticket-abgedeckt.
@@ -3615,16 +3615,45 @@ class _FareInfo {
     this.fernverkehrLines = const [],
   });
 
-  /// Heuristic: line-prefix + product type.
+  /// IC-Linien speciale acceptate ca Nahverkehr (D-Ticket-freigabe conform
+  /// bahn.de/service/nahverkehrsfreigabe). Actualizat 2026.
+  static const _dTicketIcNumbers = <String>{
+    // Dortmund ↔ Iserlohn-Letmathe ↔ Dillenburg
+    '2222', '2223', '2224', '2225', '2226',
+    '2320', '2323', '2324', '2325', '2326', '2327',
+    // Sylt ↔ Niebüll (nur Mo-Fr!)
+    '2075',
+  };
+  /// Prefixes stricte Fernverkehr (case-insensitive, extras uppercase).
+  /// Ordonate descrescător pentru match corect ("ICE" înainte de "IC").
+  static const _fvPrefixes = <String>[
+    'ICE', 'ECE', 'ECX', 'THALYS', 'FLIXT',
+    'IC', 'EC', 'IR', 'TGV', 'RJ', 'NJ', 'EN', 'FLX', 'CNL', 'EIC', 'TER',
+  ];
+
+  /// True dacă line-ul e Fernverkehr conform prefix + numărul IC. Handle-uiește
+  /// și "ICE100" (fără spațiu) și "IC 61" (Erfurt-Chemnitz = OK D-Ticket).
   static bool _isFernverkehr(JourneyLeg leg) {
     final line = leg.line.trim().toUpperCase();
-    // ICE 123, IC 2013, EC 27, TGV 9575, RJ 68, NJ 421 → Fernverkehr.
-    // FLX (FlixTrain) — nici D-Ticket, nici FV, dar tot >D-Ticket.
-    for (final prefix in ['ICE', 'IC ', 'EC ', 'TGV', 'RJ ', 'NJ ', 'FLX', 'THA']) {
-      if (line.startsWith(prefix)) return true;
+    if (line.isEmpty) return false;
+    for (final prefix in _fvPrefixes) {
+      if (line == prefix) return true;
+      if (line.length > prefix.length && line.startsWith(prefix)) {
+        final nextChar = line[prefix.length];
+        // Prefix urmat de spațiu, cifră sau `-` (ICE100, ICE 100, ICE-T).
+        final isSep = nextChar == ' ' || nextChar == '-' || nextChar == '.' ||
+            (nextChar.codeUnitAt(0) >= 0x30 && nextChar.codeUnitAt(0) <= 0x39);
+        if (!isSep) continue;
+        // Exception pentru IC: unele linii sunt D-Ticket eligible.
+        if (prefix == 'IC') {
+          final m = RegExp(r'^IC\s?(\d+)').firstMatch(line);
+          if (m != null && _dTicketIcNumbers.contains(m.group(1))) {
+            return false; // IC 2222 etc. → D-Ticket OK
+          }
+        }
+        return true;
+      }
     }
-    // Exact match uneori
-    if (line == 'ICE' || line == 'IC' || line == 'EC') return true;
     return false;
   }
 
@@ -3752,7 +3781,7 @@ class _AccessibilityBadge extends StatelessWidget {
   }
 }
 
-/// Compact badge care afișează dacă traseul e acoperit de D-Ticket 49€
+/// Compact badge care afișează dacă traseul e acoperit de D-Ticket 63€
 /// sau cere plată suplimentară pentru Fernverkehr (ICE/IC/EC).
 class _FareBadge extends StatelessWidget {
   final _FareInfo info;
@@ -3762,7 +3791,7 @@ class _FareBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     if (info.coveredByDTicket) {
       return Tooltip(
-        message: 'Alle Fahrten mit dem Deutschlandticket (49€) enthalten',
+        message: 'Alle Fahrten mit dem Deutschlandticket (63€, 2. Klasse) enthalten',
         child: Semantics(
           label: 'Deutschlandticket-kompatibel',
           child: Container(
