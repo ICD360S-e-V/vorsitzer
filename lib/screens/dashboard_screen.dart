@@ -827,22 +827,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       }
     } catch (_) {/* leave routineSet empty */}
 
-    // Termine: parallel per-user calls.
+    // Termine: BULK single call înlocuiește N cereri paralele care
+    // triggerau nginx rate-limit → 503 → aparent freeze pe Arbeitswochen.
     final terminSet = <String>{};
     try {
-      final futures = _users.map((u) async {
-        try {
-          final raw = await _terminService.getAllTermine(
-            from: weekStart,
-            to: weekEnd,
-            participantId: u.id,
-          );
-          final list = raw['termine'] as List?;
-          if (list != null && list.isNotEmpty) terminSet.add(u.mitgliedernummer);
-        } catch (_) {/* per-user failure: skip */}
-      });
-      await Future.wait(futures);
-    } catch (_) {/* batch failure */}
+      final userIdToMgnum = <int, String>{
+        for (final u in _users) u.id: u.mitgliedernummer,
+      };
+      final activeUserIds = await _terminService.getTerminUsersActivity(
+        from: weekStart,
+        to: weekEnd,
+      );
+      for (final uid in activeUserIds) {
+        final mg = userIdToMgnum[uid];
+        if (mg != null) terminSet.add(mg);
+      }
+    } catch (_) {/* leave terminSet empty */}
 
     if (!mounted) return;
     setState(() {

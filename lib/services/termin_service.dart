@@ -456,6 +456,26 @@ class TerminService {
     }
   }
 
+  /// Bulk lookup: user_ids care au termine în intervalul dat.
+  /// Înlocuiește N cereri paralel getAllTermine(participantId: X) cu 1 request,
+  /// evită nginx rate-limit (50 req/burst) care cauza 503 la deschidere dashboard.
+  Future<Set<int>> getTerminUsersActivity({required DateTime from, required DateTime to}) async {
+    try {
+      final fromStr = from.toIso8601String().substring(0, 10);
+      final toStr = to.toIso8601String().substring(0, 10);
+      final uri = Uri.parse('$baseUrl/admin/termine_users_activity.php')
+          .replace(queryParameters: {'from': fromStr, 'to': toStr});
+      final response = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return {};
+      final data = jsonDecode(response.body);
+      if (data['success'] != true) return {};
+      final list = (data['user_ids'] as List?) ?? [];
+      return list.map((e) => (e as num).toInt()).toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
   /// Get all termine (admin only) with optional date range for weekly calendar
   /// If [participantId] is set, only returns termine where that user is a participant
   Future<Map<String, dynamic>> getAllTermine({DateTime? from, DateTime? to, int? participantId}) async {
