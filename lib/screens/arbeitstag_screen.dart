@@ -487,9 +487,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   Widget _buildRow(ArbeitstagMember m, {bool dimmed = false}) {
     final theme = Theme.of(context);
     final prioColor = _prioColor(m.prioritaet);
-    return Opacity(
-      opacity: dimmed ? 0.55 : 1.0,
-      child: Padding(
+    // Opacity conditional — nu wrap 27 rows într-o Opacity(1.0) care creează
+    // layer inutil pe GPU.
+    final content = Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
@@ -614,6 +614,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         ),
       ),
     );
+    return dimmed ? Opacity(opacity: 0.55, child: content) : content;
   }
 
   IconData _iconFor(String typ, String state) {
@@ -646,10 +647,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     // #14: dim chipul offen când n-are ce alege (badgeCount=0)
     final noAvailable = isOffen && badgeCount == 0;
     // Fără onLongPress → nu mai blochează scroll pe touchscreen. Menu-ul
-    // e accesibil prin butonul ↩ separat (când state != offen).
-    return Opacity(
-      opacity: noAvailable ? 0.35 : 1.0,
-      child: Row(
+    // e accesibil prin butonul ⋮ separat (când state != offen).
+    // Opacity conditional — evită layer inutil pe 27 × 4 = 108 chip-uri.
+    final chip = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
@@ -684,24 +684,28 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               ),
             ),
           ),
-          // Buton ↩ separat pentru Rückgängig/Reset menu (când state != offen).
-          // Touchscreen-friendly — nu blochează scroll.
+          // Buton ⋮ pentru Rückgängig/Reset menu (când state != offen).
+          // InkWell + Icon în loc de IconButton — IconButton cu tooltip
+          // instalează long-press recognizer intern (blochează scroll).
           if (!isOffen)
-            IconButton(
-              onPressed: () => _handleChipLongPress(m, typ),
-              icon: Icon(Icons.more_vert, size: 16, color: color.withValues(alpha: 0.7)),
-              tooltip: 'Optionen',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-              visualDensity: VisualDensity.compact,
+            InkWell(
+              onTap: () => _handleChipLongPress(m, typ),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.more_vert, size: 16, color: color.withValues(alpha: 0.7)),
+              ),
             ),
         ],
-      ),
-    );
+      );
+    return noAvailable ? Opacity(opacity: 0.35, child: chip) : chip;
   }
 
   Widget _linkTitle(String emoji, String title, Color color, int menuIndex,
       {int? focusTicketId, int? focusTerminId, int? focusRoutineExecutionId}) {
+    // Fără Tooltip (avea long-press gesture recognizer intern — accumulate
+    // ~150 recognizers în listă → freeze pe Android). Text-ul e vizibil,
+    // tooltip-ul era redundant.
     return InkWell(
       onTap: widget.onNavigate == null
           ? null
@@ -710,17 +714,14 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               focusTerminId: focusTerminId,
               focusRoutineExecutionId: focusRoutineExecutionId),
       borderRadius: BorderRadius.circular(4),
-      child: Tooltip(
-        message: widget.onNavigate == null ? title : '$title — öffnen',
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-          child: Text('$emoji $title',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: color,
-                decoration: widget.onNavigate == null ? null : TextDecoration.underline,
-                decorationStyle: TextDecorationStyle.dotted,
-              )),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+        child: Text('$emoji $title',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              decoration: widget.onNavigate == null ? null : TextDecoration.underline,
+              decorationStyle: TextDecorationStyle.dotted,
+            )),
       ),
     );
   }
@@ -731,24 +732,23 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         ? '?'
         : parts.length == 1 ? parts[0].substring(0, 1).toUpperCase()
         : '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    return Tooltip(
-      message: 'bearbeitet von $name',
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.blueGrey.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.person, size: 11, color: Colors.blueGrey.shade700),
-            const SizedBox(width: 3),
-            Text(initials,
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blueGrey.shade800)),
-          ],
-        ),
+    // Fără Tooltip — la fel ca _linkTitle, evită accumulare recognizers.
+    // Numele complet e disponibil în history dialog (click pe nume).
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.person, size: 11, color: Colors.blueGrey.shade700),
+          const SizedBox(width: 3),
+          Text(initials,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blueGrey.shade800)),
+        ],
       ),
     );
   }
