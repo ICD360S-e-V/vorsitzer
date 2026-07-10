@@ -612,7 +612,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             ],
           ],
         ),
-      ),
     );
     return dimmed ? Opacity(opacity: 0.55, child: content) : content;
   }
