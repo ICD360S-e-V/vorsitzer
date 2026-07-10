@@ -387,22 +387,29 @@ class ArbeitstagService {
     required int kwNumber,
     String view = 'active',
   }) async {
+    final swStart = DateTime.now();
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_list.php').replace(queryParameters: {
         'kw_year': kwYear.toString(),
         'kw_number': kwNumber.toString(),
         'view': view,
       });
-      final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 30));
+      _log.info('[getWoche] GET $uri', tag: 'ARBEITSTAG');
+      final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
+      final dt = DateTime.now().difference(swStart).inMilliseconds;
+      _log.info('[getWoche] HTTP ${res.statusCode} in ${dt}ms body=${res.body.length}B', tag: 'ARBEITSTAG');
       if (res.statusCode != 200) {
         _log.error('arbeitstag getWoche HTTP ${res.statusCode}', tag: 'ARBEITSTAG');
         return null;
       }
       final data = jsonDecode(res.body);
       if (data['success'] != true) return null;
-      return ArbeitstagWoche.fromJson(data);
-    } catch (e) {
-      _log.error('arbeitstag getWoche failed: $e', tag: 'ARBEITSTAG');
+      final result = ArbeitstagWoche.fromJson(data);
+      _log.info('[getWoche] parsed ${result.members.length} members', tag: 'ARBEITSTAG');
+      return result;
+    } catch (e, st) {
+      final dt = DateTime.now().difference(swStart).inMilliseconds;
+      _log.error('arbeitstag getWoche failed after ${dt}ms: $e\n$st', tag: 'ARBEITSTAG');
       return null;
     }
   }

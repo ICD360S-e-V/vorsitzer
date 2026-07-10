@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import '../services/arbeitstag_service.dart';
 
 class ArbeitstagScreen extends StatefulWidget {
@@ -27,11 +27,17 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   @override
   void initState() {
     super.initState();
-    initializeDateFormatting('de_DE', null);
+    debugPrint('[ARBEITSTAG] initState fired');
     final now = DateTime.now();
     _kwYear = _isoYear(now);
     _kwNumber = _isoWeek(now);
-    _load();
+    debugPrint('[ARBEITSTAG] initState → KW $_kwNumber / $_kwYear, calling _load');
+    // Defer _load la end of first frame ca să nu blocheze render-ul inițial.
+    // Pe Android, apel sync în initState + setState imediat poate rula
+    // înainte ca frame-ul să fie flush-uit → user vede freeze la open.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   static int _isoWeek(DateTime d) {
@@ -47,13 +53,25 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
+    debugPrint('[ARBEITSTAG] _load START — KW $_kwNumber/$_kwYear view=$_view');
     if (!mounted) return;
-    setState(() {
-      _data = data;
-      _loading = false;
-    });
+    setState(() => _loading = true);
+    try {
+      final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
+      debugPrint('[ARBEITSTAG] _load DONE — members=${data?.members.length ?? 'null'}');
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _loading = false;
+      });
+    } catch (e, st) {
+      debugPrint('[ARBEITSTAG] _load ERROR: $e\n$st');
+      if (!mounted) return;
+      setState(() {
+        _data = null;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _archiveMember(ArbeitstagMember m) async {
