@@ -808,7 +808,6 @@ class TransitService {
           _latitude = (p.minLat + p.maxLat) / 2;
           _longitude = (p.minLon + p.maxLon) / 2;
           gpsCity = ort;
-          city = ort;
           _log.info('Transit: provider ${p.name} matched from Stufe-1 ort=$ort',
               tag: 'TRANSIT');
           return;
