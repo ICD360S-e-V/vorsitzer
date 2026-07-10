@@ -2179,6 +2179,9 @@ class TransitService {
 
       final jnyL = res['jnyL'] as List? ?? [];
 
+      // Common locations list (referenced by stbStop.locX)
+      final commonLocL = common['locL'] as List? ?? [];
+
       for (final jny in jnyL) {
         try {
           final stbStop = jny['stbStop'] ?? {};
@@ -2243,6 +2246,21 @@ class TransitService {
           // Direction
           final direction = jny['dirTxt']?.toString() ?? '';
 
+          // Resolve stop/trip identifiers for trip-sequence lookup.
+          //   - stopID:  extId of the boarding stop from common.locL[stbStop.locX]
+          //   - tripID:  jny.jid — unique per journey, feeds JourneyDetails method
+          //              which returns the full stop sequence without needing destID
+          //   - destID:  intentionally null for HAFAS — resolved via JourneyDetails
+          String? boardStopId;
+          final locX = stbStop['locX'];
+          if (locX is int && locX >= 0 && locX < commonLocL.length) {
+            final loc = commonLocL[locX];
+            if (loc is Map) {
+              boardStopId = (loc['extId'] ?? loc['lid'])?.toString();
+            }
+          }
+          final tripJid = jny['jid']?.toString();
+
           departures.add(Departure(
             line: lineName,
             direction: direction,
@@ -2254,6 +2272,8 @@ class TransitService {
             operator: operatorName,
             stopName: stopName,
             isCancelled: isCancelled,
+            stopID: boardStopId,
+            tripID: tripJid,
           ));
         } catch (e) {
           // Skip malformed entries
@@ -2717,15 +2737,26 @@ class TransitService {
   }
 
   /// Same as [fetchTripStops] but returns [TripRoute] with polyline for the map.
+  ///
+  /// Accepts either:
+  ///   - EFA: `stopID` + `destID` (both required, used with XSLT_TRIP_REQUEST2)
+  ///   - HAFAS: `tripID` alone (JourneyDetails method, most reliable)
+  ///   - HAFAS: `stopID` + `destID` (TripSearch fallback if no tripID)
   Future<TripRoute> fetchTripRoute(Departure dep) async {
     final empty = TripRoute(stops: const [], path: const []);
     final fromId = dep.stopID;
     final toId = dep.destID;
-    if (fromId == null || fromId.isEmpty || toId == null || toId.isEmpty) {
-      _log.info('Transit: fetchTripRoute skipped — missing stopID/destID', tag: 'TRANSIT');
+    final tripId = dep.tripID;
+    final hasTrip = tripId != null && tripId.isNotEmpty;
+    final hasFromTo = fromId != null && fromId.isNotEmpty && toId != null && toId.isNotEmpty;
+    if (!hasTrip && !hasFromTo) {
+      _log.info('Transit: fetchTripRoute skipped — no tripID and no stopID/destID', tag: 'TRANSIT');
       return empty;
     }
-    final cacheKey = '$fromId|$toId|${dep.line}|${dep.plannedTime.toIso8601String()}';
+    // Cache key varies by which lookup path we're taking.
+    final cacheKey = hasTrip
+        ? 'jid|$tripId|${dep.line}'
+        : '$fromId|$toId|${dep.line}|${dep.plannedTime.toIso8601String()}';
     final cached = _tripStopsCache[cacheKey];
     if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 60)) {
       return TripRoute(stops: cached.stops, path: cached.path);
@@ -2736,8 +2767,11 @@ class TransitService {
     TripRoute route = empty;
     try {
       if (provider.api == TransitApiType.efa) {
-        route = await _efaTripRoute(provider, dep);
+        // EFA still requires stopID + destID.
+        if (hasFromTo) route = await _efaTripRoute(provider, dep);
       } else {
+        // HAFAS: _hafasTripRoute internally prefers JourneyDetails via jid,
+        // then falls back to TripSearch (which needs destID).
         route = await _hafasTripRoute(provider, dep);
       }
     } catch (e) {
@@ -2843,10 +2877,104 @@ class TransitService {
     return out;
   }
 
+  /// Fetch the passing-stop list for a single HAFAS journey identified by
+  /// `dep.tripID` (jid). Returns 20+ TripStop entries with planned+realtime
+  /// times, lat/lon coords, platforms — everything the trip-sequence UI
+  /// needs, without requiring a destination hint (unlike TripSearch which
+  /// needs `depLocL` + `arrLocL`).
+  Future<TripRoute> _hafasJourneyDetails(TransitProviderConfig p, Departure dep) async {
+    final empty = TripRoute(stops: const [], path: const []);
+    final jid = dep.tripID;
+    if (jid == null || jid.isEmpty) return empty;
+    final req = _hafasRequest([
+      {
+        'meth': 'JourneyDetails',
+        'req': {
+          'jid': jid,
+          'getPasslist': true,
+          'getPolyline': true, // optional — include drawable path if backend has it
+        },
+      },
+    ]);
+    try {
+      final resp = await _client.post(Uri.parse(p.baseUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(req)).timeout(const Duration(seconds: 12));
+      if (resp.statusCode != 200) return empty;
+      final data = jsonDecode(_decodeUtf8(resp));
+      final res = data['svcResL']?[0];
+      if (res == null || res['err'] != 'OK') return empty;
+      final r = res['res'];
+      if (r is! Map) return empty;
+      final common = r['common'] ?? {};
+      final locL = common['locL'] as List? ?? [];
+      final journey = r['journey'] ?? {};
+      final stopL = journey['stopL'] as List? ?? [];
+      // Fall back to today when the response omits the date field.
+      final date = journey['date']?.toString() ?? dep.plannedTime.toIso8601String().substring(0, 10).replaceAll('-', '');
+
+      final out = <TripStop>[];
+      final path = <(double, double)>[];
+      for (final s in stopL) {
+        if (s is! Map) continue;
+        final locX = s['locX'] as int? ?? -1;
+        if (locX < 0 || locX >= locL.length) continue;
+        final loc = locL[locX] as Map;
+        final name = loc['name']?.toString() ?? '';
+        if (name.isEmpty) continue;
+        final id = (loc['extId'] ?? loc['lid'])?.toString() ?? '';
+
+        // Prefer dep time (dTimeS), fall back to arr time (aTimeS) at terminus.
+        final planned = _parseHafasDateTime(date, (s['dTimeS'] ?? s['aTimeS'] ?? '').toString());
+        if (planned == null) continue;
+        final rtStr = (s['dTimeR'] ?? s['aTimeR'] ?? '').toString();
+        final rt = rtStr.isNotEmpty ? _parseHafasDateTime(date, rtStr) : null;
+        final delayMin = (rt != null) ? rt.difference(planned).inMinutes : 0;
+
+        // HAFAS coord: crd.x = lon*1e6, crd.y = lat*1e6
+        double? lat, lon;
+        final crd = loc['crd'];
+        if (crd is Map) {
+          final x = crd['x']; final y = crd['y'];
+          if (x is num) lon = x / 1000000;
+          if (y is num) lat = y / 1000000;
+        }
+        if (lat != null && lon != null) path.add((lat, lon));
+
+        out.add(TripStop(
+          name: name,
+          stopID: id,
+          plannedTime: planned,
+          realtimeTime: rt,
+          delay: delayMin > 0 ? delayMin : 0,
+          isCurrent: id == dep.stopID,
+          platform: (s['dPlatfR'] ?? s['aPlatfR'] ?? s['dPlatfS'] ?? s['aPlatfS'])?.toString(),
+          lat: lat,
+          lon: lon,
+        ));
+      }
+      return TripRoute(stops: out, path: path);
+    } catch (e) {
+      _log.debug('Transit: JourneyDetails failed: $e', tag: 'TRANSIT');
+      return empty;
+    }
+  }
+
   Future<TripRoute> _hafasTripRoute(TransitProviderConfig p, Departure dep) async {
+    // Prefer JourneyDetails when we have the jid — it returns the exact
+    // vehicle's stop sequence without needing a destination hint. This is
+    // what mainstream apps like DB Navigator use for the "stops" list.
+    if (dep.tripID != null && dep.tripID!.isNotEmpty) {
+      final byJid = await _hafasJourneyDetails(p, dep);
+      if (byJid.stops.isNotEmpty) return byJid;
+    }
     final when = dep.realtimeTime ?? dep.plannedTime;
     final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
     final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
+    // TripSearch fallback — only reachable if both endpoints are known.
+    if (dep.destID == null || dep.destID!.isEmpty) {
+      return TripRoute(stops: const [], path: const []);
+    }
     final req = _hafasRequest([
       {
         'meth': 'TripSearch',

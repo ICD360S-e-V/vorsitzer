@@ -1202,7 +1202,13 @@ class _DepartureRow extends StatelessWidget {
     final isSoon = !isCancelled && mins <= 5;
     final isLive = dep.realtimeTime != null;
 
-    final canOpenSequence = !isCancelled && dep.stopID != null && dep.destID != null;
+    // Trip sequence needs either:
+    //   - stopID+destID (EFA XSLT_TRIP_REQUEST2), OR
+    //   - tripID / jid (HAFAS JourneyDetails, most reliable).
+    // Cancelled services skip both — the vehicle isn't running.
+    final canOpenSequence = !isCancelled &&
+        ((dep.stopID != null && dep.destID != null) ||
+         (dep.tripID != null && dep.tripID!.isNotEmpty));
     final productLabel = switch (dep.productType) {
       'tram' => 'Straßenbahn',
       'subway' => 'U-Bahn',
