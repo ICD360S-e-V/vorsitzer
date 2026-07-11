@@ -2033,14 +2033,24 @@ class TransitService {
   /// public DB pentru găsirea stațiilor pe GPS. Returnează normalized list
   /// cu `{id, name, distance, products}` — sau null la eroare.
   ///
-  /// Endpoint acceptă `lat` + `long` (alte forme văzute: `latitude`+`longitude`).
-  /// Vom trimite ambele variante pentru compatibilitate.
+  /// Param names EXACTE (din db-vendo-client `p/dbweb/nearby-req.js` +
+  /// test fixtures — verified 2026-07-11):
+  /// - `lat` (nu `latitude`)
+  /// - `long` (nu `longitude`)
+  /// - `radius` in metri (nu `umkreis`)
+  /// - `maxNo` = max rezultate (nu `results`)
+  /// - `products` filter — mandatory else 422 !
   Future<List<Map>?> _fetchNearbyStopsBahnDe() async {
     try {
+      // products se trimite ca query-param repetat: `products=X&products=Y`.
+      // Uri.parse nu suportă native multi-value, construim manual.
+      const products = ['ICE', 'EC_IC', 'IR', 'REGIONAL', 'SBAHN',
+                        'BUS', 'SCHIFF', 'UBAHN', 'TRAM', 'ANRUFPFLICHTIG'];
+      final productsQ = products.map((p) => 'products=$p').join('&');
       final uri = Uri.parse('$_bahnDeBase/orte/nearby'
-          '?latitude=${_latitude!.toStringAsFixed(6)}'
-          '&longitude=${_longitude!.toStringAsFixed(6)}'
-          '&umkreis=30000');
+          '?lat=${_latitude!.toStringAsFixed(6)}'
+          '&long=${_longitude!.toStringAsFixed(6)}'
+          '&radius=30000&maxNo=10&$productsQ');
       final resp = await _client.get(uri, headers: _bahnDeHeaders)
           .timeout(const Duration(seconds: 15));
       if (resp.statusCode == 429 || resp.statusCode == 403) {
@@ -3209,16 +3219,27 @@ class TransitService {
   /// bahn.de `/abfahrten` — endpoint oficial DB pentru live departures.
   /// `stationId` = EVA number (7 cifre, ex. "8000201" pentru Ulm Hbf).
   /// Returnează null la eroare (fallback la v6.db.transport.rest).
+  ///
+  /// Param format EXACT (verificat din db-vendo-client fixtures 2025-02):
+  /// - `ortExtId` = EVA number
+  /// - `zeit` = **HH:mm** (nu HH:MM:SS !)
+  /// - `datum` = yyyy-MM-dd
+  /// - `mitVias` = true
+  /// - `verkehrsmittel[]` = array Verkehrsmittel MANDATORY (else 422)
   Future<List<Departure>?> _fetchDeparturesBahnDe(String stationId, String stationName) async {
     try {
       final now = DateTime.now();
       final datum = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
           '${now.day.toString().padLeft(2, '0')}';
+      // zeit = HH:mm (NU HH:mm:ss — bahn.de returnează 422 la HH:mm:ss)
       final zeit = '${now.hour.toString().padLeft(2, '0')}:'
-          '${now.minute.toString().padLeft(2, '0')}:00';
+          '${now.minute.toString().padLeft(2, '0')}';
+      const verkehrsmittel = ['ICE', 'EC_IC', 'IR', 'REGIONAL', 'SBAHN',
+                              'BUS', 'SCHIFF', 'UBAHN', 'TRAM', 'ANRUFPFLICHTIG'];
+      final vmQ = verkehrsmittel.map((v) => 'verkehrsmittel=$v').join('&');
       final uri = Uri.parse('$_bahnDeBase/abfahrten'
           '?ortExtId=$stationId&datum=$datum&zeit=$zeit'
-          '&mitVias=true&maxVias=8');
+          '&mitVias=true&$vmQ');
       final resp = await _client.get(uri, headers: _bahnDeHeaders)
           .timeout(const Duration(seconds: 12));
       if (resp.statusCode == 429 || resp.statusCode == 403) {
