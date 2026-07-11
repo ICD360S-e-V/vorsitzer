@@ -1687,11 +1687,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 13:
         return EinstellungenScreen(apiService: _apiService);
       case 14:
-        // ULTIMATE DIAGNOSTIC — bypass ArbeitstagScreen complet. Injectez
-        // direct un buton simplu în dashboard body la case 14. Dacă ACEST
-        // buton nu răspunde, cauza-i ceva peste zona body a Scaffold-ului
-        // parent (nu în ArbeitstagScreen).
-        return GestureDetector(
+        // ULTRA DIAGNOSTIC — Log în build ca să vedem dacă case 14 e apelat
+        // și cu ce media size. Wrap în Container cu key ca să forțăm rebuild.
+        _log.info('[DASH-14] build case 14 called, media=${MediaQuery.of(context).size} '
+            'padding=${MediaQuery.of(context).padding}');
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) => _log.info('[DASH-14] PointerDown @ '
+              '(${event.position.dx.toStringAsFixed(0)}, ${event.position.dy.toStringAsFixed(0)}) '
+              'kind=${event.kind}'),
+          child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => _log.info('[DASH-14] TAP_DASHBOARD_CASE_14 fired'),
           child: Container(
@@ -1717,6 +1722,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
               ],
             ),
+          ),
           ),
         );
       default:
