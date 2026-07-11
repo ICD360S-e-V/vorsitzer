@@ -2328,7 +2328,11 @@ class TransitService {
       _log.debug('Transit [${activeP.name}]: skipped — blacklisted', tag: 'TRANSIT');
       return;
     }
-    // Step 1: Find nearby stops via LocGeoPos
+    // Step 1: Find nearby stops via LocGeoPos.
+    // Expanded 2026-07 la 30km / 20 max stops pentru a suporta sub-tab-uri
+    // per productType (Bus, Tram, S-Bhf, U-Bhf, Bhf). Distanța 30km e
+    // suficientă pentru mediu rural — Bhf/Tram pot fi la 15-25 km. Chiar
+    // dacă rezultatul e mai departe, arătăm cele mai apropiate 3 per tip.
     final nearbyCall = _buildSignedHafasCall(activeP, [
       {
         'meth': 'LocGeoPos',
@@ -2338,7 +2342,7 @@ class TransitService {
               'x': (_longitude! * 1000000).round(),
               'y': (_latitude! * 1000000).round(),
             },
-            'maxDist': 1000,
+            'maxDist': 30000,
           },
           'getPOIs': false,
           'getStops': true,
@@ -2406,8 +2410,9 @@ class TransitService {
       stopIds.add(extId.isNotEmpty ? extId : lid);
       stopLids.add(lid);
 
-      // Max 3 closest stops
-      if (nearbyStops.length >= 3) break;
+      // Max 20 closest stops — suficient pentru filtrare per productType
+      // (Bus/Tram/Bhf/S/U) în UI. Sortare stabilă crescător după distanță.
+      if (nearbyStops.length >= 20) break;
     }
 
     nearbyStops.sort((a, b) => a.distance.compareTo(b.distance));

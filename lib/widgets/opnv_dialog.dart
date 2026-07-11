@@ -233,6 +233,19 @@ class _Header extends StatelessWidget {
 // Tab 1 — Echtzeit (grouped by nearest stops, GPS re-check 60s)
 // ══════════════════════════════════════════════════════════════
 
+/// Definește un sub-tab din Echtzeit filtrat per productType.
+/// `types == null` = Alle (fără filtru).
+class _SubTabDef {
+  final String label;
+  final IconData icon;
+  final Set<String>? types;
+  const _SubTabDef({
+    required this.label,
+    required this.icon,
+    required this.types,
+  });
+}
+
 class _EchtzeitTab extends StatefulWidget {
   final TransitService transitService;
   final List<Departure> initialDepartures;
@@ -250,7 +263,8 @@ class _EchtzeitTab extends StatefulWidget {
   State<_EchtzeitTab> createState() => _EchtzeitTabState();
 }
 
-class _EchtzeitTabState extends State<_EchtzeitTab> {
+class _EchtzeitTabState extends State<_EchtzeitTab>
+    with SingleTickerProviderStateMixin {
   late List<Departure> _departures;
   bool _isLoading = false;
   Timer? _refreshTimer;
@@ -259,10 +273,27 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
   /// snapshot rather than a live fetch. Shows a freshness banner.
   TransitOfflineSnapshot? _offline;
 
+  /// Sub-tab controller: Alle / Bus / Tram / S-Bhf / U-Bhf / Bhf.
+  /// Filtrează departures & stops per productType astfel încât userul
+  /// vede rapid ce are lângă el fără să scaneze printre tipuri mixte.
+  late TabController _subTabController;
+  static const _subTabs = <_SubTabDef>[
+    _SubTabDef(label: 'Alle', icon: Icons.public, types: null),
+    _SubTabDef(label: 'Bus', icon: Icons.directions_bus, types: {'bus'}),
+    _SubTabDef(label: 'Tram', icon: Icons.tram, types: {'tram'}),
+    _SubTabDef(label: 'S-Bhf', icon: Icons.train_outlined, types: {'suburban'}),
+    _SubTabDef(label: 'U-Bhf', icon: Icons.subway, types: {'subway'}),
+    _SubTabDef(label: 'Bhf', icon: Icons.train, types: {'train', 'regional'}),
+  ];
+
   @override
   void initState() {
     super.initState();
     _departures = List.from(widget.initialDepartures);
+    _subTabController = TabController(length: _subTabs.length, vsync: this);
+    _subTabController.addListener(() {
+      if (mounted && !_subTabController.indexIsChanging) setState(() {});
+    });
     // Auto-refresh every 60s — also re-checks GPS via service.refresh()
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) => _refresh());
     if (_departures.isEmpty) _refresh();
@@ -271,6 +302,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _subTabController.dispose();
     super.dispose();
   }
 
@@ -311,21 +343,39 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
   }
 
   /// Group departures by stop name, keeping stop order by distance.
-  Map<String, List<Departure>> get _byStop {
+  /// Optional productType filter — pentru sub-tab-uri specializate.
+  Map<String, List<Departure>> _byStop({Set<String>? productTypes}) {
     final grouped = <String, List<Departure>>{};
     final now = DateTime.now();
     for (final d in _departures) {
       if (d.stopName.isEmpty) continue;
-      if (d.minutesUntil < 0 || (d.realtimeTime ?? d.plannedTime).isBefore(now.subtract(const Duration(minutes: 1)))) continue;
+      if (productTypes != null && !productTypes.contains(d.productType)) continue;
+      if (d.minutesUntil < 0 ||
+          (d.realtimeTime ?? d.plannedTime).isBefore(now.subtract(const Duration(minutes: 1)))) continue;
       grouped.putIfAbsent(d.stopName, () => []).add(d);
     }
     return grouped;
   }
 
+  /// Returnează top 3 stații care au departures pentru tab-ul activ.
+  /// Sortare după distanță crescătoare din TransitService.nearbyStops.
+  List<TransitStop> _stopsForTab(_SubTabDef tab) {
+    final allStops = widget.transitService.nearbyStops;
+    final grouped = _byStop(productTypes: tab.types);
+    if (tab.types == null) {
+      // "Alle" tab — comportament clasic: primele 3 după distanță.
+      return allStops.take(3).toList();
+    }
+    // Specialized tab — doar stații care AU cel puțin o departure de tipul dorit.
+    final withDeps = allStops.where((s) => grouped.containsKey(s.name)).toList();
+    return withDeps.take(3).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final grouped = _byStop;
-    final stops = widget.transitService.nearbyStops;
+    final currentTab = _subTabs[_subTabController.index];
+    final grouped = _byStop(productTypes: currentTab.types);
+    final stops = _stopsForTab(currentTab);
     final locLabel = widget.transitService.gpsCity ?? widget.city;
     final provider = widget.transitService.activeProvider;
 
@@ -462,6 +512,12 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
         // Störungen-Banner: shows a compact strip if any HIM messages are
         // currently active. Tap to open full list dialog.
         _DisruptionsBanner(),
+        // Sub-tab bar: Alle / Bus / Tram / S-Bhf / U-Bhf / Bhf.
+        // Colorat pe tip, colorat activ pentru scanare rapidă.
+        _SubTabBar(
+          controller: _subTabController,
+          tabs: _subTabs,
+        ),
         // Body — if accuracy is too coarse, refuse to show stops
         Expanded(
           child: !isPrecise
@@ -472,11 +528,15 @@ class _EchtzeitTabState extends State<_EchtzeitTab> {
                   onForceGnss: _forceGnss,
                 )
               : stops.isEmpty && grouped.isEmpty
-                  ? _EmptyState(loading: _isLoading, error: widget.transitService.locationError)
+                  ? _SubTabEmpty(
+                      tab: currentTab,
+                      loading: _isLoading,
+                      onShowAll: () => _subTabController.animateTo(0),
+                    )
                   : ListView(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       children: [
-                        for (final stop in stops.take(3))
+                        for (final stop in stops)
                           _StopSection(
                             stop: stop,
                             departures: grouped[stop.name] ?? [],
@@ -645,6 +705,114 @@ class _OngoingRideBannerState extends State<_OngoingRideBanner> {
                   ]),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sub-tab bar din Echtzeit — Alle / Bus / Tram / S-Bhf / U-Bhf / Bhf.
+/// Culoare-activ per tab pentru memoria musculară a userului.
+class _SubTabBar extends StatelessWidget {
+  final TabController controller;
+  final List<_SubTabDef> tabs;
+  const _SubTabBar({required this.controller, required this.tabs});
+
+  Color _accentFor(_SubTabDef t) {
+    if (t.types == null) return Colors.teal.shade600;
+    if (t.types!.contains('bus')) return Colors.teal.shade700;
+    if (t.types!.contains('tram')) return Colors.blue.shade700;
+    if (t.types!.contains('suburban')) return Colors.green.shade700;
+    if (t.types!.contains('subway')) return Colors.indigo.shade700;
+    if (t.types!.contains('train') || t.types!.contains('regional')) return Colors.red.shade700;
+    return Colors.grey.shade700;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final currentAccent = _accentFor(tabs[controller.index]);
+    return Container(
+      decoration: BoxDecoration(
+        color: p.surface,
+        border: Border(bottom: BorderSide(color: p.divider)),
+      ),
+      child: TabBar(
+        controller: controller,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelColor: currentAccent,
+        unselectedLabelColor: p.onSurfaceDim,
+        indicatorColor: currentAccent,
+        indicatorWeight: 2.5,
+        labelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+        unselectedLabelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+        tabs: [
+          for (final t in tabs)
+            Tab(
+              height: 36,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(t.icon, size: 14),
+                const SizedBox(width: 4),
+                Text(t.label),
+              ]),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Empty-state pentru sub-tab (nu găsim stații de tipul cerut).
+/// User in mediu rural sau la marginea acoperirii → sugerăm "Alle".
+class _SubTabEmpty extends StatelessWidget {
+  final _SubTabDef tab;
+  final bool loading;
+  final VoidCallback onShowAll;
+  const _SubTabEmpty({required this.tab, required this.loading, required this.onShowAll});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final typeLabel = switch (tab.label) {
+      'Bus' => 'Bushaltestelle',
+      'Tram' => 'Straßenbahn-Haltestelle',
+      'S-Bhf' => 'S-Bahnhof',
+      'U-Bhf' => 'U-Bahnhof',
+      'Bhf' => 'Bahnhof',
+      _ => 'Haltestelle',
+    };
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(tab.icon, size: 44, color: p.iconMuted),
+            const SizedBox(height: 12),
+            Text(
+              'Keine $typeLabel in der Nähe',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.onSurface),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Innerhalb 30 km wurde nichts gefunden.\n'
+              'Aktueller Standort ist möglicherweise rural.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onShowAll,
+              icon: const Icon(Icons.public, size: 14),
+              label: const Text('Zurück zu "Alle"', style: TextStyle(fontSize: 12)),
             ),
           ],
         ),
