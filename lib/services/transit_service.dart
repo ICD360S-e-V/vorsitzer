@@ -4399,7 +4399,25 @@ class TransitService {
     final tp = to.sourceProvider;
     final sameProvider = fp != null && tp != null && fp.type == tp.type;
 
-    if (sameProvider) {
+    // 2026-07-11 FIX: cand filter D-Ticket e ON, PRIMUL apelam bahn.de cu
+    // flag-ul nativ `nurDeutschlandTicketVerbindungen: true` — atunci bahn.de
+    // returneaza rute 100% Nahverkehr (RE + S + RE etc.). Bloc-ul sameProvider
+    // (HAFAS/EFA fara flag) returna journeys cu ICE deghizat ca "619" fara
+    // prefix, care apoi era respins de filter → fallback la originale cu badge
+    // Fernverkehr, deci userul nu vedea RUTA Nah reala care exista.
+    if (onlyDeutschlandTicket) {
+      try {
+        results = await _bahnTripSearchByName(
+          from.name, to.name, when,
+          arriveBy: arriveBy,
+          onlyDeutschlandTicket: true,
+        );
+      } catch (e) {
+        _log.error('Transit: bahn.de D-Ticket trip search failed: $e', tag: 'TRANSIT');
+      }
+    }
+
+    if (results.isEmpty && sameProvider) {
       try {
         if (fp.api == TransitApiType.efa) {
           results = await _efaTripSearch(fp, from, to, when, arriveBy: arriveBy);
@@ -5364,8 +5382,33 @@ class TransitService {
           default: productType = 'bus';
         }
 
+        // 2026-07-11 FIX: bahn.de returneaza `name = "4140"` (numar tren) si
+        // `kurzText = "RE"` (product only). `langText = "RE1 (4140)"` are
+        // line-ul CORECT (RE1, RB70, ICE 619 etc.). Preluam din langText fara
+        // sufix `(4140)`. Fallback pe name + kurzText combo daca langText gol.
+        String extractLine() {
+          if (isWalk) return 'Fußweg';
+          final vk = seg['verkehrsmittel'];
+          if (vk is! Map) return '?';
+          final langText = vk['langText']?.toString().trim() ?? '';
+          if (langText.isNotEmpty) {
+            // "RE1 (4140)" → "RE1", "ICE 619 (12345)" → "ICE 619"
+            final parenIdx = langText.indexOf(' (');
+            return parenIdx > 0 ? langText.substring(0, parenIdx) : langText;
+          }
+          final mittelText = vk['mittelText']?.toString().trim() ?? '';
+          if (mittelText.isNotEmpty) return mittelText;
+          // Combine kurzText + name daca name e doar cifre: "RE" + "4140" = "RE 4140"
+          final kurz = vk['kurzText']?.toString().trim() ?? '';
+          final nm = vk['name']?.toString().trim() ?? '';
+          if (kurz.isNotEmpty && nm.isNotEmpty && RegExp(r'^\d+$').hasMatch(nm)) {
+            return '$kurz $nm';
+          }
+          return nm.isNotEmpty ? nm : (kurz.isNotEmpty ? kurz : '?');
+        }
+
         legs.add(JourneyLeg(
-          line: isWalk ? 'Fußweg' : (seg['verkehrsmittel']?['name']?.toString() ?? seg['verkehrsmittel']?['kurzText']?.toString() ?? '?'),
+          line: extractLine(),
           direction: seg['verkehrsmittel']?['richtung']?.toString() ?? '',
           fromName: seg['abfahrtsOrt']?.toString() ?? '',
           toName: seg['ankunftsOrt']?.toString() ?? '',
