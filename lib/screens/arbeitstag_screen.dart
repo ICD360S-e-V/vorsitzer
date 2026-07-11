@@ -327,10 +327,15 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final theme = Theme.of(context);
     _log.info('[SCREEN] build — loading=$_loading data=${_data == null ? 'null' : 'set'} '
         'membrii=${_data?.members.length ?? 0}');
-    // Listener wraps everything — log PointerDown ca să vedem dacă
-    // event-urile ajung la screen. Elimin Scaffold-ul intern (parent
-    // dashboard.dart oferă deja Scaffold) — nested Scaffold poate
-    // interfera cu event routing pe Android + bluetooth mouse.
+    // Trei layere de diagnostic ca să identific exact unde blochează:
+    //   1. Listener (root) — orice PointerDown ajunge aici, log-uit
+    //   2. GestureDetector.opaque (overlay) — tap explicit ca test
+    //   3. Column normal + Header (IconButton) + Body
+    // Dacă:
+    //   - PointerDown NU apare → overlay superior mananca event-ul
+    //   - PointerDown apare dar TAP_TEST_GESTURE NU → InkWell/IconButton
+    //     specific rupt pe Android
+    //   - TAP_TEST_GESTURE apare dar chevron_X_tapped NU → IconButton fix
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
@@ -338,11 +343,30 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             '${event.position.dy.toStringAsFixed(0)}) kind=${event.kind} '
             'buttons=${event.buttons}');
       },
-      child: Column(
+      child: Stack(
         children: [
-          _buildHeader(theme),
-          const Divider(height: 1),
-          Expanded(child: _buildBody()),
+          Column(
+            children: [
+              _buildHeader(theme),
+              const Divider(height: 1),
+              Expanded(child: _buildBody()),
+            ],
+          ),
+          // Layer 2: GestureDetector top-left corner 60x60 —
+          // test explicit, în caz că IconButton e problema
+          Positioned(
+            top: 4, left: 4,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _log.info('[SCREEN] TAP_TEST_GESTURE fired (Positioned top-left)'),
+              child: Container(
+                width: 60, height: 40,
+                color: Colors.red.withValues(alpha: 0.3),
+                alignment: Alignment.center,
+                child: const Text('TAP', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
         ],
       ),
     );
