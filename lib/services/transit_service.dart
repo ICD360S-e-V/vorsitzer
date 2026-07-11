@@ -4458,6 +4458,23 @@ class TransitService {
       }
     }
 
+    // Filter journeys din trecut — bahn.de + HAFAS uneori returnează
+    // conexiuni deja plecate (special când user cere trip search fără
+    // `when` param sau când server-ul are ceas-drift).
+    // Elimin journeys ai căror dep < now - 5min.
+    if (results.isNotEmpty) {
+      final now = DateTime.now();
+      final cutoff = now.subtract(const Duration(minutes: 5));
+      final before = results.length;
+      results = results.where((j) => j.depTime.isAfter(cutoff)).toList();
+      // Sort by depTime crescator pentru afisare corectă.
+      results.sort((a, b) => a.depTime.compareTo(b.depTime));
+      if (results.length < before) {
+        _log.info('Transit: filtrat ${before - results.length} journeys '
+            'din trecut, ${results.length} rămase', tag: 'TRANSIT');
+      }
+    }
+
     // Client-side D-Ticket filter for local provider results (EFA/HAFAS
     // don't support the flag server-side). Some EFA services return REs
     // that cross tariff zones without D-Ticket coverage, and many HAFAS
@@ -4582,43 +4599,63 @@ class TransitService {
   bool isJourneyDTicketCompatible(Journey j) => _isDeutschlandTicketOnly(j);
 
   bool _isDeutschlandTicketOnly(Journey j) {
+    // Din server logs v6.59.52: bahn.de returneaza `productType='bus'` pentru
+    // TOATE legs (incl. ICE cu line="9557", "1015"). Deci `productType` e
+    // total unreliable — filtram STRICT pe line NAME cu whitelist.
+    //
+    // Regula noua STRICTA:
+    // 1. Line prefix Nahverkehr (RE, RB, S, U, MEX, IRE, ...) → ACCEPT
+    // 2. IC number in Nahverkehrsfreigabe list (IC 2222 etc.) → ACCEPT
+    // 3. Brand name Nahverkehr (metronom, erixx, ...) → ACCEPT
+    // 4. Everything else (INCL. line = doar cifre gen "9557") → REJECT
+    const knownNahverkehrPrefixes = [
+      'RE', 'RB', 'RS', 'RJX', 'IRE', 'MEX', 'ALX', 'BRB', 'HLB', 'HKX',
+      'NBE', 'NWB', 'ENO', 'ODEG', 'VIAS', 'VBG', 'ERB', 'MRB', 'WFB',
+      'WEG', 'ERX', 'TLX', 'ABR', 'RTB', 'BOB', 'CAN', 'DPN', 'FEG',
+      'FLB', 'HZL', 'MEG', 'NEB', 'OPB', 'OSB', 'PRE', 'SBB', 'SBS',
+      'STB', 'SWE', 'UBB', 'VEC', 'VEN', 'WBA', 'DLB', 'DAB', 'AVG',
+      'BSB', 'BLB', 'ESB',
+      // Nahverkehr specific short codes
+      'S', 'U', 'STR', 'TRAM', 'M',
+      // Ersatzverkehr / bus înlocuitor
+      'SEV', 'BUS', 'EV',
+    ];
+    const brandNames = ['METRONOM', 'ERIXX', 'MERIDIAN', 'AGILIS', 'EUROBAHN',
+      'ABELLIO', 'CANTUS', 'TRILEX', 'VLEXX', 'BAYERISCHE OBERLANDBAHN',
+      'CHIEMGAU', 'ALLGÄU', 'BAYERN', 'ILMEBAHN', 'HANSEATISCHE',
+    ];
+
     for (final leg in j.legs) {
       if (leg.isWalk) continue;
       final pt = leg.productType.toLowerCase();
       final line = leg.line.trim();
 
-      // DEBUG: log fiecare leg examinat.
       _log.info('Transit: D-Ticket examine line="$line" pt="$pt" '
           'from="${leg.fromName}" to="${leg.toName}"', tag: 'TRANSIT');
 
-      // ═══ STEP 1: LINE PREFIX Fernverkehr — REJECT INSTANT ═══
+      // Bus productType clar valid (pentru bus stops locale — Bus 12 etc.)
+      // TREBUIE să distingem: bus real vs. ICE mislabel ca 'bus'.
+      // Doar accept 'bus'/'tram'/'ferry'/'walk' cand line NU e doar cifre.
+      // (ICE apare cu line="9557" fara prefix.)
+
+      // ═══ STEP 1: LINE FERNVERKEHR PREFIX → REJECT ═══
       if (_lineIsFernverkehr(line)) {
         _log.info('Transit: D-Ticket REJECT "$line" (Fernverkehr prefix)',
             tag: 'TRANSIT');
         return false;
       }
 
-      // ═══ STEP 2: Whitelist per productType ═══
-      if (_dTicketAllowedProductTypes.contains(pt)) {
-        continue; // regional/suburban/subway/tram/bus/ferry/walk = accept
+      // ═══ STEP 2: LINE = DOAR CIFRE → REJECT ═══
+      // ICE/IC de la bahn.de trip search vin cu line="9557", "1015", "619"
+      // (kurzText fără prefix). Nahverkehr are ALWAYS un prefix ("S3", "RB70").
+      if (RegExp(r'^\d+$').hasMatch(line)) {
+        _log.info('Transit: D-Ticket REJECT "$line" (only digits — likely ICE)',
+            tag: 'TRANSIT');
+        return false;
       }
 
-      // ═══ STEP 3: Non-whitelist productType ('train' etc.) ═══
-      // Se ajunge aici cand line NU e clar Fernverkehr dar productType e
-      // 'train' (posibil IRE, un rar regional-express).
-      // Accept doar dacă line prefix e explicit Nahverkehr.
+      // ═══ STEP 3: LINE Nahverkehr prefix / brand → ACCEPT ═══
       final l = line.toUpperCase();
-      const knownNahverkehrPrefixes = [
-        'RE', 'RB', 'RS', 'RJX', 'IRE', 'MEX', 'ALX', 'BRB', 'HLB', 'HKX',
-        'NBE', 'NWB', 'ENO', 'ODEG', 'VIAS', 'VBG', 'ERB', 'MRB', 'WFB',
-        'WEG', 'ERX', 'TLX', 'ABR', 'RTB', 'BOB', 'CAN', 'DPN', 'FEG',
-        'FLB', 'HZL', 'MEG', 'NEB', 'OPB', 'OSB', 'PRE', 'SBB', 'SBS',
-        'STB', 'SWE', 'UBB', 'VEC', 'VEN', 'WBA', 'DLB', 'DAB', 'AVG',
-        'BSB', 'BLB', 'ESB',
-        // Ersatzverkehr — SEV (Schienenersatzverkehr) / bus înlocuitor.
-        // D-Ticket acoperă când substituie un tren Nahverkehr.
-        'SEV', 'BUS', 'EV',
-      ];
       bool isNah = false;
       for (final p in knownNahverkehrPrefixes) {
         if (l == p || l.startsWith('$p ') || l.startsWith('$p-') ||
@@ -4628,22 +4665,25 @@ class TransitService {
           break;
         }
       }
-      // Brand-names (metronom, erixx, meridian, etc.) — regional companies
-      // whose lines are always D-Ticket eligible.
-      const brandNames = ['METRONOM', 'ERIXX', 'MERIDIAN', 'AGILIS', 'EUROBAHN',
-        'ABELLIO', 'CANTUS', 'TRILEX', 'VLEXX', 'BAYERISCHE OBERLANDBAHN',
-        'CHIEMGAU', 'ALLGÄU', 'BAYERN', 'ILMEBAHN', 'HANSEATISCHE',
-      ];
       if (!isNah) {
         for (final b in brandNames) {
           if (l.contains(b)) { isNah = true; break; }
         }
       }
-      if (!isNah) {
-        _log.debug('Transit: D-Ticket reject "$line" pt="$pt" '
-            '(unknown non-Nahverkehr)', tag: 'TRANSIT');
-        return false;
+      if (isNah) continue;
+
+      // ═══ STEP 4: Safe passthrough pentru productType clar Nahverkehr ═══
+      // Cazul rar cand line e text ("Fußweg", "Umstieg") — accept dacă
+      // productType e clar walk/tram/subway/ferry (dar NU bus — bus vine
+      // cu productType=bus si pentru ICE).
+      if (pt == 'walk' || pt == 'tram' || pt == 'subway' || pt == 'suburban' ||
+          pt == 'ferry' || pt == 'regional') {
+        continue;
       }
+
+      _log.info('Transit: D-Ticket REJECT "$line" pt="$pt" '
+          '(not Nahverkehr pattern)', tag: 'TRANSIT');
+      return false;
     }
     return true;
   }
