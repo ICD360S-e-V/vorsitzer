@@ -1914,16 +1914,28 @@ class TransitService {
   }
 
   /// Strict token-boundary match for mainline stations. Positives:
-  /// "Ulm Hbf", "München Hauptbahnhof", "Bahnhof Neu-Ulm".
-  /// Negatives (bus stops): "Klinikum am Bahnhof", "Am Bahnhof 12", "Bahnhofstraße".
+  /// "Ulm Hbf", "München Hauptbahnhof", "Bahnhof Neu-Ulm",
+  /// "Neu-Ulm Bahnhof", "Senden Bahnhof", "Illertissen Bahnhof".
+  /// Negatives (bus stops / addresses):
+  /// "Bahnhofstraße", "Bahnhofsplatz", "Am Bahnhof 12" (address with number).
+  ///
+  /// Design: permissive pentru "X Bahnhof" — false-positives sunt inofensive
+  /// (dacă DB /locations nu găsește potrivire → 0 rail departures adăugate).
+  /// User in Neu-Ulm nu vedea trenurile pentru că regex-ul precedent rata
+  /// pattern-ul "X Bahnhof" (doar "X Hbf" era detectat).
   static final RegExp _stationRe = RegExp(
-    r'(^|\s)(hbf|hauptbahnhof)(\s|$)|^bahnhof\s+\S',
+    // 1) hbf / hauptbahnhof / bahnhof cu word-boundary la ambele capete
+    // 2) ^bahnhof <token> (start cu "Bahnhof X")
+    r'(^|\s)(hbf|hauptbahnhof|bahnhof)($|\s)|^bahnhof\s+\S',
     caseSensitive: false,
   );
   bool _isMainlineStation(TransitStop s) {
     final n = s.name.toLowerCase();
-    // "bahnhofstraße"/"bahnhofsplatz" etc. must not match.
-    if (n.contains('bahnhofstr') || n.contains('bahnhofspl')) return false;
+    // Străzi / piețe cu prefix "bahnhof" — filtrare guard.
+    if (n.contains('bahnhofstr') || n.contains('bahnhofspl') ||
+        n.contains('bahnhofsvor') || n.contains('bahnhofsvi')) return false;
+    // Adrese numerotate: "Am Bahnhof 12" / "Bahnhof 3" — au număr după bahnhof.
+    if (RegExp(r'bahnhof\s+\d').hasMatch(n)) return false;
     return _stationRe.hasMatch(n);
   }
 
