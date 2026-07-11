@@ -1818,16 +1818,11 @@ class TransitService {
         await _fetchEfaDepartures(baseUrl: '${provider.baseUrl}/XSLT_DM_REQUEST');
       }
 
-      // If any of the nearby stops is a mainline station (name contains
-      // "Hbf"/"Hauptbahnhof"/"Bahnhof"), the local EFA/HAFAS provider likely
-      // has only its buses+trams for that stop — no DB long-distance trains.
-      // Merge in DB departures from transport.rest so the user sees ICE/IC/RE/RB.
-      await _augmentWithDbRailDepartures();
-      // Adițional: fetch cele mai apropiate 3 gări DB direct pe GPS.
-      // Necesar pentru cazul când EFA (DING) NU include Bhf în nearbyStops
-      // sau când regex-ul _isMainlineStation nu prinde toate variantele.
-      // Bhf tab din UI se bazează pe această listă pentru a afișa trenuri.
-      await _fetchNearestDbRailStations();
+      // NOTE: apeluri la bahn.de (v6.db.transport.rest) NU se fac in main
+      // flow — sunt on-demand, doar cand UI-ul deschide tab-ul Bhf via
+      // `fetchBhfNearby()`. Restul tab-urilor (Bus/Tram/S-Bhf/U-Bhf)
+      // folosesc EXCLUSIV provider-ul local activ (DING/MVV/HAFAS) →
+      // zero trafic la bahn.de pentru scenarii bus/tram-only.
     } catch (e) {
       _log.error('Transit: Fetch failed: $e', tag: 'TRANSIT');
     }
@@ -1862,9 +1857,15 @@ class TransitService {
     return snap;
   }
 
-  /// Găsește cele mai apropiate 3 gări DB (bahn.de) pe GPS user + adaugă
-  /// departures ICE/IC/RE/RB/S-Bahn la lista globală. Necesar pentru user-ii
-  /// pe EFA-providers (DING, MVV, VVS etc.) care NU returnează trenurile DB.
+  /// Timestamp ultimului fetch DB rail (bahn.de). 60s TTL — evită refetch
+  /// când userul switch-uie între Bhf tab și alt tab și înapoi rapid.
+  DateTime? _lastBhfFetch;
+  static const _bhfFetchTtl = Duration(seconds: 60);
+
+  /// PUBLIC — găsește cele mai apropiate 3 gări DB (bahn.de) pe GPS user +
+  /// adaugă departures ICE/IC/RE/RB/S-Bahn la lista globală. Apelat DOAR
+  /// din UI când userul deschide tab-ul Bhf → restul tab-urilor folosesc
+  /// exclusiv provider-ul local (fără trafic bahn.de).
   ///
   /// Endpoint: `v6.db.transport.rest/stops/nearby?latitude=X&longitude=Y
   ///           &results=10&distance=30000`
@@ -1872,7 +1873,14 @@ class TransitService {
   /// Filtru pe products: keep doar stații cu min. una din {nationalExpress,
   /// national, regionalExp, regional, suburban} — evită POI-uri gen "H+M
   /// Passage" care apar în răspuns dar nu-s stații reale.
-  Future<void> _fetchNearestDbRailStations() async {
+  ///
+  /// Idempotent: cache 60s + dedup pe (line, dir, time, stop). Reapelarea
+  /// în TTL e no-op instant.
+  Future<void> fetchBhfNearby({bool force = false}) async {
+    if (!force && _lastBhfFetch != null &&
+        DateTime.now().difference(_lastBhfFetch!) < _bhfFetchTtl) {
+      return;
+    }
     if (_latitude == null || _longitude == null) return;
     try {
       final uri = Uri.parse('$_restBase/stops/nearby'
@@ -1969,8 +1977,10 @@ class TransitService {
       // Re-sort nearbyStops after adding rail stops (nearby DB stations
       // may be closer than EFA-returned bus stops — restore distance order)
       nearbyStops.sort((a, b) => a.distance.compareTo(b.distance));
+      _lastBhfFetch = DateTime.now();
+      onDeparturesUpdate?.call(departures);
     } catch (e) {
-      _log.debug('Transit: _fetchNearestDbRailStations failed: $e', tag: 'TRANSIT');
+      _log.debug('Transit: fetchBhfNearby failed: $e', tag: 'TRANSIT');
     }
   }
 

@@ -277,7 +277,14 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   /// Filtrează departures & stops per productType astfel încât userul
   /// vede rapid ce are lângă el fără să scaneze printre tipuri mixte.
   /// "Alle" eliminat 2026-07-11 (nu era relevant, user preferă tipuri).
+  ///
+  /// Sursă data per tab:
+  /// - Bus / Tram / S-Bhf / U-Bhf → provider LOCAL activ (DING/MVV/HAFAS)
+  /// - Bhf → apel dedicat la bahn.de (v6.db.transport.rest/stops/nearby)
+  ///   declanșat lazy când userul deschide tab-ul
   late TabController _subTabController;
+  bool _bhfLoading = false;
+  static const _bhfTabIndex = 4;
   static const _subTabs = <_SubTabDef>[
     _SubTabDef(label: 'Bus', icon: Icons.directions_bus, types: {'bus'}),
     _SubTabDef(label: 'Tram', icon: Icons.tram, types: {'tram'}),
@@ -291,17 +298,39 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     super.initState();
     _departures = List.from(widget.initialDepartures);
     _subTabController = TabController(length: _subTabs.length, vsync: this);
-    _subTabController.addListener(() {
-      if (mounted && !_subTabController.indexIsChanging) setState(() {});
-    });
+    _subTabController.addListener(_onSubTabChanged);
     // Auto-refresh every 60s — also re-checks GPS via service.refresh()
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) => _refresh());
     if (_departures.isEmpty) _refresh();
   }
 
+  void _onSubTabChanged() {
+    if (!mounted || _subTabController.indexIsChanging) return;
+    setState(() {});
+    // Lazy fetch bahn.de rail data doar când userul deschide tab-ul Bhf.
+    // Cache 60s intern serviciu → tap repetat = no-op instant.
+    if (_subTabController.index == _bhfTabIndex) _ensureBhfData();
+  }
+
+  Future<void> _ensureBhfData() async {
+    if (!mounted) return;
+    setState(() => _bhfLoading = true);
+    try {
+      await widget.transitService.fetchBhfNearby();
+      if (!mounted) return;
+      setState(() {
+        _departures = List.from(widget.transitService.departures);
+        _bhfLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _bhfLoading = false);
+    }
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _subTabController.removeListener(_onSubTabChanged);
     _subTabController.dispose();
     super.dispose();
   }
@@ -318,6 +347,12 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     if (live.isEmpty && widget.transitService.nearbyStops.isEmpty) {
       offlineSnap = await widget.transitService.loadOfflineSnapshotIfEmpty();
       if (offlineSnap != null) live = List.from(widget.transitService.departures);
+    }
+    // Dacă suntem pe tab Bhf → refresh și bahn.de data (force = refresh
+    // explicit al user-ului, nu contează cache-ul).
+    if (_subTabController.index == _bhfTabIndex) {
+      await widget.transitService.fetchBhfNearby(force: true);
+      if (mounted) live = List.from(widget.transitService.departures);
     }
     if (!mounted) return;
     setState(() {
@@ -527,7 +562,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
               : stops.isEmpty && grouped.isEmpty
                   ? _SubTabEmpty(
                       tab: currentTab,
-                      loading: _isLoading,
+                      loading: _isLoading || (_subTabController.index == _bhfTabIndex && _bhfLoading),
                       onShowAll: () => _subTabController.animateTo(0),
                     )
                   : ListView(
