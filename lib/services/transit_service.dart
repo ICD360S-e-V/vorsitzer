@@ -4475,15 +4475,26 @@ class TransitService {
       }
     }
 
-    // Client-side D-Ticket filter for local provider results (EFA/HAFAS
-    // don't support the flag server-side). Some EFA services return REs
-    // that cross tariff zones without D-Ticket coverage, and many HAFAS
-    // regional endpoints happily surface IC/EC. Filter journeys whose
-    // legs include known non-D-Ticket product categories.
+    // Client-side D-Ticket filter for local provider results.
+    //
+    // FALLBACK 2026-07-11: dacă filter STRICT respinge TOATE journeys
+    // (ex. Saarbrücken → Ulm real are DOAR variante cu ICE via Mannheim
+    // — nu există journey Nahverkehr pur), returnăm originale în loc de
+    // "Keine Verbindung". UI-ul afișează badge Fernverkehr per journey +
+    // costul estimat (deja implementat via `_FareBadge` in JourneyCard).
     if (onlyDeutschlandTicket && results.isNotEmpty) {
       final before = results.length;
-      results = results.where(_isDeutschlandTicketOnly).toList();
-      _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys', tag: 'TRANSIT');
+      final filtered = results.where(_isDeutschlandTicketOnly).toList();
+      if (filtered.isEmpty && before > 0) {
+        _log.info('Transit: D-Ticket filter respins toate $before journeys '
+            '— return originale (contin ICE — user vede badge Fernverkehr)',
+            tag: 'TRANSIT');
+        // NU aplicăm filter — returnăm originalele.
+      } else {
+        results = filtered;
+        _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys',
+            tag: 'TRANSIT');
+      }
     }
 
     // Alternative-line filter (client-side): drop journeys that use any of
