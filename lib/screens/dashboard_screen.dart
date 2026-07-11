@@ -1699,10 +1699,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 13:
         return EinstellungenScreen(apiService: _apiService);
       case 14:
-        // ULTRA DIAGNOSTIC — Log în build ca să vedem dacă case 14 e apelat
-        // și cu ce media size. Wrap în Container cu key ca să forțăm rebuild.
-        _log.info('[DASH-14] build case 14 called, media=${MediaQuery.of(context).size} '
-            'padding=${MediaQuery.of(context).padding}');
+        // ULTRA DIAGNOSTIC — log detailed screen info pt Samsung DeX/split-screen.
+        final mq = MediaQuery.of(context);
+        _log.info('[DASH-14] build case 14 called, '
+            'size=${mq.size.width.toStringAsFixed(0)}x${mq.size.height.toStringAsFixed(0)} '
+            'dpr=${mq.devicePixelRatio.toStringAsFixed(2)} '
+            'padding=(t${mq.padding.top.toStringAsFixed(0)},b${mq.padding.bottom.toStringAsFixed(0)},'
+            'l${mq.padding.left.toStringAsFixed(0)},r${mq.padding.right.toStringAsFixed(0)}) '
+            'viewInsets=(t${mq.viewInsets.top.toStringAsFixed(0)},b${mq.viewInsets.bottom.toStringAsFixed(0)},'
+            'l${mq.viewInsets.left.toStringAsFixed(0)},r${mq.viewInsets.right.toStringAsFixed(0)}) '
+            'orientation=${mq.orientation.name}');
         return Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (event) => _log.info('[DASH-14] PointerDown @ '
