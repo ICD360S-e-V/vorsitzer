@@ -1594,7 +1594,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       mainAxisSize: MainAxisSize.min,
       children: [
         BottomNavigationBar(
-          currentIndex: _selectedMenuIndex,
+          // Clamp la [0, 7] fiindcă BottomNavigationBar are 8 items dar
+          // _selectedMenuIndex poate fi până la 14 (Arbeitswochen via drawer).
+          // Index out-of-bounds triggers assertion failure în debug și
+          // undefined behavior în release Android → touch dispatch rupt.
+          currentIndex: _selectedMenuIndex.clamp(0, 7),
           onTap: (index) => setState(() => _selectedMenuIndex = index),
           type: BottomNavigationBarType.fixed,
           selectedItemColor: const Color(0xFF4a90d9),
