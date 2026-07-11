@@ -234,15 +234,25 @@ class _Header extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════
 
 /// Definește un sub-tab din Echtzeit filtrat per productType.
-/// `types == null` = Alle (fără filtru).
+///
+/// Câmpuri opționale pentru distincție Hbf vs Bhf:
+/// - `hbfOnly = true` → stop-uri cu "Hbf"/"Hauptbahnhof" în nume
+/// - `bhfOnly = true` → stop-uri cu "Bahnhof" (dar fără "Hbf"/"Hauptbahnhof")
+/// - `useBahnDe = true` → forțează apel `fetchBhfNearby()` la deschiderea tab-ului
 class _SubTabDef {
   final String label;
   final IconData icon;
   final Set<String>? types;
+  final bool hbfOnly;
+  final bool bhfOnly;
+  final bool useBahnDe;
   const _SubTabDef({
     required this.label,
     required this.icon,
     required this.types,
+    this.hbfOnly = false,
+    this.bhfOnly = false,
+    this.useBahnDe = false,
   });
 }
 
@@ -280,17 +290,28 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   ///
   /// Sursă data per tab:
   /// - Bus / Tram / S-Bhf / U-Bhf → provider LOCAL activ (DING/MVV/HAFAS)
-  /// - Bhf → apel dedicat la bahn.de (v6.db.transport.rest/stops/nearby)
-  ///   declanșat lazy când userul deschide tab-ul
+  /// - Hbf + Bhf → apel dedicat la bahn.de (v6.db.transport.rest/stops/nearby)
+  ///   declanșat lazy când userul deschide tab-ul; distincție pe nume:
+  ///   Hbf = doar Hauptbahnhof-uri (ICE/IC), Bhf = restul gărilor (RB/RE)
   late TabController _subTabController;
   bool _bhfLoading = false;
-  static const _bhfTabIndex = 4;
   static const _subTabs = <_SubTabDef>[
     _SubTabDef(label: 'Bus', icon: Icons.directions_bus, types: {'bus'}),
     _SubTabDef(label: 'Tram', icon: Icons.tram, types: {'tram'}),
     _SubTabDef(label: 'S-Bhf', icon: Icons.train_outlined, types: {'suburban'}),
     _SubTabDef(label: 'U-Bhf', icon: Icons.subway, types: {'subway'}),
-    _SubTabDef(label: 'Bhf', icon: Icons.train, types: {'train', 'regional'}),
+    // Hauptbahnhof — doar Hbf-named (Ulm Hbf, München Hbf) — ICE/IC hub
+    _SubTabDef(
+      label: 'Hbf', icon: Icons.train,
+      types: {'train', 'regional'},
+      hbfOnly: true, useBahnDe: true,
+    ),
+    // Bahnhof local — Neu-Ulm Bahnhof, Senden Bahnhof — RB/RE only
+    _SubTabDef(
+      label: 'Bhf', icon: Icons.directions_railway,
+      types: {'train', 'regional'},
+      bhfOnly: true, useBahnDe: true,
+    ),
   ];
 
   @override
@@ -307,9 +328,10 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   void _onSubTabChanged() {
     if (!mounted || _subTabController.indexIsChanging) return;
     setState(() {});
-    // Lazy fetch bahn.de rail data doar când userul deschide tab-ul Bhf.
-    // Cache 60s intern serviciu → tap repetat = no-op instant.
-    if (_subTabController.index == _bhfTabIndex) _ensureBhfData();
+    // Lazy fetch bahn.de rail data DOAR când userul deschide tab Hbf sau Bhf.
+    // Cache 60s intern serviciu → switching între Hbf/Bhf = no-op instant.
+    final tab = _subTabs[_subTabController.index];
+    if (tab.useBahnDe) _ensureBhfData();
   }
 
   Future<void> _ensureBhfData() async {
@@ -348,9 +370,9 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
       offlineSnap = await widget.transitService.loadOfflineSnapshotIfEmpty();
       if (offlineSnap != null) live = List.from(widget.transitService.departures);
     }
-    // Dacă suntem pe tab Bhf → refresh și bahn.de data (force = refresh
+    // Dacă suntem pe tab Hbf/Bhf → refresh și bahn.de data (force = refresh
     // explicit al user-ului, nu contează cache-ul).
-    if (_subTabController.index == _bhfTabIndex) {
+    if (_subTabs[_subTabController.index].useBahnDe) {
       await widget.transitService.fetchBhfNearby(force: true);
       if (mounted) live = List.from(widget.transitService.departures);
     }
@@ -394,13 +416,45 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
 
   /// Returnează top 3 stații care au departures pentru tab-ul activ.
   /// Sortare după distanță crescătoare din TransitService.nearbyStops.
+  /// Detectează dacă numele stației e Hauptbahnhof (Hbf).
+  /// Match strict: token-boundary pe "Hbf" sau conține "Hauptbahnhof".
+  static bool _isHbfName(String name) {
+    final n = name.toLowerCase();
+    if (n.contains('hauptbahnhof')) return true;
+    // "Hbf" ca cuvânt separat: început/spațiu înainte + sfârșit/spațiu după
+    final idx = n.indexOf('hbf');
+    if (idx < 0) return false;
+    final startOk = idx == 0 || !RegExp(r'[a-zäöüß]').hasMatch(n[idx - 1]);
+    final endIdx = idx + 3;
+    final endOk = endIdx >= n.length || !RegExp(r'[a-zäöüß]').hasMatch(n[endIdx]);
+    return startOk && endOk;
+  }
+
+  /// Detectează dacă numele stației e Bahnhof (non-Hbf).
+  /// Include "X Bahnhof", "Bahnhof X" — dar exclude Hbf/Hauptbahnhof.
+  static bool _isBhfLocalName(String name) {
+    if (_isHbfName(name)) return false; // Hbf are prioritate
+    final n = name.toLowerCase();
+    // Exclude străzi/piețe/adrese numerotate
+    if (n.contains('bahnhofstr') || n.contains('bahnhofspl') ||
+        n.contains('bahnhofsvor') || n.contains('bahnhofsvi')) return false;
+    if (RegExp(r'bahnhof\s+\d').hasMatch(n)) return false;
+    // Match "X Bahnhof" (final) sau "Bahnhof X" (început)
+    return RegExp(r'(^|\s)bahnhof($|\s)').hasMatch(n);
+  }
+
   List<TransitStop> _stopsForTab(_SubTabDef tab) {
     final allStops = widget.transitService.nearbyStops;
     final grouped = _byStop(productTypes: tab.types);
-    // Doar stații care AU cel puțin o departure de tipul dorit, sortate
-    // după distanța crescătoare (nearbyStops e deja sortat).
-    final withDeps = allStops.where((s) => grouped.containsKey(s.name)).toList();
-    return withDeps.take(3).toList();
+    Iterable<TransitStop> filtered = allStops.where(
+      (s) => grouped.containsKey(s.name),
+    );
+    if (tab.hbfOnly) {
+      filtered = filtered.where((s) => _isHbfName(s.name));
+    } else if (tab.bhfOnly) {
+      filtered = filtered.where((s) => _isBhfLocalName(s.name));
+    }
+    return filtered.take(3).toList();
   }
 
   @override
@@ -562,7 +616,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
               : stops.isEmpty && grouped.isEmpty
                   ? _SubTabEmpty(
                       tab: currentTab,
-                      loading: _isLoading || (_subTabController.index == _bhfTabIndex && _bhfLoading),
+                      loading: _isLoading || (currentTab.useBahnDe && _bhfLoading),
                       onShowAll: () => _subTabController.animateTo(0),
                     )
                   : ListView(
@@ -758,6 +812,10 @@ class _SubTabBar extends StatelessWidget {
     if (t.types!.contains('tram')) return Colors.blue.shade700;
     if (t.types!.contains('suburban')) return Colors.green.shade700;
     if (t.types!.contains('subway')) return Colors.indigo.shade700;
+    // Hbf vs Bhf: Hbf (Hauptbahnhof) = roșu vibrant, Bhf (local) = roșu mai
+    // moderat pentru distincție vizuală.
+    if (t.hbfOnly) return Colors.red.shade800;
+    if (t.bhfOnly) return Colors.deepOrange.shade700;
     if (t.types!.contains('train') || t.types!.contains('regional')) return Colors.red.shade700;
     return Colors.grey.shade700;
   }
@@ -817,6 +875,7 @@ class _SubTabEmpty extends StatelessWidget {
       'Tram' => 'Straßenbahn-Haltestelle',
       'S-Bhf' => 'S-Bahnhof',
       'U-Bhf' => 'U-Bahnhof',
+      'Hbf' => 'Hauptbahnhof',
       'Bhf' => 'Bahnhof',
       _ => 'Haltestelle',
     };
