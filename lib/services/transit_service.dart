@@ -4587,11 +4587,13 @@ class TransitService {
       final pt = leg.productType.toLowerCase();
       final line = leg.line.trim();
 
+      // DEBUG: log fiecare leg examinat.
+      _log.info('Transit: D-Ticket examine line="$line" pt="$pt" '
+          'from="${leg.fromName}" to="${leg.toName}"', tag: 'TRANSIT');
+
       // ═══ STEP 1: LINE PREFIX Fernverkehr — REJECT INSTANT ═══
-      // Check FIRST — regardless de productType. Previne cazul cand HAFAS
-      // set productType='regional' pentru IC (mislabel).
       if (_lineIsFernverkehr(line)) {
-        _log.debug('Transit: D-Ticket reject "$line" (Fernverkehr prefix)',
+        _log.info('Transit: D-Ticket REJECT "$line" (Fernverkehr prefix)',
             tag: 'TRANSIT');
         return false;
       }
