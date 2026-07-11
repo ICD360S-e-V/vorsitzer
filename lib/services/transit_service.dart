@@ -2117,41 +2117,67 @@ class TransitService {
         return null;
       }
       final data = jsonDecode(respBody);
-      // Response poate fi list direct SAU obiect `{haltestellen: [...]}`
+      // Response poate fi list direct SAU obiect wrapping (variants văzute):
+      // - direct list (parseLocation itera pe res.map)
+      // - `{haltestellen: [...]}` sau `{stops: [...]}` sau `{items: [...]}`
       final List list;
       if (data is List) {
         list = data;
       } else if (data is Map) {
-        list = (data['haltestellen'] ?? data['nearbyStops'] ?? data['stops']) as List? ?? [];
+        // Try MANY key variants
+        final candidate = data['haltestellen'] ?? data['nearbyStops'] ??
+                          data['stops'] ?? data['items'] ?? data['result'] ??
+                          data['res'] ?? data['orte'] ?? data['locations'];
+        if (candidate is List) {
+          list = candidate;
+        } else {
+          _log.debug('Transit: dbnav response Map keys=${data.keys.toList()}',
+              tag: 'TRANSIT');
+          return null;
+        }
       } else {
         return null;
+      }
+      _log.debug('Transit: dbnav nearby raw list len=${list.length}', tag: 'TRANSIT');
+      if (list.isEmpty) return [];
+      // Log primul item pentru debugging schema (o singură dată pe fetch).
+      if (list.isNotEmpty && list[0] is Map) {
+        _log.debug('Transit: dbnav first item keys=${(list[0] as Map).keys.toList()}',
+            tag: 'TRANSIT');
       }
       final rail = <Map>[];
       for (final s in list) {
         if (s is! Map) continue;
-        // Response fields: haltId, haltName, produktGattungen, entfernung
-        final produkte = s['produktGattungen'] as List? ?? [];
-        final hasRail = produkte.any((p) {
-          if (p is! Map) return false;
-          final code = (p['produktGattung'] ?? '').toString().toUpperCase();
-          // dbnav codes: HOCHGESCHWINDIGKEITSZUEGE (ICE),
-          // INTERCITYUNDEUROCITYZUEGE (IC/EC), INTERREGIOUNDSCHNELLZUEGE (IR/RE),
-          // NAHVERKEHRSONSTIGEZUEGE (RB), STADTVERKEHR (SBAHN/UBAHN),
-          // — filtrăm rail-only (exclude BUS/TRAM/FÄHRE).
-          return code.contains('HOCH') || code.contains('INTERCITY') ||
-                 code.contains('INTERREGIO') || code.contains('NAHVERKEHR');
-        });
-        if (!hasRail) continue;
-        final id = (s['haltId'] ?? s['id'] ?? '').toString();
-        final name = (s['haltName'] ?? s['name'] ?? '').toString();
+        // Field names EXTREM de permissive — accept orice varianta văzută:
+        //   id: id, extId, evaNr, evaNumber, evaNo, bahnhofsId, haltId, lid
+        //   name: name, haltName, bezeichnung
+        //   distance: distance, entfernung, dist
+        //   type marker: type='ST'/'S' sau extId/evaNr present
+        final id = (s['id'] ??
+                    s['extId'] ??
+                    s['evaNr'] ??
+                    s['evaNumber'] ??
+                    s['evaNo'] ??
+                    s['bahnhofsId'] ??
+                    s['haltId'] ??
+                    s['lid'] ??
+                    '').toString();
+        final name = (s['name'] ??
+                      s['haltName'] ??
+                      s['bezeichnung'] ??
+                      '').toString();
         if (id.isEmpty || name.isEmpty) continue;
+        // Accept doar dacă e stație (nu adresă/POI). Type marker:
+        final typ = (s['type'] ?? s['typ'] ?? 'ST').toString().toUpperCase();
+        if (typ == 'ADR' || typ == 'POI') continue;
         rail.add({
           'id': id,
           'name': name,
-          'distance': (s['entfernung'] as num?)?.toInt() ?? 0,
+          'distance': ((s['distance'] ?? s['entfernung'] ?? s['dist'] ?? 0) as num).toInt(),
         });
       }
-      _log.info('Transit: dbnav nearby → ${rail.length} rail stops', tag: 'TRANSIT');
+      _log.info('Transit: dbnav nearby → ${rail.length} stops from ${list.length} raw',
+          tag: 'TRANSIT');
       return rail;
     } catch (e) {
       _log.debug('Transit: dbnav nearby exception: $e', tag: 'TRANSIT');
