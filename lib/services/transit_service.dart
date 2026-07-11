@@ -2140,10 +2140,14 @@ class TransitService {
       }
       _log.debug('Transit: dbnav nearby raw list len=${list.length}', tag: 'TRANSIT');
       if (list.isEmpty) return [];
-      // Log primul item pentru debugging schema (o singură dată pe fetch).
+      // Log primul item pentru debugging schema.
       if (list.isNotEmpty && list[0] is Map) {
-        _log.debug('Transit: dbnav first item keys=${(list[0] as Map).keys.toList()}',
+        final first = list[0] as Map;
+        _log.debug('Transit: dbnav first item keys=${first.keys.toList()}',
             tag: 'TRANSIT');
+        _log.info('Transit: dbnav first FULL DUMP name=${first['name']} '
+            'locType=${first['locationType']} products=${first['products']} '
+            'evaNr=${first['evaNr']}', tag: 'TRANSIT');
       }
       final rail = <Map>[];
       int rejectedNoRail = 0;
@@ -2156,37 +2160,49 @@ class TransitService {
         final typ = (s['type'] ?? s['typ'] ?? 'ST').toString().toUpperCase();
         if (typ == 'ADR' || typ == 'POI') continue;
 
-        // ═══ CRITICAL FILTER — keep DOAR stații cu train products ═══
-        // bahn.de returnează inclusiv bus stops in raza 10km (verificat
-        // în server logs: "Westrichweg Malstatt", "Cottbuser Platz" —
-        // sunt bus stops, nu gări).
-        //
-        // Field `products` variantele:
-        // - Object: {suburban:true, bus:false, nationalExpress:true, ...}
-        // - Array: ["ICE","IC","REGIONAL",...]
-        // - String CSV: "ICE,REGIONAL,BUS"
-        final products = s['products'];
+        // ═══ FILTER rail-only — multiple markers, permissive ═══
+        // Fiecare rail station in DB are un EVA-Nummer (7 cifre).
+        // Bus stops NU au evaNr (sau au evaNr=0 / missing).
+        // Marker primar = evaNr valid.
+        // Fallback secondary = locationType (1 = STATION).
+        // Fallback tertiar = products check.
         bool hasRail = false;
-        if (products is Map) {
-          hasRail = (products['nationalExpress'] == true) ||
-                    (products['national'] == true) ||
-                    (products['regionalExpress'] == true) ||
-                    (products['regionalExp'] == true) ||
-                    (products['regional'] == true) ||
-                    (products['suburban'] == true);
-        } else if (products is List) {
-          hasRail = products.any((p) {
-            final code = p.toString().toUpperCase();
-            return code == 'ICE' || code == 'IC' || code == 'EC' ||
-                   code == 'EC_IC' || code == 'IR' || code == 'REGIONAL' ||
-                   code == 'SBAHN' || code.contains('HOCH') ||
-                   code.contains('INTERCITY') || code.contains('INTERREGIO') ||
-                   code.contains('NAHVERKEHR');
-          });
-        } else if (products is String) {
-          final up = products.toUpperCase();
-          hasRail = up.contains('ICE') || up.contains('IC') || up.contains('EC') ||
-                    up.contains('REGIONAL') || up.contains('SBAHN');
+        // 1) EVA present + non-zero
+        final evaVal = s['evaNr'];
+        if (evaVal is num && evaVal > 0) {
+          hasRail = true;
+        } else if (evaVal is String && evaVal.isNotEmpty && evaVal != '0') {
+          hasRail = true;
+        }
+        // 2) locationType marker
+        if (!hasRail) {
+          final locType = s['locationType']?.toString().toUpperCase() ?? '';
+          if (locType == '1' || locType == 'ST' || locType == 'STATION' ||
+              locType == 'BAHNHOF') {
+            hasRail = true;
+          }
+        }
+        // 3) products fallback
+        if (!hasRail) {
+          final products = s['products'];
+          if (products is Map) {
+            hasRail = (products['nationalExpress'] == true) ||
+                      (products['national'] == true) ||
+                      (products['regionalExpress'] == true) ||
+                      (products['regionalExp'] == true) ||
+                      (products['regional'] == true) ||
+                      (products['suburban'] == true);
+          } else if (products is List) {
+            hasRail = products.any((p) {
+              final code = p.toString().toUpperCase();
+              return code.contains('ICE') || code.contains('IC') ||
+                     code.contains('EC') || code.contains('IR') ||
+                     code.contains('REGIONAL') || code.contains('SBAHN') ||
+                     code.contains('HOCH') || code.contains('INTERCITY') ||
+                     code.contains('INTERREGIO') || code.contains('NAHVERKEHR') ||
+                     code.contains('BAHN') || code.contains('ZUG');
+            });
+          }
         }
         if (!hasRail) {
           rejectedNoRail++;
