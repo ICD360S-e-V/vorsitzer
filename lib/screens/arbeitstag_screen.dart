@@ -327,23 +327,23 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final theme = Theme.of(context);
     _log.info('[SCREEN] build — loading=$_loading data=${_data == null ? 'null' : 'set'} '
         'membrii=${_data?.members.length ?? 0}');
-    // Listener wraps everything — dacă tap-ul ajunge la screen dar nu la
-    // IconButton, PointerDownEvent va fi log-uit. Dacă nu ajunge deloc,
-    // overlay superior (GlobalChatOverlay / Drawer scrim) mananca event-ul.
+    // Listener wraps everything — log PointerDown ca să vedem dacă
+    // event-urile ajung la screen. Elimin Scaffold-ul intern (parent
+    // dashboard.dart oferă deja Scaffold) — nested Scaffold poate
+    // interfera cu event routing pe Android + bluetooth mouse.
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
         _log.info('[SCREEN] PointerDown @ (${event.position.dx.toStringAsFixed(0)}, '
-            '${event.position.dy.toStringAsFixed(0)}) kind=${event.kind}');
+            '${event.position.dy.toStringAsFixed(0)}) kind=${event.kind} '
+            'buttons=${event.buttons}');
       },
-      child: Scaffold(
-        body: Column(
-          children: [
-            _buildHeader(theme),
-            const Divider(height: 1),
-            Expanded(child: _buildBody()),
-          ],
-        ),
+      child: Column(
+        children: [
+          _buildHeader(theme),
+          const Divider(height: 1),
+          Expanded(child: _buildBody()),
+        ],
       ),
     );
   }
