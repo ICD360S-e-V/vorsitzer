@@ -3457,40 +3457,57 @@ class TransitService {
       final out = <Departure>[];
       for (final e in entries) {
         if (e is! Map) continue;
-        final zeitIso = e['zeit']?.toString() ?? '';
-        final echtzeitIso = e['echtzeit']?.toString();
+        // Câmpuri EXACTE (din test/fixtures/dbnav-departures.json):
+        // - abgangsDatum    → planned ISO 8601 datetime
+        // - ezAbgangsDatum  → realtime ISO 8601 datetime
+        // - mitteltext      → "RB 82" (line + number)
+        // - kurztext        → "RB" (product short code)
+        // - richtung        → direction
+        // - gleis           → platform
+        // - produktGattung  → "ICE", "IC", "RB", "RE", "SBAHN", "RUF", ...
+        final zeitIso = e['abgangsDatum']?.toString() ??
+                        e['zeit']?.toString() ?? ''; // fallback
+        final echtzeitIso = e['ezAbgangsDatum']?.toString() ??
+                            e['echtzeit']?.toString();
         final planned = DateTime.tryParse(zeitIso);
         if (planned == null) continue;
         final realtime = echtzeitIso == null ? null : DateTime.tryParse(echtzeitIso);
         final delay = realtime != null ? realtime.difference(planned).inMinutes : 0;
-        final produktGattung = (e['produktGattung'] ?? e['gattung'] ?? '').toString().toUpperCase();
+        // produktGattung acum returneaza SHORT codes: "ICE", "IC", "RB", "RE",
+        // "SBAHN", "UBAHN", "STRASSENBAHN", "BUS", "RUF", "ANRUFPFLICHTIGEVERKEHRE"
+        final produktGattung = (e['produktGattung'] ?? e['gattung'] ?? '')
+            .toString().toUpperCase();
         String productType;
         switch (produktGattung) {
-          case 'ICE': case 'EC_IC': case 'IR':
+          case 'ICE':
+          case 'EC': case 'IC': case 'EC_IC':
+          case 'IR':
             productType = 'train';
             break;
-          case 'REGIONAL':
+          case 'RE': case 'RB': case 'IRE': case 'MEX': case 'REGIONAL':
+          case 'ALX': case 'BRB': case 'HLB': case 'ODEG': case 'ERB':
             productType = 'regional';
             break;
-          case 'SBAHN':
+          case 'S': case 'SBAHN': case 'S-BAHN':
             productType = 'suburban';
             break;
-          case 'UBAHN':
+          case 'U': case 'UBAHN': case 'U-BAHN':
             productType = 'subway';
             break;
-          case 'TRAM': case 'STR':
+          case 'STR': case 'TRAM': case 'STRAB': case 'STRASSENBAHN':
             productType = 'tram';
             break;
-          case 'BUS':
+          case 'BUS': case 'BUSSE':
             productType = 'bus';
+            break;
+          case 'RUF': case 'AST': case 'ALT': case 'ANRUFPFLICHTIGEVERKEHRE':
+            productType = 'bus'; // Ruftaxi = bus category
             break;
           default:
             productType = 'regional';
         }
-        final verkehrsmittel = e['verkehrsmittel'];
-        final lineName = (verkehrsmittel is Map
-                ? (verkehrsmittel['mittelKurz'] ?? verkehrsmittel['name'] ?? verkehrsmittel['linie'])
-                : e['linie'])?.toString() ?? '?';
+        // Line name: prefer mitteltext ("RB 82") over kurztext ("RB").
+        final lineName = (e['mitteltext'] ?? e['kurztext'] ?? '?').toString();
         out.add(Departure(
           line: lineName,
           direction: (e['richtung'] ?? e['ziel'] ?? '').toString(),
@@ -3499,9 +3516,7 @@ class TransitService {
           delay: delay < 0 ? 0 : delay,
           platform: e['gleis']?.toString(),
           productType: productType,
-          operator: (verkehrsmittel is Map
-              ? verkehrsmittel['betreiber']?.toString()
-              : '') ?? '',
+          operator: '',
           stopName: stationName,
           isCancelled: e['ausfall'] == true || e['cancelled'] == true,
         ));
