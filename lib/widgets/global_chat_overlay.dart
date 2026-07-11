@@ -49,19 +49,30 @@ class _GlobalChatOverlayState extends State<GlobalChatOverlay> {
       return const SizedBox.shrink();
     }
     final media = MediaQuery.of(context).size;
+    // Verificăm dacă avem CEVA de afișat. Dacă NU (fără panels + fără bubbles),
+    // returnăm SizedBox.shrink direct — nu Stack.expand care blochează
+    // pointer events pe Android (bug root cause pentru freeze Arbeitswochen).
+    final hasPanels = _service.openPanels.isNotEmpty;
+    final hasHiddenBubbles = _service.bubbles.values
+        .any((b) => !_service.openPanels.contains(b.conversationId));
+    if (!hasPanels && !hasHiddenBubbles) {
+      debugPrint('[GlobalChatOverlay] hidden — nothing to show');
+      return const SizedBox.shrink();
+    }
     debugPrint('[GlobalChatOverlay] render bubbles=${_service.bubbles.length} '
                'panels=${_service.openPanels.length} media=$media');
-    // Stack.expand → forces full-screen so Positioned children get the
-    // correct origin (without this, Stack collapses to 0×0 because all
-    // children are Positioned and the bubbles render outside the viewport).
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Panels (stacked horizontally from right, bottom-aligned)
-        ..._buildPanels(media, mn),
-        // Bubble column (draggable)
-        _buildBubbleColumn(media),
-      ],
+    // Când AVEM conținut de afișat, folosim Stack.expand ca înainte.
+    // Empty area (fără panels/bubbles direct sub) e IgnorePointer ca
+    // event-urile să treacă la widget-urile din spate.
+    return IgnorePointer(
+      ignoring: false,  // acest IgnorePointer nu blochează pe copii lui
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ..._buildPanels(media, mn),
+          _buildBubbleColumn(media),
+        ],
+      ),
     );
   }
 
