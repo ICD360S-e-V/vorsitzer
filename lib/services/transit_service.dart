@@ -3430,11 +3430,30 @@ class TransitService {
       if (respBody.trimLeft().startsWith('<')) return null; // WAF HTML
       final data = jsonDecode(respBody);
       if (data is! Map) return null;
-      // dbnav response: { bahnhofstafelAbfahrtPositionen: [{ ... }, ...] }
+      // DEBUG: log top-level keys pentru schema discovery.
+      _log.info('Transit: dbnav abfahrt $stationName top-level keys=${data.keys.toList()}',
+          tag: 'TRANSIT');
+      // dbnav response schema variates:
       final entries = data['bahnhofstafelAbfahrtPositionen'] ??
                        data['entries'] ??
-                       data['abfahrten'];
-      if (entries is! List) return null;
+                       data['abfahrten'] ??
+                       data['positionen'] ??
+                       data['results'] ??
+                       data['bahnhofstafel'] ??
+                       data['items'] ??
+                       data['data'];
+      if (entries is! List) {
+        _log.info('Transit: dbnav abfahrt entries NOT a list — data body starts: '
+            '${respBody.substring(0, respBody.length > 400 ? 400 : respBody.length)}',
+            tag: 'TRANSIT');
+        return null;
+      }
+      _log.info('Transit: dbnav abfahrt entries.length=${entries.length}',
+          tag: 'TRANSIT');
+      if (entries.isNotEmpty && entries[0] is Map) {
+        _log.info('Transit: dbnav abfahrt first entry keys=${(entries[0] as Map).keys.toList()}',
+            tag: 'TRANSIT');
+      }
       final out = <Departure>[];
       for (final e in entries) {
         if (e is! Map) continue;
