@@ -2042,11 +2042,15 @@ class TransitService {
   /// - `products` filter — mandatory else 422 !
   Future<List<Map>?> _fetchNearbyStopsBahnDe() async {
     try {
-      // products se trimite ca query-param repetat: `products=X&products=Y`.
-      // Uri.parse nu suportă native multi-value, construim manual.
+      // Products se trimit cu SUFFIX `[]` (PHP/qs brackets convention)!
+      // Din db-vendo-client `lib/request.js:148`:
+      //   `stringify(query, {arrayFormat: 'brackets', encodeValuesOnly: true})`
+      // Format: `products[]=X&products[]=Y&...`
+      // Fără `[]` bahn.de returnează 422 !
       const products = ['ICE', 'EC_IC', 'IR', 'REGIONAL', 'SBAHN',
                         'BUS', 'SCHIFF', 'UBAHN', 'TRAM', 'ANRUFPFLICHTIG'];
-      final productsQ = products.map((p) => 'products=$p').join('&');
+      // `[` = %5B, `]` = %5D (URL-encoded)
+      final productsQ = products.map((p) => 'products%5B%5D=$p').join('&');
       final uri = Uri.parse('$_bahnDeBase/orte/nearby'
           '?lat=${_latitude!.toStringAsFixed(6)}'
           '&long=${_longitude!.toStringAsFixed(6)}'
@@ -3236,7 +3240,9 @@ class TransitService {
           '${now.minute.toString().padLeft(2, '0')}';
       const verkehrsmittel = ['ICE', 'EC_IC', 'IR', 'REGIONAL', 'SBAHN',
                               'BUS', 'SCHIFF', 'UBAHN', 'TRAM', 'ANRUFPFLICHTIG'];
-      final vmQ = verkehrsmittel.map((v) => 'verkehrsmittel=$v').join('&');
+      // SUFFIX `[]` obligatoriu (qs brackets — vezi comentariul din
+      // _fetchNearbyStopsBahnDe). `%5B%5D` = URL-encode `[]`.
+      final vmQ = verkehrsmittel.map((v) => 'verkehrsmittel%5B%5D=$v').join('&');
       final uri = Uri.parse('$_bahnDeBase/abfahrten'
           '?ortExtId=$stationId&datum=$datum&zeit=$zeit'
           '&mitVias=true&$vmQ');
