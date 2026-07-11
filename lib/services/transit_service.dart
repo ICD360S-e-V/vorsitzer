@@ -3699,7 +3699,7 @@ class TransitService {
       result.add(StationFacility(
         description: desc.isEmpty ? (type == 'ESCALATOR' ? 'Fahrtreppe' : 'Aufzug') : desc,
         type: type,
-        state: state,
+        status: state,
         reason: reason,
       ));
     }
