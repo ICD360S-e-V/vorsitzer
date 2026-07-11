@@ -2146,38 +2146,60 @@ class TransitService {
             tag: 'TRANSIT');
       }
       final rail = <Map>[];
+      int rejectedNoRail = 0;
       for (final s in list) {
         if (s is! Map) continue;
-        // Field names EXTREM de permissive — accept orice varianta văzută:
-        //   id: id, extId, evaNr, evaNumber, evaNo, bahnhofsId, haltId, lid
-        //   name: name, haltName, bezeichnung
-        //   distance: distance, entfernung, dist
-        //   type marker: type='ST'/'S' sau extId/evaNr present
-        final id = (s['id'] ??
-                    s['extId'] ??
-                    s['evaNr'] ??
-                    s['evaNumber'] ??
-                    s['evaNo'] ??
-                    s['bahnhofsId'] ??
-                    s['haltId'] ??
-                    s['lid'] ??
-                    '').toString();
-        final name = (s['name'] ??
-                      s['haltName'] ??
-                      s['bezeichnung'] ??
-                      '').toString();
+        final id = (s['id'] ?? s['extId'] ?? s['evaNr'] ?? s['evaNumber'] ??
+                    s['evaNo'] ?? s['bahnhofsId'] ?? s['haltId'] ?? s['lid'] ?? '').toString();
+        final name = (s['name'] ?? s['haltName'] ?? s['bezeichnung'] ?? '').toString();
         if (id.isEmpty || name.isEmpty) continue;
-        // Accept doar dacă e stație (nu adresă/POI). Type marker:
         final typ = (s['type'] ?? s['typ'] ?? 'ST').toString().toUpperCase();
         if (typ == 'ADR' || typ == 'POI') continue;
+
+        // ═══ CRITICAL FILTER — keep DOAR stații cu train products ═══
+        // bahn.de returnează inclusiv bus stops in raza 10km (verificat
+        // în server logs: "Westrichweg Malstatt", "Cottbuser Platz" —
+        // sunt bus stops, nu gări).
+        //
+        // Field `products` variantele:
+        // - Object: {suburban:true, bus:false, nationalExpress:true, ...}
+        // - Array: ["ICE","IC","REGIONAL",...]
+        // - String CSV: "ICE,REGIONAL,BUS"
+        final products = s['products'];
+        bool hasRail = false;
+        if (products is Map) {
+          hasRail = (products['nationalExpress'] == true) ||
+                    (products['national'] == true) ||
+                    (products['regionalExpress'] == true) ||
+                    (products['regionalExp'] == true) ||
+                    (products['regional'] == true) ||
+                    (products['suburban'] == true);
+        } else if (products is List) {
+          hasRail = products.any((p) {
+            final code = p.toString().toUpperCase();
+            return code == 'ICE' || code == 'IC' || code == 'EC' ||
+                   code == 'EC_IC' || code == 'IR' || code == 'REGIONAL' ||
+                   code == 'SBAHN' || code.contains('HOCH') ||
+                   code.contains('INTERCITY') || code.contains('INTERREGIO') ||
+                   code.contains('NAHVERKEHR');
+          });
+        } else if (products is String) {
+          final up = products.toUpperCase();
+          hasRail = up.contains('ICE') || up.contains('IC') || up.contains('EC') ||
+                    up.contains('REGIONAL') || up.contains('SBAHN');
+        }
+        if (!hasRail) {
+          rejectedNoRail++;
+          continue;
+        }
         rail.add({
           'id': id,
           'name': name,
           'distance': ((s['distance'] ?? s['entfernung'] ?? s['dist'] ?? 0) as num).toInt(),
         });
       }
-      _log.info('Transit: dbnav nearby → ${rail.length} stops from ${list.length} raw',
-          tag: 'TRANSIT');
+      _log.info('Transit: dbnav nearby → ${rail.length} RAIL stops '
+          '(${list.length} raw, $rejectedNoRail bus-only rejected)', tag: 'TRANSIT');
       return rail;
     } catch (e) {
       _log.debug('Transit: dbnav nearby exception: $e', tag: 'TRANSIT');
