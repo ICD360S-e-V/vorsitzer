@@ -2029,74 +2029,94 @@ class TransitService {
     }
   }
 
-  /// Query `int.bahn.de/web/api/reiseloesung/orte/nearby` — endpoint oficial
-  /// public DB pentru găsirea stațiilor pe GPS. Returnează normalized list
-  /// cu `{id, name, distance, products}` — sau null la eroare.
+  /// Query DB Navigator app backend pentru găsirea stațiilor rail pe GPS.
+  /// POST + JSON body — evită problemele de URL-encoding din dbweb (422).
   ///
-  /// Param names EXACTE (din db-vendo-client `p/dbweb/nearby-req.js` +
-  /// test fixtures — verified 2026-07-11):
-  /// - `lat` (nu `latitude`)
-  /// - `long` (nu `longitude`)
-  /// - `radius` in metri (nu `umkreis`)
-  /// - `maxNo` = max rezultate (nu `results`)
-  /// - `products` filter — mandatory else 422 !
+  /// Format request (din `db-vendo-client/p/dbnav/nearby-req.js`):
+  /// ```json
+  /// {
+  ///   "area": {"coordinates":{"longitude":X,"latitude":Y}, "radius": 30000},
+  ///   "maxResults": 10,
+  ///   "products": ["ALL"]
+  /// }
+  /// ```
+  /// Response: array de `{haltId, haltName, produktGattungen:[...], entfernung}`.
+  ///
+  /// Returnează normalized list `{id, name, distance}` sau null la eroare.
   Future<List<Map>?> _fetchNearbyStopsBahnDe() async {
     try {
-      // Products se trimit cu SUFFIX `[]` (PHP/qs brackets convention)!
-      // Din db-vendo-client `lib/request.js:148`:
-      //   `stringify(query, {arrayFormat: 'brackets', encodeValuesOnly: true})`
-      // Format: `products[]=X&products[]=Y&...`
-      // Fără `[]` bahn.de returnează 422 !
-      const products = ['ICE', 'EC_IC', 'IR', 'REGIONAL', 'SBAHN',
-                        'BUS', 'SCHIFF', 'UBAHN', 'TRAM', 'ANRUFPFLICHTIG'];
-      // `[` = %5B, `]` = %5D (URL-encoded)
-      final productsQ = products.map((p) => 'products%5B%5D=$p').join('&');
-      final uri = Uri.parse('$_bahnDeBase/orte/nearby'
-          '?lat=${_latitude!.toStringAsFixed(6)}'
-          '&long=${_longitude!.toStringAsFixed(6)}'
-          '&radius=30000&maxNo=10&$productsQ');
-      final resp = await _client.get(uri, headers: _bahnDeHeaders)
-          .timeout(const Duration(seconds: 15));
+      final body = jsonEncode({
+        'area': {
+          'coordinates': {
+            'longitude': _longitude,
+            'latitude': _latitude,
+          },
+          'radius': 30000,
+        },
+        'maxResults': 10,
+        'products': ['ALL'],
+      });
+      final uri = Uri.parse('$_dbNavBase/mob/location/nearby');
+      final resp = await _client.post(uri,
+          headers: {
+            'Content-Type': _dbNavNearbyContentType,
+            'Accept': _dbNavNearbyContentType,
+            'X-Correlation-ID': _dbNavCorrelationId(),
+          },
+          body: body,
+      ).timeout(const Duration(seconds: 15));
       if (resp.statusCode == 429 || resp.statusCode == 403) {
-        _log.debug('Transit: bahn.de rate-limited (${resp.statusCode})', tag: 'TRANSIT');
+        _log.debug('Transit: dbnav nearby rate-limited (${resp.statusCode})', tag: 'TRANSIT');
         return null;
       }
       if (resp.statusCode != 200) {
-        _log.debug('Transit: bahn.de returned ${resp.statusCode}', tag: 'TRANSIT');
+        _log.debug('Transit: dbnav nearby returned ${resp.statusCode}', tag: 'TRANSIT');
         return null;
       }
-      final body = _decodeUtf8(resp);
-      // bahn.de returnează HTML CAPTCHA la WAF block — detect early.
-      if (body.trimLeft().startsWith('<')) {
-        _log.debug('Transit: bahn.de returned HTML (WAF block)', tag: 'TRANSIT');
+      final respBody = _decodeUtf8(resp);
+      if (respBody.trimLeft().startsWith('<')) {
+        _log.debug('Transit: dbnav returned HTML (WAF block)', tag: 'TRANSIT');
         return null;
       }
-      final data = jsonDecode(body);
-      if (data is! List) return null;
-      // Format bahn.de: array de obiecte cu extId, name, lat, lon, distance,
-      // produkte (array de string): ["ICE","EC_IC","REGIONAL",...].
+      final data = jsonDecode(respBody);
+      // Response poate fi list direct SAU obiect `{haltestellen: [...]}`
+      final List list;
+      if (data is List) {
+        list = data;
+      } else if (data is Map) {
+        list = (data['haltestellen'] ?? data['nearbyStops'] ?? data['stops']) as List? ?? [];
+      } else {
+        return null;
+      }
       final rail = <Map>[];
-      for (final s in data) {
+      for (final s in list) {
         if (s is! Map) continue;
-        final produkte = s['produkte'] ?? s['products'];
-        if (produkte is! List) continue;
+        // Response fields: haltId, haltName, produktGattungen, entfernung
+        final produkte = s['produktGattungen'] as List? ?? [];
         final hasRail = produkte.any((p) {
-          final code = p.toString().toUpperCase();
-          return code == 'ICE' || code == 'EC_IC' || code == 'IR' ||
-                 code == 'REGIONAL' || code == 'SBAHN' || code == 'NAHVERKEHR' ||
-                 code == 'FERNVERKEHR';
+          if (p is! Map) return false;
+          final code = (p['produktGattung'] ?? '').toString().toUpperCase();
+          // dbnav codes: HOCHGESCHWINDIGKEITSZUEGE (ICE),
+          // INTERCITYUNDEUROCITYZUEGE (IC/EC), INTERREGIOUNDSCHNELLZUEGE (IR/RE),
+          // NAHVERKEHRSONSTIGEZUEGE (RB), STADTVERKEHR (SBAHN/UBAHN),
+          // — filtrăm rail-only (exclude BUS/TRAM/FÄHRE).
+          return code.contains('HOCH') || code.contains('INTERCITY') ||
+                 code.contains('INTERREGIO') || code.contains('NAHVERKEHR');
         });
         if (!hasRail) continue;
+        final id = (s['haltId'] ?? s['id'] ?? '').toString();
+        final name = (s['haltName'] ?? s['name'] ?? '').toString();
+        if (id.isEmpty || name.isEmpty) continue;
         rail.add({
-          'id': s['extId']?.toString() ?? s['id']?.toString() ?? '',
-          'name': s['name']?.toString() ?? '',
-          'distance': (s['entfernung'] ?? s['distance'] ?? 0),
-          'products_native': produkte,
+          'id': id,
+          'name': name,
+          'distance': (s['entfernung'] as num?)?.toInt() ?? 0,
         });
       }
+      _log.info('Transit: dbnav nearby → ${rail.length} rail stops', tag: 'TRANSIT');
       return rail;
     } catch (e) {
-      _log.debug('Transit: bahn.de nearby exception: $e', tag: 'TRANSIT');
+      _log.debug('Transit: dbnav nearby exception: $e', tag: 'TRANSIT');
       return null;
     }
   }
@@ -3047,24 +3067,41 @@ class TransitService {
 
   static const _restBase = 'https://v6.db.transport.rest';
 
-  /// **Official Deutsche Bahn public JSON endpoint** — same upstream care este
-  /// proxied de v6.db.transport.rest, dar direct pe serverul DB (uptime real).
+  /// **Deutsche Bahn Navigator mobile app backend** — POST + JSON, cel mai
+  /// stabil endpoint public DB. Folosit de aplicația oficială DB Navigator.
   ///
-  /// Findings 2026-07 din `public-transport/db-vendo-client`:
-  /// - Nu necesită auth / API key / signing
-  /// - Endpoint-uri:
-  ///   - `/orte/nearby?latitude=X&longitude=Y` → cele mai apropiate stații
-  ///   - `/abfahrten?ortExtId=EVA&datum=...&zeit=...` → live departures
-  /// - **Pitfall**: User-Agent NU trebuie să conțină "Linux" / "Dart" / "curl"
-  ///   — bahn.de WAF le blochează. Folosim UA browser plausibil.
-  /// - Rate limit ~1 req/s per IP (mobile network per-user = OK).
-  /// - ToS: gri-lega, dar endpoint-ul e DB-operat oficial (mai puternic
-  ///   decât community proxy).
+  /// De ce dbnav în loc de int.bahn.de dbweb:
+  /// - dbweb URL-encoding `products[]=X` producea 422 pe device (verificat)
+  /// - dbnav POST + JSON body → nu are probleme cu URL encoding
+  /// - Backend oficial DB Navigator = uptime real
+  ///
+  /// Endpoint-uri (din `db-vendo-client/p/dbnav/`):
+  /// - `POST /mob/location/nearby` → stații pe GPS
+  /// - `POST /mob/bahnhofstafel/abfahrt` → live departures
+  ///
+  /// Headers necesare:
+  /// - `X-Correlation-ID` (32 hex + `_` + 32 hex, gen la fiecare request)
+  /// - `Content-Type: application/x.db.vendo.mob.location.v3+json` (nearby)
+  /// - `Content-Type: application/x.db.vendo.mob.bahnhofstafeln.v2+json` (dep)
+  static const _dbNavBase = 'https://app.services-bahn.de';
+  static const _dbNavNearbyContentType = 'application/x.db.vendo.mob.location.v3+json';
+  static const _dbNavBoardContentType = 'application/x.db.vendo.mob.bahnhofstafeln.v2+json';
+
+  /// Generate X-Correlation-ID pentru fiecare request dbnav.
+  /// Format: 32 hex chars + '_' + 32 hex chars.
+  String _dbNavCorrelationId() {
+    final rnd = math.Random();
+    String hex32() =>
+        List.generate(32, (_) => rnd.nextInt(16).toRadixString(16)).join();
+    return '${hex32()}_${hex32()}';
+  }
+
+  /// Legacy int.bahn.de (dbweb) constants — păstrate pentru fallback + docs.
+  /// NU e folosit după 2026-07-11 (params `[]` producea 422).
   static const _bahnDeBase = 'https://int.bahn.de/web/api/reiseloesung';
   static const _bahnDeHeaders = {
     'Accept': 'application/json',
     'Accept-Language': 'de-DE,de;q=0.9',
-    // Browser UA plausibil — evită WAF-ul care blochează "Linux"/"Dart".
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
         'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
   };
@@ -3220,46 +3257,58 @@ class TransitService {
     }
   }
 
-  /// bahn.de `/abfahrten` — endpoint oficial DB pentru live departures.
-  /// `stationId` = EVA number (7 cifre, ex. "8000201" pentru Ulm Hbf).
+  /// dbnav (DB Navigator app) live departures via POST + JSON.
+  /// `stationId` = EVA (7 cifre, ex. "8000201" Ulm Hbf).
   /// Returnează null la eroare (fallback la v6.db.transport.rest).
   ///
-  /// Param format EXACT (verificat din db-vendo-client fixtures 2025-02):
-  /// - `ortExtId` = EVA number
-  /// - `zeit` = **HH:mm** (nu HH:MM:SS !)
-  /// - `datum` = yyyy-MM-dd
-  /// - `mitVias` = true
-  /// - `verkehrsmittel[]` = array Verkehrsmittel MANDATORY (else 422)
+  /// Request format (din `db-vendo-client/p/dbnav/station-board-req.js`):
+  /// ```
+  /// POST /mob/bahnhofstafel/abfahrt
+  /// body: {
+  ///   anfragezeit: "HH:mm",
+  ///   datum: "yyyy-MM-dd",
+  ///   ursprungsBahnhofId: EVA,
+  ///   verkehrsmittel: ["ALL"]
+  /// }
+  /// ```
   Future<List<Departure>?> _fetchDeparturesBahnDe(String stationId, String stationName) async {
     try {
       final now = DateTime.now();
       final datum = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
           '${now.day.toString().padLeft(2, '0')}';
-      // zeit = HH:mm (NU HH:mm:ss — bahn.de returnează 422 la HH:mm:ss)
       final zeit = '${now.hour.toString().padLeft(2, '0')}:'
           '${now.minute.toString().padLeft(2, '0')}';
-      const verkehrsmittel = ['ICE', 'EC_IC', 'IR', 'REGIONAL', 'SBAHN',
-                              'BUS', 'SCHIFF', 'UBAHN', 'TRAM', 'ANRUFPFLICHTIG'];
-      // SUFFIX `[]` obligatoriu (qs brackets — vezi comentariul din
-      // _fetchNearbyStopsBahnDe). `%5B%5D` = URL-encode `[]`.
-      final vmQ = verkehrsmittel.map((v) => 'verkehrsmittel%5B%5D=$v').join('&');
-      final uri = Uri.parse('$_bahnDeBase/abfahrten'
-          '?ortExtId=$stationId&datum=$datum&zeit=$zeit'
-          '&mitVias=true&$vmQ');
-      final resp = await _client.get(uri, headers: _bahnDeHeaders)
-          .timeout(const Duration(seconds: 12));
+      final body = jsonEncode({
+        'anfragezeit': zeit,
+        'datum': datum,
+        'ursprungsBahnhofId': stationId,
+        'verkehrsmittel': ['ALL'],
+      });
+      final uri = Uri.parse('$_dbNavBase/mob/bahnhofstafel/abfahrt');
+      final resp = await _client.post(uri,
+          headers: {
+            'Content-Type': _dbNavBoardContentType,
+            'Accept': _dbNavBoardContentType,
+            'X-Correlation-ID': _dbNavCorrelationId(),
+          },
+          body: body,
+      ).timeout(const Duration(seconds: 12));
       if (resp.statusCode == 429 || resp.statusCode == 403) {
-        _log.debug('Transit: bahn.de abfahrten rate-limited ${resp.statusCode}', tag: 'TRANSIT');
+        _log.debug('Transit: dbnav abfahrt rate-limited ${resp.statusCode}', tag: 'TRANSIT');
         return null;
       }
-      if (resp.statusCode != 200) return null;
-      final body = _decodeUtf8(resp);
-      if (body.trimLeft().startsWith('<')) return null; // WAF HTML
-      final data = jsonDecode(body);
+      if (resp.statusCode != 200) {
+        _log.debug('Transit: dbnav abfahrt returned ${resp.statusCode}', tag: 'TRANSIT');
+        return null;
+      }
+      final respBody = _decodeUtf8(resp);
+      if (respBody.trimLeft().startsWith('<')) return null; // WAF HTML
+      final data = jsonDecode(respBody);
       if (data is! Map) return null;
-      // Format bahn.de: { entries: [ { zeit, echtzeit, gleis, produktGattung,
-      // richtung, verkehrsmittel:{name,mittelKurz,langtext,...}, cancelled }, ... ] }
-      final entries = data['entries'] ?? data['bahnhofstafelAbfahrtPositionen'];
+      // dbnav response: { bahnhofstafelAbfahrtPositionen: [{ ... }, ...] }
+      final entries = data['bahnhofstafelAbfahrtPositionen'] ??
+                       data['entries'] ??
+                       data['abfahrten'];
       if (entries is! List) return null;
       final out = <Departure>[];
       for (final e in entries) {
