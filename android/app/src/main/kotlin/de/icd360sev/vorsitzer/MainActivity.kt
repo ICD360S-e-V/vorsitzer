@@ -331,7 +331,14 @@ class MainActivity : FlutterActivity() {
             val lines = mountInfo.split("\n")
             val lower = mountInfo.lowercase()
 
-            if (lower.contains("magisk") || lower.contains("ksu") || lower.contains("ap_modules")) {
+            // Strict word-boundary match — 'ksu' era substring match care
+            // false-positive pe stringuri normale Samsung tablet (linksUp etc.)
+            val rootedPatterns = listOf(
+                "/magisk", "magisk/", "magisk.img", "magisk.apk",
+                "/kernelsu", "kernelsu/", "kernelsu.img",
+                "/ap_modules", "ap_modules/"
+            )
+            if (rootedPatterns.any { lower.contains(it) }) {
                 return "Root-Zugriff erkannt (Overlay)"
             }
 
