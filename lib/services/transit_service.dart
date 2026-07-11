@@ -2051,10 +2051,29 @@ class TransitService {
             'longitude': _longitude,
             'latitude': _latitude,
           },
-          'radius': 30000,
+          // dbnav MAX supported = 10000m (verificat direct din
+          // db-vendo-client `p/dbnav/nearby-req.js:6`:
+          //   `if (opt.distance > 10000) throw new Error(...)`)
+          // Peste 10000 → HTTP 400. Pentru zone rurale > 10km, fetchul cade
+          // pe fallback v6.db.transport.rest.
+          'radius': 10000,
         },
         'maxResults': 10,
-        'products': ['ALL'],
+        // Products explicite (nu ["ALL"] care poate să nu fie acceptat de
+        // server). Codes din `db-vendo-client/lib/products.js` filtrate
+        // pe dbnav column.
+        'products': [
+          'HOCHGESCHWINDIGKEITSZUEGE',
+          'INTERCITYUNDEUROCITYZUEGE',
+          'INTERREGIOUNDSCHNELLZUEGE',
+          'NAHVERKEHRSONSTIGEZUEGE',
+          'SBAHNEN',
+          'UBAHN',
+          'STRASSENBAHN',
+          'BUSSE',
+          'SCHIFFE',
+          'ANRUFPFLICHTIGEVERKEHRE',
+        ],
       });
       final uri = Uri.parse('$_dbNavBase/mob/location/nearby');
       final resp = await _client.post(uri,
@@ -3282,7 +3301,18 @@ class TransitService {
         'anfragezeit': zeit,
         'datum': datum,
         'ursprungsBahnhofId': stationId,
-        'verkehrsmittel': ['ALL'],
+        'verkehrsmittel': [
+          'HOCHGESCHWINDIGKEITSZUEGE',
+          'INTERCITYUNDEUROCITYZUEGE',
+          'INTERREGIOUNDSCHNELLZUEGE',
+          'NAHVERKEHRSONSTIGEZUEGE',
+          'SBAHNEN',
+          'UBAHN',
+          'STRASSENBAHN',
+          'BUSSE',
+          'SCHIFFE',
+          'ANRUFPFLICHTIGEVERKEHRE',
+        ],
       });
       final uri = Uri.parse('$_dbNavBase/mob/bahnhofstafel/abfahrt');
       final resp = await _client.post(uri,
