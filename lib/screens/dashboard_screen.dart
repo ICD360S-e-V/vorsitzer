@@ -1687,13 +1687,37 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 13:
         return EinstellungenScreen(apiService: _apiService);
       case 14:
-        return ArbeitstagScreen(
-          onNavigate: (idx, {int? focusTicketId, int? focusTerminId, int? focusRoutineExecutionId}) => setState(() {
-            _selectedMenuIndex = idx;
-            _pendingFocusTicketId = focusTicketId;
-            _pendingFocusTerminId = focusTerminId;
-            _pendingFocusRoutineExecutionId = focusRoutineExecutionId;
-          }),
+        // ULTIMATE DIAGNOSTIC — bypass ArbeitstagScreen complet. Injectez
+        // direct un buton simplu în dashboard body la case 14. Dacă ACEST
+        // buton nu răspunde, cauza-i ceva peste zona body a Scaffold-ului
+        // parent (nu în ArbeitstagScreen).
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _log.info('[DASH-14] TAP_DASHBOARD_CASE_14 fired'),
+          child: Container(
+            color: Colors.purple,
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('DASHBOARD CASE 14 TEST',
+                    style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
+                const Text('Apasă pe purpuriu\nSAU pe butonul PURPLE BUTTON',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 16)),
+                const SizedBox(height: 40),
+                ElevatedButton(
+                  onPressed: () => _log.info('[DASH-14] TAP_PURPLE_BUTTON fired'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow, foregroundColor: Colors.black),
+                  child: const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('PURPLE BUTTON', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       default:
         return _buildDashboardOverview();
