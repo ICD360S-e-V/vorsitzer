@@ -782,10 +782,10 @@ class TransitService {
     _memberHomeBundesland = bundesland?.trim().toLowerCase();
     _log.info('Transit: home region set ort=$_memberHomeOrt plz=$_memberHomePlz '
         'bundesland=$_memberHomeBundesland', tag: 'TRANSIT');
-    // Dacă nu am detectat provider încă (GPS off), încearcă acum din Stufe 1.
-    if (activeProvider == null && (_memberHomeOrt != null || _memberHomePlz != null)) {
-      _detectProviderFromMemberHome();
-    }
+    // BUG FIX 2026-07-11: NU mai auto-declanșa `_detectProviderFromMemberHome`.
+    // Dashboard apelează asta ÎNAINTE ca GPS-ul să răspundă → Stufe-1 setează
+    // coords la Ulm (Neu-Ulm home) chiar dacă userul e fizic în Saarbrücken.
+    // Trigger-ul e făcut acum EXCLUSIV din `start()` cand GPS eșuează.
   }
 
   /// Detectează activeProvider din Verifizierung Stufe 1 (ort/plz/bundesland).
@@ -797,6 +797,11 @@ class TransitService {
     final bl = _memberHomeBundesland;
     if (ort == null && plz == null && bl == null) return;
 
+    // BUG FIX 2026-07-11: nu suprascrie coords GPS dacă sunt deja setate.
+    // User poate fi fizic în Saarbrücken cu adresa Stufe-1 în Neu-Ulm →
+    // păstrăm GPS coords reale, doar setăm provider dacă lipsește.
+    final gpsAlreadySet = _useGps && _latitude != null && _longitude != null;
+
     // Match după city set — cea mai reliable metodă (~450 orașe mapate).
     for (final entry in _providerCities.entries) {
       for (final city in entry.value) {
@@ -804,11 +809,14 @@ class TransitService {
         if (ort != null && (cLow == ort || cLow.contains(ort) || ort.contains(cLow))) {
           final p = _providers.firstWhere((x) => x.type == entry.key);
           activeProvider = p;
-          // Center la mijloc bounding box.
-          _latitude = (p.minLat + p.maxLat) / 2;
-          _longitude = (p.minLon + p.maxLon) / 2;
-          gpsCity = ort;
-          _log.info('Transit: provider ${p.name} matched from Stufe-1 ort=$ort',
+          if (!gpsAlreadySet) {
+            // Center la mijloc bounding box.
+            _latitude = (p.minLat + p.maxLat) / 2;
+            _longitude = (p.minLon + p.maxLon) / 2;
+            gpsCity = ort;
+          }
+          _log.info('Transit: provider ${p.name} matched from Stufe-1 ort=$ort '
+              '${gpsAlreadySet ? "(GPS coords kept)" : "(coords set to center)"}',
               tag: 'TRANSIT');
           return;
         }
@@ -883,10 +891,13 @@ class TransitService {
         try {
           final p = _providers.firstWhere((x) => x.type == guess);
           activeProvider = p;
-          _latitude = (p.minLat + p.maxLat) / 2;
-          _longitude = (p.minLon + p.maxLon) / 2;
+          if (!gpsAlreadySet) {
+            _latitude = (p.minLat + p.maxLat) / 2;
+            _longitude = (p.minLon + p.maxLon) / 2;
+          }
           _log.info('Transit: provider ${p.name} matched from Stufe-1 PLZ=$plz '
-              '(prefix $prefix)', tag: 'TRANSIT');
+              '(prefix $prefix) ${gpsAlreadySet ? "(GPS coords kept)" : ""}',
+              tag: 'TRANSIT');
           return;
         } catch (_) {}
       }
@@ -969,8 +980,16 @@ class TransitService {
       return;
     }
 
-    // Detect provider based on coordinates (dacă nu e deja setat via Stufe-1)
-    if (activeProvider == null) _detectProvider();
+    // Detect provider based on coordinates.
+    // BUG FIX 2026-07-11: dacă GPS-ul a răspuns cu succes, REDETECTEAZĂ mereu
+    // provider-ul pe baza coords real GPS — nu ține activeProvider setat
+    // greșit din Stufe-1 override (user poate fi fizic în alt oraș decât
+    // adresa Verifizierung Stufe 1).
+    if (_useGps) {
+      _detectProvider(); // GPS = truth, ignore Stufe-1 preset
+    } else if (activeProvider == null) {
+      _detectProvider();
+    }
 
     // Initial fetch
     await fetchDepartures();
