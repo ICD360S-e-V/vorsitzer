@@ -1499,15 +1499,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ),
       // Mobile: Use drawer for navigation
       drawer: isMobile
-          ? Drawer(
-              child: DashboardSidebar(
-                userName: widget.userName,
-                mitgliedernummer: widget.currentMitgliedernummer,
-                selectedMenuIndex: _selectedMenuIndex,
-                onMenuSelected: (index) {
-                  setState(() => _selectedMenuIndex = index);
-                  Navigator.pop(context); // Close drawer after selection
-                },
+          ? Builder(
+              builder: (drawerCtx) => Drawer(
+                child: DashboardSidebar(
+                  userName: widget.userName,
+                  mitgliedernummer: widget.currentMitgliedernummer,
+                  selectedMenuIndex: _selectedMenuIndex,
+                  onMenuSelected: (index) {
+                    _log.info('[DASH-DRAWER] item tapped, index=$index — closing drawer first');
+                    // Close drawer FIRST via Scaffold.of (correct API on mobile),
+                    // apoi setState la end of frame. Ordinea inversă putea
+                    // lăsa drawer scrim stuck pe Android → toate touch events
+                    // în body BLOCATE de scrim invizibil.
+                    Scaffold.of(drawerCtx).closeDrawer();
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() => _selectedMenuIndex = index);
+                        _log.info('[DASH-DRAWER] setState done, index=$index');
+                      }
+                    });
+                  },
+                ),
               ),
             )
           : null,
