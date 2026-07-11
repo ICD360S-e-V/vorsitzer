@@ -238,15 +238,15 @@ class _VorsitzerAppState extends State<VorsitzerApp> {
         fontFamily: Platform.isWindows ? 'Segoe UI' : null,
       ),
       home: const LoginWithCodeScreen(),
-      // Wrap every route with a Stack carrying the global Messenger-style
-      // chat overlay. The overlay self-hides until GlobalChatService.enabled
-      // is set true by the dashboard after login.
-      builder: (context, child) {
-        return Stack(children: [
-          child ?? const SizedBox.shrink(),
-          const Positioned.fill(child: GlobalChatOverlay()),
-        ]);
-      },
+      // TEMPORARY DIAGNOSTIC — elimin GlobalChatOverlay complet ca să
+      // izolez cauza freeze Android. Dacă butoanele Arbeitswochen merg
+      // fără el, e confirmat că overlay blochează. Restore după fix real.
+      // builder: (context, child) {
+      //   return Stack(children: [
+      //     child ?? const SizedBox.shrink(),
+      //     const Positioned.fill(child: GlobalChatOverlay()),
+      //   ]);
+      // },
     );
   }
 }
