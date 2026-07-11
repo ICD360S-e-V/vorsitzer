@@ -2160,49 +2160,58 @@ class TransitService {
         final typ = (s['type'] ?? s['typ'] ?? 'ST').toString().toUpperCase();
         if (typ == 'ADR' || typ == 'POI') continue;
 
-        // ═══ FILTER rail-only — multiple markers, permissive ═══
-        // Fiecare rail station in DB are un EVA-Nummer (7 cifre).
-        // Bus stops NU au evaNr (sau au evaNr=0 / missing).
-        // Marker primar = evaNr valid.
-        // Fallback secondary = locationType (1 = STATION).
-        // Fallback tertiar = products check.
+        // ═══ FILTER rail-only STRICT ═══
+        //
+        // Din log v6.59.33 dovada bug:
+        //   name=Cottbuser Platz Malstatt, Saarbrücken
+        //   locType=ST evaNr=839433 products=[BUSSE, STRASSENBAHN]
+        //
+        // Deci EVA number există CHIAR și pentru bus/tram stops (nu-i marker
+        // valid pentru rail). Nu ne bazăm nici pe locationType (toate sunt 'ST').
+        //
+        // Doar filtru pe `products` cu match EXACT pe rail codes dbnav.
+        //
+        // dbnav rail codes:
+        // - HOCHGESCHWINDIGKEITSZUEGE (ICE)
+        // - INTERCITYUNDEUROCITYZUEGE (IC/EC)
+        // - INTERREGIOUNDSCHNELLZUEGE (IR/RE)
+        // - NAHVERKEHRSONSTIGEZUEGE (RB)
+        // - SBAHNEN (S-Bahn)
+        //
+        // NON-rail (respingem):
+        // - BUSSE (bus)
+        // - STRASSENBAHN (tram)
+        // - UBAHN (metro)
+        // - SCHIFFE (ship)
+        // - ANRUFPFLICHTIGEVERKEHRE (on-demand)
         bool hasRail = false;
-        // 1) EVA present + non-zero
-        final evaVal = s['evaNr'];
-        if (evaVal is num && evaVal > 0) {
-          hasRail = true;
-        } else if (evaVal is String && evaVal.isNotEmpty && evaVal != '0') {
-          hasRail = true;
-        }
-        // 2) locationType marker
-        if (!hasRail) {
-          final locType = s['locationType']?.toString().toUpperCase() ?? '';
-          if (locType == '1' || locType == 'ST' || locType == 'STATION' ||
-              locType == 'BAHNHOF') {
-            hasRail = true;
-          }
-        }
-        // 3) products fallback
-        if (!hasRail) {
-          final products = s['products'];
-          if (products is Map) {
-            hasRail = (products['nationalExpress'] == true) ||
-                      (products['national'] == true) ||
-                      (products['regionalExpress'] == true) ||
-                      (products['regionalExp'] == true) ||
-                      (products['regional'] == true) ||
-                      (products['suburban'] == true);
-          } else if (products is List) {
-            hasRail = products.any((p) {
-              final code = p.toString().toUpperCase();
-              return code.contains('ICE') || code.contains('IC') ||
-                     code.contains('EC') || code.contains('IR') ||
-                     code.contains('REGIONAL') || code.contains('SBAHN') ||
-                     code.contains('HOCH') || code.contains('INTERCITY') ||
-                     code.contains('INTERREGIO') || code.contains('NAHVERKEHR') ||
-                     code.contains('BAHN') || code.contains('ZUG');
-            });
-          }
+        final products = s['products'];
+        if (products is Map) {
+          hasRail = (products['nationalExpress'] == true) ||
+                    (products['national'] == true) ||
+                    (products['regionalExpress'] == true) ||
+                    (products['regionalExp'] == true) ||
+                    (products['regional'] == true) ||
+                    (products['suburban'] == true);
+        } else if (products is List) {
+          hasRail = products.any((p) {
+            final code = p.toString().toUpperCase();
+            // Match STRICT — dbnav rail codes + legacy short codes.
+            return code == 'HOCHGESCHWINDIGKEITSZUEGE' ||
+                   code == 'INTERCITYUNDEUROCITYZUEGE' ||
+                   code == 'INTERREGIOUNDSCHNELLZUEGE' ||
+                   code == 'NAHVERKEHRSONSTIGEZUEGE' ||
+                   code == 'SBAHNEN' ||
+                   // Legacy short codes (from vendo/dbweb sau alte responses)
+                   code == 'ICE' || code == 'IC' || code == 'EC' ||
+                   code == 'EC_IC' || code == 'IR' || code == 'REGIONAL' ||
+                   code == 'SBAHN' ||
+                   // Match .contains pe cuvinte unambiguos rail:
+                   // HOCH, INTERCITY, INTERREGIO, NAHVERKEHR
+                   // (NU 'BAHN' care prinde STRASSENBAHN!)
+                   code.contains('HOCH') || code.contains('INTERCITY') ||
+                   code.contains('INTERREGIO') || code.contains('NAHVERKEHR');
+          });
         }
         if (!hasRail) {
           rejectedNoRail++;
