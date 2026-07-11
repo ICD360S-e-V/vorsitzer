@@ -2077,21 +2077,24 @@ class TransitService {
           // pe fallback v6.db.transport.rest.
           'radius': 10000,
         },
-        'maxResults': 10,
-        // Products explicite (nu ["ALL"] care poate să nu fie acceptat de
-        // server). Codes din `db-vendo-client/lib/products.js` filtrate
-        // pe dbnav column.
+        // maxResults marit la 30 — bahn.de sortează după distanță; deja am
+        // filtrare server-side pe products = doar rail, deci top 30 = 30 gări
+        // (cu suficient pentru user rural unde gara e departe).
+        'maxResults': 30,
+        // ═══ CRITICAL: filter server-side DOAR rail products ═══
+        //
+        // Bug anterior (v6.59.33+35): trimiteam BUSSE + STRASSENBAHN + UBAHN
+        // in lista → bahn.de returna zeci de bus/tram stops sortate by
+        // distance. Saarbrücken Hbf (real 1-2 km) era in top 30 dar dupa 10+
+        // bus stops → nu ajungea in primele 10 pe care le luam.
+        //
+        // Fix: trimit DOAR rail codes → bahn.de răspunde DOAR gări.
         'products': [
-          'HOCHGESCHWINDIGKEITSZUEGE',
-          'INTERCITYUNDEUROCITYZUEGE',
-          'INTERREGIOUNDSCHNELLZUEGE',
-          'NAHVERKEHRSONSTIGEZUEGE',
-          'SBAHNEN',
-          'UBAHN',
-          'STRASSENBAHN',
-          'BUSSE',
-          'SCHIFFE',
-          'ANRUFPFLICHTIGEVERKEHRE',
+          'HOCHGESCHWINDIGKEITSZUEGE',       // ICE
+          'INTERCITYUNDEUROCITYZUEGE',       // IC/EC
+          'INTERREGIOUNDSCHNELLZUEGE',       // IR/RE
+          'NAHVERKEHRSONSTIGEZUEGE',         // RB
+          'SBAHNEN',                          // S-Bahn
         ],
       });
       final uri = Uri.parse('$_dbNavBase/mob/location/nearby');
