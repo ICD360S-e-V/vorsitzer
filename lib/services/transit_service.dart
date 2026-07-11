@@ -1823,6 +1823,11 @@ class TransitService {
       // has only its buses+trams for that stop — no DB long-distance trains.
       // Merge in DB departures from transport.rest so the user sees ICE/IC/RE/RB.
       await _augmentWithDbRailDepartures();
+      // Adițional: fetch cele mai apropiate 3 gări DB direct pe GPS.
+      // Necesar pentru cazul când EFA (DING) NU include Bhf în nearbyStops
+      // sau când regex-ul _isMainlineStation nu prinde toate variantele.
+      // Bhf tab din UI se bazează pe această listă pentru a afișa trenuri.
+      await _fetchNearestDbRailStations();
     } catch (e) {
       _log.error('Transit: Fetch failed: $e', tag: 'TRANSIT');
     }
@@ -1855,6 +1860,118 @@ class TransitService {
     if (snap.city.isNotEmpty && gpsCity == null) gpsCity = snap.city;
     onDeparturesUpdate?.call(departures);
     return snap;
+  }
+
+  /// Găsește cele mai apropiate 3 gări DB (bahn.de) pe GPS user + adaugă
+  /// departures ICE/IC/RE/RB/S-Bahn la lista globală. Necesar pentru user-ii
+  /// pe EFA-providers (DING, MVV, VVS etc.) care NU returnează trenurile DB.
+  ///
+  /// Endpoint: `v6.db.transport.rest/stops/nearby?latitude=X&longitude=Y
+  ///           &results=10&distance=30000`
+  ///
+  /// Filtru pe products: keep doar stații cu min. una din {nationalExpress,
+  /// national, regionalExp, regional, suburban} — evită POI-uri gen "H+M
+  /// Passage" care apar în răspuns dar nu-s stații reale.
+  Future<void> _fetchNearestDbRailStations() async {
+    if (_latitude == null || _longitude == null) return;
+    try {
+      final uri = Uri.parse('$_restBase/stops/nearby'
+          '?latitude=${_latitude!.toStringAsFixed(6)}'
+          '&longitude=${_longitude!.toStringAsFixed(6)}'
+          '&results=10&distance=30000'
+          '&subStops=false&entrances=false&linesOfStops=false');
+      final resp = await _client.get(uri, headers: _restHeaders)
+          .timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) {
+        _log.debug('Transit: /stops/nearby returned ${resp.statusCode}', tag: 'TRANSIT');
+        return;
+      }
+      final data = jsonDecode(_decodeUtf8(resp));
+      if (data is! List) return;
+
+      // Keep stațiile cu produse rail (excluzând bus-only)
+      final rail = <Map>[];
+      for (final s in data) {
+        if (s is! Map) continue;
+        final products = s['products'];
+        if (products is! Map) continue;
+        final hasRail = (products['nationalExpress'] == true) ||
+            (products['national'] == true) ||
+            (products['regionalExp'] == true) ||
+            (products['regional'] == true) ||
+            (products['suburban'] == true);
+        if (!hasRail) continue;
+        rail.add(s);
+      }
+      if (rail.isEmpty) return;
+      // Sortare după distanță crescătoare + limit 3
+      rail.sort((a, b) {
+        final da = (a['distance'] as num?)?.toInt() ?? 999999;
+        final db = (b['distance'] as num?)?.toInt() ?? 999999;
+        return da.compareTo(db);
+      });
+      final top3 = rail.take(3).toList();
+
+      // Adaugă în nearbyStops (dacă nu-s deja acolo)
+      final seenNames = nearbyStops.map((s) => s.name.toLowerCase()).toSet();
+      final railStops = <TransitStop>[];
+      for (final s in top3) {
+        final name = s['name']?.toString() ?? '';
+        final id = s['id']?.toString() ?? '';
+        final dist = (s['distance'] as num?)?.toInt() ?? 0;
+        if (name.isEmpty || id.isEmpty) continue;
+        if (seenNames.contains(name.toLowerCase())) continue;
+        final stop = TransitStop(id: id, name: name, distance: dist);
+        railStops.add(stop);
+        nearbyStops.add(stop);
+      }
+
+      // Fetch departures for each în paralel + adaugă la global list
+      if (railStops.isEmpty) {
+        _log.info('Transit: DB nearby stații deja în nearbyStops', tag: 'TRANSIT');
+        return;
+      }
+      _log.info('Transit: DB nearby adaugă ${railStops.length} gări noi', tag: 'TRANSIT');
+      final futures = railStops.map((s) => fetchDbDepartures(s.name)).toList();
+      final results = await Future.wait(futures);
+
+      final seen = <String>{};
+      for (final d in departures) {
+        seen.add('${d.line}|${d.direction}|${d.plannedTime.toIso8601String()}|${d.stopName}');
+      }
+      for (int i = 0; i < railStops.length; i++) {
+        final stopName = railStops[i].name;
+        for (final dbDep in results[i]) {
+          if (dbDep.productType == 'bus') continue; // strict rail-only
+          final dep = Departure(
+            line: dbDep.line,
+            direction: dbDep.direction,
+            plannedTime: dbDep.plannedTime,
+            realtimeTime: dbDep.realtimeTime,
+            delay: dbDep.delay,
+            platform: dbDep.platform,
+            productType: dbDep.productType,
+            operator: dbDep.operator,
+            stopName: stopName,
+          );
+          final key = '${dep.line}|${dep.direction}|${dep.plannedTime.toIso8601String()}|$stopName';
+          if (seen.contains(key)) continue;
+          seen.add(key);
+          departures.add(dep);
+        }
+      }
+      // Re-sort
+      departures.sort((a, b) {
+        final ta = a.realtimeTime ?? a.plannedTime;
+        final tb = b.realtimeTime ?? b.plannedTime;
+        return ta.compareTo(tb);
+      });
+      // Re-sort nearbyStops after adding rail stops (nearby DB stations
+      // may be closer than EFA-returned bus stops — restore distance order)
+      nearbyStops.sort((a, b) => a.distance.compareTo(b.distance));
+    } catch (e) {
+      _log.debug('Transit: _fetchNearestDbRailStations failed: $e', tag: 'TRANSIT');
+    }
   }
 
   /// For every visible stop whose name matches a mainline station pattern,

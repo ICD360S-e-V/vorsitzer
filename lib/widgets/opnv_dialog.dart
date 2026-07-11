@@ -273,12 +273,12 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   /// snapshot rather than a live fetch. Shows a freshness banner.
   TransitOfflineSnapshot? _offline;
 
-  /// Sub-tab controller: Alle / Bus / Tram / S-Bhf / U-Bhf / Bhf.
+  /// Sub-tab controller: Bus / Tram / S-Bhf / U-Bhf / Bhf.
   /// Filtrează departures & stops per productType astfel încât userul
   /// vede rapid ce are lângă el fără să scaneze printre tipuri mixte.
+  /// "Alle" eliminat 2026-07-11 (nu era relevant, user preferă tipuri).
   late TabController _subTabController;
   static const _subTabs = <_SubTabDef>[
-    _SubTabDef(label: 'Alle', icon: Icons.public, types: null),
     _SubTabDef(label: 'Bus', icon: Icons.directions_bus, types: {'bus'}),
     _SubTabDef(label: 'Tram', icon: Icons.tram, types: {'tram'}),
     _SubTabDef(label: 'S-Bhf', icon: Icons.train_outlined, types: {'suburban'}),
@@ -362,11 +362,8 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   List<TransitStop> _stopsForTab(_SubTabDef tab) {
     final allStops = widget.transitService.nearbyStops;
     final grouped = _byStop(productTypes: tab.types);
-    if (tab.types == null) {
-      // "Alle" tab — comportament clasic: primele 3 după distanță.
-      return allStops.take(3).toList();
-    }
-    // Specialized tab — doar stații care AU cel puțin o departure de tipul dorit.
+    // Doar stații care AU cel puțin o departure de tipul dorit, sortate
+    // după distanța crescătoare (nearbyStops e deja sortat).
     final withDeps = allStops.where((s) => grouped.containsKey(s.name)).toList();
     return withDeps.take(3).toList();
   }
