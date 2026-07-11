@@ -2002,20 +2002,37 @@ class TransitService {
       _log.info('Transit: DB nearby adaugă ${railStops.length} gări noi', tag: 'TRANSIT');
       // Trece stationId (EVA) direct → evită resolve lookup + folosim
       // bahn.de official pentru departures (nu doar community proxy).
+      // BUG FIX 2026-07-11: auto-refresh Hbf/Bhf arata mereu trenurile vechi.
+      // 2 cauze:
+      //   1. `fetchDbDepartures` avea cache intern 60s care ignora `force`
+      //   2. `fetchBhfNearby` facea DEDUP pe (line, dir, plannedTime) →
+      //      trenurile cu acelasi plannedTime dar realtime updated erau
+      //      skipped. Deci departures vechi ramaneau in lista.
+      //
+      // Fix: la force=true, invalidez cache DB PER stop + REPLACE (nu dedup)
+      // toate departures existente cu stopName in railStops (rail only, nu
+      // afectam bus/tram locale).
+      if (force) {
+        for (final s in railStops) {
+          _dbDeparturesCache.remove(s.name);
+          _dbDeparturesCache.remove(s.id);
+        }
+      }
+      final railStopNames = railStops.map((s) => s.name).toSet();
+      // REPLACE — sterg vechile departures pentru stopurile rail
+      // pe care le refreshuim acum.
+      departures.removeWhere((d) => railStopNames.contains(d.stopName));
       final futures = railStops
           .map((s) => fetchDbDepartures(s.name, stationId: s.id))
           .toList();
       final results = await Future.wait(futures);
 
-      final seen = <String>{};
-      for (final d in departures) {
-        seen.add('${d.line}|${d.direction}|${d.plannedTime.toIso8601String()}|${d.stopName}');
-      }
+      // Now ADD fresh (fara dedup — lista deja fara vechi).
       for (int i = 0; i < railStops.length; i++) {
         final stopName = railStops[i].name;
         for (final dbDep in results[i]) {
           if (dbDep.productType == 'bus') continue; // strict rail-only
-          final dep = Departure(
+          departures.add(Departure(
             line: dbDep.line,
             direction: dbDep.direction,
             plannedTime: dbDep.plannedTime,
@@ -2025,11 +2042,9 @@ class TransitService {
             productType: dbDep.productType,
             operator: dbDep.operator,
             stopName: stopName,
-          );
-          final key = '${dep.line}|${dep.direction}|${dep.plannedTime.toIso8601String()}|$stopName';
-          if (seen.contains(key)) continue;
-          seen.add(key);
-          departures.add(dep);
+            stopID: dbDep.stopID,
+            tripID: dbDep.tripID,
+          ));
         }
       }
       // Re-sort
