@@ -430,17 +430,29 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     return startOk && endOk;
   }
 
-  /// Detectează dacă numele stației e Bahnhof (non-Hbf).
-  /// Include "X Bahnhof", "Bahnhof X" — dar exclude Hbf/Hauptbahnhof.
+  /// Detectează dacă numele stației e Bahnhof local (non-Hauptbahnhof).
+  ///
+  /// Bug fix 2026-07-11: regex-ul cerea cuvântul "Bahnhof" în nume, dar
+  /// gări reale locale (Saarbrücken Ost, Saarbrücken-Burbach, Saarbrücken
+  /// St Johann, Ulm-Söflingen) NU au "Bahnhof" în denumirea DB. Rezultat:
+  /// Bhf tab era gol chiar când bahn.de returna gări.
+  ///
+  /// Nou: orice stație rail NON-Hauptbahnhof e considerată Bhf local.
+  /// `fetchBhfNearby` deja garantează că `nearbyStops` de la bahn.de conțin
+  /// doar gări (server-side filter pe products = rail-only), deci putem
+  /// accepta liber.
+  ///
+  /// Exclus explicit: doar tokens care sunt clar street/address:
+  /// "Bahnhofstraße", "Bahnhofsplatz", "Bahnhofsvorplatz".
   static bool _isBhfLocalName(String name) {
-    if (_isHbfName(name)) return false; // Hbf are prioritate
+    if (_isHbfName(name)) return false; // Hbf are prioritate în Hbf tab
     final n = name.toLowerCase();
-    // Exclude străzi/piețe/adrese numerotate
+    // Excludem doar cazuri clare de street (nu de gări).
     if (n.contains('bahnhofstr') || n.contains('bahnhofspl') ||
         n.contains('bahnhofsvor') || n.contains('bahnhofsvi')) return false;
     if (RegExp(r'bahnhof\s+\d').hasMatch(n)) return false;
-    // Match "X Bahnhof" (final) sau "Bahnhof X" (început)
-    return RegExp(r'(^|\s)bahnhof($|\s)').hasMatch(n);
+    // Acceptăm ORICE altă stație (bahn.de filtered la rail-only).
+    return true;
   }
 
   List<TransitStop> _stopsForTab(_SubTabDef tab) {
