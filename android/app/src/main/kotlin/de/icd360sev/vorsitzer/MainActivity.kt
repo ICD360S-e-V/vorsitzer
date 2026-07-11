@@ -15,11 +15,14 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // DIAGNOSTIC — FLAG_SECURE temporary disabled ca să testez dacă
+        // combinația FLAG_SECURE + Samsung + rooted Magisk/KSU cauzează
+        // blocaj touch events pe zone specifice din UI. Restore după confirmare.
         // Prevent screenshots and screen recording
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+        // window.setFlags(
+        //     WindowManager.LayoutParams.FLAG_SECURE,
+        //     WindowManager.LayoutParams.FLAG_SECURE
+        // )
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
