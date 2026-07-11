@@ -3508,6 +3508,14 @@ class TransitService {
         }
         // Line name: prefer mitteltext ("RB 82") over kurztext ("RB").
         final lineName = (e['mitteltext'] ?? e['kurztext'] ?? '?').toString();
+        // tripID = zuglaufId → folosit pentru trip-sequence dialog (click pe
+        // departure = vezi stațiile trenului + Ausstieg-Alarm).
+        // stopID = evaNr din abfrageOrt → boarding stop pentru isCurrent flag.
+        final zuglaufId = e['zuglaufId']?.toString();
+        final abfrageOrt = e['abfrageOrt'];
+        final boardStopId = (abfrageOrt is Map)
+            ? (abfrageOrt['evaNr'] ?? abfrageOrt['stationId'])?.toString()
+            : null;
         out.add(Departure(
           line: lineName,
           direction: (e['richtung'] ?? e['ziel'] ?? '').toString(),
@@ -3519,6 +3527,8 @@ class TransitService {
           operator: '',
           stopName: stationName,
           isCancelled: e['ausfall'] == true || e['cancelled'] == true,
+          stopID: boardStopId,
+          tripID: zuglaufId,
         ));
       }
       _log.info('Transit: bahn.de $stationName → ${out.length} departures', tag: 'TRANSIT');
@@ -3723,17 +3733,24 @@ class TransitService {
       return TripRoute(stops: cached.stops, path: cached.path);
     }
 
-    final provider = activeProvider;
-    if (provider == null) return empty;
     TripRoute route = empty;
     try {
-      if (provider.api == TransitApiType.efa) {
-        // EFA still requires stopID + destID.
-        if (hasFromTo) route = await _efaTripRoute(provider, dep);
+      // Bahn.de tripID starts with "2|#" (dbnav format).
+      // Use dbnav /fahrt/{zuglaufId} endpoint (works for ICE/IC/RE/RB).
+      final isDbNavTrip = hasTrip && (tripId.startsWith('2|') || tripId.contains('#VN#'));
+      if (isDbNavTrip) {
+        route = await _dbnavTripRoute(dep);
       } else {
-        // HAFAS: _hafasTripRoute internally prefers JourneyDetails via jid,
-        // then falls back to TripSearch (which needs destID).
-        route = await _hafasTripRoute(provider, dep);
+        final provider = activeProvider;
+        if (provider == null) return empty;
+        if (provider.api == TransitApiType.efa) {
+          // EFA still requires stopID + destID.
+          if (hasFromTo) route = await _efaTripRoute(provider, dep);
+        } else {
+          // HAFAS: _hafasTripRoute internally prefers JourneyDetails via jid,
+          // then falls back to TripSearch (which needs destID).
+          route = await _hafasTripRoute(provider, dep);
+        }
       }
     } catch (e) {
       _log.error('Transit: fetchTripRoute failed for line ${dep.line}: $e', tag: 'TRANSIT');
@@ -3741,6 +3758,98 @@ class TransitService {
     _tripStopsCache[cacheKey] = _CachedTripStops(route.stops, DateTime.now(), path: route.path);
     _log.info('Transit: fetchTripRoute line ${dep.line} → ${route.stops.length} stops, ${route.path.length} path points', tag: 'TRANSIT');
     return route;
+  }
+
+  /// bahn.de dbnav `/fahrt/{zuglaufId}` — returnează trip stops complete
+  /// pentru un tren specific. Folosit când click pe ICE/IC/RE/RB in Hbf/Bhf
+  /// tab pentru a vedea "unde merge trenul + Ausstieg-Alarm".
+  ///
+  /// Response schema (din `test/fixtures/dbnav-trip.json`):
+  /// - `halte: [{abgangsDatum, ort:{name,evaNr,position:{lat,lon}}, gleis}]`
+  /// - `polylineGroup.polylineDesc[].coordinates: [{longitude, latitude}]`
+  Future<TripRoute> _dbnavTripRoute(Departure dep) async {
+    final empty = TripRoute(stops: const [], path: const []);
+    final tripId = dep.tripID;
+    if (tripId == null || tripId.isEmpty) return empty;
+    try {
+      final encoded = Uri.encodeComponent(tripId);
+      final uri = Uri.parse('$_dbNavBase/mob/zuglauf/$encoded');
+      final resp = await _client.get(uri, headers: {
+        'Accept': 'application/x.db.vendo.mob.zuglauf.v2+json',
+        'X-Correlation-ID': _dbNavCorrelationId(),
+      }).timeout(const Duration(seconds: 12));
+      if (resp.statusCode != 200) {
+        _log.debug('Transit: dbnav zuglauf returned ${resp.statusCode}', tag: 'TRANSIT');
+        return empty;
+      }
+      final data = jsonDecode(_decodeUtf8(resp));
+      if (data is! Map) return empty;
+      final halte = data['halte'];
+      if (halte is! List) return empty;
+      final stops = <TripStop>[];
+      final currentStopId = dep.stopID;
+      for (final h in halte) {
+        if (h is! Map) continue;
+        final abg = h['abgangsDatum']?.toString() ?? h['ankunftsDatum']?.toString();
+        if (abg == null) continue;
+        final planned = DateTime.tryParse(abg);
+        if (planned == null) continue;
+        final ezAbg = h['ezAbgangsDatum']?.toString() ??
+                      h['ezAnkunftsDatum']?.toString();
+        final rt = ezAbg == null ? null : DateTime.tryParse(ezAbg);
+        final ort = h['ort'];
+        String name = '';
+        String stopId = '';
+        double? lat, lon;
+        if (ort is Map) {
+          name = ort['name']?.toString() ?? '';
+          stopId = (ort['evaNr'] ?? ort['stationId'] ?? '').toString();
+          final pos = ort['position'];
+          if (pos is Map) {
+            lat = (pos['latitude'] as num?)?.toDouble();
+            lon = (pos['longitude'] as num?)?.toDouble();
+          }
+        }
+        if (name.isEmpty) continue;
+        final delay = rt != null ? rt.difference(planned).inMinutes : 0;
+        stops.add(TripStop(
+          name: name,
+          stopID: stopId,
+          plannedTime: planned,
+          realtimeTime: rt,
+          delay: delay > 0 ? delay : 0,
+          isCurrent: stopId == currentStopId,
+          platform: h['gleis']?.toString(),
+          lat: lat,
+          lon: lon,
+        ));
+      }
+      // Parse polyline coords
+      final path = <(double, double)>[];
+      final polyGroup = data['polylineGroup'];
+      if (polyGroup is Map) {
+        final polyDescs = polyGroup['polylineDesc'];
+        if (polyDescs is List) {
+          for (final pd in polyDescs) {
+            if (pd is! Map) continue;
+            final coords = pd['coordinates'];
+            if (coords is! List) continue;
+            for (final c in coords) {
+              if (c is! Map) continue;
+              final lat = (c['latitude'] as num?)?.toDouble();
+              final lon = (c['longitude'] as num?)?.toDouble();
+              if (lat != null && lon != null) path.add((lat, lon));
+            }
+          }
+        }
+      }
+      _log.info('Transit: dbnav trip ${dep.line} → ${stops.length} stops, ${path.length} path points',
+          tag: 'TRANSIT');
+      return TripRoute(stops: stops, path: path);
+    } catch (e) {
+      _log.debug('Transit: dbnav trip exception: $e', tag: 'TRANSIT');
+      return empty;
+    }
   }
 
   Future<TripRoute> _efaTripRoute(TransitProviderConfig p, Departure dep) async {
