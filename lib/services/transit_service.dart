@@ -4585,20 +4585,27 @@ class TransitService {
     for (final leg in j.legs) {
       if (leg.isWalk) continue;
       final pt = leg.productType.toLowerCase();
-      // Whitelist per productType (cel mai reliable).
-      if (_dTicketAllowedProductTypes.contains(pt)) {
-        // Extra double-check pentru 'regional' — HAFAS mislabelează uneori
-        // IC ca 'regional' (rare, dar posibil). Line prefix decide final.
-        if (_lineIsFernverkehr(leg.line)) return false;
-        continue;
+      final line = leg.line.trim();
+
+      // ═══ STEP 1: LINE PREFIX Fernverkehr — REJECT INSTANT ═══
+      // Check FIRST — regardless de productType. Previne cazul cand HAFAS
+      // set productType='regional' pentru IC (mislabel).
+      if (_lineIsFernverkehr(line)) {
+        _log.debug('Transit: D-Ticket reject "$line" (Fernverkehr prefix)',
+            tag: 'TRANSIT');
+        return false;
       }
-      // Non-whitelist productType: 'train', 'long_distance', 'nationalexpress'
-      // sau necunoscut → verifică line prefix.
-      if (_lineIsFernverkehr(leg.line)) return false;
-      // Dacă productType e 'train' + line NU pare Fernverkehr → putem accepta
-      // (poate fi IRE, un regional-express rar categorisit ca 'train').
-      // Conservative: dacă nici prefix nu e clar Nahverkehr → respinge.
-      final l = leg.line.trim().toUpperCase();
+
+      // ═══ STEP 2: Whitelist per productType ═══
+      if (_dTicketAllowedProductTypes.contains(pt)) {
+        continue; // regional/suburban/subway/tram/bus/ferry/walk = accept
+      }
+
+      // ═══ STEP 3: Non-whitelist productType ('train' etc.) ═══
+      // Se ajunge aici cand line NU e clar Fernverkehr dar productType e
+      // 'train' (posibil IRE, un rar regional-express).
+      // Accept doar dacă line prefix e explicit Nahverkehr.
+      final l = line.toUpperCase();
       const knownNahverkehrPrefixes = [
         'RE', 'RB', 'RS', 'RJX', 'IRE', 'MEX', 'ALX', 'BRB', 'HLB', 'HKX',
         'NBE', 'NWB', 'ENO', 'ODEG', 'VIAS', 'VBG', 'ERB', 'MRB', 'WFB',
@@ -4606,6 +4613,9 @@ class TransitService {
         'FLB', 'HZL', 'MEG', 'NEB', 'OPB', 'OSB', 'PRE', 'SBB', 'SBS',
         'STB', 'SWE', 'UBB', 'VEC', 'VEN', 'WBA', 'DLB', 'DAB', 'AVG',
         'BSB', 'BLB', 'ESB',
+        // Ersatzverkehr — SEV (Schienenersatzverkehr) / bus înlocuitor.
+        // D-Ticket acoperă când substituie un tren Nahverkehr.
+        'SEV', 'BUS', 'EV',
       ];
       bool isNah = false;
       for (final p in knownNahverkehrPrefixes) {
@@ -4627,7 +4637,11 @@ class TransitService {
           if (l.contains(b)) { isNah = true; break; }
         }
       }
-      if (!isNah) return false; // conservative: unknown → likely Fernverkehr
+      if (!isNah) {
+        _log.debug('Transit: D-Ticket reject "$line" pt="$pt" '
+            '(unknown non-Nahverkehr)', tag: 'TRANSIT');
+        return false;
+      }
     }
     return true;
   }
@@ -5048,7 +5062,11 @@ class TransitService {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 13) ICD360S-eV-App/1.0',
+        // BUG FIX 2026-07-11: bahn.de WAF blochează UA cu "Linux" → 403.
+        // Fără bahn.de results, filtrul D-Ticket cade pe cross-provider
+        // HAFAS care poate returna ICE. Chrome desktop UA e safe.
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       },
       body: body,
     ).timeout(const Duration(seconds: 20));
@@ -5079,8 +5097,11 @@ class TransitService {
           case 'ICE': case 'EC_IC': case 'IR': productType = 'train'; break;
           case 'REGIONAL': productType = 'regional'; break;
           case 'SBAHN': productType = 'suburban'; break;
-          case 'TRAM': case 'UBAHN': productType = 'tram'; break;
+          case 'UBAHN': productType = 'subway'; break; // fix: era 'tram'
+          case 'TRAM': productType = 'tram'; break;
           case 'WALK': case 'FUSSWEG': productType = 'walk'; break;
+          case 'SCHIFF': productType = 'ferry'; break;
+          // ANRUFPFLICHTIG (Ruftaxi), BUS și rest → 'bus' (SEV/Ersatzbus fits here).
           default: productType = 'bus';
         }
 
