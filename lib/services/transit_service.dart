@@ -4656,6 +4656,21 @@ class TransitService {
         return false;
       }
 
+      // ═══ STEP 1b: IC Nahverkehrsfreigabe → ACCEPT DIRECT ═══
+      // IC 2222, IC 2075 etc. — sunt IC dar Nahverkehr acceptate D-Ticket.
+      // `_lineIsFernverkehr` returnează false pentru astea (excepție), dar
+      // restul filter le-ar respinge la Step 5. Accept explicit aici.
+      {
+        final icMatch = RegExp(r'^IC\s?(\d+)').firstMatch(line.toUpperCase());
+        if (icMatch != null) {
+          final num = icMatch.group(1)!;
+          if (_dTicketIcLines.contains('IC $num') ||
+              _dTicketIcLines.contains('IC$num')) {
+            continue; // ACCEPT — IC Nahverkehrsfreigabe
+          }
+        }
+      }
+
       // ═══ STEP 2: LINE = DOAR CIFRE → REJECT ═══
       // ICE/IC de la bahn.de trip search vin cu line="9557", "1015", "619"
       // (kurzText fără prefix). Nahverkehr are ALWAYS un prefix ("S3", "RB70").
@@ -5088,11 +5103,120 @@ class TransitService {
     TransitLocation from, TransitLocation to, DateTime when,
     {bool arriveBy = false, bool onlyDeutschlandTicket = false}
   ) async {
+    // 2026-07-11: MIGRATED from `bahn.de/web/api/reiseloesung/verbindungen`
+    // (dbweb) to `app.services-bahn.de/mob/angebote/fahrplan` (dbnav) —
+    // dbweb returned `verkehrsmittel.kurzText = "9557"` for ICE trains
+    // (line number only, no "ICE" prefix), which broke the D-Ticket filter
+    // (a line "9557" looks like a bus number). dbnav returns `mitteltext =
+    // "ICE 617"` on every leg — proper HAFAS "product + line" label.
+    //
+    // Fallback: dacă dbnav fahrplan pică (rare, 400/500), încercăm dbweb.
+    final direct = await _dbnavTripSearch(
+      from, to, when,
+      arriveBy: arriveBy,
+      onlyDeutschlandTicket: onlyDeutschlandTicket,
+    );
+    if (direct.isNotEmpty) return direct;
+    return _dbwebTripSearchLegacy(
+      from, to, when,
+      arriveBy: arriveBy,
+      onlyDeutschlandTicket: onlyDeutschlandTicket,
+    );
+  }
+
+  /// dbnav backend — `POST /mob/angebote/fahrplan` cu Content-Type
+  /// `application/x.db.vendo.mob.verbindungssuche.v9+json`. Returnează
+  /// `verbindungen[].verbindungsAbschnitte[].mitteltext` = "ICE 617"
+  /// (prefix + line), care alimentează corect D-Ticket filter.
+  Future<List<Journey>> _dbnavTripSearch(
+    TransitLocation from, TransitLocation to, DateTime when,
+    {bool arriveBy = false, bool onlyDeutschlandTicket = false}
+  ) async {
+    final uri = Uri.parse('$_dbNavBase/mob/angebote/fahrplan');
+    // dbnav așteaptă ISO local FĂRĂ offset ("2026-07-11T08:00:00").
+    String twoDigit(int n) => n.toString().padLeft(2, '0');
+    final local = when.toLocal();
+    final isoNoTz = '${local.year}-${twoDigit(local.month)}-${twoDigit(local.day)}'
+        'T${twoDigit(local.hour)}:${twoDigit(local.minute)}:${twoDigit(local.second)}';
+
+    // D-Ticket only → limit produs list la Nahverkehr. Numele dbnav diferă
+    // de cele dbweb: enum "verkehrsmittel" (nu "produktgattungen").
+    // https://github.com/public-transport/db-vendo-client/blob/main/p/dbnav/journeys-req.js
+    final verkehrsmittel = onlyDeutschlandTicket
+        ? const ['NAHVERKEHRSONSTIGEZUEGE','SBAHNEN','UBAHN','STRASSENBAHN','BUSSE','SCHIFFE','ANRUFPFLICHTIGEVERKEHRE']
+        : const ['ALL'];
+
+    final body = jsonEncode({
+      'autonomeReservierung': false,
+      'einstiegsTypList': ['STANDARD'],
+      'klasse': 'KLASSE_2',
+      'reisendenProfil': {
+        'reisende': [{
+          'typ': 'ERWACHSENER',
+          'alter': [],
+          'anzahl': 1,
+          'ermaessigungen': [
+            {'art': 'KEINE_ERMAESSIGUNG', 'klasse': 'KLASSENLOS'}
+          ],
+        }],
+      },
+      'reservierungsKontingenteVorhanden': false,
+      'fahrverguenstigungen': [],
+      'nurDeutschlandTicketVerbindungen': onlyDeutschlandTicket,
+      'reiseHin': {
+        'wunsch': {
+          'abgangsLocationId': from.id,
+          'zielLocationId': to.id,
+          'zeitWunsch': {
+            'reiseDatum': isoNoTz,
+            'zeitPunktArt': arriveBy ? 'ANKUNFT' : 'ABFAHRT',
+          },
+          'verkehrsmittel': verkehrsmittel,
+          'maxUmstiege': 3,
+          'minUmstiegsdauer': 0,
+        },
+      },
+    });
+
+    try {
+      final response = await _client.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/x.db.vendo.mob.verbindungssuche.v9+json',
+          'Accept': 'application/x.db.vendo.mob.verbindungssuche.v9+json',
+          'X-Correlation-ID': _dbNavCorrelationId(),
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        },
+        body: body,
+      ).timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        _log.info('Transit: dbnav fahrplan HTTP ${response.statusCode}, '
+            'falling back to dbweb', tag: 'TRANSIT');
+        return [];
+      }
+      final data = jsonDecode(_decodeUtf8(response));
+      final verb = (data['verbindungen'] as List?) ?? [];
+      return verb
+          .map<Journey?>(_parseDbnavConnection)
+          .whereType<Journey>()
+          .take(4)
+          .toList();
+    } catch (e) {
+      _log.info('Transit: dbnav fahrplan error: $e', tag: 'TRANSIT');
+      return [];
+    }
+  }
+
+  /// Legacy dbweb parser — folosit ca fallback dacă dbnav pică. Bug-ul e
+  /// că `kurzText` = "9557" (fără prefix ICE), dar cu `name` primim uneori
+  /// "ICE 9557" — dacă chiar cade la dbweb măcar avem ceva.
+  Future<List<Journey>> _dbwebTripSearchLegacy(
+    TransitLocation from, TransitLocation to, DateTime when,
+    {bool arriveBy = false, bool onlyDeutschlandTicket = false}
+  ) async {
     final iso = when.toIso8601String();
     final uri = Uri.parse('https://www.bahn.de/web/api/reiseloesung/verbindungen');
-    // When onlyDeutschlandTicket is on, ICE/EC/IC/IR are stripped from the
-    // product list AND the D-Ticket-only flag is set — bahn.de then only
-    // returns Nahverkehr (Regional, S-Bahn, Bus, U-Bahn, Tram, Fähre).
     final produkte = onlyDeutschlandTicket
         ? const ['REGIONAL','SBAHN','BUS','SCHIFF','UBAHN','TRAM','ANRUFPFLICHTIG']
         : const ['ICE','EC_IC','IR','REGIONAL','SBAHN','BUS','SCHIFF','UBAHN','TRAM','ANRUFPFLICHTIG'];
@@ -5115,9 +5239,6 @@ class TransitService {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        // BUG FIX 2026-07-11: bahn.de WAF blochează UA cu "Linux" → 403.
-        // Fără bahn.de results, filtrul D-Ticket cade pe cross-provider
-        // HAFAS care poate returna ICE. Chrome desktop UA e safe.
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       },
@@ -5127,6 +5248,92 @@ class TransitService {
     final data = jsonDecode(_decodeUtf8(response));
     final verb = data['verbindungen'] as List? ?? [];
     return verb.map<Journey?>(_parseBahnConnection).whereType<Journey>().take(4).toList();
+  }
+
+  /// Parse un `verbindung` din răspunsul dbnav `/mob/angebote/fahrplan`.
+  /// Cheia principală: `verbindungsAbschnitte[].mitteltext` = "ICE 617"
+  /// (product + line number cu prefix — exact ce cere D-Ticket filter).
+  Journey? _parseDbnavConnection(dynamic conn) {
+    try {
+      final segments = conn['verbindungsAbschnitte'] as List? ?? [];
+      if (segments.isEmpty) return null;
+      final legs = <JourneyLeg>[];
+      for (final seg in segments) {
+        final typ = seg['typ']?.toString().toUpperCase() ?? '';
+        final isWalk = typ == 'FUSSWEG' || typ == 'WALK' || typ == 'TRANSFER';
+        // dbnav timestamps: `abfahrtsZeitpunkt` sau `abgangsDatum`, ISO cu offset.
+        final depIso = seg['abfahrtsZeitpunkt']?.toString()
+            ?? seg['abgangsDatum']?.toString();
+        final arrIso = seg['ankunftsZeitpunkt']?.toString()
+            ?? seg['ankunftsDatum']?.toString();
+        if (depIso == null || arrIso == null) continue;
+        final depDT = DateTime.tryParse(depIso)?.toLocal();
+        final arrDT = DateTime.tryParse(arrIso)?.toLocal();
+        if (depDT == null || arrDT == null) continue;
+
+        // mitteltext = "ICE 617" / "RB 82" / "S 3" — canonical HAFAS label.
+        // kurztext = "ICE" / "RB" / "S" (product only)
+        // langtext = "ICE 617 (12345)" (adaugă numărul de tren)
+        final mitteltext = seg['mitteltext']?.toString().trim();
+        final kurztext = seg['kurztext']?.toString().trim();
+        final line = isWalk
+            ? 'Fußweg'
+            : (mitteltext?.isNotEmpty == true
+                ? mitteltext!
+                : (kurztext?.isNotEmpty == true ? kurztext! : '?'));
+
+        // Product mapping via kurztext (product code) — mai fiabil decât enum.
+        final k = (kurztext ?? '').toUpperCase();
+        String productType;
+        if (isWalk) {
+          productType = 'walk';
+        } else if (k == 'ICE' || k == 'ECE') {
+          productType = 'train';
+        } else if (k == 'IC' || k == 'EC' || k == 'IR' || k == 'FLX'
+            || k == 'RJ' || k == 'RJX' || k == 'NJ' || k == 'EN' || k == 'TGV') {
+          productType = 'train';
+        } else if (k == 'RE' || k == 'RB' || k == 'IRE' || k == 'MEX'
+            || k == 'RS' || k == 'RJ' || k.startsWith('R')) {
+          productType = 'regional';
+        } else if (k == 'S' || k.startsWith('S')) {
+          productType = 'suburban';
+        } else if (k == 'U' || k.startsWith('U')) {
+          productType = 'subway';
+        } else if (k == 'STR' || k == 'TRAM' || k == 'M') {
+          productType = 'tram';
+        } else if (k == 'BUS' || k == 'SEV' || k == 'EV') {
+          productType = 'bus';
+        } else if (k == 'FÄHRE' || k == 'FAEHRE' || k == 'F') {
+          productType = 'ferry';
+        } else {
+          productType = 'bus';
+        }
+
+        legs.add(JourneyLeg(
+          line: line,
+          direction: seg['richtung']?.toString()
+              ?? seg['verkehrsmittel']?['richtung']?.toString()
+              ?? '',
+          fromName: seg['abgangsOrt']?['name']?.toString()
+              ?? seg['abfahrtsOrt']?.toString()
+              ?? '',
+          toName: seg['ankunftsOrt']?['name']?.toString()
+              ?? seg['ankunftsOrt']?.toString()
+              ?? '',
+          depTime: depDT,
+          arrTime: arrDT,
+          fromPlatform: seg['abgangsGleis']?.toString()
+              ?? seg['abfahrtsGleis']?.toString(),
+          toPlatform: seg['ankunftsGleis']?.toString(),
+          productType: productType,
+          isWalk: isWalk,
+        ));
+      }
+      if (legs.isEmpty) return null;
+      return Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime);
+    } catch (_) {
+      return null;
+    }
   }
 
   Journey? _parseBahnConnection(dynamic conn) {
@@ -5150,11 +5357,10 @@ class TransitService {
           case 'ICE': case 'EC_IC': case 'IR': productType = 'train'; break;
           case 'REGIONAL': productType = 'regional'; break;
           case 'SBAHN': productType = 'suburban'; break;
-          case 'UBAHN': productType = 'subway'; break; // fix: era 'tram'
+          case 'UBAHN': productType = 'subway'; break;
           case 'TRAM': productType = 'tram'; break;
           case 'WALK': case 'FUSSWEG': productType = 'walk'; break;
           case 'SCHIFF': productType = 'ferry'; break;
-          // ANRUFPFLICHTIG (Ruftaxi), BUS și rest → 'bus' (SEV/Ersatzbus fits here).
           default: productType = 'bus';
         }
 
