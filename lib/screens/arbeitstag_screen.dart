@@ -29,14 +29,10 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   @override
   void initState() {
     super.initState();
-    _log.info('[SCREEN] initState fired');
     final now = DateTime.now();
     _kwYear = _isoYear(now);
     _kwNumber = _isoWeek(now);
-    _log.info('[SCREEN] initState → KW $_kwNumber / $_kwYear, calling _load');
     // Defer _load la end of first frame ca să nu blocheze render-ul inițial.
-    // Pe Android, apel sync în initState + setState imediat poate rula
-    // înainte ca frame-ul să fie flush-uit → user vede freeze la open.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
@@ -55,19 +51,17 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   }
 
   Future<void> _load() async {
-    _log.info('[SCREEN] _load START — KW $_kwNumber/$_kwYear view=$_view');
     if (!mounted) return;
     setState(() => _loading = true);
     try {
       final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
-      _log.info('[SCREEN] _load DONE — members=${data?.members.length ?? 'null'}');
       if (!mounted) return;
       setState(() {
         _data = data;
         _loading = false;
       });
     } catch (e, st) {
-      _log.info('[SCREEN] _load ERROR: $e\n$st');
+      _log.error('arbeitstag _load failed: $e\n$st', tag: 'ARBEITSTAG');
       if (!mounted) return;
       setState(() {
         _data = null;
@@ -325,66 +319,12 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    _log.info('[SCREEN] build — loading=$_loading data=${_data == null ? 'null' : 'set'} '
-        'membrii=${_data?.members.length ?? 0}');
-    // Trei layere de diagnostic ca să identific exact unde blochează:
-    //   1. Listener (root) — orice PointerDown ajunge aici, log-uit
-    //   2. GestureDetector.opaque (overlay) — tap explicit ca test
-    //   3. Column normal + Header (IconButton) + Body
-    // Dacă:
-    //   - PointerDown NU apare → overlay superior mananca event-ul
-    //   - PointerDown apare dar TAP_TEST_GESTURE NU → InkWell/IconButton
-    //     specific rupt pe Android
-    //   - TAP_TEST_GESTURE apare dar chevron_X_tapped NU → IconButton fix
-    // NUCLEAR DIAGNOSTIC + Scaffold + AppBar — test dacă lipsa Scaffold-ului
-    // era cauza pe Android (Terminverwaltung are Scaffold+AppBar și merge).
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('DIAGNOSTIC'),
-        backgroundColor: Colors.red.shade900,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.touch_app),
-            tooltip: 'Test Tap',
-            onPressed: () => _log.info('[SCREEN] TAP_APPBAR_ICON fired'),
-          ),
-        ],
-      ),
-      body: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (event) {
-          _log.info('[SCREEN] PointerDown @ (${event.position.dx.toStringAsFixed(0)}, '
-              '${event.position.dy.toStringAsFixed(0)}) kind=${event.kind} '
-              'buttons=${event.buttons}');
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _log.info('[SCREEN] TAP_NUCLEAR fired — root container'),
-          child: Container(
-            color: Colors.red,
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('DIAGNOSTIC MODE',
-                    style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                const Text('Apasă:\n1. Icon-ul din AppBar\n2. Butonul BUTTON TEST\n3. Oriunde pe roșu',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 18)),
-                const SizedBox(height: 40),
-                ElevatedButton(
-                  onPressed: () => _log.info('[SCREEN] TAP_BUTTON fired'),
-                  child: const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('BUTTON TEST', style: TextStyle(fontSize: 20)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return Column(
+      children: [
+        _buildHeader(theme),
+        const Divider(height: 1),
+        Expanded(child: _buildBody()),
+      ],
     );
   }
 
@@ -408,10 +348,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         child: Row(
           children: [
           IconButton(
-            onPressed: () {
-              _log.info('[SCREEN] chevron_left tapped');
-              _shiftKw(-1);
-            },
+            onPressed: () => _shiftKw(-1),
             icon: const Icon(Icons.chevron_left),
             tooltip: 'Vorherige KW',
           ),
@@ -434,10 +371,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             ),
           ),
           IconButton(
-            onPressed: () {
-              _log.info('[SCREEN] chevron_right tapped');
-              _shiftKw(1);
-            },
+            onPressed: () => _shiftKw(1),
             icon: const Icon(Icons.chevron_right),
             tooltip: 'Nächste KW',
           ),

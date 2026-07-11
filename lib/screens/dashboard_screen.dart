@@ -1506,17 +1506,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   mitgliedernummer: widget.currentMitgliedernummer,
                   selectedMenuIndex: _selectedMenuIndex,
                   onMenuSelected: (index) {
-                    _log.info('[DASH-DRAWER] item tapped, index=$index — closing drawer first');
-                    // Close drawer FIRST via Scaffold.of (correct API on mobile),
-                    // apoi setState la end of frame. Ordinea inversă putea
-                    // lăsa drawer scrim stuck pe Android → toate touch events
-                    // în body BLOCATE de scrim invizibil.
+                    // Close drawer FIRST via Scaffold.of (correct API pe mobile),
+                    // apoi setState la end of frame — ordinea inversă poate lăsa
+                    // drawer scrim în tranziție pe Android.
                     Scaffold.of(drawerCtx).closeDrawer();
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        setState(() => _selectedMenuIndex = index);
-                        _log.info('[DASH-DRAWER] setState done, index=$index');
-                      }
+                      if (mounted) setState(() => _selectedMenuIndex = index);
                     });
                   },
                 ),
@@ -1703,49 +1698,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 13:
         return EinstellungenScreen(apiService: _apiService);
       case 14:
-        // ULTRA DIAGNOSTIC — log detailed screen info pt Samsung DeX/split-screen.
-        final mq = MediaQuery.of(context);
-        _log.info('[DASH-14] build case 14 called, '
-            'size=${mq.size.width.toStringAsFixed(0)}x${mq.size.height.toStringAsFixed(0)} '
-            'dpr=${mq.devicePixelRatio.toStringAsFixed(2)} '
-            'padding=(t${mq.padding.top.toStringAsFixed(0)},b${mq.padding.bottom.toStringAsFixed(0)},'
-            'l${mq.padding.left.toStringAsFixed(0)},r${mq.padding.right.toStringAsFixed(0)}) '
-            'viewInsets=(t${mq.viewInsets.top.toStringAsFixed(0)},b${mq.viewInsets.bottom.toStringAsFixed(0)},'
-            'l${mq.viewInsets.left.toStringAsFixed(0)},r${mq.viewInsets.right.toStringAsFixed(0)}) '
-            'orientation=${mq.orientation.name}');
-        return Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (event) => _log.info('[DASH-14] PointerDown @ '
-              '(${event.position.dx.toStringAsFixed(0)}, ${event.position.dy.toStringAsFixed(0)}) '
-              'kind=${event.kind}'),
-          child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _log.info('[DASH-14] TAP_DASHBOARD_CASE_14 fired'),
-          child: Container(
-            color: Colors.purple,
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('DASHBOARD CASE 14 TEST',
-                    style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                const Text('Apasă pe purpuriu\nSAU pe butonul PURPLE BUTTON',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 16)),
-                const SizedBox(height: 40),
-                ElevatedButton(
-                  onPressed: () => _log.info('[DASH-14] TAP_PURPLE_BUTTON fired'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow, foregroundColor: Colors.black),
-                  child: const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text('PURPLE BUTTON', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ),
+        return ArbeitstagScreen(
+          onNavigate: (idx, {int? focusTicketId, int? focusTerminId, int? focusRoutineExecutionId}) => setState(() {
+            _selectedMenuIndex = idx;
+            _pendingFocusTicketId = focusTicketId;
+            _pendingFocusTerminId = focusTerminId;
+            _pendingFocusRoutineExecutionId = focusRoutineExecutionId;
+          }),
         );
       default:
         return _buildDashboardOverview();
