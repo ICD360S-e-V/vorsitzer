@@ -2095,19 +2095,29 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
     }
     final lineColor = _lineColor();
 
-    // Rich header context — three sub-lines: Start->Ziel, Bus-Status, User-ETA.
+    // Rich header context — three sub-lines: Start->Ziel, Vehicle-Status, User-ETA.
     final startStop = stops.isNotEmpty ? stops.first.name : null;
     final endStop = stops.isNotEmpty ? stops.last.name : dep.direction;
     final boardStop = currentIdx >= 0 ? stops[currentIdx].name : dep.stopName;
+    // Label dinamic per productType — la Hbf/Bhf trebuie "Zug" nu "Bus".
+    final vehicleLabel = switch (dep.productType) {
+      'train' => 'Zug',
+      'regional' => 'Zug',
+      'suburban' => 'S-Bahn',
+      'subway' => 'U-Bahn',
+      'tram' => 'Straßenbahn',
+      'ferry' => 'Fähre',
+      _ => 'Bus',
+    };
     String busStatus;
     if (stops.isEmpty) {
       busStatus = '';
     } else if (busCurrentIdx < 0) {
-      busStatus = 'Bus startet bald bei ${stops.first.name}';
+      busStatus = '$vehicleLabel startet bald bei ${stops.first.name}';
     } else if (busCurrentIdx >= stops.length - 1) {
-      busStatus = 'Bus am Endhaltestelle';
+      busStatus = '$vehicleLabel am Endhaltestelle';
     } else {
-      busStatus = 'Bus zw. ${stops[busCurrentIdx].name} und ${stops[busCurrentIdx + 1].name}';
+      busStatus = '$vehicleLabel zw. ${stops[busCurrentIdx].name} und ${stops[busCurrentIdx + 1].name}';
     }
     String? boardEta;
     if (currentIdx >= 0) {
@@ -2177,11 +2187,23 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                             ),
                           ),
                         ]),
-                        // Line 2: Bus-Status (wo ist das Fahrzeug jetzt)
+                        // Line 2: Vehicle-Status (wo ist das Fahrzeug jetzt)
+                        // Icon dinamic per productType — la Zug/Tram/S-Bahn
+                        // apare iconul corect, nu bus.
                         if (busStatus.isNotEmpty) ...[
                           const SizedBox(height: 3),
                           Row(children: [
-                            Icon(Icons.directions_bus, size: 12, color: Colors.orange.shade600),
+                            Icon(
+                              switch (dep.productType) {
+                                'train' || 'regional' => Icons.train,
+                                'suburban' => Icons.train_outlined,
+                                'subway' => Icons.subway,
+                                'tram' => Icons.tram,
+                                'ferry' => Icons.directions_boat,
+                                _ => Icons.directions_bus,
+                              },
+                              size: 12, color: Colors.orange.shade600,
+                            ),
                             const SizedBox(width: 3),
                             Flexible(
                               child: Text(
@@ -2267,7 +2289,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                   runSpacing: 2,
                                   children: [
                                     _LegendChip(color: Colors.green.shade700, label: 'Start'),
-                                    _LegendChip(color: Colors.orange.shade600, label: 'Bus jetzt'),
+                                    _LegendChip(color: Colors.orange.shade600, label: '$vehicleLabel jetzt'),
                                     _LegendChip(color: Colors.teal.shade500, label: 'Du'),
                                     if (_targetStopId != null)
                                       _LegendChip(color: Colors.red.shade600, label: 'Ziel'),
@@ -2287,6 +2309,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                 lineColor: lineColor,
                                 isTarget: stops[i].stopID == _targetStopId,
                                 onSetTarget: () => _setTarget(stops[i].stopID),
+                                vehicleLabel: vehicleLabel,
                               ),
                             )),
                             ]),
@@ -2351,13 +2374,16 @@ class _TripStopRow extends StatelessWidget {
   final bool isFirst;
   final bool isLast;
   final bool beforeCurrent;
-  /// Bus's currently-estimated position on the route (last stop whose
+  /// Vehicle's currently-estimated position on the route (last stop whose
   /// time is in the past). Independent of `stop.isCurrent`, which marks
   /// the user's own boarding stop.
   final bool isBusHere;
   final Color lineColor;
   final bool isTarget;
   final VoidCallback? onSetTarget;
+  /// Label vehicul dinamic ("Zug", "Bus", "Tram", ...) — folosit pentru
+  /// screen-reader ("Zug hier" în loc de "Bus hier" pentru trenuri).
+  final String vehicleLabel;
 
   const _TripStopRow({
     required this.stop,
@@ -2368,6 +2394,7 @@ class _TripStopRow extends StatelessWidget {
     this.isBusHere = false,
     this.isTarget = false,
     this.onSetTarget,
+    this.vehicleLabel = 'Bus',
   });
 
   @override
@@ -2387,9 +2414,9 @@ class _TripStopRow extends StatelessWidget {
     final fontWeight = (isCurrent || isTarget || isBusHere) ? FontWeight.bold : FontWeight.w500;
 
     // Screen-reader description merges up to 3 states:
-    //   "Bus fährt hier gerade. Aktuelle Haltestelle: X, 08:32."
+    //   "Zug fährt hier gerade. Aktuelle Haltestelle: X, 08:32."
     final semStatus = [
-      if (isBusHere) 'Bus hier',
+      if (isBusHere) '$vehicleLabel hier',
       if (isFirst) 'Start-Haltestelle',
       if (isCurrent) 'Deine Einstiegs-Haltestelle',
       if (isTarget) 'Ausstiegs-Ziel',
@@ -2467,8 +2494,9 @@ class _TripStopRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      // BUS-HERE badge: bus is currently at (or just left) this
-                      // stop — appears in addition to any other status badge.
+                      // VEHICLE-HERE badge: fahrzeugul e la (sau tocmai a
+                      // plecat din) stația asta — apare în plus la orice
+                      // alt status. Icon+text DYNAMIC per productType.
                       if (isBusHere) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
@@ -2476,10 +2504,23 @@ class _TripStopRow extends StatelessWidget {
                             color: Colors.orange.shade600,
                             borderRadius: BorderRadius.circular(3),
                           ),
-                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.directions_bus, size: 10, color: Colors.white),
-                            SizedBox(width: 3),
-                            Text('BUS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(
+                              switch (vehicleLabel) {
+                                'Zug' => Icons.train,
+                                'S-Bahn' => Icons.train_outlined,
+                                'U-Bahn' => Icons.subway,
+                                'Straßenbahn' => Icons.tram,
+                                'Fähre' => Icons.directions_boat,
+                                _ => Icons.directions_bus,
+                              },
+                              size: 10, color: Colors.white,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              vehicleLabel.toUpperCase(),
+                              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
                           ]),
                         ),
                         const SizedBox(width: 6),
