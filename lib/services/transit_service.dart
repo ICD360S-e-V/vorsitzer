@@ -1886,72 +1886,73 @@ class TransitService {
       return;
     }
     if (_latitude == null || _longitude == null) return;
-    // Endpoints DB rail — v6 e primary, restul sunt mirrors community.
-    // Uneori v6.db.transport.rest cade cu 503 (rate-limit sau maintenance)
-    // → încercăm fallback-uri fără să întrerupem user-ul.
-    const dbMirrors = [
-      'https://v6.db.transport.rest',
-      'https://db.transport.rest',
-      'https://v5.db.transport.rest',
-    ];
-    dynamic data;
-    String? usedMirror;
-    for (final mirror in dbMirrors) {
-      // 2 retry-uri per mirror cu backoff 1s
-      for (int attempt = 0; attempt < 2; attempt++) {
-        try {
-          final uri = Uri.parse('$mirror/stops/nearby'
-              '?latitude=${_latitude!.toStringAsFixed(6)}'
-              '&longitude=${_longitude!.toStringAsFixed(6)}'
-              '&results=10&distance=30000'
-              '&subStops=false&entrances=false&linesOfStops=false');
-          final resp = await _client.get(uri, headers: _restHeaders)
-              .timeout(const Duration(seconds: 15));
-          if (resp.statusCode == 200) {
-            final parsed = jsonDecode(_decodeUtf8(resp));
-            if (parsed is List) {
-              data = parsed;
-              usedMirror = mirror;
-              break;
-            }
-          } else if (resp.statusCode == 503 || resp.statusCode == 502 || resp.statusCode == 429) {
-            _log.debug('Transit: $mirror returned ${resp.statusCode} — retry', tag: 'TRANSIT');
-            await Future.delayed(const Duration(seconds: 1));
-            continue;
-          }
-          break; // non-retryable error, try next mirror
-        } catch (e) {
-          _log.debug('Transit: $mirror attempt $attempt failed: $e', tag: 'TRANSIT');
-        }
+    // Ordine încercare — bahn.de PRIMARY (upstream oficial DB), apoi
+    // mirrors community pentru redundanță. Cazuri:
+    // - bahn.de merge → cel mai reliable (server DB oficial)
+    // - bahn.de rate-limitat sau UA-blocked → v6.db.transport.rest
+    // - v6 down → db.transport.rest / v5.db.transport.rest
+    //
+    // Fiecare endpoint returnează format diferit → parseri specializați.
+    List<Map>? rail;
+    String? usedSource;
+
+    // 1) bahn.de PRIMARY
+    try {
+      rail = await _fetchNearbyStopsBahnDe();
+      if (rail != null) {
+        usedSource = 'bahn.de';
       }
-      if (data != null) break;
+    } catch (e) {
+      _log.debug('Transit: bahn.de primary failed: $e', tag: 'TRANSIT');
     }
-    if (data == null) {
-      _log.info('Transit: toți mirror-urile DB rail sunt down — no Bahnhof data', tag: 'TRANSIT');
+
+    // 2) Fallback la mirrors community v6.db.transport.rest & co.
+    if (rail == null) {
+      const dbMirrors = [
+        'https://v6.db.transport.rest',
+        'https://db.transport.rest',
+        'https://v5.db.transport.rest',
+      ];
+      for (final mirror in dbMirrors) {
+        for (int attempt = 0; attempt < 2; attempt++) {
+          try {
+            final uri = Uri.parse('$mirror/stops/nearby'
+                '?latitude=${_latitude!.toStringAsFixed(6)}'
+                '&longitude=${_longitude!.toStringAsFixed(6)}'
+                '&results=10&distance=30000'
+                '&subStops=false&entrances=false&linesOfStops=false');
+            final resp = await _client.get(uri, headers: _restHeaders)
+                .timeout(const Duration(seconds: 15));
+            if (resp.statusCode == 200) {
+              final parsed = jsonDecode(_decodeUtf8(resp));
+              if (parsed is List) {
+                rail = _parseRestNearbyRail(parsed);
+                usedSource = mirror;
+                break;
+              }
+            } else if (resp.statusCode == 503 || resp.statusCode == 502 || resp.statusCode == 429) {
+              _log.debug('Transit: $mirror returned ${resp.statusCode} — retry', tag: 'TRANSIT');
+              await Future.delayed(const Duration(seconds: 1));
+              continue;
+            }
+            break;
+          } catch (e) {
+            _log.debug('Transit: $mirror attempt $attempt failed: $e', tag: 'TRANSIT');
+          }
+        }
+        if (rail != null) break;
+      }
+    }
+    if (rail == null || rail.isEmpty) {
+      _log.info('Transit: toate sursele DB rail sunt down — no Bahnhof data', tag: 'TRANSIT');
       bhfLastFetchFailed = true;
-      _lastBhfFetch = DateTime.now(); // rate-limit retries even on failure
+      _lastBhfFetch = DateTime.now();
       onDeparturesUpdate?.call(departures);
       return;
     }
     bhfLastFetchFailed = false;
-    _log.info('Transit: DB /stops/nearby via $usedMirror', tag: 'TRANSIT');
+    _log.info('Transit: DB nearby via $usedSource (${rail.length} stații)', tag: 'TRANSIT');
     try {
-
-      // Keep stațiile cu produse rail (excluzând bus-only)
-      final rail = <Map>[];
-      for (final s in data) {
-        if (s is! Map) continue;
-        final products = s['products'];
-        if (products is! Map) continue;
-        final hasRail = (products['nationalExpress'] == true) ||
-            (products['national'] == true) ||
-            (products['regionalExp'] == true) ||
-            (products['regional'] == true) ||
-            (products['suburban'] == true);
-        if (!hasRail) continue;
-        rail.add(s);
-      }
-      if (rail.isEmpty) return;
       // Sortare după distanță crescătoare + limit 3
       rail.sort((a, b) {
         final da = (a['distance'] as num?)?.toInt() ?? 999999;
@@ -1980,7 +1981,11 @@ class TransitService {
         return;
       }
       _log.info('Transit: DB nearby adaugă ${railStops.length} gări noi', tag: 'TRANSIT');
-      final futures = railStops.map((s) => fetchDbDepartures(s.name)).toList();
+      // Trece stationId (EVA) direct → evită resolve lookup + folosim
+      // bahn.de official pentru departures (nu doar community proxy).
+      final futures = railStops
+          .map((s) => fetchDbDepartures(s.name, stationId: s.id))
+          .toList();
       final results = await Future.wait(futures);
 
       final seen = <String>{};
@@ -2022,6 +2027,87 @@ class TransitService {
     } catch (e) {
       _log.debug('Transit: fetchBhfNearby failed: $e', tag: 'TRANSIT');
     }
+  }
+
+  /// Query `int.bahn.de/web/api/reiseloesung/orte/nearby` — endpoint oficial
+  /// public DB pentru găsirea stațiilor pe GPS. Returnează normalized list
+  /// cu `{id, name, distance, products}` — sau null la eroare.
+  ///
+  /// Endpoint acceptă `lat` + `long` (alte forme văzute: `latitude`+`longitude`).
+  /// Vom trimite ambele variante pentru compatibilitate.
+  Future<List<Map>?> _fetchNearbyStopsBahnDe() async {
+    try {
+      final uri = Uri.parse('$_bahnDeBase/orte/nearby'
+          '?latitude=${_latitude!.toStringAsFixed(6)}'
+          '&longitude=${_longitude!.toStringAsFixed(6)}'
+          '&umkreis=30000');
+      final resp = await _client.get(uri, headers: _bahnDeHeaders)
+          .timeout(const Duration(seconds: 15));
+      if (resp.statusCode == 429 || resp.statusCode == 403) {
+        _log.debug('Transit: bahn.de rate-limited (${resp.statusCode})', tag: 'TRANSIT');
+        return null;
+      }
+      if (resp.statusCode != 200) {
+        _log.debug('Transit: bahn.de returned ${resp.statusCode}', tag: 'TRANSIT');
+        return null;
+      }
+      final body = _decodeUtf8(resp);
+      // bahn.de returnează HTML CAPTCHA la WAF block — detect early.
+      if (body.trimLeft().startsWith('<')) {
+        _log.debug('Transit: bahn.de returned HTML (WAF block)', tag: 'TRANSIT');
+        return null;
+      }
+      final data = jsonDecode(body);
+      if (data is! List) return null;
+      // Format bahn.de: array de obiecte cu extId, name, lat, lon, distance,
+      // produkte (array de string): ["ICE","EC_IC","REGIONAL",...].
+      final rail = <Map>[];
+      for (final s in data) {
+        if (s is! Map) continue;
+        final produkte = s['produkte'] ?? s['products'];
+        if (produkte is! List) continue;
+        final hasRail = produkte.any((p) {
+          final code = p.toString().toUpperCase();
+          return code == 'ICE' || code == 'EC_IC' || code == 'IR' ||
+                 code == 'REGIONAL' || code == 'SBAHN' || code == 'NAHVERKEHR' ||
+                 code == 'FERNVERKEHR';
+        });
+        if (!hasRail) continue;
+        rail.add({
+          'id': s['extId']?.toString() ?? s['id']?.toString() ?? '',
+          'name': s['name']?.toString() ?? '',
+          'distance': (s['entfernung'] ?? s['distance'] ?? 0),
+          'products_native': produkte,
+        });
+      }
+      return rail;
+    } catch (e) {
+      _log.debug('Transit: bahn.de nearby exception: $e', tag: 'TRANSIT');
+      return null;
+    }
+  }
+
+  /// Parse v6.db.transport.rest `/stops/nearby` response → normalized rail list
+  /// (același format cu bahn.de parser pentru procesare unificată).
+  List<Map>? _parseRestNearbyRail(List data) {
+    final rail = <Map>[];
+    for (final s in data) {
+      if (s is! Map) continue;
+      final products = s['products'];
+      if (products is! Map) continue;
+      final hasRail = (products['nationalExpress'] == true) ||
+          (products['national'] == true) ||
+          (products['regionalExp'] == true) ||
+          (products['regional'] == true) ||
+          (products['suburban'] == true);
+      if (!hasRail) continue;
+      rail.add({
+        'id': s['id']?.toString() ?? '',
+        'name': s['name']?.toString() ?? '',
+        'distance': (s['distance'] as num?)?.toInt() ?? 0,
+      });
+    }
+    return rail;
   }
 
   /// For every visible stop whose name matches a mainline station pattern,
@@ -2947,6 +3033,28 @@ class TransitService {
 
   static const _restBase = 'https://v6.db.transport.rest';
 
+  /// **Official Deutsche Bahn public JSON endpoint** — same upstream care este
+  /// proxied de v6.db.transport.rest, dar direct pe serverul DB (uptime real).
+  ///
+  /// Findings 2026-07 din `public-transport/db-vendo-client`:
+  /// - Nu necesită auth / API key / signing
+  /// - Endpoint-uri:
+  ///   - `/orte/nearby?latitude=X&longitude=Y` → cele mai apropiate stații
+  ///   - `/abfahrten?ortExtId=EVA&datum=...&zeit=...` → live departures
+  /// - **Pitfall**: User-Agent NU trebuie să conțină "Linux" / "Dart" / "curl"
+  ///   — bahn.de WAF le blochează. Folosim UA browser plausibil.
+  /// - Rate limit ~1 req/s per IP (mobile network per-user = OK).
+  /// - ToS: gri-lega, dar endpoint-ul e DB-operat oficial (mai puternic
+  ///   decât community proxy).
+  static const _bahnDeBase = 'https://int.bahn.de/web/api/reiseloesung';
+  static const _bahnDeHeaders = {
+    'Accept': 'application/json',
+    'Accept-Language': 'de-DE,de;q=0.9',
+    // Browser UA plausibil — evită WAF-ul care blochează "Linux"/"Dart".
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+  };
+
   // ════════════════════════════════════════════════════════════════
   // HAFAS AUTH CIRCUIT-BREAKER — mulți provideri au migrat la request
   // signing (MIC/MAC HMAC-SHA1); AID-ul singur nu mai e suficient și
@@ -3020,14 +3128,26 @@ class TransitService {
   /// Fetch live DB long-distance/regional/S-Bahn departures for a station
   /// (ICE, IC, EC, RE, RB, S). Complements EFA which typically only has local
   /// buses + trams. Cached 60s.
-  Future<List<Departure>> fetchDbDepartures(String stationName) async {
-    final cached = _dbDeparturesCache[stationName];
+  ///
+  /// Try order: bahn.de official → v6.db.transport.rest fallback.
+  Future<List<Departure>> fetchDbDepartures(String stationName, {String? stationId}) async {
+    final cacheKey = stationId ?? stationName;
+    final cached = _dbDeparturesCache[cacheKey];
     if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 60)) {
       return cached.departures;
     }
-    final id = await _resolveDbStopId(stationName);
+    // Try bahn.de PRIMARY (folosim direct stationId ca ortExtId dacă avem EVA).
+    if (stationId != null && stationId.isNotEmpty) {
+      final viaBahnDe = await _fetchDeparturesBahnDe(stationId, stationName);
+      if (viaBahnDe != null) {
+        _dbDeparturesCache[cacheKey] = _CachedDepartures(viaBahnDe, DateTime.now());
+        return viaBahnDe;
+      }
+    }
+    // Fallback la v6.db.transport.rest — resolve name → id → departures.
+    final id = stationId ?? await _resolveDbStopId(stationName);
     if (id == null) {
-      _dbDeparturesCache[stationName] = _CachedDepartures([], DateTime.now());
+      _dbDeparturesCache[cacheKey] = _CachedDepartures([], DateTime.now());
       return [];
     }
     try {
@@ -3083,6 +3203,94 @@ class TransitService {
       _log.error('Transit: fetchDbDepartures failed for "$stationName": $e', tag: 'TRANSIT');
       _dbDeparturesCache[stationName] = _CachedDepartures([], DateTime.now());
       return [];
+    }
+  }
+
+  /// bahn.de `/abfahrten` — endpoint oficial DB pentru live departures.
+  /// `stationId` = EVA number (7 cifre, ex. "8000201" pentru Ulm Hbf).
+  /// Returnează null la eroare (fallback la v6.db.transport.rest).
+  Future<List<Departure>?> _fetchDeparturesBahnDe(String stationId, String stationName) async {
+    try {
+      final now = DateTime.now();
+      final datum = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+          '${now.day.toString().padLeft(2, '0')}';
+      final zeit = '${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}:00';
+      final uri = Uri.parse('$_bahnDeBase/abfahrten'
+          '?ortExtId=$stationId&datum=$datum&zeit=$zeit'
+          '&mitVias=true&maxVias=8');
+      final resp = await _client.get(uri, headers: _bahnDeHeaders)
+          .timeout(const Duration(seconds: 12));
+      if (resp.statusCode == 429 || resp.statusCode == 403) {
+        _log.debug('Transit: bahn.de abfahrten rate-limited ${resp.statusCode}', tag: 'TRANSIT');
+        return null;
+      }
+      if (resp.statusCode != 200) return null;
+      final body = _decodeUtf8(resp);
+      if (body.trimLeft().startsWith('<')) return null; // WAF HTML
+      final data = jsonDecode(body);
+      if (data is! Map) return null;
+      // Format bahn.de: { entries: [ { zeit, echtzeit, gleis, produktGattung,
+      // richtung, verkehrsmittel:{name,mittelKurz,langtext,...}, cancelled }, ... ] }
+      final entries = data['entries'] ?? data['bahnhofstafelAbfahrtPositionen'];
+      if (entries is! List) return null;
+      final out = <Departure>[];
+      for (final e in entries) {
+        if (e is! Map) continue;
+        final zeitIso = e['zeit']?.toString() ?? '';
+        final echtzeitIso = e['echtzeit']?.toString();
+        final planned = DateTime.tryParse(zeitIso);
+        if (planned == null) continue;
+        final realtime = echtzeitIso == null ? null : DateTime.tryParse(echtzeitIso);
+        final delay = realtime != null ? realtime.difference(planned).inMinutes : 0;
+        final produktGattung = (e['produktGattung'] ?? e['gattung'] ?? '').toString().toUpperCase();
+        String productType;
+        switch (produktGattung) {
+          case 'ICE': case 'EC_IC': case 'IR':
+            productType = 'train';
+            break;
+          case 'REGIONAL':
+            productType = 'regional';
+            break;
+          case 'SBAHN':
+            productType = 'suburban';
+            break;
+          case 'UBAHN':
+            productType = 'subway';
+            break;
+          case 'TRAM': case 'STR':
+            productType = 'tram';
+            break;
+          case 'BUS':
+            productType = 'bus';
+            break;
+          default:
+            productType = 'regional';
+        }
+        final verkehrsmittel = e['verkehrsmittel'];
+        final lineName = (verkehrsmittel is Map
+                ? (verkehrsmittel['mittelKurz'] ?? verkehrsmittel['name'] ?? verkehrsmittel['linie'])
+                : e['linie'])?.toString() ?? '?';
+        out.add(Departure(
+          line: lineName,
+          direction: (e['richtung'] ?? e['ziel'] ?? '').toString(),
+          plannedTime: planned,
+          realtimeTime: realtime,
+          delay: delay < 0 ? 0 : delay,
+          platform: e['gleis']?.toString(),
+          productType: productType,
+          operator: (verkehrsmittel is Map
+              ? verkehrsmittel['betreiber']?.toString()
+              : '') ?? '',
+          stopName: stationName,
+          isCancelled: e['ausfall'] == true || e['cancelled'] == true,
+        ));
+      }
+      _log.info('Transit: bahn.de $stationName → ${out.length} departures', tag: 'TRANSIT');
+      return out;
+    } catch (e) {
+      _log.debug('Transit: bahn.de abfahrten exception: $e', tag: 'TRANSIT');
+      return null;
     }
   }
 
