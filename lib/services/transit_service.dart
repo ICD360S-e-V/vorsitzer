@@ -4304,66 +4304,40 @@ class TransitService {
   // TRIP SEARCH — "Verbindung suchen" tab
   // ══════════════════════════════════════════════════════════════
 
-  /// Autocomplete stops/localities matching [query].
-  /// Searches ALL EFA + HAFAS providers + bahn.de in parallel — the server may be in
-  /// a region (e.g. Limburg → RMV) that doesn't cover the queried city
-  /// (e.g. Neu-Ulm → DING). Merges + deduplicates by name.
-  /// Each result carries `sourceProvider` so `searchJourneys` uses the right one.
+  /// Autocomplete stops / addresses / POIs matching [query].
+  ///
+  /// 2026-07-11 SIMPLIFICARE: foloseste DOAR bahn.de `orte` endpoint
+  /// (typ=ALL). Acopera intreaga Germania si returneaza:
+  ///   - Stații ("A=1@O=Ulm Hbf@...")  → tip 'stop'
+  ///   - Adrese ("A=2@O=Ulm, Königstraße 15@...")  → tip 'address'
+  ///   - POI-uri (spitale, școli etc.)  → tip 'poi'
+  ///
+  /// bahn.de accepta atat adrese cat si statii ca `abfahrtsHalt`/
+  /// `ankunftsHalt` in trip search → foloseste walk automat de la adresa
+  /// la statia cea mai apropiata. Deci autocomplete pe adresa e suficient
+  /// pentru un flow complet "casa mea → destinatie".
   Future<List<TransitLocation>> searchLocations(String query) async {
     if (query.trim().length < 2) return [];
-
-    // Fire relevant providers + bahn.de in parallel. Individual failures → empty list.
-    // Restricționat la providerii geografic relevanți pentru user pentru:
-    //   • ~3× mai rapid autocomplete (3-6 provideri vs. 23)
-    //   • Zero AUTH-spam de la HAFAS-provideri nerelevanți
-    //   • Battery friendly pe mobile (mai puțin radio activ per keystroke)
-    final providersToQuery = _relevantProviders();
-    _log.debug('Transit: searchLocations querying ${providersToQuery.length} '
-        'of ${_providers.length} providers', tag: 'TRANSIT');
-    final futures = <Future<List<TransitLocation>>>[];
-    for (final p in providersToQuery) {
-      final search = p.api == TransitApiType.efa
-          ? _efaLocationSearch(p, query)
-          : _hafasLocationSearch(p, query);
-      futures.add(
-        search
-            .then((list) => list.map((l) => TransitLocation(
-                  id: l.id, name: l.name, type: l.type, lat: l.lat, lon: l.lon,
-                  sourceProvider: p,
-                )).toList())
-            .catchError((e) {
-              _log.debug('Transit: ${p.name} search failed: $e', tag: 'TRANSIT');
-              return <TransitLocation>[];
-            }),
-      );
-    }
-    futures.add(
-      _bahnLocationSearch(query).catchError((e) {
-        _log.debug('Transit: bahn.de search failed: $e', tag: 'TRANSIT');
-        return <TransitLocation>[];
-      }),
-    );
-
-    final allResults = await Future.wait(futures);
-
-    // Merge + deduplicate by (name, id). Prioritize stops over cities/streets.
-    final seen = <String>{};
-    final stops = <TransitLocation>[];
-    final others = <TransitLocation>[];
-    for (final list in allResults) {
-      for (final loc in list) {
-        final key = '${loc.name.toLowerCase()}|${loc.id}';
-        if (seen.contains(key)) continue;
-        seen.add(key);
-        if (loc.type == 'stop') {
+    try {
+      final results = await _bahnLocationSearch(query);
+      // Sort: stops (A=1) first, apoi adrese (A=2), apoi POI (A=4).
+      final stops = <TransitLocation>[];
+      final addresses = <TransitLocation>[];
+      final others = <TransitLocation>[];
+      for (final loc in results) {
+        if (loc.id.startsWith('A=1@')) {
           stops.add(loc);
+        } else if (loc.id.startsWith('A=2@')) {
+          addresses.add(loc);
         } else {
           others.add(loc);
         }
       }
+      return [...stops, ...addresses, ...others].take(15).toList();
+    } catch (e) {
+      _log.debug('Transit: bahn.de search failed: $e', tag: 'TRANSIT');
+      return [];
     }
-    // Stops first (bus/tram/train stations), then localities/streets/POIs.
-    return [...stops, ...others].take(20).toList();
   }
 
   /// Search journeys between two locations.
@@ -4395,85 +4369,38 @@ class TransitService {
     final when = arrivalTime ?? departureTime ?? DateTime.now();
     List<Journey> results = [];
 
-    final fp = from.sourceProvider;
-    final tp = to.sourceProvider;
-    final sameProvider = fp != null && tp != null && fp.type == tp.type;
-
-    // 2026-07-11 FIX: cand filter D-Ticket e ON, PRIMUL apelam bahn.de cu
-    // flag-ul nativ `nurDeutschlandTicketVerbindungen: true` — atunci bahn.de
-    // returneaza rute 100% Nahverkehr (RE + S + RE etc.). Bloc-ul sameProvider
-    // (HAFAS/EFA fara flag) returna journeys cu ICE deghizat ca "619" fara
-    // prefix, care apoi era respins de filter → fallback la originale cu badge
-    // Fernverkehr, deci userul nu vedea RUTA Nah reala care exista.
-    if (onlyDeutschlandTicket) {
-      try {
-        results = await _bahnTripSearchByName(
-          from.name, to.name, when,
+    // 2026-07-11 SIMPLIFICARE: Verbindung suchen foloseste DOAR bahn.de.
+    // Motive:
+    //   1. bahn.de acopera intreaga Germania (nu doar 1 provider regional)
+    //   2. bahn.de suporta flag nativ `nurDeutschlandTicketVerbindungen`
+    //   3. bahn.de suporta ADRESE (typ=ADRESSE) — nu doar stații — cu walk
+    //      automat de la adresa exacta la statia cea mai apropiata
+    //   4. HAFAS/EFA local returna line-uri fara prefix ("619" pt ICE 619)
+    //      care corupea D-Ticket filter (aparea ca autobuz)
+    //   5. Cross-provider HAFAS raram functioneaza (AUTH blocked)
+    //
+    // Daca bahn.de pica sau nu gaseste nimic → results ramane gol.
+    try {
+      // Daca from.id / to.id vin din bahn.de search (cel mai des cazul),
+      // folosim direct trip search. Daca vin din alt provider (name-only),
+      // apelam name-based search care re-rezolva prin bahn.de LocSearch.
+      final fromFromBahn = from.id.startsWith('A=') && from.id.contains('@L=');
+      final toFromBahn = to.id.startsWith('A=') && to.id.contains('@L=');
+      if (fromFromBahn && toFromBahn) {
+        results = await _bahnTripSearch(
+          from, to, when,
           arriveBy: arriveBy,
-          onlyDeutschlandTicket: true,
+          onlyDeutschlandTicket: onlyDeutschlandTicket,
         );
-      } catch (e) {
-        _log.error('Transit: bahn.de D-Ticket trip search failed: $e', tag: 'TRANSIT');
-      }
-    }
-
-    if (results.isEmpty && sameProvider) {
-      try {
-        if (fp.api == TransitApiType.efa) {
-          results = await _efaTripSearch(fp, from, to, when, arriveBy: arriveBy);
-        } else {
-          results = await _hafasTripSearch(fp, from, to, when, arriveBy: arriveBy);
-        }
-      } catch (e) {
-        _log.error('Transit: ${fp.name} trip search failed: $e', tag: 'TRANSIT');
-      }
-    }
-
-    // Fallback (or intercity) → bahn.de HAFAS (Germany-wide).
-    if (results.isEmpty) {
-      try {
+      } else {
         results = await _bahnTripSearchByName(
           from.name, to.name, when,
           arriveBy: arriveBy,
           onlyDeutschlandTicket: onlyDeutschlandTicket,
         );
-      } catch (e) {
-        _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
       }
-    }
-
-    // Secondary fallback pentru inter-city cross-provider — dacă bahn.de tot
-    // e gol (poate WAF-blocked pe device), încearcă HAFAS-ul lui `from`
-    // sau `to`. Cei mai mari HAFAS-providers (VBB, RMV, VBN) au coverage
-    // extinsă și indexează stații din toată Germania. Fiecare provider re-
-    // rezolvă numele prin LocMatch propriu ca să obțină ID-ul care merge
-    // (ID-ul saarVV nu e recunoscut de RMV, etc.).
-    if (results.isEmpty) {
-      final tryOrder = <TransitProviderConfig>[
-        if (fp != null && fp.api == TransitApiType.hafas) fp,
-        if (tp != null && tp.api == TransitApiType.hafas && tp.type != fp?.type) tp,
-      ];
-      for (final p in tryOrder) {
-        try {
-          _log.info('Transit: trying cross-provider HAFAS fallback via ${p.name}', tag: 'TRANSIT');
-          final localFrom = await _hafasLocationSearch(p, from.name);
-          final localTo = await _hafasLocationSearch(p, to.name);
-          if (localFrom.isEmpty || localTo.isEmpty) {
-            _log.debug('Transit: ${p.name} could not resolve endpoints '
-                '(from=${localFrom.length}, to=${localTo.length})', tag: 'TRANSIT');
-            continue;
-          }
-          final crossRes = await _hafasTripSearch(
-            p, localFrom.first, localTo.first, when, arriveBy: arriveBy,
-          );
-          if (crossRes.isNotEmpty) {
-            results = crossRes;
-            break;
-          }
-        } catch (e) {
-          _log.debug('Transit: cross-provider ${p.name} failed: $e', tag: 'TRANSIT');
-        }
-      }
+    } catch (e) {
+      _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
     }
 
     // Filter journeys din trecut — bahn.de + HAFAS uneori returnează
@@ -5100,7 +5027,8 @@ class TransitService {
     );
     final response = await _client.get(uri, headers: {
       'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Linux; Android 13) ICD360S-eV-App/1.0',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+          'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
     }).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
     final data = jsonDecode(_decodeUtf8(response));
@@ -5109,8 +5037,22 @@ class TransitService {
       final name = e['name']?.toString() ?? '';
       final id = e['id']?.toString() ?? e['extId']?.toString() ?? '';
       if (name.isEmpty || id.isEmpty) return null;
+      // Extract type from A=N prefix in id:
+      //   A=1 = station/stop
+      //   A=2 = address (street + number)
+      //   A=4 = POI
+      String? type = e['typ']?.toString();
+      if (type == null || type.isEmpty) {
+        if (id.startsWith('A=1@')) {
+          type = 'stop';
+        } else if (id.startsWith('A=2@')) {
+          type = 'address';
+        } else if (id.startsWith('A=4@')) {
+          type = 'poi';
+        }
+      }
       return TransitLocation(
-        id: id, name: name, type: e['typ']?.toString(),
+        id: id, name: name, type: type,
         lat: (e['lat'] as num?)?.toDouble(),
         lon: (e['lon'] as num?)?.toDouble(),
       );
@@ -5360,8 +5302,13 @@ class TransitService {
       if (segments.isEmpty) return null;
       final legs = <JourneyLeg>[];
       for (final seg in segments) {
-        final typ = seg['typ']?.toString() ?? '';
-        final isWalk = typ == 'WALK' || typ == 'FUSSWEG';
+        final vk = seg['verkehrsmittel'] as Map?;
+        // 2026-07-11 FIX: `typ` e in verkehrsmittel, NU la top-level.
+        // WALK legs: vk.typ='WALK', vk.name='Fußweg', fara produktGattung.
+        // PT legs:   vk.typ='PUBLICTRANSPORT', vk.produktGattung='TRAM' etc.
+        final vkTyp = vk?['typ']?.toString() ?? '';
+        final isWalk = vkTyp == 'WALK' || vkTyp == 'FUSSWEG'
+            || (vk?['name']?.toString() == 'Fußweg');
         final depIso = seg['abfahrtsZeitpunkt']?.toString();
         final arrIso = seg['ankunftsZeitpunkt']?.toString();
         if (depIso == null || arrIso == null) continue;
@@ -5369,17 +5316,20 @@ class TransitService {
         final arrDT = DateTime.tryParse(arrIso);
         if (depDT == null || arrDT == null) continue;
 
-        final gattung = seg['verkehrsmittel']?['produktGattung']?.toString() ?? '';
+        final gattung = vk?['produktGattung']?.toString() ?? '';
         String productType;
-        switch (gattung) {
-          case 'ICE': case 'EC_IC': case 'IR': productType = 'train'; break;
-          case 'REGIONAL': productType = 'regional'; break;
-          case 'SBAHN': productType = 'suburban'; break;
-          case 'UBAHN': productType = 'subway'; break;
-          case 'TRAM': productType = 'tram'; break;
-          case 'WALK': case 'FUSSWEG': productType = 'walk'; break;
-          case 'SCHIFF': productType = 'ferry'; break;
-          default: productType = 'bus';
+        if (isWalk) {
+          productType = 'walk';
+        } else {
+          switch (gattung) {
+            case 'ICE': case 'EC_IC': case 'IR': productType = 'train'; break;
+            case 'REGIONAL': productType = 'regional'; break;
+            case 'SBAHN': productType = 'suburban'; break;
+            case 'UBAHN': productType = 'subway'; break;
+            case 'TRAM': productType = 'tram'; break;
+            case 'SCHIFF': productType = 'ferry'; break;
+            default: productType = 'bus';
+          }
         }
 
         // 2026-07-11 FIX: bahn.de returneaza `name = "4140"` (numar tren) si

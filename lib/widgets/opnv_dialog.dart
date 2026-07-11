@@ -3517,16 +3517,33 @@ class _LocationFieldState extends State<_LocationField> {
                 itemCount: options.length,
                 itemBuilder: (ctx, i) {
                   final o = options.elementAt(i);
+                  // Icon + color per type: stop (bus), address (home), poi (star), other (city).
+                  IconData icn;
+                  Color iconColor;
+                  switch (o.type) {
+                    case 'stop':
+                      icn = Icons.directions_bus;
+                      iconColor = Colors.blue.shade600;
+                      break;
+                    case 'address':
+                      icn = Icons.home_outlined;
+                      iconColor = Colors.green.shade700;
+                      break;
+                    case 'poi':
+                      icn = Icons.star_outline;
+                      iconColor = Colors.amber.shade700;
+                      break;
+                    default:
+                      icn = Icons.location_city;
+                      iconColor = Colors.grey.shade600;
+                  }
                   return InkWell(
                     onTap: () => onSelected(o),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       child: Row(
                         children: [
-                          Icon(
-                            o.type == 'stop' ? Icons.directions_bus : Icons.location_city,
-                            size: 14, color: Colors.grey.shade600,
-                          ),
+                          Icon(icn, size: 14, color: iconColor),
                           const SizedBox(width: 8),
                           Expanded(child: Text(o.name, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
                         ],
