@@ -336,6 +336,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     //   - PointerDown apare dar TAP_TEST_GESTURE NU → InkWell/IconButton
     //     specific rupt pe Android
     //   - TAP_TEST_GESTURE apare dar chevron_X_tapped NU → IconButton fix
+    // NUCLEAR DIAGNOSTIC MODE — înlocuiesc TOTUL cu un container simplu
+    // cu buton central. Dacă tap-ul nu răspunde, cauza-i 100% în parent
+    // widget tree (Scaffold, GlobalChatOverlay, ceva Android-specific).
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
@@ -343,31 +346,32 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
             '${event.position.dy.toStringAsFixed(0)}) kind=${event.kind} '
             'buttons=${event.buttons}');
       },
-      child: Stack(
-        children: [
-          Column(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _log.info('[SCREEN] TAP_NUCLEAR fired — root container'),
+        child: Container(
+          color: Colors.red,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _buildHeader(theme),
-              const Divider(height: 1),
-              Expanded(child: _buildBody()),
+              const Text('DIAGNOSTIC MODE',
+                  style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              const Text('Apasă oriunde pe roșu.\nSau pe butonul de mai jos.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 18)),
+              const SizedBox(height: 40),
+              ElevatedButton(
+                onPressed: () => _log.info('[SCREEN] TAP_BUTTON fired'),
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('BUTTON TEST', style: TextStyle(fontSize: 20)),
+                ),
+              ),
             ],
           ),
-          // Layer 2: GestureDetector top-left corner 60x60 —
-          // test explicit, în caz că IconButton e problema
-          Positioned(
-            top: 4, left: 4,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _log.info('[SCREEN] TAP_TEST_GESTURE fired (Positioned top-left)'),
-              child: Container(
-                width: 60, height: 40,
-                color: Colors.red.withValues(alpha: 0.3),
-                alignment: Alignment.center,
-                child: const Text('TAP', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
