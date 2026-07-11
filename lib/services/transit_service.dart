@@ -3564,16 +3564,27 @@ class TransitService {
       return cached.facilities;
     }
 
-    // Try to resolve to a DB stop ID via /locations.
+    // 1) PRIMARY: bahnhof.de scrape — no auth, cel mai fresh (60s CDN cache).
+    // Format URL: https://www.bahnhof.de/{slug}/aufzuege
+    // (ex: "Saarbrücken Hbf" → "saarbruecken-hbf")
+    try {
+      final fromBahnhofDe = await _fetchElevatorsFromBahnhofDe(stationName);
+      if (fromBahnhofDe.isNotEmpty) {
+        _log.info('Transit: ${fromBahnhofDe.length} facilities @ "$stationName" via bahnhof.de',
+            tag: 'TRANSIT');
+        _facilitiesCache[stationName] = _CachedFacilities(fromBahnhofDe, DateTime.now());
+        return fromBahnhofDe;
+      }
+    } catch (e) {
+      _log.debug('Transit: bahnhof.de scrape failed: $e', tag: 'TRANSIT');
+    }
+
+    // 2) FALLBACK: v6.db.transport.rest — deja poate fi down/503.
     final id = await _resolveDbStopId(stationName);
     if (id == null) {
       _facilitiesCache[stationName] = _CachedFacilities([], DateTime.now());
       return [];
     }
-
-    // Try both endpoints (schema varies between deployments):
-    //   /stops/{id}  — usually has facilities under `.facilities`
-    //   /stations/{id} — legacy STADA endpoint (some ILU codes only)
     for (final url in [
       '$_restBase/stops/$id',
       '$_restBase/stations/$id',
@@ -3595,6 +3606,145 @@ class TransitService {
     _log.info('Transit: no facilities data for "$stationName"', tag: 'TRANSIT');
     _facilitiesCache[stationName] = _CachedFacilities([], DateTime.now());
     return [];
+  }
+
+  /// Fetches elevator status from `bahnhof.de/{slug}/aufzuege`.
+  ///
+  /// Format URL cu slug derivat din numele stației (transformă umlaut-uri
+  /// și înlocuiește spații cu `-`). URL exemplu:
+  ///   Saarbrücken Hbf → https://www.bahnhof.de/saarbruecken-hbf/aufzuege
+  ///
+  /// Pagina e Next.js SSR — datele sunt embedded în `self.__next_f.push()`
+  /// chunks din HTML. Header `RSC: 1` returnează doar payload-ul RSC
+  /// (~108 KB) în loc de HTML complet (~150 KB).
+  ///
+  /// Response conține `"elevators":[{...}]` cu:
+  /// - `state.type`: ACTIVE / INACTIVE / UNKNOWN
+  /// - `state.explanation`: text descriptiv
+  /// - `description`: "zu Gleis 3-4"
+  /// - `type`: ELEVATOR / ESCALATOR
+  Future<List<StationFacility>> _fetchElevatorsFromBahnhofDe(String stationName) async {
+    final slug = _bahnhofDeSlug(stationName);
+    if (slug.isEmpty) return [];
+    final uri = Uri.parse('https://www.bahnhof.de/$slug/aufzuege');
+    final resp = await _client.get(uri, headers: {
+      'RSC': '1',
+      'Accept': 'text/x-component,*/*',
+      'Accept-Language': 'de-DE,de;q=0.9',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+          'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    }).timeout(const Duration(seconds: 10));
+    if (resp.statusCode != 200) {
+      _log.debug('Transit: bahnhof.de $slug returned ${resp.statusCode}', tag: 'TRANSIT');
+      return [];
+    }
+    final body = _decodeUtf8(resp);
+    // Extrag JSON `"elevators":[...]` din stream. Poate apărea multiple ori
+    // (o dată per RSC chunk); folosim un match cu paranteze balansate.
+    final match = RegExp(r'"elevators"\s*:\s*(\[)').firstMatch(body);
+    if (match == null) return [];
+    final startIdx = match.end - 1; // includem '['
+    // Traversez și cont paranteze until match.
+    int depth = 0;
+    int endIdx = -1;
+    bool inStr = false;
+    bool escape = false;
+    for (int i = startIdx; i < body.length; i++) {
+      final c = body[i];
+      if (inStr) {
+        if (escape) { escape = false; }
+        else if (c == r'\') { escape = true; }
+        else if (c == '"') { inStr = false; }
+        continue;
+      }
+      if (c == '"') { inStr = true; continue; }
+      if (c == '[') depth++;
+      else if (c == ']') {
+        depth--;
+        if (depth == 0) { endIdx = i; break; }
+      }
+    }
+    if (endIdx < 0) return [];
+    final arrJson = body.substring(startIdx, endIdx + 1);
+    // Unescape RSC-stream (\" → ", \\ → \, \n → newline)
+    final unescaped = arrJson
+        .replaceAll(r'\"', '"')
+        .replaceAll(r'\\', r'\')
+        .replaceAll(r'\n', '\n');
+    List<dynamic> elevators;
+    try {
+      elevators = jsonDecode(unescaped) as List;
+    } catch (_) {
+      try {
+        elevators = jsonDecode(arrJson) as List; // fallback fără unescape
+      } catch (e) {
+        _log.debug('Transit: bahnhof.de JSON parse failed: $e', tag: 'TRANSIT');
+        return [];
+      }
+    }
+    final result = <StationFacility>[];
+    for (final e in elevators) {
+      if (e is! Map) continue;
+      final stateRaw = e['state'];
+      String state = 'UNKNOWN';
+      String? reason;
+      if (stateRaw is Map) {
+        state = (stateRaw['type'] ?? 'UNKNOWN').toString().toUpperCase();
+        reason = stateRaw['explanation']?.toString();
+      } else if (stateRaw is String) {
+        state = stateRaw.toUpperCase();
+      }
+      final type = (e['type'] ?? 'ELEVATOR').toString().toUpperCase();
+      final desc = (e['description'] ?? '').toString();
+      result.add(StationFacility(
+        description: desc.isEmpty ? (type == 'ESCALATOR' ? 'Fahrtreppe' : 'Aufzug') : desc,
+        type: type,
+        state: state,
+        reason: reason,
+      ));
+    }
+    return result;
+  }
+
+  /// Transformă numele stației într-un slug URL-safe pentru bahnhof.de.
+  /// Reguli:
+  ///   - lowercase
+  ///   - ä→ae, ö→oe, ü→ue, ß→ss
+  ///   - remove accente (é→e, à→a)
+  ///   - spații și caractere non-alfanumerice → `-`
+  ///   - trim leading/trailing `-`
+  ///
+  /// Exemple:
+  ///   "Berlin Hbf" → "berlin-hbf"
+  ///   "München Hauptbahnhof" → "muenchen-hauptbahnhof"
+  ///   "Saarbrücken Hbf" → "saarbruecken-hbf"
+  ///   "Frankfurt(M) Hbf" → "frankfurt-m-hbf"
+  static String _bahnhofDeSlug(String name) {
+    if (name.trim().isEmpty) return '';
+    var s = name.toLowerCase().trim();
+    // Umlaut + ß
+    s = s
+        .replaceAll('ä', 'ae')
+        .replaceAll('ö', 'oe')
+        .replaceAll('ü', 'ue')
+        .replaceAll('ß', 'ss');
+    // Accente comune (best-effort, dev acoperă și cazuri rare gen "Château")
+    const accents = {
+      'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'å': 'a',
+      'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+      'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+      'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o',
+      'ú': 'u', 'ù': 'u', 'û': 'u',
+      'ç': 'c', 'ñ': 'n',
+    };
+    for (final entry in accents.entries) {
+      s = s.replaceAll(entry.key, entry.value);
+    }
+    // Spații + non-alfanumeric → dash. Colapsez multi-dashes.
+    s = s.replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    s = s.replaceAll(RegExp(r'-+'), '-');
+    s = s.replaceAll(RegExp(r'^-|-$'), '');
+    return s;
   }
 
   /// Check whether a Journey is likely usable for a wheelchair user by
