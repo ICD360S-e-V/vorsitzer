@@ -617,7 +617,10 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
                   ? _SubTabEmpty(
                       tab: currentTab,
                       loading: _isLoading || (currentTab.useBahnDe && _bhfLoading),
+                      dbApiDown: currentTab.useBahnDe &&
+                          widget.transitService.bhfLastFetchFailed,
                       onShowAll: () => _subTabController.animateTo(0),
+                      onRetry: currentTab.useBahnDe ? _ensureBhfData : null,
                     )
                   : ListView(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -857,18 +860,41 @@ class _SubTabBar extends StatelessWidget {
 }
 
 /// Empty-state pentru sub-tab (nu găsim stații de tipul cerut).
-/// User in mediu rural sau la marginea acoperirii → sugerăm "Alle".
+/// Distinge 3 stări:
+/// - loading: spinner
+/// - dbApiDown: bahn.de API vremelnic down → mesaj + retry button
+/// - empty: rural, chiar nu-s stații → sugerăm alt tab
 class _SubTabEmpty extends StatelessWidget {
   final _SubTabDef tab;
   final bool loading;
+  final bool dbApiDown;
   final VoidCallback onShowAll;
-  const _SubTabEmpty({required this.tab, required this.loading, required this.onShowAll});
+  final VoidCallback? onRetry;
+  const _SubTabEmpty({
+    required this.tab,
+    required this.loading,
+    this.dbApiDown = false,
+    required this.onShowAll,
+    this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            if (tab.useBahnDe) ...[
+              const SizedBox(height: 12),
+              Text('bahn.de wird abgefragt…',
+                  style: TextStyle(fontSize: 11, color: p.onSurfaceDim)),
+            ],
+          ],
+        ),
+      );
     }
     final typeLabel = switch (tab.label) {
       'Bus' => 'Bushaltestelle',
@@ -879,6 +905,40 @@ class _SubTabEmpty extends StatelessWidget {
       'Bhf' => 'Bahnhof',
       _ => 'Haltestelle',
     };
+    // API down state — clar distinct de rural
+    if (dbApiDown) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_off, size: 44, color: Colors.orange.shade400),
+              const SizedBox(height: 12),
+              Text(
+                'bahn.de nicht erreichbar',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.onSurface),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Die DB-Fahrplan-API antwortet momentan nicht.\n'
+                'Bitte in ein paar Minuten erneut versuchen.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+              ),
+              const SizedBox(height: 12),
+              if (onRetry != null)
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('Erneut versuchen', style: TextStyle(fontSize: 12)),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -903,7 +963,7 @@ class _SubTabEmpty extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onShowAll,
               icon: const Icon(Icons.public, size: 14),
-              label: const Text('Zurück zu "Alle"', style: TextStyle(fontSize: 12)),
+              label: const Text('Anderen Tab öffnen', style: TextStyle(fontSize: 12)),
             ),
           ],
         ),

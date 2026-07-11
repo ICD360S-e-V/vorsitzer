@@ -1861,6 +1861,10 @@ class TransitService {
   /// când userul switch-uie între Bhf tab și alt tab și înapoi rapid.
   DateTime? _lastBhfFetch;
   static const _bhfFetchTtl = Duration(seconds: 60);
+  /// True dacă ULTIMUL fetch a eșuat (toate mirror-urile DB au picat).
+  /// Folosit de UI ca să distingă "no rail stops in area" (rural) vs.
+  /// "API down" (vremelnic).
+  bool bhfLastFetchFailed = false;
 
   /// PUBLIC — găsește cele mai apropiate 3 gări DB (bahn.de) pe GPS user +
   /// adaugă departures ICE/IC/RE/RB/S-Bahn la lista globală. Apelat DOAR
@@ -1882,20 +1886,56 @@ class TransitService {
       return;
     }
     if (_latitude == null || _longitude == null) return;
-    try {
-      final uri = Uri.parse('$_restBase/stops/nearby'
-          '?latitude=${_latitude!.toStringAsFixed(6)}'
-          '&longitude=${_longitude!.toStringAsFixed(6)}'
-          '&results=10&distance=30000'
-          '&subStops=false&entrances=false&linesOfStops=false');
-      final resp = await _client.get(uri, headers: _restHeaders)
-          .timeout(const Duration(seconds: 8));
-      if (resp.statusCode != 200) {
-        _log.debug('Transit: /stops/nearby returned ${resp.statusCode}', tag: 'TRANSIT');
-        return;
+    // Endpoints DB rail — v6 e primary, restul sunt mirrors community.
+    // Uneori v6.db.transport.rest cade cu 503 (rate-limit sau maintenance)
+    // → încercăm fallback-uri fără să întrerupem user-ul.
+    const dbMirrors = [
+      'https://v6.db.transport.rest',
+      'https://db.transport.rest',
+      'https://v5.db.transport.rest',
+    ];
+    dynamic data;
+    String? usedMirror;
+    for (final mirror in dbMirrors) {
+      // 2 retry-uri per mirror cu backoff 1s
+      for (int attempt = 0; attempt < 2; attempt++) {
+        try {
+          final uri = Uri.parse('$mirror/stops/nearby'
+              '?latitude=${_latitude!.toStringAsFixed(6)}'
+              '&longitude=${_longitude!.toStringAsFixed(6)}'
+              '&results=10&distance=30000'
+              '&subStops=false&entrances=false&linesOfStops=false');
+          final resp = await _client.get(uri, headers: _restHeaders)
+              .timeout(const Duration(seconds: 15));
+          if (resp.statusCode == 200) {
+            final parsed = jsonDecode(_decodeUtf8(resp));
+            if (parsed is List) {
+              data = parsed;
+              usedMirror = mirror;
+              break;
+            }
+          } else if (resp.statusCode == 503 || resp.statusCode == 502 || resp.statusCode == 429) {
+            _log.debug('Transit: $mirror returned ${resp.statusCode} — retry', tag: 'TRANSIT');
+            await Future.delayed(const Duration(seconds: 1));
+            continue;
+          }
+          break; // non-retryable error, try next mirror
+        } catch (e) {
+          _log.debug('Transit: $mirror attempt $attempt failed: $e', tag: 'TRANSIT');
+        }
       }
-      final data = jsonDecode(_decodeUtf8(resp));
-      if (data is! List) return;
+      if (data != null) break;
+    }
+    if (data == null) {
+      _log.info('Transit: toți mirror-urile DB rail sunt down — no Bahnhof data', tag: 'TRANSIT');
+      bhfLastFetchFailed = true;
+      _lastBhfFetch = DateTime.now(); // rate-limit retries even on failure
+      onDeparturesUpdate?.call(departures);
+      return;
+    }
+    bhfLastFetchFailed = false;
+    _log.info('Transit: DB /stops/nearby via $usedMirror', tag: 'TRANSIT');
+    try {
 
       // Keep stațiile cu produse rail (excluzând bus-only)
       final rail = <Map>[];
