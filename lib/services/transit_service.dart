@@ -3344,9 +3344,12 @@ class TransitService {
       final out = <Departure>[];
       for (final d in list) {
         if (d is! Map) continue;
-        final planned = DateTime.tryParse(d['plannedWhen']?.toString() ?? '');
-        final actual = DateTime.tryParse(d['when']?.toString() ?? '');
-        if (planned == null) continue;
+        // .toLocal() — same timezone fix ca la _fetchDeparturesBahnDe.
+        final plannedRaw = DateTime.tryParse(d['plannedWhen']?.toString() ?? '');
+        final actualRaw = DateTime.tryParse(d['when']?.toString() ?? '');
+        if (plannedRaw == null) continue;
+        final planned = plannedRaw.toLocal();
+        final actual = actualRaw?.toLocal();
         final line = d['line'] as Map? ?? {};
         final product = (line['product'] ?? line['productName'] ?? '').toString().toLowerCase();
         String pt;
@@ -3484,9 +3487,17 @@ class TransitService {
                         e['zeit']?.toString() ?? ''; // fallback
         final echtzeitIso = e['ezAbgangsDatum']?.toString() ??
                             e['echtzeit']?.toString();
-        final planned = DateTime.tryParse(zeitIso);
-        if (planned == null) continue;
-        final realtime = echtzeitIso == null ? null : DateTime.tryParse(echtzeitIso);
+        // BUG FIX 2026-07-11 timezone: bahn.de returnează "15:05:00+01:00"
+        // (Europe/Berlin). `DateTime.tryParse` pentru string cu offset creează
+        // un DateTime în UTC (`isUtc == true`). UI folosea `dep.plannedTime.hour`
+        // direct → afișa ora UTC (13:05) în loc de local (15:05).
+        //
+        // `.toLocal()` convertește la timezone-ul device-ului (Berlin CEST/CET).
+        final plannedRaw = DateTime.tryParse(zeitIso);
+        if (plannedRaw == null) continue;
+        final planned = plannedRaw.toLocal();
+        final realtimeRaw = echtzeitIso == null ? null : DateTime.tryParse(echtzeitIso);
+        final realtime = realtimeRaw?.toLocal();
         final delay = realtime != null ? realtime.difference(planned).inMinutes : 0;
         // produktGattung acum returneaza SHORT codes: "ICE", "IC", "RB", "RE",
         // "SBAHN", "UBAHN", "STRASSENBAHN", "BUS", "RUF", "ANRUFPFLICHTIGEVERKEHRE"
@@ -3957,11 +3968,15 @@ class TransitService {
         if (h is! Map) continue;
         final abg = h['abgangsDatum']?.toString() ?? h['ankunftsDatum']?.toString();
         if (abg == null) continue;
-        final planned = DateTime.tryParse(abg);
-        if (planned == null) continue;
+        // .toLocal() — convert UTC-tagged ISO string la timezone-ul device
+        // (Berlin CEST/CET) — same fix ca la _fetchDeparturesBahnDe.
+        final plannedRaw = DateTime.tryParse(abg);
+        if (plannedRaw == null) continue;
+        final planned = plannedRaw.toLocal();
         final ezAbg = h['ezAbgangsDatum']?.toString() ??
                       h['ezAnkunftsDatum']?.toString();
-        final rt = ezAbg == null ? null : DateTime.tryParse(ezAbg);
+        final rtRaw = ezAbg == null ? null : DateTime.tryParse(ezAbg);
+        final rt = rtRaw?.toLocal();
         final ort = h['ort'];
         String name = '';
         String stopId = '';
