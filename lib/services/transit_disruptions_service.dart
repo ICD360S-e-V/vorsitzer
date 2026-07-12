@@ -6,6 +6,7 @@ import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
+import 'notification_service.dart';
 
 /// Active disruption fetched from a public transit feed.
 class TransitDisruption {
@@ -45,6 +46,12 @@ class TransitDisruptionsService extends ChangeNotifier {
   static const _refresh = Duration(minutes: 15);
   static const _cacheTtl = Duration(minutes: 5);
   static const _kPrefsBypassKey = 'opnv.disruption.bypass_region';
+  // 2026-07-12 Sprint 1: push notification pentru HIM HIGH
+  // Match e pe region tokens (deja setat de dashboard). Nu spam-uim — ID-urile
+  // deja notificate sunt persistate ca să nu re-notificăm după restart.
+  static const _kPrefsPushEnabledKey = 'opnv.disruption.push_enabled';
+  static const _kPrefsNotifiedIdsKey = 'opnv.disruption.notified_ids';
+  static const _maxNotifiedIds = 200;
 
   final _log = LoggerService();
   final http.Client _client = IOClient(HttpClientFactory.createDefaultHttpClient());
@@ -76,6 +83,21 @@ class TransitDisruptionsService extends ChangeNotifier {
     SharedPreferences.getInstance().then((sp) => sp.setBool(_kPrefsBypassKey, v));
   }
 
+  /// When true, push notifications are shown when a new HIGH priority
+  /// disruption matches the user's region tokens. Off by default (privacy).
+  bool _pushEnabled = false;
+  bool get pushEnabled => _pushEnabled;
+  set pushEnabled(bool v) {
+    if (v == _pushEnabled) return;
+    _pushEnabled = v;
+    notifyListeners();
+    SharedPreferences.getInstance().then((sp) => sp.setBool(_kPrefsPushEnabledKey, v));
+  }
+
+  /// IDs deja notificate (persistate) — nu re-notificăm după restart.
+  final Set<String> _notifiedIds = {};
+  bool _notifiedIdsLoaded = false;
+
   /// One-shot load from SharedPreferences on service start.
   Future<void> _loadBypass() async {
     if (_bypassLoaded) return;
@@ -87,6 +109,25 @@ class TransitDisruptionsService extends ChangeNotifier {
         _bypassRegionFilter = v;
         notifyListeners();
       }
+      _pushEnabled = sp.getBool(_kPrefsPushEnabledKey) ?? false;
+      if (!_notifiedIdsLoaded) {
+        _notifiedIdsLoaded = true;
+        final ids = sp.getStringList(_kPrefsNotifiedIdsKey) ?? const [];
+        _notifiedIds.addAll(ids);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistNotifiedIds() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      // Trim la _maxNotifiedIds cele mai vechi la append (FIFO natural via Set → List).
+      final list = _notifiedIds.toList();
+      if (list.length > _maxNotifiedIds) {
+        list.removeRange(0, list.length - _maxNotifiedIds);
+        _notifiedIds..clear()..addAll(list);
+      }
+      await sp.setStringList(_kPrefsNotifiedIdsKey, list);
     } catch (_) {}
   }
 
@@ -217,9 +258,47 @@ class TransitDisruptionsService extends ChangeNotifier {
       _disruptions = parsed;
       _lastFetch = DateTime.now();
       _log.info('Disruptions: fetched ${parsed.length} active', tag: 'DISRUPT');
+      // Sprint 1 (2026-07-12): Push HIM pentru HIGH-priority nou apărute
+      // care ating region tokens ale user-ului. Nu spam-uim — ID-urile
+      // deja notificate sunt filtered.
+      await _maybePushNotifications(parsed);
       notifyListeners();
     } catch (e) {
       _log.debug('Disruptions: fetch failed: $e', tag: 'DISRUPT');
+    }
+  }
+
+  /// Trimite push notification pentru fiecare HIM HIGH nou care matchează
+  /// region tokens ale user-ului. Persistă ID-urile ca să nu re-notificăm
+  /// aceleași după restart.
+  Future<void> _maybePushNotifications(List<TransitDisruption> current) async {
+    if (!_pushEnabled) return;
+    // Fără region tokens NU trimitem push — ar fi spam național.
+    if (_regionTokens.isEmpty) return;
+    final newHigh = current.where((d) =>
+        d.isHigh &&
+        !_notifiedIds.contains(d.id) &&
+        _matchesRegion(d));
+    var fired = 0;
+    for (final d in newHigh) {
+      try {
+        await NotificationService().show(
+          title: '⚠️ ÖPNV-Störung',
+          body: d.headline.length > 120
+              ? '${d.headline.substring(0, 117)}…'
+              : d.headline,
+          androidChannelId: NotificationService.channelIdOpnvStoerung,
+          payload: 'opnv://disruption/${d.id}',
+        );
+        _notifiedIds.add(d.id);
+        fired++;
+      } catch (e) {
+        _log.debug('Disruptions: push fail id=${d.id}: $e', tag: 'DISRUPT');
+      }
+    }
+    if (fired > 0) {
+      _log.info('Disruptions: pushed $fired HIGH notifications', tag: 'DISRUPT');
+      await _persistNotifiedIds();
     }
   }
 

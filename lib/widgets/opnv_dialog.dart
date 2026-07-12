@@ -3959,6 +3959,31 @@ class _DisruptionsListDialogState extends State<_DisruptionsListDialog> {
                 ],
               ),
             ),
+            // 2026-07-12 Sprint 1: Push notification toggle pentru HIM HIGH.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 8, 6),
+              child: Row(children: [
+                Icon(Icons.notifications_active, size: 14, color: p.onSurfaceDim),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  _svc.pushEnabled
+                      ? 'Push aktiv bei kritischen Störungen in Ihrer Region'
+                      : 'Push-Benachrichtigung bei kritischen Störungen aktivieren',
+                  style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+                )),
+                Semantics(
+                  button: true,
+                  label: _svc.pushEnabled
+                      ? 'Push-Benachrichtigungen deaktivieren'
+                      : 'Push-Benachrichtigungen aktivieren',
+                  child: Switch(
+                    value: _svc.pushEnabled,
+                    onChanged: (v) => _svc.pushEnabled = v,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ]),
+            ),
             Expanded(
               child: _svc.disruptions.isEmpty
                   ? Center(
