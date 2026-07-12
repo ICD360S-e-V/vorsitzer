@@ -1586,11 +1586,32 @@ class TransitService {
       final cityLower = gpsCity!.toLowerCase();
       final cityTokens = cityLower.split(RegExp(r'[\s,\-()/]+')).where((t) => t.isNotEmpty).toSet();
 
+      // 2026-07-13 FIX BUG: nume ambigue (2× Illingen: Saar + Enzkreis,
+      // 2× Neustadt: Weinstr + a.d.Aisch, etc.) matcheau primul provider
+      // în listă indiferent de coordonatele GPS reale.
+      // Fix: sanity-check cu bounding-box — dacă GPS NU e în box provider,
+      // skip match. Force fallback la containing-box detection (Pass 3).
+      bool coordsInBox(TransitProviderConfig p) {
+        // Tolerăm marja de 30km peste box pentru edge cases (user la
+        // marginea zonei — provider încă valid pentru trip search).
+        const marginDeg = 0.4; // ~30km
+        return lat >= p.minLat - marginDeg &&
+               lat <= p.maxLat + marginDeg &&
+               lon >= p.minLon - marginDeg &&
+               lon <= p.maxLon + marginDeg;
+      }
+
       // Pass 1 — exact match on whole gpsCity string
       for (final p in _providers) {
         final cities = _providerCities[p.type];
         if (cities == null) continue;
         if (cities.contains(cityLower)) {
+          if (!coordsInBox(p)) {
+            _log.info('Transit: gpsCity "$gpsCity" name match ${p.name} '
+                'REJECTED (GPS ($lat, $lon) not in bounding box) — ambiguous name',
+                tag: 'TRANSIT');
+            continue;
+          }
           activeProvider = p;
           _log.info('Transit: gpsCity "$gpsCity" EXACT match ${p.name}', tag: 'TRANSIT');
           return;
@@ -1608,6 +1629,11 @@ class TransitService {
           final catTokens = c.split(RegExp(r'[\s,\-()/]+')).where((t) => t.isNotEmpty).toList();
           if (catTokens.isEmpty) continue;
           if (catTokens.every(cityTokens.contains)) {
+            if (!coordsInBox(p)) {
+              _log.info('Transit: gpsCity "$gpsCity" TOKEN match ${p.name} '
+                  'REJECTED (GPS not in bounding box) — ambiguous', tag: 'TRANSIT');
+              continue;
+            }
             activeProvider = p;
             _log.info('Transit: gpsCity "$gpsCity" TOKEN match ${p.name} (via "$c")', tag: 'TRANSIT');
             return;
