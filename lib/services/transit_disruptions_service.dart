@@ -19,6 +19,15 @@ class TransitDisruption {
   final String priority;
   /// Comma-separated list of affected products or lines, e.g. "S1, IC 2013".
   final String? affected;
+  /// 2026-07-13: source tag pentru adapter pattern (research confirmat
+  /// că unified list + source badge e best-practice — Öffi/bahn.expert/
+  /// DB Navigator, https://gitlab.com/oeffi/public-transport-enabler).
+  /// "HIM" = bahn.de HIM (national rail)
+  /// "EFA" = XSLT_ADDINFO_REQUEST (local EFA providers)
+  /// "HAFAS" = HimSearch (local HAFAS providers)
+  final String source;
+  /// providerId pentru filter în UI (ex. "ding", "vvs", "mvv", "hvv").
+  final String? providerId;
 
   const TransitDisruption({
     required this.id,
@@ -28,6 +37,8 @@ class TransitDisruption {
     this.validUntil,
     this.priority = 'MEDIUM',
     this.affected,
+    this.source = 'HIM',
+    this.providerId,
   });
 
   bool get isHigh => priority.toUpperCase() == 'HIGH';
@@ -231,10 +242,62 @@ class TransitDisruptionsService extends ChangeNotifier {
     _timer = null;
   }
 
+  /// 2026-07-13: hook pt provider local activ — setat de TransitService
+  /// (endpoint EFA/HAFAS + provider ID pt fetching local disruptions).
+  String? _localEfaBaseUrl;
+  String? _localHafasBaseUrl;
+  String? _localHafasAid;
+  String? _localProviderId;
+  void setLocalProvider({
+    String? efaBaseUrl,
+    String? hafasBaseUrl,
+    String? hafasAid,
+    String? providerId,
+  }) {
+    _localEfaBaseUrl = efaBaseUrl;
+    _localHafasBaseUrl = hafasBaseUrl;
+    _localHafasAid = hafasAid;
+    _localProviderId = providerId;
+  }
+
   Future<void> fetch({bool force = false}) async {
     if (!force && _lastFetch != null && DateTime.now().difference(_lastFetch!) < _cacheTtl) {
       return;
     }
+    // 2026-07-13: Adapter pattern — fetchers parallel + merge + dedupe.
+    // Reference: Öffi (public-transport-enabler), bahn.expert.
+    final results = await Future.wait([
+      _fetchBahnDeHim(),
+      if (_localEfaBaseUrl != null) _fetchEfaAddinfo(_localEfaBaseUrl!, _localProviderId ?? 'efa'),
+      if (_localHafasBaseUrl != null) _fetchHafasHimSearch(_localHafasBaseUrl!, _localHafasAid ?? '', _localProviderId ?? 'hafas'),
+    ]);
+    final all = <TransitDisruption>[];
+    for (final list in results) {
+      all.addAll(list);
+    }
+    // Dedupe by (source, id) — same source can't have duplicate id.
+    // Cross-source: bahn.de HIM about "S1 Berlin" won't collide with
+    // VBB HAFAS about "S1 Berlin" because id-space e diferit; păstrăm
+    // ambele (user vede badge source distinct).
+    final seen = <String>{};
+    _disruptions = all.where((d) {
+      final key = '${d.source}|${d.id}';
+      if (seen.contains(key)) return false;
+      seen.add(key);
+      return true;
+    }).toList();
+    _lastFetch = DateTime.now();
+    _log.info('Disruptions: fetched ${_disruptions.length} total '
+        '(HIM:${results[0].length}'
+        '${results.length > 1 ? ", EFA:${results[1].length}" : ""}'
+        '${results.length > 2 ? ", HAFAS:${results[2].length}" : ""})',
+        tag: 'DISRUPT');
+    await _maybePushNotifications(_disruptions);
+    notifyListeners();
+  }
+
+  /// Fetcher 1: bahn.de HIM (national rail).
+  Future<List<TransitDisruption>> _fetchBahnDeHim() async {
     try {
       final resp = await _client.get(
         Uri.parse(_url),
@@ -243,28 +306,143 @@ class TransitDisruptionsService extends ChangeNotifier {
           'User-Agent': 'ICD360S-eV-App/1.0',
         },
       ).timeout(const Duration(seconds: 12));
-      if (resp.statusCode != 200) {
-        _log.debug('Disruptions: HTTP ${resp.statusCode}', tag: 'DISRUPT');
-        return;
-      }
+      if (resp.statusCode != 200) return [];
       final data = jsonDecode(resp.body);
-      // The endpoint returns { verkehrsmeldungen: [...] } — each entry has
-      // a headline, texts, validity window, priority, affected line list.
       final list = (data is Map ? data['verkehrsmeldungen'] : null) as List? ?? [];
-      final parsed = list
+      return list
           .map<TransitDisruption?>((raw) => _parse(raw as Map<String, dynamic>))
           .whereType<TransitDisruption>()
           .toList();
-      _disruptions = parsed;
-      _lastFetch = DateTime.now();
-      _log.info('Disruptions: fetched ${parsed.length} active', tag: 'DISRUPT');
-      // Sprint 1 (2026-07-12): Push HIM pentru HIGH-priority nou apărute
-      // care ating region tokens ale user-ului. Nu spam-uim — ID-urile
-      // deja notificate sunt filtered.
-      await _maybePushNotifications(parsed);
-      notifyListeners();
     } catch (e) {
-      _log.debug('Disruptions: fetch failed: $e', tag: 'DISRUPT');
+      _log.debug('Disruptions: HIM fetch failed: $e', tag: 'DISRUPT');
+      return [];
+    }
+  }
+
+  /// Fetcher 2: EFA XSLT_ADDINFO_REQUEST — universal pt EFA providers.
+  /// Testat pe DING/MVV/VVS/KVV/DEFAS-Bayern (2026-07-13).
+  /// Format response:
+  ///   additionalInformation.travelInformations.travelInformation[]
+  Future<List<TransitDisruption>> _fetchEfaAddinfo(String baseUrl, String providerId) async {
+    try {
+      final now = DateTime.now();
+      final dateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      final uri = Uri.parse('$baseUrl/XSLT_ADDINFO_REQUEST'
+          '?outputFormat=JSON&filterDateValid=$dateStr'
+          '&filterPublicationStatus=current&mode=all');
+      final resp = await _client.get(uri, headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'ICD360S-eV-App/1.0',
+      }).timeout(const Duration(seconds: 10));
+      if (resp.statusCode != 200) return [];
+      final data = jsonDecode(resp.body);
+      final infos = data is Map ? data['additionalInformation'] : null;
+      if (infos is! Map) return [];
+      final travelInfos = infos['travelInformations'];
+      final list = (travelInfos is Map ? travelInfos['travelInformation'] : null) as List? ?? [];
+      final out = <TransitDisruption>[];
+      for (final raw in list) {
+        if (raw is! Map) continue;
+        final id = (raw['id'] ?? raw['nr'] ?? '').toString();
+        if (id.isEmpty) continue;
+        final title = raw['title']?.toString();
+        final content = raw['content'];
+        String? subtitle;
+        String? body;
+        if (content is Map) {
+          subtitle = content['subtitle']?.toString();
+          body = content['description']?.toString() ?? content['text']?.toString();
+        } else if (content is String) {
+          body = content;
+        }
+        final headline = (title?.isNotEmpty == true ? title! : (subtitle ?? '')).trim();
+        if (headline.isEmpty) continue;
+        // Timespan validation.
+        DateTime? vFrom, vUntil;
+        final ts = raw['timeSpan'];
+        final tsList = ts is List ? ts : (ts is Map ? [ts] : []);
+        for (final t in tsList) {
+          if (t is Map) {
+            vFrom ??= _parseDate(t['start'] ?? t['from'] ?? t['begin']);
+            vUntil ??= _parseDate(t['end'] ?? t['until'] ?? t['stop']);
+          }
+        }
+        if (vFrom != null && vFrom.isAfter(DateTime.now())) continue;
+        if (vUntil != null && vUntil.isBefore(DateTime.now())) continue;
+        // Affected lines.
+        String? affected;
+        final aff = raw['affected'] ?? raw['affectedLines'];
+        if (aff is List && aff.isNotEmpty) {
+          affected = aff.take(5).map((e) => e is Map
+              ? (e['name'] ?? e['line'] ?? e['ref']).toString()
+              : e.toString()).join(', ');
+        }
+        // EFA nu dă priority explicit — heuristic: dacă title include
+        // "Ausfall"/"Sperrung" → HIGH, altfel MEDIUM.
+        final prio = RegExp(r'ausfall|sperrung|entfällt|gesperrt|unfall',
+                    caseSensitive: false).hasMatch(headline) ? 'HIGH' : 'MEDIUM';
+        out.add(TransitDisruption(
+          id: id, headline: headline, text: body,
+          validFrom: vFrom, validUntil: vUntil,
+          priority: prio, affected: affected,
+          source: 'EFA', providerId: providerId,
+        ));
+      }
+      return out;
+    } catch (e) {
+      _log.debug('Disruptions: EFA addinfo fetch failed: $e', tag: 'DISRUPT');
+      return [];
+    }
+  }
+
+  /// Fetcher 3: HAFAS HimSearch — pt providerii HAFAS (saarVV, VBB, RMV, etc.).
+  Future<List<TransitDisruption>> _fetchHafasHimSearch(String baseUrl, String aid, String providerId) async {
+    if (baseUrl.isEmpty) return [];
+    try {
+      final body = jsonEncode({
+        'ver': '1.20',
+        'lang': 'de',
+        'auth': {'type': 'AID', 'aid': aid},
+        'client': {'id': 'HAFAS', 'type': 'WEB', 'name': 'webapp'},
+        'svcReqL': [
+          {
+            'meth': 'HimSearch',
+            'req': {
+              'himFltrL': [{'type': 'CH', 'mode': 'INC', 'value': 'CUSTOM1'}],
+              'sortL': ['PRIO_D'],
+              'onlyRT': false,
+            },
+          }
+        ],
+      });
+      final resp = await _client.post(
+        Uri.parse(baseUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 10));
+      if (resp.statusCode != 200) return [];
+      final data = jsonDecode(resp.body);
+      final svc = data['svcResL']?[0]?['res'];
+      final msgL = (svc is Map ? svc['msgL'] : null) as List? ?? [];
+      final out = <TransitDisruption>[];
+      for (final m in msgL) {
+        if (m is! Map) continue;
+        final id = (m['hid'] ?? m['id'] ?? '').toString();
+        final head = (m['head'] ?? m['ttl'] ?? '').toString();
+        if (head.isEmpty) continue;
+        final text = m['text']?.toString() ?? m['lead']?.toString();
+        final prio = (m['prio']?.toString() ?? '');
+        final priority = prio == '100' ? 'HIGH' : (prio == '50' ? 'MEDIUM' : 'LOW');
+        out.add(TransitDisruption(
+          id: id, headline: head, text: text,
+          priority: priority,
+          source: 'HAFAS', providerId: providerId,
+        ));
+      }
+      return out;
+    } catch (e) {
+      _log.debug('Disruptions: HAFAS HimSearch failed: $e', tag: 'DISRUPT');
+      return [];
     }
   }
 

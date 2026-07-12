@@ -9,6 +9,7 @@ import 'package:http/io_client.dart';
 import 'logger_service.dart';
 import 'http_client_factory.dart';
 import 'transit_offline_cache.dart';
+import 'transit_disruptions_service.dart';
 
 final _log = LoggerService();
 
@@ -974,7 +975,27 @@ class TransitService {
   double? get longitude => _longitude;
 
   /// Currently active provider (detected from GPS)
-  TransitProviderConfig? activeProvider;
+  TransitProviderConfig? _activeProvider;
+  TransitProviderConfig? get activeProvider => _activeProvider;
+  set activeProvider(TransitProviderConfig? p) {
+    _activeProvider = p;
+    // 2026-07-13: sync la disruptions service — feed local (EFA/HAFAS)
+    // pentru perturbări de bus/tram/S/U locale.
+    if (p == null) {
+      TransitDisruptionsService().setLocalProvider(providerId: null);
+    } else if (p.api == TransitApiType.efa) {
+      TransitDisruptionsService().setLocalProvider(
+        efaBaseUrl: p.baseUrl,
+        providerId: p.type.name,
+      );
+    } else {
+      TransitDisruptionsService().setLocalProvider(
+        hafasBaseUrl: p.baseUrl,
+        hafasAid: p.hafasAid,
+        providerId: p.type.name,
+      );
+    }
+  }
 
   // Callbacks
   void Function(List<Departure>)? onDeparturesUpdate;
