@@ -917,6 +917,7 @@ class TransitService {
   /// Called de dashboard când `_users` conține detaliile.
   /// null-values dezactivează câmpul respectiv.
   void setMemberHomeRegion({String? ort, String? plz, String? bundesland}) {
+    final oldOrt = _memberHomeOrt;
     _memberHomeOrt = ort?.trim().toLowerCase();
     _memberHomePlz = plz?.trim();
     _memberHomeBundesland = bundesland?.trim().toLowerCase();
@@ -926,6 +927,25 @@ class TransitService {
     // Dashboard apelează asta ÎNAINTE ca GPS-ul să răspundă → Stufe-1 setează
     // coords la Ulm (Neu-Ulm home) chiar dacă userul e fizic în Saarbrücken.
     // Trigger-ul e făcut acum EXCLUSIV din `start()` cand GPS eșuează.
+    // Sprint 3 (2026-07-12): dacă home region s-a schimbat (user mutat în alt oraș),
+    // șterge offline cache + hafas blacklist ca sa nu ramanem cu date stale.
+    if (oldOrt != null && oldOrt != _memberHomeOrt) {
+      _log.info('Transit: home region changed → clearing offline cache + blacklist', tag: 'TRANSIT');
+      TransitOfflineCache.clear();
+      _hafasAuthBlacklist.clear();
+      _hafasLastLoggedError.clear();
+    }
+  }
+
+  /// Sprint 3 (2026-07-12): expunere manuală pentru "Cache leeren" buton.
+  Future<void> clearAllCaches() async {
+    await TransitOfflineCache.clear();
+    _hafasAuthBlacklist.clear();
+    _hafasLastLoggedError.clear();
+    _stationInfoCache.clear();
+    _wagenreihungCache.clear();
+    _dbDeparturesCache.clear();
+    _log.info('Transit: all caches cleared (manual)', tag: 'TRANSIT');
   }
 
   /// Detectează activeProvider din Verifizierung Stufe 1 (ort/plz/bundesland).
@@ -5846,6 +5866,31 @@ class TransitService {
           return nm.isNotEmpty ? nm : (kurz.isNotEmpty ? kurz : '?');
         }
 
+        // Sprint 3 (2026-07-12): parse fahrradmitnahme real din
+        // verkehrsmittel.zugattribute[] — evita heuristica pe productType.
+        // bahn.de returnează atribute cu key=NAT_FAHRRADMITNAHME,
+        // key=NAT_FAHRRADMIT_RESERVIERUNG sau text conținând "Fahrrad".
+        bool? bikeAllowed;
+        final zugattr = vk?['zugattribute'];
+        if (zugattr is List) {
+          for (final a in zugattr) {
+            if (a is! Map) continue;
+            final key = (a['key'] ?? '').toString().toUpperCase();
+            final val = (a['value'] ?? a['text'] ?? '').toString().toLowerCase();
+            if (key.contains('FAHRRAD') || val.contains('fahrrad') ||
+                val.contains('fahrradmitnahme')) {
+              // "Keine Fahrradmitnahme möglich" → false, altfel true.
+              if (val.contains('keine') || val.contains('nicht') ||
+                  val.contains('unmöglich')) {
+                bikeAllowed = false;
+              } else {
+                bikeAllowed = true;
+              }
+              break;
+            }
+          }
+        }
+
         legs.add(JourneyLeg(
           line: extractLine(),
           direction: seg['verkehrsmittel']?['richtung']?.toString() ?? '',
@@ -5857,6 +5902,7 @@ class TransitService {
           toPlatform: seg['ankunftsGleis']?.toString(),
           productType: productType,
           isWalk: isWalk,
+          fahrradmitnahme: bikeAllowed,
         ));
       }
       if (legs.isEmpty) return null;

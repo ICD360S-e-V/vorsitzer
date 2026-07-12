@@ -3216,6 +3216,10 @@ class _VerbindungTabState extends State<_VerbindungTab> {
               await TransitFavoritesService.remove(fav);
               await _loadFavorites();
             },
+            onRename: (fav, label) async {
+              await TransitFavoritesService.setLabel(fav, label);
+              await _loadFavorites();
+            },
           ),
         Padding(
           padding: const EdgeInsets.all(12),
@@ -3531,11 +3535,58 @@ class _FavoritesChipRow extends StatelessWidget {
   final List<TransitFavorite> favorites;
   final ValueChanged<TransitFavorite> onPick;
   final ValueChanged<TransitFavorite> onDelete;
+  /// Sprint 3: callback opțional pt update label (rename favorite).
+  final Future<void> Function(TransitFavorite, String?)? onRename;
   const _FavoritesChipRow({
     required this.favorites,
     required this.onPick,
     required this.onDelete,
+    this.onRename,
   });
+
+  Future<void> _showRenameDialog(BuildContext ctx, TransitFavorite fav) async {
+    if (onRename == null) return;
+    final controller = TextEditingController(text: fav.label ?? '');
+    final result = await showDialog<String?>(
+      context: ctx,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Route benennen', style: TextStyle(fontSize: 14)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${fav.fromName} → ${fav.toName}',
+              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 24,
+            decoration: const InputDecoration(
+              hintText: 'z.B. Zuhause, Arzt, Jobcenter…',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          const Text('Benannte Routen bleiben oben angeheftet.',
+              style: TextStyle(fontSize: 10, color: Colors.grey)),
+        ]),
+        actions: [
+          if (fav.isNamed)
+            TextButton(
+              onPressed: () => Navigator.pop(dctx, ''),
+              child: const Text('Name entfernen', style: TextStyle(color: Colors.red)),
+            ),
+          TextButton(onPressed: () => Navigator.pop(dctx, null), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dctx, controller.text.trim()),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    if (result == null) return; // Cancel
+    await onRename!(fav, result.isEmpty ? null : result);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3571,20 +3622,27 @@ class _FavoritesChipRow extends StatelessWidget {
                 return Semantics(
                   button: true,
                   label: 'Route von ${fav.fromName} nach ${fav.toName}. '
-                      '${fav.hits} mal gesucht. Antippen um erneut zu suchen.',
-                  child: InputChip(
-                    label: Text(fav.chipLabel, style: const TextStyle(fontSize: 11)),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: EdgeInsets.zero,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    backgroundColor: p.card,
-                    side: BorderSide(color: p.border),
-                    avatar: Icon(Icons.replay, size: 14, color: Colors.teal.shade400),
-                    onDeleted: () => onDelete(fav),
-                    deleteIconColor: p.onSurfaceFaint,
-                    deleteButtonTooltipMessage: 'Aus Favoriten entfernen',
-                    onPressed: () => onPick(fav),
+                      '${fav.hits} mal gesucht. Antippen um erneut zu suchen. Lang antippen zum Umbenennen.',
+                  child: GestureDetector(
+                    onLongPress: onRename == null ? null : () => _showRenameDialog(context, fav),
+                    child: InputChip(
+                      label: Text(fav.chipLabel, style: const TextStyle(fontSize: 11)),
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: EdgeInsets.zero,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: fav.isNamed ? Colors.amber.shade50 : p.card,
+                      side: BorderSide(color: fav.isNamed ? Colors.amber.shade400 : p.border),
+                      avatar: Icon(
+                        fav.isNamed ? Icons.push_pin : Icons.replay,
+                        size: 14,
+                        color: fav.isNamed ? Colors.amber.shade700 : Colors.teal.shade400,
+                      ),
+                      onDeleted: () => onDelete(fav),
+                      deleteIconColor: p.onSurfaceFaint,
+                      deleteButtonTooltipMessage: 'Aus Favoriten entfernen',
+                      onPressed: () => onPick(fav),
+                    ),
                   ),
                 );
               },

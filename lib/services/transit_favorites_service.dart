@@ -87,6 +87,21 @@ class TransitFavoritesService {
     await _write(entries);
   }
 
+  /// Sprint 3 (2026-07-12): set / clear label pentru un favorite existent.
+  /// Named favorites nu sunt afectate de trim la _maxEntries — sunt "pinned".
+  static Future<void> setLabel(TransitFavorite fav, String? label) async {
+    final entries = await load();
+    final idx = entries.indexWhere((e) =>
+        e.fromName.toLowerCase() == fav.fromName.toLowerCase() &&
+        e.toName.toLowerCase() == fav.toName.toLowerCase());
+    if (idx < 0) return;
+    entries[idx] = entries[idx].copyWith(
+      label: (label != null && label.trim().isNotEmpty) ? label.trim() : null,
+      clearLabel: label == null || label.trim().isEmpty,
+    );
+    await _write(entries);
+  }
+
   static Future<void> _write(List<TransitFavorite> entries) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_key, jsonEncode(entries.map((e) => e.toJson()).toList()));
@@ -94,12 +109,14 @@ class TransitFavoritesService {
 
   /// Rank = hits × log(1 + hits) × recency-decay.
   /// Frequency wins for daily commutes; single one-off searches decay in ~10 days.
+  /// Sprint 3: named favorites primesc +1000 boost — sunt pinned in top.
   static double _score(TransitFavorite e, DateTime now) {
     final ageDays = now.difference(e.lastUsed).inMinutes / (60 * 24);
     final freq = e.hits.toDouble();
     final freqBoost = freq * (1 + freq * 0.15);
     final decay = 1 / (1 + ageDays * 0.1);
-    return freqBoost * decay;
+    final nameBoost = e.isNamed ? 1000.0 : 0.0;
+    return freqBoost * decay + nameBoost;
   }
 }
 
@@ -115,6 +132,9 @@ class TransitFavorite {
   final int hits;
   final DateTime lastUsed;
   final DateTime firstUsed;
+  /// Sprint 3 (2026-07-12): eticheta user-editable ("Casă", "Doctor", "Jobcenter")
+  /// promotează auto-favoriti în named favorites. null = auto (nu are label).
+  final String? label;
 
   const TransitFavorite({
     required this.fromId,
@@ -128,7 +148,10 @@ class TransitFavorite {
     required this.hits,
     required this.lastUsed,
     required this.firstUsed,
+    this.label,
   });
+
+  bool get isNamed => label != null && label!.trim().isNotEmpty;
 
   TransitLocation get fromLocation => TransitLocation(
         id: fromId, name: fromName, lat: fromLat, lon: fromLon,
@@ -139,15 +162,18 @@ class TransitFavorite {
 
   /// Compact chip label — trims to the last meaningful token so
   /// "Ulm, Rathaus" and "Neu-Ulm, Bahnhof" fit in a chip row.
+  /// Sprint 3: dacă favorite are label ("Casă", "Doctor"), il afișăm direct
+  /// cu ⭐ prefix — user vede intenția lui, nu adrese lungi.
   String get chipLabel {
-    String _short(String s) {
+    if (isNamed) return '⭐ ${label!}';
+    String short(String s) {
       final trimmed = s.trim();
       if (trimmed.length <= 22) return trimmed;
       final comma = trimmed.indexOf(',');
       if (comma > 0 && comma < 20) return trimmed.substring(0, comma);
       return '${trimmed.substring(0, 20)}…';
     }
-    return '${_short(fromName)} → ${_short(toName)}';
+    return '${short(fromName)} → ${short(toName)}';
   }
 
   TransitFavorite copyWith({
@@ -157,6 +183,8 @@ class TransitFavorite {
     double? fromLon,
     double? toLat,
     double? toLon,
+    String? label,
+    bool clearLabel = false,
   }) =>
       TransitFavorite(
         fromId: fromId,
@@ -170,6 +198,7 @@ class TransitFavorite {
         hits: hits ?? this.hits,
         lastUsed: lastUsed ?? this.lastUsed,
         firstUsed: firstUsed,
+        label: clearLabel ? null : (label ?? this.label),
       );
 
   Map<String, dynamic> toJson() => {
@@ -184,6 +213,7 @@ class TransitFavorite {
         'hits': hits,
         'lastUsed': lastUsed.toIso8601String(),
         'firstUsed': firstUsed.toIso8601String(),
+        if (label != null) 'label': label,
       };
 
   factory TransitFavorite.fromJson(Map<String, dynamic> j) => TransitFavorite(
@@ -198,5 +228,6 @@ class TransitFavorite {
         hits: j['hits'] as int? ?? 1,
         lastUsed: DateTime.tryParse(j['lastUsed'] as String? ?? '') ?? DateTime.now(),
         firstUsed: DateTime.tryParse(j['firstUsed'] as String? ?? '') ?? DateTime.now(),
+        label: j['label'] as String?,
       );
 }
