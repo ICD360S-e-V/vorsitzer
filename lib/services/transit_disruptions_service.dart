@@ -271,6 +271,12 @@ class TransitDisruptionsService extends ChangeNotifier {
   /// Trimite push notification pentru fiecare HIM HIGH nou care matchează
   /// region tokens ale user-ului. Persistă ID-urile ca să nu re-notificăm
   /// aceleași după restart.
+  /// Sprint B fix (2026-07-13): max 5 push per fetch (throttle anti-spam).
+  /// Dacă apar 500 HIM HIGH deodată → nu vrem 500 notifications într-o
+  /// avalanșă — user pierde încrederea în canal. Restul intră în lista
+  /// _notifiedIds ca "already-seen" așa că nu re-notificăm.
+  static const _maxPushPerFetch = 5;
+
   Future<void> _maybePushNotifications(List<TransitDisruption> current) async {
     if (!_pushEnabled) return;
     // Fără region tokens NU trimitem push — ar fi spam național.
@@ -278,9 +284,16 @@ class TransitDisruptionsService extends ChangeNotifier {
     final newHigh = current.where((d) =>
         d.isHigh &&
         !_notifiedIds.contains(d.id) &&
-        _matchesRegion(d));
+        _matchesRegion(d)).toList();
     var fired = 0;
+    var skippedThrottle = 0;
     for (final d in newHigh) {
+      if (fired >= _maxPushPerFetch) {
+        // Throttle: marcăm ca notificate ca să nu re-trigger la fetch-ul următor.
+        _notifiedIds.add(d.id);
+        skippedThrottle++;
+        continue;
+      }
       try {
         await NotificationService().show(
           title: '⚠️ ÖPNV-Störung',
@@ -296,8 +309,8 @@ class TransitDisruptionsService extends ChangeNotifier {
         _log.debug('Disruptions: push fail id=${d.id}: $e', tag: 'DISRUPT');
       }
     }
-    if (fired > 0) {
-      _log.info('Disruptions: pushed $fired HIGH notifications', tag: 'DISRUPT');
+    if (fired > 0 || skippedThrottle > 0) {
+      _log.info('Disruptions: pushed $fired HIGH (${skippedThrottle > 0 ? "throttled $skippedThrottle" : "no throttle"})', tag: 'DISRUPT');
       await _persistNotifiedIds();
     }
   }

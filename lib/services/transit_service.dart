@@ -3421,80 +3421,10 @@ class TransitService {
   /// STARTS with "Bahnhof <Ort>". This avoids false positives like
   /// "Klinikum am Bahnhof" or "Am Bahnhof 12" which are bus stops, not
   /// railway stations, and don't need DB augmentation.
-  Future<void> _augmentWithDbRailDepartures() async {
-    if (nearbyStops.isEmpty) return;
-    final railwayStops = nearbyStops.where(_isMainlineStation).toList();
-    if (railwayStops.isEmpty) return;
-
-    _log.info('Transit: augmenting ${railwayStops.length} railway stops with DB data', tag: 'TRANSIT');
-    // Helper isolated so the strict match logic is shared and testable.
-    final futures = railwayStops.map((s) => fetchDbDepartures(s.name)).toList();
-    final results = await Future.wait(futures);
-
-    // De-dup by (line, direction, plannedTime, stopName) so we don't stack the
-    // same tram twice when EFA + DB both report it.
-    final seen = <String>{};
-    for (final d in departures) {
-      seen.add('${d.line}|${d.direction}|${d.plannedTime.toIso8601String()}|${d.stopName}');
-    }
-    for (int i = 0; i < railwayStops.length; i++) {
-      final stopName = railwayStops[i].name;
-      for (final dbDep in results[i]) {
-        // Keep DB's rail entries only — DB feeds also carry buses that EFA
-        // already reported. This avoids duplicates and clutters.
-        if (dbDep.productType == 'bus') continue;
-        // Rewrite stopName to match the local EFA one (short form)
-        final dep = Departure(
-          line: dbDep.line,
-          direction: dbDep.direction,
-          plannedTime: dbDep.plannedTime,
-          realtimeTime: dbDep.realtimeTime,
-          delay: dbDep.delay,
-          platform: dbDep.platform,
-          productType: dbDep.productType,
-          operator: dbDep.operator,
-          stopName: stopName,
-        );
-        final key = '${dep.line}|${dep.direction}|${dep.plannedTime.toIso8601String()}|$stopName';
-        if (seen.contains(key)) continue;
-        seen.add(key);
-        departures.add(dep);
-      }
-    }
-
-    // Re-sort by time (may include new rail entries)
-    departures.sort((a, b) {
-      final ta = a.realtimeTime ?? a.plannedTime;
-      final tb = b.realtimeTime ?? b.plannedTime;
-      return ta.compareTo(tb);
-    });
-  }
-
-  /// Strict token-boundary match for mainline stations. Positives:
-  /// "Ulm Hbf", "München Hauptbahnhof", "Bahnhof Neu-Ulm",
-  /// "Neu-Ulm Bahnhof", "Senden Bahnhof", "Illertissen Bahnhof".
-  /// Negatives (bus stops / addresses):
-  /// "Bahnhofstraße", "Bahnhofsplatz", "Am Bahnhof 12" (address with number).
-  ///
-  /// Design: permissive pentru "X Bahnhof" — false-positives sunt inofensive
-  /// (dacă DB /locations nu găsește potrivire → 0 rail departures adăugate).
-  /// User in Neu-Ulm nu vedea trenurile pentru că regex-ul precedent rata
-  /// pattern-ul "X Bahnhof" (doar "X Hbf" era detectat).
-  static final RegExp _stationRe = RegExp(
-    // 1) hbf / hauptbahnhof / bahnhof cu word-boundary la ambele capete
-    // 2) ^bahnhof <token> (start cu "Bahnhof X")
-    r'(^|\s)(hbf|hauptbahnhof|bahnhof)($|\s)|^bahnhof\s+\S',
-    caseSensitive: false,
-  );
-  bool _isMainlineStation(TransitStop s) {
-    final n = s.name.toLowerCase();
-    // Străzi / piețe cu prefix "bahnhof" — filtrare guard.
-    if (n.contains('bahnhofstr') || n.contains('bahnhofspl') ||
-        n.contains('bahnhofsvor') || n.contains('bahnhofsvi')) return false;
-    // Adrese numerotate: "Am Bahnhof 12" / "Bahnhof 3" — au număr după bahnhof.
-    if (RegExp(r'bahnhof\s+\d').hasMatch(n)) return false;
-    return _stationRe.hasMatch(n);
-  }
+  // 2026-07-13 Sprint B cleanup: _augmentWithDbRailDepartures() +
+  // _isMainlineStation() + _stationRe REMOVED (cod mort, 90+ linii).
+  // Înlocuit de fetchBhfNearby() care face același job mai bine (bahn.de
+  // nearby directly, nu regex-uri fragile pe nume).
 
   /// Fetch departures for a specific stop by name (EFA only)
   Future<void> fetchDeparturesForStop(String stopName) async {
@@ -4461,11 +4391,25 @@ class TransitService {
   /// buses + trams. Cached 60s.
   ///
   /// Try order: bahn.de official → v6.db.transport.rest fallback.
-  Future<List<Departure>> fetchDbDepartures(String stationName, {String? stationId}) async {
+  // Sprint B (2026-07-13): cache TTL redus 60s → 15s (aproape real-time).
+  // Rol: dedup apeluri CONCURENTE (multiple setState() în UI care re-render
+  // același stop în același timp) — NU cache pt afișare stale. User vede
+  // date fresh la refresh manual (fetchBhfNearby(force: true) invalidate).
+  // Max 100 entries pt memory protection (long session drain).
+  static const _dbDeparturesCacheMax = 100;
+  static const _dbDeparturesTtl = Duration(seconds: 15);
+  Future<List<Departure>> fetchDbDepartures(String stationName, {String? stationId, bool force = false}) async {
     final cacheKey = stationId ?? stationName;
-    final cached = _dbDeparturesCache[cacheKey];
-    if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 60)) {
-      return cached.departures;
+    if (!force) {
+      final cached = _dbDeparturesCache[cacheKey];
+      if (cached != null && DateTime.now().difference(cached.at) < _dbDeparturesTtl) {
+        return cached.departures;
+      }
+    }
+    if (_dbDeparturesCache.length >= _dbDeparturesCacheMax) {
+      final oldest = _dbDeparturesCache.entries
+          .reduce((a, b) => a.value.at.isBefore(b.value.at) ? a : b);
+      _dbDeparturesCache.remove(oldest.key);
     }
     // Try bahn.de PRIMARY (folosim direct stationId ca ortExtId dacă avem EVA).
     if (stationId != null && stationId.isNotEmpty) {
@@ -4486,7 +4430,8 @@ class TransitService {
       final resp = await _client.get(uri, headers: _restHeaders).timeout(const Duration(seconds: 8));
       if (resp.statusCode != 200) {
         _log.debug('Transit: DB departures returned ${resp.statusCode} for $stationName', tag: 'TRANSIT');
-        _dbDeparturesCache[stationName] = _CachedDepartures([], DateTime.now());
+        // Sprint B fix: cache-key CONSISTENT (`cacheKey`, nu `stationName`).
+        _dbDeparturesCache[cacheKey] = _CachedDepartures([], DateTime.now());
         return [];
       }
       final data = jsonDecode(_decodeUtf8(resp));
@@ -4531,11 +4476,11 @@ class TransitService {
         ));
       }
       _log.info('Transit: DB $stationName → ${out.length} rail departures', tag: 'TRANSIT');
-      _dbDeparturesCache[stationName] = _CachedDepartures(out, DateTime.now());
+      _dbDeparturesCache[cacheKey] = _CachedDepartures(out, DateTime.now());
       return out;
     } catch (e) {
       _log.error('Transit: fetchDbDepartures failed for "$stationName": $e', tag: 'TRANSIT');
-      _dbDeparturesCache[stationName] = _CachedDepartures([], DateTime.now());
+      // NU cache-uim erori tranzitorii — la retry vom re-încerca live.
       return [];
     }
   }
@@ -5813,7 +5758,7 @@ class TransitService {
       final pt = leg.productType.toLowerCase();
       final line = leg.line.trim();
 
-      _log.info('Transit: D-Ticket examine line="$line" pt="$pt" '
+      _log.debug('Transit: D-Ticket examine line="$line" pt="$pt" '
           'from="${leg.fromName}" to="${leg.toName}"', tag: 'TRANSIT');
 
       // Bus productType clar valid (pentru bus stops locale — Bus 12 etc.)
@@ -5823,7 +5768,7 @@ class TransitService {
 
       // ═══ STEP 1: LINE FERNVERKEHR PREFIX → REJECT ═══
       if (_lineIsFernverkehr(line)) {
-        _log.info('Transit: D-Ticket REJECT "$line" (Fernverkehr prefix)',
+        _log.debug('Transit: D-Ticket REJECT "$line" (Fernverkehr prefix)',
             tag: 'TRANSIT');
         return false;
       }
@@ -5847,7 +5792,7 @@ class TransitService {
       // ICE/IC de la bahn.de trip search vin cu line="9557", "1015", "619"
       // (kurzText fără prefix). Nahverkehr are ALWAYS un prefix ("S3", "RB70").
       if (RegExp(r'^\d+$').hasMatch(line)) {
-        _log.info('Transit: D-Ticket REJECT "$line" (only digits — likely ICE)',
+        _log.debug('Transit: D-Ticket REJECT "$line" (only digits — likely ICE)',
             tag: 'TRANSIT');
         return false;
       }
@@ -5879,7 +5824,7 @@ class TransitService {
         continue;
       }
 
-      _log.info('Transit: D-Ticket REJECT "$line" pt="$pt" '
+      _log.debug('Transit: D-Ticket REJECT "$line" pt="$pt" '
           '(not Nahverkehr pattern)', tag: 'TRANSIT');
       return false;
     }

@@ -334,10 +334,15 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
 
   void _onSubTabChanged() {
     if (!mounted || _subTabController.indexIsChanging) return;
+    final tab = _subTabs[_subTabController.index];
+    // Sprint B fix: reset _bhfLoading când user switch-uie DIN Hbf/Bhf spre
+    // Bus/Tram/S/U — anterior spinner rămânea activ pe tab greșit.
+    if (!tab.useBahnDe && _bhfLoading) {
+      _bhfLoading = false;
+    }
     setState(() {});
     // Lazy fetch bahn.de rail data DOAR când userul deschide tab Hbf sau Bhf.
     // Cache 60s intern serviciu → switching între Hbf/Bhf = no-op instant.
-    final tab = _subTabs[_subTabController.index];
     if (tab.useBahnDe) _ensureBhfData();
   }
 
