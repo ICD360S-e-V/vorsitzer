@@ -6106,47 +6106,189 @@ class _KarteTabState extends State<_KarteTab> {
   }
 
   void _showStopDetails(TransitStop s) {
-    final p = _Palette.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: p.card,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollCtrl) => _StopDetailsSheet(
+          stop: s,
+          transitService: widget.transitService,
+          userMuttersprache: widget.userMuttersprache,
+          scrollController: scrollCtrl,
+          colorFor: _colorFor,
+          iconFor: _iconFor,
+          labelFor: _labelFor,
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet cu departures live pentru un stop din harta Karte.
+/// Fetch dbnav abfahrt via TransitService.fetchDbDepartures — funcționează
+/// pentru toate stopurile (bus/tram/train/S/U/ferry), nu doar rail.
+class _StopDetailsSheet extends StatefulWidget {
+  final TransitStop stop;
+  final TransitService transitService;
+  final String? userMuttersprache;
+  final ScrollController scrollController;
+  final Color Function(String) colorFor;
+  final IconData Function(String) iconFor;
+  final String Function(String) labelFor;
+  const _StopDetailsSheet({
+    required this.stop,
+    required this.transitService,
+    required this.scrollController,
+    required this.colorFor,
+    required this.iconFor,
+    required this.labelFor,
+    this.userMuttersprache,
+  });
+
+  @override
+  State<_StopDetailsSheet> createState() => _StopDetailsSheetState();
+}
+
+class _StopDetailsSheetState extends State<_StopDetailsSheet> {
+  List<Departure> _departures = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final deps = await widget.transitService.fetchDbDepartures(
+        widget.stop.name,
+        stationId: widget.stop.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _departures = deps;
+        _loading = false;
+        if (deps.isEmpty) _error = 'Keine Abfahrten in Kürze';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString(); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final s = widget.stop;
+    return Container(
+      decoration: BoxDecoration(
+        color: p.card,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: Column(children: [
+        // Handle bar drag
+        Container(
+          margin: const EdgeInsets.only(top: 8, bottom: 4),
+          width: 40, height: 4,
+          decoration: BoxDecoration(
+            color: p.onSurfaceDim.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        // Header cu nume + distanță + iconita product
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(children: [
             Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: _colorFor(s.primaryProduct), shape: BoxShape.circle),
-              child: Icon(_iconFor(s.primaryProduct), color: Colors.white, size: 18),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: widget.colorFor(s.primaryProduct),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(widget.iconFor(s.primaryProduct), color: Colors.white, size: 20),
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(s.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-            Text('${s.distance} m', style: TextStyle(fontSize: 12, color: p.onSurfaceDim)),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(s.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis, maxLines: 1),
+              Text('${s.distance} m entfernt',
+                  style: TextStyle(fontSize: 11, color: p.onSurfaceDim)),
+            ])),
+            IconButton(
+              icon: _loading
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh, size: 20),
+              onPressed: _loading ? null : _fetch,
+              tooltip: 'Aktualisieren',
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: () => Navigator.pop(context),
+            ),
           ]),
-          const SizedBox(height: 10),
-          if (s.products.isNotEmpty)
-            Wrap(spacing: 6, runSpacing: 4, children: [
+        ),
+        // Product chips row
+        if (s.products.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(spacing: 6, runSpacing: 4, children: [
               for (final prod in s.products)
-                Chip(
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  avatar: Icon(_iconFor(prod), size: 12, color: _colorFor(prod)),
-                  label: Text(_labelFor(prod), style: const TextStyle(fontSize: 10)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: widget.colorFor(prod).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: widget.colorFor(prod).withValues(alpha: 0.5)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(widget.iconFor(prod), size: 11, color: widget.colorFor(prod)),
+                    const SizedBox(width: 4),
+                    Text(widget.labelFor(prod), style: TextStyle(fontSize: 10, color: widget.colorFor(prod), fontWeight: FontWeight.w600)),
+                  ]),
                 ),
             ]),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              icon: const Icon(Icons.close, size: 16),
-              label: const Text('Schließen'),
-              onPressed: () => Navigator.pop(ctx),
-            ),
           ),
-        ]),
-      ),
+        const SizedBox(height: 8),
+        const Divider(height: 1),
+        // Departures list scrollable
+        Expanded(
+          child: _loading
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    CircularProgressIndicator(strokeWidth: 2.5),
+                    SizedBox(height: 12),
+                    Text('Abfahrten werden geladen…', style: TextStyle(fontSize: 12)),
+                  ]),
+                ))
+              : (_error != null && _departures.isEmpty)
+                  ? Center(child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.info_outline, size: 36, color: p.onSurfaceDim),
+                        const SizedBox(height: 8),
+                        Text(_error!, style: TextStyle(fontSize: 12, color: p.onSurfaceDim), textAlign: TextAlign.center),
+                      ]),
+                    ))
+                  : ListView.builder(
+                      controller: widget.scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: _departures.length.clamp(0, 30),
+                      itemBuilder: (ctx, i) => _DepartureRow(
+                        dep: _departures[i],
+                        transitService: widget.transitService,
+                        userMuttersprache: widget.userMuttersprache,
+                      ),
+                    ),
+        ),
+      ]),
     );
   }
 }
