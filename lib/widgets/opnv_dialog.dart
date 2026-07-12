@@ -483,7 +483,7 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     // 2026-07-12: eliminăm stopurile ZOB duplicate ("X Hbf Bus", "X Hbf ZOB")
     // din TOATE taburile — au fost integrate ca badge sub gara Hbf/Bhf
     // principală. Excepție tabul Bus (utilizatorul căuta bus explicit).
-    if (!tab.types.contains('bus')) {
+    if (!(tab.types?.contains('bus') ?? false)) {
       final zobNames = <String>{};
       for (final s in allStops) {
         final n = s.name.toLowerCase();
