@@ -2291,6 +2291,11 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
       _route = r;
       _loading = false;
     });
+    // 2026-07-13 fix: dacă stops.isEmpty dar path există (bus/tram EFA),
+    // auto-switch la Karte tab — user vede traseul fizic pe hartă.
+    if (r.stops.isEmpty && r.path.isNotEmpty && _tabController.index == 0) {
+      _tabController.animateTo(1);
+    }
   }
 
   void _setTarget(String? id) {
@@ -2511,7 +2516,12 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                       padding: EdgeInsets.all(40),
                       child: Center(child: CircularProgressIndicator()),
                     )
-                  : stops.isEmpty
+                  // 2026-07-13 fix: pentru bus/tram EFA, backend returnează
+                  // path (polyline coordonate) DAR NU stopSeq nume — deci
+                  // stops.isEmpty=true dar path.length=430+. Arătăm hărta
+                  // oricum: user vede traseul FIZIC pe hartă chiar dacă
+                  // lista Liste e goală.
+                  : (stops.isEmpty && path.isEmpty)
                       ? Padding(
                           padding: const EdgeInsets.all(24),
                           child: Column(
@@ -2551,21 +2561,39 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                   ],
                                 ),
                               ),
-                              Expanded(child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: stops.length,
-                              itemBuilder: (_, i) => _TripStopRow(
-                                stop: stops[i],
-                                isFirst: i == 0,
-                                isLast: i == stops.length - 1,
-                                beforeCurrent: currentIdx > 0 && i < currentIdx,
-                                isBusHere: i == busCurrentIdx,
-                                lineColor: lineColor,
-                                isTarget: stops[i].stopID == _targetStopId,
-                                onSetTarget: () => _setTarget(stops[i].stopID),
-                                vehicleLabel: vehicleLabel,
-                              ),
-                            )),
+                              Expanded(child: stops.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                      Icon(Icons.map, size: 44, color: Colors.blue.shade400),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'Haltestellen-Liste nicht verfügbar (Bus/Tram lokal).',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Route auf Karte anzeigen →',
+                                        style: TextStyle(fontSize: 11, color: Colors.blue.shade700, fontWeight: FontWeight.w600),
+                                      ),
+                                    ]),
+                                  )
+                                : ListView.builder(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                itemCount: stops.length,
+                                itemBuilder: (_, i) => _TripStopRow(
+                                  stop: stops[i],
+                                  isFirst: i == 0,
+                                  isLast: i == stops.length - 1,
+                                  beforeCurrent: currentIdx > 0 && i < currentIdx,
+                                  isBusHere: i == busCurrentIdx,
+                                  lineColor: lineColor,
+                                  isTarget: stops[i].stopID == _targetStopId,
+                                  onSetTarget: () => _setTarget(stops[i].stopID),
+                                  vehicleLabel: vehicleLabel,
+                                ),
+                              )),
                             ]),
                             _TripMapView(
                               stops: stops, path: path, lineColor: lineColor,
