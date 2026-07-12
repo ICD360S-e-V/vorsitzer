@@ -1958,12 +1958,15 @@ class _DepartureRow extends StatelessWidget {
     final isSoon = !isCancelled && mins <= 5;
     final isLive = dep.realtimeTime != null;
 
-    // Trip sequence needs either:
-    //   - stopID+destID (EFA XSLT_TRIP_REQUEST2), OR
-    //   - tripID / jid (HAFAS JourneyDetails, most reliable).
-    // Cancelled services skip both — the vehicle isn't running.
+    // 2026-07-13 fix: relaxare condiție deschidere pentru bus/tram EFA.
+    // Anterior cerea (stopID+destID) SAU tripID. Pentru DING buses,
+    // destID poate lipsi → canOpenSequence=false → click nu face nimic.
+    // Acum: acceptăm și doar stopID (backend poate returna path via
+    // polyline chiar dacă stopSeq lipsește). Dacă absolut nimic
+    // rulează, dialogul afișează empty state — dar user vede măcar
+    // ce s-a încercat.
     final canOpenSequence = !isCancelled &&
-        ((dep.stopID != null && dep.destID != null) ||
+        (dep.stopID != null && dep.stopID!.isNotEmpty ||
          (dep.tripID != null && dep.tripID!.isNotEmpty));
     final productLabel = switch (dep.productType) {
       'tram' => 'Straßenbahn',
@@ -2291,11 +2294,9 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
       _route = r;
       _loading = false;
     });
-    // 2026-07-13 fix: dacă stops.isEmpty dar path există (bus/tram EFA),
-    // auto-switch la Karte tab — user vede traseul fizic pe hartă.
-    if (r.stops.isEmpty && r.path.isNotEmpty && _tabController.index == 0) {
-      _tabController.animateTo(1);
-    }
+    // 2026-07-13: Karte e acum tab 0 (primul), deci nu mai e nevoie de
+    // auto-switch. Pt rail cu stops, user vede harta cu markers stații;
+    // pt bus/tram fara stops, vede polyline traseu.
   }
 
   void _setTarget(String? id) {
@@ -2504,8 +2505,10 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                 indicatorColor: lineColor,
                 labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 tabs: const [
-                  Tab(icon: Icon(Icons.list_alt, size: 16), text: 'Liste', height: 40),
+                  // 2026-07-13: Karte primul — pentru bus/tram EFA local
+                  // stops-list e adesea gol dar path (harta) merge mereu.
                   Tab(icon: Icon(Icons.map_outlined, size: 16), text: 'Karte', height: 40),
+                  Tab(icon: Icon(Icons.list_alt, size: 16), text: 'Liste', height: 40),
                 ],
               )]),
             ),
@@ -2540,6 +2543,15 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                       : TabBarView(
                           controller: _tabController,
                           children: [
+                            // 2026-07-13: Karte primul (index 0) — vezi swap Tab titles
+                            _TripMapView(
+                              stops: stops, path: path, lineColor: lineColor,
+                              targetStopId: _targetStopId,
+                              onSetTarget: _setTarget,
+                              transitService: widget.transitService,
+                              userMuttersprache: widget.userMuttersprache,
+                              onAlarmFired: () => _alarmFired = true,
+                            ),
                             Column(children: [
                               // Compact legend so the badges are self-explanatory.
                               Container(
@@ -2574,7 +2586,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        'Route auf Karte anzeigen →',
+                                        '← Route auf Karte anzeigen',
                                         style: TextStyle(fontSize: 11, color: Colors.blue.shade700, fontWeight: FontWeight.w600),
                                       ),
                                     ]),
@@ -2595,14 +2607,6 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                 ),
                               )),
                             ]),
-                            _TripMapView(
-                              stops: stops, path: path, lineColor: lineColor,
-                              targetStopId: _targetStopId,
-                              onSetTarget: _setTarget,
-                              transitService: widget.transitService,
-                              userMuttersprache: widget.userMuttersprache,
-                              onAlarmFired: () => _alarmFired = true,
-                            ),
                           ],
                         ),
             ),
