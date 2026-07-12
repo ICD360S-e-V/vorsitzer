@@ -5178,39 +5178,83 @@ class _TripMapViewState extends State<_TripMapView> {
     // Running both = ~2× battery drain and duplicate FusedLocation callbacks.
     widget.transitService.pauseCoarseTracking();
 
-    // On Android, promote the GPS stream to a foreground service so it keeps
-    // firing when the user pockets the phone / switches to WhatsApp / locks
-    // the screen — otherwise the Ausstieg-Alarm dies the moment the user
-    // stops looking at the map. iOS handles this via the "when in use"
-    // permission but doesn't need the extra config.
-    final settings = Platform.isAndroid
-        ? AndroidSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-            foregroundNotificationConfig: const ForegroundNotificationConfig(
-              notificationTitle: 'ÖPNV-Alarm aktiv',
-              notificationText: 'Vibriert wenn du deine Ausstieg-Haltestelle erreichst.',
-              enableWakeLock: true,
-              setOngoing: true,
-            ),
-          )
-        : const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-          );
+    // 2026-07-12: SEED cu ultima poziție cunoscută din TransitService (cache
+    // coarse from dashboard) → utilizatorul vede IMEDIAT marker albastru
+    // (nu mai așteaptă primul fix GPS de 3-10 secunde). Stream-ul fine
+    // suprascrie imediat cu poziția precisă.
+    final ts = widget.transitService;
+    if (ts.latitude != null && ts.longitude != null) {
+      _userPosition = LatLng(ts.latitude!, ts.longitude!);
+    }
 
-    _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
-      (pos) {
+    // 2026-07-12: cerem EXPLICIT permission GPS + facem un getCurrentPosition
+    // pentru fix rapid — apoi pornim stream. Fără asta, dacă permission nu e
+    // acordată, stream returna nimic → marker albastru nu apărea niciodată
+    // (bugul raportat de user).
+    _initGpsAsync();
+  }
+
+  Future<void> _initGpsAsync() async {
+    try {
+      // Verifică dacă GPS-ul e activat pe device.
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      // Cere permisiune explicit dacă lipsește.
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      // Fix rapid ~1s pentru afișare imediată marker (înainte de stream fine).
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
+        ).timeout(const Duration(seconds: 5));
         if (!mounted) return;
         final userLl = LatLng(pos.latitude, pos.longitude);
         setState(() => _userPosition = userLl);
         if (_followUser) {
           _mapController.move(userLl, _mapController.camera.zoom);
         }
-        _handleProximity(userLl);
-      },
-      onError: (_) {},
-    );
+      } catch (_) {}
+
+      // Foreground service pe Android — GPS continuă când screen off / pocket.
+      final settings = Platform.isAndroid
+          ? AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+              foregroundNotificationConfig: const ForegroundNotificationConfig(
+                notificationTitle: 'ÖPNV-Alarm aktiv',
+                notificationText: 'Vibriert wenn du deine Ausstieg-Haltestelle erreichst.',
+                enableWakeLock: true,
+                setOngoing: true,
+              ),
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            );
+
+      _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
+        (pos) {
+          if (!mounted) return;
+          final userLl = LatLng(pos.latitude, pos.longitude);
+          setState(() => _userPosition = userLl);
+          if (_followUser) {
+            _mapController.move(userLl, _mapController.camera.zoom);
+          }
+          _handleProximity(userLl);
+        },
+        onError: (_) {},
+      );
+    } catch (_) {}
     // Rulează interpolarea imediat + la fiecare 15s.
     _updateVehiclePosition();
     _vehicleInterpolateTimer = Timer.periodic(const Duration(seconds: 15), (_) {
