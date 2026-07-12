@@ -70,7 +70,7 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     // Jump straight to "Verbindung suchen" tab when deep-linked with from/to.
     if (widget.initialFrom != null || widget.initialTo != null) {
       _tabController.index = 1;
@@ -129,6 +129,10 @@ class _OpnvDialogState extends State<OpnvDialog> with SingleTickerProviderStateM
                     initialArrivalTime: widget.initialArrivalTime,
                     currentMitgliedernummer: widget.currentMitgliedernummer,
                     users: widget.users,
+                  ),
+                  _KarteTab(
+                    transitService: widget.transitService,
+                    userMuttersprache: widget.userMuttersprache,
                   ),
                 ],
               ),
@@ -221,6 +225,7 @@ class _Header extends StatelessWidget {
             tabs: const [
               Tab(icon: Icon(Icons.access_time_filled, size: 18), text: 'Echtzeit'),
               Tab(icon: Icon(Icons.route, size: 18), text: 'Verbindung suchen'),
+              Tab(icon: Icon(Icons.map, size: 18), text: 'Karte'),
             ],
           ),
         ],
@@ -5776,6 +5781,372 @@ class _TripMapViewState extends State<_TripMapView> {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Tab 3 — Karte: All-modal map with nearby stops (GPS-based)
+// ══════════════════════════════════════════════════════════════
+
+class _KarteTab extends StatefulWidget {
+  final TransitService transitService;
+  final String? userMuttersprache;
+  const _KarteTab({required this.transitService, this.userMuttersprache});
+
+  @override
+  State<_KarteTab> createState() => _KarteTabState();
+}
+
+class _KarteTabState extends State<_KarteTab> {
+  final MapController _mapController = MapController();
+  StreamSubscription<Position>? _positionSub;
+  LatLng? _userPosition;
+  List<TransitStop> _stops = [];
+  bool _loading = false;
+  String? _error;
+  // Product-type filter chips — user poate ascunde/afișa tipuri.
+  final Set<String> _enabledProducts = {
+    'bus', 'tram', 'suburban', 'subway', 'regional', 'train', 'ferry'
+  };
+  bool _followUser = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Seed cu poziția cache din TransitService (instant).
+    final ts = widget.transitService;
+    if (ts.latitude != null && ts.longitude != null) {
+      _userPosition = LatLng(ts.latitude!, ts.longitude!);
+    }
+    _initAsync();
+  }
+
+  Future<void> _initAsync() async {
+    // GPS setup (best effort — dacă pică, folosim seed-ul).
+    try {
+      if (await Geolocator.isLocationServiceEnabled()) {
+        var perm = await Geolocator.checkPermission();
+        if (perm == LocationPermission.denied) {
+          perm = await Geolocator.requestPermission();
+        }
+        if (perm != LocationPermission.denied && perm != LocationPermission.deniedForever) {
+          try {
+            final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+            ).timeout(const Duration(seconds: 5));
+            if (mounted) {
+              setState(() => _userPosition = LatLng(pos.latitude, pos.longitude));
+            }
+          } catch (_) {}
+          _positionSub = Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high, distanceFilter: 10,
+            ),
+          ).listen((pos) {
+            if (!mounted) return;
+            final ll = LatLng(pos.latitude, pos.longitude);
+            setState(() => _userPosition = ll);
+            if (_followUser) {
+              _mapController.move(ll, _mapController.camera.zoom);
+            }
+          }, onError: (_) {});
+        }
+      }
+    } catch (_) {}
+    // Fetch stopurile.
+    await _loadStops();
+  }
+
+  Future<void> _loadStops() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      final stops = await widget.transitService.fetchAllModalNearby();
+      if (!mounted) return;
+      setState(() { _stops = stops; _loading = false; });
+      if (stops.isEmpty) {
+        setState(() => _error = 'Keine Haltestellen in der Nähe gefunden');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString(); });
+    }
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  Color _colorFor(String product) {
+    switch (product) {
+      case 'train':    return Colors.red.shade700;      // 🚂
+      case 'regional': return Colors.orange.shade700;   // RE/RB
+      case 'suburban': return Colors.green.shade700;    // S-Bahn
+      case 'subway':   return Colors.purple.shade700;   // U-Bahn
+      case 'tram':     return Colors.pink.shade500;     // Tram
+      case 'ferry':    return Colors.cyan.shade700;     // Fähre
+      default:         return Colors.blue.shade700;     // Bus
+    }
+  }
+
+  IconData _iconFor(String product) {
+    switch (product) {
+      case 'train':    return Icons.train;
+      case 'regional': return Icons.train_outlined;
+      case 'suburban': return Icons.tram;
+      case 'subway':   return Icons.subway;
+      case 'tram':     return Icons.tram;
+      case 'ferry':    return Icons.directions_boat;
+      default:         return Icons.directions_bus;
+    }
+  }
+
+  String _labelFor(String product) {
+    switch (product) {
+      case 'train':    return 'Fernverkehr';
+      case 'regional': return 'RE/RB';
+      case 'suburban': return 'S-Bahn';
+      case 'subway':   return 'U-Bahn';
+      case 'tram':     return 'Tram';
+      case 'ferry':    return 'Fähre';
+      default:         return 'Bus';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    final visibleStops = _stops.where((s) => _enabledProducts.contains(s.primaryProduct)).toList();
+    final center = _userPosition
+        ?? (_stops.isNotEmpty && _stops.first.hasCoords
+            ? LatLng(_stops.first.lat!, _stops.first.lon!)
+            : const LatLng(48.4, 10.0));
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: center,
+            initialZoom: 15,
+            minZoom: 8, maxZoom: 18,
+            onPositionChanged: (pos, hasGesture) {
+              if (hasGesture && _followUser) {
+                setState(() => _followUser = false);
+              }
+            },
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'de.icd360s.vorsitzer',
+              maxZoom: 19,
+            ),
+            // Cerc semi-transparent pt raza de căutare (2km default).
+            if (_userPosition != null)
+              CircleLayer(circles: [
+                CircleMarker(
+                  point: _userPosition!, radius: 2000, useRadiusInMeter: true,
+                  color: Colors.blue.withValues(alpha: 0.05),
+                  borderColor: Colors.blue.withValues(alpha: 0.25),
+                  borderStrokeWidth: 1,
+                ),
+              ]),
+            // Markers pentru stopuri.
+            MarkerLayer(markers: [
+              for (final s in visibleStops)
+                if (s.hasCoords)
+                  Marker(
+                    point: LatLng(s.lat!, s.lon!),
+                    width: 32, height: 32,
+                    child: GestureDetector(
+                      onTap: () => _showStopDetails(s),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _colorFor(s.primaryProduct),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 3)],
+                        ),
+                        child: Icon(_iconFor(s.primaryProduct), color: Colors.white, size: 16),
+                      ),
+                    ),
+                  ),
+            ]),
+            // Marker user (albastru cu navigation icon).
+            if (_userPosition != null)
+              MarkerLayer(markers: [
+                Marker(
+                  point: _userPosition!, width: 40, height: 40,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade600, shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: [BoxShadow(color: Colors.blue.withValues(alpha: 0.6),
+                          blurRadius: 10, spreadRadius: 2)],
+                    ),
+                    child: const Icon(Icons.navigation, color: Colors.white, size: 20),
+                  ),
+                ),
+              ]),
+          ],
+        ),
+        // Top overlay: legenda + filter chips.
+        Positioned(
+          top: 8, left: 8, right: 8,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: p.card.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.info_outline, size: 14, color: p.onSurfaceDim),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(
+                    _loading
+                        ? 'Haltestellen werden geladen…'
+                        : '${visibleStops.length}/${_stops.length} Haltestellen im Umkreis',
+                    style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+                  )),
+                  if (_userPosition != null) ...[
+                    Icon(Icons.circle, size: 8, color: Colors.blue.shade600),
+                    const SizedBox(width: 3),
+                    Text('Meine Position', style: TextStyle(fontSize: 10, color: p.onSurfaceDim)),
+                  ],
+                ]),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 28,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final product in ['bus','tram','subway','suburban','regional','train','ferry'])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: FilterChip(
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            label: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(_iconFor(product), size: 12, color: _colorFor(product)),
+                              const SizedBox(width: 3),
+                              Text(_labelFor(product), style: const TextStyle(fontSize: 10)),
+                            ]),
+                            selected: _enabledProducts.contains(product),
+                            onSelected: (v) => setState(() {
+                              if (v) {
+                                _enabledProducts.add(product);
+                              } else {
+                                _enabledProducts.remove(product);
+                              }
+                            }),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // FAB-uri: center + refresh.
+        Positioned(
+          right: 8, bottom: 8,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (_userPosition != null && !_followUser)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: FloatingActionButton.small(
+                  heroTag: 'karte_center',
+                  backgroundColor: Colors.blue.shade600,
+                  onPressed: () {
+                    setState(() => _followUser = true);
+                    _mapController.move(_userPosition!, 16);
+                  },
+                  child: const Icon(Icons.my_location, color: Colors.white),
+                ),
+              ),
+            FloatingActionButton.small(
+              heroTag: 'karte_refresh',
+              backgroundColor: p.dark ? Colors.grey.shade700 : Colors.white,
+              onPressed: _loading ? null : _loadStops,
+              child: _loading
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(Icons.refresh, color: p.dark ? Colors.white : Colors.grey.shade800),
+            ),
+          ]),
+        ),
+        // Error overlay.
+        if (_error != null)
+          Positioned(
+            left: 16, right: 16, bottom: 60,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Row(children: [
+                Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_error!, style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+              ]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showStopDetails(TransitStop s) {
+    final p = _Palette.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: p.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(color: _colorFor(s.primaryProduct), shape: BoxShape.circle),
+              child: Icon(_iconFor(s.primaryProduct), color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(s.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+            Text('${s.distance} m', style: TextStyle(fontSize: 12, color: p.onSurfaceDim)),
+          ]),
+          const SizedBox(height: 10),
+          if (s.products.isNotEmpty)
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              for (final prod in s.products)
+                Chip(
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  avatar: Icon(_iconFor(prod), size: 12, color: _colorFor(prod)),
+                  label: Text(_labelFor(prod), style: const TextStyle(fontSize: 10)),
+                ),
+            ]),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.close, size: 16),
+              label: const Text('Schließen'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }

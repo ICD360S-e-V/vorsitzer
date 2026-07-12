@@ -18,25 +18,52 @@ class TransitStop {
   final String name;
   final int distance; // meters
   final String? platform;
+  final double? lat;
+  final double? lon;
+  /// Products supported at this stop: 'bus','tram','subway','suburban',
+  /// 'regional','train','ferry'. Populated dinamic din fetch (dbnav products).
+  final Set<String> products;
 
   TransitStop({
     required this.id,
     required this.name,
     required this.distance,
     this.platform,
-  });
+    this.lat,
+    this.lon,
+    Set<String>? products,
+  }) : products = products ?? const {};
+
+  bool get hasCoords => lat != null && lon != null;
+
+  /// Primary product type — cel mai "important" pentru marker color.
+  /// Ordinea: train > suburban > subway > tram > bus > ferry.
+  String get primaryProduct {
+    if (products.contains('train') || products.contains('regional')) return 'train';
+    if (products.contains('suburban')) return 'suburban';
+    if (products.contains('subway')) return 'subway';
+    if (products.contains('tram')) return 'tram';
+    if (products.contains('ferry')) return 'ferry';
+    return 'bus';
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'distance': distance,
         'platform': platform,
+        'lat': lat,
+        'lon': lon,
+        'products': products.toList(),
       };
   factory TransitStop.fromJson(Map<String, dynamic> j) => TransitStop(
         id: j['id'] as String? ?? '',
         name: j['name'] as String? ?? '',
         distance: (j['distance'] as num?)?.toInt() ?? 0,
         platform: j['platform'] as String?,
+        lat: (j['lat'] as num?)?.toDouble(),
+        lon: (j['lon'] as num?)?.toDouble(),
+        products: (j['products'] as List?)?.cast<String>().toSet() ?? const {},
       );
 }
 
@@ -2033,7 +2060,19 @@ class TransitService {
         final dist = (s['distance'] as num?)?.toInt() ?? 0;
         if (name.isEmpty || id.isEmpty) continue;
         if (seenNames.contains(name.toLowerCase())) continue;
-        final stop = TransitStop(id: id, name: name, distance: dist);
+        // 2026-07-13: preluam lat/lon + products din payload dbnav.
+        final lat = (s['lat'] as num?)?.toDouble();
+        final lon = (s['lon'] as num?)?.toDouble();
+        final products = <String>{
+          if (s['hasIce'] == true || (s['products'] as List?)?.contains('train') == true) 'train',
+          if ((s['products'] as List?)?.contains('regional') == true) 'regional',
+          if ((s['products'] as List?)?.contains('suburban') == true) 'suburban',
+        };
+        if (products.isEmpty) products.add('train'); // rail-strict filter
+        final stop = TransitStop(
+          id: id, name: name, distance: dist,
+          lat: lat, lon: lon, products: products,
+        );
         railStops.add(stop);
         nearbyStops.add(stop);
       }
@@ -2279,10 +2318,41 @@ class TransitService {
           rejectedNoRail++;
           continue;
         }
+        // 2026-07-13: extract coordinates for the map tab.
+        // dbnav returns them under `coordinates.{latitude,longitude}` or
+        // `latitude`/`longitude` flat, or `location.{lat,lon}`.
+        double? lat, lon;
+        final coords = s['coordinates'];
+        if (coords is Map) {
+          lat = (coords['latitude'] as num?)?.toDouble();
+          lon = (coords['longitude'] as num?)?.toDouble();
+        }
+        lat ??= (s['latitude'] as num?)?.toDouble();
+        lon ??= (s['longitude'] as num?)?.toDouble();
+        // Extract products list — used by TransitStop.primaryProduct.
+        final productsList = <String>{};
+        final rawProducts = s['products'];
+        if (rawProducts is List) {
+          for (final code in rawProducts) {
+            final c = code.toString().toUpperCase();
+            if (c.contains('HOCH') || c == 'ICE') productsList.add('train');
+            if (c.contains('INTERCITY') || c == 'IC' || c == 'EC') productsList.add('train');
+            if (c.contains('INTERREGIO') || c == 'IR' || c == 'RE') productsList.add('regional');
+            if (c.contains('NAHVERKEHR') || c == 'RB' || c == 'REGIONAL') productsList.add('regional');
+            if (c.contains('SBAHN') || c == 'S') productsList.add('suburban');
+            if (c.contains('UBAHN') || c == 'U') productsList.add('subway');
+            if (c.contains('STRASSEN') || c.contains('TRAM')) productsList.add('tram');
+            if (c.contains('BUSS') || c == 'BUS') productsList.add('bus');
+            if (c.contains('SCHIFF') || c == 'FERRY') productsList.add('ferry');
+          }
+        }
         rail.add({
           'id': id,
           'name': name,
           'distance': ((s['distance'] ?? s['entfernung'] ?? s['dist'] ?? 0) as num).toInt(),
+          'lat': lat,
+          'lon': lon,
+          'products': productsList.toList(),
         });
       }
       _log.info('Transit: dbnav nearby → ${rail.length} RAIL stops '
@@ -2315,6 +2385,100 @@ class TransitService {
       });
     }
     return rail;
+  }
+
+  /// Fetch TOATE stopurile din raza `radiusMeters` de la GPS-ul curent,
+  /// cu toate modurile (bus, tram, subway, S/U, train, ferry). Folosit
+  /// pentru tabul Karte — utilizatorul vede pe hartă tot ce e transport
+  /// public în jur. Rezultat cu lat/lon garantat via dbnav.
+  ///
+  /// Returnează stopuri sortate după distanță (cele mai apropiate primele).
+  Future<List<TransitStop>> fetchAllModalNearby({int radiusMeters = 2000, int maxResults = 100}) async {
+    if (_latitude == null || _longitude == null) return [];
+    try {
+      final body = jsonEncode({
+        'area': {
+          'coordinates': {'longitude': _longitude, 'latitude': _latitude},
+          // dbnav max 10000m — cap în JS proxy.
+          'radius': radiusMeters.clamp(100, 10000),
+        },
+        'maxResults': maxResults.clamp(10, 200),
+        // Toate produsele — bus + tram + subway + S-Bahn + rail + ferry.
+        'products': [
+          'HOCHGESCHWINDIGKEITSZUEGE',
+          'INTERCITYUNDEUROCITYZUEGE',
+          'INTERREGIOUNDSCHNELLZUEGE',
+          'NAHVERKEHRSONSTIGEZUEGE',
+          'SBAHNEN',
+          'UBAHN',
+          'STRASSENBAHN',
+          'BUSSE',
+          'SCHIFFE',
+          'ANRUFPFLICHTIGEVERKEHRE',
+        ],
+      });
+      final uri = Uri.parse('$_dbNavBase/mob/location/nearby');
+      final resp = await _client.post(uri,
+          headers: {
+            'Content-Type': _dbNavNearbyContentType,
+            'Accept': _dbNavNearbyContentType,
+            'X-Correlation-ID': _dbNavCorrelationId(),
+          },
+          body: body,
+      ).timeout(const Duration(seconds: 12));
+      if (resp.statusCode != 200) return [];
+      final data = jsonDecode(_decodeUtf8(resp));
+      final list = data is List
+          ? data
+          : (data is Map
+              ? (data['haltestellen'] ?? data['stops'] ?? data['items'] ?? []) as List
+              : <dynamic>[]);
+      final out = <TransitStop>[];
+      for (final s in list) {
+        if (s is! Map) continue;
+        final id = (s['id'] ?? s['extId'] ?? s['evaNr'] ?? s['haltId'] ?? '').toString();
+        final name = (s['name'] ?? s['haltName'] ?? '').toString();
+        if (id.isEmpty || name.isEmpty) continue;
+        double? lat, lon;
+        final coords = s['coordinates'];
+        if (coords is Map) {
+          lat = (coords['latitude'] as num?)?.toDouble();
+          lon = (coords['longitude'] as num?)?.toDouble();
+        }
+        lat ??= (s['latitude'] as num?)?.toDouble();
+        lon ??= (s['longitude'] as num?)?.toDouble();
+        if (lat == null || lon == null) continue;
+        final products = <String>{};
+        final rawProducts = s['products'];
+        if (rawProducts is List) {
+          for (final code in rawProducts) {
+            final c = code.toString().toUpperCase();
+            if (c.contains('HOCH') || c == 'ICE') products.add('train');
+            if (c.contains('INTERCITY') || c == 'IC' || c == 'EC') products.add('train');
+            if (c.contains('INTERREGIO') || c == 'IR' || c == 'RE') products.add('regional');
+            if (c.contains('NAHVERKEHR') || c == 'RB' || c == 'REGIONAL') products.add('regional');
+            if (c.contains('SBAHN') || c == 'S') products.add('suburban');
+            if (c.contains('UBAHN') || c == 'U') products.add('subway');
+            if (c.contains('STRASSEN') || c.contains('TRAM')) products.add('tram');
+            if (c.contains('BUSS') || c == 'BUS') products.add('bus');
+            if (c.contains('SCHIFF') || c == 'FERRY') products.add('ferry');
+          }
+        }
+        if (products.isEmpty) products.add('bus');
+        out.add(TransitStop(
+          id: id, name: name,
+          distance: ((s['distance'] ?? s['entfernung'] ?? 0) as num).toInt(),
+          lat: lat, lon: lon,
+          products: products,
+        ));
+      }
+      out.sort((a, b) => a.distance.compareTo(b.distance));
+      _log.info('Transit: fetchAllModalNearby → ${out.length} stops', tag: 'TRANSIT');
+      return out;
+    } catch (e) {
+      _log.debug('Transit: fetchAllModalNearby failed: $e', tag: 'TRANSIT');
+      return [];
+    }
   }
 
   /// For every visible stop whose name matches a mainline station pattern,
@@ -2476,11 +2640,21 @@ class TransitService {
       final assignedStops = dm['itdOdvAssignedStops'] ?? dm['assignedStops'];
       if (assignedStops is List) {
         for (final s in assignedStops) {
+          // EFA returnează `x`/`y` = WGS84 * 1e6 (int). Divide cu 1e6 → deg.
+          double? parseCoord(dynamic v) {
+            if (v == null) return null;
+            final n = num.tryParse(v.toString());
+            if (n == null) return null;
+            // WGS84 EFA format: coordonate cu 6 zecimale (Ulm ~= 9982611 → 9.98)
+            return n.abs() > 1000 ? n / 1000000.0 : n.toDouble();
+          }
           nearbyStops.add(TransitStop(
             id: s['stopID']?.toString() ?? '',
             name: s['name']?.toString() ?? '',
             distance: int.tryParse(s['distance']?.toString() ?? '0') ?? 0,
             platform: s['platform']?.toString(),
+            lat: parseCoord(s['y']),
+            lon: parseCoord(s['x']),
           ));
         }
         nearbyStops.sort((a, b) => a.distance.compareTo(b.distance));
