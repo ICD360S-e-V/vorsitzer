@@ -6370,10 +6370,17 @@ class TransitService {
       },
       body: body,
     ).timeout(const Duration(seconds: 20));
-    if (response.statusCode != 200) return [];
+    if (response.statusCode != 200) {
+      _log.info('Transit: dbweb HTTP ${response.statusCode} for '
+          '${from.name}→${to.name}', tag: 'TRANSIT');
+      return [];
+    }
     final data = jsonDecode(_decodeUtf8(response));
     final verb = data['verbindungen'] as List? ?? [];
-    return verb.map<Journey?>(_parseBahnConnection).whereType<Journey>().take(4).toList();
+    final journeys = verb.map<Journey?>(_parseBahnConnection).whereType<Journey>().take(4).toList();
+    _log.info('Transit: dbweb ${from.name}→${to.name} → ${verb.length} raw, '
+        '${journeys.length} parsed journeys', tag: 'TRANSIT');
+    return journeys;
   }
 
   /// Parse un `verbindung` din răspunsul dbnav `/mob/angebote/fahrplan`.
