@@ -5265,7 +5265,11 @@ class TransitService {
       if (name.isEmpty) continue;
       final dt = s['dateTime'];
       final planned = _parseEfaTripDateTime(dt) ?? _parseEfaDateTime(dt is Map ? Map<String, dynamic>.from(dt) : {});
-      if (planned == null) continue;
+      // 2026-07-13 FIX: NU mai skipam stop-ul cand timp e null (bug raportat
+      // de user). Formatul DING/MVV/EFA are dateTime uneori absent sau in
+      // format diferit — dar stop-ul (nume+coords) EXISTA si trebuie afisat.
+      // TripStop necesita plannedTime — folosim placeholder now() dacă lipseste.
+      final placeholder = planned ?? DateTime.now();
       DateTime? rt;
       if (dt is Map && (dt['rtDate'] != null || dt['rtTime'] != null)) {
         rt = _parseEfaTripDateTime({
@@ -5273,7 +5277,7 @@ class TransitService {
           'time': dt['rtTime'] ?? dt['time'],
         });
       }
-      final delayMin = (rt != null) ? rt.difference(planned).inMinutes : 0;
+      final delayMin = (rt != null && planned != null) ? rt.difference(planned).inMinutes : 0;
       // Parse coords "lon,lat" (EFA convention).
       double? lat, lon;
       final coordsStr = ref['coords']?.toString();
@@ -5287,7 +5291,7 @@ class TransitService {
       out.add(TripStop(
         name: name,
         stopID: id,
-        plannedTime: planned,
+        plannedTime: placeholder,
         realtimeTime: rt,
         delay: delayMin > 0 ? delayMin : 0,
         isCurrent: id == currentStopId,

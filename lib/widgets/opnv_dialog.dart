@@ -2505,10 +2505,8 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                 indicatorColor: lineColor,
                 labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 tabs: const [
-                  // 2026-07-13: Karte primul — pentru bus/tram EFA local
-                  // stops-list e adesea gol dar path (harta) merge mereu.
-                  Tab(icon: Icon(Icons.map_outlined, size: 16), text: 'Karte', height: 40),
                   Tab(icon: Icon(Icons.list_alt, size: 16), text: 'Liste', height: 40),
+                  Tab(icon: Icon(Icons.map_outlined, size: 16), text: 'Karte', height: 40),
                 ],
               )]),
             ),
@@ -2543,17 +2541,10 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                       : TabBarView(
                           controller: _tabController,
                           children: [
-                            // 2026-07-13: Karte primul (index 0) — vezi swap Tab titles
-                            _TripMapView(
-                              stops: stops, path: path, lineColor: lineColor,
-                              targetStopId: _targetStopId,
-                              onSetTarget: _setTarget,
-                              transitService: widget.transitService,
-                              userMuttersprache: widget.userMuttersprache,
-                              onAlarmFired: () => _alarmFired = true,
-                            ),
+                            // Liste tab: Start → stații intermediare → Ende
+                            // marker isCurrent (verde) unde userul urcă
+                            // marker isBusHere (portocaliu) unde e vehicul acum
                             Column(children: [
-                              // Compact legend so the badges are self-explanatory.
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
@@ -2573,25 +2564,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                   ],
                                 ),
                               ),
-                              Expanded(child: stops.isEmpty
-                                ? Padding(
-                                    padding: const EdgeInsets.all(24),
-                                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                                      Icon(Icons.map, size: 44, color: Colors.blue.shade400),
-                                      const SizedBox(height: 12),
-                                      const Text(
-                                        'Haltestellen-Liste nicht verfügbar (Bus/Tram lokal).',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        '← Route auf Karte anzeigen',
-                                        style: TextStyle(fontSize: 11, color: Colors.blue.shade700, fontWeight: FontWeight.w600),
-                                      ),
-                                    ]),
-                                  )
-                                : ListView.builder(
+                              Expanded(child: ListView.builder(
                                 padding: const EdgeInsets.symmetric(vertical: 8),
                                 itemCount: stops.length,
                                 itemBuilder: (_, i) => _TripStopRow(
@@ -2607,6 +2580,14 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                 ),
                               )),
                             ]),
+                            _TripMapView(
+                              stops: stops, path: path, lineColor: lineColor,
+                              targetStopId: _targetStopId,
+                              onSetTarget: _setTarget,
+                              transitService: widget.transitService,
+                              userMuttersprache: widget.userMuttersprache,
+                              onAlarmFired: () => _alarmFired = true,
+                            ),
                           ],
                         ),
             ),
