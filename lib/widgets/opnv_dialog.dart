@@ -480,6 +480,21 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     } else if (tab.bhfOnly) {
       filtered = filtered.where((s) => _isBhfLocalName(s.name));
     }
+    // 2026-07-12: eliminăm stopurile ZOB duplicate ("X Hbf Bus", "X Hbf ZOB")
+    // din TOATE taburile — au fost integrate ca badge sub gara Hbf/Bhf
+    // principală. Excepție tabul Bus (utilizatorul căuta bus explicit).
+    if (!tab.types.contains('bus')) {
+      final zobNames = <String>{};
+      for (final s in allStops) {
+        final n = s.name.toLowerCase();
+        if (RegExp(r'\bbus\b').hasMatch(n) ||
+            RegExp(r'\bzob\b').hasMatch(n) ||
+            n.contains('omnibusbahnhof')) {
+          zobNames.add(s.name);
+        }
+      }
+      filtered = filtered.where((s) => !zobNames.contains(s.name));
+    }
     // 2026-07-12: Hbf/Bhf pot avea mai multe gări nearby (5 in loc de 3)
     // pentru orașe mari precum Berlin, München, Frankfurt (multiple Bhf).
     final maxStops = (tab.hbfOnly || tab.bhfOnly) ? 5 : 3;
@@ -1466,10 +1481,111 @@ class _StopSection extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // 2026-07-12: ZOB badge — sub gara Hbf/Bhf, indica prezenta
+                  // Zentraler Omnibusbahnhof (Fernbusse FlixBus + regionale).
+                  // Click deschide dialog cu departures de la ZOB.
+                  Builder(builder: (ctx) {
+                    final zob = transitService.findZobForStation(stop.name);
+                    if (zob == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Semantics(
+                        button: true,
+                        label: 'ZOB Fernbus Abfahrten anzeigen',
+                        child: InkWell(
+                          onTap: () => _openZobDialog(context, zob),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('🚌', style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 3),
+                                Text('ZOB', style: TextStyle(
+                                  fontSize: 10, fontWeight: FontWeight.w600,
+                                  color: p.dark ? Colors.orange.shade200 : Colors.orange.shade900,
+                                )),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  // Info link — deschide bahnhof.de/{slug} in browser cu toate
+                  // detaliile oficiale live (services, program, ausfaelle).
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Semantics(
+                      button: true,
+                      label: 'Info zur Station auf bahnhof.de öffnen',
+                      child: InkWell(
+                        onTap: () async {
+                          final url = transitService.bahnhofDeUrl(stop.name);
+                          if (url == null) return;
+                          await launchUrl(Uri.parse(url),
+                              mode: LaunchMode.externalApplication);
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          child: Icon(Icons.info_outline, size: 14, color: Colors.blueGrey),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ],
             ),
           ),
+          // 2026-07-12: Services row — badges pentru services detectate la
+          // gara (best-effort via bahnhof.de heuristic keyword count).
+          // Fetch async cu FutureBuilder + cache 7 zile in TransitService.
+          if (_isRailwayStation)
+            FutureBuilder<StationInfo?>(
+              future: transitService.fetchStationInfo(stop.name),
+              builder: (ctx, snap) {
+                final info = snap.data;
+                if (info == null || !info.hasAny) return const SizedBox.shrink();
+                final badges = <_ServiceBadge>[
+                  if (info.hasReisezentrum)       _ServiceBadge('🎫', 'Reisezentrum'),
+                  if (info.hasMobilitaetsservice) _ServiceBadge('♿', 'Mobilität'),
+                  if (info.hasBahnhofsmission)    _ServiceBadge('⛑️', 'Bahnhofsmission'),
+                  if (info.hasFahrradparkhaus)    _ServiceBadge('🚴', 'Fahrrad-Parkhaus'),
+                  if (info.hasFundservice)        _ServiceBadge('🔍', 'Fundservice'),
+                  if (info.hasDbLounge)           _ServiceBadge('🛋️', 'DB Lounge'),
+                  if (info.hasWlan)               _ServiceBadge('📶', 'WLAN'),
+                  if (info.hasTaxi)               _ServiceBadge('🚕', 'Taxi'),
+                  if (info.hasParkhaus)           _ServiceBadge('🅿️', 'Parkhaus'),
+                ];
+                if (badges.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                  child: Wrap(
+                    spacing: 6, runSpacing: 4,
+                    children: badges.map((b) => Tooltip(
+                      message: b.label,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: p.accentTint.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(b.icon, style: const TextStyle(fontSize: 11)),
+                            const SizedBox(width: 3),
+                            Text(b.label, style: TextStyle(fontSize: 10, color: p.onSurfaceDim)),
+                          ],
+                        ),
+                      ),
+                    )).toList(),
+                  ),
+                );
+              },
+            ),
           if (departures.isEmpty)
             Padding(
               padding: const EdgeInsets.all(12),
@@ -1487,10 +1603,72 @@ class _StopSection extends StatelessWidget {
     ));
   }
 
+  void _openZobDialog(BuildContext context, TransitStop zob) {
+    showDialog(
+      context: context,
+      builder: (_) => _ZobDialog(zob: zob, transitService: transitService,
+          userMuttersprache: userMuttersprache),
+    );
+  }
+
   void _openFacilitiesDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (_) => _FacilitiesDialog(stationName: stop.name, transitService: transitService),
+    );
+  }
+}
+
+/// Compact struct for service badge (emoji + label).
+class _ServiceBadge {
+  final String icon;
+  final String label;
+  const _ServiceBadge(this.icon, this.label);
+}
+
+/// Modal showing ZOB (Fernbus) departures for a station's bushof.
+class _ZobDialog extends StatelessWidget {
+  final TransitStop zob;
+  final TransitService transitService;
+  final String? userMuttersprache;
+  const _ZobDialog({required this.zob, required this.transitService, this.userMuttersprache});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    // Filtrăm departures din TransitService pt acest stop nume.
+    final zobDeps = transitService.departures.where((d) => d.stopName == zob.name).toList();
+    return AlertDialog(
+      title: Row(children: [
+        const Text('🚌', style: TextStyle(fontSize: 20)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(
+          zob.name,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          overflow: TextOverflow.ellipsis,
+        )),
+      ]),
+      contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      content: SizedBox(
+        width: 380,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Zentraler Omnibusbahnhof — Fernbusse (FlixBus, RegioJet etc.) '
+                 'und regionale Buslinien.',
+                style: TextStyle(fontSize: 11, color: p.onSurfaceDim)),
+            const SizedBox(height: 8),
+            if (zobDeps.isEmpty)
+              Padding(padding: const EdgeInsets.all(8),
+                child: Text('Keine Abfahrten geladen. Öffnen Sie den Bus-Tab.',
+                  style: TextStyle(fontSize: 12, color: p.onSurfaceFaint))),
+            ...zobDeps.take(20).map((d) => _DepartureRow(
+                dep: d, transitService: transitService, userMuttersprache: userMuttersprache)),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
+      ],
     );
   }
 }

@@ -323,6 +323,50 @@ class StationFacility {
   String get icon => isElevator ? '🛗' : (isEscalator ? '↕️' : '⚙️');
 }
 
+/// Rich station info fetched from bahnhof.de RSC page. Best-effort heuristic
+/// keyword counting — a feature is considered "present" if its marker
+/// appears >= 3 times in the page HTML (2026-07-12 calibration).
+///
+/// Cache 7 days per station — services rarely change.
+class StationInfo {
+  final String slug;
+  final bool hasBahnhofsmission;    // ⛑️
+  final bool hasFahrradparkhaus;    // 🚴
+  final bool hasReisezentrum;       // 🎫
+  final bool hasMobilitaetsservice; // ♿
+  final bool hasFundservice;        // 🔍
+  final bool hasWlan;               // 📶
+  final bool hasDbLounge;           // 🛋️
+  final bool hasTaxi;               // 🚕
+  final bool hasParkhaus;           // 🅿️
+  final DateTime fetchedAt;
+
+  const StationInfo({
+    required this.slug,
+    required this.fetchedAt,
+    this.hasBahnhofsmission = false,
+    this.hasFahrradparkhaus = false,
+    this.hasReisezentrum = false,
+    this.hasMobilitaetsservice = false,
+    this.hasFundservice = false,
+    this.hasWlan = false,
+    this.hasDbLounge = false,
+    this.hasTaxi = false,
+    this.hasParkhaus = false,
+  });
+
+  bool get hasAny =>
+      hasBahnhofsmission || hasFahrradparkhaus || hasReisezentrum ||
+      hasMobilitaetsservice || hasFundservice || hasWlan || hasDbLounge ||
+      hasTaxi || hasParkhaus;
+}
+
+class _CachedStationInfo {
+  final StationInfo info;
+  final DateTime at;
+  _CachedStationInfo(this.info, this.at);
+}
+
 /// Whether a Journey is likely to work for a wheelchair / stroller user
 /// based on the DB FaSta elevator status at each transfer stop.
 ///
@@ -3730,6 +3774,82 @@ class TransitService {
   ///   "München Hauptbahnhof" → "muenchen-hauptbahnhof"
   ///   "Saarbrücken Hbf" → "saarbruecken-hbf"
   ///   "Frankfurt(M) Hbf" → "frankfurt-m-hbf"
+  /// Fetch station info (services) from bahnhof.de/{slug} RSC page.
+  /// Best-effort heuristic — counts keyword occurrences and considers a
+  /// feature present when ≥ 3 markers appear. Cached 7 days per station.
+  final Map<String, _CachedStationInfo> _stationInfoCache = {};
+  static const _stationInfoTtl = Duration(days: 7);
+
+  Future<StationInfo?> fetchStationInfo(String stationName) async {
+    final slug = _bahnhofDeSlug(stationName);
+    if (slug.isEmpty) return null;
+    final cached = _stationInfoCache[slug];
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < _stationInfoTtl) {
+      return cached.info;
+    }
+    try {
+      final uri = Uri.parse('https://www.bahnhof.de/$slug');
+      final resp = await _client.get(uri, headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'RSC': '1',
+        'Accept-Language': 'de-DE,de;q=0.9',
+      }).timeout(const Duration(seconds: 12));
+      if (resp.statusCode != 200) return null;
+      final body = _decodeUtf8(resp);
+      int cnt(RegExp re) => re.allMatches(body).length;
+      final info = StationInfo(
+        slug: slug,
+        fetchedAt: DateTime.now(),
+        hasBahnhofsmission:    cnt(RegExp(r'Bahnhofsmission')) >= 3,
+        hasFahrradparkhaus:    cnt(RegExp(r'Fahrradparkhaus|Fahrradstation')) >= 2,
+        hasReisezentrum:       cnt(RegExp(r'DB\s+Reisezentrum|Reisezentrum')) >= 3,
+        hasMobilitaetsservice: cnt(RegExp(r'Mobilit[aä]tsservice|mobilityService')) >= 3,
+        hasFundservice:        cnt(RegExp(r'Fundservice|lostProperty')) >= 3,
+        hasWlan:               cnt(RegExp(r'\bWLAN\b')) >= 3,
+        hasDbLounge:           cnt(RegExp(r'DB[- ]Lounge')) >= 1,
+        hasTaxi:               cnt(RegExp(r'"taxiRank"|Taxistand')) >= 1,
+        hasParkhaus:           cnt(RegExp(r'Parkhaus|Parkplatz|carParking')) >= 3,
+      );
+      _stationInfoCache[slug] = _CachedStationInfo(info, DateTime.now());
+      return info;
+    } catch (e) {
+      _log.debug('Transit: bahnhof.de info fetch failed: $e', tag: 'TRANSIT');
+      return null;
+    }
+  }
+
+  /// Detectează dacă în lista de stops nearby există un ZOB / Fernbus
+  /// terminus pentru gara Hbf/Bhf `railStopName`. bahn.de le denumeste
+  /// "X Hbf Bus", "X Hbf ZOB" — deci prefix + " Bus" / " ZOB".
+  /// Returnează stopul ZOB sau null.
+  TransitStop? findZobForStation(String railStopName) {
+    final base = railStopName.trim();
+    for (final s in nearbyStops) {
+      final n = s.name.trim();
+      if (n == base) continue;
+      final lower = n.toLowerCase();
+      final baseLower = base.toLowerCase();
+      if (!lower.startsWith(baseLower)) continue;
+      final suffix = lower.substring(baseLower.length).trim();
+      if (suffix.isEmpty) continue;
+      // Suffixe tipice: " bus", " zob", " zentraler omnibusbahnhof"
+      if (suffix == 'bus' || suffix.endsWith(' bus')) return s;
+      if (suffix == 'zob' || suffix.endsWith(' zob')) return s;
+      if (lower.contains('omnibusbahnhof')) return s;
+    }
+    return null;
+  }
+
+  /// URL public bahnhof.de pentru gara [stationName]. Deschis in browser
+  /// arata toate info live (services, program Reisezentrum, ausfaelle etc.).
+  String? bahnhofDeUrl(String stationName) {
+    final slug = _bahnhofDeSlug(stationName);
+    if (slug.isEmpty) return null;
+    return 'https://www.bahnhof.de/$slug';
+  }
+
   static String _bahnhofDeSlug(String name) {
     if (name.trim().isEmpty) return '';
     var s = name.toLowerCase().trim();
