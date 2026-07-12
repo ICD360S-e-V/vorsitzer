@@ -5255,6 +5255,19 @@ class TransitService {
     return TripRoute(stops: const [], path: const []);
   }
 
+  /// Parse EFA compact date format "YYYYMMDD HH:MM" (used by DING ref.depDateTime).
+  DateTime? _parseEfaCompactDateTime(String? s) {
+    if (s == null || s.isEmpty) return null;
+    // Format: "20260713 10:25" or "20260713 10:25:00"
+    final m = RegExp(r'^(\d{4})(\d{2})(\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?').firstMatch(s);
+    if (m == null) return null;
+    return DateTime(
+      int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!),
+      int.parse(m.group(4)!), int.parse(m.group(5)!),
+      m.group(6) != null ? int.parse(m.group(6)!) : 0,
+    );
+  }
+
   List<TripStop> _parseEfaStopSequence(List seq, String currentStopId) {
     final out = <TripStop>[];
     for (final s in seq) {
@@ -5263,12 +5276,19 @@ class TransitService {
       final ref = s['ref'] is Map ? s['ref'] as Map : {};
       final id = ref['id']?.toString() ?? s['stopID']?.toString() ?? '';
       if (name.isEmpty) continue;
+      // 2026-07-13 FIX: Format DING real (testat pe server):
+      //   ref.depDateTime = "20260713 10:25" ← AICI e timpul
+      //   ref.depDateTimeSec = "20260713 10:25:00"
+      //   s.dateTime = null (nu folosit de DING!)
+      // Bugul: codul căuta doar în s['dateTime'] → toate stops skipate.
+      // Fix: fallback în ref.depDateTime/arrDateTime.
       final dt = s['dateTime'];
-      final planned = _parseEfaTripDateTime(dt) ?? _parseEfaDateTime(dt is Map ? Map<String, dynamic>.from(dt) : {});
-      // 2026-07-13 FIX: NU mai skipam stop-ul cand timp e null (bug raportat
-      // de user). Formatul DING/MVV/EFA are dateTime uneori absent sau in
-      // format diferit — dar stop-ul (nume+coords) EXISTA si trebuie afisat.
-      // TripStop necesita plannedTime — folosim placeholder now() dacă lipseste.
+      final planned = _parseEfaTripDateTime(dt)
+          ?? _parseEfaDateTime(dt is Map ? Map<String, dynamic>.from(dt) : {})
+          ?? _parseEfaCompactDateTime(ref['depDateTimeSec']?.toString())
+          ?? _parseEfaCompactDateTime(ref['depDateTime']?.toString())
+          ?? _parseEfaCompactDateTime(ref['arrDateTimeSec']?.toString())
+          ?? _parseEfaCompactDateTime(ref['arrDateTime']?.toString());
       final placeholder = planned ?? DateTime.now();
       DateTime? rt;
       if (dt is Map && (dt['rtDate'] != null || dt['rtTime'] != null)) {
