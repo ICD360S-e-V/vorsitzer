@@ -214,6 +214,32 @@ class TripRoute {
   TripRoute({required this.stops, required this.path});
 }
 
+/// Live vehicle position (bus/tram/rail) from HAFAS `JourneyGeoPos` radar
+/// or geOps Tralis WebSocket. Coordonate GPS reale, refresh la 5-10s.
+class VehiclePosition {
+  final String tripId;
+  final String line;         // "RB70", "S3", "Bus 2"
+  final String direction;
+  final double lat;
+  final double lon;
+  final String productType;  // 'bus', 'tram', 'train', 'suburban', 'subway'
+  final int? delay;          // minutes, if known
+  final DateTime updatedAt;
+  final String source;       // 'HAFAS_RADAR' | 'GEOPS_TRALIS' | 'GTFS_RT'
+
+  const VehiclePosition({
+    required this.tripId,
+    required this.line,
+    required this.direction,
+    required this.lat,
+    required this.lon,
+    required this.productType,
+    required this.updatedAt,
+    required this.source,
+    this.delay,
+  });
+}
+
 // ══════════════════════════════════════════════════════════════
 // Trip search models — used by "Verbindung suchen" tab
 // ══════════════════════════════════════════════════════════════
@@ -6636,6 +6662,132 @@ class TransitService {
       return Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime);
     } catch (_) {
       return null;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // LIVE VEHICLE POSITIONS — HAFAS radar() / JourneyGeoPos
+  // ══════════════════════════════════════════════════════════════════
+
+  final Map<String, ({List<VehiclePosition> data, DateTime at})> _radarCache = {};
+
+  /// HAFAS `JourneyGeoPos` — vehicule LIVE cu poziții GPS reale în bbox.
+  ///
+  /// Provideri suportați (testat 2026-07-13, mgate.exe cu AID public):
+  ///   DB, VBB, BVG, HVV, RMV, NAH.SH, saarVV, NVV, VBN, VMT, VOS, VRN
+  ///
+  /// Response schema (hafas-client radar):
+  ///   svcResL[0].res.jnyL[] = trip metadata
+  ///   svcResL[0].res.polyG.polyXL[] = polyline segmente
+  ///   Fiecare jny are `pos.x/y` (WGS84 * 1e6) → lat/lon
+  ///
+  /// Cache 10s pt dedup requests concurente (setState re-render).
+  Future<List<VehiclePosition>> fetchVehiclePositionsRadar({
+    required double minLat, required double maxLat,
+    required double minLon, required double maxLon,
+    int maxVehicles = 256,
+  }) async {
+    final provider = activeProvider;
+    if (provider == null || provider.api != TransitApiType.hafas) return [];
+    final aid = provider.hafasAid;
+    if (aid == null || aid.isEmpty) return [];
+    final cacheKey = '${provider.type.name}|${minLat.toStringAsFixed(3)}|${maxLat.toStringAsFixed(3)}|${minLon.toStringAsFixed(3)}|${maxLon.toStringAsFixed(3)}';
+    final cached = _radarCache[cacheKey];
+    if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 10)) {
+      return cached.data;
+    }
+    try {
+      final now = DateTime.now();
+      String twoDig(int n) => n.toString().padLeft(2, '0');
+      final dateStr = '${now.year}${twoDig(now.month)}${twoDig(now.day)}';
+      final timeStr = '${twoDig(now.hour)}${twoDig(now.minute)}${twoDig(now.second)}';
+      // WGS84 * 1e6 as int
+      int c(double v) => (v * 1000000).round();
+      final body = jsonEncode({
+        'ver': provider.hafasVer ?? '1.20',
+        'lang': 'de',
+        'auth': {'type': 'AID', 'aid': aid},
+        'client': {
+          'id': provider.hafasClientId ?? 'HAFAS',
+          'type': provider.hafasClientType ?? 'WEB',
+          'name': provider.hafasClientName ?? 'webapp',
+          'v': provider.hafasClientVersion ?? '',
+        },
+        'svcReqL': [
+          {
+            'meth': 'JourneyGeoPos',
+            'req': {
+              'rect': {
+                'llCrd': {'x': c(minLon), 'y': c(minLat)},
+                'urCrd': {'x': c(maxLon), 'y': c(maxLat)},
+              },
+              'maxJny': maxVehicles,
+              'onlyRT': false,
+              'date': dateStr,
+              'time': timeStr,
+              'perSize': 30,
+              'perStep': 10,
+              'jnyFltrL': [
+                {'type': 'PROD', 'mode': 'INC', 'value': '1023'} // all products
+              ],
+            },
+          }
+        ],
+      });
+      final resp = await _client.post(
+        Uri.parse(provider.baseUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) return [];
+      final data = jsonDecode(_decodeUtf8(resp));
+      final svc = data['svcResL']?[0]?['res'];
+      if (svc is! Map) return [];
+      final common = svc['common'] ?? {};
+      final prodL = (common['prodL'] as List?) ?? [];
+      final jnyL = (svc['jnyL'] as List?) ?? [];
+      final out = <VehiclePosition>[];
+      for (final jny in jnyL) {
+        if (jny is! Map) continue;
+        final pos = jny['pos'];
+        if (pos is! Map) continue;
+        final x = pos['x']; final y = pos['y'];
+        if (x is! num || y is! num) continue;
+        final lat = y / 1000000.0;
+        final lon = x / 1000000.0;
+        final jid = jny['jid']?.toString() ?? '';
+        if (jid.isEmpty) continue;
+        // Product info
+        final prodX = jny['prodX'] as int?;
+        String line = jny['line']?.toString() ?? '';
+        String productType = 'bus';
+        if (prodX != null && prodX >= 0 && prodX < prodL.length) {
+          final prod = prodL[prodX] as Map? ?? {};
+          if (line.isEmpty) line = (prod['name'] ?? prod['nameS'] ?? '').toString();
+          final cls = prod['cls'] as int? ?? 0;
+          // HAFAS product class bitmask
+          if (cls & 1 != 0 || cls & 2 != 0) productType = 'train';
+          else if (cls & 4 != 0 || cls & 8 != 0) productType = 'regional';
+          else if (cls & 16 != 0) productType = 'suburban';
+          else if (cls & 32 != 0) productType = 'subway';
+          else if (cls & 64 != 0) productType = 'tram';
+          else if (cls & 128 != 0) productType = 'bus';
+        }
+        final direction = jny['dirTxt']?.toString() ?? '';
+        out.add(VehiclePosition(
+          tripId: jid, line: line, direction: direction,
+          lat: lat, lon: lon,
+          productType: productType,
+          updatedAt: DateTime.now(),
+          source: 'HAFAS_RADAR',
+        ));
+      }
+      _radarCache[cacheKey] = (data: out, at: DateTime.now());
+      _log.info('Transit: radar ${provider.name} → ${out.length} vehicules', tag: 'TRANSIT');
+      return out;
+    } catch (e) {
+      _log.debug('Transit: radar failed: $e', tag: 'TRANSIT');
+      return [];
     }
   }
 }

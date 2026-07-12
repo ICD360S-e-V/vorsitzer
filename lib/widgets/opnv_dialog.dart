@@ -5344,6 +5344,10 @@ class _TripMapViewState extends State<_TripMapView> {
   String? _lastAnnouncedStopId;
   bool _targetAlarmFired = false;
 
+  /// 2026-07-13: live vehicles din HAFAS radar (all nearby vehicles).
+  List<VehiclePosition> _liveVehicles = [];
+  Timer? _radarTimer;
+
   /// Speak the given text in the user's Muttersprache TTS after a short
   /// delay so the German announcement isn't cut off. No-op if the second
   /// TTS wasn't allocated (user language is German or unsupported).
@@ -5469,6 +5473,43 @@ class _TripMapViewState extends State<_TripMapView> {
     _vehicleInterpolateTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) _updateVehiclePosition();
     });
+    // 2026-07-13: LIVE VEHICLES via HAFAS radar. Fetch la 10s pt bbox
+    // care conține traseul liniei. Doar pt provideri HAFAS (nu EFA).
+    _fetchLiveVehicles();
+    _radarTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) _fetchLiveVehicles();
+    });
+  }
+
+  Future<void> _fetchLiveVehicles() async {
+    final stops = widget.stops;
+    if (stops.length < 2) return;
+    // Compute bbox pt zona de interes (padded 500m around stops).
+    double? minLat, maxLat, minLon, maxLon;
+    for (final s in stops) {
+      if (s.lat == null || s.lon == null) continue;
+      minLat = (minLat == null || s.lat! < minLat) ? s.lat : minLat;
+      maxLat = (maxLat == null || s.lat! > maxLat) ? s.lat : maxLat;
+      minLon = (minLon == null || s.lon! < minLon) ? s.lon : minLon;
+      maxLon = (maxLon == null || s.lon! > maxLon) ? s.lon : maxLon;
+    }
+    if (minLat == null) return;
+    // Padding ~500m = 0.005°
+    const pad = 0.005;
+    try {
+      final vehicles = await widget.transitService.fetchVehiclePositionsRadar(
+        minLat: minLat! - pad, maxLat: maxLat! + pad,
+        minLon: minLon! - pad, maxLon: maxLon! + pad,
+      );
+      if (!mounted) return;
+      // Filter: doar vehicule care corespund liniei noastre (line match).
+      final myLine = widget.dep.line.trim().toLowerCase();
+      final relevant = vehicles.where((v) {
+        final vl = v.line.trim().toLowerCase();
+        return vl == myLine || vl.contains(myLine) || myLine.contains(vl);
+      }).toList();
+      setState(() => _liveVehicles = relevant.isNotEmpty ? relevant : vehicles);
+    } catch (_) {}
   }
 
   /// Extrapolează poziția vehiculului pe polyline între stațiile a căror
@@ -5638,6 +5679,7 @@ class _TripMapViewState extends State<_TripMapView> {
   void dispose() {
     _positionSub?.cancel();
     _vehicleInterpolateTimer?.cancel();
+    _radarTimer?.cancel();
     widget.transitService.resumeCoarseTracking();
     _tts.stop();
     _ttsMuttersprache?.stop();
@@ -5791,8 +5833,45 @@ class _TripMapViewState extends State<_TripMapView> {
                     ),
                   ),
             ]),
-            // Vehicul interpolat pe polyline (portocaliu, cu pulse animat).
-            if (_vehiclePosition != null)
+            // 2026-07-13: LIVE VEHICLES din HAFAS radar (poziții GPS reale).
+            // Marker roșu, icon per productType, tooltip line+direction.
+            if (_liveVehicles.isNotEmpty)
+              MarkerLayer(markers: [
+                for (final v in _liveVehicles)
+                  Marker(
+                    point: LatLng(v.lat, v.lon),
+                    width: 38, height: 38,
+                    child: Tooltip(
+                      message: '${v.line} → ${v.direction}\n(LIVE ${v.source})',
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade600,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: [
+                            BoxShadow(color: Colors.red.withValues(alpha: 0.7),
+                                blurRadius: 12, spreadRadius: 2),
+                          ],
+                        ),
+                        child: Icon(
+                          v.productType == 'train' || v.productType == 'regional'
+                              ? Icons.train
+                              : v.productType == 'suburban'
+                                  ? Icons.tram
+                                  : v.productType == 'subway'
+                                      ? Icons.subway
+                                      : v.productType == 'tram'
+                                          ? Icons.tram
+                                          : Icons.directions_bus_filled,
+                          color: Colors.white, size: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+              ]),
+            // Vehicul interpolat pe polyline (portocaliu) — fallback dacă
+            // NU avem live position (EFA providers sau HAFAS radar gol).
+            if (_vehiclePosition != null && _liveVehicles.isEmpty)
               MarkerLayer(markers: [
                 Marker(
                   point: _vehiclePosition!,
