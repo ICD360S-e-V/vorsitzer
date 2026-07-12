@@ -420,6 +420,17 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   /// Match strict: token-boundary pe "Hbf" sau conține "Hauptbahnhof".
   static bool _isHbfName(String name) {
     final n = name.toLowerCase();
+    // 2026-07-12: Excludem stații de bus/tram/parking din fața gării centrale
+    // — bahn.de le denumeste "Saarbrücken Hbf Bus", "Ulm Hauptbahnhof Nord"
+    // etc. Acestea NU sunt peronul de trenuri, sunt Halte-uri de autobuz.
+    // Utilizatorul se plângea că apar duplicate "Hbf" + "Hbf Bus".
+    if (RegExp(r'\bbus\b').hasMatch(n)) return false;
+    if (RegExp(r'\bvorplatz\b').hasMatch(n)) return false;
+    if (RegExp(r'\bnord\b').hasMatch(n)) return false;
+    if (RegExp(r'\bsüd\b|\bsued\b').hasMatch(n)) return false;
+    if (RegExp(r'\bost\b').hasMatch(n)) return false;
+    if (RegExp(r'\bwest\b').hasMatch(n)) return false;
+    if (RegExp(r'\bparkhaus\b|\bzob\b').hasMatch(n)) return false;
     if (n.contains('hauptbahnhof')) return true;
     // "Hbf" ca cuvânt separat: început/spațiu înainte + sfârșit/spațiu după
     final idx = n.indexOf('hbf');
@@ -451,6 +462,9 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     if (n.contains('bahnhofstr') || n.contains('bahnhofspl') ||
         n.contains('bahnhofsvor') || n.contains('bahnhofsvi')) return false;
     if (RegExp(r'bahnhof\s+\d').hasMatch(n)) return false;
+    // 2026-07-12: exclude stațiile de bus/parking din fața Bhf.
+    if (RegExp(r'\bbus\b').hasMatch(n)) return false;
+    if (RegExp(r'\bparkhaus\b|\bzob\b').hasMatch(n)) return false;
     // Acceptăm ORICE altă stație (bahn.de filtered la rail-only).
     return true;
   }
@@ -466,7 +480,10 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     } else if (tab.bhfOnly) {
       filtered = filtered.where((s) => _isBhfLocalName(s.name));
     }
-    return filtered.take(3).toList();
+    // 2026-07-12: Hbf/Bhf pot avea mai multe gări nearby (5 in loc de 3)
+    // pentru orașe mari precum Berlin, München, Frankfurt (multiple Bhf).
+    final maxStops = (tab.hbfOnly || tab.bhfOnly) ? 5 : 3;
+    return filtered.take(maxStops).toList();
   }
 
   @override
@@ -1459,7 +1476,9 @@ class _StopSection extends StatelessWidget {
               child: Text('Keine Abfahrten in Kürze', style: TextStyle(fontSize: 12, color: p.onSurfaceFaint)),
             )
           else
-            ...departures.take(6).map((d) => _DepartureRow(
+            // 2026-07-12: la gări afișăm mai multe (15 vs 6) — gările au frecvent
+            // 20-40 trenuri pe oră (RE, RB, S, ICE, IC), lista scurtă parea goală.
+            ...departures.take(_isRailwayStation ? 15 : 6).map((d) => _DepartureRow(
                 dep: d, transitService: transitService,
                 userMuttersprache: userMuttersprache,
             )),
