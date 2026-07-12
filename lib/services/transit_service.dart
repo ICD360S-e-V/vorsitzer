@@ -6235,20 +6235,14 @@ class TransitService {
     TransitLocation from, TransitLocation to, DateTime when,
     {bool arriveBy = false, bool onlyDeutschlandTicket = false}
   ) async {
-    // 2026-07-11: MIGRATED from `bahn.de/web/api/reiseloesung/verbindungen`
-    // (dbweb) to `app.services-bahn.de/mob/angebote/fahrplan` (dbnav) —
-    // dbweb returned `verkehrsmittel.kurzText = "9557"` for ICE trains
-    // (line number only, no "ICE" prefix), which broke the D-Ticket filter
-    // (a line "9557" looks like a bus number). dbnav returns `mitteltext =
-    // "ICE 617"` on every leg — proper HAFAS "product + line" label.
+    // 2026-07-13 FIX (loguri user Ulm→Saarbrücken):
+    //   Transit: dbnav fahrplan HTTP 400 (VALIDIERUNG ERROR), falling back to dbweb
+    // dbnav respinge permanent body v9 — deschid ticket la marudor/db-vendo-client
+    // pt schema recentă. Deocamdată: dbweb PRIMAR, dbnav SKIP (backup future).
     //
-    // Fallback: dacă dbnav fahrplan pică (rare, 400/500), încercăm dbweb.
-    final direct = await _dbnavTripSearch(
-      from, to, when,
-      arriveBy: arriveBy,
-      onlyDeutschlandTicket: onlyDeutschlandTicket,
-    );
-    if (direct.isNotEmpty) return direct;
+    // Testat pe server 2026-07-13:
+    //   POST bahn.de/web/api/reiseloesung/verbindungen → 200 OK cu journeys
+    //   POST app.services-bahn.de/mob/angebote/fahrplan → 400 permanent
     return _dbwebTripSearchLegacy(
       from, to, when,
       arriveBy: arriveBy,
