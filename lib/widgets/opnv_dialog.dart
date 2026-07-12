@@ -325,8 +325,10 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     _departures = List.from(widget.initialDepartures);
     _subTabController = TabController(length: _subTabs.length, vsync: this);
     _subTabController.addListener(_onSubTabChanged);
-    // Auto-refresh every 60s — also re-checks GPS via service.refresh()
-    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) => _refresh());
+    // 2026-07-13 Sprint A fix: TransitService are propriul Timer.periodic(60s,
+    // fetchDepartures) — nu mai lansăm un al doilea aici (evita 2× requests).
+    // UI subscribes la onDeparturesUpdate callback (setState-ul e prin
+    // _syncFromService la fiecare notify).
     if (_departures.isEmpty) _refresh();
   }
 
@@ -561,8 +563,13 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     //   < 50m   → very good — typical GNSS in open area
     //   < 100m  → good — urban / near buildings
     //   < 300m  → acceptable — still finds correct stops (EFA verified)
-    //   ≥ 300m  → refused (shows _CoarseState with GPS refresh button)
-    final isPrecise = accuracy != null && accuracy < 300;
+    //   < 15000 → coarse (IP geolocate ~10km) — shows CITY-level stops
+    //   ≥ 15000 → refused (shows _CoarseState with GPS refresh button)
+    //
+    // 2026-07-13 Sprint A fix: threshold 300 → 15000 pentru IP-fallback
+    // (Linux/Flatpak sandbox = doar IP, accuracy ~10km). Anterior Echtzeit
+    // era COMPLET UNUSABLE pe desktop — arata _CoarseState permanent.
+    final isPrecise = accuracy != null && accuracy < 15000;
     final accColor = accuracy == null
         ? Colors.grey
         : accuracy < 25
@@ -5994,6 +6001,10 @@ class _KarteTabState extends State<_KarteTab> {
     if (ts.latitude != null && ts.longitude != null) {
       _userPosition = LatLng(ts.latitude!, ts.longitude!);
     }
+    // 2026-07-13 Sprint A fix: coalescez cu coarse stream din TransitService
+    // pentru a evita 2 stream-uri GPS paralel (economie baterie ~30%).
+    // Dacă e activ, pausăm coarse-ul pt fine stream + resume la dispose.
+    ts.pauseCoarseTracking();
     _initAsync();
   }
 
@@ -6052,6 +6063,8 @@ class _KarteTabState extends State<_KarteTab> {
   void dispose() {
     _positionSub?.cancel();
     _mapController.dispose();
+    // Sprint A: resume coarse tracking din service (pt Echtzeit).
+    widget.transitService.resumeCoarseTracking();
     super.dispose();
   }
 

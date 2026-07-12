@@ -2825,11 +2825,13 @@ class TransitService {
     try {
       final provider = activeProvider;
       if (provider == null) {
-        // Uncovered region — no local provider knows this coord. Skip local
-        // fetch; the Verbindungssuche tab still works via bahn.de fallback.
-        _log.info('Transit: fetchDepartures skipped — no local provider active', tag: 'TRANSIT');
-        nearbyStops = [];
-        departures = [];
+        // 2026-07-13 Sprint A fix: NU mai zeroam nearbyStops/departures
+        // când provider e null. Karte tab poate fi populat prin
+        // fetchAllModalNearby() sau fetchBhfNearby() (bahn.de universal)
+        // — nu vrem ca timer-ul 60s să sterga acele date.
+        _log.info('Transit: fetchDepartures skipped — no local provider '
+            '(păstrez ${nearbyStops.length} stops + ${departures.length} '
+            'departures din alte surse)', tag: 'TRANSIT');
       } else if (provider.api == TransitApiType.hafas) {
         await _fetchHafasDepartures();
       } else {
