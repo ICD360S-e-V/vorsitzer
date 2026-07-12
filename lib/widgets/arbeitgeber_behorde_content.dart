@@ -600,6 +600,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               final gehaltC = TextEditingController(text: ag['grundgehalt']?.toString() ?? '');
               final urlaubC = TextEditingController(text: ag['urlaubstage']?.toString() ?? '');
               final fristC = TextEditingController(text: ag['kuendigungsfrist']?.toString() ?? '');
+              final vertragsendeC = TextEditingController(text: ag['vertragsende']?.toString() ?? '');
               String befristung = ag['befristung']?.toString() ?? 'unbefristet';
 
               Future<void> pickDate(BuildContext dlgCtx, TextEditingController ctrl) async {
@@ -657,6 +658,17 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               style: const TextStyle(fontSize: 13, color: Colors.black87),
                             ),
                             const SizedBox(height: 10),
+                            // Vertragsende — nur bei befristetem Vertrag (§ 38 SGB III Basis)
+                            if (befristung == 'befristet') ...[
+                              TextField(
+                                controller: vertragsendeC,
+                                readOnly: true,
+                                onTap: () => pickDate(dlgCtx, vertragsendeC),
+                                decoration: InputDecoration(labelText: 'Vertragsende (befristet bis)', prefixIcon: const Icon(Icons.event_busy, size: 18), suffixIcon: const Icon(Icons.date_range, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
                             TextField(
                               controller: probezeitC,
                               decoration: InputDecoration(labelText: 'Probezeit (z.B. 6 Monate)', prefixIcon: const Icon(Icons.hourglass_bottom, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
@@ -701,6 +713,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             ag['vertragsbeginn'] = vertragsbeginnC.text.isNotEmpty ? vertragsbeginnC.text : null;
                             ag['unterschriftsdatum'] = unterschriftC.text.isNotEmpty ? unterschriftC.text : null;
                             ag['befristung'] = befristung;
+                            // Vertragsende nur bei befristet speichern; sonst leeren
+                            // (Server löscht dann das Arbeitsuchendmeldung-Ticket).
+                            ag['vertragsende'] = (befristung == 'befristet' && vertragsendeC.text.isNotEmpty) ? vertragsendeC.text : null;
                             ag['probezeit'] = probezeitC.text.isNotEmpty ? probezeitC.text : null;
                             ag['arbeitszeit_std'] = arbeitszeitC.text.isNotEmpty ? arbeitszeitC.text : null;
                             ag['grundgehalt'] = gehaltC.text.isNotEmpty ? gehaltC.text : null;
@@ -764,6 +779,34 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           _buildInfoField(Icons.calendar_today, 'Vertragsbeginn', ag['vertragsbeginn']?.toString()),
                           _buildInfoField(Icons.edit_calendar, 'Unterschriftsdatum', ag['unterschriftsdatum']?.toString()),
                           _buildInfoField(Icons.timer, 'Befristung', ag['befristung']?.toString() ?? (ag['befristet'] == true ? 'befristet' : (ag['befristet'] == false ? 'unbefristet' : null))),
+                          if ((ag['befristung']?.toString() ?? '') == 'befristet')
+                            _buildInfoField(Icons.event_busy, 'Vertragsende', ag['vertragsende']?.toString()),
+                          // § 38 SGB III — Arbeitsuchendmeldung-Hinweis (Frist = Vertragsende − 3 Monate)
+                          if ((ag['befristung']?.toString() ?? '') == 'befristet' && DateTime.tryParse(ag['vertragsende']?.toString() ?? '') != null)
+                            Builder(builder: (_) {
+                              final ende = DateTime.parse(ag['vertragsende'].toString());
+                              final deadline = DateTime(ende.year, ende.month - 3, ende.day);
+                              final urgent = deadline.isBefore(DateTime.now().add(const Duration(days: 14)));
+                              return Container(
+                                margin: const EdgeInsets.only(top: 8),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: (urgent ? Colors.red : Colors.orange).shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: (urgent ? Colors.red : Colors.orange).shade200),
+                                ),
+                                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Icon(urgent ? Icons.warning_amber : Icons.info_outline, size: 16, color: (urgent ? Colors.red : Colors.orange).shade700),
+                                  const SizedBox(width: 6),
+                                  Expanded(child: Text(
+                                    urgent
+                                      ? 'Weniger als 3 Monate bis Vertragsende — Arbeitsuchendmeldung ist SOFORT fällig (§ 38 Abs. 1 SGB III, 3-Tage-Frist). Ticket wurde erstellt.'
+                                      : '§ 38 SGB III: spätestens 3 Monate vor Vertragsende (bis ${DateFormat('dd.MM.yyyy').format(deadline)}) bei der Agentur für Arbeit arbeitsuchend melden. Erinnerungs-Ticket ist gesetzt.',
+                                    style: TextStyle(fontSize: 11, color: (urgent ? Colors.red : Colors.orange).shade900, height: 1.3),
+                                  )),
+                                ]),
+                              );
+                            }),
                           _buildInfoField(Icons.hourglass_bottom, 'Probezeit', ag['probezeit']?.toString()),
                           _buildInfoField(Icons.access_time, 'Arbeitszeit Std./Woche', ag['arbeitszeit_std']?.toString()),
                           _buildInfoField(Icons.euro, 'Grundgehalt brutto/Monat', ag['grundgehalt']?.toString()),
