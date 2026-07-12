@@ -2062,13 +2062,16 @@ class TransitService {
     bhfLastFetchFailed = false;
     _log.info('Transit: DB nearby via $usedSource (${rail.length} stații)', tag: 'TRANSIT');
     try {
-      // Sortare după distanță crescătoare + limit 3
+      // Sortare după distanță crescătoare + limit 15 gări (era 3 — prea puțin).
+      // 2026-07-13 FIX: user rural avea Hbf/Bhf gol pt că doar 3 din 30 rail
+      // erau adăugate în nearbyStops. Cresc la 15 → tab Bhf are gări secundare,
+      // iar Hbf are 3-5 gări majore (orașe mari cu multiple Bhf).
       rail.sort((a, b) {
         final da = (a['distance'] as num?)?.toInt() ?? 999999;
         final db = (b['distance'] as num?)?.toInt() ?? 999999;
         return da.compareTo(db);
       });
-      final top3 = rail.take(3).toList();
+      final top3 = rail.take(15).toList();
 
       // Adaugă în nearbyStops (dacă nu-s deja acolo)
       final seenNames = nearbyStops.map((s) => s.name.toLowerCase()).toSet();

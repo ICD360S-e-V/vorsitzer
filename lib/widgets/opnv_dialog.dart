@@ -477,14 +477,37 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   List<TransitStop> _stopsForTab(_SubTabDef tab) {
     final allStops = widget.transitService.nearbyStops;
     final grouped = _byStop(productTypes: tab.types);
-    Iterable<TransitStop> filtered = allStops.where(
-      (s) => grouped.containsKey(s.name),
-    );
-    if (tab.hbfOnly) {
-      filtered = filtered.where((s) => _isHbfName(s.name));
-    } else if (tab.bhfOnly) {
-      filtered = filtered.where((s) => _isBhfLocalName(s.name));
+    // 2026-07-13 FIX BUG: user zicea "in 30km nu s-a gasit gara" DAR log-urile
+    // arata 30 rail stops nearby. Root cause: filter cerea `grouped.containsKey`
+    // (adică stop TREBUIE să aibă departures actuale) — dar departures se
+    // populează asincron (5-10 secunde după fetch nearby). Rezultat: la primul
+    // render tab-ul e gol.
+    //
+    // Fix: category filter în primul rând (Hbf/Bhf name pattern SAU stop.products
+    // sau stop.primaryProduct), pentru fiecare tab. Departures se afișează
+    // separat în _StopSection (arată "wird geladen…" dacă e goală).
+    bool matchesType(TransitStop s) {
+      if (tab.hbfOnly) return _isHbfName(s.name);
+      if (tab.bhfOnly) return _isBhfLocalName(s.name);
+      // Pentru Bus/Tram/S-Bhf/U-Bhf: match după produs în TransitStop
+      final types = tab.types;
+      if (types == null || types.isEmpty) return true;
+      // Prioritate 1: TransitStop.products (dacă populat)
+      if (s.products.isNotEmpty) {
+        for (final t in types) {
+          if (s.products.contains(t)) return true;
+        }
+        // Are products dar niciun match → respingem
+        return false;
+      }
+      // Prioritate 2: departures existente pentru acest stop match tabul
+      final deps = grouped[s.name];
+      if (deps != null && deps.isNotEmpty) return true;
+      // Fallback: acceptăm (departures pot fi async loading)
+      return true;
     }
+    Iterable<TransitStop> filtered = allStops.where(matchesType);
+
     // 2026-07-12: eliminăm stopurile ZOB duplicate ("X Hbf Bus", "X Hbf ZOB")
     // din TOATE taburile — au fost integrate ca badge sub gara Hbf/Bhf
     // principală. Excepție tabul Bus (utilizatorul căuta bus explicit).
@@ -500,10 +523,27 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
       }
       filtered = filtered.where((s) => !zobNames.contains(s.name));
     }
-    // 2026-07-12: Hbf/Bhf pot avea mai multe gări nearby (5 in loc de 3)
-    // pentru orașe mari precum Berlin, München, Frankfurt (multiple Bhf).
+    // 2026-07-13: prioritizează stops cu departures active pt UX (nu goale).
+    // Dar dacă < 3, completăm cu cele fără departures (Loading state).
+    final withDeps = <TransitStop>[];
+    final withoutDeps = <TransitStop>[];
+    for (final s in filtered) {
+      if (grouped.containsKey(s.name)) {
+        withDeps.add(s);
+      } else {
+        withoutDeps.add(s);
+      }
+    }
+    // Hbf/Bhf 5, celelalte 3
     final maxStops = (tab.hbfOnly || tab.bhfOnly) ? 5 : 3;
-    return filtered.take(maxStops).toList();
+    // Minim 3: dacă avem >= 3 cu departures, luăm doar acelea; altfel completăm.
+    final result = <TransitStop>[];
+    result.addAll(withDeps.take(maxStops));
+    if (result.length < 3) {
+      final need = maxStops - result.length;
+      result.addAll(withoutDeps.take(need));
+    }
+    return result;
   }
 
   @override
