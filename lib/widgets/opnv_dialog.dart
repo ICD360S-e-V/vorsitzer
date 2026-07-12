@@ -2188,7 +2188,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _fetch();
   }
 
@@ -2449,6 +2449,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                 tabs: const [
                   Tab(icon: Icon(Icons.list_alt, size: 16), text: 'Liste', height: 40),
                   Tab(icon: Icon(Icons.map_outlined, size: 16), text: 'Karte', height: 40),
+                  Tab(icon: Icon(Icons.train, size: 16), text: 'Wagen', height: 40),
                 ],
               )]),
             ),
@@ -2522,6 +2523,12 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                               transitService: widget.transitService,
                               userMuttersprache: widget.userMuttersprache,
                               onAlarmFired: () => _alarmFired = true,
+                            ),
+                            // 2026-07-12 Sprint 2: Wagenreihung view
+                            _WagenreihungView(
+                              dep: widget.dep,
+                              transitService: widget.transitService,
+                              lineColor: lineColor,
                             ),
                           ],
                         ),
@@ -4876,9 +4883,15 @@ class _JourneyDetailsDialog extends StatelessWidget {
                       return const SizedBox(height: 4);
                     }
                     final windowMin = nextLeg.depTime.difference(arriveLeg.arrTime).inMinutes;
+                    // Sprint 2: calculăm timpul EFECTIV luand în calc delay-ul
+                    // trenului de sosire — dacă vine cu +5 minute delay, timpul
+                    // real de Umstieg e window - 5.
                     return _UmstiegBanner(
                       stopName: arriveLeg.toName,
                       windowMinutes: windowMin,
+                      arrDelay: arriveLeg.arrDelay,
+                      fromPlatform: arriveLeg.toPlatform,
+                      toPlatform: nextLeg.fromPlatform,
                     );
                   }
                 },
@@ -5033,47 +5046,93 @@ class _JourneyLegCard extends StatelessWidget {
 class _UmstiegBanner extends StatelessWidget {
   final String stopName;
   final int windowMinutes;
-  const _UmstiegBanner({required this.stopName, required this.windowMinutes});
+  /// Sprint 2 (2026-07-12): delay minute pt trenul care sosește — timpul
+  /// real de Umstieg = window - delay.
+  final int arrDelay;
+  final String? fromPlatform;
+  final String? toPlatform;
+  const _UmstiegBanner({
+    required this.stopName,
+    required this.windowMinutes,
+    this.arrDelay = 0,
+    this.fromPlatform,
+    this.toPlatform,
+  });
 
   @override
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
+    // Timpul EFECTIV disponibil pentru Umstieg (window minus delay).
+    final effective = windowMinutes - arrDelay;
     final Color color;
     final String label;
-    if (windowMinutes >= 5) {
+    if (effective >= 5) {
       color = Colors.green.shade500;
       label = 'Bequem';
-    } else if (windowMinutes >= 2) {
+    } else if (effective >= 2) {
       color = Colors.orange.shade500;
       label = 'Knapp';
-    } else {
+    } else if (effective >= 0) {
       color = Colors.red.shade500;
       label = 'Sehr knapp';
+    } else {
+      color = Colors.red.shade900;
+      label = 'Kritisch!';
     }
+    // Schimbare peron detect — semnal vizual că user trebuie să schimbe Gleis.
+    final platformChange = fromPlatform != null && toPlatform != null &&
+        fromPlatform!.isNotEmpty && toPlatform!.isNotEmpty &&
+        fromPlatform != toPlatform;
     return Semantics(
-      label: 'Umstieg bei $stopName, ${windowMinutes < 0 ? 0 : windowMinutes} Minuten Zeit. $label.',
+      label: 'Umstieg bei $stopName, $effective Minuten effektiv. $label.'
+          '${arrDelay > 0 ? " Verspätung $arrDelay Minuten." : ""}'
+          '${platformChange ? " Gleiswechsel von $fromPlatform zu $toPlatform." : ""}',
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: color.withValues(alpha: p.dark ? 0.25 : 0.12),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
-        child: Row(children: [
-          Icon(Icons.swap_calls, size: 14, color: color),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              'Umstieg bei $stopName',
-              style: TextStyle(fontSize: 11, color: p.onSurface, fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.swap_calls, size: 14, color: color),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Umstieg bei $stopName',
+                style: TextStyle(fontSize: 11, color: p.onSurface, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-          Text(
-            '${windowMinutes < 0 ? 0 : windowMinutes} Min. — $label',
-            style: TextStyle(fontSize: 10.5, color: color, fontWeight: FontWeight.w700),
-          ),
+            Text(
+              '${effective < 0 ? "!" : effective} Min. — $label',
+              style: TextStyle(fontSize: 10.5, color: color, fontWeight: FontWeight.w700),
+            ),
+          ]),
+          if (arrDelay > 0 || platformChange) ...[
+            const SizedBox(height: 3),
+            Wrap(spacing: 8, runSpacing: 3, children: [
+              if (arrDelay > 0)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.warning_amber, size: 10, color: Colors.red.shade600),
+                  const SizedBox(width: 3),
+                  Text('+${arrDelay} Min. Verspätung',
+                      style: TextStyle(fontSize: 9.5, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
+                ]),
+              if (platformChange)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.transfer_within_a_station, size: 10, color: Colors.orange),
+                  const SizedBox(width: 3),
+                  Text('Gleis $fromPlatform → Gleis $toPlatform',
+                      style: TextStyle(fontSize: 9.5, color: p.onSurface, fontWeight: FontWeight.w600)),
+                ]),
+              if (windowMinutes != effective)
+                Text('geplant $windowMinutes Min.',
+                    style: TextStyle(fontSize: 9.5, color: p.onSurfaceFaint, fontStyle: FontStyle.italic)),
+            ]),
+          ],
         ]),
       ),
     );
@@ -6315,5 +6374,268 @@ class _StopDetailsSheetState extends State<_StopDetailsSheet> {
         ),
       ]),
     );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Sprint 2 (2026-07-12): _WagenreihungView — poziția vagoanelor pe peron
+// ══════════════════════════════════════════════════════════════
+
+class _WagenreihungView extends StatefulWidget {
+  final Departure dep;
+  final TransitService transitService;
+  final Color lineColor;
+  const _WagenreihungView({
+    required this.dep,
+    required this.transitService,
+    required this.lineColor,
+  });
+
+  @override
+  State<_WagenreihungView> createState() => _WagenreihungViewState();
+}
+
+class _WagenreihungViewState extends State<_WagenreihungView> {
+  WagenreihungInfo? _info;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    if (mounted) setState(() { _loading = true; _error = null; });
+    try {
+      // Extract category din dep.line ("ICE 619" → "ICE", "RE 200" → "RE").
+      // Fallback la productType.
+      final lineUpper = widget.dep.line.trim().toUpperCase();
+      final match = RegExp(r'^([A-Z]+)').firstMatch(lineUpper);
+      final rawCat = match?.group(1) ?? '';
+      final category = _mapCategory(rawCat, widget.dep.productType);
+      // Numărul trenului (partea numerică din line).
+      final numMatch = RegExp(r'(\d+)').firstMatch(widget.dep.line);
+      final trainNumber = numMatch?.group(1) ?? '';
+      // EVA din stopID (are EVA sau alt ID).
+      final evaNumber = widget.dep.stopID ?? '';
+      if (trainNumber.isEmpty || evaNumber.isEmpty || category.isEmpty) {
+        setState(() {
+          _loading = false;
+          _error = 'Wagenreihung nur für Züge mit vollständigen Metadaten verfügbar.';
+        });
+        return;
+      }
+      final departureTime = widget.dep.realtimeTime ?? widget.dep.plannedTime;
+      final info = await widget.transitService.fetchWagenreihung(
+        category: category,
+        trainNumber: trainNumber,
+        evaNumber: evaNumber,
+        departureTime: departureTime,
+      );
+      if (!mounted) return;
+      setState(() {
+        _info = info;
+        _loading = false;
+        if (info == null) _error = 'Wagenreihung derzeit nicht verfügbar.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString(); });
+    }
+  }
+
+  String _mapCategory(String raw, String productType) {
+    if (raw == 'ICE' || raw == 'IC' || raw == 'EC' || raw == 'ECE' ||
+        raw == 'RE' || raw == 'RB' || raw == 'IRE' || raw == 'MEX' ||
+        raw == 'RJ' || raw == 'NJ') return raw;
+    // Fallback după productType.
+    switch (productType) {
+      case 'train': return 'ICE';
+      case 'regional': return 'RE';
+      default: return raw;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    if (_loading) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(40),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(strokeWidth: 2.5),
+          SizedBox(height: 12),
+          Text('Wagenreihung wird geladen…', style: TextStyle(fontSize: 12)),
+        ]),
+      ));
+    }
+    if (_error != null || _info == null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.info_outline, size: 40, color: p.onSurfaceDim),
+          const SizedBox(height: 8),
+          Text(_error ?? 'Nicht verfügbar',
+              style: TextStyle(fontSize: 12, color: p.onSurfaceDim),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: _fetch,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Erneut versuchen'),
+          ),
+        ]),
+      ));
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header — platform + sectors
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: widget.lineColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: widget.lineColor.withValues(alpha: 0.4)),
+          ),
+          child: Row(children: [
+            Icon(Icons.train, color: widget.lineColor),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Gleis ${_info!.platform}${_info!.platformSchedule != null && _info!.platformSchedule != _info!.platform ? " (statt ${_info!.platformSchedule})" : ""}',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              Text('${_info!.carriages.length} Wagen · Sektor ${_info!.sectors.join(", ")}',
+                  style: TextStyle(fontSize: 11, color: p.onSurfaceDim)),
+            ])),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        // Peron cu sectoare
+        _buildPlatformView(),
+        const SizedBox(height: 16),
+        // Legend
+        Text('Ausstattung:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: p.onSurfaceDim)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 4, children: const [
+          _WagenAmenity(icon: '♿', label: 'Rollstuhl'),
+          _WagenAmenity(icon: '👶', label: 'Familie'),
+          _WagenAmenity(icon: '🤫', label: 'Ruhezone'),
+          _WagenAmenity(icon: '💺', label: 'Bahn.Comfort'),
+          _WagenAmenity(icon: '🍽️', label: 'Bord-Restaurant'),
+          _WagenAmenity(icon: '1️⃣', label: '1. Klasse'),
+        ]),
+        const SizedBox(height: 12),
+        // Detalii per vagon
+        ..._info!.carriages.map((c) => _buildCarriageRow(c, p)),
+      ]),
+    );
+  }
+
+  Widget _buildPlatformView() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Column(children: [
+        // Sectoare bar (A, B, C, D)
+        Row(children: _info!.sectors.map((s) => Expanded(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade400,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text('Sektor $s',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+          ),
+        )).toList()),
+        const SizedBox(height: 8),
+        // Vagoane
+        SizedBox(
+          height: 60,
+          child: Row(children: _info!.carriages.map((c) => Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              decoration: BoxDecoration(
+                color: _carriageColor(c),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: Colors.white, width: 1),
+              ),
+              child: Center(
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(
+                    c.isLocomotive ? '🚂' : (c.isDining ? '🍽️' : (c.hasWheelchair ? '♿' : c.wagenNumber)),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  if (!c.isLocomotive && !c.isDining)
+                    Text(c.sector,
+                        style: const TextStyle(fontSize: 9, color: Colors.white)),
+                ]),
+              ),
+            ),
+          )).toList()),
+        ),
+      ]),
+    );
+  }
+
+  Color _carriageColor(TrainCarriage c) {
+    if (c.isLocomotive) return Colors.grey.shade700;
+    if (c.isDining) return Colors.orange.shade700;
+    if (c.isFirstClass) return Colors.amber.shade800;
+    if (c.hasWheelchair) return Colors.green.shade700;
+    if (c.isFamilyZone) return Colors.pink.shade400;
+    if (c.isQuietZone) return Colors.purple.shade600;
+    if (c.isBahnComfort) return Colors.blue.shade800;
+    return Colors.blue.shade500;
+  }
+
+  Widget _buildCarriageRow(TrainCarriage c, _Palette p) {
+    if (c.isLocomotive) return const SizedBox.shrink();
+    final tags = <String>[];
+    if (c.isFirstClass) tags.add('1️⃣ 1. Klasse');
+    if (c.isDining) tags.add('🍽️ Bord');
+    if (c.hasWheelchair) tags.add('♿ Rollstuhl');
+    if (c.isFamilyZone) tags.add('👶 Familie');
+    if (c.isQuietZone) tags.add('🤫 Ruhezone');
+    if (c.isBahnComfort) tags.add('💺 Comfort');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Container(
+          width: 28, height: 28,
+          decoration: BoxDecoration(color: _carriageColor(c), borderRadius: BorderRadius.circular(4)),
+          child: Center(child: Text(c.wagenNumber,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white))),
+        ),
+        const SizedBox(width: 8),
+        Text('Sektor ${c.sector}', style: TextStyle(fontSize: 11, color: p.onSurfaceDim)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Wrap(spacing: 4, runSpacing: 2, children:
+            tags.map((t) => Text(t, style: const TextStyle(fontSize: 10))).toList()),
+        ),
+      ]),
+    );
+  }
+}
+
+class _WagenAmenity extends StatelessWidget {
+  final String icon;
+  final String label;
+  const _WagenAmenity({required this.icon, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Text(icon, style: const TextStyle(fontSize: 11)),
+      const SizedBox(width: 3),
+      Text(label, style: const TextStyle(fontSize: 10)),
+    ]);
   }
 }

@@ -394,6 +394,75 @@ class _CachedStationInfo {
   _CachedStationInfo(this.info, this.at);
 }
 
+/// Vagon dintr-un tren (Wagenreihung/coach ordering) — poziție pe peron
+/// + amenities. Sursa: bahn.de reisebegleitung/wagenreihung.
+class TrainCarriage {
+  final String wagenNumber;         // "3", "4"
+  final String category;            // "ECONOMY", "FIRST_CLASS", "DININGCAR", "LOCOMOTIVE", "POWERCAR"
+  final bool hasFirstClass;
+  final bool hasEconomyClass;
+  final String sector;              // "A", "B", "C", "D" pe peron
+  final double startPercent;        // 0.0-1.0 poziția pe peron (procent)
+  final double endPercent;
+  final Set<String> amenities;      // WHEELCHAIR_SPACE, ZONE_QUIET, ZONE_FAMILY,
+                                    // BAHN_COMFORT, TOILET_WHEELCHAIR, CABIN_INFANT,
+                                    // AIR_CONDITION, SEATS_SEVERELY_DISABLE, INFO
+  final String status;              // "OPEN" / "CLOSED"
+
+  const TrainCarriage({
+    required this.wagenNumber,
+    required this.category,
+    required this.sector,
+    required this.startPercent,
+    required this.endPercent,
+    required this.amenities,
+    this.hasFirstClass = false,
+    this.hasEconomyClass = false,
+    this.status = 'OPEN',
+  });
+
+  bool get isLocomotive => category == 'LOCOMOTIVE' || category == 'POWERCAR';
+  bool get isDining => category == 'DININGCAR';
+  bool get isFirstClass => hasFirstClass && !hasEconomyClass;
+  bool get hasWheelchair => amenities.contains('WHEELCHAIR_SPACE') ||
+      amenities.contains('SEATS_SEVERELY_DISABLE') ||
+      amenities.contains('TOILET_WHEELCHAIR');
+  bool get isQuietZone => amenities.contains('ZONE_QUIET');
+  bool get isFamilyZone => amenities.contains('ZONE_FAMILY') ||
+      amenities.contains('CABIN_INFANT');
+  bool get isBahnComfort => amenities.contains('SEATS_BAHN_COMFORT');
+}
+
+class WagenreihungInfo {
+  final String platform;              // "3"
+  final String? platformSchedule;      // "3a" (planned)
+  final double platformStart;          // meters (or 0-1 percent)
+  final double platformEnd;
+  final List<String> sectors;          // ["A", "B", "C", "D"]
+  final List<TrainCarriage> carriages;
+  final DateTime fetchedAt;
+
+  const WagenreihungInfo({
+    required this.platform,
+    required this.platformStart,
+    required this.platformEnd,
+    required this.sectors,
+    required this.carriages,
+    required this.fetchedAt,
+    this.platformSchedule,
+  });
+
+  bool get hasWheelchairCarriage => carriages.any((c) => c.hasWheelchair);
+  bool get hasDining => carriages.any((c) => c.isDining);
+  int get firstClassCount => carriages.where((c) => c.isFirstClass).length;
+}
+
+class _CachedWagenreihung {
+  final WagenreihungInfo info;
+  final DateTime at;
+  _CachedWagenreihung(this.info, this.at);
+}
+
 /// Whether a Journey is likely to work for a wheelchair / stroller user
 /// based on the DB FaSta elevator status at each transfer stop.
 ///
@@ -3990,6 +4059,132 @@ class TransitService {
       return info;
     } catch (e) {
       _log.debug('Transit: bahnhof.de info fetch failed: $e', tag: 'TRANSIT');
+      return null;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // Sprint 2 (2026-07-12): WAGENREIHUNG — coach ordering pe peron
+  // ══════════════════════════════════════════════════════════════════
+
+  final Map<String, _CachedWagenreihung> _wagenreihungCache = {};
+  static const _wagenreihungTtl = Duration(minutes: 30);
+
+  /// Fetch coach ordering (Wagenreihung) pentru un tren la o stație.
+  /// Endpoint: bahn.de/web/api/reisebegleitung/wagenreihung/vehicle-sequence
+  ///
+  /// Parametri:
+  ///   - category: "ICE" | "IC" | "EC" | "RE" | "RB" | ...
+  ///   - trainNumber: numărul trenului (ex: "619" pentru ICE 619)
+  ///   - evaNumber: EVA number a gării (ex: 8000323 = Saarbrücken Hbf)
+  ///   - departureTime: RFC3339 timestamp cu offset (ex: 2026-07-12T14:35:00+02:00)
+  Future<WagenreihungInfo?> fetchWagenreihung({
+    required String category,
+    required String trainNumber,
+    required String evaNumber,
+    required DateTime departureTime,
+  }) async {
+    final cacheKey = '$category|$trainNumber|$evaNumber|${departureTime.millisecondsSinceEpoch}';
+    final cached = _wagenreihungCache[cacheKey];
+    if (cached != null && DateTime.now().difference(cached.at) < _wagenreihungTtl) {
+      return cached.info;
+    }
+    try {
+      // Format RFC3339 cu offset local (ex "+02:00").
+      final dep = departureTime.toLocal();
+      String twoDig(int n) => n.toString().padLeft(2, '0');
+      final dateStr = '${dep.year}-${twoDig(dep.month)}-${twoDig(dep.day)}';
+      final timeStr = '$dateStr'
+          'T${twoDig(dep.hour)}:${twoDig(dep.minute)}:${twoDig(dep.second)}';
+      // Offset calc pentru ISO local
+      final off = dep.timeZoneOffset;
+      final offSign = off.isNegative ? '-' : '+';
+      final offAbs = off.abs();
+      final offStr = '$offSign${twoDig(offAbs.inHours)}:${twoDig(offAbs.inMinutes % 60)}';
+      final uri = Uri.parse(
+        'https://www.bahn.de/web/api/reisebegleitung/wagenreihung/vehicle-sequence'
+        '?administrationId=80&category=$category'
+        '&evaNumber=$evaNumber&number=$trainNumber'
+        '&date=$dateStr&time=${Uri.encodeComponent('$timeStr$offStr')}',
+      );
+      final resp = await _client.get(uri, headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      }).timeout(const Duration(seconds: 12));
+      if (resp.statusCode != 200) {
+        _log.debug('Transit: wagenreihung HTTP ${resp.statusCode}', tag: 'TRANSIT');
+        return null;
+      }
+      final body = _decodeUtf8(resp);
+      if (body.trimLeft().startsWith('<')) return null;
+      final data = jsonDecode(body);
+      if (data is! Map) return null;
+      final info = _parseWagenreihung(data);
+      if (info == null) return null;
+      _wagenreihungCache[cacheKey] = _CachedWagenreihung(info, DateTime.now());
+      return info;
+    } catch (e) {
+      _log.debug('Transit: wagenreihung fetch failed: $e', tag: 'TRANSIT');
+      return null;
+    }
+  }
+
+  WagenreihungInfo? _parseWagenreihung(Map data) {
+    try {
+      final platform = (data['departurePlatform'] ??
+                       data['platform']?['name'] ?? '').toString();
+      final platformSchedule = data['departurePlatformSchedule']?.toString();
+      final platformMap = data['platform'] as Map? ?? const {};
+      final start = (platformMap['start'] as num?)?.toDouble() ?? 0.0;
+      final end = (platformMap['end'] as num?)?.toDouble() ?? 1.0;
+      final sectorsRaw = platformMap['sectors'] as List? ?? const [];
+      final sectors = <String>[];
+      for (final s in sectorsRaw) {
+        if (s is Map) {
+          final name = s['name']?.toString() ?? s['sector']?.toString();
+          if (name != null && name.isNotEmpty) sectors.add(name);
+        } else if (s is String && s.isNotEmpty) {
+          sectors.add(s);
+        }
+      }
+      final carriagesRaw = data['carriages'] as List? ??
+                          data['vehicles'] as List? ?? const [];
+      final carriages = <TrainCarriage>[];
+      for (final c in carriagesRaw) {
+        if (c is! Map) continue;
+        final pp = c['platformPosition'] as Map? ?? const {};
+        final type = c['type'] as Map? ?? const {};
+        final amenList = <String>{};
+        final amenRaw = c['amenities'] as List? ?? const [];
+        for (final a in amenRaw) {
+          if (a is Map && a['type'] != null) amenList.add(a['type'].toString());
+          else if (a is String) amenList.add(a);
+        }
+        carriages.add(TrainCarriage(
+          wagenNumber: (c['wagonIdentificationNumber'] ?? c['number'] ?? '').toString(),
+          category: (type['category'] ?? c['category'] ?? 'ECONOMY').toString(),
+          sector: (pp['sector'] ?? '').toString(),
+          startPercent: (pp['start'] as num?)?.toDouble() ?? 0.0,
+          endPercent: (pp['end'] as num?)?.toDouble() ?? 0.0,
+          amenities: amenList,
+          hasFirstClass: type['hasFirstClass'] == true,
+          hasEconomyClass: type['hasEconomyClass'] == true,
+          status: (c['status'] ?? 'OPEN').toString(),
+        ));
+      }
+      if (carriages.isEmpty) return null;
+      return WagenreihungInfo(
+        platform: platform,
+        platformSchedule: platformSchedule,
+        platformStart: start,
+        platformEnd: end,
+        sectors: sectors,
+        carriages: carriages,
+        fetchedAt: DateTime.now(),
+      );
+    } catch (e) {
+      _log.debug('Transit: wagenreihung parse failed: $e', tag: 'TRANSIT');
       return null;
     }
   }
