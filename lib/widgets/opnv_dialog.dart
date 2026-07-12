@@ -2240,15 +2240,25 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
   /// dispose() to record an "arrived" (success) rather than "missed".
   bool _alarmFired = false;
 
+  Timer? _refreshTimer;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _fetch();
+    // 2026-07-13 REALTIME: re-fetch trip la 20s pentru actualizare delays.
+    // User în autobuz cu delay mare — anterior arăta vehiculul pe stații
+    // viitoare deoarece interpolarea folosea planned times (delays out of
+    // date). Refresh la 20s prinde noile realtimeTime din server.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) _fetch();
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _tabController.dispose();
     _recordHistoryOnClose();
     super.dispose();

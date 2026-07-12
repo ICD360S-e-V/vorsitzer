@@ -5098,7 +5098,10 @@ class TransitService {
         ? 'jid|$tripId|${dep.line}'
         : '$fromId|$toId|${dep.line}|${dep.plannedTime.toIso8601String()}';
     final cached = _tripStopsCache[cacheKey];
-    if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 60)) {
+    // 2026-07-13 REALTIME: TTL 60s → 20s pentru trip route
+    // (delay se schimbă in real-time — user care e IN autobuz vrea
+    // actualizare la fiecare cateva secunde, nu la minut).
+    if (cached != null && DateTime.now().difference(cached.at) < const Duration(seconds: 20)) {
       return TripRoute(stops: cached.stops, path: cached.path);
     }
 
@@ -5311,6 +5314,13 @@ class TransitService {
           ?? _parseEfaCompactDateTime(ref['arrDateTimeSec']?.toString())
           ?? _parseEfaCompactDateTime(ref['arrDateTime']?.toString());
       final placeholder = planned ?? DateTime.now();
+      // 2026-07-13 REALTIME FIX: EFA include depDelay/arrDelay (minute).
+      // Anterior era ignorat → realtimeTime rămânea null → interpolarea
+      // vehicul folosea DOAR planned times → aplicația arata vehiculul la
+      // stații viitoare deși în realitate era la o stație cu delay mare.
+      final depDelayMin = int.tryParse(ref['depDelay']?.toString() ?? '') ?? 0;
+      final arrDelayMin = int.tryParse(ref['arrDelay']?.toString() ?? '') ?? 0;
+      final effectiveDelay = depDelayMin > 0 ? depDelayMin : arrDelayMin;
       DateTime? rt;
       if (dt is Map && (dt['rtDate'] != null || dt['rtTime'] != null)) {
         rt = _parseEfaTripDateTime({
@@ -5318,7 +5328,15 @@ class TransitService {
           'time': dt['rtTime'] ?? dt['time'],
         });
       }
-      final delayMin = (rt != null && planned != null) ? rt.difference(planned).inMinutes : 0;
+      // 2026-07-13 REALTIME FIX: dacă rt nu vine explicit, calculăm din
+      // planned + depDelay (EFA include delay-ul dar nu construiește rt
+      // pentru toți providers).
+      if (rt == null && planned != null && effectiveDelay > 0) {
+        rt = planned.add(Duration(minutes: effectiveDelay));
+      }
+      final delayMin = (rt != null && planned != null)
+          ? rt.difference(planned).inMinutes
+          : effectiveDelay;
       // Parse coords "lon,lat" (EFA convention).
       double? lat, lon;
       final coordsStr = ref['coords']?.toString();
