@@ -483,6 +483,17 @@ enum TransitProviderType {
   // - RVF Freiburg (~90 comune) — Freiburg + Emmendingen + Breisgau
   // - MDV Mitteldeutscher (~140 comune) — Leipzig + Halle + Sachsen-Anhalt sud
   hvv, bodo, rvf, mdv,
+  // Added 2026-07-13 wave 2 (audit intens 3× parallel):
+  // BW: HNV Heilbronn, TGO Ortenau, HTV Heidenheim, OstalbMobil,
+  //     VHB Hegau-Bodensee, VSB Schwarzwald-Baar, RVL Lörrach,
+  //     WTV Waldshut, KVSH Schwäbisch Hall, VGF Freudenstadt, VGC Calw
+  //     (VPE Pforzheim = fuzionat cu KVV 2026-01-01, deja acoperit)
+  // Toți 12 BW folosesc EFA-BW centralizat (efa-bw.de/nvbw).
+  hnv, tgo, htv, ostalbmobil, vhb, vsb, rvl, wtv, kvsh, vgf, vgc,
+  // RLP: VRM Rhein-Mosel (Koblenz + nord RLP, 1.3M locuitori, LIPSEA)
+  vrm,
+  // NDS: GVH Hannover, VSN Süd-Niedersachsen (Göttingen), VRB Braunschweig
+  gvh, vsn, vrb,
 }
 
 class TransitProviderConfig {
@@ -818,6 +829,109 @@ const _providers = [
     name: 'MDV', displayName: 'MDV (Mitteldeutscher Verkehrsverbund)',
     baseUrl: 'https://efa.mdv.de/mdv',
     minLat: 51.05, maxLat: 51.60, minLon: 11.60, maxLon: 12.90,
+  ),
+
+  // ── Wave 2 (2026-07-13): 11 BW mici + VRM + 3 NDS ──
+  //
+  // Toate 11 BW folosesc EFA-BW centralizat (bwegt.de) — un singur endpoint
+  // acoperă TOATE 19 verbund-uri Baden-Württemberg. Provideri distincți
+  // în enum doar pentru display + telemetry corect ("Provider: HNV" în UI).
+  TransitProviderConfig(
+    type: TransitProviderType.hnv, api: TransitApiType.efa,
+    name: 'HNV', displayName: 'HNV (Heilbronn-Hohenlohe-Haller-Nahverkehr)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 49.0, maxLat: 49.4, minLon: 8.8, maxLon: 9.9,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.tgo, api: TransitApiType.efa,
+    name: 'TGO', displayName: 'TGO (Tarifverbund Ortenau — Offenburg/Lahr/Kehl)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 48.1, maxLat: 48.8, minLon: 7.6, maxLon: 8.4,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.htv, api: TransitApiType.efa,
+    name: 'HTV', displayName: 'HTV (Heidenheimer Tarifverbund)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 48.5, maxLat: 48.85, minLon: 9.9, maxLon: 10.4,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.ostalbmobil, api: TransitApiType.efa,
+    name: 'OstalbMobil', displayName: 'OstalbMobil (Aalen, Ellwangen, Schw. Gmünd)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 48.6, maxLat: 49.0, minLon: 9.7, maxLon: 10.5,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vhb, api: TransitApiType.efa,
+    name: 'VHB', displayName: 'VHB (Verkehrsverbund Hegau-Bodensee — Konstanz)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 47.65, maxLat: 47.95, minLon: 8.65, maxLon: 9.25,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vsb, api: TransitApiType.efa,
+    name: 'VSB', displayName: 'VSB (Schwarzwald-Baar — Villingen-Schwenningen)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 47.85, maxLat: 48.30, minLon: 8.20, maxLon: 8.85,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.rvl, api: TransitApiType.efa,
+    name: 'RVL', displayName: 'RVL (Regio Verkehrsverbund Lörrach)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 47.55, maxLat: 47.90, minLon: 7.55, maxLon: 8.10,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.wtv, api: TransitApiType.efa,
+    name: 'WTV', displayName: 'WTV (Waldshuter Tarifverbund)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 47.55, maxLat: 47.90, minLon: 7.85, maxLon: 8.75,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.kvsh, api: TransitApiType.efa,
+    name: 'KVSH', displayName: 'KVSH (Kreisverkehr Schwäbisch Hall)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 49.00, maxLat: 49.40, minLon: 9.55, maxLon: 10.30,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vgf, api: TransitApiType.efa,
+    name: 'VGF', displayName: 'VGF (Verkehrsverbund Freudenstadt)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 48.30, maxLat: 48.65, minLon: 8.20, maxLon: 8.70,
+  ),
+  TransitProviderConfig(
+    type: TransitProviderType.vgc, api: TransitApiType.efa,
+    name: 'VGC', displayName: 'VGC (Verkehrsverbund Calw)',
+    baseUrl: 'https://efa-bw.de/nvbw',
+    minLat: 48.60, maxLat: 48.90, minLon: 8.55, maxLon: 8.95,
+  ),
+
+  // VRM Rhein-Mosel — Koblenz + nord RLP (1.3M locuitori, LIPSEA COMPLET)
+  // Foloseste sistem ASS (IVV Aachen) — endpoint EFA compatibil.
+  TransitProviderConfig(
+    type: TransitProviderType.vrm, api: TransitApiType.efa,
+    name: 'VRM', displayName: 'VRM (Verkehrsverbund Rhein-Mosel — Koblenz)',
+    baseUrl: 'https://fahrplanauskunft.vrminfo.de/vrm/cgi',
+    minLat: 49.80, maxLat: 51.10, minLon: 6.00, maxLon: 8.30,
+  ),
+
+  // GVH Hannover — Stadt+Region Hannover + Regiotarif
+  TransitProviderConfig(
+    type: TransitProviderType.gvh, api: TransitApiType.efa,
+    name: 'GVH', displayName: 'GVH (Großraum-Verkehr Hannover)',
+    baseUrl: 'https://www.efa.de/nvv',
+    minLat: 52.00, maxLat: 52.70, minLon: 8.80, maxLon: 10.30,
+  ),
+  // VSN Süd-Niedersachsen — Göttingen, Northeim, Holzminden
+  TransitProviderConfig(
+    type: TransitProviderType.vsn, api: TransitApiType.efa,
+    name: 'VSN', displayName: 'VSN (Süd-Niedersachsen — Göttingen)',
+    baseUrl: 'https://fahrplaner.vsninfo.de',
+    minLat: 51.30, maxLat: 52.00, minLon: 9.30, maxLon: 10.70,
+  ),
+  // VRB Regionalverbund Braunschweig
+  TransitProviderConfig(
+    type: TransitProviderType.vrb, api: TransitApiType.efa,
+    name: 'VRB', displayName: 'VRB (Regionalverbund Braunschweig)',
+    baseUrl: 'https://fahrplan.vrb-braunschweig.de',
+    minLat: 51.80, maxLat: 52.70, minLon: 10.30, maxLon: 11.30,
   ),
 ];
 
@@ -1567,8 +1681,13 @@ class TransitService {
       'ralbitz-rosenthal', 'räckelwitz', 'nebelschütz', 'oßling', 'elstra',
       'laußnitz', 'steinigtwolmsdorf', 'burkau', 'neukirch/lausitz',
       'haselbachtal', 'frankenthal', 'wittichenau',
+      // ZVVO fuziune 08.12.2025 — extindere spre est cu Görlitz + ZVON zone
+      'görlitz', 'zittau', 'löbau', 'niesky', 'ebersbach-neugersdorf',
+      'weißwasser', 'bad muskau', 'reichenbach/oberlausitz', 'rothenburg',
+      'seifhennersdorf', 'oderwitz', 'olbersdorf', 'jonsdorf', 'oybin',
+      'großschönau', 'ostritz', 'krauschwitz', 'rietschen',
       'sächsische schweiz', 'landkreis bautzen', 'landkreis meißen',
-      'landkreis sächsische schweiz-osterzgebirge',
+      'landkreis sächsische schweiz-osterzgebirge', 'landkreis görlitz',
     },
     // ── saarVV Saarland — eGo-Saar Mitglieder (52 comune, TOATE Saarland) ──
     TransitProviderType.saarvv: {
@@ -2168,6 +2287,129 @@ class TransitService {
       'auggen', 'schallstadt', 'wittnau', 'au', 'horben', 'pfaffenweiler',
       'ballrechten-dottingen', 'heitersheim', 'neuenburg am rhein',
       'landkreis emmendingen', 'landkreis breisgau-hochschwarzwald',
+    },
+    // ── HNV Heilbronn (23 comune) ──
+    TransitProviderType.hnv: {
+      'heilbronn', 'öhringen', 'künzelsau', 'neuenstein', 'bad rappenau',
+      'eppingen', 'neckarsulm', 'bad friedrichshall', 'weinsberg', 'obersulm',
+      'brackenheim', 'lauffen', 'bretzfeld', 'forchtenberg', 'ingelfingen',
+      'waldenburg', 'pfedelbach', 'mulfingen', 'kupferzell', 'dörzbach',
+      'niedernhall', 'krautheim', 'hohenlohekreis', 'landkreis heilbronn',
+    },
+    // ── TGO Ortenau (23 comune) ──
+    TransitProviderType.tgo: {
+      'offenburg', 'lahr', 'kehl', 'achern', 'oberkirch', 'gengenbach',
+      'haslach', 'hausach', 'wolfach', 'zell am harmersbach', 'oppenau',
+      'ettenheim', 'mahlberg', 'friesenheim', 'schwanau', 'meißenheim',
+      'willstätt', 'appenweier', 'renchen', 'sasbach', 'kappelrodeck',
+      'seelbach', 'hornberg', 'ortenaukreis',
+    },
+    // ── HTV Heidenheim (11 comune) ──
+    TransitProviderType.htv: {
+      'heidenheim', 'heidenheim an der brenz', 'giengen', 'herbrechtingen',
+      'königsbronn', 'gerstetten', 'sontheim', 'niederstotzingen', 'steinheim',
+      'dischingen', 'nattheim', 'hermaringen', 'landkreis heidenheim',
+    },
+    // ── OstalbMobil (18 comune) ──
+    TransitProviderType.ostalbmobil: {
+      'aalen', 'ellwangen', 'schwäbisch gmünd', 'bopfingen', 'oberkochen',
+      'heubach', 'mögglingen', 'essingen', 'hüttlingen', 'abtsgmünd',
+      'neresheim', 'lauchheim', 'westhausen', 'lorch', 'waldstetten',
+      'spraitbach', 'mutlangen', 'gschwend', 'ostalbkreis',
+    },
+    // ── VHB Hegau-Bodensee (23 comune) ──
+    TransitProviderType.vhb: {
+      'konstanz', 'singen', 'radolfzell', 'stockach', 'engen', 'tengen',
+      'gottmadingen', 'rielasingen-worblingen', 'aach', 'allensbach',
+      'bodman-ludwigshafen', 'gaienhofen', 'gailingen', 'moos', 'öhningen',
+      'reichenau', 'steißlingen', 'hilzingen', 'mühlhausen-ehingen',
+      'eigeltingen', 'mühlingen', 'orsingen-nenzingen', 'volkertshausen',
+      'landkreis konstanz',
+    },
+    // ── VSB Schwarzwald-Baar-Heuberg (18 comune) ──
+    TransitProviderType.vsb: {
+      'villingen-schwenningen', 'donaueschingen', 'bad dürrheim', 'blumberg',
+      'hüfingen', 'tuttlingen', 'rottweil', 'trossingen', 'spaichingen',
+      'furtwangen', 'triberg', 'st. georgen', 'vöhrenbach', 'königsfeld',
+      'mönchweiler', 'brigachtal', 'unterkirnach', 'dauchingen',
+      'schwarzwald-baar-kreis', 'landkreis tuttlingen', 'landkreis rottweil',
+    },
+    // ── RVL Lörrach (16 comune) ──
+    TransitProviderType.rvl: {
+      'lörrach', 'weil am rhein', 'rheinfelden', 'schopfheim',
+      'grenzach-wyhlen', 'steinen', 'wehr', 'zell im wiesental', 'todtnau',
+      'schönau', 'kandern', 'efringen-kirchen', 'binzen', 'inzlingen',
+      'malsburg-marzell', 'häg-ehrsberg', 'landkreis lörrach',
+    },
+    // ── WTV Waldshut (21 comune) ──
+    TransitProviderType.wtv: {
+      'waldshut-tiengen', 'bad säckingen', 'laufenburg', 'murg', 'görwihl',
+      'rickenbach', 'herrischried', 'todtmoos', 'dachsberg', 'weilheim',
+      'ühlingen-birkendorf', 'bonndorf', 'stühlingen', 'eggingen', 'jestetten',
+      'klettgau', 'lauchringen', 'wutach', 'wutöschingen', 'küssaberg',
+      'landkreis waldshut',
+    },
+    // ── KVSH Schwäbisch Hall (24 comune) ──
+    TransitProviderType.kvsh: {
+      'schwäbisch hall', 'crailsheim', 'gaildorf', 'ilshofen', 'vellberg',
+      'gerabronn', 'langenburg', 'kirchberg', 'satteldorf', 'fichtenau',
+      'kreßberg', 'stimpfach', 'wallhausen', 'blaufelden', 'rot am see',
+      'schrozberg', 'michelbach/bilz', 'michelfeld', 'rosengarten',
+      'untermünkheim', 'mainhardt', 'oberrot', 'sulzbach-laufen',
+      'bühlertann', 'obersontheim', 'landkreis schwäbisch hall',
+    },
+    // ── VGF Freudenstadt (15 comune) ──
+    TransitProviderType.vgf: {
+      'freudenstadt', 'horb', 'alpirsbach', 'dornstetten', 'baiersbronn',
+      'loßburg', 'pfalzgrafenweiler', 'waldachtal', 'schopfloch', 'glatten',
+      'wörnersberg', 'empfingen', 'eutingen', 'seewald', 'klosterreichenbach',
+      'landkreis freudenstadt',
+    },
+    // ── VGC Calw (20 comune) ──
+    TransitProviderType.vgc: {
+      'calw', 'nagold', 'altensteig', 'wildberg', 'bad wildbad',
+      'bad teinach-zavelstein', 'bad liebenzell', 'ebhausen', 'egenhausen',
+      'haiterbach', 'neubulach', 'neuweiler', 'oberreichenbach',
+      'unterreichenbach', 'schömberg', 'gechingen', 'althengstett',
+      'ostelsheim', 'landkreis calw',
+    },
+    // ── VRM Rhein-Mosel — Koblenz+nord RLP (LIPSEA, 27 comune) ──
+    TransitProviderType.vrm: {
+      'koblenz', 'andernach', 'mayen', 'neuwied', 'bendorf', 'lahnstein',
+      'boppard', 'sinzig', 'bad neuenahr-ahrweiler', 'ahrweiler', 'remagen',
+      'cochem', 'zell (mosel)', 'kastellaun', 'simmern', 'diez', 'nassau',
+      'bad ems', 'altenkirchen', 'betzdorf', 'hachenburg', 'montabaur',
+      'westerburg', 'bad marienberg', 'kirchen (sieg)', 'wissen', 'adenau',
+      'linz am rhein',
+      'landkreis ahrweiler', 'landkreis altenkirchen', 'landkreis cochem-zell',
+      'landkreis mayen-koblenz', 'landkreis neuwied', 'rhein-hunsrück-kreis',
+      'rhein-lahn-kreis', 'westerwaldkreis',
+    },
+    // ── GVH Hannover (25 comune) ──
+    TransitProviderType.gvh: {
+      'hannover', 'garbsen', 'langenhagen', 'laatzen', 'hemmingen',
+      'ronnenberg', 'seelze', 'burgdorf', 'lehrte', 'wunstorf', 'barsinghausen',
+      'gehrden', 'isernhagen', 'neustadt am rübenberge', 'pattensen',
+      'sehnde', 'springe', 'uetze', 'wedemark', 'wennigsen',
+      'region hannover', 'landkreis hannover',
+      'nienburg', 'landkreis nienburg', 'schaumburg', 'landkreis schaumburg',
+    },
+    // ── VSN Süd-Niedersachsen (15 comune) ──
+    TransitProviderType.vsn: {
+      'göttingen', 'northeim', 'holzminden', 'hann. münden', 'einbeck',
+      'uslar', 'bad gandersheim', 'moringen', 'dassel', 'kreiensen',
+      'bovenden', 'friedland', 'gleichen', 'rosdorf', 'staufenberg',
+      'landkreis göttingen', 'landkreis northeim', 'landkreis holzminden',
+    },
+    // ── VRB Regionalverbund Braunschweig (21 comune) ──
+    TransitProviderType.vrb: {
+      'braunschweig', 'wolfsburg', 'salzgitter', 'peine', 'gifhorn',
+      'wolfenbüttel', 'goslar', 'helmstedt', 'schöningen', 'königslutter',
+      'clausthal-zellerfeld', 'bad harzburg', 'seesen', 'vienenburg',
+      'lengede', 'ilsede', 'edemissen', 'wittingen', 'meine', 'sassenburg',
+      'lehre',
+      'landkreis peine', 'landkreis gifhorn', 'landkreis wolfenbüttel',
+      'landkreis helmstedt', 'landkreis goslar',
     },
     // ── MDV Mitteldeutscher — Leipzig+Halle+südlichen ST/TH (~140 comune) ──
     TransitProviderType.mdv: {
