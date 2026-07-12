@@ -16,6 +16,7 @@ import 'dart:io' show Platform;
 import '../services/notification_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
+import '../services/transit_live_tracker_service.dart';
 import '../services/transit_favorites_service.dart';
 import '../services/transit_history_service.dart';
 import '../services/transit_grippewelle_service.dart';
@@ -4111,6 +4112,8 @@ class _DisruptionsListDialogState extends State<_DisruptionsListDialog> {
                 ),
               ]),
             ),
+            // 2026-07-13: geOps Tralis API key opt-in
+            _GeOpsApiKeySetting(),
             Expanded(
               child: _svc.disruptions.isEmpty
                   ? Center(
@@ -5496,20 +5499,36 @@ class _TripMapViewState extends State<_TripMapView> {
     if (minLat == null) return;
     // Padding ~500m = 0.005°
     const pad = 0.005;
+    final all = <VehiclePosition>[];
+    // Source 1: HAFAS radar (in-app, HAFAS providers)
     try {
-      final vehicles = await widget.transitService.fetchVehiclePositionsRadar(
+      final hafasVehicles = await widget.transitService.fetchVehiclePositionsRadar(
         minLat: minLat! - pad, maxLat: maxLat! + pad,
         minLon: minLon! - pad, maxLon: maxLon! + pad,
       );
-      if (!mounted) return;
-      // Filter: doar vehicule care corespund liniei noastre (line match).
-      final myLine = widget.dep.line.trim().toLowerCase();
-      final relevant = vehicles.where((v) {
-        final vl = v.line.trim().toLowerCase();
-        return vl == myLine || vl.contains(myLine) || myLine.contains(vl);
-      }).toList();
-      setState(() => _liveVehicles = relevant.isNotEmpty ? relevant : vehicles);
+      all.addAll(hafasVehicles);
     } catch (_) {}
+    // Source 2: geOps Tralis WSS (worldwide, opt-in cu API key)
+    final tracker = TransitLiveTrackerService();
+    if (tracker.hasApiKey) {
+      if (!tracker.isConnected) {
+        // Conectat la geOps cu bbox curent.
+        final bboxStr = '${(minLon! - pad).toStringAsFixed(5)} '
+            '${(minLat! - pad).toStringAsFixed(5)} '
+            '${(maxLon! + pad).toStringAsFixed(5)} '
+            '${(maxLat! + pad).toStringAsFixed(5)} 13';
+        tracker.connect(bboxStr);
+      }
+      all.addAll(tracker.vehicles);
+    }
+    if (!mounted) return;
+    // Filter: doar vehicule care corespund liniei noastre.
+    final myLine = widget.dep.line.trim().toLowerCase();
+    final relevant = all.where((v) {
+      final vl = v.line.trim().toLowerCase();
+      return vl == myLine || vl.contains(myLine) || myLine.contains(vl);
+    }).toList();
+    setState(() => _liveVehicles = relevant.isNotEmpty ? relevant : all);
   }
 
   /// Extrapolează poziția vehiculului pe polyline între stațiile a căror
@@ -6605,6 +6624,92 @@ class _StopDetailsSheetState extends State<_StopDetailsSheet> {
                         userMuttersprache: widget.userMuttersprache,
                       ),
                     ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// 2026-07-13: Opt-in geOps Tralis API key input.
+/// Când user pune API key valid, se conectează la WSS și primește live
+/// vehicle positions worldwide (SBB + DB + BVG + HVV + MVG + more).
+/// Free key: email support@geops.io cu use-case scurt.
+class _GeOpsApiKeySetting extends StatefulWidget {
+  @override
+  State<_GeOpsApiKeySetting> createState() => _GeOpsApiKeySettingState();
+}
+
+class _GeOpsApiKeySettingState extends State<_GeOpsApiKeySetting> {
+  final _tracker = TransitLiveTrackerService();
+
+  @override
+  void initState() {
+    super.initState();
+    _tracker.loadApiKey().then((_) => setState(() {}));
+  }
+
+  Future<void> _showKeyDialog() async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('geOps Tralis API Key', style: TextStyle(fontSize: 14)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Live vehicle-positions worldwide via geOps.',
+              style: TextStyle(fontSize: 11)),
+          const SizedBox(height: 8),
+          const Text('Free API-Key via E-Mail support@geops.io mit kurzem Use-Case.',
+              style: TextStyle(fontSize: 10, color: Colors.grey)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'API Key',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 12),
+          ),
+        ]),
+        actions: [
+          if (_tracker.hasApiKey)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('Entfernen', style: TextStyle(color: Colors.red)),
+            ),
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    if (result == null) return;
+    await _tracker.setApiKey(result);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 8, 6),
+      child: Row(children: [
+        Icon(Icons.satellite_alt, size: 14, color: p.onSurfaceDim),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          _tracker.hasApiKey
+              ? 'geOps Live-Tracker aktiv (weltweit)'
+              : 'geOps Live-Tracker (API-Key erforderlich)',
+          style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
+        )),
+        TextButton.icon(
+          icon: Icon(_tracker.hasApiKey ? Icons.check_circle : Icons.key, size: 14),
+          label: Text(_tracker.hasApiKey ? 'Konfiguriert' : 'API-Key setzen',
+              style: const TextStyle(fontSize: 10)),
+          onPressed: _showKeyDialog,
         ),
       ]),
     );
