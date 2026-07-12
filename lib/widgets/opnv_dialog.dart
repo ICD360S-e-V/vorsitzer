@@ -2240,25 +2240,19 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
   /// dispose() to record an "arrived" (success) rather than "missed".
   bool _alarmFired = false;
 
-  Timer? _refreshTimer;
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _fetch();
-    // 2026-07-13 REALTIME: re-fetch trip la 20s pentru actualizare delays.
-    // User în autobuz cu delay mare — anterior arăta vehiculul pe stații
-    // viitoare deoarece interpolarea folosea planned times (delays out of
-    // date). Refresh la 20s prinde noile realtimeTime din server.
-    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (mounted) _fetch();
-    });
+    // 2026-07-13: NO polling timer. Provideri publici nu expun live feed
+    // real-time — polling e workaround. Solutia mai buna: _TripMapView
+    // foloseste GPS user ca sursa live pt pozitia vehiculului (daca user
+    // e pe traseu ≤300m, poziția lui == poziția vehiculului). Zero delay.
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     _tabController.dispose();
     _recordHistoryOnClose();
     super.dispose();
@@ -5485,8 +5479,37 @@ class _TripMapViewState extends State<_TripMapView> {
   void _updateVehiclePosition() {
     final stops = widget.stops;
     if (stops.length < 2) return;
+
+    // 2026-07-13 REAL-TIME FIX (user feedback):
+    // Provideri publici (DING/MVV/EFA/HAFAS) NU expun WebSocket live
+    // pentru vehicul-tracking — doar polling la 15-60s ca standard
+    // industrie. Dar dacă user e ÎN autobuz cu GPS activ, poziția lui
+    // == poziția vehiculului. Zero polling, zero delay stalе.
+    //
+    // Cheia: dacă _userPosition e pe polyline traseului (proximitate
+    // ≤ 300m de vreo linie), consideramă că user e ÎN vehicul → set
+    // _vehiclePosition = _userPosition. Ground truth REAL, nu interpolare.
+    if (_userPosition != null && widget.stops.isNotEmpty) {
+      double? minDistToStop;
+      TripStop? nearestStop;
+      for (final s in stops) {
+        if (s.lat == null || s.lon == null) continue;
+        final d = _distMeters(_userPosition!, LatLng(s.lat!, s.lon!));
+        if (minDistToStop == null || d < minDistToStop) {
+          minDistToStop = d;
+          nearestStop = s;
+        }
+      }
+      // Threshold 300m: user pe traseu → live truth
+      if (minDistToStop != null && minDistToStop < 300 && nearestStop != null) {
+        setState(() => _vehiclePosition = _userPosition);
+        return;
+      }
+    }
+
+    // Fallback: interpolare pe realtime timestamps (când user NU e pe traseu
+    // sau GPS lipsește). Folosim realtimeTime când exista → delay se ia in calc.
     final now = DateTime.now();
-    // Găsim segmentul curent.
     int segIdx = -1;
     for (int i = 0; i < stops.length - 1; i++) {
       final t1 = stops[i].realtimeTime ?? stops[i].plannedTime;
