@@ -2762,11 +2762,38 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     List<Map<String, dynamic>> verlauf = [];
     if (k['verlauf'] is List) verlauf = List<Map<String, dynamic>>.from((k['verlauf'] as List).whereType<Map>());
 
+    // Antwort / Kontakt-Log — persisted server-side, keyed by the same
+    // group tuple kk_korrespondenz_list.php uses (richtung + titel + datum).
+    final String korrRichtung = k['richtung']?.toString() ?? 'eingang';
+    final String korrTitel = (k['titel']?.toString().isNotEmpty ?? false) ? k['titel'].toString() : (k['betreff']?.toString() ?? '');
+    final String korrDatum = (k['datum']?.toString().isNotEmpty ?? false) ? k['datum'].toString() : (k['erstellt_am']?.toString() ?? '');
+    List<Map<String, dynamic>> antwortList = [];
+    bool antwortLoaded = false;
+    bool antwortLoading = false;
+
     showDialog(
       context: context,
       builder: (ctx) => DefaultTabController(
-        length: isEingang ? 2 : 3,
-        child: StatefulBuilder(builder: (ctx2, setDetailState) => Dialog(
+        length: isEingang ? 3 : 4,
+        child: StatefulBuilder(builder: (ctx2, setDetailState) {
+          if (!antwortLoaded && !antwortLoading) {
+            antwortLoading = true;
+            widget.apiService.listKKKorrespondenzAntwort(
+              userId: widget.user.id, richtung: korrRichtung, korrTitel: korrTitel, korrDatum: korrDatum,
+            ).then((res) {
+              if (res['success'] == true && res['items'] is List) {
+                antwortList = (res['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+              }
+              antwortLoaded = true;
+              antwortLoading = false;
+              if (ctx2.mounted) setDetailState(() {});
+            }).catchError((_) {
+              antwortLoaded = true;
+              antwortLoading = false;
+              if (ctx2.mounted) setDetailState(() {});
+            });
+          }
+          return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: SizedBox(
             width: 520, height: 500,
@@ -2795,6 +2822,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 tabs: [
                   const Tab(text: 'Details'),
                   const Tab(text: 'Dokumente'),
+                  const Tab(text: 'Antwort'),
                   if (!isEingang) const Tab(text: 'Verlauf'),
                 ],
               ),
@@ -2945,6 +2973,100 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                           },
                         );
                       })),
+                    ]),
+                  ),
+                  // === Antwort / Kontakt-Log tab ===
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Icon(Icons.forum, size: 18, color: Colors.teal.shade700),
+                        const SizedBox(width: 6),
+                        Text('Antwort / Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                        const Spacer(),
+                        FilledButton.icon(
+                          icon: const Icon(Icons.add, size: 14),
+                          label: const Text('Eintrag', style: TextStyle(fontSize: 11)),
+                          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+                          onPressed: () => _showAntwortEintragDialog(ctx2, onSave: (entry) async {
+                            final res = await widget.apiService.saveKKKorrespondenzAntwort(
+                              userId: widget.user.id, richtung: korrRichtung, korrTitel: korrTitel, korrDatum: korrDatum,
+                              datum: entry['datum'] ?? '', zeit: entry['zeit'] ?? '', kontaktart: entry['kontaktart'] ?? '',
+                              filiale: entry['filiale'] ?? '', notiz: entry['notiz'] ?? '',
+                            );
+                            if (res['success'] == true) {
+                              antwortList.insert(0, {...entry, 'id': res['id']});
+                              setDetailState(() {});
+                            } else if (ctx2.mounted) {
+                              ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler beim Speichern'), backgroundColor: Colors.red));
+                            }
+                          }),
+                        ),
+                      ]),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: !antwortLoaded
+                          ? const Center(child: SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2)))
+                          : antwortList.isEmpty
+                            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(Icons.forum_outlined, size: 40, color: Colors.grey.shade300),
+                                const SizedBox(height: 6),
+                                Text('Noch keine Antwort erfasst', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                              ]))
+                            : ListView.builder(
+                                itemCount: antwortList.length,
+                                itemBuilder: (_, ai) {
+                                  final a = antwortList[ai];
+                                  final ka = a['kontaktart']?.toString() ?? '';
+                                  final zeit = a['zeit']?.toString() ?? '';
+                                  final filiale = a['filiale']?.toString() ?? '';
+                                  final notiz = a['notiz']?.toString() ?? '';
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8)),
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Row(children: [
+                                        Icon(_antwortKontaktIcon(ka), size: 16, color: Colors.teal.shade700),
+                                        const SizedBox(width: 8),
+                                        Text('${a['datum'] ?? ''}${zeit.isNotEmpty ? ' · $zeit' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                          decoration: BoxDecoration(color: Colors.teal.shade200, borderRadius: BorderRadius.circular(8)),
+                                          child: Text(_antwortKontaktLabel(ka), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                                        ),
+                                        const Spacer(),
+                                        IconButton(
+                                          icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                                          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                          onPressed: () async {
+                                            final delId = int.tryParse(a['id']?.toString() ?? '');
+                                            if (delId != null) await widget.apiService.deleteKKKorrespondenzAntwort(delId);
+                                            antwortList.removeAt(ai);
+                                            setDetailState(() {});
+                                          },
+                                        ),
+                                      ]),
+                                      if (filiale.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 24, top: 3),
+                                          child: Row(children: [
+                                            Icon(Icons.location_on, size: 11, color: Colors.teal.shade400),
+                                            const SizedBox(width: 3),
+                                            Expanded(child: Text(filiale, style: TextStyle(fontSize: 10, color: Colors.teal.shade600))),
+                                          ]),
+                                        ),
+                                      if (notiz.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 24, top: 3),
+                                          child: Text(notiz, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                                        ),
+                                    ]),
+                                  );
+                                },
+                              ),
+                      ),
                     ]),
                   ),
                   // === Verlauf tab (nur Ausgang) ===
@@ -3129,9 +3251,103 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ),
             ]),
           ),
-        )),
+          );
+        }),
       ),
     );
+  }
+
+  // ─── Antwort / Kontakt-Log helpers ───────────────────────────────
+  static const Map<String, String> _antwortKontaktarten = {
+    'telefonisch': 'Telefonisch',
+    'fax': 'Fax',
+    'email': 'E-Mail',
+    'persoenlich': 'Persönlich',
+    'vor_ort': 'Vor Ort (Filiale)',
+  };
+
+  String _antwortKontaktLabel(String key) => _antwortKontaktarten[key] ?? (key.isEmpty ? 'Kontakt' : key);
+
+  IconData _antwortKontaktIcon(String key) {
+    switch (key) {
+      case 'telefonisch': return Icons.phone;
+      case 'fax': return Icons.print;
+      case 'email': return Icons.email;
+      case 'persoenlich': return Icons.person;
+      case 'vor_ort': return Icons.store;
+      default: return Icons.forum;
+    }
+  }
+
+  /// Formular zum Erfassen eines Antwort-/Kontakt-Eintrags. Ruft [onSave]
+  /// mit der eingegebenen Map (datum, zeit, kontaktart, filiale, notiz).
+  void _showAntwortEintragDialog(BuildContext parentCtx, {required void Function(Map<String, dynamic>) onSave}) {
+    final datumC = TextEditingController();
+    final zeitC = TextEditingController();
+    final filialeC = TextEditingController();
+    final notizC = TextEditingController();
+    String kontaktart = 'telefonisch';
+
+    showDialog(context: parentCtx, builder: (dCtx) => StatefulBuilder(builder: (dCtx2, setD) => AlertDialog(
+      title: const Text('Antwort erfassen', style: TextStyle(fontSize: 15)),
+      content: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Datum + Uhrzeit
+        Row(children: [
+          Expanded(child: TextField(controller: datumC, readOnly: true,
+            decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async {
+              final picked = await showDatePicker(context: dCtx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030), locale: const Locale('de'));
+              if (picked != null) setD(() => datumC.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}');
+            })),
+          const SizedBox(width: 8),
+          SizedBox(width: 120, child: TextField(controller: zeitC, readOnly: true,
+            decoration: InputDecoration(labelText: 'Uhrzeit', prefixIcon: const Icon(Icons.access_time, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onTap: () async {
+              final t = await showTimePicker(context: dCtx2, initialTime: TimeOfDay.now());
+              if (t != null) setD(() => zeitC.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
+            })),
+        ]),
+        const SizedBox(height: 12),
+        Text('Wie erledigt:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 6, runSpacing: 4, children: _antwortKontaktarten.entries.map((m) => ChoiceChip(
+          avatar: Icon(_antwortKontaktIcon(m.key), size: 14, color: kontaktart == m.key ? Colors.white : Colors.teal.shade700),
+          label: Text(m.value, style: TextStyle(fontSize: 11, color: kontaktart == m.key ? Colors.white : Colors.teal.shade700)),
+          selected: kontaktart == m.key,
+          selectedColor: Colors.teal.shade600,
+          backgroundColor: Colors.teal.shade50,
+          onSelected: (_) => setD(() => kontaktart = m.key),
+        )).toList()),
+        if (kontaktart == 'vor_ort' || kontaktart == 'persoenlich') ...[
+          const SizedBox(height: 10),
+          TextField(controller: filialeC, decoration: InputDecoration(labelText: 'Filiale / Ort', prefixIcon: const Icon(Icons.location_on, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ],
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 3,
+          decoration: InputDecoration(labelText: 'Notiz (was ist passiert?)', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600),
+          onPressed: () {
+            if (datumC.text.trim().isEmpty) {
+              ScaffoldMessenger.of(dCtx2).showSnackBar(const SnackBar(content: Text('Bitte Datum wählen')));
+              return;
+            }
+            onSave({
+              'datum': datumC.text.trim(),
+              'zeit': zeitC.text.trim(),
+              'kontaktart': kontaktart,
+              'filiale': (kontaktart == 'vor_ort' || kontaktart == 'persoenlich') ? filialeC.text.trim() : '',
+              'notiz': notizC.text.trim(),
+            });
+            Navigator.pop(dCtx);
+          },
+          child: const Text('Speichern'),
+        ),
+      ],
+    )));
   }
 
   Widget _detailRow(IconData icon, String label, String value) {
