@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
@@ -273,19 +274,53 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     String typ = '';
     String lobbyGrund = '';
     bool lcNachweis = false, lcPassbild = false;
+    // Auto-Erkennung der Nachweise (nur bei LobbyCard):
+    //  · Einkommensnachweis  ← Bewilligungsbescheid im Jobcenter (status=bewilligt oder bescheid_von)
+    //  · Passbild            ← hochgeladenes eGK-Lichtbild in der Krankenkasse-Korrespondenz
+    bool detectStarted = false, dlgOpen = true;
+    bool hasBewilligung = false, hasLichtbild = false;
+    void runLobbyDetect(StateSetter setDlg) {
+      if (detectStarted) return;
+      detectStarted = true;
+      unawaited(() async {
+        try {
+          final res = await Future.wait([
+            widget.apiService.getJobcenterData(widget.userId),
+            widget.apiService.getKKKorrespondenz(widget.userId),
+          ]);
+          final antraege = (res[0]['antraege'] as List?) ?? const [];
+          hasBewilligung = antraege.any((a) { final m = a as Map; return m['status'] == 'bewilligt'; });
+          final korr = (res[1]['data'] as List?) ?? const [];
+          hasLichtbild = korr.any((k) { final m = k as Map; return (m['titel']?.toString() ?? '').contains('eGK-Lichtbild') && m['dokumente'] is List && (m['dokumente'] as List).isNotEmpty; });
+        } catch (_) {}
+        if (dlgOpen) setDlg(() {
+          lcPassbild = hasLichtbild;
+          lcNachweis = lobbyGrund.startsWith('Bürgergeld') && hasBewilligung;
+        });
+      }());
+    }
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 14))]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(isExpanded: true, initialValue: typ.isEmpty ? null : typ,
           decoration: InputDecoration(labelText: 'Dienstleistung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _vorfallTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
-          onChanged: (v) => setDlg(() { typ = v ?? ''; if (titelC.text.isEmpty) titelC.text = typ; })),
+          onChanged: (v) {
+            setDlg(() {
+              typ = v ?? '';
+              if (titelC.text.isEmpty) titelC.text = typ;
+              if (typ == _lobbyCardTyp) { lcPassbild = hasLichtbild; lcNachweis = lobbyGrund.startsWith('Bürgergeld') && hasBewilligung; }
+            });
+            if (typ == _lobbyCardTyp) runLobbyDetect(setDlg);
+          }),
         const SizedBox(height: 12),
         TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
         _dateField('Datum', datumC, ctx),
-        const SizedBox(height: 12),
-        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        if (typ != _lobbyCardTyp) ...[
+          const SizedBox(height: 12),
+          TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        ],
         const SizedBox(height: 16),
         if (typ == _lobbyCardTyp) ...[
           const Divider(height: 1),
@@ -298,7 +333,7 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
           DropdownButtonFormField<String>(isExpanded: true, initialValue: lobbyGrund.isEmpty ? null : lobbyGrund,
             decoration: InputDecoration(labelText: 'Berechtigungsgrund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: _lobbyGruende.map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 13)))).toList(),
-            onChanged: (g) => setDlg(() => lobbyGrund = g ?? '')),
+            onChanged: (g) => setDlg(() { lobbyGrund = g ?? ''; lcNachweis = lobbyGrund.startsWith('Bürgergeld') && hasBewilligung; })),
           const SizedBox(height: 12),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Ausgestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
@@ -310,10 +345,16 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
           const SizedBox(height: 4),
           CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
             value: lcNachweis, onChanged: (val) => setDlg(() => lcNachweis = val ?? false),
-            title: const Text('Einkommensnachweis vorgelegt', style: TextStyle(fontSize: 12))),
+            title: const Text('Einkommensnachweis vorgelegt', style: TextStyle(fontSize: 12)),
+            subtitle: lobbyGrund.startsWith('Bürgergeld') && hasBewilligung
+              ? Row(children: [Icon(Icons.auto_awesome, size: 11, color: Colors.green.shade600), const SizedBox(width: 4), Expanded(child: Text('Automatisch: Bewilligungsbescheid im Jobcenter vorhanden', style: TextStyle(fontSize: 10, color: Colors.green.shade700)))])
+              : null),
           CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
             value: lcPassbild, onChanged: (val) => setDlg(() => lcPassbild = val ?? false),
-            title: const Text('Passbild vorgelegt', style: TextStyle(fontSize: 12))),
+            title: const Text('Passbild vorgelegt', style: TextStyle(fontSize: 12)),
+            subtitle: hasLichtbild
+              ? Row(children: [Icon(Icons.auto_awesome, size: 11, color: Colors.green.shade600), const SizedBox(width: 4), Expanded(child: Text('Automatisch: eGK-Lichtbild in Krankenkasse vorhanden', style: TextStyle(fontSize: 10, color: Colors.green.shade700)))])
+              : null),
           const SizedBox(height: 4),
           Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
             child: Row(children: [
@@ -358,7 +399,7 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
           if (ctx.mounted) Navigator.pop(ctx); await _load();
         }, child: const Text('Speichern')),
       ],
-    )));
+    ))).then((_) => dlgOpen = false);
   }
 
   void _showVorfallDetailDialog(Map<String, dynamic> v) {
