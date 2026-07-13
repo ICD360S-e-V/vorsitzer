@@ -3166,6 +3166,31 @@ class ApiService {
     }
   }
 
+  // ─── KK Korrespondenz → Antwort / Kontakt-Log (per correspondence) ─
+  // Grouped by the same tuple kk_korrespondenz_list.php uses:
+  // richtung + titel + datum. Freitext (filiale/notiz) is CBC-encrypted.
+  Future<Map<String, dynamic>> _kkAntwortPost(Map<String, dynamic> body) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kk_korrespondenz_antwort.php'),
+      headers: _headers, body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  Future<Map<String, dynamic>> listKKKorrespondenzAntwort({
+    required int userId, required String richtung, required String korrTitel, required String korrDatum,
+  }) => _kkAntwortPost({
+        'action': 'list', 'user_id': userId, 'richtung': richtung, 'korr_titel': korrTitel, 'korr_datum': korrDatum,
+      });
+  Future<Map<String, dynamic>> saveKKKorrespondenzAntwort({
+    required int userId, required String richtung, required String korrTitel, required String korrDatum,
+    int? id, required String datum, String zeit = '', required String kontaktart, String filiale = '', String notiz = '',
+  }) => _kkAntwortPost({
+        'action': 'save', 'user_id': userId, 'richtung': richtung, 'korr_titel': korrTitel, 'korr_datum': korrDatum,
+        'entry': {if (id != null) 'id': id, 'datum': datum, 'zeit': zeit, 'kontaktart': kontaktart, 'filiale': filiale, 'notiz': notiz},
+      });
+  Future<Map<String, dynamic>> deleteKKKorrespondenzAntwort(int id) =>
+      _kkAntwortPost({'action': 'delete', 'id': id});
+
   // ─── Krankenkasse → Krankengeld dossiers (column-level encrypted) ─
   Future<Map<String, dynamic>> _kgPost(Map<String, dynamic> body) async {
     final r = await _client.post(
