@@ -8451,6 +8451,85 @@ class ApiService {
     } catch (_) { return null; }
   }
 
+  // === EINLADUNG DOKUMENTE (verschlüsselt als BLOB in der DB, kein JSON) ===
+  // Bis zu 20 Dokumente pro Einladung. Bytes werden serverseitig mit
+  // AES-256-GCM (CryptoHelper) verschlüsselt in jobcenter_av_einladung_dokumente
+  // abgelegt. Endpoint: admin/jobcenter_av_einladung_docs.php
+
+  Future<Map<String, dynamic>> jcEinladungDocsList(int einladungId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_av_einladung_docs.php?einladung_id=$einladungId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> jcEinladungDocUpload({
+    required int einladungId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/jobcenter_av_einladung_docs.php'));
+    request.headers.addAll(_headers);
+    request.fields['einladung_id'] = einladungId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> jcEinladungDocDownload(int docId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_av_einladung_docs.php?download_id=$docId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> jcEinladungDocDelete(int docId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_einladung_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': docId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  // === EINLADUNG ABSAGE (Antwortvordruck / Rückantwort) ===
+  // Digitales Formular pro Einladung + serverseitige PDF-Erzeugung (FPDF).
+  // Endpoint: admin/jobcenter_av_einladung_absage.php
+
+  Future<Map<String, dynamic>> jcEinladungAbsageGet(int einladungId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_einladung_absage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'get', 'einladung_id': einladungId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> jcEinladungAbsageSave({required int einladungId, required Map<String, dynamic> absage}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_einladung_absage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'save', 'einladung_id': einladungId, 'absage': absage}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Erzeugt den offiziellen Antwortvordruck als PDF (serverseitig, FPDF).
+  /// Gibt die PDF-Bytes zurück oder null bei Fehler.
+  Future<List<int>?> jcEinladungAbsagePdf(int einladungId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_einladung_absage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'generate_pdf', 'einladung_id': einladungId}),
+    ).timeout(const Duration(seconds: 45));
+    try {
+      final j = jsonDecode(r.body);
+      if (j['success'] != true || j['pdf_base64'] == null) return null;
+      return base64Decode(j['pdf_base64'] as String);
+    } catch (_) { return null; }
+  }
+
   /// Returnează DOAR datele necesare pentru a genera client-side PDF-ul
   /// Eigenbemühungen (layout 6 coloane, generat în Flutter cu `pdf` package).
   Future<Map<String, dynamic>?> getEigenbemPdfData({required int userAvId, required String monat}) async {

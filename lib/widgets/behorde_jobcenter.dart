@@ -4498,7 +4498,10 @@ class _EinladungEditDialog extends StatefulWidget {
   const _EinladungEditDialog({required this.apiService, required this.userId, required this.userAvId, this.existing});
   @override State<_EinladungEditDialog> createState() => _EinladungEditDialogState();
 }
-class _EinladungEditDialogState extends State<_EinladungEditDialog> {
+class _EinladungEditDialogState extends State<_EinladungEditDialog> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  int? _einladungId;
+  bool _changed = false;
   late TextEditingController _versandC, _eingangC, _terminC, _themaC, _fristC, _notizC;
   String _methode = 'post';
   bool _meldepflicht = true, _saving = false;
@@ -4516,6 +4519,9 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> {
   void initState() {
     super.initState();
     final e = widget.existing ?? const {};
+    _einladungId = (e['id'] as num?)?.toInt();
+    _tab = TabController(length: 3, vsync: this);
+    _tab.addListener(() { if (mounted) setState(() {}); });
     _versandC = TextEditingController(text: e['versand_datum']?.toString() ?? '');
     _eingangC = TextEditingController(text: e['einladung_eingegangen_am']?.toString() ?? '');
     _terminC  = TextEditingController(text: e['einladung_datum_termin']?.toString() ?? '');
@@ -4526,7 +4532,7 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> {
     _methode = (e['versand_methode'] ?? 'post').toString();
   }
   @override
-  void dispose() { _versandC.dispose(); _eingangC.dispose(); _terminC.dispose(); _themaC.dispose(); _fristC.dispose(); _notizC.dispose(); super.dispose(); }
+  void dispose() { _tab.dispose(); _versandC.dispose(); _eingangC.dispose(); _terminC.dispose(); _themaC.dispose(); _fristC.dispose(); _notizC.dispose(); super.dispose(); }
 
   /// Calculate Zugangsfiktion locally for preview (§ 37 Abs. 2 SGB X).
   /// Post/Email/Portal: +4 Tage. Fax/Persoenlich: same day.
@@ -4577,26 +4583,33 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> {
         'notiz':            _notizC.text.trim(),
       },
     };
-    final res = widget.existing == null
+    final isNew = _einladungId == null;
+    final res = isNew
         ? await widget.apiService.jobcenterAvAction({...body, 'action': 'create_einladung', 'user_id': widget.userId, 'user_av_id': widget.userAvId})
-        : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_einladung', 'einladung_id': widget.existing!['id']});
+        : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_einladung', 'einladung_id': _einladungId});
     if (!mounted) return;
     setState(() => _saving = false);
     if (res['success'] == true) {
-      Navigator.pop(context, true);
+      _changed = true;
+      if (isNew && res['id'] != null) {
+        // Einladung ist jetzt gespeichert → Dokumente & Absage werden möglich.
+        setState(() => _einladungId = (res['id'] as num).toInt());
+        _tab.animateTo(1);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Gespeichert'), backgroundColor: Colors.green));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
     }
   }
 
   Future<void> _delete() async {
-    if (widget.existing == null) return;
+    if (_einladungId == null) return;
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       title: const Text('Einladung löschen?'),
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
     ));
     if (ok != true) return;
-    await widget.apiService.jobcenterAvAction({'action': 'delete_einladung', 'einladung_id': widget.existing!['id']});
+    await widget.apiService.jobcenterAvAction({'action': 'delete_einladung', 'einladung_id': _einladungId});
     if (mounted) Navigator.pop(context, true);
   }
 
@@ -4615,10 +4628,16 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> {
     return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 580, height: 640, child: Column(children: [
       Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.orange.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
         const Icon(Icons.mail, color: Colors.white), const SizedBox(width: 8),
-        Expanded(child: Text(widget.existing == null ? 'Neue Einladung' : 'Einladung bearbeiten', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        Expanded(child: Text(_einladungId == null ? 'Neue Einladung' : 'Einladung bearbeiten', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
       ])),
-      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
+      TabBar(controller: _tab, isScrollable: true, labelColor: Colors.orange.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.orange.shade700, tabs: const [
+        Tab(height: 44, icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+        Tab(height: 44, icon: Icon(Icons.description, size: 16), text: 'Einladung'),
+        Tab(height: 44, icon: Icon(Icons.assignment_return, size: 16), text: 'Absage'),
+      ]),
+      Expanded(child: TabBarView(controller: _tab, children: [
+        SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
         // ── Versand ─────────────────────────────────────────────
         Card(color: Colors.orange.shade50, child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [const Icon(Icons.send, size: 16, color: Colors.orange), const SizedBox(width: 6), Text('Versand', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900))]),
@@ -4672,15 +4691,307 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> {
         SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Mit Meldepflicht (§ 32 SGB II)', style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text('Bei Versäumnis: 10% Sanktion (1. Mal seit 01.07.2026 ohne Sanktion)', style: TextStyle(fontSize: 11, color: Colors.red)), value: _meldepflicht, onChanged: (v) => setState(() => _meldepflicht = v)),
         const SizedBox(height: 4),
         TextField(controller: _notizC, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder()), maxLines: 2),
-      ]))),
-      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
-        if (widget.existing != null) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ])),
+        // ── Tab 2: Einladung-Dokumente (bis 20, verschlüsselt als BLOB in DB) ──
+        _einladungId == null
+            ? _saveFirstHint('Bitte zuerst die Einladung speichern.\nDanach können bis zu 20 Dokumente hochgeladen werden.')
+            : _EinladungDokumenteTab(apiService: widget.apiService, einladungId: _einladungId!),
+        // ── Tab 3: Absage (Antwortvordruck) ──
+        _einladungId == null
+            ? _saveFirstHint('Bitte zuerst die Einladung speichern.\nDanach kann die Absage (Antwortvordruck) erstellt werden.')
+            : _EinladungAbsageTab(apiService: widget.apiService, einladungId: _einladungId!),
+      ])),
+      if (_tab.index == 0) Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+        if (_einladungId != null) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
         const Spacer(),
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, _changed), child: const Text('Schließen')),
         const SizedBox(width: 8),
         ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white), child: Text(_saving ? '...' : 'Speichern')),
       ])),
     ])));
+  }
+
+  Widget _saveFirstHint(String msg) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+    Icon(Icons.save_outlined, size: 40, color: Colors.grey.shade400),
+    const SizedBox(height: 12),
+    Text(msg, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+  ])));
+}
+
+// ==================== Einladung → Dokumente (verschlüsselt als BLOB in DB) ====================
+
+class _EinladungDokumenteTab extends StatefulWidget {
+  final ApiService apiService;
+  final int einladungId;
+  const _EinladungDokumenteTab({required this.apiService, required this.einladungId});
+  @override State<_EinladungDokumenteTab> createState() => _EinladungDokumenteTabState();
+}
+
+class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
+  List<Map<String, dynamic>> _docs = [];
+  bool _loaded = false, _busy = false;
+  static const _max = 20;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.jcEinladungDocsList(widget.einladungId);
+    if (!mounted) return;
+    setState(() {
+      _docs = (r['success'] == true && r['data'] is List)
+          ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _loaded = true;
+    });
+  }
+
+  void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
+
+  Future<void> _upload() async {
+    if (_docs.length >= _max) { _snack('Maximal $_max Dokumente'); return; }
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    final files = result.files.where((f) => f.path != null).toList();
+    var slots = _max - _docs.length;
+    setState(() => _busy = true);
+    for (final f in files) {
+      if (slots <= 0) { _snack('Maximal $_max Dokumente — nicht alle hochgeladen'); break; }
+      final res = await widget.apiService.jcEinladungDocUpload(einladungId: widget.einladungId, filePath: f.path!, fileName: f.name);
+      if (res['success'] != true) _snack(res['message']?.toString() ?? 'Upload fehlgeschlagen: ${f.name}');
+      slots--;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _load();
+  }
+
+  Future<File?> _fetch(Map<String, dynamic> d) async {
+    final resp = await widget.apiService.jcEinladungDocDownload(d['id'] as int);
+    if (resp.statusCode != 200) return null;
+    final dir = await getTemporaryDirectory();
+    final name = (d['datei_name'] ?? 'dokument').toString();
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(resp.bodyBytes);
+    return file;
+  }
+
+  Future<void> _view(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null && mounted) await FileViewerDialog.show(context, f.path, (d['datei_name'] ?? '').toString());
+  }
+
+  Future<void> _openExtern(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null) await OpenFilex.open(f.path);
+  }
+
+  Future<void> _delete(Map<String, dynamic> d) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Dokument löschen?'),
+      content: Text((d['datei_name'] ?? '').toString()),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jcEinladungDocDelete(d['id'] as int);
+    _load();
+  }
+
+  String _fmtSize(dynamic bytes) {
+    final b = (bytes is num) ? bytes.toDouble() : double.tryParse('$bytes') ?? 0;
+    if (b < 1024) return '${b.toStringAsFixed(0)} B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
+    return '${(b / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  IconData _iconFor(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (n.endsWith('.png') || n.endsWith('.jpg') || n.endsWith('.jpeg')) return Icons.image;
+    return Icons.insert_drive_file;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Row(children: [
+        Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 4),
+        Expanded(child: Text('${_docs.length}/$_max Dokumente · verschlüsselt', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(
+          onPressed: (_busy || _docs.length >= _max) ? null : _upload,
+          icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 14),
+          label: const Text('Hochladen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
+        ),
+      ])),
+      Expanded(child: _docs.isEmpty
+        ? Center(child: Text('Keine Dokumente hochgeladen', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _docs.length, itemBuilder: (_, i) {
+            final d = _docs[i];
+            final name = (d['datei_name'] ?? '').toString();
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(
+              dense: true,
+              leading: Icon(_iconFor(name), color: Colors.orange.shade700),
+              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(_fmtSize(d['datei_groesse']), style: const TextStyle(fontSize: 11)),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Ansehen', onPressed: () => _view(d)),
+                IconButton(icon: Icon(Icons.open_in_new, size: 18, color: Colors.green.shade700), tooltip: 'Öffnen', onPressed: () => _openExtern(d)),
+                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(d)),
+              ]),
+            ));
+          })),
+    ]);
+  }
+}
+
+// ==================== Einladung → Absage (Antwortvordruck / Rückantwort) ====================
+
+class _EinladungAbsageTab extends StatefulWidget {
+  final ApiService apiService;
+  final int einladungId;
+  const _EinladungAbsageTab({required this.apiService, required this.einladungId});
+  @override State<_EinladungAbsageTab> createState() => _EinladungAbsageTabState();
+}
+
+class _EinladungAbsageTabState extends State<_EinladungAbsageTab> {
+  final _blattC = TextEditingController();
+  final _auffVomC = TextEditingController();
+  final _meldungC = TextEditingController();
+  final _taetAbC = TextEditingController();
+  final _freitextC = TextEditingController();
+  final _telefonC = TextEditingController();
+  final _datumC = TextEditingController();
+  bool _grundAu = false, _grundWichtiger = false, _grundTaetigkeit = false, _grundSonstiges = false;
+  bool _loaded = false, _saving = false, _generating = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  @override
+  void dispose() { _blattC.dispose(); _auffVomC.dispose(); _meldungC.dispose(); _taetAbC.dispose(); _freitextC.dispose(); _telefonC.dispose(); _datumC.dispose(); super.dispose(); }
+
+  String _dOnly(dynamic v) { final s = (v ?? '').toString(); return s.length >= 10 ? s.substring(0, 10) : s; }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.jcEinladungAbsageGet(widget.einladungId);
+    if (!mounted) return;
+    final a = (r['success'] == true && r['absage'] is Map) ? Map<String, dynamic>.from(r['absage'] as Map) : <String, dynamic>{};
+    setState(() {
+      _blattC.text = (a['blatt_nr'] ?? '').toString();
+      _auffVomC.text = _dOnly(a['aufforderung_vom']);
+      _meldungC.text = (a['meldung_am'] ?? '').toString();
+      _taetAbC.text = _dOnly(a['taetigkeit_ab']);
+      _freitextC.text = (a['freitext'] ?? '').toString();
+      _telefonC.text = (a['telefon'] ?? '').toString();
+      _datumC.text = _dOnly(a['absage_datum']);
+      _grundAu = (a['grund_au'] ?? 0) == 1;
+      _grundWichtiger = (a['grund_wichtiger'] ?? 0) == 1;
+      _grundTaetigkeit = (a['grund_taetigkeit'] ?? 0) == 1;
+      _grundSonstiges = (a['grund_sonstiges'] ?? 0) == 1;
+      _loaded = true;
+    });
+  }
+
+  Map<String, dynamic> _payload() => {
+    'blatt_nr': _blattC.text.trim(),
+    'aufforderung_vom': _auffVomC.text.trim().isEmpty ? null : _auffVomC.text.trim(),
+    'meldung_am': _meldungC.text.trim().isEmpty ? null : _meldungC.text.trim(),
+    'grund_au': _grundAu, 'grund_wichtiger': _grundWichtiger,
+    'grund_taetigkeit': _grundTaetigkeit, 'taetigkeit_ab': _taetAbC.text.trim().isEmpty ? null : _taetAbC.text.trim(),
+    'grund_sonstiges': _grundSonstiges,
+    'freitext': _freitextC.text.trim(),
+    'telefon': _telefonC.text.trim(),
+    'absage_datum': _datumC.text.trim().isEmpty ? null : _datumC.text.trim(),
+  };
+
+  Future<bool> _save({bool silent = false}) async {
+    setState(() => _saving = true);
+    final res = await widget.apiService.jcEinladungAbsageSave(einladungId: widget.einladungId, absage: _payload());
+    if (!mounted) return false;
+    setState(() => _saving = false);
+    final ok = res['success'] == true;
+    if (!silent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Absage gespeichert' : (res['message']?.toString() ?? 'Fehler')), backgroundColor: ok ? Colors.green : Colors.red));
+    return ok;
+  }
+
+  Future<void> _generatePdf() async {
+    setState(() => _generating = true);
+    final saved = await _save(silent: true);
+    if (!saved) {
+      if (mounted) { setState(() => _generating = false); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speichern fehlgeschlagen'), backgroundColor: Colors.red)); }
+      return;
+    }
+    final bytes = await widget.apiService.jcEinladungAbsagePdf(widget.einladungId);
+    if (!mounted) return;
+    setState(() => _generating = false);
+    if (bytes == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF-Erzeugung fehlgeschlagen'), backgroundColor: Colors.red)); return; }
+    final dir = await getTemporaryDirectory();
+    final fname = 'Absage_Einladung_${widget.einladungId}.pdf';
+    final file = File('${dir.path}/$fname');
+    await file.writeAsBytes(bytes);
+    if (mounted) await FileViewerDialog.show(context, file.path, fname);
+  }
+
+  Future<void> _pickDate(TextEditingController c) async {
+    final init = DateTime.tryParse(c.text.trim()) ?? DateTime.now();
+    final d = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2020), lastDate: DateTime(2099));
+    if (d != null) setState(() => c.text = d.toIso8601String().substring(0, 10));
+  }
+
+  Widget _dateField(TextEditingController c, String label, {IconData? icon}) => TextField(
+    controller: c, readOnly: true, onTap: () => _pickDate(c),
+    decoration: InputDecoration(labelText: label, prefixIcon: icon != null ? Icon(icon, size: 18) : null, suffixIcon: const Icon(Icons.calendar_today, size: 15), isDense: true, border: const OutlineInputBorder()),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)), child: Row(children: [
+          Icon(Icons.assignment_return, size: 16, color: Colors.blue.shade700), const SizedBox(width: 6),
+          Expanded(child: Text('Antwortvordruck / Rückantwort — Absage der persönlichen Meldung (§ 309 SGB III / § 32 SGB II)', style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontWeight: FontWeight.w600))),
+        ])),
+        const SizedBox(height: 12),
+        Row(children: [
+          SizedBox(width: 92, child: TextField(controller: _blattC, decoration: const InputDecoration(labelText: 'Blatt-Nr.', isDense: true, border: OutlineInputBorder()))),
+          const SizedBox(width: 8),
+          Expanded(child: _dateField(_auffVomC, 'Aufforderung vom', icon: Icons.event_note)),
+        ]),
+        const SizedBox(height: 10),
+        _dateField(_meldungC, 'Persönliche Meldung am (Termin)', icon: Icons.event),
+        const SizedBox(height: 8),
+        Text('„… werde ich aus folgenden Gründen nicht nachkommen:"', style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12, color: Colors.grey.shade700)),
+        const Divider(height: 20),
+        CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: _grundAu, onChanged: (v) => setState(() => _grundAu = v ?? false), title: const Text('Arbeitsunfähigkeit / Krankheit', style: TextStyle(fontSize: 13)), subtitle: const Text('AU-Bescheinigung beigefügt', style: TextStyle(fontSize: 11))),
+        CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: _grundWichtiger, onChanged: (v) => setState(() => _grundWichtiger = v ?? false), title: const Text('Wichtiger Grund / Terminkollision', style: TextStyle(fontSize: 13))),
+        CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: _grundTaetigkeit, onChanged: (v) => setState(() => _grundTaetigkeit = v ?? false), title: const Text('Tätigkeitsaufnahme (Arbeit)', style: TextStyle(fontSize: 13))),
+        if (_grundTaetigkeit) Padding(padding: const EdgeInsets.only(left: 32, bottom: 8), child: _dateField(_taetAbC, 'ab (Datum)', icon: Icons.work)),
+        CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: _grundSonstiges, onChanged: (v) => setState(() => _grundSonstiges = v ?? false), title: const Text('Sonstiger Grund', style: TextStyle(fontSize: 13))),
+        const SizedBox(height: 8),
+        TextField(controller: _freitextC, maxLines: 4, decoration: const InputDecoration(labelText: 'Begründung (Freitext)', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.notes, size: 18))),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: TextField(controller: _telefonC, decoration: const InputDecoration(labelText: 'Telefon (freiwillig)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone, size: 18)))),
+          const SizedBox(width: 8),
+          Expanded(child: _dateField(_datumC, 'Datum', icon: Icons.today)),
+        ]),
+        const SizedBox(height: 6),
+        Row(children: [Icon(Icons.lock, size: 12, color: Colors.grey.shade500), const SizedBox(width: 4), Text('Freitext wird verschlüsselt gespeichert.', style: TextStyle(fontSize: 10, color: Colors.grey.shade500))]),
+      ]))),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+        OutlinedButton.icon(onPressed: (_saving || _generating) ? null : () => _save(), icon: const Icon(Icons.save, size: 16), label: const Text('Speichern')),
+        const Spacer(),
+        ElevatedButton.icon(
+          onPressed: (_saving || _generating) ? null : _generatePdf,
+          icon: _generating ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.picture_as_pdf, size: 16),
+          label: const Text('Absage-PDF erzeugen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white),
+        ),
+      ])),
+    ]);
   }
 }
 
