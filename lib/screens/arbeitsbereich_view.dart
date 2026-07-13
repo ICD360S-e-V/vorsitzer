@@ -703,13 +703,24 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
             ),
           ),
           if (!m.isArchived) ...[
+            // Ticket rămâne mereu vizibil — nu depinde de period (user alege
+            // manual din toate ticketele deschise ale membrului).
             _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
-            const SizedBox(width: 6),
-            _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
-            const SizedBox(width: 6),
-            _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
-            const SizedBox(width: 6),
-            _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
+            // Termin/Routine/Notfall — ascunse dacă membrul n-are activitate
+            // în period-ul curent și chip-ul e încă offen. Dacă e deja bifat
+            // (state != offen), chip-ul rămâne ca să poți vedea/reseta.
+            if (m.termineKwCount > 0 || m.terminState != 'offen') ...[
+              const SizedBox(width: 6),
+              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
+            ],
+            if (m.routinesKwCount > 0 || m.routineState != 'offen') ...[
+              const SizedBox(width: 6),
+              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
+            ],
+            if (m.notfallKwCount > 0 || m.notfallState != 'offen') ...[
+              const SizedBox(width: 6),
+              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
+            ],
             const SizedBox(width: 8),
             IconButton(
               onPressed: () => _archiveMember(m),

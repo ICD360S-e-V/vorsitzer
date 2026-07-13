@@ -212,10 +212,12 @@ class ArbeitstagMember {
 
   bool get isArchived => archivedAt != null;
 
-  bool get ticketDone  => ticketState == 'erledigt';
-  bool get terminDone  => terminState == 'erledigt';
-  bool get routineDone => routineState == 'erledigt';
-  bool get notfallDone => notfallState == 'erledigt';
+  // „Done" implicit dacă membrul n-are activitate în period (chip-ul e ascuns
+  // în UI, deci nu-l ține la „neterminați"). „Erledigt" explicit rămâne valid.
+  bool get ticketDone  => ticketState == 'erledigt' || openTicketsCount == 0;
+  bool get terminDone  => terminState == 'erledigt' || termineKwCount == 0;
+  bool get routineDone => routineState == 'erledigt' || routinesKwCount == 0;
+  bool get notfallDone => notfallState == 'erledigt' || notfallKwCount == 0;
   bool get allDone => ticketDone && terminDone && routineDone;
 
   String stateFor(String typ) {
