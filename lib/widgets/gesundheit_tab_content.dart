@@ -28,6 +28,7 @@ import 'rettungsdienst.dart';
 import 'hilfsmittel_rezept_section.dart';
 import 'mitgliederverwaltung_arzten_augenarzt.dart';
 import 'mitgliederverwaltung_arzten_hno.dart';
+import 'mitgliederverwaltung_arzten_krankenhaus.dart';
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -368,7 +369,15 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 _buildArztContent('gesundheit_diabetologie', 'Diabetologe', 'Diabetologie / Diabetes mellitus / Stoffwechsel'),
                 _buildArztContent('gesundheit_gastroenterologie', 'Gastroenterologe', 'Gastroenterologie / Magen-Darm-Erkrankungen'),
                 _buildArztContent('gesundheit_wundzentrum', 'Wundzentrum', 'Wundversorgung / Chronische Wunden'),
-                _buildArztContent('gesundheit_krankenhaus', 'Krankenhaus', 'Klinik / Stationare Behandlung'),
+                // Krankenhaus: eigenständiges, entkoppeltes Widget mit eigenen
+                // krankenhaus_*-Tabellen (relational, GCM) statt des shared Blobs.
+                MitgliederverwaltungArztenKrankenhaus(
+                  user: widget.user,
+                  apiService: widget.apiService,
+                  ticketService: widget.ticketService,
+                  terminService: widget.terminService,
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
+                ),
                 RettungsdienstContent(apiService: widget.apiService, userId: widget.user.id),
                 SanitaetshausContent(apiService: widget.apiService, userId: widget.user.id),
                 _buildArztContent('gesundheit_sonstige', 'Sonstiger Arzt', 'Weitere Fachrichtung'),
