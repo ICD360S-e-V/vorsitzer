@@ -2540,29 +2540,55 @@ class TransitService {
     }
     if (firstTrip is! Map) return TripRoute(stops: const [], path: const []);
     final legs = firstTrip['legs'] as List? ?? [];
-    // Find the leg matching this line (skip walks)
+    // 2026-07-13 FIX BUG raportat: DM returneaza dep.line = "RS 51"
+    // (cu prefix+spatiu) DAR trip returneaza mode.number = "51" (doar
+    // numar). Match strict `lineNum != dep.line` esua → 0 stops la
+    // multe bus/tram.
+    //
+    // Fix multi-strat:
+    // 1. Normalize (lowercase, strip spaces)
+    // 2. Substring match ambele direcții
+    // 3. Extract digits fallback ('RS 51' vs '51' → match)
+    // 4. Fallback graceful: primul leg non-walk (când nimic nu match)
+    final myLine = dep.line.trim().toLowerCase().replaceAll(' ', '');
+    final myDigits = RegExp(r'\d+').firstMatch(myLine)?.group(0);
+    Map? matchedLeg;
+    Map? firstNonWalkLeg;
     for (final leg in legs) {
+      if (leg is! Map) continue;
       final mode = leg['mode'] as Map? ?? {};
-      if (mode['type']?.toString() == '100' || mode['type']?.toString() == '99') continue;
-      final lineNum = mode['number']?.toString() ?? mode['symbol']?.toString() ?? '';
-      if (lineNum != dep.line && !lineNum.contains(dep.line)) continue;
-      final seqRaw = leg['stopSeq'];
-      final seq = seqRaw is List ? seqRaw : (seqRaw is Map ? (seqRaw['stop'] as List? ?? []) : []);
-      final stops = _parseEfaStopSequence(seq, dep.stopID!);
-      // Parse polyline "lon,lat lon,lat …" (space-separated tokens).
-      final pathStr = leg['path']?.toString() ?? '';
-      final path = <(double, double)>[];
-      for (final token in pathStr.split(' ')) {
-        final xy = token.split(',');
-        if (xy.length != 2) continue;
-        final lon = double.tryParse(xy[0]);
-        final lat = double.tryParse(xy[1]);
-        if (lon == null || lat == null) continue;
-        path.add((lat, lon));
-      }
-      return TripRoute(stops: stops, path: path);
+      final typ = mode['type']?.toString();
+      if (typ == '100' || typ == '99') continue;
+      firstNonWalkLeg ??= leg;
+      final rawLine = (mode['number']?.toString() ?? mode['symbol']?.toString() ?? '')
+          .trim().toLowerCase().replaceAll(' ', '');
+      final rawName = (mode['name']?.toString() ?? '').trim().toLowerCase().replaceAll(' ', '');
+      final legDigits = RegExp(r'\d+').firstMatch(rawLine)?.group(0);
+      final match = rawLine == myLine ||
+                    rawLine.contains(myLine) ||
+                    myLine.contains(rawLine) ||
+                    rawName.contains(myLine) ||
+                    (myDigits != null && legDigits == myDigits);
+      if (match) { matchedLeg = leg; break; }
     }
-    return TripRoute(stops: const [], path: const []);
+    // Fallback: dacă niciun match → primul leg non-walk (mai bine trip
+    // aproximativ decat gol).
+    final chosen = matchedLeg ?? firstNonWalkLeg;
+    if (chosen == null) return TripRoute(stops: const [], path: const []);
+    final seqRaw = chosen['stopSeq'];
+    final seq = seqRaw is List ? seqRaw : (seqRaw is Map ? (seqRaw['stop'] as List? ?? []) : []);
+    final stops = _parseEfaStopSequence(seq, dep.stopID ?? '');
+    final pathStr = chosen['path']?.toString() ?? '';
+    final path = <(double, double)>[];
+    for (final token in pathStr.split(' ')) {
+      final xy = token.split(',');
+      if (xy.length != 2) continue;
+      final lon = double.tryParse(xy[0]);
+      final lat = double.tryParse(xy[1]);
+      if (lon == null || lat == null) continue;
+      path.add((lat, lon));
+    }
+    return TripRoute(stops: stops, path: path);
   }
 
   List<TripStop> _parseEfaStopSequence(List seq, String currentStopId) {
