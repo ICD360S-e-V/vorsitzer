@@ -2592,6 +2592,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                               transitService: widget.transitService,
                               userMuttersprache: widget.userMuttersprache,
                               onAlarmFired: () => _alarmFired = true,
+                              line: widget.dep.line,
                             ),
                           ],
                         ),
@@ -5304,6 +5305,8 @@ class _TripMapView extends StatefulWidget {
   final String? targetStopId;
   final ValueChanged<String?>? onSetTarget;
   final TransitService transitService;
+  /// Line name pentru filter live vehicles ("Bus 2", "S3", "ICE 617").
+  final String line;
   /// User's Muttersprache from Verifizierung Stufe 1 — when set to a
   /// non-German language TTS speaks bilingual announcements.
   final String? userMuttersprache;
@@ -5317,6 +5320,7 @@ class _TripMapView extends StatefulWidget {
     required this.path,
     required this.lineColor,
     required this.transitService,
+    required this.line,
     this.targetStopId,
     this.onSetTarget,
     this.userMuttersprache,
@@ -5523,7 +5527,7 @@ class _TripMapViewState extends State<_TripMapView> {
     }
     if (!mounted) return;
     // Filter: doar vehicule care corespund liniei noastre.
-    final myLine = widget.dep.line.trim().toLowerCase();
+    final myLine = widget.line.trim().toLowerCase();
     final relevant = all.where((v) {
       final vl = v.line.trim().toLowerCase();
       return vl == myLine || vl.contains(myLine) || myLine.contains(vl);
