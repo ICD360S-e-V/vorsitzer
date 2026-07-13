@@ -4859,7 +4859,6 @@ class _EinladungAbsageTab extends StatefulWidget {
 }
 
 class _EinladungAbsageTabState extends State<_EinladungAbsageTab> {
-  final _blattC = TextEditingController();
   final _auffVomC = TextEditingController();
   final _meldungC = TextEditingController();
   final _taetAbC = TextEditingController();
@@ -4873,7 +4872,7 @@ class _EinladungAbsageTabState extends State<_EinladungAbsageTab> {
   void initState() { super.initState(); _load(); }
 
   @override
-  void dispose() { _blattC.dispose(); _auffVomC.dispose(); _meldungC.dispose(); _taetAbC.dispose(); _freitextC.dispose(); _telefonC.dispose(); _datumC.dispose(); super.dispose(); }
+  void dispose() { _auffVomC.dispose(); _meldungC.dispose(); _taetAbC.dispose(); _freitextC.dispose(); _telefonC.dispose(); _datumC.dispose(); super.dispose(); }
 
   String _dOnly(dynamic v) { final s = (v ?? '').toString(); return s.length >= 10 ? s.substring(0, 10) : s; }
 
@@ -4882,7 +4881,6 @@ class _EinladungAbsageTabState extends State<_EinladungAbsageTab> {
     if (!mounted) return;
     final a = (r['success'] == true && r['absage'] is Map) ? Map<String, dynamic>.from(r['absage'] as Map) : <String, dynamic>{};
     setState(() {
-      _blattC.text = (a['blatt_nr'] ?? '').toString();
       _auffVomC.text = _dOnly(a['aufforderung_vom']);
       _meldungC.text = (a['meldung_am'] ?? '').toString();
       _taetAbC.text = _dOnly(a['taetigkeit_ab']);
@@ -4898,7 +4896,6 @@ class _EinladungAbsageTabState extends State<_EinladungAbsageTab> {
   }
 
   Map<String, dynamic> _payload() => {
-    'blatt_nr': _blattC.text.trim(),
     'aufforderung_vom': _auffVomC.text.trim().isEmpty ? null : _auffVomC.text.trim(),
     'meldung_am': _meldungC.text.trim().isEmpty ? null : _meldungC.text.trim(),
     'grund_au': _grundAu, 'grund_wichtiger': _grundWichtiger,
@@ -4958,11 +4955,7 @@ class _EinladungAbsageTabState extends State<_EinladungAbsageTab> {
           Expanded(child: Text('Antwortvordruck / Rückantwort — Absage der persönlichen Meldung (§ 309 SGB III / § 32 SGB II)', style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontWeight: FontWeight.w600))),
         ])),
         const SizedBox(height: 12),
-        Row(children: [
-          SizedBox(width: 92, child: TextField(controller: _blattC, decoration: const InputDecoration(labelText: 'Blatt-Nr.', isDense: true, border: OutlineInputBorder()))),
-          const SizedBox(width: 8),
-          Expanded(child: _dateField(_auffVomC, 'Aufforderung vom', icon: Icons.event_note)),
-        ]),
+        _dateField(_auffVomC, 'Aufforderung vom (Datum der Einladung)', icon: Icons.event_note),
         const SizedBox(height: 10),
         _dateField(_meldungC, 'Persönliche Meldung am (Termin)', icon: Icons.event),
         const SizedBox(height: 8),
