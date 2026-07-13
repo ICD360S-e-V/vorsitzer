@@ -252,6 +252,14 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
     }
   }
 
+  String _verschiebenLabel() {
+    switch (widget.granularity) {
+      case ArbeitsbereichGranularity.tag:   return 'Auf morgen verschieben';
+      case ArbeitsbereichGranularity.woche: return 'Auf nächste KW verschieben';
+      case ArbeitsbereichGranularity.monat: return 'Auf nächsten Monat verschieben';
+    }
+  }
+
   Future<void> _handleChipLongPress(ArbeitstagMember m, String typ) async {
     final state = m.stateFor(typ);
     if (state == 'offen') {
@@ -274,6 +282,16 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
               leading: const Icon(Icons.swap_horiz),
               title: const Text('Auswahl ändern'),
               onTap: () => Navigator.pop(ctx, 'change'),
+            ),
+            // Verschieben pe period următor.
+            // Pt ticket: modifică scheduled_date. Pt celelalte: doar reset chip.
+            ListTile(
+              leading: const Icon(Icons.skip_next, color: Colors.deepPurple),
+              title: Text(_verschiebenLabel()),
+              subtitle: typ == 'ticket'
+                  ? const Text('Ändert das geplante Datum')
+                  : const Text('Nur Chip zurücksetzen (Termin bleibt)'),
+              onTap: () => Navigator.pop(ctx, 'verschieben'),
             ),
             if (state == 'in_bearbeitung')
               ListTile(
@@ -300,6 +318,9 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
     if (action == null) return;
     if (action == 'change') {
       await _openPicker(m, typ);
+    } else if (action == 'verschieben') {
+      await _svc.verschieben(key: _key, userId: m.userId, typ: typ);
+      _load();
     } else {
       await _svc.setState(key: _key, userId: m.userId, typ: typ, state: action);
       _load();

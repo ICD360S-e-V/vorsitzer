@@ -624,6 +624,28 @@ class ArbeitstagService {
     }
   }
 
+  /// „Verschieben" — mută chipul pe perioada următoare (Tag/Woche/Monat).
+  /// - Pentru `ticket`: modifică `tickets.scheduled_date` la target date.
+  /// - Pentru `termin`/`routine`/`notfall`: NU modifică sursa; doar reset chip.
+  Future<bool> verschieben({
+    required PeriodKey key,
+    required int userId,
+    required String typ,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_verschieben.php');
+      final body = {...key.toBody(), 'user_id': userId, 'typ': typ};
+      final res = await _client
+          .post(uri, headers: _headers, body: jsonEncode(body))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return false;
+      return jsonDecode(res.body)['success'] == true;
+    } catch (e) {
+      _log.error('arbeitstag verschieben failed: $e', tag: 'ARBEITSTAG');
+      return false;
+    }
+  }
+
   Future<bool> setState({
     required PeriodKey key,
     required int userId,
