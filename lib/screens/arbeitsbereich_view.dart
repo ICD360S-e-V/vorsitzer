@@ -394,16 +394,11 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
   }
 
   String _emptyLabel(String typ) {
-    final periodLabel = switch (widget.granularity) {
-      ArbeitsbereichGranularity.tag   => 'diesem Tag',
-      ArbeitsbereichGranularity.woche => 'dieser KW',
-      ArbeitsbereichGranularity.monat => 'diesem Monat',
-    };
     switch (typ) {
       case 'ticket':  return 'Keine offenen Tickets für dieses Mitglied';
-      case 'termin':  return 'Keine Termine in $periodLabel';
-      case 'routine': return 'Keine Routinen in $periodLabel';
-      case 'notfall': return 'Keine Notfall-Termine in $periodLabel';
+      case 'termin':  return 'Keine zukünftigen Termine für dieses Mitglied';
+      case 'routine': return 'Keine offenen Routinen für dieses Mitglied';
+      case 'notfall': return 'Keine zukünftigen Notfall-Termine für dieses Mitglied';
       default: return 'Keine Einträge';
     }
   }
