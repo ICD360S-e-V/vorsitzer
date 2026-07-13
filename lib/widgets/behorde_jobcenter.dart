@@ -4342,7 +4342,7 @@ class _AvDetailsTab extends StatefulWidget {
   @override State<_AvDetailsTab> createState() => _AvDetailsTabState();
 }
 class _AvDetailsTabState extends State<_AvDetailsTab> {
-  late TextEditingController _vornameC, _nachnameC, _telC, _emC, _ziC, _notizC, _seitC, _bisC, _linkNotizC;
+  late TextEditingController _vornameC, _nachnameC, _telC, _emC, _ziC, _notizC, _seitC, _bisC, _linkNotizC, _meinZeichenC;
   late String _rolle;
   bool _editing = false, _saving = false;
   static const _rollen = ['pAp','SB_Leistung','Fallmanager','SB_Reha','Berufsberater','Teamleiter','Eingangszone','sonstige'];
@@ -4359,11 +4359,12 @@ class _AvDetailsTabState extends State<_AvDetailsTab> {
     _seitC     = TextEditingController(text: widget.userAv['zustaendig_seit']  ?? '');
     _bisC      = TextEditingController(text: widget.userAv['zustaendig_bis']   ?? '');
     _linkNotizC= TextEditingController(text: widget.userAv['link_notiz'] ?? '');
+    _meinZeichenC = TextEditingController(text: widget.userAv['mein_zeichen'] ?? '');
     _rolle = (widget.personal['rolle'] ?? 'sonstige').toString();
   }
 
   @override
-  void dispose() { _vornameC.dispose(); _nachnameC.dispose(); _telC.dispose(); _emC.dispose(); _ziC.dispose(); _notizC.dispose(); _seitC.dispose(); _bisC.dispose(); _linkNotizC.dispose(); super.dispose(); }
+  void dispose() { _vornameC.dispose(); _nachnameC.dispose(); _telC.dispose(); _emC.dispose(); _ziC.dispose(); _notizC.dispose(); _seitC.dispose(); _bisC.dispose(); _linkNotizC.dispose(); _meinZeichenC.dispose(); super.dispose(); }
 
   Future<void> _save() async {
     setState(() => _saving = true);
@@ -4381,6 +4382,7 @@ class _AvDetailsTabState extends State<_AvDetailsTab> {
       'zustaendig_seit': _seitC.text.trim().isEmpty ? null : _seitC.text.trim(),
       'zustaendig_bis':  _bisC.text.trim().isEmpty  ? null : _bisC.text.trim(),
       'notiz': _linkNotizC.text.trim(),
+      'mein_zeichen': _meinZeichenC.text.trim(),
     });
     if (!mounted) return;
     setState(() { _saving = false; _editing = false; });
@@ -4410,6 +4412,7 @@ class _AvDetailsTabState extends State<_AvDetailsTab> {
       onChanged: _editing ? (v) => setState(() => _rolle = v ?? 'sonstige') : null,
     ),
     const SizedBox(height: 10),
+    _f('Mein Zeichen (Jobcenter-Aktenzeichen)', _meinZeichenC, icon: Icons.tag),
     _f('Telefon / Durchwahl', _telC, icon: Icons.phone),
     _f('E-Mail', _emC, icon: Icons.email),
     _f('Zimmernummer', _ziC, icon: Icons.meeting_room),
