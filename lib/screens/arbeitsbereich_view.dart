@@ -5,37 +5,64 @@ import '../services/logger_service.dart';
 
 final _log = LoggerService();
 
-class ArbeitstagScreen extends StatefulWidget {
-  /// Callback deep-link către alt tab. Comută sidebar la menuIndex
-  /// (2=Ticketverwaltung, 3=Terminverwaltung, 10=Routinenaufgaben) și
-  /// pasează focus ID care va deschide automat dialogul detaliilor sau
-  /// va naviga la KW-ul relevant (pentru routine).
-  final void Function(int menuIndex, {int? focusTicketId, int? focusTerminId, int? focusRoutineExecutionId})? onNavigate;
+/// Widget generic pentru un view de perioadă (Tag / Woche / Monat).
+///
+/// Toată logica UI comună (header cu navigare ±unit, listă membri, 4 chips,
+/// picker sheet, notiz dialog, history dialog, archive/unarchive) trăiește aici.
+/// Wrappere thin (`arbeitstag.dart` / `arbeitswochen.dart` / `arbeitsmonat.dart`)
+/// doar setează [granularity] și pasează [onNavigate].
+class ArbeitsbereichView extends StatefulWidget {
+  final ArbeitsbereichGranularity granularity;
 
-  const ArbeitstagScreen({super.key, this.onNavigate});
+  /// Deep-link către alt tab principal (2=Ticket, 3=Termin, 10=Routinen).
+  final void Function(int menuIndex,
+      {int? focusTicketId,
+      int? focusTerminId,
+      int? focusRoutineExecutionId})? onNavigate;
+
+  const ArbeitsbereichView({
+    super.key,
+    required this.granularity,
+    this.onNavigate,
+  });
 
   @override
-  State<ArbeitstagScreen> createState() => _ArbeitstagScreenState();
+  State<ArbeitsbereichView> createState() => _ArbeitsbereichViewState();
 }
 
-class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
+class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
+    with AutomaticKeepAliveClientMixin {
   final _svc = ArbeitstagService();
-  late int _kwYear;
-  late int _kwNumber;
-  ArbeitstagWoche? _data;
+
+  late PeriodKey _key;
+  ArbeitsbereichPeriod? _data;
   bool _loading = true;
   String _view = 'active';
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _kwYear = _isoYear(now);
-    _kwNumber = _isoWeek(now);
-    // Defer _load la end of first frame ca să nu blocheze render-ul inițial.
+    _key = _initialKey(widget.granularity);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
+  }
+
+  // ─── Initial period key ─────────────────────────────────────────────
+
+  static PeriodKey _initialKey(ArbeitsbereichGranularity g) {
+    final now = DateTime.now();
+    switch (g) {
+      case ArbeitsbereichGranularity.tag:
+        return PeriodKey.tag(now);
+      case ArbeitsbereichGranularity.woche:
+        return PeriodKey.woche(_isoYear(now), _isoWeek(now));
+      case ArbeitsbereichGranularity.monat:
+        return PeriodKey.monat(now.year, now.month);
+    }
   }
 
   static int _isoWeek(DateTime d) {
@@ -50,18 +77,26 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     return thursday.year;
   }
 
+  static DateTime _mondayOfIsoWeek(int year, int week) {
+    final jan4 = DateTime(year, 1, 4);
+    final mondayOfWeek1 = jan4.subtract(Duration(days: jan4.weekday - 1));
+    return mondayOfWeek1.add(Duration(days: 7 * (week - 1)));
+  }
+
+  // ─── Load ──────────────────────────────────────────────────────────
+
   Future<void> _load() async {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
-      final data = await _svc.getWoche(kwYear: _kwYear, kwNumber: _kwNumber, view: _view);
+      final data = await _svc.getPeriod(key: _key, view: _view);
       if (!mounted) return;
       setState(() {
         _data = data;
         _loading = false;
       });
     } catch (e, st) {
-      _log.error('arbeitstag _load failed: $e\n$st', tag: 'ARBEITSTAG');
+      _log.error('arbeitsbereich _load failed: $e\n$st', tag: 'ARBEITSTAG');
       if (!mounted) return;
       setState(() {
         _data = null;
@@ -70,12 +105,116 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     }
   }
 
+  // ─── Navigation ±unit ───────────────────────────────────────────────
+
+  void _shift(int delta) {
+    setState(() => _key = _shiftKey(_key, delta));
+    _load();
+  }
+
+  static PeriodKey _shiftKey(PeriodKey k, int delta) {
+    switch (k.granularity) {
+      case ArbeitsbereichGranularity.tag:
+        final d = k.date!.add(Duration(days: delta));
+        return PeriodKey.tag(d);
+      case ArbeitsbereichGranularity.woche:
+        final monday = _mondayOfIsoWeek(k.kwYear!, k.kwNumber!);
+        final next = monday.add(Duration(days: 7 * delta));
+        return PeriodKey.woche(_isoYear(next), _isoWeek(next));
+      case ArbeitsbereichGranularity.monat:
+        final y = k.year!;
+        final m = k.month! + delta;
+        // Normalizare wrap-around
+        final normY = y + ((m - 1) ~/ 12);
+        final normM = ((m - 1) % 12 + 12) % 12 + 1;
+        return PeriodKey.monat(normY, normM);
+    }
+  }
+
+  void _jumpNow() {
+    setState(() => _key = _initialKey(widget.granularity));
+    _load();
+  }
+
+  // ─── Period labels (client-side fallback dacă serverul nu trimite label) ──
+
+  bool _isCurrent() {
+    final now = DateTime.now();
+    final cur = _initialKey(widget.granularity);
+    switch (_key.granularity) {
+      case ArbeitsbereichGranularity.tag:
+        return _key.date!.year == now.year &&
+            _key.date!.month == now.month &&
+            _key.date!.day == now.day;
+      case ArbeitsbereichGranularity.woche:
+        return _key.kwYear == cur.kwYear && _key.kwNumber == cur.kwNumber;
+      case ArbeitsbereichGranularity.monat:
+        return _key.year == cur.year && _key.month == cur.month;
+    }
+  }
+
+  String _headerTitle() {
+    // Preferă label-ul de la server (locale de_DE); fallback local.
+    final serverLabel = _data?.label;
+    if (serverLabel != null && serverLabel.isNotEmpty) return serverLabel;
+    switch (_key.granularity) {
+      case ArbeitsbereichGranularity.tag:
+        return DateFormat('EEE, dd.MM.yyyy', 'de_DE').format(_key.date!);
+      case ArbeitsbereichGranularity.woche:
+        return 'KW ${_key.kwNumber} / ${_key.kwYear}';
+      case ArbeitsbereichGranularity.monat:
+        final d = DateTime(_key.year!, _key.month!, 1);
+        return DateFormat('MMMM yyyy', 'de_DE').format(d);
+    }
+  }
+
+  String _headerRange() {
+    final d = _data;
+    if (d == null) return '';
+    switch (_key.granularity) {
+      case ArbeitsbereichGranularity.tag:
+        return ''; // Titlul include deja data
+      case ArbeitsbereichGranularity.woche:
+        return '${DateFormat('dd.MM').format(d.rangeStart)} – '
+            '${DateFormat('dd.MM.yyyy').format(d.rangeEnd)}';
+      case ArbeitsbereichGranularity.monat:
+        return '${DateFormat('dd.MM').format(d.rangeStart)} – '
+            '${DateFormat('dd.MM.yyyy').format(d.rangeEnd)}';
+    }
+  }
+
+  String _prevTooltip() {
+    switch (_key.granularity) {
+      case ArbeitsbereichGranularity.tag:   return 'Vorheriger Tag';
+      case ArbeitsbereichGranularity.woche: return 'Vorherige KW';
+      case ArbeitsbereichGranularity.monat: return 'Vorheriger Monat';
+    }
+  }
+
+  String _nextTooltip() {
+    switch (_key.granularity) {
+      case ArbeitsbereichGranularity.tag:   return 'Nächster Tag';
+      case ArbeitsbereichGranularity.woche: return 'Nächste KW';
+      case ArbeitsbereichGranularity.monat: return 'Nächster Monat';
+    }
+  }
+
+  String _jumpTooltip() {
+    switch (_key.granularity) {
+      case ArbeitsbereichGranularity.tag:   return 'Heute';
+      case ArbeitsbereichGranularity.woche: return 'Diese Woche';
+      case ArbeitsbereichGranularity.monat: return 'Dieser Monat';
+    }
+  }
+
+  // ─── Actions ────────────────────────────────────────────────────────
+
   Future<void> _archiveMember(ArbeitstagMember m) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Mitglied archivieren?'),
-        content: Text('${m.name} wird aus der aktiven Arbeitswochen-Liste entfernt. '
+        content: Text('${m.name} wird aus der aktiven Liste entfernt. '
             'Kann jederzeit wiederhergestellt werden.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -93,34 +232,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (success) _load();
   }
 
-  void _shiftKw(int delta) {
-    // Calculate from _kwYear/_kwNumber directly, don't rely on _data.monday
-    // (which might be null or stale during load).
-    final currentMonday = _mondayOfIsoWeek(_kwYear, _kwNumber);
-    final next = currentMonday.add(Duration(days: 7 * delta));
-    setState(() {
-      _kwYear = _isoYear(next);
-      _kwNumber = _isoWeek(next);
-    });
-    _load();
-  }
-
-  static DateTime _mondayOfIsoWeek(int year, int week) {
-    // ISO week 1 is the week containing Jan 4 (guaranteed to be in week 1).
-    final jan4 = DateTime(year, 1, 4);
-    final mondayOfWeek1 = jan4.subtract(Duration(days: jan4.weekday - 1));
-    return mondayOfWeek1.add(Duration(days: 7 * (week - 1)));
-  }
-
-  void _jumpToday() {
-    final now = DateTime.now();
-    setState(() {
-      _kwYear = _isoYear(now);
-      _kwNumber = _isoWeek(now);
-    });
-    _load();
-  }
-
   Future<void> _handleChipTap(ArbeitstagMember m, String typ) async {
     final state = m.stateFor(typ);
     switch (state) {
@@ -128,21 +239,14 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         await _openPicker(m, typ);
         break;
       case 'geplant':
-        await _svc.setState(
-          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
-          typ: typ, state: 'in_bearbeitung',
-        );
+        await _svc.setState(key: _key, userId: m.userId, typ: typ, state: 'in_bearbeitung');
         _load();
         break;
       case 'in_bearbeitung':
-        await _svc.setState(
-          kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
-          typ: typ, state: 'erledigt',
-        );
+        await _svc.setState(key: _key, userId: m.userId, typ: typ, state: 'erledigt');
         _load();
         break;
       case 'erledigt':
-        // Tap on erledigt = open menu with Reset + Zurück-Optionen
         await _handleChipLongPress(m, typ);
         break;
     }
@@ -150,7 +254,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
 
   Future<void> _handleChipLongPress(ArbeitstagMember m, String typ) async {
     final state = m.stateFor(typ);
-    // Când state=offen și n-are ce alege, deschide direct picker (nu meniu gol)
     if (state == 'offen') {
       await _openPicker(m, typ);
       return;
@@ -172,7 +275,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
               title: const Text('Auswahl ändern'),
               onTap: () => Navigator.pop(ctx, 'change'),
             ),
-            // Rückgängig — un pas înapoi în workflow, nu meniu cu 3 opțiuni
             if (state == 'in_bearbeitung')
               ListTile(
                 leading: const Icon(Icons.undo, color: Colors.orange),
@@ -199,16 +301,17 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (action == 'change') {
       await _openPicker(m, typ);
     } else {
-      await _svc.setState(
-        kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId,
-        typ: typ, state: action,
-      );
+      await _svc.setState(key: _key, userId: m.userId, typ: typ, state: action);
       _load();
     }
   }
 
   Future<void> _openHistory(ArbeitstagMember m) async {
-    final entries = await _svc.getHistory(userId: m.userId, limit: 12);
+    final entries = await _svc.getHistory(
+      userId: m.userId,
+      granularity: widget.granularity,
+      limit: 12,
+    );
     if (!mounted) return;
     await showDialog<void>(
       context: context,
@@ -221,7 +324,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final saved = await showDialog<String?>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Notiz — ${m.name} (KW $_kwNumber)'),
+        title: Text('Notiz — ${m.name} (${_headerTitle()})'),
         content: SizedBox(
           width: 480,
           child: TextField(
@@ -250,9 +353,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       ),
     );
     if (saved == null) return;
-    final ok = await _svc.setNotiz(
-      kwYear: _kwYear, kwNumber: _kwNumber, userId: m.userId, notiz: saved,
-    );
+    final ok = await _svc.setNotiz(key: _key, userId: m.userId, notiz: saved);
     if (ok) _load();
   }
 
@@ -265,17 +366,14 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
       case 'notfall': currentSelectionId = m.notfallTerminId; break;
     }
 
-    final items = await _svc.getPickerItems(
-      userId: m.userId, typ: typ, kwYear: _kwYear, kwNumber: _kwNumber,
-    );
-
+    final items = await _svc.getPickerItems(userId: m.userId, typ: typ, key: _key);
     if (!mounted) return;
 
     final result = await showModalBottomSheet<_PickerResult>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => _PickerSheet(
-        title: '${_typLabel(typ)} für ${m.name} — KW $_kwNumber',
+        title: '${_typLabel(typ)} für ${m.name} — ${_headerTitle()}',
         emptyLabel: _emptyLabel(typ),
         items: items,
         currentSelectionId: currentSelectionId,
@@ -286,8 +384,7 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (result == null) return;
 
     final ok = await _svc.setState(
-      kwYear: _kwYear,
-      kwNumber: _kwNumber,
+      key: _key,
       userId: m.userId,
       typ: typ,
       state: result.reset ? 'offen' : 'geplant',
@@ -297,11 +394,16 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   }
 
   String _emptyLabel(String typ) {
+    final periodLabel = switch (widget.granularity) {
+      ArbeitsbereichGranularity.tag   => 'diesem Tag',
+      ArbeitsbereichGranularity.woche => 'dieser KW',
+      ArbeitsbereichGranularity.monat => 'diesem Monat',
+    };
     switch (typ) {
       case 'ticket':  return 'Keine offenen Tickets für dieses Mitglied';
-      case 'termin':  return 'Keine Termine in dieser KW';
-      case 'routine': return 'Keine Routinen in dieser KW';
-      case 'notfall': return 'Keine Termine in dieser KW';
+      case 'termin':  return 'Keine Termine in $periodLabel';
+      case 'routine': return 'Keine Routinen in $periodLabel';
+      case 'notfall': return 'Keine Notfall-Termine in $periodLabel';
       default: return 'Keine Einträge';
     }
   }
@@ -316,8 +418,11 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     }
   }
 
+  // ─── Build ─────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     return Column(
       children: [
@@ -330,16 +435,9 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
 
   Widget _buildHeader(ThemeData theme) {
     final stats = _data?.stats;
-    final data = _data;
-    final now = DateTime.now();
-    final isCurrentKw = _kwYear == _isoYear(now) && _kwNumber == _isoWeek(now);
-    final rangeStr = data == null
-        ? ''
-        : '${DateFormat('dd.MM').format(data.monday)} – ${DateFormat('dd.MM.yyyy').format(data.sunday)}';
-    // Material + Row (nu Wrap) — Wrap avea interacțiune buggy cu Android
-    // gesture arena. Material ensures ink splash + hit testing correct.
-    // Row poate overflow orizontal, dar butoanele-cheie (chevron + heute)
-    // sunt la stânga, deci mereu vizibile pe orice ecran.
+    final isCurrent = _isCurrent();
+    final rangeStr = _headerRange();
+    final title = _headerTitle();
     return Material(
       color: theme.colorScheme.surface,
       elevation: 0,
@@ -347,66 +445,70 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Row(
           children: [
-          IconButton(
-            onPressed: () => _shiftKw(-1),
-            icon: const Icon(Icons.chevron_left),
-            tooltip: 'Vorherige KW',
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('KW $_kwNumber / $_kwYear',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis),
-                if (rangeStr.isNotEmpty)
-                  Text(rangeStr + (isCurrentKw ? ' (heute)' : ''),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: isCurrentKw ? theme.colorScheme.primary : null,
-                        fontWeight: isCurrentKw ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                      overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => _shiftKw(1),
-            icon: const Icon(Icons.chevron_right),
-            tooltip: 'Nächste KW',
-          ),
-          if (!isCurrentKw)
             IconButton(
-              onPressed: _jumpToday,
-              icon: const Icon(Icons.today, size: 20),
-              tooltip: 'Heute',
+              onPressed: () => _shift(-1),
+              icon: const Icon(Icons.chevron_left),
+              tooltip: _prevTooltip(),
             ),
-          // Stats + refresh + archive doar pe ecrane late — pe mobile mic
-          // ele s-ar duce off-screen și blochează layout-ul.
-          if (stats != null && MediaQuery.of(context).size.width >= 600) ...[
-            Tooltip(
-              message: 'Ticket + Termin + Routine erledigt (Notfall optional)',
-              child: _statChip(
-                icon: Icons.check_circle,
-                label: '${stats.totalDone} / ${stats.totalMembers} bearbeitet',
-                color: Colors.green,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis),
+                  if (rangeStr.isNotEmpty)
+                    Text(rangeStr + (isCurrent ? ' (aktuell)' : ''),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isCurrent ? theme.colorScheme.primary : null,
+                          fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                        overflow: TextOverflow.ellipsis)
+                  else if (isCurrent)
+                    Text('(aktuell)',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        )),
+                ],
               ),
             ),
-            if (stats.totalUrgent > 0)
-              _statChip(
-                icon: Icons.warning,
-                label: '${stats.totalUrgent} dringend',
-                color: Colors.red,
+            IconButton(
+              onPressed: () => _shift(1),
+              icon: const Icon(Icons.chevron_right),
+              tooltip: _nextTooltip(),
+            ),
+            if (!isCurrent)
+              IconButton(
+                onPressed: _jumpNow,
+                icon: const Icon(Icons.today, size: 20),
+                tooltip: _jumpTooltip(),
               ),
+            if (stats != null && MediaQuery.of(context).size.width >= 600) ...[
+              Tooltip(
+                message: 'Ticket + Termin + Routine erledigt (Notfall optional)',
+                child: _statChip(
+                  icon: Icons.check_circle,
+                  label: '${stats.totalDone} / ${stats.totalMembers} bearbeitet',
+                  color: Colors.green,
+                ),
+              ),
+              if (stats.totalUrgent > 0)
+                _statChip(
+                  icon: Icons.warning,
+                  label: '${stats.totalUrgent} dringend',
+                  color: Colors.red,
+                ),
+            ],
+            IconButton(
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Aktualisieren',
+            ),
+            _buildArchiveToggle(),
           ],
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Aktualisieren',
-          ),
-          _buildArchiveToggle(),
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -463,7 +565,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
           ? 'Keine archivierten Mitglieder'
           : 'Keine aktiven Mitglieder'));
     }
-    // In archive view no split. In active view: not-done first (by prio), done at bottom.
     final active = _view == 'archived'
         ? _data!.members
         : _data!.members.where((m) => !m.allDone).toList();
@@ -471,8 +572,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         ? <ArbeitstagMember>[]
         : _data!.members.where((m) => m.allDone).toList();
     return ListView.separated(
-      // Physics explicit — asigură că scroll funcționează pe Android
-      // chiar și când conținutul e mai scurt decât viewport-ul.
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: active.length + (done.isNotEmpty ? 1 + done.length : 0),
       separatorBuilder: (_, __) => const Divider(height: 1),
@@ -485,10 +584,15 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   }
 
   Widget _buildDoneHeader(int n) {
+    final label = switch (widget.granularity) {
+      ArbeitsbereichGranularity.tag   => 'diesen Tag',
+      ArbeitsbereichGranularity.woche => 'diese KW',
+      ArbeitsbereichGranularity.monat => 'diesen Monat',
+    };
     return Container(
       color: Colors.grey.withValues(alpha: 0.1),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Text('✓ Erledigt diese KW ($n)',
+      child: Text('✓ Erledigt $label ($n)',
           style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600)),
     );
   }
@@ -506,131 +610,134 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
   Widget _buildRow(ArbeitstagMember m, {bool dimmed = false}) {
     final theme = Theme.of(context);
     final prioColor = _prioColor(m.prioritaet);
-    // Opacity conditional — nu wrap 27 rows într-o Opacity(1.0) care creează
-    // layer inutil pe GPU.
     final content = Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 8, height: 40,
-              decoration: BoxDecoration(color: prioColor, borderRadius: BorderRadius.circular(4)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  InkWell(
-                    onTap: () => _openHistory(m),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(m.name.isNotEmpty ? m.name : '${m.vorname ?? ''} ${m.nachname ?? ''}'.trim(),
-                            style: theme.textTheme.titleMedium),
-                        const SizedBox(width: 4),
-                        Icon(Icons.history, size: 14, color: Colors.grey.shade500),
-                      ],
-                    ),
-                  ),
-                  Row(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 8, height: 40,
+            decoration: BoxDecoration(color: prioColor, borderRadius: BorderRadius.circular(4)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: () => _openHistory(m),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(m.mitgliedernummer, style: theme.textTheme.bodySmall),
-                      if (m.prioGrund != null && m.prioGrund!.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Text('• ${m.prioGrund!}',
-                            style: theme.textTheme.bodySmall?.copyWith(color: prioColor)),
-                      ],
-                      const SizedBox(width: 8),
-                      InkWell(
-                        onTap: () => _openNotiz(m),
-                        borderRadius: BorderRadius.circular(4),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                (m.notiz ?? '').isNotEmpty ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
-                                size: 14,
-                                color: (m.notiz ?? '').isNotEmpty ? Colors.amber.shade700 : Colors.grey.shade500,
-                              ),
-                              if ((m.notiz ?? '').isNotEmpty) ...[
-                                const SizedBox(width: 4),
-                                ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 200),
-                                  child: Text(
-                                    m.notiz!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: Colors.amber.shade900,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
+                      Text(m.name.isNotEmpty ? m.name : '${m.vorname ?? ''} ${m.nachname ?? ''}'.trim(),
+                          style: theme.textTheme.titleMedium),
+                      const SizedBox(width: 4),
+                      Icon(Icons.history, size: 14, color: Colors.grey.shade500),
                     ],
                   ),
-                  if (m.ticketSubject != null || m.terminTitle != null || m.routineTitle != null || m.notfallTerminTitle != null || m.bearbeiterName != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Wrap(
-                        spacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (m.ticketSubject != null)
-                            _linkTitle('🎫', m.ticketSubject!, Colors.green.shade700, 2, focusTicketId: m.ticketId),
-                          if (m.terminTitle != null)
-                            _linkTitle('📅', m.terminTitle!, Colors.green.shade700, 3, focusTerminId: m.terminId),
-                          if (m.routineTitle != null)
-                            _linkTitle('🔄', m.routineTitle!, Colors.green.shade700, 10,
-                                focusRoutineExecutionId: m.routineExecutionId),
-                          if (m.notfallTerminTitle != null)
-                            _linkTitle('🚨', m.notfallTerminTitle!, Colors.red.shade700, 3, focusTerminId: m.notfallTerminId),
-                          if (m.bearbeiterName != null)
-                            _bearbeiterBadge(m.bearbeiterName!),
-                        ],
+                ),
+                Row(
+                  children: [
+                    Text(m.mitgliedernummer, style: theme.textTheme.bodySmall),
+                    if (m.prioGrund != null && m.prioGrund!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text('• ${m.prioGrund!}',
+                          style: theme.textTheme.bodySmall?.copyWith(color: prioColor)),
+                    ],
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () => _openNotiz(m),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              (m.notiz ?? '').isNotEmpty ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
+                              size: 14,
+                              color: (m.notiz ?? '').isNotEmpty ? Colors.amber.shade700 : Colors.grey.shade500,
+                            ),
+                            if ((m.notiz ?? '').isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 200),
+                                child: Text(
+                                  m.notiz!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.amber.shade900,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
-                ],
-              ),
-            ),
-            if (!m.isArchived) ...[
-              _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
-              const SizedBox(width: 6),
-              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
-              const SizedBox(width: 6),
-              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
-              const SizedBox(width: 6),
-              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () => _archiveMember(m),
-                icon: const Icon(Icons.archive_outlined, size: 20),
-                tooltip: 'Archivieren',
-                color: Colors.grey[600],
-              ),
-            ] else ...[
-              if (m.archivedAt != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Text('archiviert ${DateFormat('dd.MM.yy').format(m.archivedAt!)}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  ],
                 ),
-              IconButton(
-                onPressed: () => _unarchiveMember(m),
-                icon: const Icon(Icons.unarchive, size: 20),
-                tooltip: 'Wiederherstellen',
-                color: Colors.blue,
+                if (m.ticketSubject != null || m.terminTitle != null ||
+                    m.routineTitle != null || m.notfallTerminTitle != null ||
+                    m.bearbeiterName != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (m.ticketSubject != null)
+                          _linkTitle('🎫', m.ticketSubject!, Colors.green.shade700, 2,
+                              focusTicketId: m.ticketId),
+                        if (m.terminTitle != null)
+                          _linkTitle('📅', m.terminTitle!, Colors.green.shade700, 3,
+                              focusTerminId: m.terminId),
+                        if (m.routineTitle != null)
+                          _linkTitle('🔄', m.routineTitle!, Colors.green.shade700, 10,
+                              focusRoutineExecutionId: m.routineExecutionId),
+                        if (m.notfallTerminTitle != null)
+                          _linkTitle('🚨', m.notfallTerminTitle!, Colors.red.shade700, 3,
+                              focusTerminId: m.notfallTerminId),
+                        if (m.bearbeiterName != null)
+                          _bearbeiterBadge(m.bearbeiterName!),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (!m.isArchived) ...[
+            _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
+            const SizedBox(width: 6),
+            _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
+            const SizedBox(width: 6),
+            _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
+            const SizedBox(width: 6),
+            _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () => _archiveMember(m),
+              icon: const Icon(Icons.archive_outlined, size: 20),
+              tooltip: 'Archivieren',
+              color: Colors.grey[600],
+            ),
+          ] else ...[
+            if (m.archivedAt != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text('archiviert ${DateFormat('dd.MM.yy').format(m.archivedAt!)}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12)),
               ),
-            ],
+            IconButton(
+              onPressed: () => _unarchiveMember(m),
+              icon: const Icon(Icons.unarchive, size: 20),
+              tooltip: 'Wiederherstellen',
+              color: Colors.blue,
+            ),
           ],
-        ),
+        ],
+      ),
     );
     return dimmed ? Opacity(opacity: 0.55, child: content) : content;
   }
@@ -639,7 +746,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     if (state == 'geplant')        return Icons.hourglass_bottom;
     if (state == 'in_bearbeitung') return Icons.autorenew;
     if (state == 'erledigt')       return Icons.check_circle;
-    // offen — icon by typ
     switch (typ) {
       case 'ticket':  return Icons.confirmation_number;
       case 'termin':  return Icons.calendar_month;
@@ -662,68 +768,58 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     final color = _colorFor(state);
     final icon = _iconFor(typ, state);
     final isOffen = state == 'offen';
-    // #14: dim chipul offen când n-are ce alege (badgeCount=0)
     final noAvailable = isOffen && badgeCount == 0;
-    // Fără onLongPress → nu mai blochează scroll pe touchscreen. Menu-ul
-    // e accesibil prin butonul ⋮ separat (când state != offen).
-    // Opacity conditional — evită layer inutil pe 27 × 4 = 108 chip-uri.
     final chip = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: () => _handleChipTap(m, typ),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: color),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: () => _handleChipTap(m, typ),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 6),
+                Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+                if (isOffen && badgeCount > 0) ...[
                   const SizedBox(width: 6),
-                  Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-                  if (isOffen && badgeCount > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text('$badgeCount',
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  ],
+                    child: Text('$badgeCount',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
-          // Buton ⋮ pentru Rückgängig/Reset menu (când state != offen).
-          // InkWell + Icon în loc de IconButton — IconButton cu tooltip
-          // instalează long-press recognizer intern (blochează scroll).
-          if (!isOffen)
-            InkWell(
-              onTap: () => _handleChipLongPress(m, typ),
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(Icons.more_vert, size: 16, color: color.withValues(alpha: 0.7)),
-              ),
+        ),
+        if (!isOffen)
+          InkWell(
+            onTap: () => _handleChipLongPress(m, typ),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(Icons.more_vert, size: 16, color: color.withValues(alpha: 0.7)),
             ),
-        ],
-      );
+          ),
+      ],
+    );
     return noAvailable ? Opacity(opacity: 0.35, child: chip) : chip;
   }
 
   Widget _linkTitle(String emoji, String title, Color color, int menuIndex,
       {int? focusTicketId, int? focusTerminId, int? focusRoutineExecutionId}) {
-    // Fără Tooltip (avea long-press gesture recognizer intern — accumulate
-    // ~150 recognizers în listă → freeze pe Android). Text-ul e vizibil,
-    // tooltip-ul era redundant.
     return InkWell(
       onTap: widget.onNavigate == null
           ? null
@@ -750,8 +846,6 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
         ? '?'
         : parts.length == 1 ? parts[0].substring(0, 1).toUpperCase()
         : '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    // Fără Tooltip — la fel ca _linkTitle, evită accumulare recognizers.
-    // Numele complet e disponibil în history dialog (click pe nume).
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -771,6 +865,8 @@ class _ArbeitstagScreenState extends State<ArbeitstagScreen> {
     );
   }
 }
+
+// ─── Picker sheet ────────────────────────────────────────────────────
 
 class _PickerResult {
   final int? selectedId;
@@ -867,6 +963,8 @@ class _PickerSheet extends StatelessWidget {
   }
 }
 
+// ─── History dialog ─────────────────────────────────────────────────
+
 class _HistoryDialog extends StatelessWidget {
   final ArbeitstagMember member;
   final List<ArbeitstagHistoryEntry> entries;
@@ -895,6 +993,20 @@ class _HistoryDialog extends StatelessWidget {
     }
   }
 
+  String _periodBadge(ArbeitstagHistoryEntry e) {
+    if (e.periodLabel.isNotEmpty) return e.periodLabel;
+    switch (e.granularity) {
+      case ArbeitsbereichGranularity.tag:
+        return e.date != null ? DateFormat('dd.MM.yyyy').format(e.date!) : '—';
+      case ArbeitsbereichGranularity.woche:
+        return 'KW ${e.kwNumber} / ${e.kwYear}';
+      case ArbeitsbereichGranularity.monat:
+        return e.year != null && e.month != null
+            ? DateFormat('MMMM yyyy', 'de_DE').format(DateTime(e.year!, e.month!, 1))
+            : '—';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -916,7 +1028,7 @@ class _HistoryDialog extends StatelessWidget {
                       children: [
                         Text('Historie — ${member.name}',
                             style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
-                        Text('${member.mitgliedernummer} · letzte ${entries.length} KW',
+                        Text('${member.mitgliedernummer} · letzte ${entries.length} Einträge',
                             style: theme.textTheme.bodySmall),
                       ],
                     ),
@@ -949,7 +1061,7 @@ class _HistoryDialog extends StatelessWidget {
                                         : theme.colorScheme.primaryContainer,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: Text('KW ${e.kwNumber} / ${e.kwYear}',
+                                  child: Text(_periodBadge(e),
                                       style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
                                 ),
                                 const SizedBox(width: 8),

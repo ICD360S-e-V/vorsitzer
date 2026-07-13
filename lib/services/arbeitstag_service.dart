@@ -9,9 +9,6 @@ import 'logger_service.dart';
 
 final _log = LoggerService();
 
-// Duplicate of _RoutineCrypto in routine_service.dart — same key,
-// same v2 wire format. Duplicated (not shared) to keep Arbeitswochen
-// self-contained; if a third consumer appears, extract to shared file.
 class _AtRoutineCrypto {
   static const _keyHex = String.fromEnvironment('ROUTINE_AES_KEY_V2');
   static final enc.Encrypter? _enc = _keyHex.isEmpty
@@ -35,6 +32,93 @@ class _AtRoutineCrypto {
   static String? decryptNullable(String? v) {
     if (v == null || v.isEmpty) return v;
     return decrypt(v);
+  }
+}
+
+// ─── Granularity ──────────────────────────────────────────────────────
+
+enum ArbeitsbereichGranularity { tag, woche, monat }
+
+extension ArbeitsbereichGranularityX on ArbeitsbereichGranularity {
+  String get wire {
+    switch (this) {
+      case ArbeitsbereichGranularity.tag: return 'tag';
+      case ArbeitsbereichGranularity.woche: return 'woche';
+      case ArbeitsbereichGranularity.monat: return 'monat';
+    }
+  }
+
+  static ArbeitsbereichGranularity fromWire(String? s) {
+    switch (s) {
+      case 'tag': return ArbeitsbereichGranularity.tag;
+      case 'monat': return ArbeitsbereichGranularity.monat;
+      default: return ArbeitsbereichGranularity.woche;
+    }
+  }
+}
+
+/// PeriodKey — identifică unic o perioadă (day / KW / month).
+/// Trimitem toate câmpurile la server; server-ul folosește ce corespunde granularity.
+class PeriodKey {
+  final ArbeitsbereichGranularity granularity;
+  final DateTime? date;   // used for tag (YYYY-MM-DD)
+  final int? kwYear;      // used for woche
+  final int? kwNumber;    // used for woche
+  final int? year;        // used for monat
+  final int? month;       // used for monat (1-12)
+
+  const PeriodKey._({
+    required this.granularity,
+    this.date,
+    this.kwYear,
+    this.kwNumber,
+    this.year,
+    this.month,
+  });
+
+  factory PeriodKey.tag(DateTime d) => PeriodKey._(
+        granularity: ArbeitsbereichGranularity.tag,
+        date: DateTime(d.year, d.month, d.day),
+      );
+
+  factory PeriodKey.woche(int kwYear, int kwNumber) => PeriodKey._(
+        granularity: ArbeitsbereichGranularity.woche,
+        kwYear: kwYear,
+        kwNumber: kwNumber,
+      );
+
+  factory PeriodKey.monat(int year, int month) => PeriodKey._(
+        granularity: ArbeitsbereichGranularity.monat,
+        year: year,
+        month: month,
+      );
+
+  Map<String, String> toQuery() {
+    final q = <String, String>{'granularity': granularity.wire};
+    if (date != null) {
+      q['date'] = '${date!.year.toString().padLeft(4, '0')}-'
+          '${date!.month.toString().padLeft(2, '0')}-'
+          '${date!.day.toString().padLeft(2, '0')}';
+    }
+    if (kwYear != null) q['kw_year'] = kwYear!.toString();
+    if (kwNumber != null) q['kw_number'] = kwNumber!.toString();
+    if (year != null) q['year'] = year!.toString();
+    if (month != null) q['month'] = month!.toString();
+    return q;
+  }
+
+  Map<String, dynamic> toBody() {
+    final b = <String, dynamic>{'granularity': granularity.wire};
+    if (date != null) {
+      b['date'] = '${date!.year.toString().padLeft(4, '0')}-'
+          '${date!.month.toString().padLeft(2, '0')}-'
+          '${date!.day.toString().padLeft(2, '0')}';
+    }
+    if (kwYear != null) b['kw_year'] = kwYear;
+    if (kwNumber != null) b['kw_number'] = kwNumber;
+    if (year != null) b['year'] = year;
+    if (month != null) b['month'] = month;
+    return b;
   }
 }
 
@@ -132,7 +216,6 @@ class ArbeitstagMember {
   bool get terminDone  => terminState == 'erledigt';
   bool get routineDone => routineState == 'erledigt';
   bool get notfallDone => notfallState == 'erledigt';
-  // "allDone" NU include notfall — e slot opțional, ne-standard
   bool get allDone => ticketDone && terminDone && routineDone;
 
   String stateFor(String typ) {
@@ -225,38 +308,70 @@ class ArbeitstagPickerItem {
   }
 }
 
-class ArbeitstagWoche {
-  final int kwYear;
-  final int kwNumber;
-  final DateTime monday;
-  final DateTime sunday;
+/// Wrapper pentru o perioadă completă (Tag / Woche / Monat) încărcată de server.
+/// Anterior era `ArbeitstagWoche` — acum generalizat cu granularity + range.
+class ArbeitsbereichPeriod {
+  final ArbeitsbereichGranularity granularity;
+  final DateTime rangeStart;
+  final DateTime rangeEnd;
+  final String label;
+  final int? kwYear;
+  final int? kwNumber;
+  final int? year;
+  final int? month;
+  final DateTime? date;
   final List<ArbeitstagMember> members;
   final ArbeitstagStats stats;
 
-  ArbeitstagWoche({
-    required this.kwYear,
-    required this.kwNumber,
-    required this.monday,
-    required this.sunday,
+  ArbeitsbereichPeriod({
+    required this.granularity,
+    required this.rangeStart,
+    required this.rangeEnd,
+    required this.label,
+    this.kwYear,
+    this.kwNumber,
+    this.year,
+    this.month,
+    this.date,
     required this.members,
     required this.stats,
   });
 
-  factory ArbeitstagWoche.fromJson(Map<String, dynamic> j) => ArbeitstagWoche(
-        kwYear: _int(j['kw_year']),
-        kwNumber: _int(j['kw_number']),
-        monday: DateTime.parse(j['monday']),
-        sunday: DateTime.parse(j['sunday']),
-        members: ((j['members'] as List?) ?? []).map((m) => ArbeitstagMember.fromJson(m)).toList(),
-        stats: ArbeitstagStats.fromJson(j['stats'] ?? {}),
-      );
+  // Compat cu codul UI existent (arbeitstag_screen se aștepta la monday/sunday).
+  DateTime get monday => rangeStart;
+  DateTime get sunday => rangeEnd;
+
+  factory ArbeitsbereichPeriod.fromJson(Map<String, dynamic> j) {
+    final gran = ArbeitsbereichGranularityX.fromWire(j['granularity']?.toString());
+    // Server backwards-compat: dacă lipsește range_start/end, fallback la monday/sunday.
+    final start = _dt(j['range_start']) ?? _dt(j['monday']) ?? DateTime.now();
+    final end = _dt(j['range_end']) ?? _dt(j['sunday']) ?? DateTime.now();
+    return ArbeitsbereichPeriod(
+      granularity: gran,
+      rangeStart: start,
+      rangeEnd: end,
+      label: j['label']?.toString() ?? '',
+      kwYear: _intN(j['kw_year']),
+      kwNumber: _intN(j['kw_number']),
+      year: _intN(j['year']),
+      month: _intN(j['month']),
+      date: _dt(j['date']),
+      members: ((j['members'] as List?) ?? []).map((m) => ArbeitstagMember.fromJson(m)).toList(),
+      stats: ArbeitstagStats.fromJson(j['stats'] ?? {}),
+    );
+  }
 }
 
-// ─── History entry (per KW × user) ────────────────────────────────────
+// ─── History entry (per period × user) ────────────────────────────────
 
 class ArbeitstagHistoryEntry {
-  final int kwYear;
-  final int kwNumber;
+  final ArbeitsbereichGranularity granularity;
+  final String periodLabel;   // "Mo, 13.07.2026" / "KW 28 / 2026" / "Juli 2026"
+  final int? kwYear;
+  final int? kwNumber;
+  final int? year;
+  final int? month;
+  final DateTime? date;
   final String ticketState;
   final int? ticketId;
   final String? ticketSubject;
@@ -278,8 +393,13 @@ class ArbeitstagHistoryEntry {
   final DateTime? updatedAt;
 
   ArbeitstagHistoryEntry({
-    required this.kwYear,
-    required this.kwNumber,
+    this.granularity = ArbeitsbereichGranularity.woche,
+    this.periodLabel = '',
+    this.kwYear,
+    this.kwNumber,
+    this.year,
+    this.month,
+    this.date,
     this.ticketState = 'offen',
     this.ticketId,
     this.ticketSubject,
@@ -315,8 +435,13 @@ class ArbeitstagHistoryEntry {
   }
 
   factory ArbeitstagHistoryEntry.fromJson(Map<String, dynamic> j) => ArbeitstagHistoryEntry(
-        kwYear: _int(j['kw_year']),
-        kwNumber: _int(j['kw_number']),
+        granularity: ArbeitsbereichGranularityX.fromWire(j['granularity']?.toString()),
+        periodLabel: j['period_label']?.toString() ?? '',
+        kwYear: _intN(j['kw_year']),
+        kwNumber: _intN(j['kw_number']),
+        year: _intN(j['year']),
+        month: _intN(j['month']),
+        date: _dt(j['date']),
         ticketState: j['ticket_state'] ?? 'offen',
         ticketId: _intN(j['ticket_id']),
         ticketSubject: j['ticket_subject'],
@@ -382,42 +507,45 @@ class ArbeitstagService {
     };
   }
 
-  Future<ArbeitstagWoche?> getWoche({
-    required int kwYear,
-    required int kwNumber,
+  /// Unified — încarcă orice period (Tag/Woche/Monat) folosind același endpoint.
+  Future<ArbeitsbereichPeriod?> getPeriod({
+    required PeriodKey key,
     String view = 'active',
   }) async {
     final swStart = DateTime.now();
     try {
-      final uri = Uri.parse('$baseUrl/admin/arbeitstag_list.php').replace(queryParameters: {
-        'kw_year': kwYear.toString(),
-        'kw_number': kwNumber.toString(),
-        'view': view,
-      });
-      _log.info('[getWoche] GET $uri', tag: 'ARBEITSTAG');
+      final params = {...key.toQuery(), 'view': view};
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_list.php')
+          .replace(queryParameters: params);
+      _log.info('[getPeriod] GET $uri', tag: 'ARBEITSTAG');
       final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
       final dt = DateTime.now().difference(swStart).inMilliseconds;
-      _log.info('[getWoche] HTTP ${res.statusCode} in ${dt}ms body=${res.body.length}B', tag: 'ARBEITSTAG');
+      _log.info('[getPeriod] HTTP ${res.statusCode} in ${dt}ms body=${res.body.length}B', tag: 'ARBEITSTAG');
       if (res.statusCode != 200) {
-        _log.error('arbeitstag getWoche HTTP ${res.statusCode}', tag: 'ARBEITSTAG');
+        _log.error('arbeitstag getPeriod HTTP ${res.statusCode}', tag: 'ARBEITSTAG');
         return null;
       }
       final data = jsonDecode(res.body);
       if (data['success'] != true) return null;
-      final result = ArbeitstagWoche.fromJson(data);
-      _log.info('[getWoche] parsed ${result.members.length} members', tag: 'ARBEITSTAG');
+      final result = ArbeitsbereichPeriod.fromJson(data);
+      _log.info('[getPeriod] parsed ${result.members.length} members', tag: 'ARBEITSTAG');
       return result;
     } catch (e, st) {
       final dt = DateTime.now().difference(swStart).inMilliseconds;
-      _log.error('arbeitstag getWoche failed after ${dt}ms: $e\n$st', tag: 'ARBEITSTAG');
+      _log.error('arbeitstag getPeriod failed after ${dt}ms: $e\n$st', tag: 'ARBEITSTAG');
       return null;
     }
   }
 
-  Future<List<ArbeitstagHistoryEntry>> getHistory({required int userId, int limit = 10}) async {
+  Future<List<ArbeitstagHistoryEntry>> getHistory({
+    required int userId,
+    ArbeitsbereichGranularity granularity = ArbeitsbereichGranularity.woche,
+    int limit = 10,
+  }) async {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_history.php').replace(queryParameters: {
         'user_id': userId.toString(),
+        'granularity': granularity.wire,
         'limit': limit.toString(),
       });
       final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
@@ -433,20 +561,15 @@ class ArbeitstagService {
   }
 
   Future<bool> setNotiz({
-    required int kwYear,
-    required int kwNumber,
+    required PeriodKey key,
     required int userId,
     required String notiz,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_notiz.php');
+      final body = {...key.toBody(), 'user_id': userId, 'notiz': notiz};
       final res = await _client
-          .post(uri, headers: _headers, body: jsonEncode({
-            'kw_year': kwYear,
-            'kw_number': kwNumber,
-            'user_id': userId,
-            'notiz': notiz,
-          }))
+          .post(uri, headers: _headers, body: jsonEncode(body))
           .timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return false;
       return jsonDecode(res.body)['success'] == true;
@@ -456,6 +579,8 @@ class ArbeitstagService {
     }
   }
 
+  /// Archive/unarchive rămâne GLOBAL per membru (nu per period) — un membru
+  /// arhivat dispare din toate view-urile (Tag/Woche/Monat).
   Future<bool> archiveToggle({
     required int userId,
     required String action, // 'archive' | 'unarchive'
@@ -479,16 +604,12 @@ class ArbeitstagService {
   Future<List<ArbeitstagPickerItem>> getPickerItems({
     required int userId,
     required String typ,
-    required int kwYear,
-    required int kwNumber,
+    required PeriodKey key,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/admin/arbeitstag_picker.php').replace(queryParameters: {
-        'user_id': userId.toString(),
-        'typ': typ,
-        'kw_year': kwYear.toString(),
-        'kw_number': kwNumber.toString(),
-      });
+      final params = {...key.toQuery(), 'user_id': userId.toString(), 'typ': typ};
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_picker.php')
+          .replace(queryParameters: params);
       final res = await _client.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return [];
       final data = jsonDecode(res.body);
@@ -502,8 +623,7 @@ class ArbeitstagService {
   }
 
   Future<bool> setState({
-    required int kwYear,
-    required int kwNumber,
+    required PeriodKey key,
     required int userId,
     required String typ,
     required String state,
@@ -512,9 +632,8 @@ class ArbeitstagService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/admin/arbeitstag_bearbeitet.php');
-      final body = <String, dynamic>{
-        'kw_year': kwYear,
-        'kw_number': kwNumber,
+      final body = {
+        ...key.toBody(),
         'user_id': userId,
         'typ': typ,
         'state': state,
