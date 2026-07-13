@@ -284,11 +284,12 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
               onTap: () => Navigator.pop(ctx, 'change'),
             ),
             // Verschieben pe period următor.
-            // Pt ticket: modifică scheduled_date. Pt celelalte: doar reset chip.
+            // Ticket + Routine: modifică sursa (scheduled_date).
+            // Termin/Notfall: doar reset chip local (data programării = fixat).
             ListTile(
               leading: const Icon(Icons.skip_next, color: Colors.deepPurple),
               title: Text(_verschiebenLabel()),
-              subtitle: typ == 'ticket'
+              subtitle: (typ == 'ticket' || typ == 'routine')
                   ? const Text('Ändert das geplante Datum')
                   : const Text('Nur Chip zurücksetzen (Termin bleibt)'),
               onTap: () => Navigator.pop(ctx, 'verschieben'),
