@@ -232,6 +232,16 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
     if (success) _load();
   }
 
+  Future<void> _closeDayForMember(ArbeitstagMember m) async {
+    final ok = await _svc.dayClose(key: _key, userId: m.userId, action: 'close');
+    if (ok) _load();
+  }
+
+  Future<void> _openDayForMember(ArbeitstagMember m) async {
+    final ok = await _svc.dayClose(key: _key, userId: m.userId, action: 'open');
+    if (ok) _load();
+  }
+
   Future<void> _handleChipTap(ArbeitstagMember m, String typ) async {
     final state = m.stateFor(typ);
     switch (state) {
@@ -523,6 +533,7 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
               icon: const Icon(Icons.refresh),
               tooltip: 'Aktualisieren',
             ),
+            _buildDayClosedToggle(),
             _buildArchiveToggle(),
           ],
         ),
@@ -554,6 +565,41 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
                 color: Colors.orange, borderRadius: BorderRadius.circular(8),
               ),
               child: Text('$archivedCount',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Toggle „abgeschlossene für heute anzeigen" — doar în tab Arbeitstag.
+  Widget _buildDayClosedToggle() {
+    if (widget.granularity != ArbeitsbereichGranularity.tag) {
+      return const SizedBox.shrink();
+    }
+    final closedCount = _data?.stats.totalDayClosed ?? 0;
+    final showingClosed = _view == 'closed_today';
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          onPressed: () {
+            setState(() => _view = showingClosed ? 'active' : 'closed_today');
+            _load();
+          },
+          icon: Icon(showingClosed ? Icons.done_all : Icons.done_all_outlined),
+          tooltip: showingClosed ? 'Aktive anzeigen' : 'Für heute abgeschlossen anzeigen',
+          color: showingClosed ? Colors.green : null,
+        ),
+        if (!showingClosed && closedCount > 0)
+          Positioned(
+            right: 4, top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.green, borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('$closedCount',
                   style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -724,7 +770,28 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
               ],
             ),
           ),
-          if (!m.isArchived) ...[
+          if (m.isDayClosed) ...[
+            // Membrul e închis pentru ziua respectivă (doar Arbeitstag view).
+            // Nu arătăm chip-uri — doar mesaj + buton öffnen.
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  m.dayClosedByName != null
+                      ? 'Für heute abgeschlossen von ${m.dayClosedByName}'
+                      : 'Für heute abgeschlossen',
+                  style: TextStyle(color: Colors.green.shade700, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () => _openDayForMember(m),
+              icon: const Icon(Icons.undo, size: 20),
+              tooltip: 'Für heute öffnen',
+              color: Colors.green,
+            ),
+          ] else if (!m.isArchived) ...[
             // Ticket rămâne mereu vizibil — nu depinde de period (user alege
             // manual din toate ticketele deschise ale membrului).
             _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
@@ -744,6 +811,15 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
               _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
             ],
             const SizedBox(width: 8),
+            // Buton verde bifă — doar în tab Arbeitstag: marchează membru
+            // finalizat pt ziua respectivă (apare mâine + poimâine normal).
+            if (widget.granularity == ArbeitsbereichGranularity.tag)
+              IconButton(
+                onPressed: () => _closeDayForMember(m),
+                icon: const Icon(Icons.done_all, size: 20),
+                tooltip: 'Für heute abschließen',
+                color: Colors.green,
+              ),
             IconButton(
               onPressed: () => _archiveMember(m),
               icon: const Icon(Icons.archive_outlined, size: 20),

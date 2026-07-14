@@ -170,6 +170,10 @@ class ArbeitstagMember {
   final int? archivedBy;
   final String? archivGrund;
 
+  final DateTime? dayClosedAt;
+  final int? dayClosedBy;
+  final String? dayClosedByName;
+
   ArbeitstagMember({
     required this.userId,
     required this.mitgliedernummer,
@@ -208,9 +212,13 @@ class ArbeitstagMember {
     this.archivedAt,
     this.archivedBy,
     this.archivGrund,
+    this.dayClosedAt,
+    this.dayClosedBy,
+    this.dayClosedByName,
   });
 
   bool get isArchived => archivedAt != null;
+  bool get isDayClosed => dayClosedAt != null;
 
   // „Done" implicit dacă membrul n-are activitate în period (chip-ul e ascuns
   // în UI, deci nu-l ține la „neterminați"). „Erledigt" explicit rămâne valid.
@@ -268,6 +276,9 @@ class ArbeitstagMember {
         archivedAt: _dt(j['archived_at']),
         archivedBy: _intN(j['archived_by']),
         archivGrund: j['archiv_grund'],
+        dayClosedAt: _dt(j['day_closed_at']),
+        dayClosedBy: _intN(j['day_closed_by']),
+        dayClosedByName: j['day_closed_by_name'],
       );
 }
 
@@ -276,11 +287,13 @@ class ArbeitstagStats {
   final int totalDone;
   final int totalUrgent;
   final int totalArchived;
+  final int totalDayClosed;
   ArbeitstagStats({
     required this.totalMembers,
     required this.totalDone,
     required this.totalUrgent,
     this.totalArchived = 0,
+    this.totalDayClosed = 0,
   });
 
   factory ArbeitstagStats.fromJson(Map<String, dynamic> j) => ArbeitstagStats(
@@ -288,6 +301,7 @@ class ArbeitstagStats {
         totalDone: _int(j['total_done']),
         totalUrgent: _int(j['total_urgent']),
         totalArchived: _int(j['total_archived']),
+        totalDayClosed: _int(j['total_day_closed']),
       );
 }
 
@@ -621,6 +635,27 @@ class ArbeitstagService {
     } catch (e) {
       _log.error('arbeitstag getPickerItems failed: $e', tag: 'ARBEITSTAG');
       return [];
+    }
+  }
+
+  /// Închide/redeschide un membru pentru ziua respectivă (Arbeitstag only).
+  /// action = 'close' | 'open'
+  Future<bool> dayClose({
+    required PeriodKey key,
+    required int userId,
+    required String action,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_day_close.php');
+      final body = {...key.toBody(), 'user_id': userId, 'action': action};
+      final res = await _client
+          .post(uri, headers: _headers, body: jsonEncode(body))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return false;
+      return jsonDecode(res.body)['success'] == true;
+    } catch (e) {
+      _log.error('arbeitstag dayClose failed: $e', tag: 'ARBEITSTAG');
+      return false;
     }
   }
 
