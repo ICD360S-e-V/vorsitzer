@@ -2606,23 +2606,26 @@ class _MinutelyTimelineState extends State<_MinutelyTimeline> {
                     color: tempColor,
                   ),
                 ),
-                // Precipitation probability (% chance of rain) — shown when ≥20% or when it's raining.
+                // Precipitation probability (% chance of rain) is hidden in
+                // the compact sticky-bar because Open-Meteo derives minutely_15
+                // probability from the hourly value — so four consecutive 15-
+                // min cells within the same hour show the exact same %, which
+                // looks fake / stuck. Full detail lives in the dialog timeline.
                 SizedBox(
                   height: 12,
-                  child: (e.precipitationProbability != null &&
+                  child: (!compact &&
+                          e.precipitationProbability != null &&
                           (e.precipitationProbability! >= 20 || e.precipitation > 0))
                       ? Text(
                           '${e.precipitationProbability}%',
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
-                            color: compact
-                                ? Colors.lightBlue.shade200
-                                : (e.precipitationProbability! >= 70
-                                    ? Colors.blue.shade900
-                                    : (e.precipitationProbability! >= 40
-                                        ? Colors.blue.shade700
-                                        : Colors.blue.shade400)),
+                            color: e.precipitationProbability! >= 70
+                                ? Colors.blue.shade900
+                                : (e.precipitationProbability! >= 40
+                                    ? Colors.blue.shade700
+                                    : Colors.blue.shade400),
                           ),
                         )
                       : null,
