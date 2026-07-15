@@ -188,6 +188,7 @@ class MinutelyForecast {
   final int weatherCode;
   final double precipitation;
   final int? precipitationProbability;
+  final int? humidity;
   final double windSpeed;
 
   MinutelyForecast({
@@ -196,6 +197,7 @@ class MinutelyForecast {
     required this.weatherCode,
     required this.precipitation,
     this.precipitationProbability,
+    this.humidity,
     required this.windSpeed,
   });
 
@@ -977,7 +979,7 @@ class WeatherService {
         '?latitude=$_latitude&longitude=$_longitude'
         '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,'
         'wind_speed_10m,wind_direction_10m,precipitation,pressure_msl,cloud_cover,is_day,uv_index'
-        '&minutely_15=temperature_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m'
+        '&minutely_15=temperature_2m,relative_humidity_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m'
         '&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation,precipitation_probability'
         '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,'
         'wind_speed_10m_max,sunrise,sunset,daylight_duration'
@@ -1048,6 +1050,7 @@ class WeatherService {
         if (minutely != null) {
           final times = (minutely['time'] as List?)?.cast<String>() ?? const [];
           final temps = (minutely['temperature_2m'] as List?) ?? const [];
+          final humids = (minutely['relative_humidity_2m'] as List?) ?? const [];
           final codes = (minutely['weather_code'] as List?) ?? const [];
           final precips = (minutely['precipitation'] as List?) ?? const [];
           final precipProbs = (minutely['precipitation_probability'] as List?) ?? const [];
@@ -1067,6 +1070,7 @@ class WeatherService {
               weatherCode: code.toInt(),
               precipitation: ((i < precips.length ? precips[i] : 0) as num?)?.toDouble() ?? 0,
               precipitationProbability: ((i < precipProbs.length ? precipProbs[i] : null) as num?)?.toInt(),
+              humidity: ((i < humids.length ? humids[i] : null) as num?)?.toInt(),
               windSpeed: ((i < winds.length ? winds[i] : 0) as num?)?.toDouble() ?? 0,
             ));
           }

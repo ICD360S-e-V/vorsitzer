@@ -2540,7 +2540,9 @@ class _MinutelyTimelineState extends State<_MinutelyTimeline> {
     );
 
     return Container(
-      height: compact ? 78 : 115,
+      // Compact needs room for Uhrzeit + Emoji + Temp + Feuchtigkeit-%
+      // (+ optional mm), full mode adds the mm-Balken and gets even taller.
+      height: compact ? 96 : 130,
       decoration: BoxDecoration(
         color: compact
             ? Colors.white.withValues(alpha: 0.08)
@@ -2606,30 +2608,38 @@ class _MinutelyTimelineState extends State<_MinutelyTimeline> {
                     color: tempColor,
                   ),
                 ),
-                // Precipitation probability (% chance of rain) is hidden in
-                // the compact sticky-bar because Open-Meteo derives minutely_15
-                // probability from the hourly value — so four consecutive 15-
-                // min cells within the same hour show the exact same %, which
-                // looks fake / stuck. Full detail lives in the dialog timeline.
-                SizedBox(
-                  height: 12,
-                  child: (!compact &&
-                          e.precipitationProbability != null &&
-                          (e.precipitationProbability! >= 20 || e.precipitation > 0))
-                      ? Text(
-                          '${e.precipitationProbability}%',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: e.precipitationProbability! >= 70
-                                ? Colors.blue.shade900
-                                : (e.precipitationProbability! >= 40
-                                    ? Colors.blue.shade700
-                                    : Colors.blue.shade400),
-                          ),
-                        )
-                      : null,
-                ),
+                // Relative humidity in %. Nutzt der Vorsitzer, um schon vor
+                // dem Regen zu erkennen dass sich was zusammenbraut
+                // (Feuchtigkeit ≥ 85 % ist typischerweise Vorbote von Regen).
+                if (e.humidity != null)
+                  Text(
+                    '💧 ${e.humidity}%',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: compact
+                          ? (e.humidity! >= 85
+                              ? Colors.lightBlue.shade200
+                              : (e.humidity! >= 65
+                                  ? Colors.white70
+                                  : Colors.white54))
+                          : (e.humidity! >= 85
+                              ? Colors.blue.shade900
+                              : (e.humidity! >= 65
+                                  ? Colors.blue.shade600
+                                  : Colors.grey.shade600)),
+                    ),
+                  ),
+                // Regenmenge in mm — nur wenn tatsächlich Niederschlag misst.
+                if (e.precipitation > 0)
+                  Text(
+                    '${e.precipitation < 0.1 ? "<0.1" : e.precipitation.toStringAsFixed(1)} mm',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: compact ? Colors.blue.shade100 : Colors.blue.shade800,
+                    ),
+                  ),
                 // Precipitation bar — full detail only; compact drops this row.
                 if (!compact)
                   SizedBox(
