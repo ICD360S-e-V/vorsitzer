@@ -270,6 +270,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
     final kaltC = TextEditingController(text: e?['kaltmiete'] ?? '');
     final warmC = TextEditingController(text: e?['warmmiete'] ?? '');
     final nkC = TextEditingController(text: e?['nebenkosten'] ?? '');
+    final heizC = TextEditingController(text: e?['heizkosten'] ?? '');
     final kautionC = TextEditingController(text: e?['kaution'] ?? '');
     // Wohnfläche in m² — relevant für Beratungshilfe §6 BerHG D2 + WBS.
     final qmC = TextEditingController(text: e?['wohnflaeche_qm'] ?? '');
@@ -285,6 +286,13 @@ class _MietvertragTabState extends State<_MietvertragTab> {
     String mietobjekt = e?['mietobjekt'] ?? 'wohnung';
     String zahlungsart = e?['zahlungsart'] ?? 'ueberweisung';
     String status = e?['status'] ?? 'aktiv';
+    // Warmmiete = Kaltmiete + Heizkosten + Nebenkosten (kalte Betriebskosten).
+    void recalcWarm() {
+      final k = double.tryParse(kaltC.text.replaceAll(',', '.')) ?? 0;
+      final h = double.tryParse(heizC.text.replaceAll(',', '.')) ?? 0;
+      final n = double.tryParse(nkC.text.replaceAll(',', '.')) ?? 0;
+      if (k > 0 || h > 0 || n > 0) warmC.text = (k + h + n).toStringAsFixed(2);
+    }
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Text(isEdit ? 'Mietvertrag bearbeiten' : 'Neuer Mietvertrag', style: const TextStyle(fontSize: 15)),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -307,35 +315,34 @@ class _MietvertragTabState extends State<_MietvertragTab> {
             controller: kaltC,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(labelText: 'Kaltmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-            onChanged: (_) {
-              final k = double.tryParse(kaltC.text.replaceAll(',', '.')) ?? 0;
-              final n = double.tryParse(nkC.text.replaceAll(',', '.')) ?? 0;
-              if (k > 0 || n > 0) warmC.text = (k + n).toStringAsFixed(2);
-            },
+            onChanged: (_) => recalcWarm(),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(
+            controller: heizC,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: 'Heizkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: (_) => recalcWarm(),
           )),
           const SizedBox(width: 8),
           Expanded(child: TextField(
             controller: nkC,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(labelText: 'Nebenkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-            onChanged: (_) {
-              final k = double.tryParse(kaltC.text.replaceAll(',', '.')) ?? 0;
-              final n = double.tryParse(nkC.text.replaceAll(',', '.')) ?? 0;
-              if (k > 0 || n > 0) warmC.text = (k + n).toStringAsFixed(2);
-            },
-          )),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(
-            controller: warmC,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Warmmiete € (= Kalt + NK)',
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              suffixIcon: const Icon(Icons.functions, size: 16, color: Colors.grey),
-            ),
+            onChanged: (_) => recalcWarm(),
           )),
         ]),
+        const SizedBox(height: 8),
+        TextField(
+          controller: warmC,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Warmmiete € (= Kalt + Heiz + NK)',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            suffixIcon: const Icon(Icons.functions, size: 16, color: Colors.grey),
+          ),
+        ),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(child: TextField(controller: kautionC, decoration: InputDecoration(labelText: 'Kaution €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
@@ -399,7 +406,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
         ElevatedButton(onPressed: () async {
           final body = {
             if (isEdit) 'id': e['id'], 'vertragsart': vertragsart, 'mietobjekt': mietobjekt, 'strasse': strasseC.text, 'hausnummer': hausnrC.text,
-            'plz': plzC.text, 'ort': ortC.text, 'kaltmiete': kaltC.text, 'warmmiete': warmC.text, 'nebenkosten': nkC.text,
+            'plz': plzC.text, 'ort': ortC.text, 'kaltmiete': kaltC.text, 'heizkosten': heizC.text, 'warmmiete': warmC.text, 'nebenkosten': nkC.text,
             'kaution': kautionC.text, 'wohnflaeche_qm': qmC.text, 'etage': etageC.text, 'faelligkeit': faelligC.text, 'zahlungsart': zahlungsart, 'mietbeginn': beginnC.text,
             'mietende': endeC.text, 'kuendigungsfrist': kuendC.text, 'status': status, 'notiz': notizC.text,
           };
@@ -731,6 +738,7 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
       row('Mietobjekt', s('mietobjekt'), icon: Icons.home),
       row('Adresse', '${s('strasse')} ${s('hausnummer')}, ${s('plz')} ${s('ort')}', icon: Icons.location_on),
       row('Kaltmiete', '${s('kaltmiete')} €', icon: Icons.euro),
+      row('Heizkosten', '${s('heizkosten')} €', icon: Icons.local_fire_department),
       row('Nebenkosten', '${s('nebenkosten')} €', icon: Icons.receipt_long),
       row('Warmmiete', '${s('warmmiete')} €', icon: Icons.functions),
       row('Kaution', '${s('kaution')} €', icon: Icons.savings),
@@ -794,8 +802,8 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
         'vertragsart': m['vertragsart'] ?? '', 'mietobjekt': m['mietobjekt'] ?? '',
         'strasse': m['strasse'] ?? '', 'hausnummer': m['hausnummer'] ?? '',
         'plz': m['plz'] ?? '', 'ort': m['ort'] ?? '',
-        'kaltmiete': m['kaltmiete'] ?? '', 'warmmiete': m['warmmiete'] ?? '', 'nebenkosten': m['nebenkosten'] ?? '',
-        'kaution': m['kaution'] ?? '', 'faelligkeit': newValue,
+        'kaltmiete': m['kaltmiete'] ?? '', 'heizkosten': m['heizkosten'] ?? '', 'warmmiete': m['warmmiete'] ?? '', 'nebenkosten': m['nebenkosten'] ?? '',
+        'kaution': m['kaution'] ?? '', 'wohnflaeche_qm': m['wohnflaeche_qm'] ?? '', 'etage': m['etage'] ?? '', 'faelligkeit': newValue,
         'zahlungsart': m['zahlungsart'] ?? '', 'mietbeginn': m['mietbeginn'] ?? '', 'mietende': m['mietende'] ?? '',
         'kuendigungsfrist': m['kuendigungsfrist'] ?? '', 'status': m['status'] ?? '', 'notiz': m['notiz'] ?? '',
       },
