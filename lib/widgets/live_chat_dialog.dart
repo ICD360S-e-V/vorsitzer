@@ -38,6 +38,9 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
 
+  // Kept so dispose() only detaches it from the shared singleton if still ours.
+  void Function(Map<String, dynamic>)? _signalingHandler;
+
   List<Map<String, dynamic>> _messages = [];
   int? _conversationId;
   bool _isLoading = true;
@@ -88,7 +91,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     super.initState();
 
     // Configure VoiceCallService signaling via ChatService
-    _voiceCallService.onSignalingMessage = (message) {
+    _signalingHandler = (message) {
       final type = message['type'] as String;
       final convId = message['conversation_id'] as int;
 
@@ -115,6 +118,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           break;
       }
     };
+    _voiceCallService.onSignalingMessage = _signalingHandler;
 
     // Listen to VoiceCallService state changes to update UI
     _callStateSubscription = _voiceCallService.callStateStream.listen((state) {
@@ -213,7 +217,16 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     _callStateSubscription?.cancel();
     _remoteStreamSubscription?.cancel();
     _iceConnectionStateSubscription?.cancel();
+    // End a live call for real so the shared singleton is not left stuck in
+    // calling/inCall (which would auto-reject the next call as "busy").
+    if (_voiceCallService.callState != CallState.idle) {
+      _voiceCallService.endCall();
+    }
     _endCallCleanup();
+    // Detach our signaling handler only if it is still ours.
+    if (identical(_voiceCallService.onSignalingMessage, _signalingHandler)) {
+      _voiceCallService.onSignalingMessage = null;
+    }
     // Don't leave conversation - dashboard maintains the subscription for background notifications
     super.dispose();
   }

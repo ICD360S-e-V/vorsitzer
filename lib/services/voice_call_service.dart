@@ -94,6 +94,7 @@ class VoiceCallService {
       }
       _log.info('VoiceCallService: ✓ Local stream acquired in ${streamDuration.inMilliseconds}ms', tag: 'CALL');
       _log.info('VoiceCallService: Stream ID: ${_localStream!.id}', tag: 'CALL');
+      _applyAudioRoute(); // route to speaker now that the audio session is live
 
       // Create peer connection
       _log.info('VoiceCallService: [2/5] Creating peer connection...', tag: 'CALL');
@@ -206,6 +207,7 @@ class VoiceCallService {
       }
       _log.info('VoiceCallService: ✓ Local stream acquired in ${streamDuration.inMilliseconds}ms', tag: 'CALL');
       _log.info('VoiceCallService: Stream ID: ${_localStream!.id}', tag: 'CALL');
+      _applyAudioRoute(); // route to speaker now that the audio session is live
 
       // Create peer connection
       _log.info('VoiceCallService: [2/6] Creating peer connection...', tag: 'CALL');
@@ -396,7 +398,23 @@ class VoiceCallService {
   /// Toggle speaker (for mobile, on desktop this is usually not needed)
   void toggleSpeaker() {
     _isSpeakerOn = !_isSpeakerOn;
-    // On Windows, speaker toggle is handled by system audio
+    // On Windows/Linux/macOS the speaker is handled by the system audio stack.
+    // On Android/iOS we must route explicitly, otherwise audio stays on the
+    // earpiece — which a tablet does not even have, leaving the call silent.
+    _applyAudioRoute();
+  }
+
+  /// Route call audio to loudspeaker/earpiece on mobile. No-op on desktop.
+  /// Must run while the audio session is active (after getUserMedia), else the
+  /// AudioManager mode is not yet MODE_IN_COMMUNICATION and the call is ignored.
+  void _applyAudioRoute() {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    try {
+      Helper.setSpeakerphoneOn(_isSpeakerOn);
+      _log.info('VoiceCallService: 🔊 Audio route → ${_isSpeakerOn ? "SPEAKER" : "earpiece"}', tag: 'CALL');
+    } catch (e) {
+      _log.warning('VoiceCallService: setSpeakerphoneOn failed: $e', tag: 'CALL');
+    }
   }
 
   /// Create WebRTC peer connection
@@ -504,6 +522,7 @@ class VoiceCallService {
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _log.info('VoiceCallService: ★★★ WebRTC connection ESTABLISHED! Changing to inCall state ★★★', tag: 'CALL');
         _setCallState(CallState.inCall);
+        _applyAudioRoute(); // re-assert speaker route once media is flowing
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
         _log.warning('VoiceCallService: Connection state: DISCONNECTED, notifying remote and cleaning up', tag: 'CALL');
         // Send call_end notification to remote peer before cleanup
@@ -557,6 +576,7 @@ class VoiceCallService {
           _log.info('VoiceCallService: ★★★ WORKAROUND: Remote stream received → assuming connection established!', tag: 'CALL');
           _log.info('VoiceCallService: ★★★ Changing to inCall state (onConnectionState bug workaround)', tag: 'CALL');
           _setCallState(CallState.inCall);
+          _applyAudioRoute(); // re-assert speaker route once media is flowing
         }
       } else {
         _log.warning('VoiceCallService: onTrack event but no streams!', tag: 'CALL');

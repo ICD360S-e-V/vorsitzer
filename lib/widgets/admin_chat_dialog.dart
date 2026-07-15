@@ -54,6 +54,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
 
+  // Our signaling handler, kept so dispose() can detach it from the shared
+  // singleton VoiceCallService only if it is still ours (avoids clobbering a
+  // handler a newer dialog installed).
+  void Function(Map<String, dynamic>)? _signalingHandler;
+
   // Helper to safely parse conversation ID (API may return string)
   int _parseConvId(dynamic id) {
     if (id is int) return id;
@@ -150,7 +155,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     NotificationService.setChatDialogOpen(true);
 
     // Configure VoiceCallService signaling via ChatService
-    _voiceCallService.onSignalingMessage = (message) {
+    _signalingHandler = (message) {
       final type = message['type'] as String;
       final convId = message['conversation_id'] as int;
 
@@ -177,6 +182,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           break;
       }
     };
+    _voiceCallService.onSignalingMessage = _signalingHandler;
 
     // Listen to VoiceCallService state changes to update UI
     _callStateSubscription = _voiceCallService.callStateStream.listen((state) {
@@ -299,7 +305,18 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _onlineUsersSubscription?.cancel();
     _remoteStreamSubscription?.cancel();
     _iceConnectionStateSubscription?.cancel();
+    // Tear down any live call for real (notifies the peer + closes WebRTC).
+    // The old code only cleared local UI state, leaving the singleton stuck in
+    // calling/inCall → every later call was auto-rejected as "busy".
+    if (_voiceCallService.callState != CallState.idle) {
+      _voiceCallService.endCall();
+    }
     _endCallCleanup();
+    // Detach our signaling handler from the shared singleton, but only if it is
+    // still ours — a newer dialog may have taken over.
+    if (identical(_voiceCallService.onSignalingMessage, _signalingHandler)) {
+      _voiceCallService.onSignalingMessage = null;
+    }
     // Don't leave conversation - dashboard maintains the subscription for background notifications
     _messageController.dispose();
     _scrollController.dispose();
@@ -665,39 +682,37 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _callAnswerSubscription = _chatService.callAnswerStream.listen((event) {
       _log.info('AdminChat: [WS] Received call_answer from ${event.answererName} (conv: ${event.conversationId})', tag: 'CALL');
       if (!mounted) return;
-      if (_selectedConversation != null &&
-          _parseConvId(_selectedConversation!['id']) == event.conversationId) {
+      if (_isCallConv(event.conversationId)) {
         _handleCallAnswer(event.sdp, event.sdpType, event.answererName);
       } else {
-        _log.warning('AdminChat: call_answer ignored - selectedConv mismatch', tag: 'CALL');
+        _log.warning('AdminChat: call_answer ignored - conv mismatch', tag: 'CALL');
       }
     });
 
     _callRejectedSubscription = _chatService.callRejectedStream.listen((event) {
       _log.info('AdminChat: [WS] Received call_rejected (conv: ${event.conversationId}, reason: ${event.reason})', tag: 'CALL');
       if (!mounted) return;
-      if (_selectedConversation != null &&
-          _parseConvId(_selectedConversation!['id']) == event.conversationId) {
+      if (_isCallConv(event.conversationId)) {
         _handleCallRejected(event.reason);
+      } else {
+        _log.warning('AdminChat: call_rejected ignored - conv mismatch', tag: 'CALL');
       }
     });
 
     _callBusySubscription = _chatService.callBusyStream.listen((convId) {
       _log.info('AdminChat: [WS] Received call_busy (conv: $convId)', tag: 'CALL');
       if (!mounted) return;
-      if (_selectedConversation != null &&
-          _parseConvId(_selectedConversation!['id']) == convId) {
-        _showError('Der Benutzer ist bereits in einem anderen Anruf');
-        _endCallCleanup();
+      if (_isCallConv(convId)) {
+        // _handleCallRejected shows the "beschäftigt" message AND tears down
+        // the WebRTC state (the old code only cleared UI → left a ghost call).
+        _handleCallRejected('busy');
       }
     });
 
     _callEndedSubscription = _chatService.callEndedStream.listen((event) {
       _log.info('AdminChat: [WS] Received call_ended (conv: ${event.conversationId})', tag: 'CALL');
       if (!mounted) return;
-      if (_incomingCallConvId == event.conversationId ||
-          (_selectedConversation != null &&
-           _parseConvId(_selectedConversation!['id']) == event.conversationId)) {
+      if (_isCallConv(event.conversationId)) {
         _handleCallEnded();
       }
     });
@@ -705,8 +720,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _iceCandidateSubscription = _chatService.iceCandidateStream.listen((event) {
       _log.debug('AdminChat: [WS] Received ice_candidate (conv: ${event.conversationId})', tag: 'CALL');
       if (!mounted) return;
-      if (_selectedConversation != null &&
-          _parseConvId(_selectedConversation!['id']) == event.conversationId) {
+      if (_isCallConv(event.conversationId)) {
         _handleIceCandidate(event.candidate, event.sdpMid, event.sdpMLineIndex);
       }
     });
@@ -833,6 +847,18 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       _showError('Fehler beim Verbinden: $e');
       _endCallCleanup();
     }
+  }
+
+  /// True when [convId] is the conversation of the current call — either the
+  /// one selected in the list, or the one an outgoing/incoming call was bound
+  /// to. `_startCall` sets `_incomingCallConvId`, so reject/answer/end events
+  /// still reach the caller even if the operator taps another conversation
+  /// while it is ringing (previously those events were silently dropped and the
+  /// "Anrufen..." overlay hung forever).
+  bool _isCallConv(int convId) {
+    if (_incomingCallConvId == convId) return true;
+    return _selectedConversation != null &&
+        _parseConvId(_selectedConversation!['id']) == convId;
   }
 
   /// Handle rejection from member - REFACTORED to use VoiceCallService
@@ -1904,8 +1930,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               ),
             ),
 
-            // In-call overlay - moved to bottom (above footer)
-            if (_voiceCallService.callState == CallState.inCall) _buildInCallOverlay(),
+            // Call overlay (above footer): shows "Anrufen..." while ringing/
+            // connecting AND the in-call controls once connected. Without the
+            // ringing state the operator only saw a tiny badge in the member
+            // list on the left and had no way to cancel an outgoing call.
+            if (_voiceCallService.callState != CallState.idle) _buildCallOverlay(),
           ],
         ),
       ),
@@ -1972,21 +2001,41 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     );
   }
 
-  Widget _buildInCallOverlay() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InCallOverlay(
-        remoteName: _callerName,
-        callDuration: _callDuration,
-        isMuted: _voiceCallService.isMuted,
-        isSpeakerOn: _voiceCallService.isSpeakerOn,
-        onToggleMute: _toggleMute,
-        onToggleSpeaker: _toggleSpeaker,
-        onEndCall: _endCall,
-        remoteStream: _remoteAudioStream,
-        iceConnectionState: _iceConnectionState,
-      ),
-    );
+  Widget _buildCallOverlay() {
+    final state = _voiceCallService.callState;
+
+    // Outgoing call that hasn't connected yet → "Anrufen..." with a cancel
+    // button. `connecting` also lands here (offer answered, ICE still
+    // negotiating) so the operator keeps feedback until audio is live.
+    if (state == CallState.calling || state == CallState.connecting) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: CallingOverlay(
+          targetName: _callerName.isNotEmpty ? _callerName : 'Mitglied',
+          onCancel: _endCall,
+        ),
+      );
+    }
+
+    if (state == CallState.inCall) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: InCallOverlay(
+          remoteName: _callerName,
+          callDuration: _callDuration,
+          isMuted: _voiceCallService.isMuted,
+          isSpeakerOn: _voiceCallService.isSpeakerOn,
+          onToggleMute: _toggleMute,
+          onToggleSpeaker: _toggleSpeaker,
+          onEndCall: _endCall,
+          remoteStream: _remoteAudioStream,
+          iceConnectionState: _iceConnectionState,
+        ),
+      );
+    }
+
+    // ringing (incoming) is handled by the IncomingCallDialog, not here.
+    return const SizedBox.shrink();
   }
 
   Widget _buildConversationList() {
