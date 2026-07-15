@@ -2323,6 +2323,10 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList()..sort(_compareAgChronological);
       final ferienjobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'ferienjob').toList()..sort(_compareAgChronological);
       final ausbildung = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'ausbildung').toList()..sort(_compareAgChronological);
+      final selbstaendig = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'selbstaendig').toList()..sort(_compareAgChronological);
+      final freiberuflich = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'freiberuflich').toList()..sort(_compareAgChronological);
+      final gemeinnuetzig = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'gemeinnuetzig').toList()..sort(_compareAgChronological);
+      final ehrenamt = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'ehrenamt').toList()..sort(_compareAgChronological);
 
       Widget section(String label, IconData icon, MaterialColor color, List<Map<String, dynamic>> list, String artKey) {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2349,6 +2353,10 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         section('Vollzeit', Icons.work, Colors.indigo, vollzeit, 'vollzeit'),
+        section('Selbständige Arbeit', Icons.business_center, Colors.brown, selbstaendig, 'selbstaendig'),
+        section('Freiberuflich', Icons.badge, Colors.blueGrey, freiberuflich, 'freiberuflich'),
+        section('Gemeinnützig', Icons.volunteer_activism, Colors.green, gemeinnuetzig, 'gemeinnuetzig'),
+        section('Ehrenamt', Icons.handshake, Colors.pink, ehrenamt, 'ehrenamt'),
         section('Ferienjob', Icons.beach_access, Colors.amber, ferienjobs, 'ferienjob'),
         section('Ausbildung', Icons.menu_book, Colors.purple, ausbildung, 'ausbildung'),
         section('Teilzeit', Icons.timelapse, Colors.teal, teilzeit, 'teilzeit'),
@@ -2374,7 +2382,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(width: 48, height: 48, decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Icon(const {'Minijob': Icons.work_outline, 'Teilzeit': Icons.timelapse, 'Ferienjob': Icons.beach_access, 'Ausbildung': Icons.menu_book}[label] ?? Icons.work, color: color.shade700, size: 26)),
+              child: Icon(const {'Minijob': Icons.work_outline, 'Teilzeit': Icons.timelapse, 'Ferienjob': Icons.beach_access, 'Ausbildung': Icons.menu_book, 'Selbständige Arbeit': Icons.business_center, 'Freiberuflich': Icons.badge, 'Gemeinnützig': Icons.volunteer_activism, 'Ehrenamt': Icons.handshake}[label] ?? Icons.work, color: color.shade700, size: 26)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(firma, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
@@ -2501,7 +2509,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         Text('Beschäftigungsart:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
                         const SizedBox(height: 6),
                         Wrap(spacing: 8, children: [
-                          for (final a in [('vollzeit', 'Vollzeit', Icons.work), ('minijob', 'Minijob', Icons.work_outline), ('teilzeit', 'Teilzeit', Icons.timelapse), ('ferienjob', 'Ferienjob', Icons.beach_access), ('werkstudent', 'Werkstudent', Icons.school), ('ausbildung', 'Ausbildung', Icons.menu_book), ('praktikum', 'Praktikum', Icons.explore)])
+                          for (final a in [('vollzeit', 'Vollzeit', Icons.work), ('minijob', 'Minijob', Icons.work_outline), ('teilzeit', 'Teilzeit', Icons.timelapse), ('ferienjob', 'Ferienjob', Icons.beach_access), ('werkstudent', 'Werkstudent', Icons.school), ('ausbildung', 'Ausbildung', Icons.menu_book), ('praktikum', 'Praktikum', Icons.explore), ('selbstaendig', 'Selbständige Arbeit', Icons.business_center), ('freiberuflich', 'Freiberuflich', Icons.badge), ('gemeinnuetzig', 'Gemeinnützig', Icons.volunteer_activism), ('ehrenamt', 'Ehrenamt', Icons.handshake)])
                             ChoiceChip(
                               avatar: Icon(a.$3, size: 14, color: art == a.$1 ? Colors.white : Colors.grey.shade700),
                               label: Text(a.$2, style: TextStyle(fontSize: 11, color: art == a.$1 ? Colors.white : Colors.black87)),
