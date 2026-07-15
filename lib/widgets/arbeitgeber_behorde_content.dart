@@ -2321,6 +2321,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       final vollzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && (a['art']?.toString() ?? 'vollzeit') == 'vollzeit').toList()..sort(_compareAgChronological);
       final teilzeit = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'teilzeit').toList()..sort(_compareAgChronological);
       final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList()..sort(_compareAgChronological);
+      final ferienjobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'ferienjob').toList()..sort(_compareAgChronological);
+      final ausbildung = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'ausbildung').toList()..sort(_compareAgChronological);
 
       Widget section(String label, IconData icon, MaterialColor color, List<Map<String, dynamic>> list, String artKey) {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2347,6 +2349,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         section('Vollzeit', Icons.work, Colors.indigo, vollzeit, 'vollzeit'),
+        section('Ferienjob', Icons.beach_access, Colors.amber, ferienjobs, 'ferienjob'),
+        section('Ausbildung', Icons.menu_book, Colors.purple, ausbildung, 'ausbildung'),
         section('Teilzeit', Icons.timelapse, Colors.teal, teilzeit, 'teilzeit'),
         section('Minijob', Icons.work_outline, Colors.orange, minijobs, 'minijob'),
       ]));
@@ -2370,7 +2374,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(width: 48, height: 48, decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Icon(label == 'Minijob' ? Icons.work_outline : (label == 'Teilzeit' ? Icons.timelapse : Icons.work), color: color.shade700, size: 26)),
+              child: Icon(const {'Minijob': Icons.work_outline, 'Teilzeit': Icons.timelapse, 'Ferienjob': Icons.beach_access, 'Ausbildung': Icons.menu_book}[label] ?? Icons.work, color: color.shade700, size: 26)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(firma, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
@@ -2497,7 +2501,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         Text('Beschäftigungsart:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
                         const SizedBox(height: 6),
                         Wrap(spacing: 8, children: [
-                          for (final a in [('vollzeit', 'Vollzeit', Icons.work), ('minijob', 'Minijob', Icons.work_outline), ('teilzeit', 'Teilzeit', Icons.timelapse), ('werkstudent', 'Werkstudent', Icons.school), ('ausbildung', 'Ausbildung', Icons.menu_book), ('praktikum', 'Praktikum', Icons.explore)])
+                          for (final a in [('vollzeit', 'Vollzeit', Icons.work), ('minijob', 'Minijob', Icons.work_outline), ('teilzeit', 'Teilzeit', Icons.timelapse), ('ferienjob', 'Ferienjob', Icons.beach_access), ('werkstudent', 'Werkstudent', Icons.school), ('ausbildung', 'Ausbildung', Icons.menu_book), ('praktikum', 'Praktikum', Icons.explore)])
                             ChoiceChip(
                               avatar: Icon(a.$3, size: 14, color: art == a.$1 ? Colors.white : Colors.grey.shade700),
                               label: Text(a.$2, style: TextStyle(fontSize: 11, color: art == a.$1 ? Colors.white : Colors.black87)),
