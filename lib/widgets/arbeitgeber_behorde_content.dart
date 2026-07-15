@@ -2323,6 +2323,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       final minijobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'minijob').toList()..sort(_compareAgChronological);
       final ferienjobs = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'ferienjob').toList()..sort(_compareAgChronological);
       final ausbildung = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'ausbildung').toList()..sort(_compareAgChronological);
+      final praktikum = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'praktikum').toList()..sort(_compareAgChronological);
+      final werkstudent = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'werkstudent').toList()..sort(_compareAgChronological);
       final selbstaendig = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'selbstaendig').toList()..sort(_compareAgChronological);
       final freiberuflich = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'freiberuflich').toList()..sort(_compareAgChronological);
       final gemeinnuetzig = _arbeitgeberFromDB.where((a) => a['aktuell'] == true && a['art']?.toString() == 'gemeinnuetzig').toList()..sort(_compareAgChronological);
@@ -2359,6 +2361,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         section('Ehrenamt', Icons.handshake, Colors.pink, ehrenamt, 'ehrenamt'),
         section('Ferienjob', Icons.beach_access, Colors.amber, ferienjobs, 'ferienjob'),
         section('Ausbildung', Icons.menu_book, Colors.purple, ausbildung, 'ausbildung'),
+        section('Praktikum', Icons.explore, Colors.cyan, praktikum, 'praktikum'),
+        section('Werkstudent', Icons.school, Colors.deepPurple, werkstudent, 'werkstudent'),
         section('Teilzeit', Icons.timelapse, Colors.teal, teilzeit, 'teilzeit'),
         section('Minijob', Icons.work_outline, Colors.orange, minijobs, 'minijob'),
       ]));
@@ -2382,7 +2386,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(width: 48, height: 48, decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Icon(const {'Minijob': Icons.work_outline, 'Teilzeit': Icons.timelapse, 'Ferienjob': Icons.beach_access, 'Ausbildung': Icons.menu_book, 'Selbständige Arbeit': Icons.business_center, 'Freiberuflich': Icons.badge, 'Gemeinnützig': Icons.volunteer_activism, 'Ehrenamt': Icons.handshake}[label] ?? Icons.work, color: color.shade700, size: 26)),
+              child: Icon(const {'Minijob': Icons.work_outline, 'Teilzeit': Icons.timelapse, 'Ferienjob': Icons.beach_access, 'Ausbildung': Icons.menu_book, 'Selbständige Arbeit': Icons.business_center, 'Freiberuflich': Icons.badge, 'Gemeinnützig': Icons.volunteer_activism, 'Ehrenamt': Icons.handshake, 'Praktikum': Icons.explore, 'Werkstudent': Icons.school}[label] ?? Icons.work, color: color.shade700, size: 26)),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(firma, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
