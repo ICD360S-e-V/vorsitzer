@@ -4142,6 +4142,10 @@ class ApiService {
     final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_bewilligungen.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  Future<Map<String, dynamic>> listSozialamtBewilligungByAntrag(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/sozialamt_bewilligungen.php?antrag_id=$antragId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   Future<Map<String, dynamic>> saveSozialamtBewilligung(int userId, Map<String, dynamic> data) async {
     final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
     final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_bewilligungen.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));

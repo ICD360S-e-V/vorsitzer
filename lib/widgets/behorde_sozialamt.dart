@@ -7,7 +7,6 @@ import '../services/api_service.dart';
 import 'package:open_filex/open_filex.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
-import 'korrespondenz_attachments_widget.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -40,10 +39,7 @@ class BehordeSozialamtContent extends StatefulWidget {
 class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
   Map<String, Map<String, dynamic>> _dbData = {};
   List<Map<String, dynamic>> _antraege = [];
-  List<Map<String, dynamic>> _bewilligungen = [];
-  List<Map<String, dynamic>> _korrespondenz = [];
   bool _loaded = false;
-  bool _saving = false;
   Set<String> _checkedDocsGlobal = {};
 
   @override
@@ -80,10 +76,6 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     if (widget.apiService != null && widget.userId != null) {
       final aR = await widget.apiService!.listSozialamtAntraege(widget.userId!);
       if (aR['success'] == true && aR['data'] is List) _antraege = (aR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      final bR = await widget.apiService!.listSozialamtBewilligungen(widget.userId!);
-      if (bR['success'] == true && bR['data'] is List) _bewilligungen = (bR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      final kR = await widget.apiService!.listSozialamtKorrespondenz(widget.userId!);
-      if (kR['success'] == true && kR['data'] is List) _korrespondenz = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     // Load checked docs from DB (stored in sozialamt_data bereich='checked_docs')
     final cd = _dbData['checked_docs'];
@@ -97,9 +89,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
 
   Future<void> _save() async {
     if (widget.apiService == null || widget.userId == null) return;
-    setState(() => _saving = true);
     await widget.apiService!.saveSozialamtData(widget.userId!, _dbData);
-    if (mounted) setState(() => _saving = false);
   }
 
   Map<String, dynamic> _b(String key) {
@@ -112,7 +102,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
 
     return DefaultTabController(
-      length: 5,
+      length: 2,
       child: Column(children: [
         TabBar(
           labelColor: Colors.indigo.shade700,
@@ -121,18 +111,12 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
           isScrollable: true,
           tabs: [
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_b('behoerde')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständige Behörde')])),
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_b('mitarbeiter')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.person, size: 16), const SizedBox(width: 4), const Text('Mitarbeiter/in')])),
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _antraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.description, size: 16), const SizedBox(width: 4), const Text('Anträge')])),
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _bewilligungen.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.check_circle, size: 16), const SizedBox(width: 4), const Text('Bewilligung')])),
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _korrespondenz.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.mail, size: 16), const SizedBox(width: 4), const Text('Korrespondenz')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
           _buildBehoerdeTab(),
-          _buildMitarbeiterTab(),
           _buildAntraegeTab(),
-          _buildBewilligungTab(),
-          _buildKorrespondenzTab(),
         ])),
       ]),
     );
@@ -228,52 +212,6 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     );
   }
 
-  bool _mitarbeiterEditing = false;
-
-  Widget _buildMitarbeiterTab() {
-    final d = _b('mitarbeiter');
-    final hasData = (d['name']?.toString() ?? '').isNotEmpty;
-    final readOnly = hasData && !_mitarbeiterEditing;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.person, size: 20, color: Colors.indigo.shade700),
-          const SizedBox(width: 8),
-          Expanded(child: Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
-          if (hasData)
-            IconButton(
-              icon: Icon(_mitarbeiterEditing ? Icons.check : Icons.edit, size: 20, color: Colors.indigo.shade700),
-              tooltip: _mitarbeiterEditing ? 'Fertig' : 'Bearbeiten',
-              onPressed: () {
-                if (_mitarbeiterEditing) _save();
-                setState(() => _mitarbeiterEditing = !_mitarbeiterEditing);
-              },
-            ),
-        ]),
-        const SizedBox(height: 12),
-        if (readOnly) ...[
-          _readOnlyRow(Icons.person, 'Anrede', d['anrede']),
-          _readOnlyRow(Icons.badge, 'Name', d['name']),
-          _readOnlyRow(Icons.phone, 'Telefon', d['telefon']),
-          _readOnlyRow(Icons.email, 'E-Mail', d['email']),
-          _readOnlyRow(Icons.room, 'Zimmer', d['zimmer']),
-          _readOnlyRow(Icons.access_time, 'Sprechzeiten', d['sprechzeiten']),
-          _readOnlyRow(Icons.note, 'Notizen', d['notizen']),
-        ] else ...[
-          _field(d, 'anrede', 'Anrede', Icons.person, hint: 'Frau / Herr'),
-          _field(d, 'name', 'Name', Icons.badge),
-          _field(d, 'telefon', 'Telefon (direkt)', Icons.phone),
-          _field(d, 'email', 'E-Mail', Icons.email),
-          _field(d, 'zimmer', 'Zimmer / Raum', Icons.room),
-          _field(d, 'sprechzeiten', 'Sprechzeiten', Icons.access_time),
-          _field(d, 'notizen', 'Notizen', Icons.note, maxLines: 3),
-          _saveBtn(),
-        ],
-      ]),
-    );
-  }
-
   Widget _infoRow(IconData icon, String text) {
     if (text.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -282,20 +220,6 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
         Icon(icon, size: 14, color: Colors.grey.shade600),
         const SizedBox(width: 6),
         Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
-      ]),
-    );
-  }
-
-  Widget _readOnlyRow(IconData icon, String label, dynamic value) {
-    final s = value?.toString() ?? '';
-    if (s.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
-        const SizedBox(width: 8),
-        SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }
@@ -322,88 +246,6 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
                 },
                 trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
               ));
-            })),
-    ]);
-  }
-
-  Widget _buildBewilligungTab() {
-    final list = _bewilligungen;
-    return Column(children: [
-      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.check_circle, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Bewilligungen (${list.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
-        ElevatedButton.icon(onPressed: () => _showBewilligungDialog(), icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
-      ])),
-      Expanded(child: list.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Bewilligungen', style: TextStyle(color: Colors.grey.shade500))]))
-          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: list.length, itemBuilder: (_, i) {
-              final b = list[i];
-              final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
-              final ausz = b['auszahlung']?.toString() ?? '';
-              final az = b['aktenzeichen']?.toString() ?? '';
-              final zeitraum = (b['zeitraum_von']?.toString() ?? '').isNotEmpty ? '${b['zeitraum_von']} – ${b['zeitraum_bis'] ?? ''}' : '';
-              return Card(child: ListTile(
-                leading: Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.green : Colors.red, size: 28),
-                title: Text(b['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${ok ? 'Bewilligt' : 'Abgelehnt'} • Bescheid: ${b['bescheid_datum'] ?? b['datum'] ?? ''}', style: TextStyle(fontSize: 11, color: ok ? Colors.green.shade700 : Colors.red.shade700)),
-                  if (az.isNotEmpty) Text('Az.: $az', style: TextStyle(fontSize: 10, color: Colors.indigo.shade600, fontWeight: FontWeight.w600)),
-                  if ((b['erhalten_am']?.toString() ?? '').isNotEmpty) Text('Erhalten per Post: ${b['erhalten_am']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                  if (zeitraum.isNotEmpty) Text('Zeitraum: $zeitraum', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                  if (ausz.isNotEmpty) Text('Auszahlung: $ausz €/Monat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-                  if (b['widerspruch'] == true || b['widerspruch'] == 'true' || b['widerspruch'] == 1 || b['widerspruch'] == '1') Text('Widerspruch eingelegt${(b['widerspruch_datum']?.toString() ?? '').isNotEmpty ? ' am ${b['widerspruch_datum']}' : ''}', style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
-                ]),
-                isThreeLine: true,
-                onTap: () => _showBewilligungDetailDialog(b),
-                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () async {
-                    final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-                      title: const Text('Bewilligung löschen?'),
-                      content: Text('${b['leistung'] ?? ''} vom ${b['bescheid_datum'] ?? ''} wirklich löschen?'),
-                      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Löschen'))],
-                    ));
-                    if (confirm == true) {
-                      final bid = int.tryParse(b['id']?.toString() ?? '');
-                      if (bid != null && widget.apiService != null) await widget.apiService!.deleteSozialamtBewilligung(bid);
-                      _loadFromDB();
-                    }
-                  }),
-                  Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                ]),
-              ));
-            })),
-    ]);
-  }
-
-  Widget _buildKorrespondenzTab() {
-    final list = _korrespondenz;
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${list.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero), onPressed: () => _showKorrDialog('eingang')),
-        const SizedBox(width: 6),
-        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)), style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero), onPressed: () => _showKorrDialog('ausgang')),
-      ])),
-      Expanded(child: list.isEmpty
-          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 6), Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
-          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: list.length, itemBuilder: (_, i) {
-              final k = list[i]; final isEin = k['richtung'] == 'eingang';
-              return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
-                child: Row(children: [
-                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
-                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                    if (k['id'] != null && widget.apiService != null) Padding(padding: const EdgeInsets.only(top: 4),
-                      child: KorrAttachmentsWidget(apiService: widget.apiService!, modul: 'sozialamt', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
-                  ])),
-                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
-                    final kid = int.tryParse(k['id']?.toString() ?? '');
-                    if (kid != null && widget.apiService != null) await widget.apiService!.deleteSozialamtKorrespondenz(kid);
-                    _loadFromDB();
-                  }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
-                ]),
-              );
             })),
     ]);
   }
@@ -446,166 +288,6 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     )));
   }
 
-  void _showBewilligungDialog({Map<String, dynamic>? existing}) {
-    final isEdit = existing != null;
-    String leistung = existing?['leistung']?.toString() ?? '';
-    final aktenzeichenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
-    final bescheidDatumC = TextEditingController(text: existing?['bescheid_datum']?.toString() ?? '');
-    final erhaltenAmC = TextEditingController(text: existing?['erhalten_am']?.toString() ?? '');
-    final zeitraumVonC = TextEditingController(text: existing?['zeitraum_von']?.toString() ?? '');
-    final zeitraumBisC = TextEditingController(text: existing?['zeitraum_bis']?.toString() ?? '');
-    final regelbedarfC = TextEditingController(text: existing?['regelbedarf']?.toString() ?? '');
-    final mehrbedarfC = TextEditingController(text: existing?['mehrbedarf']?.toString() ?? '');
-    final kaltmieteC = TextEditingController(text: existing?['kaltmiete']?.toString() ?? '');
-    final nebenkostenC = TextEditingController(text: existing?['nebenkosten']?.toString() ?? '');
-    final heizkostenC = TextEditingController(text: existing?['heizkosten']?.toString() ?? '');
-    final einkommenC = TextEditingController(text: existing?['einkommen']?.toString() ?? '');
-    final auszahlungC = TextEditingController(text: existing?['auszahlung']?.toString() ?? '');
-    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
-    bool bewilligt = existing?['bewilligt'] == true || existing?['bewilligt'] == 'true' || existing?['bewilligt'] == 1 || existing?['bewilligt'] == '1' || (existing == null);
-    bool widerspruch = existing?['widerspruch'] == true || existing?['widerspruch'] == 'true' || existing?['widerspruch'] == 1 || existing?['widerspruch'] == '1';
-    final widerspruchDatumC = TextEditingController(text: existing?['widerspruch_datum']?.toString() ?? '');
-    final leistungen = ['Grundsicherung im Alter', 'Grundsicherung bei Erwerbsminderung', 'Hilfe zum Lebensunterhalt', 'Eingliederungshilfe', 'Hilfe zur Pflege', 'Bildung und Teilhabe', 'Blindengeld', 'Sonstige'];
-
-    Future<void> pickDate(BuildContext ctx, TextEditingController c) async {
-      final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
-      if (p != null) c.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
-    }
-
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      title: Text(isEdit ? 'Bewilligungsbescheid bearbeiten' : 'Bewilligungsbescheid erfassen'),
-      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        DropdownButtonFormField<String>(initialValue: leistungen.contains(leistung) ? leistung : null, decoration: InputDecoration(labelText: 'Leistungsart *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), items: leistungen.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (v) => setD(() => leistung = v ?? '')),
-        const SizedBox(height: 8),
-        TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.numbers, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 8),
-        Row(children: [
-          ChoiceChip(avatar: Icon(Icons.check_circle, size: 14, color: bewilligt ? Colors.white : Colors.green), label: Text('Bewilligt', style: TextStyle(fontSize: 11, color: bewilligt ? Colors.white : Colors.black87)), selected: bewilligt, selectedColor: Colors.green, onSelected: (_) => setD(() => bewilligt = true)),
-          const SizedBox(width: 8),
-          ChoiceChip(avatar: Icon(Icons.cancel, size: 14, color: !bewilligt ? Colors.white : Colors.red), label: Text('Abgelehnt', style: TextStyle(fontSize: 11, color: !bewilligt ? Colors.white : Colors.black87)), selected: !bewilligt, selectedColor: Colors.red, onSelected: (_) => setD(() => bewilligt = false)),
-        ]),
-        const SizedBox(height: 8),
-        TextField(controller: bescheidDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Bescheid-Datum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, bescheidDatumC); setD(() {}); }),
-        const SizedBox(height: 8),
-        TextField(controller: erhaltenAmC, readOnly: true, decoration: InputDecoration(labelText: 'Erhalten per Post am', prefixIcon: const Icon(Icons.local_post_office, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), helperText: 'Wichtig für Widerspruchsfrist (1 Monat ab Zugang)'), onTap: () async { await pickDate(ctx2, erhaltenAmC); setD(() {}); }),
-        const SizedBox(height: 8),
-        Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        Row(children: [
-          Expanded(child: TextField(controller: zeitraumVonC, readOnly: true, decoration: InputDecoration(labelText: 'Von', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, zeitraumVonC); setD(() {}); })),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(controller: zeitraumBisC, readOnly: true, decoration: InputDecoration(labelText: 'Bis', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, zeitraumBisC); setD(() {}); })),
-        ]),
-        if (bewilligt) ...[
-          const SizedBox(height: 12),
-          Text('Berechnungsbogen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          Row(children: [
-            Expanded(child: TextField(controller: regelbedarfC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Regelbedarf €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: mehrbedarfC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Mehrbedarf €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          ]),
-          const SizedBox(height: 8),
-          Text('Kosten der Unterkunft (KdU)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-          const SizedBox(height: 4),
-          Row(children: [
-            Expanded(child: TextField(controller: kaltmieteC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Kaltmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            const SizedBox(width: 6),
-            Expanded(child: TextField(controller: nebenkostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Nebenkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            const SizedBox(width: 6),
-            Expanded(child: TextField(controller: heizkostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Heizkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: TextField(controller: einkommenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Anrechenb. Einkommen €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: auszahlungC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Auszahlung €/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-          ]),
-        ],
-        const SizedBox(height: 8),
-        Row(children: [
-          Checkbox(value: widerspruch, onChanged: (v) => setD(() => widerspruch = v ?? false)),
-          const Text('Widerspruch eingelegt', style: TextStyle(fontSize: 12)),
-        ]),
-        if (widerspruch)
-          TextField(controller: widerspruchDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Widerspruch am', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, widerspruchDatumC); setD(() {}); }),
-        const SizedBox(height: 8),
-        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      ]))),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async {
-          if (leistung.isEmpty || bescheidDatumC.text.isEmpty) {
-            ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(content: Text('Bitte Leistungsart und Bescheid-Datum ausfüllen'), backgroundColor: Colors.red));
-            return;
-          }
-          if (widget.apiService != null && widget.userId != null) {
-            final res = await widget.apiService!.saveSozialamtBewilligung(widget.userId!, {
-              if (isEdit) 'id': existing['id'],
-              'leistung': leistung, 'aktenzeichen': aktenzeichenC.text.trim(), 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text, 'erhalten_am': erhaltenAmC.text,
-              'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
-              'regelbedarf': double.tryParse(regelbedarfC.text), 'mehrbedarf': double.tryParse(mehrbedarfC.text),
-              'kaltmiete': double.tryParse(kaltmieteC.text), 'nebenkosten': double.tryParse(nebenkostenC.text), 'heizkosten': double.tryParse(heizkostenC.text),
-              'einkommen': double.tryParse(einkommenC.text), 'auszahlung': double.tryParse(auszahlungC.text),
-              'widerspruch': widerspruch, 'widerspruch_datum': widerspruchDatumC.text, 'notiz': notizC.text,
-            });
-            if (res['success'] != true) {
-              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Speichern fehlgeschlagen'}'), backgroundColor: Colors.red));
-              return;
-            }
-          } else {
-            if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Fehler: API nicht verfügbar'), backgroundColor: Colors.red));
-            return;
-          }
-          if (ctx.mounted) Navigator.pop(ctx);
-          _loadFromDB();
-        }, child: Text(isEdit ? 'Speichern' : 'Hinzufügen')),
-      ],
-    )));
-  }
-
-  void _showBewilligungDetailDialog(Map<String, dynamic> bewilligung) {
-    final bid = int.tryParse(bewilligung['id']?.toString() ?? '');
-    if (bid == null || widget.apiService == null) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 600, height: 580, child: _BewilligungDetailView(
-          apiService: widget.apiService!,
-          bewilligungId: bid,
-          bewilligung: bewilligung,
-          onEdit: () { Navigator.pop(ctx); _showBewilligungDialog(existing: bewilligung); },
-          onChanged: () => _loadFromDB(),
-        )),
-      ),
-    );
-  }
-
-  void _showKorrDialog(String richtung) {
-    final betreffC = TextEditingController(); final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}'); final notizC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
-      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
-        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
-        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
-      ])),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async {
-          if (widget.apiService != null && widget.userId != null) {
-            await widget.apiService!.saveSozialamtKorrespondenz(widget.userId!, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
-          }
-          if (ctx.mounted) Navigator.pop(ctx);
-          _loadFromDB();
-        }, child: const Text('Speichern')),
-      ],
-    ));
-  }
-
   // ============ ANTRAG DETAIL MODAL ============
   void _showAntragDetailDialog(int antragId, Map<String, dynamic> antrag) {
     showDialog(
@@ -613,7 +295,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, antragId: antragId, antrag: antrag, checkedDocs: _checkedDocsGlobal, onCheckedChanged: (docs) { _checkedDocsGlobal = docs; _dbData['checked_docs'] = {'list': docs.toList()}; _save(); })),
+        child: SizedBox(width: 580, height: 560, child: _AntragDetailView(apiService: widget.apiService!, userId: widget.userId ?? 0, antragId: antragId, antrag: antrag, checkedDocs: _checkedDocsGlobal, onCheckedChanged: (docs) { _checkedDocsGlobal = docs; _dbData['checked_docs'] = {'list': docs.toList()}; _save(); })),
       ),
     );
   }
@@ -624,22 +306,6 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     {'name': 'Stadt Ulm — Soziales', 'adresse': 'Zeitblomstraße 28', 'plz_ort': '89073 Ulm', 'telefon': '0731 161-5101', 'oeffnungszeiten': 'Mo–Fr 08:00–12:00, Di+Do 14:00–16:00', 'zustaendigkeit': 'Sozialhilfe, Grundsicherung, Wohngeld, BuT'},
   ];
 
-  Widget _field(Map<String, dynamic> map, String key, String label, IconData icon, {String hint = '', int maxLines = 1}) {
-    return Padding(padding: const EdgeInsets.only(bottom: 10), child: TextField(
-      controller: TextEditingController(text: map[key]?.toString() ?? ''), maxLines: maxLines, onChanged: (v) => map[key] = v,
-      decoration: InputDecoration(labelText: label, hintText: hint, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-      style: const TextStyle(fontSize: 13),
-    ));
-  }
-
-  Widget _saveBtn() {
-    return Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-      onPressed: _saving ? null : _save,
-      icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
-      label: const Text('Speichern'),
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-    ));
-  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -647,11 +313,12 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
 // ═══════════════════════════════════════════════════════
 class _AntragDetailView extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final int antragId;
   final Map<String, dynamic> antrag;
   final Set<String> checkedDocs;
   final ValueChanged<Set<String>> onCheckedChanged;
-  const _AntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.checkedDocs, required this.onCheckedChanged});
+  const _AntragDetailView({required this.apiService, required this.userId, required this.antragId, required this.antrag, required this.checkedDocs, required this.onCheckedChanged});
   @override
   State<_AntragDetailView> createState() => _AntragDetailViewState();
 }
@@ -739,7 +406,7 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
   @override
   Widget build(BuildContext context) {
     final a = widget.antrag;
-    return DefaultTabController(length: 4, child: Column(children: [
+    return DefaultTabController(length: 5, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -756,12 +423,14 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
+        Tab(icon: Icon(Icons.verified, size: 18), text: 'Bewilligung'),
         Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(a),
         _buildDokumente(a),
         _buildVerlauf(),
+        _AntragBewilligungTab(apiService: widget.apiService, userId: widget.userId, antragId: widget.antragId),
         _buildKorr(),
       ])),
     ]));
@@ -972,71 +641,220 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
 }
 
 // ═══════════════════════════════════════════════════════
-// BEWILLIGUNG DETAIL (Details / Unterlagen / Korrespondenz)
+// BEWILLIGUNG als Tab im Antrag (1:1) — Bescheid / Widerspruch / Unterlagen
 // ═══════════════════════════════════════════════════════
-class _BewilligungDetailView extends StatefulWidget {
+class _AntragBewilligungTab extends StatefulWidget {
   final ApiService apiService;
-  final int bewilligungId;
-  final Map<String, dynamic> bewilligung;
-  final VoidCallback onEdit;
-  final VoidCallback onChanged;
-  const _BewilligungDetailView({required this.apiService, required this.bewilligungId, required this.bewilligung, required this.onEdit, required this.onChanged});
+  final int userId;
+  final int antragId;
+  const _AntragBewilligungTab({required this.apiService, required this.userId, required this.antragId});
   @override
-  State<_BewilligungDetailView> createState() => _BewilligungDetailViewState();
+  State<_AntragBewilligungTab> createState() => _AntragBewilligungTabState();
 }
 
-class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
+class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
+  Map<String, dynamic>? _b;
   List<Map<String, dynamic>> _docs = [];
-  List<Map<String, dynamic>> _korr = [];
   bool _loaded = false;
 
   @override
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    final dR = await widget.apiService.listBewilligungDocs(widget.bewilligungId);
-    final kR = await widget.apiService.listBewilligungKorr(widget.bewilligungId);
+    final r = await widget.apiService.listSozialamtBewilligungByAntrag(widget.antragId);
+    Map<String, dynamic>? b;
+    if (r['success'] == true && r['data'] is List && (r['data'] as List).isNotEmpty) {
+      b = Map<String, dynamic>.from((r['data'] as List).first as Map);
+    }
+    List<Map<String, dynamic>> docs = [];
+    if (b != null) {
+      final bid = int.tryParse(b['id']?.toString() ?? '');
+      if (bid != null) {
+        final dR = await widget.apiService.listBewilligungDocs(bid);
+        if (dR['success'] == true && dR['data'] is List) {
+          docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      }
+    }
     if (!mounted) return;
-    setState(() {
-      if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      _loaded = true;
-    });
+    setState(() { _b = b; _docs = docs; _loaded = true; });
   }
 
   @override
   Widget build(BuildContext context) {
-    final b = widget.bewilligung;
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    if (_b == null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.assignment_turned_in_outlined, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 8),
+          Text('Noch kein Bescheid erfasst', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Text('Bewilligungs- oder Ablehnungsbescheid zu diesem Antrag erfassen.', style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(onPressed: () => _showForm(), icon: const Icon(Icons.add, size: 18), label: const Text('Bescheid erfassen'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
+        ]),
+      ));
+    }
+    final b = _b!;
     final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
-    return DefaultTabController(length: 4, child: Column(children: [
+    final headColor = ok ? Colors.green : Colors.red;
+    return DefaultTabController(length: 3, child: Column(children: [
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(color: ok ? Colors.green.shade700 : Colors.red.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+        color: headColor.shade50,
         child: Row(children: [
-          Icon(ok ? Icons.check_circle : Icons.cancel, color: Colors.white, size: 22), const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(b['leistung']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-            Text('${ok ? 'Bewilligt' : 'Abgelehnt'} • ${b['bescheid_datum'] ?? ''}${(b['aktenzeichen']?.toString() ?? '').isNotEmpty ? ' • Az. ${b['aktenzeichen']}' : ''}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-          ])),
-          IconButton(icon: const Icon(Icons.edit, color: Colors.white, size: 20), tooltip: 'Bearbeiten', onPressed: widget.onEdit),
-          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+          Icon(ok ? Icons.check_circle : Icons.cancel, size: 18, color: headColor.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('${ok ? 'Bewilligt' : 'Abgelehnt'}${(b['bescheid_datum']?.toString() ?? '').isNotEmpty ? ' • ${b['bescheid_datum']}' : ''}${(b['aktenzeichen']?.toString() ?? '').isNotEmpty ? ' • Az. ${b['aktenzeichen']}' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: headColor.shade800))),
+          IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade700), tooltip: 'Bearbeiten', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _showForm(existing: b)),
+          IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: _delete),
         ]),
       ),
-      TabBar(labelColor: Colors.green.shade700, indicatorColor: Colors.green.shade700, isScrollable: true, tabs: const [
-        Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
-        Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
-        Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+      TabBar(labelColor: Colors.green.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.green.shade700, isScrollable: true, tabs: const [
+        Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Bescheid'),
         Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
+        Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
       ]),
-      Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
+      Expanded(child: TabBarView(children: [
         _buildDetails(b),
-        _buildUnterlagen(),
-        _buildKorrespondenz(),
         _buildWiderspruch(b),
+        _buildUnterlagen(),
       ])),
     ]));
   }
 
+  Future<void> _delete() async {
+    final b = _b; if (b == null) return;
+    final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Bescheid löschen?'),
+      content: const Text('Diesen Bescheid inkl. Unterlagen wirklich löschen?'),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')), FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Löschen'))],
+    ));
+    if (confirm == true) {
+      final bid = int.tryParse(b['id']?.toString() ?? '');
+      if (bid != null) await widget.apiService.deleteSozialamtBewilligung(bid);
+      _load();
+    }
+  }
+
+  void _showForm({Map<String, dynamic>? existing}) {
+    final isEdit = existing != null;
+    String leistung = existing?['leistung']?.toString() ?? '';
+    final aktenzeichenC = TextEditingController(text: existing?['aktenzeichen']?.toString() ?? '');
+    final bescheidDatumC = TextEditingController(text: existing?['bescheid_datum']?.toString() ?? '');
+    final erhaltenAmC = TextEditingController(text: existing?['erhalten_am']?.toString() ?? '');
+    final zeitraumVonC = TextEditingController(text: existing?['zeitraum_von']?.toString() ?? '');
+    final zeitraumBisC = TextEditingController(text: existing?['zeitraum_bis']?.toString() ?? '');
+    final regelbedarfC = TextEditingController(text: existing?['regelbedarf']?.toString() ?? '');
+    final mehrbedarfC = TextEditingController(text: existing?['mehrbedarf']?.toString() ?? '');
+    final kaltmieteC = TextEditingController(text: existing?['kaltmiete']?.toString() ?? '');
+    final nebenkostenC = TextEditingController(text: existing?['nebenkosten']?.toString() ?? '');
+    final heizkostenC = TextEditingController(text: existing?['heizkosten']?.toString() ?? '');
+    final einkommenC = TextEditingController(text: existing?['einkommen']?.toString() ?? '');
+    final auszahlungC = TextEditingController(text: existing?['auszahlung']?.toString() ?? '');
+    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+    bool bewilligt = existing?['bewilligt'] == true || existing?['bewilligt'] == 'true' || existing?['bewilligt'] == 1 || existing?['bewilligt'] == '1' || (existing == null);
+    bool widerspruch = existing?['widerspruch'] == true || existing?['widerspruch'] == 'true' || existing?['widerspruch'] == 1 || existing?['widerspruch'] == '1';
+    final widerspruchDatumC = TextEditingController(text: existing?['widerspruch_datum']?.toString() ?? '');
+    final leistungen = ['Grundsicherung im Alter', 'Grundsicherung bei Erwerbsminderung', 'Hilfe zum Lebensunterhalt', 'Eingliederungshilfe', 'Hilfe zur Pflege', 'Bildung und Teilhabe', 'Blindengeld', 'Sonstige'];
+
+    Future<void> pickDate(BuildContext ctx, TextEditingController c) async {
+      final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+      if (p != null) c.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
+    }
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Text(isEdit ? 'Bescheid bearbeiten' : 'Bescheid erfassen'),
+      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        DropdownButtonFormField<String>(initialValue: leistungen.contains(leistung) ? leistung : null, decoration: InputDecoration(labelText: 'Leistungsart *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), items: leistungen.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (v) => setD(() => leistung = v ?? '')),
+        const SizedBox(height: 8),
+        TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.numbers, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 8),
+        Row(children: [
+          ChoiceChip(avatar: Icon(Icons.check_circle, size: 14, color: bewilligt ? Colors.white : Colors.green), label: Text('Bewilligt', style: TextStyle(fontSize: 11, color: bewilligt ? Colors.white : Colors.black87)), selected: bewilligt, selectedColor: Colors.green, onSelected: (_) => setD(() => bewilligt = true)),
+          const SizedBox(width: 8),
+          ChoiceChip(avatar: Icon(Icons.cancel, size: 14, color: !bewilligt ? Colors.white : Colors.red), label: Text('Abgelehnt', style: TextStyle(fontSize: 11, color: !bewilligt ? Colors.white : Colors.black87)), selected: !bewilligt, selectedColor: Colors.red, onSelected: (_) => setD(() => bewilligt = false)),
+        ]),
+        const SizedBox(height: 8),
+        TextField(controller: bescheidDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Bescheid-Datum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, bescheidDatumC); setD(() {}); }),
+        const SizedBox(height: 8),
+        TextField(controller: erhaltenAmC, readOnly: true, decoration: InputDecoration(labelText: 'Erhalten per Post am', prefixIcon: const Icon(Icons.local_post_office, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), helperText: 'Wichtig für Widerspruchsfrist (1 Monat ab Zugang)'), onTap: () async { await pickDate(ctx2, erhaltenAmC); setD(() {}); }),
+        const SizedBox(height: 8),
+        Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Row(children: [
+          Expanded(child: TextField(controller: zeitraumVonC, readOnly: true, decoration: InputDecoration(labelText: 'Von', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, zeitraumVonC); setD(() {}); })),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: zeitraumBisC, readOnly: true, decoration: InputDecoration(labelText: 'Bis', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, zeitraumBisC); setD(() {}); })),
+        ]),
+        if (bewilligt) ...[
+          const SizedBox(height: 12),
+          Text('Berechnungsbogen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Row(children: [
+            Expanded(child: TextField(controller: regelbedarfC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Regelbedarf €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: mehrbedarfC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Mehrbedarf €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          ]),
+          const SizedBox(height: 8),
+          Text('Kosten der Unterkunft (KdU)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Row(children: [
+            Expanded(child: TextField(controller: kaltmieteC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Kaltmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 6),
+            Expanded(child: TextField(controller: nebenkostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Nebenkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 6),
+            Expanded(child: TextField(controller: heizkostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Heizkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: TextField(controller: einkommenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Anrechenb. Einkommen €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: auszahlungC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Auszahlung €/Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+          ]),
+        ],
+        const SizedBox(height: 8),
+        Row(children: [
+          Checkbox(value: widerspruch, onChanged: (v) => setD(() => widerspruch = v ?? false)),
+          const Text('Widerspruch eingelegt', style: TextStyle(fontSize: 12)),
+        ]),
+        if (widerspruch)
+          TextField(controller: widerspruchDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Widerspruch am', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, widerspruchDatumC); setD(() {}); }),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          if (leistung.isEmpty || bescheidDatumC.text.isEmpty) {
+            ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(content: Text('Bitte Leistungsart und Bescheid-Datum ausfüllen'), backgroundColor: Colors.red));
+            return;
+          }
+          final res = await widget.apiService.saveSozialamtBewilligung(widget.userId, {
+            if (isEdit) 'id': existing['id'],
+            'antrag_id': widget.antragId,
+            'leistung': leistung, 'aktenzeichen': aktenzeichenC.text.trim(), 'bewilligt': bewilligt, 'bescheid_datum': bescheidDatumC.text, 'erhalten_am': erhaltenAmC.text,
+            'zeitraum_von': zeitraumVonC.text, 'zeitraum_bis': zeitraumBisC.text,
+            'regelbedarf': double.tryParse(regelbedarfC.text), 'mehrbedarf': double.tryParse(mehrbedarfC.text),
+            'kaltmiete': double.tryParse(kaltmieteC.text), 'nebenkosten': double.tryParse(nebenkostenC.text), 'heizkosten': double.tryParse(heizkostenC.text),
+            'einkommen': double.tryParse(einkommenC.text), 'auszahlung': double.tryParse(auszahlungC.text),
+            'widerspruch': widerspruch, 'widerspruch_datum': widerspruchDatumC.text, 'notiz': notizC.text,
+          });
+          if (res['success'] != true) {
+            if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Speichern fehlgeschlagen'}'), backgroundColor: Colors.red));
+            return;
+          }
+          if (ctx.mounted) Navigator.pop(ctx);
+          _load();
+        }, child: Text(isEdit ? 'Speichern' : 'Hinzufügen')),
+      ],
+    )));
+  }
+
+  // ============ BESCHEID DETAILS ============
   Widget _buildDetails(Map<String, dynamic> b) {
     final ok = b['bewilligt'] == true || b['bewilligt'] == 'true' || b['bewilligt'] == 1 || b['bewilligt'] == '1';
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1111,6 +929,7 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
     ]));
   }
 
+  // ============ UNTERLAGEN ============
   Widget _buildUnterlagen() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
@@ -1175,83 +994,21 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
   }
 
   Future<void> _uploadDoc() async {
+    final bid = int.tryParse(_b?['id']?.toString() ?? '');
+    if (bid == null) return;
     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) werden hochgeladen...'), duration: const Duration(seconds: 2)));
     for (final file in files) {
-      await widget.apiService.uploadBewilligungDoc(bewilligungId: widget.bewilligungId, filePath: file.path!, fileName: file.name);
+      await widget.apiService.uploadBewilligungDoc(bewilligungId: bid, filePath: file.path!, fileName: file.name);
     }
     _load();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) hochgeladen'), backgroundColor: Colors.green));
   }
 
-  Widget _buildKorrespondenz() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
-          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addKorr('eingang')),
-        const SizedBox(width: 6),
-        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
-          style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
-          onPressed: () => _addKorr('ausgang')),
-      ])),
-      Expanded(child: _korr.isEmpty
-          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 6),
-              Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-            ]))
-          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
-              final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
-              return Container(
-                margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
-                child: Row(children: [
-                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
-                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                    if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-                    if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
-                      child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'bewilligung', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
-                  ])),
-                  IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
-                    final kid = int.tryParse(k['id']?.toString() ?? '');
-                    if (kid != null) await widget.apiService.deleteBewilligungKorr(kid);
-                    _load();
-                  }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
-                ]),
-              );
-            })),
-    ]);
-  }
-
-  void _addKorr(String richtung) {
-    final betreffC = TextEditingController();
-    final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
-    final notizC = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang'),
-      content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
-        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
-        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
-      ])),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async {
-          await widget.apiService.saveBewilligungKorr(widget.bewilligungId, {'richtung': richtung, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
-          if (ctx.mounted) Navigator.pop(ctx);
-          _load();
-        }, child: const Text('Speichern')),
-      ],
-    ));
-  }
-
-  // ============ WIDERSPRUCH TAB ============
+  // ============ WIDERSPRUCH ============
 
   DateTime? _parseDate(dynamic v) {
     final s = v?.toString() ?? '';
@@ -1419,18 +1176,14 @@ class _BewilligungDetailViewState extends State<_BewilligungDetailView> {
           icon: const Icon(Icons.gavel),
           label: const Text('Widerspruch einlegen'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
-          onPressed: () {
-            widget.onEdit();
-          },
+          onPressed: () => _showForm(existing: b),
         ))
       else if (!hasWiderspruch && fristAbgelaufen && !fristJahrAbgelaufen)
         SizedBox(width: double.infinity, child: OutlinedButton.icon(
           icon: const Icon(Icons.gavel, color: Colors.orange),
           label: const Text('Trotzdem Widerspruch einlegen (§ 66 SGG prüfen)'),
           style: OutlinedButton.styleFrom(foregroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 14)),
-          onPressed: () {
-            widget.onEdit();
-          },
+          onPressed: () => _showForm(existing: b),
         )),
     ]));
   }
