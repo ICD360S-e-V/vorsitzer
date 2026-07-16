@@ -84,8 +84,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   bool _totpConfigured = false;
 
   static const _tabs = [
-    (Icons.account_balance, 'BAA'),
+    (Icons.account_balance, 'Zuständige Arbeitsagentur'),
     (Icons.person_pin, 'Vermittler'),
+    (Icons.badge, 'Stammdaten'),
     (Icons.person_off, 'Meldung'),
     (Icons.assignment, 'Anträge'),
     (Icons.description, 'Bescheid'),
@@ -236,8 +237,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
       TabBar(controller: _tabCtrl, isScrollable: true, labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), unselectedLabelStyle: const TextStyle(fontSize: 11),
         labelColor: const Color(0xFF003F7D), unselectedLabelColor: Colors.grey.shade500, indicatorColor: const Color(0xFF003F7D), tabAlignment: TabAlignment.start,
         tabs: [
-          _cTab(Icons.account_balance, 'BAA', (_dbData['name']?.toString() ?? '').isNotEmpty),
+          _cTab(Icons.account_balance, 'Zuständige Arbeitsagentur', (_dbData['dienststelle']?.toString() ?? '').isNotEmpty),
           _cTab(Icons.person_pin, 'Vermittler', (_dbData['vermittler_name']?.toString() ?? '').isNotEmpty),
+          _cTab(Icons.badge, 'Stammdaten', (_dbData['kundennummer']?.toString() ?? '').isNotEmpty),
           _cTab(Icons.person_off, 'Meldung', _dbMeldungen.isNotEmpty),
           _cTab(Icons.assignment, 'Anträge', _dbAntraege.isNotEmpty),
           _cTab(Icons.description, 'Bescheid', (_dbData['bescheid_typ']?.toString() ?? '').isNotEmpty),
@@ -252,8 +254,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           _cTab(Icons.assignment_ind, 'Vollmacht', false),
         ]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [
-        _buildBAATab(),
+        _buildZustaendigeAgenturTab(),
         _buildVermittlerTab(),
+        _buildStammdatenTab(),
         _buildMeldungTab(),
         _buildAntraegeTab(),
         _buildBescheidTab(),
@@ -270,17 +273,194 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     ]);
   }
 
-  // ──── TAB: Zuständige BAA ────
-  Widget _buildBAATab() {
-    final dienststelleC = TextEditingController(text: _v('dienststelle'));
+  // ──── TAB: Zuständige Arbeitsagentur (eigene Datenbank arbeitsagenturen_datenbank) ────
+  static const _aaBrand = Color(0xFF003F7D);
+
+  Widget _buildZustaendigeAgenturTab() {
+    final name = _dbData['dienststelle']?.toString() ?? '';
+    final strasse = _dbData['agentur_strasse']?.toString() ?? '';
+    final plzOrt = _dbData['agentur_plz_ort']?.toString() ?? '';
+    final telefon = _dbData['agentur_telefon']?.toString() ?? '';
+    final website = _dbData['agentur_website']?.toString() ?? '';
+    final aan = _dbData['arbeitsamtsnummer']?.toString() ?? '';
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.account_balance, size: 16, color: _aaBrand),
+        const SizedBox(width: 6),
+        const Text('Zuständige Agentur für Arbeit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _aaBrand)),
+      ]),
+      const SizedBox(height: 12),
+      if (name.isEmpty)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+          child: Column(children: [
+            Icon(Icons.account_balance_outlined, size: 40, color: Colors.grey.shade400),
+            const SizedBox(height: 8),
+            Text('Keine Arbeitsagentur ausgewählt', style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(onPressed: _pickArbeitsagentur, icon: const Icon(Icons.search, size: 18), label: const Text('Arbeitsagentur auswählen'),
+              style: ElevatedButton.styleFrom(backgroundColor: _aaBrand, foregroundColor: Colors.white)),
+          ]),
+        )
+      else
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [_aaBrand.withValues(alpha: 0.05), _aaBrand.withValues(alpha: 0.12)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(12), border: Border.all(color: _aaBrand.withValues(alpha: 0.3))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(width: 42, height: 42, decoration: BoxDecoration(color: _aaBrand, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.account_balance, color: Colors.white, size: 24)),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _aaBrand)),
+                Text('Agentur für Arbeit', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+              ])),
+              TextButton.icon(onPressed: _pickArbeitsagentur, icon: const Icon(Icons.edit, size: 16), label: const Text('Ändern')),
+            ]),
+            if (aan.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: _aaBrand.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                child: Text('Arbeitsamt-Nr: $aan', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _aaBrand))),
+            ],
+            if (strasse.isNotEmpty || plzOrt.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _infoRow(Icons.location_on, [strasse, plzOrt].where((s) => s.isNotEmpty).join(', ')),
+            ],
+            if (telefon.isNotEmpty) _infoRow(Icons.phone, telefon),
+            if (website.isNotEmpty) _infoRow(Icons.language, website),
+          ]),
+        ),
+    ]));
+  }
+
+  Widget _infoRow(IconData icon, String text) => Padding(padding: const EdgeInsets.only(top: 6), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Icon(icon, size: 15, color: Colors.grey.shade600), const SizedBox(width: 6),
+    Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+  ]));
+
+  Future<void> _selectAgentur(Map<String, dynamic> a) async {
+    await _saveTab({
+      'dienststelle': a['name']?.toString() ?? '',
+      'agentur_db_id': a['id']?.toString() ?? '',
+      'agentur_strasse': a['strasse']?.toString() ?? '',
+      'agentur_plz_ort': a['plz_ort']?.toString() ?? '',
+      'agentur_telefon': a['telefon']?.toString() ?? '',
+      'agentur_email': a['email']?.toString() ?? '',
+      'agentur_website': a['website']?.toString() ?? '',
+      'arbeitsamtsnummer': a['arbeitsamtsnummer']?.toString() ?? '',
+    });
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _pickArbeitsagentur() async {
+    final searchC = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool loading = true;
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+      Future<void> doSearch() async {
+        setD(() => loading = true);
+        final r = await widget.apiService.searchArbeitsagenturen(search: searchC.text.trim());
+        final list = (r['arbeitsagenturen'] as List?) ?? (r['data'] as List?) ?? [];
+        if (!ctx2.mounted) return;
+        setD(() { results = list.map((e) => Map<String, dynamic>.from(e as Map)).toList(); loading = false; });
+      }
+      if (loading && results.isEmpty) Future.microtask(doSearch);
+      return AlertDialog(
+        title: Row(children: [
+          const Expanded(child: Text('Arbeitsagentur auswählen', style: TextStyle(fontSize: 16))),
+          TextButton.icon(onPressed: () => _showNewAgenturForm(ctx, onCreated: (a) { Navigator.pop(ctx); _selectAgentur(a); }),
+            icon: const Icon(Icons.add, size: 18), label: const Text('Neu')),
+        ]),
+        content: SizedBox(width: 480, height: 440, child: Column(children: [
+          TextField(controller: searchC, autofocus: true, onSubmitted: (_) => doSearch(),
+            decoration: InputDecoration(hintText: 'Suche (Name, Ort, PLZ, Arbeitsamt-Nr)...', isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: doSearch))),
+          const SizedBox(height: 8),
+          Expanded(child: loading
+            ? const Center(child: CircularProgressIndicator())
+            : results.isEmpty
+              ? const Center(child: Text('Keine Arbeitsagenturen gefunden'))
+              : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                  final a = results[i];
+                  final aan = a['arbeitsamtsnummer']?.toString() ?? '';
+                  return Card(child: ListTile(
+                    leading: const Icon(Icons.account_balance, color: _aaBrand),
+                    title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    subtitle: Text('${a['strasse'] ?? ''}\n${a['plz_ort'] ?? ''}${aan.isNotEmpty ? '\nArbeitsamt-Nr: $aan' : ''}', style: const TextStyle(fontSize: 11)),
+                    isThreeLine: true,
+                    onTap: () { Navigator.pop(ctx); _selectAgentur(a); },
+                  ));
+                })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      );
+    }));
+  }
+
+  Future<void> _showNewAgenturForm(BuildContext parentCtx, {required void Function(Map<String, dynamic>) onCreated}) async {
+    final nameC = TextEditingController();
+    final aanC = TextEditingController();
+    final strasseC = TextEditingController();
+    final plzOrtC = TextEditingController();
+    final telC = TextEditingController();
+    final websiteC = TextEditingController();
+    bool saving = false;
+    Widget f(String label, TextEditingController c, String hint, {IconData icon = Icons.edit}) =>
+      Padding(padding: const EdgeInsets.only(bottom: 10), child: _textField(label, c, hint: hint, icon: icon));
+    await showDialog(context: parentCtx, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      title: const Text('Neue Arbeitsagentur anlegen', style: TextStyle(fontSize: 16)),
+      content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        f('Name *', nameC, 'z.B. Agentur für Arbeit Ulm', icon: Icons.account_balance),
+        f('Arbeitsamtsnummer', aanC, 'z.B. 123A (3 Ziffern + Buchstabe)', icon: Icons.badge),
+        f('Straße', strasseC, '', icon: Icons.location_on),
+        f('PLZ / Ort', plzOrtC, '89073 Ulm', icon: Icons.markunread_mailbox),
+        f('Telefon', telC, '', icon: Icons.phone),
+        f('Website', websiteC, 'https://www.arbeitsagentur.de/...', icon: Icons.language),
+      ]))),
+      actions: [
+        TextButton(onPressed: saving ? null : () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(
+          onPressed: saving ? null : () async {
+            if (nameC.text.trim().isEmpty) return;
+            setD(() => saving = true);
+            final r = await widget.apiService.createArbeitsagentur({
+              'name': nameC.text.trim(),
+              'arbeitsamtsnummer': aanC.text.trim(),
+              'strasse': strasseC.text.trim(),
+              'plz_ort': plzOrtC.text.trim(),
+              'telefon': telC.text.trim(),
+              'website': websiteC.text.trim(),
+            });
+            if (!ctx2.mounted) return;
+            setD(() => saving = false);
+            if (r['success'] == true && r['arbeitsagentur'] != null) {
+              Navigator.pop(ctx);
+              onCreated(Map<String, dynamic>.from(r['arbeitsagentur'] as Map));
+            } else {
+              ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(content: Text(r['message']?.toString() ?? 'Fehler beim Anlegen')));
+            }
+          },
+          child: saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Anlegen'),
+        ),
+      ],
+    )));
+  }
+
+  // ──── TAB: Stammdaten (Kundennummer) ────
+  Widget _buildStammdatenTab() {
     final kundennummerC = TextEditingController(text: _v('kundennummer'));
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      widget.dienststelleBuilder(type, dienststelleC),
-      const SizedBox(height: 16),
       _sectionHeader(Icons.badge, 'Stammdaten', Colors.indigo),
       const SizedBox(height: 8),
       _textField('Kundennummer', kundennummerC, hint: 'z.B. 123A456789 (10-stellig)', icon: Icons.badge),
-      _saveBtn(() => _saveTab({'dienststelle': dienststelleC.text.trim(), 'kundennummer': kundennummerC.text.trim()})),
+      Padding(padding: const EdgeInsets.only(top: 6), child: Text(
+        'Format: 10-stellig — Arbeitsamtsnummer (3 Ziffern + 1 Buchstabe) + 6 Ziffern Ordnungsnummer, z.B. 123A456789.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+      _saveBtn(() => _saveTab({'kundennummer': kundennummerC.text.trim()})),
     ]));
   }
 
@@ -3361,7 +3541,7 @@ class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbe
         const SizedBox(height: 8),
         if (showAddBtn) ...[
           if (widget.arbeitsagenturName.isEmpty)
-            Text('Erst Zuständige Dienststelle setzen (Tab BAA)', style: TextStyle(fontSize: 11, color: Colors.orange.shade700))
+            Text('Erst Zuständige Arbeitsagentur setzen (Tab Zuständige Arbeitsagentur)', style: TextStyle(fontSize: 11, color: Colors.orange.shade700))
           else
             TextButton.icon(onPressed: _openAddDialog, icon: const Icon(Icons.add, size: 14), label: const Text('Hinzufügen', style: TextStyle(fontSize: 12))),
         ],

@@ -6428,6 +6428,17 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  /// Shared Arbeitsagenturen-Datenbank (zuständige Agenturen für Arbeit): suchen / anlegen.
+  Future<Map<String, dynamic>> searchArbeitsagenturen({String search = ''}) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagenturen_datenbank_manage.php'), headers: _headers, body: jsonEncode({'action': 'search', 'search': search})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> createArbeitsagentur(Map<String, dynamic> data) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagenturen_datenbank_manage.php'), headers: _headers, body: jsonEncode({'action': 'add', ...data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
   // ── Arbeitsagentur 2FA (TOTP) ─────────────────────────────────────
   Future<Map<String, dynamic>> saveArbeitsagenturTotp(int userId, String secret, {int digits = 6, int period = 30, String algorithm = 'SHA1', String label = 'arbeitsagentur.de'}) async {
     final response = await _client.post(
