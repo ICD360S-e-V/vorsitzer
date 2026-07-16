@@ -509,12 +509,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 ),
                 BehordeFamilienkasseContent(
                   apiService: widget.apiService,
-                  getData: (t) => _behoerdeData[t] ?? {},
-                  isLoading: (t) => _behoerdeLoading[t] == true,
-                  isSaving: (t) => _behoerdeSaving[t] == true,
-                  loadData: (t) => _loadBehoerdeData(t),
-                  saveData: (t, d) => _saveBehoerdeData(t, d),
-                  dienststelleBuilder: (t, c) => _buildDienststelleField(t, c),
+                  userId: widget.user.id,
                 ),
                 BehordeJugendamtContent(
                   apiService: widget.apiService,

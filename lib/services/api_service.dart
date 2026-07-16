@@ -4746,6 +4746,99 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== FAMILIENKASSE (dedicated DB tables, antrag-zentrisch) ==========
+
+  /// Shared Familienkassen-Datenbank (BA-Regional/öD/Ausland): suchen / anlegen.
+  Future<Map<String, dynamic>> searchFamilienkassen({String search = '', String bundesland = ''}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_manage.php'), headers: _headers, body: jsonEncode({'action': 'search', 'search': search, 'bundesland': bundesland})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  /// Per-user Familienkasse Stammdaten (ausgewählte Kasse, Kindergeld-Nr, Sachbearbeiter, Notizen).
+  Future<Map<String, dynamic>> getFamilienkasseData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/familienkasse_data_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveFamilienkasseData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Anträge
+  Future<Map<String, dynamic>> listFamilienkasseAntraege(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/familienkasse_antraege_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveFamilienkasseAntrag(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antraege_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteFamilienkasseAntrag(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antraege_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Antrag → Unterlagen (verschlüsselte BLOB-Dokumente)
+  Future<Map<String, dynamic>> listFkAntragDocs(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php?antrag_id=$antragId&type=docs'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadFkAntragDoc({required int antragId, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteFkAntragDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadFkAntragDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  // Antrag → Korrespondenz
+  Future<Map<String, dynamic>> listFkAntragKorr(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php?antrag_id=$antragId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveFkAntragKorr(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'korr';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteFkAntragKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Antrag → Termine (mit Sync zur zentralen Terminverwaltung)
+  Future<Map<String, dynamic>> listFkAntragTermine(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php?antrag_id=$antragId&type=termine'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveFkAntragTermin(int antragId, int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['user_id'] = userId; body['type'] = 'termin';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteFkAntragTermin(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'termine', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Antrag → Bewilligung (1:1 pro Antrag; Auto-Weiterbewilligung-Ticket)
+  Future<Map<String, dynamic>> getFkBewilligung(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/familienkasse_bewilligung.php?antrag_id=$antragId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveFkBewilligung(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_bewilligung.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteFkBewilligung(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_bewilligung.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== LICHTBILD-ANTRÄGE (eGK-Lichtbild, dedizierte DB-Tabellen) ==========
   // Anträge
   Future<Map<String, dynamic>> listLichtbildAntraege(int userId) async {
