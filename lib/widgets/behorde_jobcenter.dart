@@ -4280,7 +4280,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
     _loadEinladungen();
     _loadTermine();
   }
@@ -4321,12 +4321,14 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           Tab(icon: Icon(Icons.mail, size: 18), text: 'Einladung'),
           Tab(icon: Icon(Icons.event, size: 18), text: 'Termine'),
           Tab(icon: Icon(Icons.fact_check, size: 18), text: 'Eigenbemühungen'),
+          Tab(icon: Icon(Icons.handshake, size: 18), text: 'Kooperationsplan'),
         ]),
         Expanded(child: TabBarView(controller: _tab, children: [
           _AvDetailsTab(apiService: widget.apiService, personal: av, userAv: av, onChanged: () { _changed = true; }),
           _AvEinladungenTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, loading: _loadingEinl, onChanged: () { _changed = true; _loadEinladungen(); }),
           _AvTermineTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, termine: _termine, loading: _loadingTerm, onChanged: () { _changed = true; _loadTermine(); }),
           _AvEigenbemTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, avName: name),
+          _AvKooperationsplanTab(apiService: widget.apiService, userAvId: _userAvId),
         ])),
       ])),
     );
@@ -4836,6 +4838,137 @@ class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
             return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(
               dense: true,
               leading: Icon(_iconFor(name), color: Colors.orange.shade700),
+              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(_fmtSize(d['datei_groesse']), style: const TextStyle(fontSize: 11)),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Ansehen', onPressed: () => _view(d)),
+                IconButton(icon: Icon(Icons.open_in_new, size: 18, color: Colors.green.shade700), tooltip: 'Öffnen', onPressed: () => _openExtern(d)),
+                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(d)),
+              ]),
+            ));
+          })),
+    ]);
+  }
+}
+
+// ==================== Kooperationsplan → Dokumente (§ 15 SGB II) ====================
+// Datei-Upload (max 20, pdf/jpg/jpeg) pro Arbeitsvermittler-Zuordnung, verschlüsselt
+// als BLOB in jobcenter_av_kooperationsplan_dokumente. Analog zu _EinladungDokumenteTab,
+// aber keyed via user_av_id statt einladung_id.
+
+class _AvKooperationsplanTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userAvId;
+  const _AvKooperationsplanTab({required this.apiService, required this.userAvId});
+  @override State<_AvKooperationsplanTab> createState() => _AvKooperationsplanTabState();
+}
+
+class _AvKooperationsplanTabState extends State<_AvKooperationsplanTab> {
+  List<Map<String, dynamic>> _docs = [];
+  bool _loaded = false, _busy = false;
+  static const _max = 20;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.jcKooperationsplanDocsList(widget.userAvId);
+    if (!mounted) return;
+    setState(() {
+      _docs = (r['success'] == true && r['data'] is List)
+          ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _loaded = true;
+    });
+  }
+
+  void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
+
+  Future<void> _upload() async {
+    if (_docs.length >= _max) { _snack('Maximal $_max Dokumente'); return; }
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    final files = result.files.where((f) => f.path != null).toList();
+    var slots = _max - _docs.length;
+    setState(() => _busy = true);
+    for (final f in files) {
+      if (slots <= 0) { _snack('Maximal $_max Dokumente — nicht alle hochgeladen'); break; }
+      final res = await widget.apiService.jcKooperationsplanDocUpload(userAvId: widget.userAvId, filePath: f.path!, fileName: f.name);
+      if (res['success'] != true) _snack(res['message']?.toString() ?? 'Upload fehlgeschlagen: ${f.name}');
+      slots--;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _load();
+  }
+
+  Future<File?> _fetch(Map<String, dynamic> d) async {
+    final resp = await widget.apiService.jcKooperationsplanDocDownload(d['id'] as int);
+    if (resp.statusCode != 200) return null;
+    final dir = await getTemporaryDirectory();
+    final name = (d['datei_name'] ?? 'dokument').toString();
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(resp.bodyBytes);
+    return file;
+  }
+
+  Future<void> _view(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null && mounted) await FileViewerDialog.show(context, f.path, (d['datei_name'] ?? '').toString());
+  }
+
+  Future<void> _openExtern(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null) await OpenFilex.open(f.path);
+  }
+
+  Future<void> _delete(Map<String, dynamic> d) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Dokument löschen?'),
+      content: Text((d['datei_name'] ?? '').toString()),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jcKooperationsplanDocDelete(d['id'] as int);
+    _load();
+  }
+
+  String _fmtSize(dynamic bytes) {
+    final b = (bytes is num) ? bytes.toDouble() : double.tryParse('$bytes') ?? 0;
+    if (b < 1024) return '${b.toStringAsFixed(0)} B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
+    return '${(b / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  IconData _iconFor(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return Icons.image;
+    return Icons.insert_drive_file;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Row(children: [
+        Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 4),
+        Expanded(child: Text('${_docs.length}/$_max Dokumente · verschlüsselt', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(
+          onPressed: (_busy || _docs.length >= _max) ? null : _upload,
+          icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 14),
+          label: const Text('Hochladen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
+        ),
+      ])),
+      Expanded(child: _docs.isEmpty
+        ? Center(child: Text('Keine Dokumente hochgeladen', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _docs.length, itemBuilder: (_, i) {
+            final d = _docs[i];
+            final name = (d['datei_name'] ?? '').toString();
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(
+              dense: true,
+              leading: Icon(_iconFor(name), color: Colors.teal.shade700),
               title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
               subtitle: Text(_fmtSize(d['datei_groesse']), style: const TextStyle(fontSize: 11)),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
