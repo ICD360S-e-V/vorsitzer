@@ -40,6 +40,7 @@ const Map<String, (String, IconData)> _wgMethoden = {
 String _wgMethodeLabel(String? m) => _wgMethoden[m ?? '']?.$1 ?? (m ?? '');
 
 const Map<String, (String, MaterialColor)> _wgStatus = {
+  'geplant': ('Geplant', Colors.blueGrey),
   'eingereicht': ('Eingereicht', Colors.orange),
   'in_bearbeitung': ('In Bearbeitung', Colors.blue),
   'unterlagen_fehlen': ('Unterlagen nachgefordert', Colors.amber),
@@ -55,14 +56,6 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
   // Per-user Stammdaten, bereich → feld → wert
   Map<String, Map<String, dynamic>> _dbData = {};
   bool _dbLoaded = false;
-  bool _controllersInit = false;
-  bool _sbEditing = false;
-
-  late TextEditingController _aktenzeichenC;
-  late TextEditingController _sbNameC;
-  late TextEditingController _sbTelC;
-  late TextEditingController _sbEmailC;
-  late TextEditingController _notizenC;
 
   List<Map<String, dynamic>> _antraege = [];
   bool _antraegeLoaded = false;
@@ -90,38 +83,11 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
       debugPrint('[Wohngeldstelle] Load error: $e');
     }
     if (!mounted) return;
-    if (!_controllersInit) {
-      final sb = _dbData['sachbearbeiter'] ?? {};
-      _aktenzeichenC = TextEditingController(text: sb['aktenzeichen']?.toString() ?? '');
-      _sbNameC = TextEditingController(text: sb['sachbearbeiter']?.toString() ?? '');
-      _sbTelC = TextEditingController(text: sb['sachbearbeiter_telefon']?.toString() ?? '');
-      _sbEmailC = TextEditingController(text: sb['sachbearbeiter_email']?.toString() ?? '');
-      _notizenC = TextEditingController(text: sb['notizen']?.toString() ?? '');
-      _controllersInit = true;
-    }
     setState(() => _dbLoaded = true);
   }
 
   Future<void> _saveDbData() async {
-    final sb = _db('sachbearbeiter');
-    sb['aktenzeichen'] = _aktenzeichenC.text.trim();
-    sb['sachbearbeiter'] = _sbNameC.text.trim();
-    sb['sachbearbeiter_telefon'] = _sbTelC.text.trim();
-    sb['sachbearbeiter_email'] = _sbEmailC.text.trim();
-    sb['notizen'] = _notizenC.text.trim();
     await widget.apiService.saveWohngeldstelleData(widget.userId, _dbData);
-  }
-
-  @override
-  void dispose() {
-    if (_controllersInit) {
-      _aktenzeichenC.dispose();
-      _sbNameC.dispose();
-      _sbTelC.dispose();
-      _sbEmailC.dispose();
-      _notizenC.dispose();
-    }
-    super.dispose();
   }
 
   @override
@@ -214,68 +180,12 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
               if ((amt['oeffnungszeiten']?.toString() ?? '').isNotEmpty) _amtRow(Icons.schedule, amt['oeffnungszeiten'].toString()),
             ]),
           ),
-        const SizedBox(height: 20),
-
-        // Aktenzeichen
-        Text('Aktenzeichen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        TextField(
-          controller: _aktenzeichenC,
-          onChanged: (_) => _saveDbData(),
-          decoration: InputDecoration(
-            hintText: 'Aktenzeichen Wohngeld',
-            prefixIcon: const Icon(Icons.folder, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            isDense: true,
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // Sachbearbeiter/in
+        const SizedBox(height: 12),
         Row(children: [
-          Icon(Icons.badge, size: 18, color: Colors.teal.shade700),
-          const SizedBox(width: 8),
-          Text('Sachbearbeiter/in', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-          const Spacer(),
-          IconButton(
-            icon: Icon(_sbEditing ? Icons.check : Icons.edit, size: 18, color: Colors.teal.shade700),
-            onPressed: () {
-              if (_sbEditing) _saveDbData();
-              setState(() => _sbEditing = !_sbEditing);
-            },
-          ),
+          Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Aktenzeichen, Korrespondenz & Unterlagen werden pro Antrag im Tab „Anträge" verwaltet.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500))),
         ]),
-        const SizedBox(height: 4),
-        if (_sbEditing) ...[
-          TextField(controller: _sbNameC, decoration: InputDecoration(hintText: 'Name', prefixIcon: const Icon(Icons.person, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-          const SizedBox(height: 8),
-          TextField(controller: _sbTelC, keyboardType: TextInputType.phone, decoration: InputDecoration(hintText: 'Telefon / Durchwahl', prefixIcon: const Icon(Icons.phone, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-          const SizedBox(height: 8),
-          TextField(controller: _sbEmailC, keyboardType: TextInputType.emailAddress, decoration: InputDecoration(hintText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        ] else
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
-            child: (_sbNameC.text.trim().isEmpty && _sbTelC.text.trim().isEmpty && _sbEmailC.text.trim().isEmpty)
-                ? Text('Kein Sachbearbeiter hinterlegt', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic))
-                : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    if (_sbNameC.text.trim().isNotEmpty) _amtRow(Icons.person, _sbNameC.text.trim()),
-                    if (_sbTelC.text.trim().isNotEmpty) _amtRow(Icons.phone, _sbTelC.text.trim()),
-                    if (_sbEmailC.text.trim().isNotEmpty) _amtRow(Icons.email, _sbEmailC.text.trim()),
-                  ]),
-          ),
-        const SizedBox(height: 20),
-
-        // Notizen
-        Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        TextField(
-          controller: _notizenC,
-          maxLines: 3,
-          onChanged: (_) => _saveDbData(),
-          decoration: InputDecoration(hintText: 'Weitere Informationen...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), isDense: true),
-        ),
       ]),
     );
   }
@@ -462,7 +372,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
 
   void _showNewAntragDialog() {
     final datumC = TextEditingController();
-    final aktenzeichenC = TextEditingController(text: (_dbData['sachbearbeiter'] ?? {})['aktenzeichen']?.toString() ?? '');
+    final aktenzeichenC = TextEditingController();
     String methode = '';
     String status = 'eingereicht';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
