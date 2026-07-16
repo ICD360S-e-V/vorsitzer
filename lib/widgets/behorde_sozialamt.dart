@@ -92,6 +92,12 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
     await widget.apiService!.saveSozialamtData(widget.userId!, _dbData);
   }
 
+  String _fmtIsoDate(String iso) {
+    if (iso.isEmpty || iso == 'null') return '';
+    final p = iso.split(' ').first.split('-');
+    return p.length == 3 ? '${p[2]}.${p[1]}.${p[0]}' : iso;
+  }
+
   Map<String, dynamic> _b(String key) {
     _dbData[key] ??= {};
     return _dbData[key]!;
@@ -236,10 +242,28 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.description, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Anträge', style: TextStyle(color: Colors.grey.shade500))]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: list.length, itemBuilder: (_, i) {
               final a = list[i];
+              final hatBew = a['hat_bewilligung'] == 1 || a['hat_bewilligung'] == '1';
+              final bewOk = a['bew_bewilligt'] == 1 || a['bew_bewilligt'] == '1' || a['bew_bewilligt'] == true;
+              final bewBis = _fmtIsoDate(a['bew_zeitraum_bis']?.toString() ?? '');
+              final MaterialColor statusColor = hatBew ? (bewOk ? Colors.green : Colors.red) : Colors.grey;
+              final statusText = hatBew ? (bewOk ? 'Bewilligt' : 'Abgelehnt') : (a['status']?.toString() ?? '');
               return Card(child: ListTile(
-                leading: Icon(Icons.description, color: Colors.indigo.shade600),
+                leading: Icon(hatBew ? (bewOk ? Icons.check_circle : Icons.cancel) : Icons.description, color: hatBew ? (bewOk ? Colors.green.shade600 : Colors.red.shade600) : Colors.indigo.shade600),
                 title: Text(a['leistung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text('${a['datum'] ?? ''} • ${a['methode'] ?? ''} • ${a['status'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${a['datum'] ?? ''}${(a['methode']?.toString() ?? '').isNotEmpty ? ' • ${a['methode']}' : ''}', style: const TextStyle(fontSize: 11)),
+                  const SizedBox(height: 3),
+                  Row(children: [
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: statusColor.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: statusColor.shade200)), child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade700))),
+                    if (hatBew && bewOk && bewBis.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Icon(Icons.event, size: 11, color: Colors.grey.shade500),
+                      const SizedBox(width: 2),
+                      Flexible(child: Text('gültig bis $bewBis', style: TextStyle(fontSize: 10, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+                    ],
+                  ]),
+                ]),
+                isThreeLine: true,
                 onTap: () {
                   final aid = int.tryParse(a['id']?.toString() ?? '');
                   if (aid != null) _showAntragDetailDialog(aid, a);
@@ -655,6 +679,8 @@ class _AntragBewilligungTab extends StatefulWidget {
 class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
   Map<String, dynamic>? _b;
   List<Map<String, dynamic>> _docs = [];
+  Map<String, dynamic>? _wbaTicket;   // Weiterbewilligung-Erinnerungsticket (aus wba_ticket)
+  String? _wbaAction;                 // 'created'|'existing'|'updated' — nur direkt nach einem Speichern
   bool _loaded = false;
 
   @override
@@ -677,7 +703,12 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       }
     }
     if (!mounted) return;
-    setState(() { _b = b; _docs = docs; _loaded = true; });
+    setState(() {
+      _b = b;
+      _docs = docs;
+      _wbaTicket = (b != null && b['wba_ticket'] is Map) ? Map<String, dynamic>.from(b['wba_ticket'] as Map) : null;
+      _loaded = true;
+    });
   }
 
   @override
@@ -847,7 +878,18 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
             if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Fehler: ${res['message'] ?? 'Speichern fehlgeschlagen'}'), backgroundColor: Colors.red));
             return;
           }
+          _wbaAction = res['wba_action']?.toString();
+          final tid = res['wba_ticket'] is Map ? (res['wba_ticket'] as Map)['ticket_id'] : null;
           if (ctx.mounted) Navigator.pop(ctx);
+          if (mounted && _wbaAction != null && _wbaAction != 'skipped' && tid != null) {
+            final msg = switch (_wbaAction) {
+              'created' => 'Gespeichert · Weiterbewilligung-Ticket #$tid neu erstellt',
+              'updated' => 'Gespeichert · Bewilligungsende geändert — neues Ticket #$tid angelegt, altes geschlossen',
+              'existing' => 'Gespeichert · Weiterbewilligung-Ticket #$tid bereits angelegt',
+              _ => 'Gespeichert',
+            };
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.indigo.shade600, duration: const Duration(seconds: 4)));
+          }
           _load();
         }, child: Text(isEdit ? 'Speichern' : 'Hinzufügen')),
       ],
@@ -891,6 +933,10 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
             Text('${_eur(b['auszahlung'])} /Monat', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
           ]),
         ),
+        if (_wbaTicket != null) ...[
+          const SizedBox(height: 10),
+          _buildWbaCard(),
+        ],
       ],
       if (b['widerspruch'] == true || b['widerspruch'] == 'true' || b['widerspruch'] == 1 || b['widerspruch'] == '1') ...[
         const SizedBox(height: 8),
@@ -912,6 +958,54 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
         ),
       ],
     ]));
+  }
+
+  Widget _buildWbaCard() {
+    final t = _wbaTicket!;
+    final (Color chipColor, String chipText, Color cardColor, Color cardBorder, String headline) = switch (_wbaAction) {
+      'updated'  => (Colors.orange.shade100, 'Aktualisiert',     Colors.orange.shade50, Colors.orange.shade300, 'Weiterbewilligung-Ticket aktualisiert'),
+      'existing' => (Colors.teal.shade100,   'Bereits angelegt', Colors.teal.shade50,   Colors.teal.shade300,   'Weiterbewilligung-Ticket ist gesetzt'),
+      'created'  => (Colors.green.shade100,  'Neu erstellt',     Colors.indigo.shade50, Colors.indigo.shade300, 'Weiterbewilligung-Ticket erstellt'),
+      _          => (Colors.blue.shade100,   'Aktiv',            Colors.indigo.shade50, Colors.indigo.shade300, 'Weiterbewilligung-Erinnerung geplant'),
+    };
+    final textColor = switch (_wbaAction) { 'updated' => Colors.orange.shade800, 'existing' => Colors.teal.shade800, _ => Colors.indigo.shade800 };
+    final iconColor = switch (_wbaAction) { 'updated' => Colors.orange.shade700, 'existing' => Colors.teal.shade700, _ => Colors.indigo.shade700 };
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: cardBorder, width: 1.5)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.event_available, color: iconColor, size: 22),
+          const SizedBox(width: 8),
+          Expanded(child: Text(headline, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textColor))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: chipColor, borderRadius: BorderRadius.circular(10)), child: Text(chipText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor))),
+        ]),
+        const SizedBox(height: 8),
+        Text('Ticket #${t['ticket_id']}', style: const TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+        if ((t['subject']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(t['subject'].toString(), style: const TextStyle(fontSize: 12)),
+        ],
+        const SizedBox(height: 6),
+        Row(children: [
+          Icon(Icons.calendar_today, size: 14, color: iconColor),
+          const SizedBox(width: 4),
+          Text('Geplant für: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          Text(_fmtWbaDate(t['scheduled_date']?.toString()), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor)),
+          const Spacer(),
+          if ((t['bis']?.toString() ?? '').isNotEmpty) Text('Bewilligung bis ${t['bis']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        ]),
+        const SizedBox(height: 4),
+        Text('→ Erscheint in der Ticketverwaltung 2 Monate vor Bewilligungsende, damit der Weiterbewilligungsantrag rechtzeitig gestellt wird.', style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic)),
+      ]),
+    );
+  }
+
+  String _fmtWbaDate(String? s) {
+    if (s == null || s.isEmpty) return '—';
+    final datePart = s.split(' ').first;
+    final p = datePart.split('-');
+    return p.length == 3 ? '${p[2]}.${p[1]}.${p[0]}' : s;
   }
 
   String _eur(dynamic v) {
