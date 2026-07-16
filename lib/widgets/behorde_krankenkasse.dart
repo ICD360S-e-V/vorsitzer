@@ -84,7 +84,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   String _versichertenstatus = '';
   String _egkFotoSchreibenErhalten = ''; // '', 'ja', 'nein' — Krankenkasse-Schreiben zur Foto-Aktualisierung erhalten?
   String _egkFotoUploadWeg = '';         // '', 'post', 'online' — wie wurde das Foto eingereicht
-  bool _fotoSchreibenUploading = false;  // Upload des Aufforderungs-Schreibens läuft
+
+  // Lichtbild-Anträge (eGK-Lichtbild als eigenständige Anträge, dedizierte DB-Tabellen)
+  List<Map<String, dynamic>> _lbAntraege = [];
+  bool _lbAntraegeLoaded = false;
   bool _karteEditMode = false;           // Sub-Tab „Karte": Detaildaten bearbeiten (sonst read-only)
   bool _befreiungskarte = false;
   String _befreiungJahr = '';
@@ -1319,76 +1322,6 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     );
   }
 
-  /// Schritt 1: Aufforderungs-Schreiben der Krankenkasse anhängen (max. 20 Dateien),
-  /// gespeichert als eingehende KK-Korrespondenz.
-  Future<void> _uploadFotoSchreiben() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final picked = await FilePickerHelper.pickFiles(
-        type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
-    if (picked == null || picked.files.isEmpty) return;
-    final files = picked.files.take(20).toList();
-    if (mounted) setState(() => _fotoSchreibenUploading = true);
-    final heute = _fmtD(DateTime.now());
-    int ok = 0;
-    for (final f in files) {
-      if (f.path == null) continue;
-      try {
-        final r = await widget.apiService.uploadKKKorrespondenz(
-          userId: widget.user.id,
-          richtung: 'eingang',
-          titel: 'Lichtbild-Aufforderung (eGK)',
-          datum: heute,
-          betreff: 'Lichtbild-Aufforderung (eGK)',
-          notiz: 'Aufforderung zur Aktualisierung des eGK-Lichtbilds',
-          filePath: f.path,
-          fileName: f.name,
-        );
-        if (r['success'] == true) ok++;
-      } catch (_) {}
-    }
-    // Neu laden, damit die angehängten Schreiben direkt in der Sektion erscheinen.
-    _kkKorrLoaded = false;
-    await _loadKKKorrespondenz();
-    if (!mounted) return;
-    setState(() => _fotoSchreibenUploading = false);
-    messenger.showSnackBar(SnackBar(
-      content: Text(ok > 0 ? '$ok/${files.length} Schreiben angehängt' : 'Upload fehlgeschlagen (0/${files.length})'),
-      backgroundColor: ok > 0 ? Colors.green : Colors.red,
-    ));
-  }
-
-  /// Die angehängten „Lichtbild-Aufforderung"-Dokumente aus der KK-Korrespondenz.
-  List<Map<String, dynamic>> _lichtbildAufforderungDocs() {
-    final out = <Map<String, dynamic>>[];
-    for (final k in _kkKorrespondenz) {
-      if ((k['titel']?.toString() ?? '').contains('Lichtbild-Aufforderung') && k['dokumente'] is List) {
-        for (final d in (k['dokumente'] as List)) {
-          if (d is Map) out.add(Map<String, dynamic>.from(d));
-        }
-      }
-    }
-    return out;
-  }
-
-  Future<void> _openKKKorrDoc(int id, String name) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final response = await widget.apiService.downloadKKKorrespondenzDoc(id);
-      if (response.statusCode == 200) {
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/$name');
-        await file.writeAsBytes(response.bodyBytes);
-        if (!mounted) return;
-        await FileViewerDialog.show(context, file.path, name);
-      } else {
-        if (!mounted) return;
-        messenger.showSnackBar(const SnackBar(content: Text('Dokument konnte nicht geladen werden'), backgroundColor: Colors.red));
-      }
-    } catch (e) {
-      if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
-    }
-  }
 
   // Ziel-Maße Passbild (35:45 @ 300 dpi ≈ 413×531 px)
   static const int _fotoTargetW = 413;
@@ -1476,7 +1409,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
   /// Schritt 2: Lichtbild hochladen — mit Anforderungs-Prüfung und optionaler
   /// automatischer Anpassung (Zuschnitt/Skalierung) inkl. Vorher/Nachher-Vorschau.
-  Future<void> _uploadLichtbildFoto() async {
+  /// Foto für einen Lichtbild-Antrag auswählen, gegen die eGK-Anforderungen prüfen,
+  /// optional automatisch anpassen (Zuschnitt/Skalierung) und in die Antrag-Dokumente
+  /// (kategorie 'foto') hochladen. Reused vom Foto-Tab des Antrag-Detail-Dialogs.
+  Future<void> _pickUploadFotoForAntrag(int antragId) async {
     final messenger = ScaffoldMessenger.of(context);
     final picked = await FilePickerHelper.pickFiles(
         type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png'], allowMultiple: false);
@@ -1495,7 +1431,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
     // Bereits konform → direkt hochladen.
     if (check.perfect) {
-      await _doUploadLichtbild(f.name, f.path!, messenger, 'Anforderungen erfüllt');
+      await _doUploadFotoToAntrag(antragId, f.name, f.path!, messenger, 'Anforderungen erfüllt');
       return;
     }
 
@@ -1506,25 +1442,20 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     if (choice == null || !mounted) return;
     if (choice == 'adapted' && adapted != null) {
       final path = await _writeTemp(adapted, 'egk_lichtbild_${DateTime.now().millisecondsSinceEpoch}.png');
-      await _doUploadLichtbild('eGK-Lichtbild_${_fotoTargetW}x$_fotoTargetH.png', path, messenger, 'automatisch angepasst auf ${_fotoTargetW}×$_fotoTargetH px');
+      await _doUploadFotoToAntrag(antragId, 'eGK-Lichtbild_${_fotoTargetW}x$_fotoTargetH.png', path, messenger, 'automatisch angepasst auf ${_fotoTargetW}×$_fotoTargetH px');
     } else {
-      await _doUploadLichtbild(f.name, f.path!, messenger, 'Original (nicht angepasst)');
+      await _doUploadFotoToAntrag(antragId, f.name, f.path!, messenger, 'Original (nicht angepasst)');
     }
   }
 
-  Future<void> _doUploadLichtbild(String fileName, String path, ScaffoldMessengerState messenger, String? note) async {
+  Future<void> _doUploadFotoToAntrag(int antragId, String fileName, String path, ScaffoldMessengerState messenger, String? note) async {
     try {
-      final r = await widget.apiService.uploadKKKorrespondenz(
-        userId: widget.user.id,
-        richtung: 'ausgang',
-        titel: 'eGK-Lichtbild (Foto)',
-        datum: _fmtD(DateTime.now()),
-        betreff: 'eGK-Lichtbild (Foto)',
-        notiz: 'Lichtbild für die eGK${note != null ? ' — $note' : ''}',
+      final r = await widget.apiService.uploadLbAntragDoc(
+        antragId: antragId,
+        kategorie: 'foto',
         filePath: path,
         fileName: fileName,
       );
-      _kkKorrLoaded = false;
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(
         content: Text(r['success'] == true
@@ -1536,6 +1467,205 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       if (!mounted) return;
       messenger.showSnackBar(const SnackBar(content: Text('Fehler beim Hochladen des Lichtbilds'), backgroundColor: Colors.red));
     }
+  }
+
+  // ============ LICHTBILD-ANTRÄGE: Liste, Neu-Dialog, Detail ============
+
+  Future<void> _loadLbAntraege() async {
+    final r = await widget.apiService.listLichtbildAntraege(widget.user.id);
+    if (!mounted) return;
+    setState(() {
+      if (r['success'] == true && r['data'] is List) {
+        _lbAntraege = (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      _lbAntraegeLoaded = true;
+    });
+  }
+
+  Widget _buildLichtbildAntragTab(Map<String, dynamic> data) {
+    if (!_lbAntraegeLoaded) { _loadLbAntraege(); return const Center(child: CircularProgressIndicator()); }
+    final teal = Colors.teal.shade700;
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
+          child: Row(children: [
+            Icon(Icons.info_outline, size: 16, color: teal),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Das eGK-Lichtbild muss gesetzlich alle 10 Jahre aktualisiert werden. Jede Aufforderung der Krankenkasse wird als eigener Antrag mit Schreiben, Korrespondenz und Foto verwaltet.', style: TextStyle(fontSize: 11, color: Colors.teal.shade900))),
+          ]),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Row(children: [
+          Icon(Icons.photo_camera, size: 20, color: teal),
+          const SizedBox(width: 8),
+          Text('Anträge (${_lbAntraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: teal)),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: _showNewLichtbildAntragDialog,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Antrag auf Lichtbild'),
+            style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white),
+          ),
+        ]),
+      ),
+      Expanded(
+        child: _lbAntraege.isEmpty
+            ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.photo_camera_back_outlined, size: 48, color: Colors.grey.shade300),
+                const SizedBox(height: 8),
+                Text('Keine Lichtbild-Anträge', style: TextStyle(color: Colors.grey.shade500)),
+                const SizedBox(height: 4),
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 40), child: Text('„Antrag auf Lichtbild" anlegen, sobald ein Schreiben der Kasse eintrifft.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade400))),
+              ]))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _lbAntraege.length,
+                itemBuilder: (_, i) {
+                  final a = _lbAntraege[i];
+                  final status = a['status']?.toString() ?? 'offen';
+                  final sc = _lbStatusColor(status);
+                  final schreiben = a['schreiben_erhalten']?.toString() ?? '';
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(status == 'foto_eingereicht' || status == 'abgeschlossen' ? Icons.check_circle : Icons.photo_camera, color: sc, size: 28),
+                      title: Text('Antrag vom ${_fmtLbDate(a['datum'])}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Wrap(spacing: 6, runSpacing: 4, children: [
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(8)),
+                            child: Text(_lbStatusLabel(status).toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sc.shade800))),
+                          if (schreiben == 'ja') Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                            child: Text('SCHREIBEN ERHALTEN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+                        ]),
+                      ),
+                      onTap: () {
+                        final aid = int.tryParse(a['id']?.toString() ?? '');
+                        if (aid != null) _showLichtbildAntragDetail(aid, a);
+                      },
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                          icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                          onPressed: () async {
+                            final aid = int.tryParse(a['id']?.toString() ?? '');
+                            if (aid == null) return;
+                            final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+                              title: const Text('Antrag löschen?'),
+                              content: const Text('Der Antrag mit allen Schreiben, Fotos und der Korrespondenz wird gelöscht.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+                                FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(c, true), child: const Text('Löschen')),
+                              ],
+                            ));
+                            if (ok == true) { await widget.apiService.deleteLichtbildAntrag(aid); _loadLbAntraege(); }
+                          },
+                        ),
+                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+
+  void _showNewLichtbildAntragDialog() {
+    final now = DateTime.now();
+    final datumC = TextEditingController(text: _fmtIso(now));
+    String schreiben = '';
+    PlatformFile? plic;
+    bool saving = false;
+    final teal = Colors.teal.shade700;
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Row(children: [Icon(Icons.photo_camera, size: 20, color: teal), const SizedBox(width: 8), const Expanded(child: Text('Antrag auf Lichtbild', style: TextStyle(fontSize: 16)))]),
+      content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Datum *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        TextField(
+          controller: datumC, readOnly: true,
+          decoration: InputDecoration(hintText: 'Datum wählen', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async {
+            final p = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (p != null) setD(() => datumC.text = _fmtIso(p));
+          },
+        ),
+        const SizedBox(height: 16),
+        Text('Schreiben der Krankenkasse erhalten?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, children: [
+          ChoiceChip(label: const Text('Ja', style: TextStyle(fontSize: 12)), selected: schreiben == 'ja', selectedColor: Colors.teal.shade200, onSelected: (_) => setD(() => schreiben = schreiben == 'ja' ? '' : 'ja')),
+          ChoiceChip(label: const Text('Nein', style: TextStyle(fontSize: 12)), selected: schreiben == 'nein', selectedColor: Colors.teal.shade200, onSelected: (_) => setD(() => schreiben = schreiben == 'nein' ? '' : 'nein')),
+        ]),
+        if (schreiben == 'ja') ...[
+          const SizedBox(height: 14),
+          Text('Schreiben (Umschlag / Aufforderung) anhängen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            icon: Icon(plic == null ? Icons.attach_file : Icons.check_circle, size: 16, color: plic == null ? teal : Colors.green),
+            label: Text(plic == null ? 'Datei auswählen (PDF/JPG/PNG)' : plic!.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+            style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 40)),
+            onPressed: () async {
+              final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: false);
+              if (r != null && r.files.isNotEmpty && r.files.first.path != null) setD(() => plic = r.files.first);
+            },
+          ),
+        ],
+      ]))),
+      actions: [
+        TextButton(onPressed: saving ? null : () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton.icon(
+          icon: saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          style: FilledButton.styleFrom(backgroundColor: teal),
+          onPressed: saving ? null : () async {
+            if (datumC.text.trim().isEmpty) return;
+            setD(() => saving = true);
+            final messenger = ScaffoldMessenger.of(context);
+            final res = await widget.apiService.saveLichtbildAntrag(widget.user.id, {
+              'datum': datumC.text.trim(),
+              'schreiben_erhalten': schreiben,
+              'status': schreiben == 'ja' ? 'schreiben_erhalten' : 'offen',
+            });
+            final aid = int.tryParse(res['id']?.toString() ?? '');
+            if (res['success'] == true && aid != null && plic != null && plic!.path != null) {
+              await widget.apiService.uploadLbAntragDoc(antragId: aid, kategorie: 'schreiben', filePath: plic!.path!, fileName: plic!.name);
+            }
+            if (ctx.mounted) Navigator.pop(ctx);
+            messenger.showSnackBar(SnackBar(content: Text(res['success'] == true ? 'Antrag angelegt' : 'Fehler beim Anlegen'), backgroundColor: res['success'] == true ? Colors.green : Colors.red));
+            _loadLbAntraege();
+          },
+        ),
+      ],
+    )));
+  }
+
+  void _showLichtbildAntragDetail(int antragId, Map<String, dynamic> antrag) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.85,
+          child: _LichtbildAntragDetailView(
+            apiService: widget.apiService,
+            userId: widget.user.id,
+            antragId: antragId,
+            antrag: antrag,
+            onChanged: _loadLbAntraege,
+            onUploadFoto: _pickUploadFotoForAntrag,
+            onErinnerung: _createFotoErinnerung,
+          ),
+        ),
+      ),
+    );
   }
 
   /// Vorher/Nachher-Dialog. Rückgabe: 'adapted', 'original' oder null (Abbruch).
@@ -1613,35 +1743,6 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     );
   }
 
-  /// Schritt 1: Ticket zur Bearbeitung erstellen (neues Foto beim Mitglied einholen),
-  /// mit Duplikat-Prüfung.
-  Future<void> _createFotoBearbeitenTicket() async {
-    final messenger = ScaffoldMessenger.of(context);
-    const subject = 'eGK: Lichtbild-Aufforderung bearbeiten';
-    final kasse = _krankenkasseNameController.text.trim();
-    final now = DateTime.now();
-    // Server prüft atomar auf ein bereits vorhandenes offenes Ticket (dedupeSubject).
-    final result = await widget.ticketService.createTicketForMember(
-      adminMitgliedernummer: widget.adminMitgliedernummer,
-      memberMitgliedernummer: widget.user.mitgliedernummer,
-      subject: subject,
-      message: 'Die Krankenkasse${kasse.isNotEmpty ? ' ($kasse)' : ''} hat ein Schreiben zur Aktualisierung '
-          'des eGK-Lichtbilds geschickt (in der KK-Korrespondenz hinterlegt).\n\n'
-          'Bitte ein neues Foto vom Mitglied einholen und bei der Krankenkasse einreichen.',
-      priority: 'high',
-      scheduledDate: '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
-      dedupeSubject: true,
-    );
-    if (!mounted) return;
-    if (result['duplicate'] == true) {
-      messenger.showSnackBar(const SnackBar(
-          content: Text('Es existiert bereits ein offenes Bearbeitungs-Ticket für dieses Mitglied.'), backgroundColor: Colors.orange));
-    } else if (result.containsKey('ticket')) {
-      messenger.showSnackBar(const SnackBar(content: Text('Bearbeitungs-Ticket erstellt'), backgroundColor: Colors.green));
-    } else {
-      messenger.showSnackBar(SnackBar(content: Text(result['error']?.toString() ?? 'Fehler beim Erstellen des Tickets'), backgroundColor: Colors.red));
-    }
-  }
 
   /// Erinnerungs-Ticket für die naechste eGK-Foto-Aktualisierung (gesetzlich alle 10 Jahre).
   /// Faellig = letztes Einreichungsdatum + 10 Jahre, sonst heute + 10 Jahre.
@@ -2074,226 +2175,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   ],
                 ),
               ),
-              // ══ Sub-Tab: LICHTBILD ══
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Icon(Icons.photo_camera, size: 18, color: Colors.teal.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('Neue Lichtbild-Karte hinterlegen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
-                    ]),
-                    const SizedBox(height: 6),
-                    Text('Formular zur Aktualisierung des eGK-Lichtbilds (gesetzlich alle 10 Jahre).', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                    const SizedBox(height: 12),
-                    Builder(builder: (context) {
-              final fotoDatum = _parseDeDate(_egkFotoDatumController.text);
-              final faellig = fotoDatum == null ? null : DateTime(fotoDatum.year + 10, fotoDatum.month, fotoDatum.day);
-              final now = DateTime.now();
-              Color statusColor;
-              IconData statusIcon;
-              String statusText;
-              if (faellig == null) {
-                statusColor = Colors.grey.shade600;
-                statusIcon = Icons.help_outline;
-                statusText = 'Kein Einreichungsdatum erfasst';
-              } else if (now.isAfter(faellig)) {
-                statusColor = Colors.red.shade700;
-                statusIcon = Icons.error_outline;
-                statusText = 'Überfällig — seit ${_fmtD(faellig)} fällig';
-              } else if (faellig.difference(now).inDays <= 365) {
-                statusColor = Colors.orange.shade800;
-                statusIcon = Icons.hourglass_bottom;
-                statusText = 'Bald fällig am ${_fmtD(faellig)}';
-              } else {
-                statusColor = Colors.green.shade700;
-                statusIcon = Icons.check_circle_outline;
-                statusText = 'Aktuell — nächste Aktualisierung am ${_fmtD(faellig)}';
-              }
-              final teal = Colors.teal.shade700;
-              final schreiben = _egkFotoSchreibenErhalten;
-              Widget divider() => Divider(height: 18, color: Colors.teal.shade100);
-              return Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.teal.shade200),
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Icon(Icons.photo_camera, size: 18, color: teal),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text('Lichtbild (Foto) — Aktualisierung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: teal))),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text('Gesetzlich muss das Lichtbild alle 10 Jahre bei der Krankenkasse aktualisiert werden (Pflicht ab dem 15. Lebensjahr). Die Kasse löscht das alte Foto nach spätestens 10 Jahren.', style: TextStyle(fontSize: 10.5, color: Colors.teal.shade900)),
-                  divider(),
-
-                  // ── Schritt 1: Schreiben der Krankenkasse ──
-                  _stepHeader('1', 'Schreiben der Krankenkasse erhalten?', teal),
-                  Wrap(spacing: 8, children: [
-                    ChoiceChip(
-                      label: const Text('Ja', style: TextStyle(fontSize: 12)),
-                      selected: schreiben == 'ja',
-                      selectedColor: Colors.teal.shade200,
-                      onSelected: (_) => setCard(() => _egkFotoSchreibenErhalten = schreiben == 'ja' ? '' : 'ja'),
-                    ),
-                    ChoiceChip(
-                      label: const Text('Nein', style: TextStyle(fontSize: 12)),
-                      selected: schreiben == 'nein',
-                      selectedColor: Colors.teal.shade200,
-                      onSelected: (_) => setCard(() => _egkFotoSchreibenErhalten = schreiben == 'nein' ? '' : 'nein'),
-                    ),
-                  ]),
-                  if (schreiben == 'ja') ...[
-                    const SizedBox(height: 8),
-                    Text('Aufforderung anhängen und zur Bearbeitung einreichen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-                    const SizedBox(height: 6),
-                    OutlinedButton.icon(
-                      icon: _fotoSchreibenUploading
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Icon(Icons.attach_file, size: 16, color: teal),
-                      label: Text(_fotoSchreibenUploading ? 'Wird hochgeladen…' : 'Schreiben anhängen (max. 20)', style: const TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 38)),
-                      onPressed: _fotoSchreibenUploading ? null : _uploadFotoSchreiben,
-                    ),
-                    Builder(builder: (_) {
-                      if (!_kkKorrLoaded) _loadKKKorrespondenz();
-                      final docs = _lichtbildAufforderungDocs();
-                      if (docs.isEmpty) return const SizedBox(height: 6);
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Angehängte Schreiben (${docs.length}):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                          const SizedBox(height: 2),
-                          ...docs.map((d) {
-                            final id = d['id'];
-                            final did = id is int ? id : int.tryParse('$id');
-                            final name = d['name']?.toString() ?? 'Dokument';
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 3),
-                              child: Row(children: [
-                                Icon(Icons.description, size: 14, color: teal),
-                                const SizedBox(width: 5),
-                                Expanded(child: Text(name, style: TextStyle(fontSize: 11, color: Colors.grey.shade800), overflow: TextOverflow.ellipsis)),
-                                if (did != null)
-                                  InkWell(
-                                    onTap: () => _openKKKorrDoc(did, name),
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 16, color: teal)),
-                                  ),
-                              ]),
-                            );
-                          }),
-                        ]),
-                      );
-                    }),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.assignment_turned_in, size: 16),
-                      label: const Text('Zur Bearbeitung einreichen', style: TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 38)),
-                      onPressed: _createFotoBearbeitenTicket,
-                    ),
-                  ],
-                  divider(),
-
-                  // ── Schritt 2: Foto eingereicht ──
-                  _stepHeader('2', 'Foto eingereicht', teal),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
-                        const SizedBox(width: 4),
-                        Text('Foto-Anforderungen (Passbild)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
-                      ]),
-                      const SizedBox(height: 3),
-                      Text(
-                        '• 35 × 45 mm, biometrisch, frontal, neutraler Hintergrund\n'
-                        '• Digital: JPG/PNG, mind. ~413 × 531 px (300 dpi)\n'
-                        '• Dateigröße je nach Kasse max. 5–10 MB\n'
-                        '• Genaue Vorgaben im Upload-Tool der Krankenkasse prüfen',
-                        style: TextStyle(fontSize: 10, color: Colors.blue.shade900, height: 1.35),
-                      ),
-                    ]),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    icon: Icon(Icons.add_a_photo, size: 16, color: teal),
-                    label: const Text('Lichtbild hochladen (JPG/PNG)', style: TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 38)),
-                    onPressed: _uploadLichtbildFoto,
-                  ),
-                  const SizedBox(height: 10),
-                  label('Foto eingereicht am'),
-                  dateField(_egkFotoDatumController, 'Datum der Einreichung…', Icons.event_available, DateTime.now()),
-                  const SizedBox(height: 8),
-                  Text('Einreichungsweg', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                  const SizedBox(height: 4),
-                  Wrap(spacing: 8, children: [
-                    ChoiceChip(
-                      avatar: Icon(Icons.local_post_office, size: 15, color: _egkFotoUploadWeg == 'post' ? Colors.white : Colors.grey.shade600),
-                      label: const Text('Per Post', style: TextStyle(fontSize: 12)),
-                      selected: _egkFotoUploadWeg == 'post',
-                      selectedColor: teal,
-                      labelStyle: TextStyle(color: _egkFotoUploadWeg == 'post' ? Colors.white : Colors.black87),
-                      onSelected: (_) => setCard(() => _egkFotoUploadWeg = _egkFotoUploadWeg == 'post' ? '' : 'post'),
-                    ),
-                    ChoiceChip(
-                      avatar: Icon(Icons.cloud_upload, size: 15, color: _egkFotoUploadWeg == 'online' ? Colors.white : Colors.grey.shade600),
-                      label: const Text('Online (Tool/App)', style: TextStyle(fontSize: 12)),
-                      selected: _egkFotoUploadWeg == 'online',
-                      selectedColor: teal,
-                      labelStyle: TextStyle(color: _egkFotoUploadWeg == 'online' ? Colors.white : Colors.black87),
-                      onSelected: (_) => setCard(() => _egkFotoUploadWeg = _egkFotoUploadWeg == 'online' ? '' : 'online'),
-                    ),
-                  ]),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.40)),
-                    ),
-                    child: Row(children: [
-                      Icon(statusIcon, size: 16, color: statusColor),
-                      const SizedBox(width: 6),
-                      Expanded(child: Text(statusText, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: statusColor))),
-                    ]),
-                  ),
-                  divider(),
-
-                  // ── Schritt 3: Erinnerung in 10 Jahren ──
-                  _stepHeader('3', 'Erinnerung (alle 10 Jahre)', teal),
-                  Text('Legt ein Ticket an, das das Mitglied in 10 Jahren an ein neues Foto erinnert. Prüft auf bereits vorhandene Tickets (keine Duplikate).', style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700)),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _createFotoErinnerung(faellig),
-                      icon: const Icon(Icons.assignment_add, size: 16),
-                      label: Text('Erinnerung erstellen (Ticket ${(faellig ?? DateTime(now.year + 10, now.month, now.day)).year})', style: const TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: teal,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                ]),
-              );
-                    }),
-                  ],
-                ),
-              ),
+              // ══ Sub-Tab: LICHTBILD (Anträge) ══
+              _buildLichtbildAntragTab(data),
             ]),
           ),
         ]),
@@ -4810,3 +4693,470 @@ class _EgkChipPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
+// ============ LICHTBILD-ANTRAG: Detail (Details / Schreiben / Korrespondenz / Foto) ============
+
+String _fmtIso(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+String _fmtLbDate(dynamic v) {
+  final s = v?.toString() ?? '';
+  if (s.isEmpty || s == 'null') return '—';
+  final iso = DateTime.tryParse(s);
+  if (iso != null) return '${iso.day.toString().padLeft(2, '0')}.${iso.month.toString().padLeft(2, '0')}.${iso.year}';
+  return s;
+}
+
+const Map<String, (String, MaterialColor)> _lbStatusMap = {
+  'offen': ('Offen', Colors.orange),
+  'schreiben_erhalten': ('Schreiben erhalten', Colors.blue),
+  'foto_eingereicht': ('Foto eingereicht', Colors.green),
+  'abgeschlossen': ('Abgeschlossen', Colors.grey),
+};
+String _lbStatusLabel(String? s) => _lbStatusMap[s]?.$1 ?? 'Offen';
+MaterialColor _lbStatusColor(String? s) => _lbStatusMap[s]?.$2 ?? Colors.orange;
+
+const Map<String, (String, IconData)> _lbMethodenMap = {
+  'post': ('Post', Icons.local_post_office),
+  'online': ('Online / Tool', Icons.cloud_upload),
+  'email': ('E-Mail', Icons.email),
+  'telefon': ('Telefon', Icons.phone),
+  'persoenlich': ('Persönlich', Icons.person),
+};
+String _lbMethodeLabel(String? m) => (m == null || m.isEmpty) ? '' : (_lbMethodenMap[m]?.$1 ?? m);
+
+class _LichtbildAntragDetailView extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int antragId;
+  final Map<String, dynamic> antrag;
+  final VoidCallback onChanged;
+  final Future<void> Function(int antragId) onUploadFoto;
+  final Future<void> Function(DateTime? faellig) onErinnerung;
+  const _LichtbildAntragDetailView({
+    required this.apiService, required this.userId, required this.antragId,
+    required this.antrag, required this.onChanged, required this.onUploadFoto, required this.onErinnerung,
+  });
+  @override
+  State<_LichtbildAntragDetailView> createState() => _LichtbildAntragDetailViewState();
+}
+
+class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> {
+  List<Map<String, dynamic>> _schreiben = [];
+  List<Map<String, dynamic>> _foto = [];
+  List<Map<String, dynamic>> _korr = [];
+  bool _loaded = false;
+  bool _busy = false;
+  late Map<String, dynamic> _antrag;
+
+  @override
+  void initState() {
+    super.initState();
+    _antrag = Map<String, dynamic>.from(widget.antrag);
+    _load();
+  }
+
+  Future<void> _load() async {
+    final dR = await widget.apiService.listLbAntragDocs(widget.antragId);
+    final kR = await widget.apiService.listLbAntragKorr(widget.antragId);
+    if (!mounted) return;
+    setState(() {
+      if (dR['success'] == true && dR['data'] is List) {
+        final all = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _schreiben = all.where((d) => (d['kategorie']?.toString() ?? 'foto') == 'schreiben').toList();
+        _foto = all.where((d) => (d['kategorie']?.toString() ?? 'foto') == 'foto').toList();
+      }
+      if (kR['success'] == true && kR['data'] is List) {
+        _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      _loaded = true;
+    });
+  }
+
+  Future<void> _saveAntrag(Map<String, dynamic> updates) async {
+    setState(() => _antrag.addAll(updates));
+    await widget.apiService.saveLichtbildAntrag(widget.userId, {
+      'id': widget.antragId,
+      'datum': _antrag['datum'],
+      'schreiben_erhalten': _antrag['schreiben_erhalten'] ?? '',
+      'einreichungsweg': _antrag['einreichungsweg'] ?? '',
+      'foto_datum': _antrag['foto_datum'],
+      'status': _antrag['status'] ?? 'offen',
+      'aktenzeichen': _antrag['aktenzeichen'] ?? '',
+      'notiz': _antrag['notiz'] ?? '',
+    });
+    widget.onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final teal = Colors.teal.shade700;
+    final status = _antrag['status']?.toString() ?? 'offen';
+    return DefaultTabController(length: 4, child: Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: teal, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        child: Row(children: [
+          const Icon(Icons.photo_camera, color: Colors.white, size: 22),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Lichtbild-Antrag vom ${_fmtLbDate(_antrag['datum'])}', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text(_lbStatusLabel(status).toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600)),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      Material(
+        color: Colors.white,
+        child: TabBar(isScrollable: true, labelColor: teal, unselectedLabelColor: Colors.grey.shade600, indicatorColor: teal, tabs: [
+          const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+          Tab(icon: const Icon(Icons.mark_email_read, size: 18), text: 'Schreiben (${_schreiben.length})'),
+          Tab(icon: const Icon(Icons.mail, size: 18), text: 'Korrespondenz (${_korr.length})'),
+          Tab(icon: const Icon(Icons.photo, size: 18), text: 'Foto (${_foto.length})'),
+        ]),
+      ),
+      Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
+        _buildDetails(),
+        _buildSchreiben(),
+        _buildKorrespondenz(),
+        _buildFoto(),
+      ])),
+    ]));
+  }
+
+  // ---- Details ----
+  Widget _buildDetails() {
+    final teal = Colors.teal.shade700;
+    final fotoDatum = DateTime.tryParse(_antrag['foto_datum']?.toString() ?? '');
+    final faellig = fotoDatum == null ? null : DateTime(fotoDatum.year + 10, fotoDatum.month, fotoDatum.day);
+    final schreiben = _antrag['schreiben_erhalten']?.toString() ?? '';
+    final weg = _antrag['einreichungsweg']?.toString() ?? '';
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _dRow(Icons.calendar_today, 'Antragsdatum', _fmtLbDate(_antrag['datum'])),
+      const SizedBox(height: 12),
+      Text('Schreiben der Krankenkasse erhalten?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      Wrap(spacing: 8, children: [
+        ChoiceChip(label: const Text('Ja', style: TextStyle(fontSize: 12)), selected: schreiben == 'ja', selectedColor: Colors.teal.shade200, onSelected: (_) => _saveAntrag({'schreiben_erhalten': schreiben == 'ja' ? '' : 'ja'})),
+        ChoiceChip(label: const Text('Nein', style: TextStyle(fontSize: 12)), selected: schreiben == 'nein', selectedColor: Colors.teal.shade200, onSelected: (_) => _saveAntrag({'schreiben_erhalten': schreiben == 'nein' ? '' : 'nein'})),
+      ]),
+      const SizedBox(height: 14),
+      Text('Einreichungsweg des Fotos', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      Wrap(spacing: 6, children: [
+        _wegChip('post', 'Per Post', Icons.local_post_office, weg),
+        _wegChip('online', 'Online (Tool/App)', Icons.cloud_upload, weg),
+      ]),
+      const SizedBox(height: 14),
+      Text('Foto eingereicht am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () async {
+          final p = await showDatePicker(context: context, initialDate: fotoDatum ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+          if (p != null) _saveAntrag({'foto_datum': _fmtIso(p)});
+        },
+        child: InputDecorator(
+          decoration: InputDecoration(prefixIcon: const Icon(Icons.event_available, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          child: Text(fotoDatum == null ? 'Datum wählen' : _fmtLbDate(_antrag['foto_datum']), style: TextStyle(fontSize: 13, color: fotoDatum == null ? Colors.grey.shade500 : Colors.black87)),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      DropdownButtonFormField<String>(
+        initialValue: _lbStatusMap.containsKey(_antrag['status']) ? _antrag['status'].toString() : 'offen',
+        isExpanded: true,
+        decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+        items: _lbStatusMap.entries.map((s) => DropdownMenuItem(value: s.key, child: Text(s.value.$1, style: const TextStyle(fontSize: 13)))).toList(),
+        onChanged: (v) { if (v != null) _saveAntrag({'status': v}); },
+      ),
+      const SizedBox(height: 16),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(Icons.event_repeat, size: 16, color: teal), const SizedBox(width: 6), Expanded(child: Text(faellig == null ? 'Nächste Aktualisierung: kein Foto-Datum erfasst' : 'Nächste Pflicht-Aktualisierung: ${_fmtLbDate(_fmtIso(faellig))}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade900)))]),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, child: ElevatedButton.icon(
+            onPressed: () => widget.onErinnerung(faellig),
+            icon: const Icon(Icons.assignment_add, size: 16),
+            label: Text('Erinnerung erstellen (Ticket ${(faellig ?? DateTime(DateTime.now().year + 10)).year})', style: const TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white),
+          )),
+        ]),
+      ),
+      const SizedBox(height: 16),
+      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      _LbNotizEditor(initial: _antrag['notiz']?.toString() ?? '', onSave: (t) => _saveAntrag({'notiz': t})),
+    ]));
+  }
+
+  Widget _wegChip(String key, String label, IconData icon, String current) {
+    final sel = current == key;
+    final teal = Colors.teal.shade700;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 15, color: sel ? Colors.white : Colors.grey.shade600),
+      label: Text(label, style: TextStyle(fontSize: 12, color: sel ? Colors.white : Colors.black87)),
+      selected: sel, selectedColor: teal,
+      onSelected: (_) => _saveAntrag({'einreichungsweg': sel ? '' : key}),
+    );
+  }
+
+  Widget _dRow(IconData icon, String label, String? value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 8),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          Expanded(child: Text((value ?? '').isEmpty ? '—' : value!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+        ]),
+      );
+
+  // ---- Schreiben (Aufforderung / Umschlag) ----
+  Widget _buildSchreiben() {
+    final teal = Colors.teal.shade700;
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+        Icon(Icons.mark_email_read, size: 16, color: teal),
+        const SizedBox(width: 6),
+        Expanded(child: Text('${_schreiben.length} Schreiben der Krankenkasse · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        ElevatedButton.icon(onPressed: _busy ? null : () => _uploadDoc('schreiben'), icon: const Icon(Icons.upload_file, size: 16), label: const Text('Anhängen', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white)),
+      ])),
+      Expanded(child: _schreiben.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Schreiben angehängt', style: TextStyle(color: Colors.grey.shade500))]))
+          : ListView(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), children: _schreiben.map((d) => _docTile(d, Colors.blue)).toList())),
+    ]);
+  }
+
+  // ---- Foto ----
+  Widget _buildFoto() {
+    final teal = Colors.teal.shade700;
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Passbild 35×45 mm, biometrisch, JPG/PNG ≥ 413×531 px. Nicht konforme Fotos werden automatisch zugeschnitten.', style: TextStyle(fontSize: 10.5, color: Colors.blue.shade900))),
+        ]),
+      )),
+      Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: Row(children: [
+        Icon(Icons.photo, size: 16, color: teal),
+        const SizedBox(width: 6),
+        Expanded(child: Text('${_foto.length} Foto(s) · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        ElevatedButton.icon(onPressed: _busy ? null : _uploadFoto, icon: const Icon(Icons.add_a_photo, size: 16), label: const Text('Foto hochladen', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white)),
+      ])),
+      Expanded(child: _foto.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.photo_camera_back_outlined, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Kein Foto hochgeladen', style: TextStyle(color: Colors.grey.shade500))]))
+          : ListView(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), children: _foto.map((d) => _fotoTile(d)).toList())),
+    ]);
+  }
+
+  Widget _fotoTile(Map<String, dynamic> d) {
+    final name = d['datei_name']?.toString() ?? '';
+    final id = int.tryParse(d['id']?.toString() ?? '');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+      child: Row(children: [
+        if (id != null) _LbFotoThumb(apiService: widget.apiService, docId: id, name: name) else const SizedBox(width: 54, height: 70),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800), maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(_fmtLbDate(d['created_at']), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+        ])),
+        IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), onPressed: id == null ? null : () => _viewDoc(d, external: false)),
+        IconButton(icon: Icon(Icons.download, size: 18, color: Colors.teal.shade700), onPressed: id == null ? null : () => _viewDoc(d, external: true)),
+        IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: id == null ? null : () => _deleteDoc(id)),
+      ]),
+    );
+  }
+
+  Widget _docTile(Map<String, dynamic> d, MaterialColor color) {
+    final name = d['datei_name']?.toString() ?? '';
+    final id = int.tryParse(d['id']?.toString() ?? '');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+      child: Row(children: [
+        Icon(Icons.description, size: 18, color: color.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
+        IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: false)),
+        IconButton(icon: Icon(Icons.download, size: 18, color: color.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: true)),
+        IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _deleteDoc(id)),
+      ]),
+    );
+  }
+
+  Future<void> _viewDoc(Map<String, dynamic> d, {required bool external}) async {
+    try {
+      final resp = await widget.apiService.downloadLbAntragDoc(int.parse(d['id'].toString()));
+      if (resp.statusCode != 200 || !mounted) return;
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${d['datei_name']}');
+      await file.writeAsBytes(resp.bodyBytes);
+      if (external) { await OpenFilex.open(file.path); }
+      else if (mounted) { await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }
+    } catch (_) {}
+  }
+
+  Future<void> _deleteDoc(int id) async {
+    await widget.apiService.deleteLbAntragDoc(id);
+    _load();
+  }
+
+  Future<void> _uploadDoc(String kategorie) async {
+    setState(() => _busy = true);
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    if (result != null) {
+      for (final file in result.files.where((f) => f.path != null)) {
+        await widget.apiService.uploadLbAntragDoc(antragId: widget.antragId, kategorie: kategorie, filePath: file.path!, fileName: file.name);
+      }
+    }
+    if (mounted) setState(() => _busy = false);
+    _load();
+  }
+
+  Future<void> _uploadFoto() async {
+    setState(() => _busy = true);
+    await widget.onUploadFoto(widget.antragId);
+    if (mounted) setState(() => _busy = false);
+    _load();
+  }
+
+  // ---- Korrespondenz ----
+  Widget _buildKorrespondenz() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('eingang')),
+        const SizedBox(width: 6),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _addKorr('ausgang')),
+      ])),
+      Expanded(child: _korr.isEmpty
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
+              final k = _korr[i];
+              final isEin = k['richtung'] == 'eingang';
+              final kColor = isEin ? Colors.green : Colors.blue;
+              return Card(margin: const EdgeInsets.only(bottom: 6), child: Padding(padding: const EdgeInsets.all(10), child: Row(children: [
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: kColor.shade700),
+                const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
+                  Row(children: [
+                    Text(_fmtLbDate(k['datum']), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if ((k['methode']?.toString() ?? '').isNotEmpty) ...[const SizedBox(width: 6), Text(_lbMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: Colors.grey.shade500))],
+                  ]),
+                  if ((k['notiz']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                ])),
+                IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: () async { await widget.apiService.deleteLbAntragKorr(int.parse(k['id'].toString())); _load(); }),
+              ])));
+            })),
+    ]);
+  }
+
+  void _addKorr(String richtung) {
+    final betreffC = TextEditingController();
+    final now = DateTime.now();
+    final datumC = TextEditingController(text: _fmtIso(now));
+    final notizC = TextEditingController();
+    String methode = '';
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 16)),
+      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, border: const OutlineInputBorder(), suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 18), onPressed: () async {
+          final p = await showDatePicker(context: ctx2, initialDate: DateTime.tryParse(datumC.text) ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+          if (p != null) setD(() => datumC.text = _fmtIso(p));
+        }))),
+        const SizedBox(height: 8),
+        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 6, runSpacing: 6, children: _lbMethodenMap.entries.map((m) => ChoiceChip(
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : Colors.black87))]),
+          selected: methode == m.key, selectedColor: Colors.teal, onSelected: (_) => setD(() => methode = m.key),
+        )).toList()),
+        const SizedBox(height: 8),
+        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          await widget.apiService.saveLbAntragKorr(widget.antragId, {'richtung': richtung, 'methode': methode, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim()});
+          if (ctx.mounted) Navigator.pop(ctx);
+          _load();
+        }, child: const Text('Speichern')),
+      ],
+    )));
+  }
+}
+
+class _LbNotizEditor extends StatefulWidget {
+  final String initial;
+  final Future<void> Function(String) onSave;
+  const _LbNotizEditor({required this.initial, required this.onSave});
+  @override
+  State<_LbNotizEditor> createState() => _LbNotizEditorState();
+}
+
+class _LbNotizEditorState extends State<_LbNotizEditor> {
+  late TextEditingController _c;
+  bool _dirty = false;
+  @override
+  void initState() { super.initState(); _c = TextEditingController(text: widget.initial); }
+  @override
+  void dispose() { _c.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      TextField(controller: _c, maxLines: 4, onChanged: (v) => setState(() => _dirty = v != widget.initial),
+        decoration: InputDecoration(hintText: 'Fristen, Besonderheiten…', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      if (_dirty) Padding(padding: const EdgeInsets.only(top: 6), child: FilledButton.icon(icon: const Icon(Icons.save, size: 16), label: const Text('Notiz speichern', style: TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade700), onPressed: () async { await widget.onSave(_c.text.trim()); if (mounted) setState(() => _dirty = false); })),
+    ]);
+  }
+}
+
+class _LbFotoThumb extends StatefulWidget {
+  final ApiService apiService;
+  final int docId;
+  final String name;
+  const _LbFotoThumb({required this.apiService, required this.docId, required this.name});
+  @override
+  State<_LbFotoThumb> createState() => _LbFotoThumbState();
+}
+
+class _LbFotoThumbState extends State<_LbFotoThumb> {
+  Uint8List? _bytes;
+  bool _err = false;
+  @override
+  void initState() { super.initState(); _load(); }
+  Future<void> _load() async {
+    try {
+      final r = await widget.apiService.downloadLbAntragDoc(widget.docId);
+      if (!mounted) return;
+      if (r.statusCode == 200) { setState(() => _bytes = r.bodyBytes); } else { setState(() => _err = true); }
+    } catch (_) { if (mounted) setState(() => _err = true); }
+  }
+  @override
+  Widget build(BuildContext context) {
+    if (_bytes != null) {
+      return ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.memory(_bytes!, width: 54, height: 70, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _ph(Icons.broken_image)));
+    }
+    return _ph(_err ? Icons.broken_image : null);
+  }
+  Widget _ph(IconData? ic) => Container(width: 54, height: 70, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
+    child: ic == null ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))) : Icon(ic, size: 20, color: Colors.grey.shade400));
+}

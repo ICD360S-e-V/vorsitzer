@@ -4653,6 +4653,57 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== LICHTBILD-ANTRÄGE (eGK-Lichtbild, dedizierte DB-Tabellen) ==========
+  // Anträge
+  Future<Map<String, dynamic>> listLichtbildAntraege(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/lichtbild_antraege_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveLichtbildAntrag(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/lichtbild_antraege_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteLichtbildAntrag(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/lichtbild_antraege_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Antrag → Dokumente (Schreiben/Foto, verschlüsselte Datei-BLOBs); kategorie: 'schreiben' | 'foto'
+  Future<Map<String, dynamic>> listLbAntragDocs(int antragId, {String? kategorie}) async {
+    final kat = (kategorie != null && kategorie.isNotEmpty) ? '&kategorie=$kategorie' : '';
+    final r = await _client.get(Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php?antrag_id=$antragId&type=docs$kat'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadLbAntragDoc({required int antragId, required String kategorie, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc'; request.fields['kategorie'] = kategorie;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteLbAntragDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadLbAntragDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  // Antrag → Korrespondenz
+  Future<Map<String, dynamic>> listLbAntragKorr(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php?antrag_id=$antragId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveLbAntragKorr(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'korr';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteLbAntragKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== GERICHT (dedicated DB tables) ==========
 
   Future<Map<String, dynamic>> getGerichtData(int userId, String gerichtTyp) async {
@@ -8581,6 +8632,49 @@ class ApiService {
   Future<Map<String, dynamic>> jcEinladungDocDelete(int docId) async {
     final r = await _client.post(
       Uri.parse('$baseUrl/admin/jobcenter_av_einladung_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': docId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  // === KOOPERATIONSPLAN DOKUMENTE (§ 15 SGB II, verschlüsselt als BLOB) ===
+  // Bis zu 20 Dokumente pro Arbeitsvermittler-Zuordnung (jobcenter_user_av.id).
+  // Bytes werden serverseitig mit AES-256-GCM (CryptoHelper) verschlüsselt in
+  // jobcenter_av_kooperationsplan_dokumente abgelegt.
+  // Endpoint: admin/jobcenter_av_kooperationsplan_docs.php
+
+  Future<Map<String, dynamic>> jcKooperationsplanDocsList(int userAvId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php?user_av_id=$userAvId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> jcKooperationsplanDocUpload({
+    required int userAvId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php'));
+    request.headers.addAll(_headers);
+    request.fields['user_av_id'] = userAvId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> jcKooperationsplanDocDownload(int docId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php?download_id=$docId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> jcKooperationsplanDocDelete(int docId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_kooperationsplan_docs.php'),
       headers: _headers,
       body: jsonEncode({'action': 'delete', 'id': docId}),
     ).timeout(const Duration(seconds: 15));
