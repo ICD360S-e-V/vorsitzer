@@ -4653,6 +4653,99 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== JUGENDAMT (dedicated DB tables) ==========
+
+  /// Shared Jugendämter-Datenbank (Ämter): suchen / anlegen.
+  Future<Map<String, dynamic>> searchJugendaemter({String search = '', String bundesland = ''}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_manage.php'), headers: _headers, body: jsonEncode({'action': 'search', 'search': search, 'bundesland': bundesland})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+  /// Per-user Jugendamt Stammdaten (ausgewähltes Amt, Aktenzeichen, Sachbearbeiter, Notizen).
+  Future<Map<String, dynamic>> getJugendamtData(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/jugendamt_data_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveJugendamtData(int userId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_data_manage.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Anträge
+  Future<Map<String, dynamic>> listJugendamtAntraege(int userId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/jugendamt_antraege_manage.php?user_id=$userId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveJugendamtAntrag(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antraege_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteJugendamtAntrag(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antraege_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Antrag → Unterlagen (verschlüsselte BLOB-Dokumente)
+  Future<Map<String, dynamic>> listJaAntragDocs(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php?antrag_id=$antragId&type=docs'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadJaAntragDoc({required int antragId, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteJaAntragDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadJaAntragDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+  // Antrag → Korrespondenz
+  Future<Map<String, dynamic>> listJaAntragKorr(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php?antrag_id=$antragId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveJaAntragKorr(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'korr';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteJaAntragKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Antrag → Termine (mit Sync zur zentralen Terminverwaltung)
+  Future<Map<String, dynamic>> listJaAntragTermine(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php?antrag_id=$antragId&type=termine'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveJaAntragTermin(int antragId, int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['user_id'] = userId; body['type'] = 'termin';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteJaAntragTermin(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'termine', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  // Antrag → Bewilligung (1:1 pro Antrag; Auto-Weiterbewilligung-Ticket)
+  Future<Map<String, dynamic>> getJaBewilligung(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/jugendamt_bewilligung.php?antrag_id=$antragId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveJaBewilligung(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_bewilligung.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteJaBewilligung(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_bewilligung.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== LICHTBILD-ANTRÄGE (eGK-Lichtbild, dedizierte DB-Tabellen) ==========
   // Anträge
   Future<Map<String, dynamic>> listLichtbildAntraege(int userId) async {
