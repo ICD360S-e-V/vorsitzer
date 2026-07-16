@@ -6439,6 +6439,50 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
+  // ── Arbeitsagentur Antrag-Detail (antrag-zentrisch): Formulardaten (bereich.feld) / Korrespondenz / Unterlagen ──
+  // Endpoint arbeitsagentur_antrag_detail.php, multiplext auf type=data|korr|docs|download.
+  Future<Map<String, dynamic>> getAaAntragData(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php?antrag_id=$antragId&type=data'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveAaAntragData(int antragId, Map<String, dynamic> data) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php'), headers: _headers, body: jsonEncode({'type': 'data', 'antrag_id': antragId, 'data': data})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listAaAntragKorr(int antragId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php?antrag_id=$antragId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveAaAntragKorr(int antragId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['antrag_id'] = antragId; body['type'] = 'korr';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAaAntragKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listAaAntragDocs(int antragId, {String bereich = ''}) async {
+    final q = bereich.isNotEmpty ? '&bereich=$bereich' : '';
+    final r = await _client.get(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php?antrag_id=$antragId&type=docs$q'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadAaAntragDoc({required int antragId, required String bereich, required String filePath, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc'; request.fields['bereich'] = bereich;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteAaAntragDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadAaAntragDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   // ── Arbeitsagentur 2FA (TOTP) ─────────────────────────────────────
   Future<Map<String, dynamic>> saveArbeitsagenturTotp(int userId, String secret, {int digits = 6, int period = 30, String algorithm = 'SHA1', String label = 'arbeitsagentur.de'}) async {
     final response = await _client.post(

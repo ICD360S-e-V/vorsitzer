@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../services/api_service.dart';
 import '../services/aa_auto_login_service.dart';
@@ -74,7 +76,6 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   bool _dbLoading = false;
   bool _dbSaving = false;
   Map<String, dynamic> _dbData = {};
-  List<Map<String, dynamic>> _dbMeldungen = [];
   List<Map<String, dynamic>> _dbAntraege = [];
   List<Map<String, dynamic>> _dbTermine = [];
   List<Map<String, dynamic>> _dbBegutachtungen = [];
@@ -87,9 +88,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     (Icons.account_balance, 'Zuständige Arbeitsagentur'),
     (Icons.person_pin, 'Vermittler'),
     (Icons.badge, 'Stammdaten'),
-    (Icons.person_off, 'Meldung'),
     (Icons.assignment, 'Anträge'),
-    (Icons.description, 'Bescheid'),
     (Icons.block, 'Sperrzeit'),
     (Icons.handshake, 'EGV'),
     (Icons.school, 'BGS'),
@@ -146,7 +145,6 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             }
           }
         }
-        _dbMeldungen = (res['meldungen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _dbAntraege = (res['antraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _dbTermine = (res['termine'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _dbBegutachtungen = (res['begutachtungen'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -240,9 +238,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           _cTab(Icons.account_balance, 'Zuständige Arbeitsagentur', (_dbData['dienststelle']?.toString() ?? '').isNotEmpty),
           _cTab(Icons.person_pin, 'Vermittler', (_dbData['vermittler_name']?.toString() ?? '').isNotEmpty),
           _cTab(Icons.badge, 'Stammdaten', (_dbData['kundennummer']?.toString() ?? '').isNotEmpty),
-          _cTab(Icons.person_off, 'Meldung', _dbMeldungen.isNotEmpty),
           _cTab(Icons.assignment, 'Anträge', _dbAntraege.isNotEmpty),
-          _cTab(Icons.description, 'Bescheid', (_dbData['bescheid_typ']?.toString() ?? '').isNotEmpty),
           _cTab(Icons.block, 'Sperrzeit', _bv('has_sperrzeit')),
           _cTab(Icons.handshake, 'EGV', _bv('has_egv')),
           _cTab(Icons.school, 'BGS', _bv('has_bgs')),
@@ -257,9 +253,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         _buildZustaendigeAgenturTab(),
         _buildVermittlerTab(),
         _buildStammdatenTab(),
-        _buildMeldungTab(),
         _buildAntraegeTab(),
-        _buildBescheidTab(),
         _buildSperrzeitTab(),
         _buildEgvTab(),
         _buildBgsTab(),
@@ -477,112 +471,134 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     );
   }
 
-  // ──── TAB: Arbeitssuchendmeldung ────
-  Widget _buildMeldungTab() {
-    final suchendC = TextEditingController(text: _v('arbeitssuchend_datum'));
-    final losC = TextEditingController(text: _v('arbeitslos_datum'));
-    final letzterC = TextEditingController(text: _v('letzter_arbeitstag'));
-    String kuendigungsart = _v('kuendigungsart');
-    List<Map<String, dynamic>> meldungen = List<Map<String, dynamic>>.from(_dbMeldungen.map((e) => Map<String, dynamic>.from(e)));
-    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.brown.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: _dateField('Arbeitssuchend gemeldet am', suchendC, ctx)),
-            const SizedBox(width: 12),
-            Expanded(child: _dateField('Arbeitslos gemeldet am', losC, ctx)),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _dateField('Letzter Arbeitstag', letzterC, ctx)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Kündigungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              DropdownButtonFormField<String>(initialValue: kuendigungsart.isEmpty ? null : kuendigungsart, isExpanded: true,
-                decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
-                hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
-                items: const [
-                  DropdownMenuItem(value: 'arbeitgeber', child: Text('Arbeitgeberkündigung', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'eigen', child: Text('Eigenkündigung', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'aufhebung', child: Text('Aufhebungsvertrag', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'befristung', child: Text('Befristung ausgelaufen', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 'insolvenz', child: Text('Insolvenz', style: TextStyle(fontSize: 13))),
-                ], onChanged: (v) => setLocal(() => kuendigungsart = v ?? '')),
-            ])),
-          ]),
-        ])),
-      _saveBtn(() => _saveTab({'arbeitssuchend_datum': suchendC.text.trim(), 'arbeitslos_datum': losC.text.trim(), 'letzter_arbeitstag': letzterC.text.trim(), 'kuendigungsart': kuendigungsart})),
-      const SizedBox(height: 16),
-      widget.meldungenBuilder(meldungen: meldungen, onChanged: (u) { setLocal(() => meldungen = u); _syncMeldungenToDB(u); }, context: ctx),
-    ])));
-  }
-
-  // ──── TAB: Anträge ────
+  // ──── TAB: Anträge (antrag-zentrisch) ────
+  // Ein Antrag = ein Arbeitslosigkeits-Fall, der die Stufen Arbeitssuchend-/
+  // Arbeitslosenmeldung → ALG-Antrag → Bewilligungsbescheid durchläuft.
+  // Formulare/Unterlagen/Korrespondenz liegen im Detail-Modal (_AaAntragDetailView).
   Widget _buildAntraegeTab() {
-    List<Map<String, dynamic>> antraege = List<Map<String, dynamic>>.from(_dbAntraege.map((e) => Map<String, dynamic>.from(e)));
-    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: widget.antraegeBuilder(
-      behoerdeType: type, antraege: antraege,
-      artItems: const [
-        DropdownMenuItem(value: 'arbeitsuchend_meldung', child: Text('Arbeitsuchendmeldung (§ 38 SGB III — ohne Leistungsbezug)', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'arbeitslosmeldung', child: Text('Arbeitslosmeldung (§ 141 SGB III)', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'erstantrag', child: Text('Erstantrag ALG I', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'weiterbewilligung', child: Text('Weiterbewilligungsantrag', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'wiederholung', child: Text('Wiederholungsantrag', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'insolvenzantrag', child: Text('Insolvenzantrag', style: TextStyle(fontSize: 13))),
-      ],
-      statusItems: const [
-        DropdownMenuItem(value: 'neu', child: Text('Neu', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'geplant', child: Text('Geplant', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'eingereicht', child: Text('Eingereicht', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'in_bearbeitung', child: Text('In Bearbeitung', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'unterlagen_fehlen', child: Text('Unterlagen nachgefordert', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'bewilligt', child: Text('Bewilligt', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'abgelehnt', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'zurueckgezogen', child: Text('Zurückgezogen', style: TextStyle(fontSize: 13))),
-        DropdownMenuItem(value: 'verweigerung', child: Text('Verweigerung durch Mitglied', style: TextStyle(fontSize: 13))),
-      ],
-      onChanged: (u) { setLocal(() => antraege = u); _syncAntraegeToDB(u); }, context: ctx)));
+    final antraege = _dbAntraege;
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+        const Icon(Icons.assignment, size: 20, color: _aaBrand),
+        const SizedBox(width: 8),
+        Text('Anträge (${antraege.length})', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _aaBrand)),
+        const Spacer(),
+        ElevatedButton.icon(onPressed: _showNewAntragDialog, icon: const Icon(Icons.add, size: 18), label: const Text('Neuer Antrag'),
+          style: ElevatedButton.styleFrom(backgroundColor: _aaBrand, foregroundColor: Colors.white)),
+      ])),
+      Expanded(child: antraege.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.assignment_outlined, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text('Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+            const SizedBox(height: 4),
+            Text('„Neuer Antrag" beginnt mit der Arbeitssuchendmeldung', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+          ]))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: antraege.length, itemBuilder: (_, i) {
+            final a = antraege[i];
+            final status = a['status']?.toString() ?? '';
+            final sc = aaStatusColor(status);
+            final datum = a['datum']?.toString() ?? '';
+            return Card(child: ListTile(
+              leading: Icon(status == 'bewilligt' ? Icons.check_circle : status == 'abgelehnt' ? Icons.cancel : Icons.assignment, color: sc, size: 28),
+              title: Text('${aaArtLabel(a['art']?.toString() ?? '')}${datum.isNotEmpty ? '  •  $datum' : ''}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              subtitle: Container(margin: const EdgeInsets.only(top: 4), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: sc.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                child: Text(aaStatusLabel(status).toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sc))),
+              onTap: () { final aid = int.tryParse(a['id']?.toString() ?? ''); if (aid != null) _showAaAntragDetailDialog(aid, a); },
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _deleteAntrag(a)),
+                Icon(Icons.chevron_right, color: Colors.grey.shade400),
+              ]),
+            ));
+          })),
+    ]);
   }
 
-  // ──── TAB: Bewilligungsbescheid ────
-  Widget _buildBescheidTab() {
-    final vonC = TextEditingController(text: _v('bescheid_von'));
-    final bisC = TextEditingController(text: _v('bescheid_bis'));
-    final leistungC = TextEditingController(text: _v('leistungssatz_betrag'));
-    final bemessungC = TextEditingController(text: _v('bemessungsentgelt'));
-    final anspruchC = TextEditingController(text: _v('anspruchsdauer'));
-    final restC = TextEditingController(text: _v('restanspruch'));
-    String leistungTyp = _v('leistungssatz_typ');
-    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionHeader(Icons.description, 'Bewilligungsbescheid (ALG I)', Colors.green.shade700),
-      const SizedBox(height: 8),
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Expanded(child: _dateField('Bewilligungszeitraum von', vonC, ctx)), const SizedBox(width: 12), Expanded(child: _dateField('Bewilligungszeitraum bis', bisC, ctx))]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _textField('Täglicher Leistungssatz (EUR)', leistungC, hint: 'z.B. 38.50', icon: Icons.euro)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Leistungssatz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-              const SizedBox(height: 4),
-              DropdownButtonFormField<String>(initialValue: leistungTyp.isEmpty ? null : leistungTyp, isExpanded: true,
-                decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
-                hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
-                items: const [
-                  DropdownMenuItem(value: '60', child: Text('60% (allgemein)', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: '67', child: Text('67% (mit Kind)', style: TextStyle(fontSize: 13))),
-                ], onChanged: (v) => setLocal(() => leistungTyp = v ?? '')),
-            ])),
-          ]),
-          const SizedBox(height: 12),
-          _textField('Bemessungsentgelt (EUR/Tag)', bemessungC, hint: 'Tägliches Bemessungsentgelt', icon: Icons.account_balance_wallet),
-          const SizedBox(height: 12),
-          Row(children: [Expanded(child: _textField('Anspruchsdauer (Tage)', anspruchC, hint: 'z.B. 360', icon: Icons.timer)), const SizedBox(width: 12), Expanded(child: _textField('Restanspruch (Tage)', restC, hint: 'Verbleibende Tage', icon: Icons.hourglass_bottom))]),
-        ])),
-      _saveBtn(() => _saveTab({'bescheid_von': vonC.text.trim(), 'bescheid_bis': bisC.text.trim(), 'leistungssatz_betrag': leistungC.text.trim(), 'leistungssatz_typ': leistungTyp, 'bemessungsentgelt': bemessungC.text.trim(), 'anspruchsdauer': anspruchC.text.trim(), 'restanspruch': restC.text.trim()})),
-    ])));
+  Future<void> _deleteAntrag(Map<String, dynamic> a) async {
+    final aid = int.tryParse(a['id']?.toString() ?? '');
+    if (aid == null) return;
+    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('Antrag löschen?'),
+      content: const Text('Der Antrag und alle Formulardaten, Unterlagen und Korrespondenz werden gelöscht.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(c, true), child: const Text('Löschen')),
+      ]));
+    if (ok != true) return;
+    await widget.apiService.deleteArbeitsagenturAntrag(widget.userId, aid);
+    await _loadFromDB();
+  }
+
+  // Neuer Antrag → beginnt mit der Arbeitssuchendmeldung (§ 38 SGB III).
+  void _showNewAntragDialog() {
+    final suchendC = TextEditingController();
+    final letzterC = TextEditingController();
+    final taetigkeitC = TextEditingController();
+    final svC = TextEditingController();
+    bool saving = false;
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      title: const Text('Neuer Antrag — Arbeitssuchendmeldung', style: TextStyle(fontSize: 16)),
+      content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('§ 38 SGB III — Meldung als arbeitssuchend', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 12),
+        _dateField('Arbeitssuchend gemeldet am *', suchendC, ctx2),
+        const SizedBox(height: 10),
+        _dateField('Letzter Arbeitstag', letzterC, ctx2),
+        const SizedBox(height: 10),
+        _textField('Letzte Tätigkeit', taetigkeitC, hint: 'z.B. Lagerarbeiter', icon: Icons.work),
+        const SizedBox(height: 10),
+        _textField('SV-Nummer', svC, hint: 'Sozialversicherungsnummer', icon: Icons.badge),
+      ]))),
+      actions: [
+        TextButton(onPressed: saving ? null : () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(
+          onPressed: saving ? null : () async {
+            if (suchendC.text.trim().isEmpty) return;
+            setD(() => saving = true);
+            final r = await widget.apiService.saveArbeitsagenturAntrag(widget.userId, {
+              'art': 'arbeitslosigkeit', 'status': 'arbeitssuchend', 'datum': suchendC.text.trim(), 'notiz': '',
+            });
+            final aid = int.tryParse(r['id']?.toString() ?? '');
+            if (aid != null) {
+              await widget.apiService.saveAaAntragData(aid, {
+                'arbeitssuchendmeldung.arbeitssuchend_datum': suchendC.text.trim(),
+                'arbeitssuchendmeldung.letzter_arbeitstag': letzterC.text.trim(),
+                'arbeitssuchendmeldung.letzte_taetigkeit': taetigkeitC.text.trim(),
+                'arbeitssuchendmeldung.sv_nummer': svC.text.trim(),
+              });
+            }
+            if (!ctx2.mounted) return;
+            Navigator.pop(ctx);
+            await _loadFromDB();
+            if (aid != null && mounted) {
+              final a = _dbAntraege.firstWhere((x) => x['id'].toString() == aid.toString(),
+                orElse: () => {'id': aid, 'art': 'arbeitslosigkeit', 'status': 'arbeitssuchend', 'datum': suchendC.text.trim()});
+              _showAaAntragDetailDialog(aid, a);
+            }
+          },
+          child: saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Anlegen'),
+        ),
+      ],
+    )));
+  }
+
+  void _showAaAntragDetailDialog(int antragId, Map<String, dynamic> antrag) {
+    showDialog(context: context, builder: (ctx) => Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: SizedBox(
+        width: MediaQuery.of(ctx).size.width * 0.9,
+        height: MediaQuery.of(ctx).size.height * 0.86,
+        child: _AaAntragDetailView(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          antragId: antragId,
+          antrag: antrag,
+          onChanged: _loadFromDB,
+          onClose: () => Navigator.pop(ctx),
+        ),
+      ),
+    ));
   }
 
   // ──── TAB: Sperrzeit ────
@@ -1371,38 +1387,6 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         }, child: const Text('Speichern')),
       ],
     )));
-  }
-
-  Future<void> _syncMeldungenToDB(List<Map<String, dynamic>> updated) async {
-    final existingIds = _dbMeldungen.map((m) => m['id'] as int?).where((id) => id != null).toSet();
-    final updatedIds = <int>{};
-    for (final mel in updated) {
-      final id = mel['id'] is int ? mel['id'] as int : 0;
-      if (id > 0) updatedIds.add(id);
-      await widget.apiService.saveArbeitsagenturMeldung(widget.userId, mel);
-    }
-    for (final oldId in existingIds) {
-      if (!updatedIds.contains(oldId)) {
-        await widget.apiService.deleteArbeitsagenturMeldung(widget.userId, oldId!);
-      }
-    }
-    await _loadFromDB();
-  }
-
-  Future<void> _syncAntraegeToDB(List<Map<String, dynamic>> updated) async {
-    final existingIds = _dbAntraege.map((a) => a['id'] as int?).where((id) => id != null).toSet();
-    final updatedIds = <int>{};
-    for (final antrag in updated) {
-      final id = antrag['id'] is int ? antrag['id'] as int : 0;
-      if (id > 0) updatedIds.add(id);
-      await widget.apiService.saveArbeitsagenturAntrag(widget.userId, antrag);
-    }
-    for (final oldId in existingIds) {
-      if (!updatedIds.contains(oldId)) {
-        await widget.apiService.deleteArbeitsagenturAntrag(widget.userId, oldId!);
-      }
-    }
-    await _loadFromDB();
   }
 
   Future<void> _syncTermineToDB(List<Map<String, dynamic>> updated) async {
@@ -4629,4 +4613,604 @@ class _AaAvEigenbemEditDialogState extends State<_AaAvEigenbemEditDialog> {
       ),
     ],
   );
+}
+
+// ============================================================================
+// Antrag-zentrisches Detail-Modal für Arbeitsagentur.
+// Ein Antrag durchläuft die Stufen Arbeitssuchend- → Arbeitslosenmeldung →
+// ALG-Antrag → Bewilligungsbescheid, plus Korrespondenz. Formulardaten liegen
+// pro bereich in arbeitsagentur_antrag_data, Unterlagen inline pro bereich in
+// arbeitsagentur_antrag_docs, Korrespondenz in arbeitsagentur_antrag_korr.
+// ============================================================================
+
+const Color _aaBrandC = Color(0xFF003F7D);
+
+String aaArtLabel(String v) {
+  switch (v) {
+    case 'arbeitslosigkeit': return 'Arbeitslosigkeit (ALG I)';
+    case 'arbeitsuchend_meldung': return 'Arbeitsuchendmeldung';
+    case 'weiterbewilligung': return 'Weiterbewilligungsantrag';
+    case 'wiederholung': return 'Wiederholungsantrag';
+    case 'insolvenzantrag': return 'Insolvenzgeld-Antrag';
+    default: return v.isEmpty ? 'Antrag' : v;
+  }
+}
+
+String aaStatusLabel(String v) {
+  switch (v) {
+    case 'neu': return 'Neu';
+    case 'arbeitssuchend': return 'Arbeitssuchend gemeldet';
+    case 'arbeitslos': return 'Arbeitslos gemeldet';
+    case 'antrag_gestellt': return 'ALG-Antrag gestellt';
+    case 'in_bearbeitung': return 'In Bearbeitung';
+    case 'bewilligt': return 'Bewilligt';
+    case 'abgelehnt': return 'Abgelehnt';
+    case 'zurueckgezogen': return 'Zurückgezogen';
+    default: return v.isEmpty ? 'Neu' : v;
+  }
+}
+
+Color aaStatusColor(String v) {
+  switch (v) {
+    case 'bewilligt': return Colors.green.shade600;
+    case 'abgelehnt': return Colors.red.shade600;
+    case 'in_bearbeitung':
+    case 'antrag_gestellt': return Colors.orange.shade700;
+    case 'zurueckgezogen': return Colors.grey.shade600;
+    default: return _aaBrandC;
+  }
+}
+
+const List<DropdownMenuItem<String>> _aaArtItems = [
+  DropdownMenuItem(value: 'arbeitslosigkeit', child: Text('Arbeitslosigkeit (ALG I)', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'arbeitsuchend_meldung', child: Text('Arbeitsuchendmeldung (§ 38 SGB III)', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'weiterbewilligung', child: Text('Weiterbewilligungsantrag', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'wiederholung', child: Text('Wiederholungsantrag', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'insolvenzantrag', child: Text('Insolvenzgeld-Antrag', style: TextStyle(fontSize: 13))),
+];
+const List<DropdownMenuItem<String>> _aaStatusItems = [
+  DropdownMenuItem(value: 'neu', child: Text('Neu', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'arbeitssuchend', child: Text('Arbeitssuchend gemeldet', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'arbeitslos', child: Text('Arbeitslos gemeldet', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'antrag_gestellt', child: Text('ALG-Antrag gestellt', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'in_bearbeitung', child: Text('In Bearbeitung', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'bewilligt', child: Text('Bewilligt', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'abgelehnt', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'zurueckgezogen', child: Text('Zurückgezogen', style: TextStyle(fontSize: 13))),
+];
+const List<DropdownMenuItem<String>> _aaJaNein = [
+  DropdownMenuItem(value: 'ja', child: Text('Ja', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'nein', child: Text('Nein', style: TextStyle(fontSize: 13))),
+];
+const List<DropdownMenuItem<String>> _aaKuendigungsartItems = [
+  DropdownMenuItem(value: 'arbeitgeber', child: Text('Arbeitgeberkündigung', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'eigen', child: Text('Eigenkündigung', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'aufhebung', child: Text('Aufhebungsvertrag', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'befristung', child: Text('Befristung ausgelaufen', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'insolvenz', child: Text('Insolvenz', style: TextStyle(fontSize: 13))),
+];
+const List<DropdownMenuItem<String>> _aaAlgArtItems = [
+  DropdownMenuItem(value: 'erstantrag', child: Text('Erstantrag ALG I', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'weiterbewilligung', child: Text('Weiterbewilligungsantrag', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'wiederholung', child: Text('Wiederholungsantrag', style: TextStyle(fontSize: 13))),
+];
+const List<DropdownMenuItem<String>> _aaLeistungssatzItems = [
+  DropdownMenuItem(value: '60', child: Text('60% (allgemein)', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: '67', child: Text('67% (mit Kind)', style: TextStyle(fontSize: 13))),
+];
+const List<DropdownMenuItem<String>> _aaBewilligtItems = [
+  DropdownMenuItem(value: 'ja', child: Text('Bewilligt', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'teilweise', child: Text('Teilweise bewilligt', style: TextStyle(fontSize: 13))),
+  DropdownMenuItem(value: 'nein', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))),
+];
+
+class _AaAntragDetailView extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int antragId;
+  final Map<String, dynamic> antrag;
+  final VoidCallback onChanged;
+  final VoidCallback onClose;
+  const _AaAntragDetailView({required this.apiService, required this.userId, required this.antragId, required this.antrag, required this.onChanged, required this.onClose});
+  @override
+  State<_AaAntragDetailView> createState() => _AaAntragDetailViewState();
+}
+
+class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
+  Map<String, dynamic> _data = {};
+  late Map<String, dynamic> _antrag;
+  bool _loaded = false, _savingDetails = false;
+
+  @override
+  void initState() { super.initState(); _antrag = Map<String, dynamic>.from(widget.antrag); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.getAaAntragData(widget.antragId);
+    if (!mounted) return;
+    setState(() {
+      _data = (r['success'] == true && r['data'] is Map) ? Map<String, dynamic>.from(r['data'] as Map) : {};
+      _loaded = true;
+    });
+  }
+
+  String _v(String key) => _data[key]?.toString() ?? '';
+
+  Future<void> _saveBereich(String bereich, Map<String, String> fields) async {
+    final payload = <String, dynamic>{};
+    fields.forEach((k, val) => payload['$bereich.$k'] = val);
+    final r = await widget.apiService.saveAaAntragData(widget.antragId, payload);
+    if (!mounted) return;
+    if (r['success'] == true) {
+      fields.forEach((k, val) => _data['$bereich.$k'] = val);
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+      widget.onChanged();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fehler beim Speichern'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _saveDetails(String art, String status, String datum, String notiz) async {
+    setState(() => _savingDetails = true);
+    final r = await widget.apiService.saveArbeitsagenturAntrag(widget.userId, {
+      'id': widget.antragId, 'art': art, 'status': status, 'datum': datum, 'notiz': notiz,
+    });
+    if (!mounted) return;
+    setState(() {
+      _savingDetails = false;
+      if (r['success'] == true) { _antrag['art'] = art; _antrag['status'] = status; _antrag['datum'] = datum; _antrag['notiz'] = notiz; }
+    });
+    if (r['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+      widget.onChanged();
+    }
+  }
+
+  Widget _tf(String label, TextEditingController c, {String hint = '', IconData icon = Icons.edit, int maxLines = 1}) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)), style: const TextStyle(fontSize: 14)),
+    ]),
+  );
+
+  Widget _df(String label, TextEditingController c) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      TextField(controller: c, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.calendar_today, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+        onTap: () async {
+          final picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+          if (picked != null) c.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+        }),
+    ]),
+  );
+
+  Widget _dd(String label, String value, List<DropdownMenuItem<String>> items, ValueChanged<String> onChanged) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      DropdownButtonFormField<String>(initialValue: value.isEmpty ? null : value, isExpanded: true,
+        decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+        hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)), items: items, onChanged: (v) => onChanged(v ?? '')),
+    ]),
+  );
+
+  Widget _saveBar(VoidCallback onSave) => Align(alignment: Alignment.centerRight, child: Padding(
+    padding: const EdgeInsets.only(top: 4, bottom: 8),
+    child: ElevatedButton.icon(onPressed: onSave, icon: const Icon(Icons.save, size: 18), label: const Text('Speichern'),
+      style: ElevatedButton.styleFrom(backgroundColor: _aaBrandC, foregroundColor: Colors.white)),
+  ));
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _antrag['status']?.toString() ?? '';
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        decoration: BoxDecoration(color: aaStatusColor(status).withValues(alpha: 0.12), border: Border(bottom: BorderSide(color: Colors.grey.shade300))),
+        child: Row(children: [
+          Icon(Icons.assignment, color: aaStatusColor(status)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(aaArtLabel(_antrag['art']?.toString() ?? ''), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            Text(aaStatusLabel(status), style: TextStyle(fontSize: 12, color: aaStatusColor(status), fontWeight: FontWeight.w600)),
+          ])),
+          IconButton(icon: const Icon(Icons.close), tooltip: 'Schließen', onPressed: widget.onClose),
+        ]),
+      ),
+      Expanded(child: !_loaded
+        ? const Center(child: CircularProgressIndicator())
+        : DefaultTabController(length: 6, child: Column(children: [
+            Material(color: Colors.white, child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start,
+              labelColor: _aaBrandC, unselectedLabelColor: Colors.grey, indicatorColor: _aaBrandC,
+              labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), unselectedLabelStyle: const TextStyle(fontSize: 11),
+              tabs: const [
+                Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+                Tab(icon: Icon(Icons.person_search, size: 16), text: 'Arbeitssuchend'),
+                Tab(icon: Icon(Icons.person_off, size: 16), text: 'Arbeitslos'),
+                Tab(icon: Icon(Icons.request_page, size: 16), text: 'ALG-Antrag'),
+                Tab(icon: Icon(Icons.verified, size: 16), text: 'Bescheid'),
+                Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
+              ])),
+            Expanded(child: TabBarView(children: [
+              _buildDetailsTab(),
+              _buildArbeitssuchendTab(),
+              _buildArbeitslosTab(),
+              _buildAlgAntragTab(),
+              _buildBescheidTab(),
+              _AaAntragKorrSection(apiService: widget.apiService, antragId: widget.antragId),
+            ])),
+          ])),
+      ),
+    ]);
+  }
+
+  Widget _buildDetailsTab() {
+    String art = (_antrag['art']?.toString() ?? '').isEmpty ? 'arbeitslosigkeit' : _antrag['art'].toString();
+    String status = (_antrag['status']?.toString() ?? '').isEmpty ? 'neu' : _antrag['status'].toString();
+    final datumC = TextEditingController(text: _antrag['datum']?.toString() ?? '');
+    final notizC = TextEditingController(text: _antrag['notiz']?.toString() ?? '');
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _dd('Art des Antrags', art, _aaArtItems, (v) => setLocal(() => art = v)),
+      _dd('Status', status, _aaStatusItems, (v) => setLocal(() => status = v)),
+      _df('Datum', datumC),
+      _tf('Notiz', notizC, hint: 'Interne Notiz', icon: Icons.sticky_note_2, maxLines: 3),
+      _savingDetails
+        ? const Align(alignment: Alignment.centerRight, child: Padding(padding: EdgeInsets.all(8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
+        : _saveBar(() => _saveDetails(art, status, datumC.text.trim(), notizC.text.trim())),
+    ])));
+  }
+
+  Widget _buildArbeitssuchendTab() {
+    final suchendC = TextEditingController(text: _v('arbeitssuchendmeldung.arbeitssuchend_datum'));
+    final letzterC = TextEditingController(text: _v('arbeitssuchendmeldung.letzter_arbeitstag'));
+    final taetigkeitC = TextEditingController(text: _v('arbeitssuchendmeldung.letzte_taetigkeit'));
+    final endeC = TextEditingController(text: _v('arbeitssuchendmeldung.taetigkeit_ende_datum'));
+    final svC = TextEditingController(text: _v('arbeitssuchendmeldung.sv_nummer'));
+    String faehig = _v('arbeitssuchendmeldung.gesundheitlich_faehig');
+    final notizC = TextEditingController(text: _v('arbeitssuchendmeldung.notiz'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.person_search, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8), Text('Arbeitssuchendmeldung (§ 38 SGB III)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade700))]),
+      const SizedBox(height: 12),
+      _df('Arbeitssuchend gemeldet am', suchendC),
+      _df('Letzter Arbeitstag', letzterC),
+      _tf('Letzte Tätigkeit', taetigkeitC, hint: 'z.B. Lagerarbeiter', icon: Icons.work),
+      _df('Tätigkeit beendet am', endeC),
+      _tf('SV-Nummer', svC, hint: 'Sozialversicherungsnummer', icon: Icons.badge),
+      _dd('Gesundheitlich arbeitsfähig?', faehig, _aaJaNein, (v) => setLocal(() => faehig = v)),
+      _tf('Notiz', notizC, hint: '', icon: Icons.sticky_note_2, maxLines: 2),
+      _saveBar(() => _saveBereich('arbeitssuchendmeldung', {
+        'arbeitssuchend_datum': suchendC.text.trim(), 'letzter_arbeitstag': letzterC.text.trim(),
+        'letzte_taetigkeit': taetigkeitC.text.trim(), 'taetigkeit_ende_datum': endeC.text.trim(),
+        'sv_nummer': svC.text.trim(), 'gesundheitlich_faehig': faehig, 'notiz': notizC.text.trim(),
+      })),
+      const Divider(height: 28),
+      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'arbeitssuchendmeldung'),
+    ])));
+  }
+
+  Widget _buildArbeitslosTab() {
+    final losC = TextEditingController(text: _v('arbeitslosenmeldung.arbeitslos_datum'));
+    String kuendigungsart = _v('arbeitslosenmeldung.kuendigungsart');
+    String schwerbeh = _v('arbeitslosenmeldung.has_schwerbehinderung');
+    final erreichbarC = TextEditingController(text: _v('arbeitslosenmeldung.erreichbarkeit'));
+    final krankengeldC = TextEditingController(text: _v('arbeitslosenmeldung.krankengeld_ende'));
+    String datenschutz = _v('arbeitslosenmeldung.datenschutz_kenntnisnahme');
+    final notizC = TextEditingController(text: _v('arbeitslosenmeldung.notiz'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.person_off, size: 18, color: Colors.brown.shade700), const SizedBox(width: 8), Text('Arbeitslosenmeldung (§ 141 SGB III)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade700))]),
+      const SizedBox(height: 12),
+      _df('Arbeitslos gemeldet am', losC),
+      _dd('Kündigungsart', kuendigungsart, _aaKuendigungsartItems, (v) => setLocal(() => kuendigungsart = v)),
+      _dd('Schwerbehinderung?', schwerbeh, _aaJaNein, (v) => setLocal(() => schwerbeh = v)),
+      _tf('Erreichbarkeit', erreichbarC, hint: 'z.B. Telefon / E-Mail', icon: Icons.contact_phone),
+      _df('Krankengeld-Ende', krankengeldC),
+      _dd('Datenschutz zur Kenntnis genommen?', datenschutz, _aaJaNein, (v) => setLocal(() => datenschutz = v)),
+      _tf('Notiz', notizC, hint: '', icon: Icons.sticky_note_2, maxLines: 2),
+      _saveBar(() => _saveBereich('arbeitslosenmeldung', {
+        'arbeitslos_datum': losC.text.trim(), 'kuendigungsart': kuendigungsart,
+        'has_schwerbehinderung': schwerbeh, 'erreichbarkeit': erreichbarC.text.trim(),
+        'krankengeld_ende': krankengeldC.text.trim(), 'datenschutz_kenntnisnahme': datenschutz, 'notiz': notizC.text.trim(),
+      })),
+      const Divider(height: 28),
+      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'arbeitslosenmeldung'),
+    ])));
+  }
+
+  Widget _buildAlgAntragTab() {
+    final datumC = TextEditingController(text: _v('alg_antrag.antrag_datum'));
+    String algArt = _v('alg_antrag.antrag_art');
+    String online = _v('alg_antrag.online_eingereicht');
+    final azC = TextEditingController(text: _v('alg_antrag.aktenzeichen'));
+    final notizC = TextEditingController(text: _v('alg_antrag.notiz'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.request_page, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), Text('Arbeitslosengeld-Antrag (ALG I)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))]),
+      const SizedBox(height: 12),
+      _df('Antrag gestellt am', datumC),
+      _dd('Antragsart', algArt, _aaAlgArtItems, (v) => setLocal(() => algArt = v)),
+      _dd('Online eingereicht?', online, _aaJaNein, (v) => setLocal(() => online = v)),
+      _tf('Aktenzeichen', azC, hint: 'Aktenzeichen der Agentur', icon: Icons.tag),
+      _tf('Notiz', notizC, hint: '', icon: Icons.sticky_note_2, maxLines: 2),
+      _saveBar(() => _saveBereich('alg_antrag', {
+        'antrag_datum': datumC.text.trim(), 'antrag_art': algArt, 'online_eingereicht': online,
+        'aktenzeichen': azC.text.trim(), 'notiz': notizC.text.trim(),
+      })),
+      const Divider(height: 28),
+      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'alg_antrag'),
+    ])));
+  }
+
+  Widget _buildBescheidTab() {
+    final datumC = TextEditingController(text: _v('bescheid.bescheid_datum'));
+    String bewilligt = _v('bescheid.bewilligt');
+    final vonC = TextEditingController(text: _v('bescheid.zeitraum_von'));
+    final bisC = TextEditingController(text: _v('bescheid.zeitraum_bis'));
+    final leistungC = TextEditingController(text: _v('bescheid.leistungssatz_betrag'));
+    String leistungTyp = _v('bescheid.leistungssatz_typ');
+    final bemessungC = TextEditingController(text: _v('bescheid.bemessungsentgelt'));
+    final anspruchC = TextEditingController(text: _v('bescheid.anspruchsdauer'));
+    final restC = TextEditingController(text: _v('bescheid.restanspruch'));
+    final notizC = TextEditingController(text: _v('bescheid.notiz'));
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(Icons.verified, size: 18, color: Colors.green.shade700), const SizedBox(width: 8), Text('Bewilligungsbescheid (ALG I)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))]),
+      const SizedBox(height: 12),
+      _df('Bescheiddatum', datumC),
+      _dd('Ergebnis', bewilligt, _aaBewilligtItems, (v) => setLocal(() => bewilligt = v)),
+      Row(children: [Expanded(child: _df('Bewilligung von', vonC)), const SizedBox(width: 12), Expanded(child: _df('Bewilligung bis', bisC))]),
+      Row(children: [
+        Expanded(child: _tf('Täglicher Leistungssatz (EUR)', leistungC, hint: 'z.B. 38.50', icon: Icons.euro)),
+        const SizedBox(width: 12),
+        Expanded(child: _dd('Leistungssatz', leistungTyp, _aaLeistungssatzItems, (v) => setLocal(() => leistungTyp = v))),
+      ]),
+      _tf('Bemessungsentgelt (EUR/Tag)', bemessungC, hint: 'Tägliches Bemessungsentgelt', icon: Icons.account_balance_wallet),
+      Row(children: [
+        Expanded(child: _tf('Anspruchsdauer (Tage)', anspruchC, hint: 'z.B. 360', icon: Icons.timer)),
+        const SizedBox(width: 12),
+        Expanded(child: _tf('Restanspruch (Tage)', restC, hint: 'Verbleibende Tage', icon: Icons.hourglass_bottom)),
+      ]),
+      _tf('Notiz', notizC, hint: '', icon: Icons.sticky_note_2, maxLines: 2),
+      _saveBar(() => _saveBereich('bescheid', {
+        'bescheid_datum': datumC.text.trim(), 'bewilligt': bewilligt,
+        'zeitraum_von': vonC.text.trim(), 'zeitraum_bis': bisC.text.trim(),
+        'leistungssatz_betrag': leistungC.text.trim(), 'leistungssatz_typ': leistungTyp,
+        'bemessungsentgelt': bemessungC.text.trim(), 'anspruchsdauer': anspruchC.text.trim(),
+        'restanspruch': restC.text.trim(), 'notiz': notizC.text.trim(),
+      })),
+      const Divider(height: 28),
+      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'bescheid'),
+    ])));
+  }
+}
+
+// ---- Unterlagen pro Antrag-Bereich (verschlüsselt) ----
+class _AaAntragDocsSection extends StatefulWidget {
+  final ApiService apiService;
+  final int antragId;
+  final String bereich;
+  const _AaAntragDocsSection({required this.apiService, required this.antragId, required this.bereich});
+  @override
+  State<_AaAntragDocsSection> createState() => _AaAntragDocsSectionState();
+}
+
+class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
+  List<Map<String, dynamic>> _docs = [];
+  bool _loaded = false, _busy = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.listAaAntragDocs(widget.antragId, bereich: widget.bereich);
+    if (!mounted) return;
+    setState(() {
+      _docs = (r['success'] == true && r['data'] is List) ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _loaded = true;
+    });
+  }
+
+  void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
+
+  Future<void> _upload() async {
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    setState(() => _busy = true);
+    for (final f in result.files.where((f) => f.path != null)) {
+      final res = await widget.apiService.uploadAaAntragDoc(antragId: widget.antragId, bereich: widget.bereich, filePath: f.path!, fileName: f.name);
+      if (res['success'] != true) _snack('Upload fehlgeschlagen: ${f.name}');
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _load();
+  }
+
+  Future<File?> _fetch(Map<String, dynamic> d) async {
+    final resp = await widget.apiService.downloadAaAntragDoc(d['id'] as int);
+    if (resp.statusCode != 200) return null;
+    final dir = await getTemporaryDirectory();
+    final name = (d['datei_name'] ?? 'dokument').toString();
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(resp.bodyBytes);
+    return file;
+  }
+
+  Future<void> _view(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null && mounted) await FileViewerDialog.show(context, f.path, (d['datei_name'] ?? '').toString());
+  }
+
+  Future<void> _openExtern(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null) await OpenFilex.open(f.path);
+  }
+
+  Future<void> _delete(Map<String, dynamic> d) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Dokument löschen?'),
+      content: Text((d['datei_name'] ?? '').toString()),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteAaAntragDoc(d['id'] as int);
+    _load();
+  }
+
+  IconData _iconFor(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png')) return Icons.image;
+    return Icons.insert_drive_file;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.folder, size: 16, color: Colors.grey.shade600), const SizedBox(width: 6),
+        Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const Spacer(),
+        TextButton.icon(
+          onPressed: _busy ? null : _upload,
+          icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.upload_file, size: 16),
+          label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+        ),
+      ]),
+      if (!_loaded)
+        const Padding(padding: EdgeInsets.all(8), child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))))
+      else if (_docs.isEmpty)
+        Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('Keine Unterlagen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)))
+      else
+        ..._docs.map((d) {
+          final name = (d['datei_name'] ?? '').toString();
+          return Card(margin: const EdgeInsets.symmetric(vertical: 3), child: ListTile(
+            dense: true,
+            leading: Icon(_iconFor(name), color: _aaBrandC, size: 20),
+            title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Ansehen', onPressed: () => _view(d)),
+              IconButton(icon: Icon(Icons.open_in_new, size: 18, color: Colors.green.shade700), tooltip: 'Öffnen', onPressed: () => _openExtern(d)),
+              IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(d)),
+            ]),
+          ));
+        }),
+    ]);
+  }
+}
+
+// ---- Korrespondenz pro Antrag ----
+class _AaAntragKorrSection extends StatefulWidget {
+  final ApiService apiService;
+  final int antragId;
+  const _AaAntragKorrSection({required this.apiService, required this.antragId});
+  @override
+  State<_AaAntragKorrSection> createState() => _AaAntragKorrSectionState();
+}
+
+class _AaAntragKorrSectionState extends State<_AaAntragKorrSection> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loaded = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.listAaAntragKorr(widget.antragId);
+    if (!mounted) return;
+    setState(() {
+      _korr = (r['success'] == true && r['data'] is List) ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _loaded = true;
+    });
+  }
+
+  Future<void> _add(String richtung) async {
+    final datumC = TextEditingController();
+    final betreffC = TextEditingController();
+    final notizC = TextEditingController();
+    String methode = 'brief';
+    bool saving = false;
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+      title: Text(richtung == 'eingang' ? 'Eingang erfassen' : 'Ausgang erfassen', style: const TextStyle(fontSize: 16)),
+      content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        TextField(controller: datumC, readOnly: true, decoration: const InputDecoration(labelText: 'Datum', hintText: 'TT.MM.JJJJ', isDense: true, border: OutlineInputBorder()),
+          onTap: () async {
+            final picked = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (picked != null) datumC.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+          }),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(initialValue: methode, decoration: const InputDecoration(labelText: 'Kontaktart', isDense: true, border: OutlineInputBorder()),
+          items: const [
+            DropdownMenuItem(value: 'brief', child: Text('Brief')),
+            DropdownMenuItem(value: 'email', child: Text('E-Mail')),
+            DropdownMenuItem(value: 'telefon', child: Text('Telefon')),
+            DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')),
+            DropdownMenuItem(value: 'online', child: Text('Online-Portal')),
+          ], onChanged: (v) => setD(() => methode = v ?? 'brief')),
+        const SizedBox(height: 10),
+        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 3, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+      ]))),
+      actions: [
+        TextButton(onPressed: saving ? null : () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: saving ? null : () async {
+          setD(() => saving = true);
+          await widget.apiService.saveAaAntragKorr(widget.antragId, {
+            'richtung': richtung, 'datum': datumC.text.trim(), 'methode': methode,
+            'betreff': betreffC.text.trim(), 'notiz': notizC.text.trim(),
+          });
+          if (!ctx2.mounted) return;
+          Navigator.pop(ctx);
+          _load();
+        }, child: saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern')),
+      ],
+    )));
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('Eintrag löschen?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteAaAntragKorr(id);
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+        Icon(Icons.mail, size: 18, color: _aaBrandC), const SizedBox(width: 8),
+        Text('Korrespondenz (${_korr.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _aaBrandC)),
+        const Spacer(),
+        OutlinedButton.icon(onPressed: () => _add('eingang'), icon: const Icon(Icons.call_received, size: 16), label: const Text('Eingang', style: TextStyle(fontSize: 12))),
+        const SizedBox(width: 6),
+        OutlinedButton.icon(onPressed: () => _add('ausgang'), icon: const Icon(Icons.call_made, size: 16), label: const Text('Ausgang', style: TextStyle(fontSize: 12))),
+      ])),
+      Expanded(child: _korr.isEmpty
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
+            final k = _korr[i];
+            final eingang = (k['richtung']?.toString() ?? 'eingang') == 'eingang';
+            return Card(child: ListTile(
+              dense: true,
+              leading: Icon(eingang ? Icons.call_received : Icons.call_made, color: eingang ? Colors.green.shade700 : Colors.blue.shade700),
+              title: Text((k['betreff']?.toString() ?? '').isEmpty ? '(ohne Betreff)' : k['betreff'].toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              subtitle: Text('${k['datum'] ?? ''}  •  ${k['methode'] ?? ''}${(k['notiz']?.toString() ?? '').isNotEmpty ? '\n${k['notiz']}' : ''}', style: const TextStyle(fontSize: 11)),
+              isThreeLine: (k['notiz']?.toString() ?? '').isNotEmpty,
+              trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () => _delete(k['id'] as int)),
+            ));
+          })),
+    ]);
+  }
 }
