@@ -555,12 +555,22 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
             'datum': a['datum'],
             'methode': a['methode'],
             'status': v,
+            'bewilligt_von': a['bewilligt_von'],
+            'bewilligt_bis': a['bewilligt_bis'],
             'aktenzeichen': a['aktenzeichen'],
             'notiz': a['notiz'],
           });
           widget.onChanged();
         },
       ),
+      const SizedBox(height: 16),
+      Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      Row(children: [
+        Expanded(child: _wgDateField('Bewilligt von', 'bewilligt_von')),
+        const SizedBox(width: 8),
+        Expanded(child: _wgDateField('Bewilligt bis', 'bewilligt_bis')),
+      ]),
       const SizedBox(height: 16),
       Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
       const SizedBox(height: 4),
@@ -573,6 +583,8 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
             'datum': a['datum'],
             'methode': a['methode'],
             'status': a['status'],
+            'bewilligt_von': a['bewilligt_von'],
+            'bewilligt_bis': a['bewilligt_bis'],
             'aktenzeichen': a['aktenzeichen'],
             'notiz': txt,
           });
@@ -580,6 +592,46 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
         },
       ),
     ]));
+  }
+
+  // Datumsfeld für den Bewilligungszeitraum (bewilligt_von / bewilligt_bis).
+  // Read-only mit DatePicker + Clear-Button; speichert sofort und behält die
+  // übrigen Antragsfelder bei. Wird vom WBA-Generator (Frage 20) ausgewertet:
+  // fehlt bewilligt_bis, gilt die Leistung als laufend.
+  Widget _wgDateField(String label, String key) {
+    final val = _antrag[key]?.toString() ?? '';
+    return TextField(
+      readOnly: true,
+      controller: TextEditingController(text: val),
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        prefixIcon: const Icon(Icons.event, size: 18),
+        suffixIcon: val.isEmpty ? null : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => _saveZeitraum(key, '')),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onTap: () async {
+        final init = DateTime.tryParse(val) ?? DateTime.now();
+        final p = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
+        if (p != null) _saveZeitraum(key, '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
+      },
+    );
+  }
+
+  Future<void> _saveZeitraum(String key, String value) async {
+    setState(() => _antrag[key] = value);
+    final a = _antrag;
+    await widget.apiService.saveWohngeldstelleAntrag(widget.userId, {
+      'id': widget.antragId,
+      'datum': a['datum'],
+      'methode': a['methode'],
+      'status': a['status'],
+      'bewilligt_von': a['bewilligt_von'],
+      'bewilligt_bis': a['bewilligt_bis'],
+      'aktenzeichen': a['aktenzeichen'],
+      'notiz': a['notiz'],
+    });
+    widget.onChanged();
   }
 
   Widget _dRow(IconData icon, String label, String? value) => Padding(

@@ -1491,6 +1491,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     String einreichungsweg = existingAntrag?['einreichungsweg'] ?? 'online';
     final datumController = TextEditingController(text: existingAntrag?['datum'] ?? '');
     final notizController = TextEditingController(text: existingAntrag?['notiz'] ?? '');
+    // Bewilligungszeitraum — nur für Rente (rentenversicherung). Wird im Antrag-Blob
+    // gespeichert und vom WBA-Generator (Frage 20) ausgewertet: fehlt zeitraum_bis,
+    // gilt die Rente als laufend.
+    final zeitraumVonController = TextEditingController(text: existingAntrag?['zeitraum_von'] ?? '');
+    final zeitraumBisController = TextEditingController(text: existingAntrag?['zeitraum_bis'] ?? '');
     final isEdit = existingAntrag != null;
 
     return showDialog<Map<String, dynamic>>(
@@ -1588,6 +1593,39 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           }
                         },
                       ),
+                      if (behoerdeType == 'rentenversicherung') ...[
+                        const SizedBox(height: 16),
+                        Text('Bewilligungszeitraum (Rente)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Expanded(child: TextField(
+                            controller: zeitraumVonController,
+                            readOnly: true,
+                            decoration: InputDecoration(labelText: 'Von', hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.event, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                            onTap: () async {
+                              final picked = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de', 'DE'));
+                              if (picked != null) setDlgState(() => zeitraumVonController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}');
+                            },
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: TextField(
+                            controller: zeitraumBisController,
+                            readOnly: true,
+                            decoration: InputDecoration(
+                              labelText: 'Bis',
+                              hintText: 'leer = laufend',
+                              prefixIcon: const Icon(Icons.event, size: 18),
+                              suffixIcon: zeitraumBisController.text.isEmpty ? null : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setDlgState(() => zeitraumBisController.clear())),
+                              isDense: true,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onTap: () async {
+                              final picked = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de', 'DE'));
+                              if (picked != null) setDlgState(() => zeitraumBisController.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}');
+                            },
+                          )),
+                        ]),
+                      ],
                       const SizedBox(height: 16),
                       Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
                       const SizedBox(height: 4),
@@ -1628,6 +1666,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       'einreichungsweg': einreichungsweg,
                       'datum': datumController.text.trim(),
                       'notiz': notizController.text.trim(),
+                      if (behoerdeType == 'rentenversicherung') 'zeitraum_von': zeitraumVonController.text.trim(),
+                      if (behoerdeType == 'rentenversicherung') 'zeitraum_bis': zeitraumBisController.text.trim(),
                     };
 
                     // Build verlauf
