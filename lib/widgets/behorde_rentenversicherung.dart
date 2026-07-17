@@ -106,16 +106,33 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
   static const double _pvBeitragKinderlos = 2.3;
 
   static const List<({String key, String label})> _antragArten = [
+    // — Konto / Auskunft —
     (key: 'rentenauskunft', label: 'Rentenauskunft'),
-    (key: 'altersrente', label: 'Altersrentenantrag'),
+    (key: 'kontenklaerung', label: 'Kontenklaerung'),
+    // — Altersrenten —
+    (key: 'altersrente', label: 'Regelaltersrente'),
+    (key: 'altersrente_langjaehrig', label: 'Altersrente fuer langjaehrig Versicherte (35 J.)'),
+    (key: 'altersrente_besonders_langjaehrig', label: 'Altersrente fuer besonders langjaehrig Versicherte (45 J.)'),
+    (key: 'altersrente_schwerbehindert', label: 'Altersrente fuer schwerbehinderte Menschen'),
+    // — Erwerbsminderung —
     (key: 'emr_voll', label: 'Erwerbsminderungsrente (voll)'),
     (key: 'emr_teil', label: 'Erwerbsminderungsrente (teilweise)'),
+    // — Rente wegen Todes —
+    (key: 'erziehungsrente', label: 'Erziehungsrente (§ 47 SGB VI)'),
     (key: 'witwen_gross', label: 'Grosse Witwen-/Witwerrente'),
     (key: 'witwen_klein', label: 'Kleine Witwen-/Witwerrente'),
     (key: 'halbwaisen', label: 'Halbwaisenrente'),
     (key: 'vollwaisen', label: 'Vollwaisenrente'),
-    (key: 'kontenklaerung', label: 'Kontenklaerung'),
-    (key: 'reha', label: 'Reha-Antrag'),
+    // — Reha / Teilhabe —
+    (key: 'reha', label: 'Medizinische Rehabilitation'),
+    (key: 'lta', label: 'Leistungen zur Teilhabe am Arbeitsleben (LTA)'),
+    (key: 'uebergangsgeld', label: 'Uebergangsgeld'),
+    (key: 'reha_nachsorge', label: 'Reha-Nachsorge (IRENA)'),
+    // — Beitraege / Sonstiges —
+    (key: 'beitragserstattung', label: 'Beitragserstattung (§ 210 SGB VI)'),
+    (key: 'rentensplitting', label: 'Rentensplitting unter Ehegatten'),
+    (key: 'zuschuss_kv', label: 'Zuschuss zur Krankenversicherung'),
+    // — Rechtsmittel —
     (key: 'ueberpruefung', label: 'Ueberpruefungsantrag (§44 SGB X)'),
     (key: 'widerspruch', label: 'Widerspruch'),
     (key: 'klage', label: 'Klage'),
