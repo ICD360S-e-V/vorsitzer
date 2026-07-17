@@ -6052,6 +6052,33 @@ class ApiService {
     }
   }
 
+  // Korrespondenz mit dem Pflegedienst (pro Antrag): Eingang/Ausgang, Kontaktart, Betreff, Inhalt.
+  Future<Map<String, dynamic>> listPflegedienstKorr(int userId, int antragId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/pflegedienst_korr.php?action=list&user_id=$userId&antrag_id=$antragId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> savePflegedienstKorr(int userId, int antragId, Map<String, dynamic> korr) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegedienst_korr.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'save', 'user_id': userId, 'antrag_id': antragId, 'korr': korr}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deletePflegedienstKorr(int userId, int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegedienst_korr.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'user_id': userId, 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> githubAction(Map<String, dynamic> data) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/vereinverwaltung/github_manage.php'),
