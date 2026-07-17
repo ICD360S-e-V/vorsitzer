@@ -6023,6 +6023,35 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> searchPflegekasse({String search = ''}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegekasse_search.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'search', 'search': search}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Einmalige, idempotente Migration alter Versorgungsdaten (Pflegegrad/Pflegedienst/
+  /// Pflegebox) aus der Krankenkasse in den letzten Pflegegrad-Antrag. Server no-op wenn
+  /// keine Quelle oder bereits migriert.
+  Future<Map<String, dynamic>> migratePflegeToAntrag(int userId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/pflegegrad_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'migrate_kk_pflege', 'user_id': userId}),
+    ).timeout(const Duration(seconds: 15));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   Future<Map<String, dynamic>> githubAction(Map<String, dynamic> data) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/vereinverwaltung/github_manage.php'),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import 'pflegebox_widget.dart';
 
 /// Pflegestufe / Anträge auf Pflegegrad
 ///
@@ -86,6 +87,9 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
     if (_loading) return;
     setState(() => _loading = true);
     try {
+      // Einmalige, idempotente Migration alter Versorgungsdaten aus der Krankenkasse in
+      // den letzten Antrag — vor dem Listen, damit die Liste bereits migriert erscheint.
+      try { await widget.apiService.migratePflegeToAntrag(widget.userId); } catch (_) {}
       final res = await widget.apiService.listPflegegradAntraege(widget.userId);
       if (res['success'] == true && mounted) {
         _antraege = (res['antraege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -470,6 +474,21 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   late TextEditingController _klageUrteilErgC;
   String _klageUrteilPg = '';
 
+  // Tab 10: Pflegedienst + aktueller Pflegegrad (aus dem Zust.-Pflegekasse-Tab hierher
+  // verschoben — jetzt pro Antrag). Pflegegrad = tatsächlich bewilligter/laufender Grad.
+  String _pgAktuell = '';
+  late TextEditingController _pgSeitC;
+  late TextEditingController _pflegedienstNameC;
+  Map<String, dynamic> _selectedPflegedienst = {};
+
+  // Tab 11: Pflegebox (kostenlose Pflegehilfsmittel ab PG 1)
+  int? _pbFirmaId;
+  String _pbFirmaName = '';
+  late TextEditingController _pbDatumC;
+  String _pbVersandart = '';
+  String _pbStatus = '';
+  late TextEditingController _pbNotizenC;
+
   // MD + Gutachter (für Widerspruch → Zweitgutachten)
   List<Map<String, dynamic>> _mdList = [];
   bool _mdLoaded = false;
@@ -528,6 +547,25 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     _klageUrteilDatumC = TextEditingController(text: _s('klage_urteil_datum'));
     _klageUrteilErgC = TextEditingController(text: _s('klage_urteil_ergebnis'));
     _klageUrteilPg = _pflegegrade.contains(_s('klage_urteil_pflegegrad')) ? _s('klage_urteil_pflegegrad') : '';
+    // Tab 10: Pflegedienst + aktueller Pflegegrad
+    _pgAktuell = _pflegegrade.contains(_s('pflegegrad_aktuell')) ? _s('pflegegrad_aktuell') : '';
+    _pgSeitC = TextEditingController(text: _s('pflegegrad_aktuell_seit'));
+    _pflegedienstNameC = TextEditingController(text: _s('pflegedienst_name'));
+    _selectedPflegedienst = {
+      if (_s('pflegedienst_id').isNotEmpty) 'id': _s('pflegedienst_id'),
+      if (_s('pflegedienst_name').isNotEmpty) 'name': _s('pflegedienst_name'),
+      if (_s('pflegedienst_strasse').isNotEmpty) 'strasse': _s('pflegedienst_strasse'),
+      if (_s('pflegedienst_plz_ort').isNotEmpty) 'plz_ort': _s('pflegedienst_plz_ort'),
+      if (_s('pflegedienst_telefon').isNotEmpty) 'telefon': _s('pflegedienst_telefon'),
+      if (_s('pflegedienst_email').isNotEmpty) 'email': _s('pflegedienst_email'),
+    };
+    // Tab 11: Pflegebox
+    _pbFirmaId = int.tryParse(_s('pflegebox_firma_id'));
+    _pbFirmaName = _s('pflegebox_firma_name');
+    _pbDatumC = TextEditingController(text: _s('pflegebox_datum'));
+    _pbVersandart = _s('pflegebox_versandart');
+    _pbStatus = _s('pflegebox_status');
+    _pbNotizenC = TextEditingController(text: _s('pflegebox_notizen'));
     // MD + Gutachter (lazy load)
     _loadMdList();
   }
@@ -807,6 +845,22 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'klage_urteil_datum': _klageUrteilDatumC.text.trim(),
         'klage_urteil_ergebnis': _klageUrteilErgC.text.trim(),
         'klage_urteil_pflegegrad': _klageUrteilPg,
+        // Tab 10: Pflegedienst + aktueller Pflegegrad
+        'pflegedienst_id': _selectedPflegedienst['id']?.toString() ?? '',
+        'pflegedienst_name': _pflegedienstNameC.text.trim(),
+        'pflegedienst_strasse': _selectedPflegedienst['strasse']?.toString() ?? '',
+        'pflegedienst_plz_ort': _selectedPflegedienst['plz_ort']?.toString() ?? '',
+        'pflegedienst_telefon': _selectedPflegedienst['telefon']?.toString() ?? '',
+        'pflegedienst_email': _selectedPflegedienst['email']?.toString() ?? '',
+        'pflegegrad_aktuell': _pgAktuell,
+        'pflegegrad_aktuell_seit': _pgSeitC.text.trim(),
+        // Tab 11: Pflegebox
+        'pflegebox_firma_id': _pbFirmaId?.toString() ?? '',
+        'pflegebox_firma_name': _pbFirmaName,
+        'pflegebox_datum': _pbDatumC.text.trim(),
+        'pflegebox_versandart': _pbVersandart,
+        'pflegebox_status': _pbStatus,
+        'pflegebox_notizen': _pbNotizenC.text.trim(),
       };
       final res = await widget.apiService.savePflegegradAntrag(widget.userId, payload);
       if (res['success'] != true) throw Exception('Server-Fehler: ${res['message'] ?? res.toString()}');
@@ -836,7 +890,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 9,
+      length: 11,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: SizedBox(width: 900, height: 700, child: Column(children: [
@@ -869,6 +923,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
               _tabWithDot('Klage', Icons.account_balance, _klageEingelegt == 'ja' ? Colors.red : Colors.grey),
               _tabWithDot('Drittgutachten', Icons.assignment_ind, _dgDatumC.text.isNotEmpty ? Colors.deepPurple : Colors.grey),
               _tabWithDot('Bescheid', Icons.gavel_rounded, _klageUrteilDatumC.text.isNotEmpty ? Colors.green : Colors.grey),
+              _tabWithDot('Pflegedienst', Icons.medical_services, (_pgAktuell.isNotEmpty || _pflegedienstNameC.text.isNotEmpty) ? Colors.purple : Colors.grey),
+              _tabWithDot('Pflegebox', Icons.inventory_2, _pbStatus.isNotEmpty ? Colors.green : Colors.grey),
             ],
           ),
           Expanded(child: TabBarView(children: [
@@ -881,6 +937,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             _buildKlageTab(),
             _buildDrittgutachtenTab(),
             _buildKlageBescheidTab(),
+            _buildPflegedienstTab(),
+            _buildPflegeboxTab(),
           ])),
           _buildBottomActionBar(),
         ])),
@@ -1431,6 +1489,233 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           modul: 'pflegegrad_urteil',
           korrespondenzId: antragId,
         ),
+      ),
+    ]));
+  }
+
+  // ── Tab 10: Pflegedienst + aktueller Pflegegrad ──
+  Widget _buildPflegedienstTab() {
+    final pd = _selectedPflegedienst;
+    const pgLabels = {
+      '': 'Kein Pflegegrad',
+      '1': 'PG 1 – Geringe Beeinträchtigung',
+      '2': 'PG 2 – Erhebliche Beeinträchtigung',
+      '3': 'PG 3 – Schwere Beeinträchtigung',
+      '4': 'PG 4 – Schwerste Beeinträchtigung',
+      '5': 'PG 5 – Schwerste + besondere Anforderungen',
+    };
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(Icons.medical_services, 'Pflegedienst & laufender Pflegegrad', Colors.purple),
+      const SizedBox(height: 8),
+      Text('Der tatsächlich bewilligte Pflegegrad und der versorgende Pflegedienst zu diesem Antrag.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      const SizedBox(height: 14),
+      Row(children: [
+        Expanded(flex: 3, child: DropdownButtonFormField<String>(
+          initialValue: pgLabels.containsKey(_pgAktuell) ? _pgAktuell : '',
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Pflegegrad (aktuell)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.elderly, size: 18)),
+          items: pgLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
+          onChanged: (v) => setState(() => _pgAktuell = v ?? ''),
+        )),
+        const SizedBox(width: 10),
+        Expanded(flex: 2, child: TextField(
+          controller: _pgSeitC, readOnly: true,
+          onTap: () async { await _pickDate(_pgSeitC); if (mounted) setState(() {}); },
+          decoration: const InputDecoration(labelText: 'seit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+        )),
+      ]),
+      const SizedBox(height: 16),
+      Text('Pflegedienst', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      TextField(
+        controller: _pflegedienstNameC,
+        readOnly: true,
+        decoration: InputDecoration(
+          hintText: 'Pflegedienst auswählen…',
+          prefixIcon: const Icon(Icons.medical_services, size: 20),
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(icon: const Icon(Icons.search, size: 20), tooltip: 'Pflegedienst suchen', onPressed: _showPflegedienstSucheModal),
+            if (_pflegedienstNameC.text.isNotEmpty)
+              IconButton(icon: Icon(Icons.clear, size: 18, color: Colors.red.shade300), tooltip: 'Entfernen',
+                onPressed: () => setState(() { _pflegedienstNameC.clear(); _selectedPflegedienst = {}; })),
+          ]),
+        ),
+        style: const TextStyle(fontSize: 14),
+        onTap: _showPflegedienstSucheModal,
+      ),
+      if (pd.isNotEmpty && (pd.length > 1 || (pd['name']?.toString() ?? '').isNotEmpty)) ...[
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(pd['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+            if ((pd['strasse']?.toString() ?? '').isNotEmpty || (pd['plz_ort']?.toString() ?? '').isNotEmpty)
+              _pdInfoRow(Icons.location_on, [pd['strasse'], pd['plz_ort']].where((e) => (e?.toString() ?? '').isNotEmpty).join(', ')),
+            if ((pd['telefon']?.toString() ?? '').isNotEmpty) _pdInfoRow(Icons.phone, pd['telefon'].toString()),
+            if ((pd['email']?.toString() ?? '').isNotEmpty) _pdInfoRow(Icons.email, pd['email'].toString()),
+          ]),
+        ),
+      ],
+    ]));
+  }
+
+  Widget _pdInfoRow(IconData icon, String text) {
+    return Padding(padding: const EdgeInsets.only(top: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 14, color: Colors.purple.shade600),
+      const SizedBox(width: 4),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.purple.shade700))),
+    ]));
+  }
+
+  void _showPflegedienstSucheModal() {
+    final searchC = TextEditingController();
+    List<Map<String, dynamic>> results = [];
+    bool loading = false;
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+      Future<void> doSearch() async {
+        setDlg(() => loading = true);
+        try {
+          final res = await widget.apiService.searchPflegedienst(search: searchC.text.trim());
+          if (res['success'] == true && res['pflegedienste'] is List) {
+            results = List<Map<String, dynamic>>.from((res['pflegedienste'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+          }
+        } catch (_) {}
+        setDlg(() => loading = false);
+      }
+      return AlertDialog(
+        title: Row(children: [
+          Icon(Icons.medical_services, size: 20, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          const Text('Pflegedienst suchen', style: TextStyle(fontSize: 16)),
+        ]),
+        content: SizedBox(width: 500, height: 400, child: Column(children: [
+          TextField(
+            controller: searchC,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Name oder Ort eingeben…',
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 18),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: doSearch),
+            ),
+            onSubmitted: (_) => doSearch(),
+          ),
+          const SizedBox(height: 12),
+          Expanded(child: loading
+            ? const Center(child: CircularProgressIndicator())
+            : results.isEmpty
+              ? Center(child: Text(searchC.text.isEmpty ? 'Suchbegriff eingeben' : 'Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade400)))
+              : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
+                  final p = results[i];
+                  return Card(child: ListTile(
+                    onTap: () {
+                      setState(() {
+                        _selectedPflegedienst = p;
+                        _pflegedienstNameC.text = p['name']?.toString() ?? '';
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Icon(Icons.medical_services, color: Colors.purple.shade700, size: 20)),
+                    title: Text(p['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if ((p['strasse']?.toString() ?? '').isNotEmpty || (p['plz_ort']?.toString() ?? '').isNotEmpty)
+                        Text('${p['strasse'] ?? ''}, ${p['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if ((p['telefon']?.toString() ?? '').isNotEmpty)
+                        Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    ]),
+                  ));
+                })),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
+      );
+    })).then((_) => searchC.dispose());
+  }
+
+  // ── Tab 11: Pflegebox ──
+  Widget _buildPflegeboxTab() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: _sectionHeader(Icons.inventory_2, 'Pflegebox', Colors.green)),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8)),
+          child: Text('Ab Pflegegrad 1', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+        ),
+      ]),
+      const SizedBox(height: 4),
+      Text('Anspruch auf kostenlose Pflegehilfsmittel (bis 40 €/Monat).', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      const Divider(height: 20),
+      PflegeboxSection(
+        apiService: widget.apiService,
+        userId: widget.userId,
+        selectedFirmaId: _pbFirmaId,
+        selectedFirmaName: _pbFirmaName,
+        onFirmaChanged: (firma) {
+          setState(() {
+            _pbFirmaId = firma == null ? null : firma['id'] as int?;
+            _pbFirmaName = firma == null ? '' : (firma['firma_name']?.toString() ?? '');
+          });
+        },
+      ),
+      const SizedBox(height: 14),
+      Text('Antrag gestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      TextField(
+        controller: _pbDatumC, readOnly: true,
+        onTap: () async { await _pickDate(_pbDatumC); if (mounted) setState(() {}); },
+        decoration: InputDecoration(
+          hintText: 'Datum wählen…',
+          prefixIcon: const Icon(Icons.calendar_today, size: 18),
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        style: const TextStyle(fontSize: 13),
+      ),
+      const SizedBox(height: 14),
+      Text('Antrag gestellt per', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      Wrap(spacing: 6, runSpacing: 6, children: [
+        for (final v in [('online', 'Online', Icons.language), ('telefonisch', 'Telefonisch', Icons.phone), ('persoenlich', 'Persönlich', Icons.person), ('postalisch', 'Postalisch', Icons.local_post_office)])
+          ChoiceChip(
+            label: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(v.$3, size: 14, color: _pbVersandart == v.$1 ? Colors.white : Colors.grey.shade700),
+              const SizedBox(width: 4),
+              Text(v.$2, style: TextStyle(fontSize: 11, color: _pbVersandart == v.$1 ? Colors.white : Colors.black87)),
+            ]),
+            selected: _pbVersandart == v.$1,
+            selectedColor: Colors.green.shade600,
+            onSelected: (_) => setState(() => _pbVersandart = v.$1),
+          ),
+      ]),
+      const SizedBox(height: 14),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      Wrap(spacing: 6, runSpacing: 6, children: [
+        for (final s in [('beantragt', 'Beantragt', Colors.orange), ('genehmigt', 'Genehmigt', Colors.green), ('abgelehnt', 'Abgelehnt', Colors.red), ('wird_geliefert', 'Wird geliefert', Colors.blue), ('aktiv', 'Aktiv (monatlich)', Colors.teal)])
+          ChoiceChip(
+            label: Text(s.$2, style: TextStyle(fontSize: 11, color: _pbStatus == s.$1 ? Colors.white : Colors.black87)),
+            selected: _pbStatus == s.$1,
+            selectedColor: s.$3,
+            onSelected: (_) => setState(() => _pbStatus = s.$1),
+          ),
+      ]),
+      const SizedBox(height: 14),
+      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      const SizedBox(height: 4),
+      TextField(
+        controller: _pbNotizenC,
+        maxLines: 2,
+        decoration: InputDecoration(
+          hintText: 'Weitere Informationen…',
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        style: const TextStyle(fontSize: 13),
       ),
     ]));
   }
