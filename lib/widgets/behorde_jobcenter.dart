@@ -6756,12 +6756,28 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
       final filename = 'WBA_Antrag_${widget.userId}_$antragId.pdf';
       final path = '${dir.path}${Platform.pathSeparator}$filename';
       await File(path).writeAsBytes(bytes);
+      // Zweites Dokument — Ausfüllhilfe in der Sprache des Mitglieds (aus
+      // staatsangehoerigkeit). Für deutsche Mitglieder liefert der Server 204 → null.
+      // Fehler hier sind unkritisch: der deutsche Antrag ist bereits gespeichert.
+      String? hilfePath;
+      try {
+        final hilfe = await widget.apiService.generateWbaAusfuellhilfePdf(userId: widget.userId, antragId: antragId);
+        if (hilfe != null) {
+          final lang = hilfe.lang.isNotEmpty ? hilfe.lang : 'xx';
+          final hf = 'WBA_Ausfuellhilfe_${lang}_${widget.userId}_$antragId.pdf';
+          hilfePath = '${dir.path}${Platform.pathSeparator}$hf';
+          await File(hilfePath).writeAsBytes(hilfe.bytes);
+        }
+      } catch (_) { /* Ausfüllhilfe optional */ }
       if (!mounted) return;
       setState(() { _busy = false; _lastPath = path; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('PDF gespeichert: $path'),
+        content: Text(hilfePath != null ? 'Deutscher Antrag + Ausfüllhilfe gespeichert' : 'PDF gespeichert: $path'),
         backgroundColor: Colors.green,
-        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
+        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
+          OpenFilex.open(path);
+          if (hilfePath != null) OpenFilex.open(hilfePath!);
+        }),
       ));
     } catch (e) {
       if (!mounted) return;
