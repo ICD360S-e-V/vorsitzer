@@ -81,8 +81,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   List<Map<String, dynamic>> _dbBegutachtungen = [];
   List<Map<String, dynamic>> _dbVorschlaege = [];
   // Auto-Login button vizibil DOAR când TOTP e configurat + email + parolă există.
-  // Status propagat din _AaTotp2FAWidget via callback onConfiguredChange.
-  bool _totpConfigured = false;
+  // Statusul TOTP e ținut LOCAL în _buildOnlineTab (setLocal), NU pe State-ul
+  // părinte — un setState pe părinte re-construiește _buildOnlineTab și ar
+  // reseta comutatorul „Online-Konto" + câmpurile la valorile din _dbData.
 
   static const _tabs = [
     (Icons.account_balance, 'Zuständige Arbeitsagentur'),
@@ -729,6 +730,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     bool passwordEdit = passwordC.text.isEmpty;
     bool passwordVisible = false;
     bool busyLogin = false;
+    // TOTP-Status local (setLocal) — vezi comentariul de la câmpul de State șters.
+    bool totpConfigured = false;
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -766,17 +769,19 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               ])),
             const SizedBox(height: 12),
             // 2FA / TOTP Section — server-side encrypted (AES-256-GCM).
-            // Notifică parent (State principal) când TOTP se configurează / se șterge.
+            // Statusul „configurat" e ținut LOCAL (totpConfigured) prin setLocal.
             _AaTotp2FAWidget(
               apiService: widget.apiService,
               userId: widget.userId,
+              // setLocal (nu setState pe părinte): altfel încărcarea statusului TOTP
+              // ar re-construi _buildOnlineTab și ar reseta comutatorul la inactiv.
               onConfiguredChange: (c) {
-                if (mounted) setState(() => _totpConfigured = c);
+                if (mounted) setLocal(() => totpConfigured = c);
               },
             ),
             // Auto-Login Online — VIZIBIL DOAR cand email + parolă + TOTP toate setate.
             // (Nu apare deloc dacă lipsește vreun element — păstrăm UI curat.)
-            if (emailC.text.trim().isNotEmpty && passwordC.text.isNotEmpty && _totpConfigured) ...[
+            if (emailC.text.trim().isNotEmpty && passwordC.text.isNotEmpty && totpConfigured) ...[
               const SizedBox(height: 12),
               Builder(builder: (btnCtx) => SizedBox(
                 width: double.infinity,
