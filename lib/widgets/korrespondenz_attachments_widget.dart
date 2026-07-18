@@ -17,6 +17,10 @@ class KorrAttachmentsWidget extends StatefulWidget {
   final bool hno;
   /// true = eigene krankenhaus_attachment-Speicherung (entkoppelt, eigener Ordner).
   final bool krankenhaus;
+  /// Optional: erlaubte Dateiendungen beim Upload (Default: pdf/jpg/jpeg/png).
+  final List<String>? allowedExtensions;
+  /// Optional: max. Anzahl Dateien pro Upload-Vorgang (Default: unbegrenzt).
+  final int? maxFiles;
 
   const KorrAttachmentsWidget({
     super.key,
@@ -26,6 +30,8 @@ class KorrAttachmentsWidget extends StatefulWidget {
     this.augenarzt = false,
     this.hno = false,
     this.krankenhaus = false,
+    this.allowedExtensions,
+    this.maxFiles,
   });
 
   @override
@@ -95,9 +101,16 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   }
 
   Future<void> _upload() async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    final exts = widget.allowedExtensions ?? const ['pdf', 'jpg', 'jpeg', 'png'];
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: exts, allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
-    for (final file in result.files.where((f) => f.path != null)) {
+    var files = result.files.where((f) => f.path != null).toList();
+    if (widget.maxFiles != null && files.length > widget.maxFiles!) {
+      final max = widget.maxFiles!;
+      files = files.take(max).toList();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Maximal $max Dateien gleichzeitig — nur die ersten $max werden hochgeladen.')));
+    }
+    for (final file in files) {
       await _apiUpload(file.path!, file.name);
     }
     _load();

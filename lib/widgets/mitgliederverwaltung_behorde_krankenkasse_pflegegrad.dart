@@ -2175,75 +2175,131 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
   }
 
   void _showKorrDialog(String richtung, {Map<String, dynamic>? existing}) {
+    Map<String, dynamic>? cur = existing;
+    bool editMode = existing == null; // neue Einträge bearbeitbar; bestehende read-only (Bearbeiten-Button)
     String rich = existing?['richtung']?.toString() ?? richtung;
     String kontaktart = existing?['kontaktart']?.toString() ?? '';
     final datumC = TextEditingController(text: existing?['datum']?.toString() ?? '');
     final betreffC = TextEditingController(text: existing?['betreff']?.toString() ?? '');
     final inhaltC = TextEditingController(text: existing?['inhalt']?.toString() ?? '');
     bool saving = false;
+
     showDialog(context: context, builder: (c) => StatefulBuilder(builder: (c2, setD) {
       final isEingang = rich == 'eingang';
+      final curId = int.tryParse(cur?['id']?.toString() ?? '') ?? 0;
+
+      Widget roLine(String label, String val, {IconData? icon}) {
+        if (val.trim().isEmpty) return const SizedBox.shrink();
+        return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 84, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+          if (icon != null) ...[Icon(icon, size: 13, color: Colors.grey.shade700), const SizedBox(width: 4)],
+          Expanded(child: Text(val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+        ]));
+      }
+
+      Widget readOnlyBody() => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        roLine('Richtung', isEingang ? 'Eingang' : 'Ausgang', icon: isEingang ? Icons.call_received : Icons.call_made),
+        if (kontaktart.isNotEmpty) roLine('Kontaktart', _kontaktLabel(kontaktart), icon: _kontaktIcon(kontaktart)),
+        roLine('Datum', datumC.text),
+        roLine('Betreff', betreffC.text),
+        if (inhaltC.text.trim().isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text('Inhalt', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 3),
+          Container(width: double.infinity, padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(inhaltC.text, style: const TextStyle(fontSize: 13))),
+        ],
+      ]);
+
+      Widget editBody() => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: 6, children: [
+          for (final r in [('eingang', 'Eingang', Icons.call_received, Colors.green), ('ausgang', 'Ausgang', Icons.call_made, Colors.blue)])
+            ChoiceChip(
+              label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(r.$3, size: 14, color: rich == r.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(r.$2, style: TextStyle(fontSize: 11, color: rich == r.$1 ? Colors.white : Colors.black87))]),
+              selected: rich == r.$1, selectedColor: r.$4, onSelected: (_) => setD(() => rich = r.$1),
+            ),
+        ]),
+        const SizedBox(height: 12),
+        Text('Kontaktart', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final ka in _kontaktarten)
+            ChoiceChip(
+              label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(ka.$3, size: 13, color: kontaktart == ka.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(ka.$2, style: TextStyle(fontSize: 11, color: kontaktart == ka.$1 ? Colors.white : Colors.black87))]),
+              selected: kontaktart == ka.$1, selectedColor: Colors.purple.shade500, onSelected: (_) => setD(() => kontaktart = kontaktart == ka.$1 ? '' : ka.$1),
+            ),
+        ]),
+        const SizedBox(height: 12),
+        TextField(controller: datumC, readOnly: true,
+          decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
+          onTap: () async {
+            final p = await showDatePicker(context: c2, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (p != null) setD(() => datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}');
+          }),
+        const SizedBox(height: 10),
+        TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: inhaltC, maxLines: 5, decoration: const InputDecoration(labelText: 'Inhalt', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
+      ]);
+
       return AlertDialog(
         title: Row(children: [
           Icon(isEingang ? Icons.call_received : Icons.call_made, size: 20, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
           const SizedBox(width: 8),
-          Text(existing == null ? 'Neue Korrespondenz' : 'Korrespondenz bearbeiten', style: const TextStyle(fontSize: 15)),
+          Expanded(child: Text(existing == null ? 'Neue Korrespondenz' : (editMode ? 'Korrespondenz bearbeiten' : 'Korrespondenz'), style: const TextStyle(fontSize: 15))),
+          if (!editMode)
+            IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.purple.shade600), tooltip: 'Bearbeiten', onPressed: () => setD(() => editMode = true)),
         ]),
         content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Wrap(spacing: 6, children: [
-            for (final r in [('eingang', 'Eingang', Icons.call_received, Colors.green), ('ausgang', 'Ausgang', Icons.call_made, Colors.blue)])
-              ChoiceChip(
-                label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(r.$3, size: 14, color: rich == r.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(r.$2, style: TextStyle(fontSize: 11, color: rich == r.$1 ? Colors.white : Colors.black87))]),
-                selected: rich == r.$1, selectedColor: r.$4, onSelected: (_) => setD(() => rich = r.$1),
-              ),
-          ]),
-          const SizedBox(height: 12),
-          Text('Kontaktart', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 4),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final ka in _kontaktarten)
-              ChoiceChip(
-                label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(ka.$3, size: 13, color: kontaktart == ka.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(ka.$2, style: TextStyle(fontSize: 11, color: kontaktart == ka.$1 ? Colors.white : Colors.black87))]),
-                selected: kontaktart == ka.$1, selectedColor: Colors.purple.shade500, onSelected: (_) => setD(() => kontaktart = kontaktart == ka.$1 ? '' : ka.$1),
-              ),
-          ]),
-          const SizedBox(height: 12),
-          TextField(controller: datumC, readOnly: true,
-            decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)),
-            onTap: () async {
-              final p = await showDatePicker(context: c2, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime(2040), locale: const Locale('de'));
-              if (p != null) setD(() => datumC.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}');
-            }),
-          const SizedBox(height: 10),
-          TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          TextField(controller: inhaltC, maxLines: 5, decoration: const InputDecoration(labelText: 'Inhalt', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
+          editMode ? editBody() : readOnlyBody(),
+          if (curId > 0) ...[
+            const Divider(height: 24),
+            KorrAttachmentsWidget(
+              apiService: widget.apiService,
+              modul: 'pflegedienst_korr',
+              korrespondenzId: curId,
+              allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
+              maxFiles: 20,
+            ),
+            Padding(padding: const EdgeInsets.only(top: 4), child: Text('JPG/JPEG/PDF · max. 20 gleichzeitig', style: TextStyle(fontSize: 9, color: Colors.grey.shade400))),
+          ] else ...[
+            const SizedBox(height: 10),
+            Text('Dateien (JPG/JPEG/PDF) können nach dem Speichern hinzugefügt werden.', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+          ],
         ]))),
         actions: [
-          TextButton(onPressed: saving ? null : () => Navigator.pop(c), child: const Text('Abbrechen')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600),
-            onPressed: saving ? null : () async {
-              setD(() => saving = true);
-              try {
-                await widget.apiService.savePflegedienstKorr(widget.userId, widget.antragId, {
-                  if (existing != null) 'id': existing['id'],
-                  'richtung': rich,
-                  'kontaktart': kontaktart,
-                  'datum': datumC.text.trim(),
-                  'betreff': betreffC.text.trim(),
-                  'inhalt': inhaltC.text.trim(),
-                });
-                if (!mounted) return;
-                Navigator.pop(c);
-                await _load();
-              } catch (e) {
-                setD(() => saving = false);
-                if (mounted) ScaffoldMessenger.of(c2).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
-              }
-            },
-            child: saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Speichern'),
-          ),
+          TextButton(onPressed: saving ? null : () => Navigator.pop(c), child: Text(editMode ? 'Abbrechen' : 'Schließen')),
+          if (editMode)
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600),
+              onPressed: saving ? null : () async {
+                setD(() => saving = true);
+                try {
+                  final res = await widget.apiService.savePflegedienstKorr(widget.userId, widget.antragId, {
+                    if (cur != null && cur!['id'] != null) 'id': cur!['id'],
+                    'richtung': rich,
+                    'kontaktart': kontaktart,
+                    'datum': datumC.text.trim(),
+                    'betreff': betreffC.text.trim(),
+                    'inhalt': inhaltC.text.trim(),
+                  });
+                  if (!mounted) return;
+                  final newId = int.tryParse(res['id']?.toString() ?? '') ?? curId;
+                  await _load();
+                  if (!c2.mounted) return;
+                  setD(() {
+                    cur = {'id': newId, 'richtung': rich, 'kontaktart': kontaktart, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim()};
+                    editMode = false;
+                    saving = false;
+                  });
+                } catch (e) {
+                  setD(() => saving = false);
+                  if (mounted) ScaffoldMessenger.of(c2).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+                }
+              },
+              child: saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Speichern'),
+            ),
         ],
       );
     })).then((_) { datumC.dispose(); betreffC.dispose(); inhaltC.dispose(); });
