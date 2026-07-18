@@ -772,10 +772,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   void _showNewAntragDialog() {
-    final datumC = TextEditingController();
+    final now = DateTime.now();
+    final datumC = TextEditingController(text: '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}');
     final aktenzeichenC = TextEditingController(text: _joinAkt());
     String methode = '';
     String art = '';
+    String? err;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Antrag'),
@@ -804,14 +806,30 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             onSelected: (_) => setD(() => methode = m.$1),
           );
         }).toList()),
+        if (err != null) ...[
+          const SizedBox(height: 10),
+          Align(alignment: Alignment.centerLeft, child: Row(children: [
+            Icon(Icons.error_outline, size: 16, color: Colors.red.shade700), const SizedBox(width: 6),
+            Expanded(child: Text(err!, style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w600))),
+          ])),
+        ],
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          if (datumC.text.isEmpty || methode.isEmpty || art.isEmpty) return;
-          await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'art': art, 'datum': datumC.text, 'aktenzeichen': aktenzeichenC.text.trim(), 'methode': methode, 'status': 'eingereicht'});
-          if (ctx.mounted) Navigator.pop(ctx);
-          _loadAntraege();
+          final missing = <String>[
+            if (art.isEmpty) 'Antragsart',
+            if (datumC.text.isEmpty) 'Datum',
+            if (methode.isEmpty) 'Methode',
+          ];
+          if (missing.isNotEmpty) { setD(() => err = 'Bitte ausfüllen: ${missing.join(', ')}'); return; }
+          final res = await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'art': art, 'datum': datumC.text, 'aktenzeichen': aktenzeichenC.text.trim(), 'methode': methode, 'status': 'eingereicht'});
+          if (res['success'] == true) {
+            if (ctx.mounted) Navigator.pop(ctx);
+            _loadAntraege();
+          } else {
+            setD(() => err = 'Speichern fehlgeschlagen: ${res['message'] ?? res['error'] ?? 'Serverfehler'}');
+          }
         }, child: const Text('Antrag stellen')),
       ],
     )));
