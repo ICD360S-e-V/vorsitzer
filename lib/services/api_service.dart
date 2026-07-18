@@ -9000,6 +9000,51 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // === KORRESPONDENZ DOKUMENTE (pro Korrespondenz-Eintrag, verschlüsselt als BLOB) ===
+  // Bis zu 20 Dokumente pro Korrespondenz-Eintrag (jobcenter_av_korrespondenz.id).
+  // Bytes werden serverseitig mit AES-256-GCM (CryptoHelper) verschlüsselt in
+  // jobcenter_av_korrespondenz_dokumente abgelegt.
+  // Endpoint: admin/jobcenter_av_korrespondenz_docs.php
+  // Die Korrespondenz-Einträge selbst (CRUD) laufen über jobcenterAvAction:
+  //   list_korrespondenz / create_korrespondenz / update_korrespondenz / delete_korrespondenz.
+
+  Future<Map<String, dynamic>> jcAvKorrespondenzDocsList(int korrespondenzId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_av_korrespondenz_docs.php?korrespondenz_id=$korrespondenzId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> jcAvKorrespondenzDocUpload({
+    required int korrespondenzId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/jobcenter_av_korrespondenz_docs.php'));
+    request.headers.addAll(_headers);
+    request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> jcAvKorrespondenzDocDownload(int docId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/jobcenter_av_korrespondenz_docs.php?download_id=$docId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> jcAvKorrespondenzDocDelete(int docId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_korrespondenz_docs.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': docId}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // === EINLADUNG ABSAGE (Antwortvordruck / Rückantwort) ===
   // Digitales Formular pro Einladung + serverseitige PDF-Erzeugung (FPDF).
   // Endpoint: admin/jobcenter_av_einladung_absage.php

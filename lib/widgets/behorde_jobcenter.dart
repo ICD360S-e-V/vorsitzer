@@ -4280,7 +4280,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 5, vsync: this);
+    _tab = TabController(length: 6, vsync: this);
     _loadEinladungen();
     _loadTermine();
   }
@@ -4322,6 +4322,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           Tab(icon: Icon(Icons.event, size: 18), text: 'Termine'),
           Tab(icon: Icon(Icons.fact_check, size: 18), text: 'Eigenbemühungen'),
           Tab(icon: Icon(Icons.handshake, size: 18), text: 'Kooperationsplan'),
+          Tab(icon: Icon(Icons.forum, size: 18), text: 'Korrespondenz'),
         ]),
         Expanded(child: TabBarView(controller: _tab, children: [
           _AvDetailsTab(apiService: widget.apiService, personal: av, userAv: av, onChanged: () { _changed = true; }),
@@ -4329,6 +4330,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           _AvTermineTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, termine: _termine, loading: _loadingTerm, onChanged: () { _changed = true; _loadTermine(); }),
           _AvEigenbemTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, avName: name),
           _AvKooperationsplanTab(apiService: widget.apiService, userAvId: _userAvId),
+          _AvKorrespondenzTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, onChanged: () { _changed = true; }),
         ])),
       ])),
     );
@@ -4930,6 +4932,353 @@ class _AvKooperationsplanTabState extends State<_AvKooperationsplanTab> {
     ));
     if (ok != true) return;
     await widget.apiService.jcKooperationsplanDocDelete(d['id'] as int);
+    _load();
+  }
+
+  String _fmtSize(dynamic bytes) {
+    final b = (bytes is num) ? bytes.toDouble() : double.tryParse('$bytes') ?? 0;
+    if (b < 1024) return '${b.toStringAsFixed(0)} B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
+    return '${(b / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  IconData _iconFor(String name) {
+    final n = name.toLowerCase();
+    if (n.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return Icons.image;
+    return Icons.insert_drive_file;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Row(children: [
+        Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 4),
+        Expanded(child: Text('${_docs.length}/$_max Dokumente · verschlüsselt', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(
+          onPressed: (_busy || _docs.length >= _max) ? null : _upload,
+          icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 14),
+          label: const Text('Hochladen'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32)),
+        ),
+      ])),
+      Expanded(child: _docs.isEmpty
+        ? Center(child: Text('Keine Dokumente hochgeladen', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _docs.length, itemBuilder: (_, i) {
+            final d = _docs[i];
+            final name = (d['datei_name'] ?? '').toString();
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(
+              dense: true,
+              leading: Icon(_iconFor(name), color: Colors.teal.shade700),
+              title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(_fmtSize(d['datei_groesse']), style: const TextStyle(fontSize: 11)),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Ansehen', onPressed: () => _view(d)),
+                IconButton(icon: Icon(Icons.open_in_new, size: 18, color: Colors.green.shade700), tooltip: 'Öffnen', onPressed: () => _openExtern(d)),
+                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(d)),
+              ]),
+            ));
+          })),
+    ]);
+  }
+}
+
+// ==================== Korrespondenz (Kontaktverlauf pro AV) ====================
+// Liste von Korrespondenz-Einträgen (Richtung + Kontaktart + Datum + Betreff + Text),
+// jeweils mit bis zu 20 verschlüsselten Dokumenten (PDF/JPG). CRUD über
+// jobcenterAvAction (*_korrespondenz), Dokumente über jobcenter_av_korrespondenz_docs.php.
+
+class _AvKorrespondenzTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final VoidCallback onChanged;
+  const _AvKorrespondenzTab({required this.apiService, required this.userId, required this.userAvId, required this.onChanged});
+  @override State<_AvKorrespondenzTab> createState() => _AvKorrespondenzTabState();
+}
+
+class _AvKorrespondenzTabState extends State<_AvKorrespondenzTab> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  static const _artLabels = {'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'email': 'E-Mail', 'post': 'Post'};
+  static const _artIcons = {'online': Icons.language, 'persoenlich': Icons.person, 'fax': Icons.fax, 'email': Icons.email, 'post': Icons.mail};
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.jobcenterAvAction({'action': 'list_korrespondenz', 'user_av_id': widget.userAvId});
+    if (!mounted) return;
+    setState(() {
+      _items = (r['success'] == true && r['korrespondenz'] is List)
+          ? (r['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _loaded = true;
+    });
+  }
+
+  Future<void> _open([Map<String, dynamic>? existing]) async {
+    final changed = await showDialog<bool>(context: context, builder: (_) => _KorrespondenzEditDialog(
+      apiService: widget.apiService, userId: widget.userId, userAvId: widget.userAvId, existing: existing));
+    if (changed == true) { widget.onChanged(); _load(); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Row(children: [
+        Expanded(child: Text('${_items.length} Korrespondenz-Eintrag(e)', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(onPressed: () => _open(), icon: const Icon(Icons.add, size: 14), label: const Text('Neue Korrespondenz'), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32))),
+      ])),
+      Expanded(child: _items.isEmpty
+        ? Center(child: Text('Keine Korrespondenz erfasst', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _items.length, itemBuilder: (_, i) {
+            final k = _items[i];
+            final art = (k['kontaktart'] ?? 'email').toString();
+            final eingang = (k['richtung'] ?? 'ausgang').toString() == 'eingang';
+            final docCount = (k['doc_count'] is num) ? (k['doc_count'] as num).toInt() : int.tryParse('${k['doc_count']}') ?? 0;
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: InkWell(
+              onTap: () => _open(k),
+              child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(eingang ? Icons.call_received : Icons.call_made, size: 15, color: eingang ? Colors.green.shade700 : Colors.blue.shade700),
+                  const SizedBox(width: 6),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: (eingang ? Colors.green : Colors.blue).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)), child: Text(eingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 10, color: eingang ? Colors.green.shade900 : Colors.blue.shade900, fontWeight: FontWeight.bold))),
+                  const SizedBox(width: 6),
+                  Icon(_artIcons[art] ?? Icons.email, size: 14, color: Colors.grey.shade700),
+                  const SizedBox(width: 3),
+                  Text(_artLabels[art] ?? art, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  const Spacer(),
+                  Text((k['datum'] ?? '').toString(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                ]),
+                if ((k['betreff'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5), child: Text((k['betreff']).toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                if ((k['text'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text((k['text']).toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                if (docCount > 0) Padding(padding: const EdgeInsets.only(top: 5), child: Row(children: [Icon(Icons.attach_file, size: 13, color: Colors.teal.shade700), const SizedBox(width: 3), Text('$docCount Dokument(e)', style: TextStyle(fontSize: 10, color: Colors.teal.shade700))])),
+              ])),
+            ));
+          })),
+    ]);
+  }
+}
+
+class _KorrespondenzEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final Map<String, dynamic>? existing;
+  const _KorrespondenzEditDialog({required this.apiService, required this.userId, required this.userAvId, this.existing});
+  @override State<_KorrespondenzEditDialog> createState() => _KorrespondenzEditDialogState();
+}
+
+class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  int? _korrId;
+  bool _changed = false, _saving = false;
+  late TextEditingController _datumC, _betreffC, _textC;
+  String _richtung = 'ausgang', _kontaktart = 'email';
+
+  static const _arten = {'online': 'Online-Portal', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'email': 'E-Mail', 'post': 'Brief / Post'};
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing ?? const {};
+    _korrId = (e['id'] as num?)?.toInt();
+    _tab = TabController(length: 2, vsync: this);
+    _tab.addListener(() { if (mounted) setState(() {}); });
+    _richtung = (e['richtung'] ?? 'ausgang').toString();
+    _kontaktart = (e['kontaktart'] ?? 'email').toString();
+    _datumC = TextEditingController(text: (e['datum'] ?? '').toString());
+    _betreffC = TextEditingController(text: (e['betreff'] ?? '').toString());
+    _textC = TextEditingController(text: (e['text'] ?? '').toString());
+  }
+  @override
+  void dispose() { _tab.dispose(); _datumC.dispose(); _betreffC.dispose(); _textC.dispose(); super.dispose(); }
+
+  Future<void> _pickDate() async {
+    final init = DateTime.tryParse(_datumC.text.trim()) ?? DateTime.now();
+    final d = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2020), lastDate: DateTime(2099));
+    if (d != null) setState(() => _datumC.text = d.toIso8601String().substring(0, 10));
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final body = {
+      'korrespondenz': {
+        'richtung': _richtung,
+        'kontaktart': _kontaktart,
+        'datum': _datumC.text.trim().isEmpty ? null : _datumC.text.trim(),
+        'betreff': _betreffC.text.trim(),
+        'text': _textC.text.trim(),
+      },
+    };
+    final isNew = _korrId == null;
+    final res = isNew
+        ? await widget.apiService.jobcenterAvAction({...body, 'action': 'create_korrespondenz', 'user_id': widget.userId, 'user_av_id': widget.userAvId})
+        : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_korrespondenz', 'korrespondenz_id': _korrId});
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) {
+      _changed = true;
+      if (isNew && res['id'] != null) {
+        // Eintrag ist jetzt gespeichert → Dokumente werden möglich.
+        setState(() => _korrId = (res['id'] as num).toInt());
+        _tab.animateTo(1);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _delete() async {
+    if (_korrId == null) return;
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Korrespondenz löschen?'),
+      content: const Text('Der Eintrag und alle angehängten Dokumente werden gelöscht.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jobcenterAvAction({'action': 'delete_korrespondenz', 'korrespondenz_id': _korrId});
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  Widget _saveFirstHint(String msg) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+    Icon(Icons.save_outlined, size: 40, color: Colors.grey.shade400), const SizedBox(height: 12),
+    Text(msg, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+  ])));
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 580, height: 620, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
+        const Icon(Icons.forum, color: Colors.white), const SizedBox(width: 8),
+        Expanded(child: Text(_korrId == null ? 'Neue Korrespondenz' : 'Korrespondenz bearbeiten', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+        IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
+      ])),
+      TabBar(controller: _tab, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
+        Tab(height: 44, icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+        Tab(height: 44, icon: Icon(Icons.attach_file, size: 16), text: 'Dokumente'),
+      ]),
+      Expanded(child: TabBarView(controller: _tab, children: [
+        SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Richtung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'ausgang', label: Text('Ausgang'), icon: Icon(Icons.call_made, size: 16)),
+              ButtonSegment(value: 'eingang', label: Text('Eingang'), icon: Icon(Icons.call_received, size: 16)),
+            ],
+            selected: {_richtung},
+            onSelectionChanged: (s) => setState(() => _richtung = s.first),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            initialValue: _kontaktart,
+            decoration: const InputDecoration(labelText: 'Kontaktart', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.contact_mail, size: 18)),
+            items: _arten.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
+            onChanged: (v) => setState(() => _kontaktart = v ?? 'email'),
+          ),
+          const SizedBox(height: 12),
+          TextField(controller: _datumC, readOnly: true, onTap: _pickDate, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18), suffixIcon: Icon(Icons.event, size: 16))),
+          const SizedBox(height: 12),
+          TextField(controller: _betreffC, maxLength: 255, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.subject, size: 18))),
+          const SizedBox(height: 2),
+          TextField(controller: _textC, minLines: 4, maxLines: 8, decoration: const InputDecoration(labelText: 'Text', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.notes, size: 18))),
+        ])),
+        _korrId == null
+            ? _saveFirstHint('Bitte zuerst die Korrespondenz speichern.\nDanach können bis zu 20 Dokumente (PDF/JPG) hochgeladen werden.')
+            : _AvKorrespondenzDokumenteTab(apiService: widget.apiService, korrespondenzId: _korrId!),
+      ])),
+      if (_tab.index == 0) Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+        if (_korrId != null) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
+        const Spacer(),
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, _changed), child: const Text('Schließen')),
+        const SizedBox(width: 8),
+        ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: Text(_saving ? '...' : 'Speichern')),
+      ])),
+    ])));
+  }
+}
+
+// ==================== Korrespondenz → Dokumente (max 20, verschlüsselt als BLOB in DB) ====================
+// Analog zu _EinladungDokumenteTab, aber keyed via korrespondenz_id.
+
+class _AvKorrespondenzDokumenteTab extends StatefulWidget {
+  final ApiService apiService;
+  final int korrespondenzId;
+  const _AvKorrespondenzDokumenteTab({required this.apiService, required this.korrespondenzId});
+  @override State<_AvKorrespondenzDokumenteTab> createState() => _AvKorrespondenzDokumenteTabState();
+}
+
+class _AvKorrespondenzDokumenteTabState extends State<_AvKorrespondenzDokumenteTab> {
+  List<Map<String, dynamic>> _docs = [];
+  bool _loaded = false, _busy = false;
+  static const _max = 20;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final r = await widget.apiService.jcAvKorrespondenzDocsList(widget.korrespondenzId);
+    if (!mounted) return;
+    setState(() {
+      _docs = (r['success'] == true && r['data'] is List)
+          ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _loaded = true;
+    });
+  }
+
+  void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
+
+  Future<void> _upload() async {
+    if (_docs.length >= _max) { _snack('Maximal $_max Dokumente'); return; }
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    final files = result.files.where((f) => f.path != null).toList();
+    var slots = _max - _docs.length;
+    setState(() => _busy = true);
+    for (final f in files) {
+      if (slots <= 0) { _snack('Maximal $_max Dokumente — nicht alle hochgeladen'); break; }
+      final res = await widget.apiService.jcAvKorrespondenzDocUpload(korrespondenzId: widget.korrespondenzId, filePath: f.path!, fileName: f.name);
+      if (res['success'] != true) _snack(res['message']?.toString() ?? 'Upload fehlgeschlagen: ${f.name}');
+      slots--;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _load();
+  }
+
+  Future<File?> _fetch(Map<String, dynamic> d) async {
+    final resp = await widget.apiService.jcAvKorrespondenzDocDownload(d['id'] as int);
+    if (resp.statusCode != 200) return null;
+    final dir = await getTemporaryDirectory();
+    final name = (d['datei_name'] ?? 'dokument').toString();
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(resp.bodyBytes);
+    return file;
+  }
+
+  Future<void> _view(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null && mounted) await FileViewerDialog.show(context, f.path, (d['datei_name'] ?? '').toString());
+  }
+
+  Future<void> _openExtern(Map<String, dynamic> d) async {
+    final f = await _fetch(d);
+    if (f != null) await OpenFilex.open(f.path);
+  }
+
+  Future<void> _delete(Map<String, dynamic> d) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Dokument löschen?'),
+      content: Text((d['datei_name'] ?? '').toString()),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jcAvKorrespondenzDocDelete(d['id'] as int);
     _load();
   }
 
