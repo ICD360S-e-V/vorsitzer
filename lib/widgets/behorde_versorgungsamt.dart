@@ -11,6 +11,33 @@ import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../services/termin_service.dart';
 
+/// Antragsarten des Versorgungsamts (Schwerbehindertenrecht SGB IX +
+/// soziales Entschädigungsrecht SGB XIV). (key, langes Label, kurzes Label)
+const List<(String, String, String)> kVaAntragsarten = [
+  ('erstantrag', 'Erstantrag (Feststellung GdB, § 152 SGB IX)', 'Erstantrag'),
+  ('neufeststellung', 'Neufeststellung / Verschlimmerung (GdB-Änderung)', 'Neufeststellung'),
+  ('ausweis_verlaengerung', 'Verlängerung Schwerbehindertenausweis', 'Ausweis-Verlängerung'),
+  ('ausweis_neu', 'Neuausstellung Ausweis (Verlust/Foto/Daten)', 'Ausweis-Neuausstellung'),
+  ('wertmarke', 'Beiblatt mit Wertmarke (ÖPNV)', 'Wertmarke (ÖPNV)'),
+  ('parkausweis', 'Parkausweis (aG / Bl)', 'Parkausweis'),
+  ('merkzeichen', 'Merkzeichen-Antrag', 'Merkzeichen'),
+  ('soziale_entschaedigung', 'Soziale Entschädigung (SGB XIV / OEG)', 'Soziale Entschädigung'),
+  ('landesblindengeld', 'Landesblindengeld', 'Landesblindengeld'),
+  ('sonstiges', 'Sonstiger Antrag', 'Sonstiges'),
+];
+
+String vaAntragsartLabel(String? key) {
+  if (key == null || key.isEmpty) return '';
+  for (final a in kVaAntragsarten) { if (a.$1 == key) return a.$2; }
+  return key;
+}
+
+String vaAntragsartShort(String? key) {
+  if (key == null || key.isEmpty) return 'Antrag';
+  for (final a in kVaAntragsarten) { if (a.$1 == key) return a.$3; }
+  return key;
+}
+
 /// Versorgungsamt content with tabs similar to Arzt structure.
 class BehordeVersorgungsamtContent extends StatefulWidget {
   final ApiService apiService;
@@ -713,13 +740,17 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   return Card(
                     child: ListTile(
                       leading: Icon(status == 'genehmigt' ? Icons.check_circle : status == 'abgelehnt' ? Icons.cancel : Icons.hourglass_top, color: statusColor, size: 28),
-                      title: Text('${a['datum'] ?? ''} — $methodeLabel${(a['aktenzeichen']?.toString() ?? '').isNotEmpty ? '  •  Az: ${a['aktenzeichen']}' : ''}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: Container(
-                        margin: const EdgeInsets.only(top: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
-                        child: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
-                      ),
+                      title: Text(vaAntragsartShort(a['art']?.toString()), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const SizedBox(height: 2),
+                        Text('${a['datum'] ?? ''} — $methodeLabel${(a['aktenzeichen']?.toString() ?? '').isNotEmpty ? '  •  Az: ${a['aktenzeichen']}' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                        const SizedBox(height: 4),
+                        Align(alignment: Alignment.centerLeft, child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
+                          child: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+                        )),
+                      ]),
                       onTap: () {
                         final aid = int.tryParse(a['id']?.toString() ?? '');
                         if (aid != null) _showAntragDetailDialog(aid, a);
@@ -744,10 +775,21 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final datumC = TextEditingController();
     final aktenzeichenC = TextEditingController(text: _joinAkt());
     String methode = '';
+    String art = '';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Antrag'),
-      content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, children: [
+      content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Align(alignment: Alignment.centerLeft, child: Text('Antragsart *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700))),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          initialValue: art.isEmpty ? null : art,
+          isExpanded: true,
+          decoration: InputDecoration(hintText: '— Art des Antrags wählen —', prefixIcon: const Icon(Icons.category, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          items: kVaAntragsarten.map((a) => DropdownMenuItem(value: a.$1, child: Text(a.$2, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
+          onChanged: (v) => setD(() => art = v ?? ''),
+        ),
+        const SizedBox(height: 12),
         _datePicker(ctx2, datumC, 'Datum der Antragstellung *', () => setD(() {})),
         const SizedBox(height: 12),
         TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.folder, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -762,12 +804,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             onSelected: (_) => setD(() => methode = m.$1),
           );
         }).toList()),
-      ])),
+      ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          if (datumC.text.isEmpty || methode.isEmpty) return;
-          await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'datum': datumC.text, 'aktenzeichen': aktenzeichenC.text.trim(), 'methode': methode, 'status': 'eingereicht'});
+          if (datumC.text.isEmpty || methode.isEmpty || art.isEmpty) return;
+          await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'art': art, 'datum': datumC.text, 'aktenzeichen': aktenzeichenC.text.trim(), 'methode': methode, 'status': 'eingereicht'});
           if (ctx.mounted) Navigator.pop(ctx);
           _loadAntraege();
         }, child: const Text('Antrag stellen')),
@@ -1236,8 +1278,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         child: Row(children: [
           const Icon(Icons.description, color: Colors.white, size: 22), const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Antrag vom ${a['datum'] ?? ''}', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-            Text('$methode • ${status.replaceAll('_', ' ').toUpperCase()}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+            Text(vaAntragsartShort(a['art']?.toString()), style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text('Antrag vom ${a['datum'] ?? ''} • $methode • ${status.replaceAll('_', ' ').toUpperCase()}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
           ])),
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
@@ -1262,6 +1304,17 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
       const SizedBox(height: 8),
+      Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+        Icon(Icons.category, size: 16, color: (a['art']?.toString() ?? '').isEmpty ? Colors.grey.shade400 : Colors.indigo.shade600), const SizedBox(width: 8),
+        SizedBox(width: 150, child: Text('Antragsart', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+        Expanded(child: DropdownButton<String>(
+          value: (a['art']?.toString().isNotEmpty ?? false) && kVaAntragsarten.any((e) => e.$1 == a['art']) ? a['art'].toString() : null,
+          isExpanded: true, isDense: true, underline: const SizedBox.shrink(),
+          hint: Text('— wählen —', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+          items: kVaAntragsarten.map((e) => DropdownMenuItem(value: e.$1, child: Text(e.$2, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
+          onChanged: (v) { if (v != null) _saveAntragField(a, 'art', v); },
+        )),
+      ])),
       _dRow(Icons.calendar_today, 'Antragsdatum', a['datum']),
       _dRow(Icons.send, 'Methode', {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? '']),
       _dRow(Icons.flag, 'Status', a['status']?.toString().replaceAll('_', ' ').toUpperCase()),
@@ -1520,19 +1573,25 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     ]);
   }
 
+  /// Builds the COMPLETE antrag record so a partial edit never wipes other
+  /// columns (the PHP UPDATE rewrites every column from the payload).
+  Map<String, dynamic> _fullAntragPayload(Map<String, dynamic> a) => {
+    'id': widget.antragId, 'art': a['art'] ?? '', 'datum': a['datum'], 'methode': a['methode'], 'status': a['status'],
+    'notiz': a['notiz'] ?? '',
+    'bescheid_datum': a['bescheid_datum'] ?? '', 'bescheid_erhalten': a['bescheid_erhalten'] ?? '',
+    'widerspruch_datum': a['widerspruch_datum'] ?? '', 'widerspruch_methode': a['widerspruch_methode'] ?? '',
+    'widerspruch_vorbereitet': a['widerspruch_vorbereitet'] ?? '', 'widerspruch_geliefert': a['widerspruch_geliefert'] ?? '', 'widerspruch_lieferung_methode': a['widerspruch_lieferung_methode'] ?? '',
+    'widerspruch_eingang_bestaetigt_datum': a['widerspruch_eingang_bestaetigt_datum'] ?? '', 'widerspruch_eingang_bestaetigt_methode': a['widerspruch_eingang_bestaetigt_methode'] ?? '',
+    'akteneinsicht_datum': a['akteneinsicht_datum'] ?? '', 'akteneinsicht_methode': a['akteneinsicht_methode'] ?? '',
+    'akteneinsicht_erhalten': a['akteneinsicht_erhalten'] ?? '', 'akteneinsicht_erhalten_methode': a['akteneinsicht_erhalten_methode'] ?? '',
+    'eingangsbestaetigung_datum': a['eingangsbestaetigung_datum'] ?? '', 'eingangsbestaetigung_erhalten': a['eingangsbestaetigung_erhalten'] ?? '',
+    'wb_sb_anrede': a['wb_sb_anrede'] ?? '', 'wb_sb_name': a['wb_sb_name'] ?? '', 'wb_sb_telefon': a['wb_sb_telefon'] ?? '', 'wb_sb_email': a['wb_sb_email'] ?? '',
+    'bescheid_sb_anrede': a['bescheid_sb_anrede'] ?? '', 'bescheid_sb_name': a['bescheid_sb_name'] ?? '', 'bescheid_sb_telefon': a['bescheid_sb_telefon'] ?? '', 'bescheid_sb_email': a['bescheid_sb_email'] ?? '',
+  };
+
   Future<void> _saveAntragField(Map<String, dynamic> a, String field, String value) async {
-    await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {
-      'id': widget.antragId, 'datum': a['datum'], 'methode': a['methode'], 'status': a['status'],
-      'bescheid_datum': a['bescheid_datum'] ?? '', 'bescheid_erhalten': a['bescheid_erhalten'] ?? '',
-      'widerspruch_datum': a['widerspruch_datum'] ?? '', 'widerspruch_methode': a['widerspruch_methode'] ?? '',
-      'widerspruch_vorbereitet': a['widerspruch_vorbereitet'] ?? '', 'widerspruch_geliefert': a['widerspruch_geliefert'] ?? '', 'widerspruch_lieferung_methode': a['widerspruch_lieferung_methode'] ?? '',
-      'widerspruch_eingang_bestaetigt_datum': a['widerspruch_eingang_bestaetigt_datum'] ?? '', 'widerspruch_eingang_bestaetigt_methode': a['widerspruch_eingang_bestaetigt_methode'] ?? '',
-      'akteneinsicht_datum': a['akteneinsicht_datum'] ?? '', 'akteneinsicht_methode': a['akteneinsicht_methode'] ?? '',
-      'akteneinsicht_erhalten': a['akteneinsicht_erhalten'] ?? '', 'akteneinsicht_erhalten_methode': a['akteneinsicht_erhalten_methode'] ?? '',
-      'eingangsbestaetigung_datum': a['eingangsbestaetigung_datum'] ?? '', 'eingangsbestaetigung_erhalten': a['eingangsbestaetigung_erhalten'] ?? '',
-      'wb_sb_anrede': a['wb_sb_anrede'] ?? '', 'wb_sb_name': a['wb_sb_name'] ?? '', 'wb_sb_telefon': a['wb_sb_telefon'] ?? '', 'wb_sb_email': a['wb_sb_email'] ?? '',
-      'bescheid_sb_anrede': a['bescheid_sb_anrede'] ?? '', 'bescheid_sb_name': a['bescheid_sb_name'] ?? '', 'bescheid_sb_telefon': a['bescheid_sb_telefon'] ?? '', 'bescheid_sb_email': a['bescheid_sb_email'] ?? '',
-    });
+    a[field] = value;
+    await widget.apiService.saveVersorgungsamtAntrag(widget.userId, _fullAntragPayload(a));
     setState(() {});
   }
 
@@ -1809,7 +1868,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           await widget.apiService.addVaAntragVerlauf(widget.antragId, {'datum': datumC.text, 'status': status, 'notiz': notizC.text});
-          if (status.isNotEmpty) await widget.apiService.saveVersorgungsamtAntrag(widget.userId, {'id': widget.antragId, 'status': status, 'datum': widget.antrag['datum'], 'methode': widget.antrag['methode']});
+          if (status.isNotEmpty) { widget.antrag['status'] = status; await widget.apiService.saveVersorgungsamtAntrag(widget.userId, _fullAntragPayload(widget.antrag)); }
           if (ctx.mounted) Navigator.pop(ctx); _load(); widget.onChanged();
         }, child: const Text('Hinzufügen'))],
     )));
