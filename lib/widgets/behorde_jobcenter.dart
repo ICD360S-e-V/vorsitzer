@@ -5075,6 +5075,9 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
   late TabController _tab;
   int? _korrId;
   bool _changed = false, _saving = false;
+  // Bestehender Eintrag öffnet read-only (Bearbeiten entsperrt); ein neuer
+  // Eintrag startet direkt im Edit-Modus, damit die Daten erfasst werden können.
+  late bool _editing;
   late TextEditingController _datumC, _betreffC, _textC;
   String _richtung = 'ausgang', _kontaktart = 'email';
 
@@ -5085,6 +5088,7 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
     super.initState();
     final e = widget.existing ?? const {};
     _korrId = (e['id'] as num?)?.toInt();
+    _editing = _korrId == null;
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() { if (mounted) setState(() {}); });
     _richtung = (e['richtung'] ?? 'ausgang').toString();
@@ -5121,6 +5125,8 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
     setState(() => _saving = false);
     if (res['success'] == true) {
       _changed = true;
+      // Nach dem Speichern zurück in den read-only Modus (erneut Bearbeiten möglich).
+      setState(() => _editing = false);
       if (isNew && res['id'] != null) {
         // Eintrag ist jetzt gespeichert → Dokumente werden möglich.
         setState(() => _korrId = (res['id'] as num).toInt());
@@ -5154,7 +5160,7 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
     return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 580, height: 620, child: Column(children: [
       Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))), child: Row(children: [
         const Icon(Icons.forum, color: Colors.white), const SizedBox(width: 8),
-        Expanded(child: Text(_korrId == null ? 'Neue Korrespondenz' : 'Korrespondenz bearbeiten', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+        Expanded(child: Text(_korrId == null ? 'Neue Korrespondenz' : (_editing ? 'Korrespondenz bearbeiten' : 'Korrespondenz'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
         IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
       ])),
       TabBar(controller: _tab, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
@@ -5171,21 +5177,21 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
               ButtonSegment(value: 'eingang', label: Text('Eingang'), icon: Icon(Icons.call_received, size: 16)),
             ],
             selected: {_richtung},
-            onSelectionChanged: (s) => setState(() => _richtung = s.first),
+            onSelectionChanged: _editing ? (s) => setState(() => _richtung = s.first) : null,
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
             initialValue: _kontaktart,
-            decoration: const InputDecoration(labelText: 'Kontaktart', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.contact_mail, size: 18)),
+            decoration: InputDecoration(labelText: 'Kontaktart', isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.contact_mail, size: 18), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
             items: _arten.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
-            onChanged: (v) => setState(() => _kontaktart = v ?? 'email'),
+            onChanged: _editing ? (v) => setState(() => _kontaktart = v ?? 'email') : null,
           ),
           const SizedBox(height: 12),
-          TextField(controller: _datumC, readOnly: true, onTap: _pickDate, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18), suffixIcon: Icon(Icons.event, size: 16))),
+          TextField(controller: _datumC, readOnly: true, onTap: _editing ? _pickDate : null, decoration: InputDecoration(labelText: 'Datum', isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.calendar_today, size: 18), suffixIcon: const Icon(Icons.event, size: 16), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
           const SizedBox(height: 12),
-          TextField(controller: _betreffC, maxLength: 255, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.subject, size: 18))),
+          TextField(controller: _betreffC, readOnly: !_editing, maxLength: 255, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.subject, size: 18), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
           const SizedBox(height: 2),
-          TextField(controller: _textC, minLines: 4, maxLines: 8, decoration: const InputDecoration(labelText: 'Text', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.notes, size: 18))),
+          TextField(controller: _textC, readOnly: !_editing, minLines: 4, maxLines: 8, decoration: InputDecoration(labelText: 'Text', alignLabelWithHint: true, isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.notes, size: 18), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
         ])),
         _korrId == null
             ? _saveFirstHint('Bitte zuerst die Korrespondenz speichern.\nDanach können bis zu 20 Dokumente (PDF/JPG) hochgeladen werden.')
@@ -5196,7 +5202,11 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
         const Spacer(),
         TextButton(onPressed: _saving ? null : () => Navigator.pop(context, _changed), child: const Text('Schließen')),
         const SizedBox(width: 8),
-        ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: Text(_saving ? '...' : 'Speichern')),
+        // Bestehender Eintrag ist read-only → erst "Bearbeiten" entsperrt die Felder.
+        if (!_editing)
+          ElevatedButton.icon(onPressed: () => setState(() => _editing = true), icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten'), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white))
+        else
+          ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: Text(_saving ? '...' : 'Speichern')),
       ])),
     ])));
   }
