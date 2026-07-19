@@ -44,6 +44,9 @@ class ChatService {
   // Stream controller for read receipts
   final _readReceiptController = StreamController<ReadReceiptEvent>.broadcast();
 
+  // Stream controller for reaction updates (WhatsApp-style, live sync)
+  final _reactionUpdateController = StreamController<ReactionUpdateEvent>.broadcast();
+
   // Stream controller for message expiry (delete-on-read)
   final _messageExpiredController = StreamController<MessageExpiredEvent>.broadcast();
 
@@ -91,6 +94,9 @@ class ChatService {
 
   // Public stream - Read Receipts
   Stream<ReadReceiptEvent> get readReceiptStream => _readReceiptController.stream;
+
+  // Public stream - Reaction updates (live sync of message reactions)
+  Stream<ReactionUpdateEvent> get reactionUpdateStream => _reactionUpdateController.stream;
 
   // Public stream - Message Expired (5-min TTL after read; server NULLed content)
   Stream<MessageExpiredEvent> get messageExpiredStream => _messageExpiredController.stream;
@@ -406,6 +412,17 @@ class ChatService {
     });
   }
 
+  /// Broadcast a reaction change so the other party sees it live.
+  /// [reaction] is an emotion key (love|laugh|happy|thanks|sad|angry) or '' to clear.
+  void sendReactionUpdate(int conversationId, int messageId, String reaction) {
+    _send({
+      'type': 'reaction_update',
+      'conversation_id': conversationId,
+      'message_id': messageId,
+      'reaction': reaction,
+    });
+  }
+
   void _send(Map<String, dynamic> data) {
     if (_channel != null) {
       _channel!.sink.add(jsonEncode(data));
@@ -619,6 +636,10 @@ class ChatService {
           _readReceiptController.add(ReadReceiptEvent.fromJson(json));
           break;
 
+        case 'reaction_update':
+          _reactionUpdateController.add(ReactionUpdateEvent.fromJson(json));
+          break;
+
         case 'message_expired':
           _messageExpiredController.add(MessageExpiredEvent.fromJson(json));
           break;
@@ -665,6 +686,7 @@ class ChatService {
     _callBusyController.close();
     _loginApprovalController.close();
     _readReceiptController.close();
+    _reactionUpdateController.close();
     _messageExpiredController.close();
     _onlineUsersController.close();
     _newDeviceLoginController.close();
@@ -837,6 +859,29 @@ class ReadReceiptEvent {
       readBy: json['read_by'],
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
       expires: exp,
+    );
+  }
+}
+
+/// Reaction-update event: the other party reacted to (or cleared a reaction on)
+/// a message. [reaction] is an emotion key or null when cleared.
+class ReactionUpdateEvent {
+  final int conversationId;
+  final int messageId;
+  final String? reaction;
+
+  ReactionUpdateEvent({
+    required this.conversationId,
+    required this.messageId,
+    this.reaction,
+  });
+
+  factory ReactionUpdateEvent.fromJson(Map<String, dynamic> json) {
+    final r = json['reaction'];
+    return ReactionUpdateEvent(
+      conversationId: json['conversation_id'] ?? 0,
+      messageId: json['message_id'] ?? 0,
+      reaction: (r == null || r == '') ? null : r.toString(),
     );
   }
 }

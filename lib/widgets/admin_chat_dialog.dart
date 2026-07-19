@@ -122,6 +122,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   StreamSubscription? _callEndedSubscription;
   StreamSubscription? _iceCandidateSubscription;
   StreamSubscription? _readReceiptSubscription;
+  StreamSubscription? _reactionUpdateSubscription;
   StreamSubscription? _messageExpiredSubscription;
   StreamSubscription? _callStateSubscription;
   StreamSubscription? _onlineUsersSubscription;
@@ -313,6 +314,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _callEndedSubscription?.cancel();
     _iceCandidateSubscription?.cancel();
     _readReceiptSubscription?.cancel();
+    _reactionUpdateSubscription?.cancel();
     _messageExpiredSubscription?.cancel();
     _callStateSubscription?.cancel();
     _onlineUsersSubscription?.cancel();
@@ -760,6 +762,25 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           }
         });
         _ensureCountdownTimer();
+      }
+    });
+
+    // Reaction-update listener: the other party reacted live. Update the message
+    // in place so the badge appears without a reload.
+    _reactionUpdateSubscription = _chatService.reactionUpdateStream.listen((event) {
+      if (!mounted) return;
+      if (_selectedConversation != null &&
+          _parseConvId(_selectedConversation!['id']) == event.conversationId) {
+        final msgIndex = _messages.indexWhere((m) => m['id'] == event.messageId);
+        if (msgIndex >= 0) {
+          _safeSetState(() {
+            if (event.reaction == null) {
+              _messages[msgIndex].remove('reaction');
+            } else {
+              _messages[msgIndex]['reaction'] = event.reaction;
+            }
+          });
+        }
       }
     });
 
@@ -1637,7 +1658,15 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         mitgliedernummer: widget.mitgliedernummer,
         reaction: reactionKey,
       );
-      return result['success'] == true;
+      final ok = result['success'] == true;
+      if (ok && _isConnected) {
+        _chatService.sendReactionUpdate(
+          _parseConvId(_selectedConversation!['id']),
+          messageId,
+          reactionKey,
+        );
+      }
+      return ok;
     } catch (e) {
       _log.error('Chat: reactToMessage failed: $e', tag: 'CHAT');
       return false;

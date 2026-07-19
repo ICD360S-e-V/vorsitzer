@@ -104,7 +104,13 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         mitgliedernummer: widget.mitgliedernummer,
         reaction: newKey ?? '',
       );
-      if (result['success'] != true) revert();
+      if (result['success'] == true) {
+        if (_isConnected) {
+          _chatService.sendReactionUpdate(_conversationId!, messageId, newKey ?? '');
+        }
+      } else {
+        revert();
+      }
     } catch (_) {
       revert();
     }
@@ -121,6 +127,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   StreamSubscription? _iceCandidateSubscription;
   StreamSubscription? _callBusySubscription;
   StreamSubscription? _readReceiptSubscription;
+  StreamSubscription? _reactionUpdateSubscription;
   StreamSubscription? _messageExpiredSubscription;
   StreamSubscription? _callOfferSubscription;
   StreamSubscription? _callStateSubscription;
@@ -257,6 +264,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     _iceCandidateSubscription?.cancel();
     _callBusySubscription?.cancel();
     _readReceiptSubscription?.cancel();
+    _reactionUpdateSubscription?.cancel();
     _messageExpiredSubscription?.cancel();
     _callOfferSubscription?.cancel();
     _callStateSubscription?.cancel();
@@ -480,6 +488,23 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           }
         });
         _ensureCountdownTimer();
+      }
+    });
+
+    // Reaction-update listener: the other party reacted live → update in place.
+    _reactionUpdateSubscription = _chatService.reactionUpdateStream.listen((event) {
+      if (!mounted) return;
+      if (event.conversationId == _conversationId) {
+        final idx = _messages.indexWhere((m) => m['id'] == event.messageId);
+        if (idx >= 0) {
+          setState(() {
+            if (event.reaction == null) {
+              _messages[idx].remove('reaction');
+            } else {
+              _messages[idx]['reaction'] = event.reaction;
+            }
+          });
+        }
       }
     });
 
