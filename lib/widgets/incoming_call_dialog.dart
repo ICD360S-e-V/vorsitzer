@@ -42,11 +42,12 @@ class _IncomingCallDialogState extends State<IncomingCallDialog>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
 
-    // Auto-reject after 5 minutes (300 seconds)
+    // Auto-reject after 60s. The caller gives up first (ring timeout 45s), so
+    // this is only the backstop if no call_end ever arrives. (Was 300s.)
     _timeoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       setState(() => _ringCount++);
-      if (_ringCount >= 300) {
+      if (_ringCount >= 60) {
         timer.cancel();
         widget.onReject();
       }
@@ -654,6 +655,203 @@ class CallingOverlay extends StatelessWidget {
             tooltip: 'Abbrechen',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// In-call VIDEO panel: remote video fills, local camera as a small
+/// picture-in-picture, with mute / camera / switch-camera / hang-up controls.
+/// Used when the active call is a video call; audio calls keep [InCallOverlay].
+class VideoCallOverlay extends StatefulWidget {
+  final String remoteName;
+  final Duration callDuration;
+  final MediaStream? localStream;
+  final MediaStream? remoteStream;
+  final bool isMuted;
+  final bool isCameraOn;
+  final VoidCallback onToggleMute;
+  final VoidCallback onToggleCamera;
+  final VoidCallback onSwitchCamera;
+  final VoidCallback onEndCall;
+
+  const VideoCallOverlay({
+    super.key,
+    required this.remoteName,
+    required this.callDuration,
+    required this.localStream,
+    required this.remoteStream,
+    required this.isMuted,
+    required this.isCameraOn,
+    required this.onToggleMute,
+    required this.onToggleCamera,
+    required this.onSwitchCamera,
+    required this.onEndCall,
+  });
+
+  @override
+  State<VideoCallOverlay> createState() => _VideoCallOverlayState();
+}
+
+class _VideoCallOverlayState extends State<VideoCallOverlay> {
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      await _localRenderer.initialize();
+      await _remoteRenderer.initialize();
+      _localRenderer.srcObject = widget.localStream;
+      _remoteRenderer.srcObject = widget.remoteStream;
+      if (mounted) setState(() => _ready = true);
+    } catch (e) {
+      _log.error('VideoCallOverlay: renderer init failed: $e', tag: 'CALL-UI');
+    }
+  }
+
+  @override
+  void didUpdateWidget(VideoCallOverlay old) {
+    super.didUpdateWidget(old);
+    if (!_ready) return;
+    if (widget.remoteStream != old.remoteStream) _remoteRenderer.srcObject = widget.remoteStream;
+    if (widget.localStream != old.localStream) _localRenderer.srcObject = widget.localStream;
+  }
+
+  @override
+  void dispose() {
+    _localRenderer.dispose();
+    _remoteRenderer.dispose();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final m = two(d.inMinutes.remainder(60));
+    final s = two(d.inSeconds.remainder(60));
+    return d.inHours > 0 ? '${two(d.inHours)}:$m:$s' : '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 260,
+        color: Colors.black,
+        child: Stack(
+          children: [
+            // Remote video fills the panel
+            Positioned.fill(
+              child: (_ready && widget.remoteStream != null)
+                  ? RTCVideoView(_remoteRenderer,
+                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+                  : const Center(
+                      child: Icon(Icons.videocam_off, color: Colors.white24, size: 48)),
+            ),
+
+            // Name + duration (top-left)
+            Positioned(
+              left: 8,
+              top: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${widget.remoteName.isNotEmpty ? widget.remoteName : "Mitglied"}  •  ${_fmt(widget.callDuration)}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+
+            // Local camera PiP (top-right)
+            Positioned(
+              right: 8,
+              top: 8,
+              width: 90,
+              height: 120,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  color: Colors.black,
+                  child: (_ready && widget.isCameraOn && widget.localStream != null)
+                      ? RTCVideoView(_localRenderer,
+                          mirror: true,
+                          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+                      : const Center(
+                          child: Icon(Icons.videocam_off, color: Colors.white38, size: 24)),
+                ),
+              ),
+            ),
+
+            // Controls (bottom row)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 8,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ctrl(
+                    icon: widget.isMuted ? Icons.mic_off : Icons.mic,
+                    color: widget.isMuted ? Colors.red : Colors.white,
+                    tooltip: widget.isMuted ? 'Ton an' : 'Stumm',
+                    onTap: widget.onToggleMute,
+                  ),
+                  _ctrl(
+                    icon: widget.isCameraOn ? Icons.videocam : Icons.videocam_off,
+                    color: widget.isCameraOn ? Colors.white : Colors.red,
+                    tooltip: widget.isCameraOn ? 'Kamera aus' : 'Kamera an',
+                    onTap: widget.onToggleCamera,
+                  ),
+                  _ctrl(
+                    icon: Icons.cameraswitch,
+                    color: Colors.white,
+                    tooltip: 'Kamera wechseln',
+                    onTap: widget.onSwitchCamera,
+                  ),
+                  _ctrl(
+                    icon: Icons.call_end,
+                    color: Colors.white,
+                    bg: Colors.red,
+                    tooltip: 'Auflegen',
+                    onTap: widget.onEndCall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ctrl({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+    Color? bg,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Material(
+        color: bg ?? Colors.black45,
+        shape: const CircleBorder(),
+        child: IconButton(
+          icon: Icon(icon, color: color, size: 22),
+          tooltip: tooltip,
+          onPressed: onTap,
+        ),
       ),
     );
   }

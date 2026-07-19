@@ -1,28 +1,35 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'api_service.dart';
 import 'logger_service.dart';
 
 final _log = LoggerService();
 
 /// Voice Call Service using WebRTC for real-time audio communication
 class VoiceCallService {
-  // TURN credentials injected at build time via --dart-define (never committed).
-  // Fallback: empty → only STUN is used.
-  static const _turnHost = String.fromEnvironment('TURN_HOST', defaultValue: '');
-  static const _turnUser = String.fromEnvironment('TURN_USER', defaultValue: '');
-  static const _turnCred = String.fromEnvironment('TURN_CRED', defaultValue: '');
-
-  static Map<String, dynamic> get _iceServers {
-    final servers = <Map<String, dynamic>>[
-      {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
-    ];
-    if (_turnHost.isNotEmpty && _turnUser.isNotEmpty && _turnCred.isNotEmpty) {
-      servers.add({'urls': 'turn:$_turnHost:3478', 'username': _turnUser, 'credential': _turnCred});
-      servers.add({'urls': 'turns:$_turnHost:5349', 'username': _turnUser, 'credential': _turnCred});
+  // ICE servers are fetched at RUNTIME from our own backend
+  // (api/auth/turn_credentials.php → coturn use-auth-secret / ephemeral creds).
+  // Nothing is baked into the build: no static credential, and NEVER a public /
+  // third-party STUN (e.g. Google) — no call metadata leaves our infrastructure.
+  // TURN is offered over UDP + TCP + TLS(turns) so calls still connect on
+  // networks that block UDP.
+  Future<Map<String, dynamic>> _fetchIceServers() async {
+    final creds = await ApiService().getTurnCredentials();
+    if (creds == null) {
+      _log.error('VoiceCallService: ❌ could not fetch TURN credentials', tag: 'CALL');
+      throw Exception('TURN_UNAVAILABLE');
     }
-    return {'iceServers': servers};
+    final uris = (creds['uris'] as List).cast<String>();
+    final stun = uris.where((u) => u.startsWith('stun:')).toList();
+    final turn = uris.where((u) => u.startsWith('turn:') || u.startsWith('turns:')).toList();
+    return {
+      'iceServers': <Map<String, dynamic>>[
+        if (stun.isNotEmpty) {'urls': stun},
+        if (turn.isNotEmpty)
+          {'urls': turn, 'username': creds['username'], 'credential': creds['password']},
+      ],
+    };
   }
 
   RTCPeerConnection? _peerConnection;
@@ -35,6 +42,7 @@ class VoiceCallService {
   int? _currentConversationId;
   bool _isMuted = false;
   bool _isSpeakerOn = true;
+  bool _isVideoCall = false;
 
   // ICE candidate queuing (fix for race condition)
   final List<Map<String, dynamic>> _pendingIceCandidates = [];
@@ -51,6 +59,11 @@ class VoiceCallService {
   Stream<IncomingCall> get incomingCallStream => _incomingCallController.stream;
   Stream<RTCIceConnectionState?> get iceConnectionStateStream => _iceConnectionStateController.stream;
 
+  // Video call getters (audio-only call → _isVideoCall stays false)
+  MediaStream? get localStream => _localStream;
+  bool get isVideoCall => _isVideoCall;
+  bool get isCameraOn => _localStream?.getVideoTracks().any((t) => t.enabled) ?? false;
+
   // Getters
   CallState get callState => _callState;
   bool get isMuted => _isMuted;
@@ -66,7 +79,7 @@ class VoiceCallService {
   VoiceCallService._internal();
 
   /// Initialize a call (caller side)
-  Future<bool> startCall(int conversationId, String targetUserId, String targetUserName) async {
+  Future<bool> startCall(int conversationId, String targetUserId, String targetUserName, {bool video = false}) async {
     _log.info('VoiceCallService: ========================================', tag: 'CALL');
     _log.info('VoiceCallService: 📞 START CALL - conv: $conversationId, target: $targetUserName', tag: 'CALL');
     _log.info('VoiceCallService: Current state: $_callState', tag: 'CALL');
@@ -78,13 +91,14 @@ class VoiceCallService {
 
     try {
       _currentConversationId = conversationId;
+      _isVideoCall = video;
       _setCallState(CallState.calling);
       _log.info('VoiceCallService: ✓ State changed to: calling', tag: 'CALL');
 
       // Get local audio stream
-      _log.info('VoiceCallService: [1/5] Getting local audio stream...', tag: 'CALL');
+      _log.info('VoiceCallService: [1/5] Getting local ${video ? "audio+video" : "audio"} stream...', tag: 'CALL');
       final streamStart = DateTime.now();
-      _localStream = await _getLocalStream();
+      _localStream = await _getLocalStream(video: video);
       final streamDuration = DateTime.now().difference(streamStart);
 
       if (_localStream == null) {
@@ -113,21 +127,24 @@ class VoiceCallService {
         _peerConnection!.addTrack(track, _localStream!);
       }
       _log.info('VoiceCallService: ✓ All local tracks added to peer connection', tag: 'CALL');
+      if (video) await _applyVideoBitrate();
 
       // Create offer
       _log.info('VoiceCallService: [4/5] Creating SDP offer...', tag: 'CALL');
       final offerStart = DateTime.now();
       final offer = await _peerConnection!.createOffer({
         'offerToReceiveAudio': true,
-        'offerToReceiveVideo': false,
+        'offerToReceiveVideo': video,
       });
       final offerDuration = DateTime.now().difference(offerStart);
       _log.info('VoiceCallService: ✓ SDP offer created in ${offerDuration.inMilliseconds}ms', tag: 'CALL');
       _log.info('VoiceCallService: Offer SDP type: ${offer.type}', tag: 'CALL');
       _log.info('VoiceCallService: Offer SDP length: ${offer.sdp?.length ?? 0} characters', tag: 'CALL');
 
-      await _peerConnection!.setLocalDescription(offer);
-      _log.info('VoiceCallService: ✓ Local description set', tag: 'CALL');
+      await _peerConnection!.setLocalDescription(
+        RTCSessionDescription(_tuneOpus(offer.sdp), offer.type),
+      );
+      _log.info('VoiceCallService: ✓ Local description set (Opus tuned: 64k+FEC+DTX)', tag: 'CALL');
 
       // Send offer via WebSocket
       _log.info('VoiceCallService: [5/5] Sending call_offer via signaling...', tag: 'CALL');
@@ -192,12 +209,14 @@ class VoiceCallService {
 
     try {
       _setCallState(CallState.connecting);
-      _log.info('VoiceCallService: ✓ State changed to: connecting', tag: 'CALL');
+      // The offer's SDP tells us whether the caller wants video (m=video line).
+      _isVideoCall = sdp.contains('m=video');
+      _log.info('VoiceCallService: ✓ State changed to: connecting (video: $_isVideoCall)', tag: 'CALL');
 
       // Get local audio stream
-      _log.info('VoiceCallService: [1/6] Getting local audio stream...', tag: 'CALL');
+      _log.info('VoiceCallService: [1/6] Getting local ${_isVideoCall ? "audio+video" : "audio"} stream...', tag: 'CALL');
       final streamStart = DateTime.now();
-      _localStream = await _getLocalStream();
+      _localStream = await _getLocalStream(video: _isVideoCall);
       final streamDuration = DateTime.now().difference(streamStart);
 
       if (_localStream == null) {
@@ -226,6 +245,7 @@ class VoiceCallService {
         _peerConnection!.addTrack(track, _localStream!);
       }
       _log.info('VoiceCallService: ✓ All tracks added', tag: 'CALL');
+      if (_isVideoCall) await _applyVideoBitrate();
 
       // Set remote description (the offer)
       _log.info('VoiceCallService: [4/6] Setting remote description (offer from caller)...', tag: 'CALL');
@@ -245,8 +265,10 @@ class VoiceCallService {
       _log.info('VoiceCallService: Answer SDP type: ${answer.type}', tag: 'CALL');
       _log.info('VoiceCallService: Answer SDP length: ${answer.sdp?.length ?? 0} characters', tag: 'CALL');
 
-      await _peerConnection!.setLocalDescription(answer);
-      _log.info('VoiceCallService: ✓ Local description set', tag: 'CALL');
+      await _peerConnection!.setLocalDescription(
+        RTCSessionDescription(_tuneOpus(answer.sdp), answer.type),
+      );
+      _log.info('VoiceCallService: ✓ Local description set (Opus tuned: 64k+FEC+DTX)', tag: 'CALL');
 
       // Send answer via WebSocket
       _log.info('VoiceCallService: [6/6] Sending call_answer via signaling...', tag: 'CALL');
@@ -417,10 +439,87 @@ class VoiceCallService {
     }
   }
 
+  /// Cap the outgoing video bitrate (~4 Mbps) so 1080p stays within what the
+  /// TURN relay and typical uplinks can carry. Called after the video track is
+  /// added to the peer connection.
+  Future<void> _applyVideoBitrate() async {
+    try {
+      final senders = await _peerConnection!.getSenders();
+      RTCRtpSender? videoSender;
+      for (final s in senders) {
+        if (s.track?.kind == 'video') {
+          videoSender = s;
+          break;
+        }
+      }
+      if (videoSender == null) return;
+      final params = videoSender.parameters;
+      params.encodings = [RTCRtpEncoding(maxBitrate: 4000000, maxFramerate: 30)];
+      await videoSender.setParameters(params);
+      _log.info('VoiceCallService: ✓ video bitrate capped at ~4 Mbps', tag: 'CALL');
+    } catch (e) {
+      _log.warning('VoiceCallService: _applyVideoBitrate failed: $e', tag: 'CALL');
+    }
+  }
+
+  /// Tune the local SDP so Opus voice uses up to 64 kbps (max useful for voice)
+  /// with in-band FEC (packet-loss resilience) + DTX (silence suppression).
+  /// Merges into the existing Opus fmtp line without duplicating keys; no-op if
+  /// there is no Opus m-line. Applied to the offer and the answer.
+  String _tuneOpus(String? sdp) {
+    if (sdp == null || sdp.isEmpty) return sdp ?? '';
+    final rtpmap = RegExp(r'a=rtpmap:(\d+) opus/48000/2', caseSensitive: false).firstMatch(sdp);
+    if (rtpmap == null) return sdp;
+    final pt = rtpmap.group(1)!;
+    const wanted = {
+      'maxaveragebitrate': '64000',
+      'stereo': '0',
+      'useinbandfec': '1',
+      'usedtx': '1',
+    };
+    final fmtp = RegExp('a=fmtp:$pt ([^\\r\\n]*)').firstMatch(sdp);
+    if (fmtp != null) {
+      final current = fmtp.group(1)!;
+      final keys = current.split(';').map((kv) => kv.split('=').first.trim()).toSet();
+      final adds = wanted.entries.where((e) => !keys.contains(e.key)).map((e) => '${e.key}=${e.value}');
+      if (adds.isEmpty) return sdp;
+      return sdp.replaceFirst(fmtp.group(0)!, 'a=fmtp:$pt $current;${adds.join(';')}');
+    }
+    final params = wanted.entries.map((e) => '${e.key}=${e.value}').join(';');
+    return sdp.replaceFirst(rtpmap.group(0)!, '${rtpmap.group(0)!}\r\na=fmtp:$pt $params');
+  }
+
+  /// Turn the local camera on/off during a video call (audio keeps flowing).
+  void toggleCamera() {
+    final tracks = _localStream?.getVideoTracks() ?? [];
+    if (tracks.isEmpty) return;
+    final on = !isCameraOn;
+    for (final t in tracks) {
+      t.enabled = on;
+    }
+    _log.info('VoiceCallService: 📷 camera ${on ? "on" : "off"}', tag: 'CALL');
+  }
+
+  /// Switch between front/back camera (mobile). No-op with no video track.
+  Future<void> switchCamera() async {
+    final tracks = _localStream?.getVideoTracks() ?? [];
+    if (tracks.isEmpty) return;
+    try {
+      await Helper.switchCamera(tracks.first);
+      _log.info('VoiceCallService: 🔄 switched camera', tag: 'CALL');
+    } catch (e) {
+      _log.warning('VoiceCallService: switchCamera failed: $e', tag: 'CALL');
+    }
+  }
+
   /// Create WebRTC peer connection
   Future<void> _createPeerConnection() async {
-    _log.debug('VoiceCallService: Creating RTCPeerConnection with STUN/TURN servers...', tag: 'CALL');
-    _peerConnection = await createPeerConnection(_iceServers);
+    // Fetch fresh ephemeral ICE servers from our backend before every peer
+    // connection. Throws TURN_UNAVAILABLE if unreachable → the call aborts with
+    // an error instead of silently trying to connect without a relay.
+    final iceConfig = await _fetchIceServers();
+    _log.debug('VoiceCallService: Creating RTCPeerConnection with our TURN servers...', tag: 'CALL');
+    _peerConnection = await createPeerConnection(iceConfig);
     _log.info('VoiceCallService: RTCPeerConnection created successfully', tag: 'CALL');
 
     // Initialize remote audio renderer for Windows playback
@@ -585,7 +684,17 @@ class VoiceCallService {
   }
 
   /// Get local audio stream with detailed logging
-  Future<MediaStream?> _getLocalStream() async {
+  // 1080p video. `ideal` lets the camera fall back to whatever it supports
+  // (e.g. 720p webcams) instead of failing — works for Windows laptop/tablet
+  // integrated cameras as well as Android.
+  Map<String, dynamic> get _videoConstraints => {
+        'facingMode': 'user',
+        'width': {'ideal': 1920},
+        'height': {'ideal': 1080},
+        'frameRate': {'ideal': 30},
+      };
+
+  Future<MediaStream?> _getLocalStream({bool video = false}) async {
     try {
       // macOS flutter_webrtc bug #2018: CoreAudio ADM returns 0 audio devices
       // from enumerateDevices() until audio session is started.
@@ -598,10 +707,10 @@ class VoiceCallService {
             'noiseSuppression': true,
             'autoGainControl': true,
           },
-          'video': false,
+          'video': video ? _videoConstraints : false,
         });
         final audioTracks = stream.getAudioTracks();
-        _log.info('VoiceCallService: ✓ macOS audio stream acquired: ${audioTracks.length} track(s)', tag: 'CALL');
+        _log.info('VoiceCallService: ✓ macOS stream acquired: ${audioTracks.length} audio track(s)', tag: 'CALL');
         return stream;
       }
 
@@ -633,13 +742,20 @@ class VoiceCallService {
           'noiseSuppression': true,
           'autoGainControl': true,
         },
-        'video': false,
+        'video': video ? _videoConstraints : false,
       });
 
       final audioTracks = stream.getAudioTracks();
-      _log.info('VoiceCallService: Audio stream acquired: ${audioTracks.length} track(s)', tag: 'CALL');
+      _log.info('VoiceCallService: Stream acquired: ${audioTracks.length} audio track(s)', tag: 'CALL');
       return stream;
     } catch (e) {
+      // Camera missing/denied (common on desktops without a webcam) → don't kill
+      // the call: retry audio-only so it still connects as a voice call.
+      if (video) {
+        _log.warning('VoiceCallService: video capture failed ($e) — falling back to audio-only', tag: 'CALL');
+        _isVideoCall = false;
+        return _getLocalStream(video: false);
+      }
       _log.error('VoiceCallService: _getLocalStream() failed: $e', tag: 'CALL');
       rethrow;
     }
@@ -691,6 +807,7 @@ class VoiceCallService {
     _currentConversationId = null;
     _isMuted = false;
     _isSpeakerOn = true;
+    _isVideoCall = false;
 
     _setCallState(CallState.idle);
     _log.debug('VoiceCallService: Cleanup completed, state reset to idle', tag: 'CALL');

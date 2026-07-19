@@ -8,6 +8,7 @@ class ConversationHeader extends StatelessWidget {
   final bool isOpen;
   final bool isMuted;
   final VoidCallback onCall;
+  final VoidCallback? onVideoCall;
   final VoidCallback onClose;
   final VoidCallback onMuteToggle;
   final VoidCallback? onScheduledSettings;
@@ -23,6 +24,7 @@ class ConversationHeader extends StatelessWidget {
     required this.canCall,
     required this.isOpen,
     required this.onCall,
+    this.onVideoCall,
     required this.onClose,
     this.isMuted = false,
     required this.onMuteToggle,
@@ -141,12 +143,19 @@ class ConversationHeader extends StatelessWidget {
               tooltip: isMuted ? 'Stummschaltung aufheben' : 'Stummschalten',
             ),
           // Voice/video call — text-only for anonymous visitors by design
-          if (!isAnonymous && isOpen && canCall)
+          if (!isAnonymous && isOpen && canCall) ...[
             IconButton(
               icon: const Icon(Icons.call, color: Colors.green),
               onPressed: onCall,
               tooltip: 'Benutzer anrufen',
             ),
+            if (onVideoCall != null)
+              IconButton(
+                icon: const Icon(Icons.videocam, color: Colors.green),
+                onPressed: onVideoCall,
+                tooltip: 'Videoanruf',
+              ),
+          ],
           if (isOpen)
             IconButton(
               icon: const Icon(Icons.close, color: Colors.white),

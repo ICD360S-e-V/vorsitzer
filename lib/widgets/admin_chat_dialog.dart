@@ -103,6 +103,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
   // Voice call state - most WebRTC state now managed by VoiceCallService
   Timer? _callDurationTimer;
+  Timer? _ringTimeoutTimer; // #2: caller-side "no answer" timeout
   Duration _callDuration = Duration.zero;
   String _callerName = '';
   int? _incomingCallConvId;
@@ -187,6 +188,15 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     // Listen to VoiceCallService state changes to update UI
     _callStateSubscription = _voiceCallService.callStateStream.listen((state) {
       _log.info('AdminChat: VoiceCallService state changed to: $state', tag: 'CALL');
+      // #6b: count the call duration from the moment audio actually flows
+      // (inCall), NOT from when we started ringing. #2: connection succeeded →
+      // the "no answer" ring timeout is moot. Both paths (outgoing/incoming)
+      // now start the timer here, so the duration is consistent.
+      if (state == CallState.inCall) {
+        _ringTimeoutTimer?.cancel();
+        _callDuration = Duration.zero;
+        _startCallDurationTimer();
+      }
       if (mounted) {
         _safeSetState(() {}); // Trigger UI rebuild
       }
@@ -290,6 +300,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _markReadDebounce?.cancel();
     _countdownTimer?.cancel();
     _callDurationTimer?.cancel();
+    _ringTimeoutTimer?.cancel();
     _messageSubscription?.cancel();
     _typingSubscription?.cancel();
     _connectionSubscription?.cancel();
@@ -787,8 +798,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   // ==================== Voice Call Methods ====================
 
   /// Start a call to the member (admin initiates) - REFACTORED to use VoiceCallService
-  Future<void> _startCall() async {
-    _log.info('AdminChat: _startCall() initiated (using VoiceCallService)', tag: 'CALL');
+  Future<void> _startCall({bool video = false}) async {
+    _log.info('AdminChat: _startCall(video: $video) initiated (using VoiceCallService)', tag: 'CALL');
     if (_selectedConversation == null || _voiceCallService.callState != CallState.idle) {
       _log.warning('AdminChat: _startCall() aborted - conv: $_selectedConversation, status: ${_voiceCallService.callState}', tag: 'CALL');
       return;
@@ -808,7 +819,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       });
 
       // Use VoiceCallService to start the call
-      final success = await _voiceCallService.startCall(convId, memberNumber, memberName);
+      final success = await _voiceCallService.startCall(convId, memberNumber, memberName, video: video);
 
       if (!success) {
         throw Exception('Failed to start call via VoiceCallService');
@@ -816,9 +827,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
       _log.info('AdminChat: Call started successfully via VoiceCallService', tag: 'CALL');
 
-      if (mounted) {
-        _startCallDurationTimer();
-      }
+      // #2: arm the caller-side ring timeout. The duration timer no longer
+      // starts here — it starts when the state reaches inCall (see listener).
+      _armRingTimeout();
 
     } catch (e) {
       _log.error('AdminChat: _startCall() error: $e', tag: 'CALL');
@@ -837,11 +848,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     try {
       _callerName = answererName;
+      // #2: member picked up → stop the "no answer" ring timeout. The duration
+      // timer starts later, when the connection reaches inCall (state listener).
+      _ringTimeoutTimer?.cancel();
       await _voiceCallService.handleCallAnswer(sdp, sdpType);
       _log.info('AdminChat: Call answer handled successfully via VoiceCallService', tag: 'CALL');
-      if (mounted) {
-        _startCallDurationTimer();
-      }
     } catch (e) {
       _log.error('AdminChat: _handleCallAnswer() error: $e', tag: 'CALL');
       _showError('Fehler beim Verbinden: $e');
@@ -956,9 +967,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
       _log.info('AdminChat: Call accepted successfully via VoiceCallService', tag: 'CALL');
 
-      if (mounted) {
-        _startCallDurationTimer();
-      }
+      // #6b: duration timer starts when the connection reaches inCall (state listener).
 
       // Auto-select the conversation if not selected
       if (mounted && (_selectedConversation == null ||
@@ -1025,6 +1034,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   void _endCallCleanup() {
     _log.info('AdminChat: _endCallCleanup() - cleaning up UI state', tag: 'CALL');
     _callDurationTimer?.cancel();
+    _ringTimeoutTimer?.cancel();
     _pendingSdp = null;
     _pendingSdpType = null;
     _incomingCallConvId = null;
@@ -1052,6 +1062,36 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     if (mounted) {
       _safeSetState(() {}); // Trigger UI update
     }
+  }
+
+  void _toggleCamera() {
+    if (!mounted) return;
+    _voiceCallService.toggleCamera();
+    if (mounted) {
+      _safeSetState(() {}); // Trigger UI update
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (!mounted) return;
+    await _voiceCallService.switchCamera();
+  }
+
+  /// #2: caller-side ring timeout. If we are still merely `calling` after 45s
+  /// (member never answered, or the offer never reached a live screen) give up
+  /// instead of hanging on the "Anrufen…" overlay forever. The callee side
+  /// rings ≥60s (IncomingCallDialog), so the caller always bows out first.
+  /// Disarmed on answer, on inCall (state listener) and in _endCallCleanup.
+  void _armRingTimeout() {
+    _ringTimeoutTimer?.cancel();
+    _ringTimeoutTimer = Timer(const Duration(seconds: 45), () {
+      if (!mounted) return;
+      if (_voiceCallService.callState == CallState.calling) {
+        _log.warning('AdminChat: ring timeout (45s) — Mitglied hat nicht geantwortet', tag: 'CALL');
+        _showError('Mitglied antwortet nicht');
+        _endCall();
+      }
+    });
   }
 
   void _startCallDurationTimer() {
@@ -2018,6 +2058,23 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     }
 
     if (state == CallState.inCall) {
+      if (_voiceCallService.isVideoCall) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: VideoCallOverlay(
+            remoteName: _callerName,
+            callDuration: _callDuration,
+            localStream: _voiceCallService.localStream,
+            remoteStream: _remoteAudioStream,
+            isMuted: _voiceCallService.isMuted,
+            isCameraOn: _voiceCallService.isCameraOn,
+            onToggleMute: _toggleMute,
+            onToggleCamera: _toggleCamera,
+            onSwitchCamera: _switchCamera,
+            onEndCall: _endCall,
+          ),
+        );
+      }
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: InCallOverlay(
@@ -3200,6 +3257,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         ConversationHeader(
           conversation: _selectedConversation!,
           canCall: canCall,
+          onVideoCall: () => _startCall(video: true),
           isOpen: isOpen,
           isMuted: _selectedConversation!['is_muted'] == true,
           onCall: _startCall,

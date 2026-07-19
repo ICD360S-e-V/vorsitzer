@@ -319,6 +319,27 @@ class ApiService {
     }
   }
 
+  /// Fetch ephemeral TURN/STUN credentials (coturn use-auth-secret / REST API).
+  /// Returns the raw {username, password, ttl, uris} map, or null on failure.
+  /// Only our own server is ever used — no third-party STUN (GDPR).
+  Future<Map<String, dynamic>?> getTurnCredentials() async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/auth/turn_credentials.php'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic> && data['success'] == true && data['uris'] is List) {
+          return data;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> getUsers() async {
     final response = await _client.get(
       Uri.parse('$baseUrl/admin/users.php'),

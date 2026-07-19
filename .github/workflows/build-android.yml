@@ -61,7 +61,7 @@ concurrency:
 #   KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_PASSWORD / KEY_ALIAS
 #
 # Runtime dart-defines (must match build.yml exactly):
-#   TURN_HOST / TURN_USER / TURN_CRED
+#   TURN_HOST (TURN creds are now ephemeral — fetched at runtime via api/auth/turn_credentials.php)
 #   HAFAS_AID
 #   ROUTINE_AES_KEY_V2
 #   VORSITZER_STARTUP_DIAG_KEY
@@ -173,8 +173,6 @@ jobs:
       - name: Build Universal APK
         env:
           TURN_HOST: ${{ secrets.TURN_HOST }}
-          TURN_USER: ${{ secrets.TURN_USER }}
-          TURN_CRED: ${{ secrets.TURN_CRED }}
           HAFAS_AID: ${{ secrets.HAFAS_AID }}
           ROUTINE_AES_KEY_V2: ${{ secrets.ROUTINE_AES_KEY_V2 }}
           STARTUP_DIAG_KEY: ${{ secrets.VORSITZER_STARTUP_DIAG_KEY }}
@@ -185,8 +183,6 @@ jobs:
           flutter build apk \
             --release \
             --dart-define=TURN_HOST="$TURN_HOST" \
-            --dart-define=TURN_USER="$TURN_USER" \
-            --dart-define=TURN_CRED="$TURN_CRED" \
             --dart-define=HAFAS_AID="$HAFAS_AID" \
             --dart-define=ROUTINE_AES_KEY_V2="$ROUTINE_AES_KEY_V2" \
             --dart-define=STARTUP_DIAG_KEY="$STARTUP_DIAG_KEY" \
