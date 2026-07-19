@@ -1264,6 +1264,16 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   List<Map<String, dynamic>> _termine = [];
   bool _loaded = false;
 
+  /// Antragsarten ohne Verwaltungsakt: kein Bescheid/Widerspruch/Termine —
+  /// reine Service-/Verwaltungsvorgänge.
+  static const Set<String> _serviceArten = {'wertmarke', 'ausweis_verlaengerung', 'ausweis_neu'};
+  bool get _isService => _serviceArten.contains(widget.antrag['art']?.toString() ?? '');
+
+  /// Termine sind pro Antrag; filtert die user-weite Liste auf diesen Antrag.
+  List<Map<String, dynamic>> _termineForThisAntrag(List? data) =>
+      (data ?? []).map((e) => Map<String, dynamic>.from(e as Map))
+        .where((t) => (int.tryParse(t['antrag_id']?.toString() ?? '0') ?? 0) == widget.antragId).toList();
+
   @override
   void initState() { super.initState(); _load(); }
 
@@ -1278,7 +1288,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       if (vR['success'] == true && vR['data'] is List) _verlauf = (vR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (dR['success'] == true && dR['data'] is List) _docs = (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
       if (kR['success'] == true && kR['data'] is List) _korr = (kR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      if (tR['success'] == true && tR['data'] is List) _termine = (tR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      if (tR['success'] == true && tR['data'] is List) _termine = _termineForThisAntrag(tR['data'] as List);
       _loaded = true;
     });
   }
@@ -1289,7 +1299,24 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final status = a['status']?.toString() ?? 'eingereicht';
     final methode = {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? ''] ?? '';
     final isOk = status == 'genehmigt';
-    return DefaultTabController(length: 7, child: Column(children: [
+    final full = !_isService;
+    final tabs = <Tab>[
+      const Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
+      const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+      if (full) const Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
+      if (full) const Tab(icon: Icon(Icons.description, size: 18), text: 'Bescheid'),
+      const Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
+      const Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+      if (full) const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
+    ];
+    final views = <Widget>[
+      _buildVerlauf(), _buildDetails(a),
+      if (full) _buildAntragTermine(),
+      if (full) _buildBescheid(a),
+      _buildDokumente(), _buildKorrespondenz(),
+      if (full) _buildWiderspruch(a),
+    ];
+    return DefaultTabController(length: tabs.length, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(color: isOk ? Colors.green.shade700 : Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -1302,18 +1329,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
-        Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
-        Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
-        Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Termine'),
-        Tab(icon: Icon(Icons.description, size: 18), text: 'Bescheid'),
-        Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
-        Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
-        Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
-      ]),
-      Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
-        _buildVerlauf(), _buildDetails(a), _buildAntragTermine(), _buildBescheid(a), _buildDokumente(), _buildKorrespondenz(), _buildWiderspruch(a),
-      ])),
+      TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: tabs),
+      Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: views)),
     ]));
   }
 
@@ -1383,7 +1400,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       future: widget.apiService.listVersorgungsamtTermine(widget.userId),
       builder: (ctx, snap) {
         if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final termine = (snap.data?['data'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        final termine = _termineForThisAntrag(snap.data?['data'] as List?);
         return Column(children: [
           Padding(padding: const EdgeInsets.all(12), child: Row(children: [
             Text('Termine (${termine.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
@@ -1407,7 +1424,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Abbrechen')),
                     FilledButton(onPressed: () async {
-                      await widget.apiService.saveVersorgungsamtTermin(widget.userId, {'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'notiz': notizC.text});
+                      await widget.apiService.saveVersorgungsamtTermin(widget.userId, {'antrag_id': widget.antragId, 'datum': datumC.text, 'uhrzeit': uhrzeitC.text, 'notiz': notizC.text});
                       if (dCtx.mounted) Navigator.pop(dCtx);
                     }, child: const Text('Speichern')),
                   ],
