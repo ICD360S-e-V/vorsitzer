@@ -11,6 +11,7 @@ import '../services/voice_call_service.dart';
 import '../services/logger_service.dart';
 import 'incoming_call_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/message_emotion.dart';
 
 final _log = LoggerService();
 
@@ -64,6 +65,24 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   // File upload state
   List<File> _selectedFiles = [];
   bool _isUploading = false;
+
+  // Reaction picker state
+  Offset _reactTapPos = Offset.zero;
+
+  Future<void> _openReactionPicker(
+      Map<String, dynamic> msg, MessageEmotion? current) async {
+    final pick = await showEmotionPicker(context, _reactTapPos, current: current);
+    if (pick == null || !mounted) return;
+    setState(() {
+      if (pick.emotion == null) {
+        msg.remove('reaction');
+      } else {
+        msg['reaction'] = pick.emotion!.storageKey;
+      }
+    });
+    // NOTE: local-only for now (Vorsitzer test). Server persistence +
+    // WebSocket broadcast to the other party come in the next step.
+  }
 
   // Stream subscriptions
   StreamSubscription? _messageSubscription;
@@ -1249,6 +1268,11 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     // Snapchat-strict: ghost bubble vanishes entirely after the 5-min TTL.
     if (isGhost) return const SizedBox.shrink();
 
+    // WhatsApp-style reaction (manual). You may react to the OTHER party's
+    // messages, not your own; reactions set by the other side are shown here.
+    final reaction = emotionFromKey(msg['reaction']);
+    final canReact = !isOwn;
+
     return Align(
       alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -1257,6 +1281,10 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           left: isOwn ? 50 : 0,
           right: isOwn ? 0 : 50,
         ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isOwn ? const Color(0xFF4a90d9) : Colors.white,
@@ -1319,6 +1347,28 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                 ],
               ),
             ),
+          ],
+        ),
+            ),
+            // Reaction control: emoji if reacted, else a faint "+" on the
+            // other party's messages. Own bubbles show reactions read-only.
+            if (reaction != null || canReact)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: canReact
+                    ? GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (d) => _reactTapPos = d.globalPosition,
+                        onTap: () => _openReactionPicker(msg, reaction),
+                        child: reaction != null
+                            ? EmotionBadge(emotion: reaction)
+                            : const AddReactionButton(),
+                      )
+                    : (reaction != null
+                        ? EmotionBadge(emotion: reaction)
+                        : const SizedBox.shrink()),
+              ),
           ],
         ),
       ),

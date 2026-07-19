@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/clipboard_helper.dart';
+import '../utils/message_emotion.dart';
 import 'chat_attachment_item.dart';
 
 /// A chat message bubble with privacy lock.
@@ -34,6 +35,21 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   Timer? _countdownTicker;
   int _tapCount = 0;
   DateTime? _lastTapTime;
+  Offset _reactTapPos = Offset.zero;
+
+  Future<void> _openReactionPicker(MessageEmotion? current) async {
+    final pick = await showEmotionPicker(context, _reactTapPos, current: current);
+    if (pick == null || !mounted) return;
+    setState(() {
+      if (pick.emotion == null) {
+        widget.message.remove('reaction');
+      } else {
+        widget.message['reaction'] = pick.emotion!.storageKey;
+      }
+    });
+    // NOTE: local-only for now (Vorsitzer test). Server persistence +
+    // WebSocket broadcast to the other party come in the next step.
+  }
 
   void _copyMessage(String text) {
     ClipboardHelper.copy(context, text, 'Nachricht');
@@ -149,6 +165,12 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     final msgLen = messageText?.toString().length ?? 0;
     final hiddenText = '★' * (msgLen.clamp(3, 20));
     final showMasked = !_isRevealed;
+
+    // WhatsApp-style reaction. Ownership rule: you may react to the OTHER
+    // party's messages, never your own. A reaction set by the other side is
+    // still displayed on your own bubbles (read-only there).
+    final reaction = emotionFromKey(widget.message['reaction']);
+    final canReact = !widget.isOwn;
 
     return Align(
       alignment: widget.isOwn ? Alignment.centerRight : Alignment.centerLeft,
@@ -353,6 +375,26 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     ),
                   ),
                 ),
+              ),
+            // Reaction control in the top corner: emoji if reacted, otherwise
+            // a faint "+" on the other party's messages. Own messages show a
+            // reaction (if any) read-only.
+            if (reaction != null || canReact)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: canReact
+                    ? GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (d) => _reactTapPos = d.globalPosition,
+                        onTap: () => _openReactionPicker(reaction),
+                        child: reaction != null
+                            ? EmotionBadge(emotion: reaction)
+                            : const AddReactionButton(),
+                      )
+                    : (reaction != null
+                        ? EmotionBadge(emotion: reaction)
+                        : const SizedBox.shrink()),
               ),
           ],
         ),
