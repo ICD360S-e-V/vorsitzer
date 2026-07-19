@@ -481,16 +481,32 @@ class VoiceCallService {
     _applyAudioRoute();
   }
 
-  /// Route call audio to loudspeaker/earpiece on mobile. No-op on desktop.
-  /// Must run while the audio session is active (after getUserMedia), else the
-  /// AudioManager mode is not yet MODE_IN_COMMUNICATION and the call is ignored.
+  /// Route call audio on mobile. No-op on desktop. Must run while the audio
+  /// session is active (after getUserMedia), else the AudioManager mode is not
+  /// yet MODE_IN_COMMUNICATION and the route change is ignored.
+  ///
+  /// On Android, when the speaker is "on" we use
+  /// setSpeakerphoneOnButPreferBluetooth(): if a Bluetooth (or wired) headset is
+  /// connected the audio goes THERE, otherwise the loudspeaker. Plain
+  /// setSpeakerphoneOn(true) would FORCE the loudspeaker and bypass the headset
+  /// — that was the bug (BT headset connected but call audio still on speaker).
   void _applyAudioRoute() {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
-      Helper.setSpeakerphoneOn(_isSpeakerOn);
-      _log.info('VoiceCallService: 🔊 Audio route → ${_isSpeakerOn ? "SPEAKER" : "earpiece"}', tag: 'CALL');
+      if (Platform.isAndroid) {
+        if (_isSpeakerOn) {
+          Helper.setSpeakerphoneOnButPreferBluetooth();
+        } else {
+          Helper.setSpeakerphoneOn(false); // earpiece / headset
+        }
+        _log.info('VoiceCallService: 🔊 Android audio route → ${_isSpeakerOn ? "speaker (prefer BT/wired)" : "earpiece/headset"}', tag: 'CALL');
+      } else if (Platform.isIOS) {
+        // iOS routes to a connected Bluetooth/wired headset via the audio
+        // session automatically; only the speaker toggle is applied here.
+        Helper.setSpeakerphoneOn(_isSpeakerOn);
+        _log.info('VoiceCallService: 🔊 iOS audio route → ${_isSpeakerOn ? "speaker" : "earpiece/headset"}', tag: 'CALL');
+      }
     } catch (e) {
-      _log.warning('VoiceCallService: setSpeakerphoneOn failed: $e', tag: 'CALL');
+      _log.warning('VoiceCallService: audio route failed: $e', tag: 'CALL');
     }
   }
 
