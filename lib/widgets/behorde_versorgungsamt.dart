@@ -1706,7 +1706,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         IconButton(icon: Icon(Icons.refresh, size: 18, color: Colors.blue.shade400), tooltip: 'Aktualisieren',
           onPressed: () => setState(() => _sozialDocsFuture = _loadSozialleistungenDocs())),
       ]),
-      Text('Bewilligungsbescheide vom Jobcenter — Nachweis Leistungsbezug (Wertmarke kostenlos/ermäßigt). Automatisch aus den Jobcenter-Anträgen übernommen.',
+      Text('Bewilligungsbescheide vom Jobcenter und Sozialamt — Nachweis Leistungsbezug (Wertmarke kostenlos/ermäßigt). Automatisch aus den Anträgen übernommen.',
         style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
       const SizedBox(height: 10),
       FutureBuilder<List<Map<String, dynamic>>>(
@@ -1714,8 +1714,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         builder: (ctx, snap) {
           if (snap.connectionState != ConnectionState.done) return const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()));
           final docs = snap.data ?? [];
-          if (docs.isEmpty) return _docsEmptyHint('Keine Bewilligungsbescheid-Dokumente im Jobcenter gefunden');
-          return Column(children: docs.map(_jcDocRow).toList());
+          if (docs.isEmpty) return _docsEmptyHint('Keine Nachweise in Jobcenter oder Sozialamt gefunden');
+          return Column(children: docs.map(_sozialDocRow).toList());
         },
       ),
     ]));
@@ -1743,22 +1743,26 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       ]));
   }
 
-  /// Jobcenter-Bewilligungsbescheid-Dokument (read-only Referenz — nur ansehen).
-  Widget _jcDocRow(Map<String, dynamic> d) {
-    final art = _jcArtLabel(d['_antrag_art']?.toString() ?? '');
-    final von = d['_bescheid_von']?.toString() ?? '';
-    final bis = d['_bescheid_bis']?.toString() ?? '';
-    final period = (von.isNotEmpty || bis.isNotEmpty) ? '$von – $bis' : '';
+  /// Sozialleistungs-Nachweis (read-only Referenz aus Jobcenter/Sozialamt — nur ansehen).
+  Widget _sozialDocRow(Map<String, dynamic> d) {
+    final source = d['_source']?.toString() ?? '';
+    final id = int.tryParse(d['_id']?.toString() ?? '') ?? 0;
+    final name = d['_name']?.toString() ?? '';
     return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
       child: Row(children: [
         Icon(Icons.description, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(d['filename']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-          Text('Jobcenter · $art${period.isNotEmpty ? ' · $period' : ''}', style: TextStyle(fontSize: 10, color: Colors.blue.shade600)),
+          Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+          Text(d['_label']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.blue.shade600)),
         ])),
         IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Ansehen', onPressed: () async {
-          try { final resp = await widget.apiService.downloadAntragDokument(d['id'] as int); if (resp.statusCode == 200 && mounted) { await FileViewerDialog.showFromBytes(context, resp.bodyBytes, d['filename']?.toString() ?? 'dokument'); }} catch (_) {}
+          try {
+            final resp = source == 'sozialamt'
+              ? await widget.apiService.downloadBewilligungDoc(id)
+              : await widget.apiService.downloadAntragDokument(id);
+            if (resp.statusCode == 200 && mounted) { await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name.isEmpty ? 'dokument' : name); }
+          } catch (_) {}
         }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
       ]));
   }
@@ -1775,9 +1779,11 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     'ueberpruefung': 'Überprüfungsantrag',
   }[art] ?? (art.isEmpty ? 'Antrag' : art);
 
-  /// Sammelt Bescheid-Dokumente aller Jobcenter-Anträge mit Bewilligungsbescheid.
+  /// Sammelt Nachweis-Dokumente: Jobcenter-Bewilligungsbescheide + Sozialamt-
+  /// Bewilligungen (Antrag → Bewilligung → Unterlagen). Alles read-only.
   Future<List<Map<String, dynamic>>> _loadSozialleistungenDocs() async {
     final out = <Map<String, dynamic>>[];
+    // ── Jobcenter: Anträge mit Bewilligungsbescheid → Bescheid-Dokumente ──
     try {
       final jc = await widget.apiService.getJobcenterData(widget.userId);
       final antraege = (jc['antraege'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
@@ -1789,8 +1795,38 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         if (aid.isEmpty) continue;
         final dr = await widget.apiService.getAntragDokumente(userId: widget.userId, behoerdeType: 'jobcenter', antragId: aid);
         final list = ((dr['data']?['dokumente'] ?? dr['dokumente'] ?? []) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final period = (von.isNotEmpty || bis.isNotEmpty) ? '$von – $bis' : '';
         for (final doc in list) {
-          out.add({...doc, '_antrag_art': a['art'], '_bescheid_von': von, '_bescheid_bis': bis});
+          out.add({'_source': 'jobcenter', '_id': doc['id'], '_name': doc['filename']?.toString() ?? '',
+            '_label': 'Jobcenter · ${_jcArtLabel(a['art']?.toString() ?? '')}${period.isNotEmpty ? ' · $period' : ''}'});
+        }
+      }
+    } catch (_) {}
+    // ── Sozialamt: Antrag → Bewilligung → Unterlagen ──
+    try {
+      final sr = await widget.apiService.listSozialamtAntraege(widget.userId);
+      final antraege = (sr['success'] == true && sr['data'] is List)
+          ? (sr['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : <Map<String, dynamic>>[];
+      for (final a in antraege) {
+        final antragId = int.tryParse(a['id']?.toString() ?? '');
+        if (antragId == null) continue;
+        final br = await widget.apiService.listSozialamtBewilligungByAntrag(antragId);
+        if (!(br['success'] == true && br['data'] is List)) continue;
+        for (final bRaw in (br['data'] as List)) {
+          final b = Map<String, dynamic>.from(bRaw as Map);
+          final bid = int.tryParse(b['id']?.toString() ?? '');
+          if (bid == null) continue;
+          final von = b['zeitraum_von']?.toString() ?? '';
+          final bis = b['zeitraum_bis']?.toString() ?? '';
+          final leistung = b['leistung']?.toString() ?? '';
+          final period = (von.isNotEmpty || bis.isNotEmpty) ? '$von – $bis' : '';
+          final dR = await widget.apiService.listBewilligungDocs(bid);
+          final docs = (dR['success'] == true && dR['data'] is List)
+              ? (dR['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : <Map<String, dynamic>>[];
+          for (final doc in docs) {
+            out.add({'_source': 'sozialamt', '_id': doc['id'], '_name': doc['datei_name']?.toString() ?? '',
+              '_label': 'Sozialamt${leistung.isNotEmpty ? ' · $leistung' : ''}${period.isNotEmpty ? ' · $period' : ''}'});
+          }
         }
       }
     } catch (_) {}
