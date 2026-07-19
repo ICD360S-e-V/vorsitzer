@@ -14,6 +14,9 @@ class ChatMessageBubble extends StatefulWidget {
   final bool isOwn;
   final Function(Map<String, dynamic>) onDownloadAttachment;
   final Function(Map<String, dynamic>)? onOpenAttachment;
+  /// Persist a reaction on the server. [reactionKey] is '' to clear.
+  /// Returns true on success; the bubble reverts its optimistic update on false.
+  final Future<bool> Function(int messageId, String reactionKey)? onReact;
 
   const ChatMessageBubble({
     super.key,
@@ -21,6 +24,7 @@ class ChatMessageBubble extends StatefulWidget {
     required this.isOwn,
     required this.onDownloadAttachment,
     this.onOpenAttachment,
+    this.onReact,
   });
 
   @override
@@ -40,15 +44,29 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   Future<void> _openReactionPicker(MessageEmotion? current) async {
     final pick = await showEmotionPicker(context, _reactTapPos, current: current);
     if (pick == null || !mounted) return;
+    final previous = widget.message['reaction'];
+    final newKey = pick.emotion?.storageKey; // null => clear
     setState(() {
-      if (pick.emotion == null) {
+      if (newKey == null) {
         widget.message.remove('reaction');
       } else {
-        widget.message['reaction'] = pick.emotion!.storageKey;
+        widget.message['reaction'] = newKey;
       }
     });
-    // NOTE: local-only for now (Vorsitzer test). Server persistence +
-    // WebSocket broadcast to the other party come in the next step.
+    // Persist on server (optimistic; revert on failure).
+    final rawId = widget.message['id'];
+    final messageId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+    if (messageId == null || widget.onReact == null) return;
+    final ok = await widget.onReact!(messageId, newKey ?? '');
+    if (!ok && mounted) {
+      setState(() {
+        if (previous == null) {
+          widget.message.remove('reaction');
+        } else {
+          widget.message['reaction'] = previous;
+        }
+      });
+    }
   }
 
   void _copyMessage(String text) {

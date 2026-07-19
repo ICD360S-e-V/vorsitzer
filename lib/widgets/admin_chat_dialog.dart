@@ -1625,6 +1625,25 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     }
   }
 
+  /// Persist a message reaction on the server. Called by ChatMessageBubble after
+  /// its optimistic update; returns true on success. The server enforces the
+  /// ownership rule (cannot react to your own message).
+  Future<bool> _reactToMessage(int messageId, String reactionKey) async {
+    if (_selectedConversation == null) return false;
+    try {
+      final result = await _apiService.reactToMessage(
+        conversationId: _parseConvId(_selectedConversation!['id']),
+        messageId: messageId,
+        mitgliedernummer: widget.mitgliedernummer,
+        reaction: reactionKey,
+      );
+      return result['success'] == true;
+    } catch (e) {
+      _log.error('Chat: reactToMessage failed: $e', tag: 'CHAT');
+      return false;
+    }
+  }
+
   Future<void> _closeConversation() async {
     if (_selectedConversation == null) return;
     if (!mounted) return;
@@ -3333,6 +3352,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               isOwn: isOwn,
               onDownloadAttachment: _downloadAttachment,
               onOpenAttachment: _previewAttachment,
+              onReact: _reactToMessage,
             );
           },
         )),

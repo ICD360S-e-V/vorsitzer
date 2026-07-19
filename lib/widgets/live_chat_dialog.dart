@@ -72,16 +72,42 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   Future<void> _openReactionPicker(
       Map<String, dynamic> msg, MessageEmotion? current) async {
     final pick = await showEmotionPicker(context, _reactTapPos, current: current);
-    if (pick == null || !mounted) return;
+    if (pick == null || !mounted || _conversationId == null) return;
+    final previous = msg['reaction'];
+    final newKey = pick.emotion?.storageKey; // null => clear
     setState(() {
-      if (pick.emotion == null) {
+      if (newKey == null) {
         msg.remove('reaction');
       } else {
-        msg['reaction'] = pick.emotion!.storageKey;
+        msg['reaction'] = newKey;
       }
     });
-    // NOTE: local-only for now (Vorsitzer test). Server persistence +
-    // WebSocket broadcast to the other party come in the next step.
+    // Persist on server (optimistic; revert on failure).
+    final rawId = msg['id'];
+    final messageId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+    if (messageId == null) return;
+    void revert() {
+      if (!mounted) return;
+      setState(() {
+        if (previous == null) {
+          msg.remove('reaction');
+        } else {
+          msg['reaction'] = previous;
+        }
+      });
+    }
+
+    try {
+      final result = await _apiService.reactToMessage(
+        conversationId: _conversationId!,
+        messageId: messageId,
+        mitgliedernummer: widget.mitgliedernummer,
+        reaction: newKey ?? '',
+      );
+      if (result['success'] != true) revert();
+    } catch (_) {
+      revert();
+    }
   }
 
   // Stream subscriptions

@@ -958,6 +958,32 @@ class ApiService {
     }
   }
 
+  // React to a chat message (WhatsApp-style). Pass an empty [reaction] to clear.
+  // Server enforces the ownership rule (cannot react to your own message).
+  Future<Map<String, dynamic>> reactToMessage({
+    required int conversationId,
+    required int messageId,
+    required String mitgliedernummer,
+    required String reaction,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/chat/react.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'conversation_id': conversationId,
+        'message_id': messageId,
+        'mitgliedernummer': mitgliedernummer,
+        'reaction': reaction,
+      }),
+    ).timeout(const Duration(seconds: 15));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // Get all conversations (for admin) or user's conversations
   Future<Map<String, dynamic>> getChatConversations(String mitgliedernummer, {String? status}) async {
     final response = await _client.post(
