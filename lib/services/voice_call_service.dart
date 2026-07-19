@@ -595,9 +595,13 @@ class VoiceCallService {
       }
       if (videoSender == null) return;
       final params = videoSender.parameters;
-      params.encodings = [RTCRtpEncoding(maxBitrate: 4000000, maxFramerate: 30)];
+      // Ceiling only — GCC scales the actual rate down on constrained mobile
+      // uplinks, so a high cap just allows more quality on good networks.
+      // Kept identical to the Mitglieder app (8 Mbps / 60 fps) so both ends run
+      // the same media config.
+      params.encodings = [RTCRtpEncoding(maxBitrate: 8000000, maxFramerate: 60)];
       await videoSender.setParameters(params);
-      _log.info('VoiceCallService: ✓ video bitrate capped at ~4 Mbps', tag: 'CALL');
+      _log.info('VoiceCallService: ✓ video bitrate capped at ~8 Mbps / 60 fps', tag: 'CALL');
     } catch (e) {
       _log.warning('VoiceCallService: _applyVideoBitrate failed: $e', tag: 'CALL');
     }
@@ -840,7 +844,7 @@ class VoiceCallService {
         'facingMode': 'user',
         'width': {'ideal': 1920},
         'height': {'ideal': 1080},
-        'frameRate': {'ideal': 30},
+        'frameRate': {'ideal': 60},
       };
 
   Future<MediaStream?> _getLocalStream({bool video = false}) async {
