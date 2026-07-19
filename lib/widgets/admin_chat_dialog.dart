@@ -1421,6 +1421,23 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (sheetCtx, setSheet) {
+            // Preview in-memory (image/PDF natively, never written to disk).
+            Future<void> doPreview(Map<String, dynamic> f) async {
+              final cfid = (f['id'] as num).toInt();
+              final r = await _apiService.downloadCloudFile(
+                cloudFileId: cfid,
+                mitgliedernummer: widget.mitgliedernummer,
+              );
+              if (!mounted) return;
+              if (r['success'] == true && r['content'] != null) {
+                final bytes = base64Decode(r['content']);
+                await _openAttachmentBytes(
+                    bytes, r['filename']?.toString() ?? (f['filename']?.toString() ?? 'datei'));
+              } else {
+                _showError(r['message']?.toString() ?? 'Vorschau fehlgeschlagen');
+              }
+            }
+
             Future<void> doDownload(Map<String, dynamic> f) async {
               final cfid = (f['id'] as num).toInt();
               final r = await _apiService.downloadCloudFile(
@@ -1558,13 +1575,21 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
+                                      icon: Icon(Icons.visibility_outlined, color: Colors.blueGrey.shade600),
+                                      tooltip: 'Ansehen',
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => doPreview(f),
+                                    ),
+                                    IconButton(
                                       icon: Icon(Icons.download, color: Colors.indigo.shade600),
                                       tooltip: 'Herunterladen',
+                                      visualDensity: VisualDensity.compact,
                                       onPressed: () => doDownload(f),
                                     ),
                                     IconButton(
                                       icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
                                       tooltip: 'Löschen',
+                                      visualDensity: VisualDensity.compact,
                                       onPressed: () => doDelete(f),
                                     ),
                                   ],
