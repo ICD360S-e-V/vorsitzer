@@ -519,7 +519,12 @@ class VoiceCallService {
     // connection. Throws TURN_UNAVAILABLE if unreachable → the call aborts with
     // an error instead of silently trying to connect without a relay.
     final iceConfig = await _fetchIceServers();
-    _log.debug('VoiceCallService: Creating RTCPeerConnection with our TURN servers...', tag: 'CALL');
+    // FORCE RELAY: skip P2P/host/srflx candidates. Direct paths are unreliable
+    // on mobile IPv6-only / 464XLAT (CLAT) networks — calls connect but drop at
+    // ~15s with no media. All media flows through our own coturn relay
+    // (relay-to-relay = 0% loss); both peers allocate a relay on TURN.
+    iceConfig['iceTransportPolicy'] = 'relay';
+    _log.debug('VoiceCallService: Creating RTCPeerConnection (relay-only) with our TURN servers...', tag: 'CALL');
     _peerConnection = await createPeerConnection(iceConfig);
     _log.info('VoiceCallService: RTCPeerConnection created successfully', tag: 'CALL');
 
