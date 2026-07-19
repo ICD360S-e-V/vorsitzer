@@ -104,6 +104,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   // Voice call state - most WebRTC state now managed by VoiceCallService
   Timer? _callDurationTimer;
   Timer? _ringTimeoutTimer; // #2: caller-side "no answer" timeout
+  bool _videoCallScreenOpen = false; // full-screen video route currently shown?
   Duration _callDuration = Duration.zero;
   String _callerName = '';
   int? _incomingCallConvId;
@@ -196,6 +197,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         _ringTimeoutTimer?.cancel();
         _callDuration = Duration.zero;
         _startCallDurationTimer();
+        _maybeOpenVideoCallScreen(); // full-screen UI for video calls
       }
       if (mounted) {
         _safeSetState(() {}); // Trigger UI rebuild
@@ -1075,6 +1077,22 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   Future<void> _switchCamera() async {
     if (!mounted) return;
     await _voiceCallService.switchCamera();
+  }
+
+  /// For a video call, present the full-screen [VideoCallScreen] once. The
+  /// screen self-pops when the call ends (callStateStream → idle); the flag
+  /// guards against pushing it twice.
+  Future<void> _maybeOpenVideoCallScreen() async {
+    if (!mounted || _videoCallScreenOpen || !_voiceCallService.isVideoCall) return;
+    _videoCallScreenOpen = true;
+    await Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => VideoCallScreen(
+        remoteName: _callerName,
+        onEndCall: _endCall,
+      ),
+    ));
+    _videoCallScreenOpen = false;
   }
 
   /// #2: caller-side ring timeout. If we are still merely `calling` after 45s
@@ -2059,21 +2077,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     if (state == CallState.inCall) {
       if (_voiceCallService.isVideoCall) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: VideoCallOverlay(
-            remoteName: _callerName,
-            callDuration: _callDuration,
-            localStream: _voiceCallService.localStream,
-            remoteStream: _remoteAudioStream,
-            isMuted: _voiceCallService.isMuted,
-            isCameraOn: _voiceCallService.isCameraOn,
-            onToggleMute: _toggleMute,
-            onToggleCamera: _toggleCamera,
-            onSwitchCamera: _switchCamera,
-            onEndCall: _endCall,
-          ),
-        );
+        // Video calls are shown full-screen via VideoCallScreen (pushed from the
+        // callStateStream listener) — nothing inline here.
+        return const SizedBox.shrink();
       }
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
