@@ -46,6 +46,11 @@ class VoiceCallService {
 
   // ICE candidate queuing (fix for race condition)
   final List<Map<String, dynamic>> _pendingIceCandidates = [];
+  // True once setRemoteDescription has run: remote candidates are queued until
+  // then, otherwise addCandidate() fails and the candidate is DROPPED — which
+  // leaves that peer unable to reach the other's relay → one-way media → the
+  // call dies at ~15s (ICE consent timeout).
+  bool _remoteDescriptionSet = false;
 
   // ICE diagnostics (mobile relay debugging): periodic getStats + sent/recv counters
   Timer? _statsTimer;
@@ -261,6 +266,7 @@ class VoiceCallService {
       );
       final remoteDuration = DateTime.now().difference(remoteStart);
       _log.info('VoiceCallService: ✓ Remote description set in ${remoteDuration.inMilliseconds}ms', tag: 'CALL');
+      await _flushPendingCandidates();
 
       // Create answer
       _log.info('VoiceCallService: [5/6] Creating SDP answer...', tag: 'CALL');
@@ -335,6 +341,7 @@ class VoiceCallService {
       );
       final remoteDuration = DateTime.now().difference(remoteStart);
       _log.info('VoiceCallService: ✓ Remote description (answer) set in ${remoteDuration.inMilliseconds}ms', tag: 'CALL');
+      await _flushPendingCandidates();
       _log.info('VoiceCallService: ⏳ Waiting for ICE negotiation to complete...', tag: 'CALL');
       _log.info('VoiceCallService: (Watch for ICE states and onTrack event)', tag: 'CALL');
       // Note: State will change to inCall via onConnectionState callback when connected
@@ -357,8 +364,8 @@ class VoiceCallService {
 
   /// Handle ICE candidate from remote peer
   Future<void> handleIceCandidate(String candidate, String sdpMid, int sdpMLineIndex) async {
-    if (_peerConnection == null) {
-      _log.warning('VoiceCallService: ⚠️ Peer connection not ready - QUEUING ICE candidate!', tag: 'CALL');
+    if (_peerConnection == null || !_remoteDescriptionSet) {
+      _log.warning('VoiceCallService: ⚠️ Not ready (peer=${_peerConnection != null}, remoteDesc=$_remoteDescriptionSet) - QUEUING ICE candidate!', tag: 'CALL');
       _log.info('VoiceCallService: Queued candidate: mid=$sdpMid, index=$sdpMLineIndex', tag: 'CALL');
       _pendingIceCandidates.add({
         'candidate': candidate,
@@ -383,6 +390,22 @@ class VoiceCallService {
       );
     } catch (e) {
       _log.error('VoiceCallService: ❌ ICE candidate error: $e', tag: 'CALL');
+    }
+  }
+
+  /// Drain queued ICE candidates once the remote description is set. Called
+  /// right after setRemoteDescription (offer on accept, answer on caller side).
+  /// Previously the queue was flushed at peer-creation time — before the remote
+  /// description existed on the callee side — so remote relay candidates were
+  /// dropped and media went one-way (call died at ~15s).
+  Future<void> _flushPendingCandidates() async {
+    _remoteDescriptionSet = true;
+    if (_pendingIceCandidates.isEmpty) return;
+    _log.info('VoiceCallService: ⚡ Flushing ${_pendingIceCandidates.length} queued ICE candidates (remote desc set)', tag: 'CALL');
+    final pending = List<Map<String, dynamic>>.from(_pendingIceCandidates);
+    _pendingIceCandidates.clear();
+    for (final ice in pending) {
+      await _addIceCandidate(ice['candidate'], ice['sdpMid'], ice['sdpMLineIndex']);
     }
   }
 
@@ -566,15 +589,10 @@ class VoiceCallService {
     await _remoteAudioRenderer!.initialize();
     _log.info('VoiceCallService: ✓ Remote audio renderer initialized', tag: 'CALL');
 
-    // Process queued ICE candidates (fix for race condition)
-    if (_pendingIceCandidates.isNotEmpty) {
-      _log.info('VoiceCallService: ⚡ Processing ${_pendingIceCandidates.length} queued ICE candidates', tag: 'CALL');
-      for (var ice in _pendingIceCandidates) {
-        await _addIceCandidate(ice['candidate'], ice['sdpMid'], ice['sdpMLineIndex']);
-      }
-      _pendingIceCandidates.clear();
-      _log.info('VoiceCallService: ✓ All queued ICE candidates processed', tag: 'CALL');
-    }
+    // NOTE: queued ICE candidates are NOT flushed here. On the callee path this
+    // runs BEFORE setRemoteDescription, so addCandidate() would fail and the
+    // candidate would be lost. The queue is drained in _flushPendingCandidates()
+    // right after setRemoteDescription (offer on accept, answer on caller side).
 
     // Handle ICE candidates (our local candidates to send to remote peer)
     _peerConnection!.onIceCandidate = (candidate) {
@@ -849,6 +867,7 @@ class VoiceCallService {
     _statsTimer?.cancel();
     _iceSent = 0;
     _iceRecv = 0;
+    _remoteDescriptionSet = false;
 
     _setCallState(CallState.idle);
     _log.debug('VoiceCallService: Cleanup completed, state reset to idle', tag: 'CALL');
