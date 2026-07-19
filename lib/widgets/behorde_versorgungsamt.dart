@@ -1358,7 +1358,20 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       ])),
       _dRow(Icons.calendar_today, 'Antragsdatum', a['datum']),
       _dRow(Icons.send, 'Methode', {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? '']),
-      _dRow(Icons.flag, 'Status', a['status']?.toString().replaceAll('_', ' ').toUpperCase()),
+      Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.flag, size: 16, color: Colors.indigo.shade600), const SizedBox(width: 8),
+        SizedBox(width: 150, child: Padding(padding: const EdgeInsets.only(top: 6), child: Text('Status', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)))),
+        Expanded(child: Wrap(spacing: 6, runSpacing: 4, children: _vaStatusOptions.map((s) {
+          final sel = (a['status']?.toString() ?? '') == s.$1;
+          return ChoiceChip(
+            label: Text(s.$2, style: TextStyle(fontSize: 10, color: sel ? Colors.white : s.$3.shade800)),
+            selected: sel, selectedColor: s.$3, backgroundColor: s.$3.withValues(alpha: 0.12),
+            side: BorderSide(color: sel ? s.$3 : s.$3.shade200),
+            visualDensity: VisualDensity.compact,
+            onSelected: (_) => _saveStatus(a, s.$1),
+          );
+        }).toList())),
+      ])),
       KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_antrag_$aid', korrespondenzId: 0),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
@@ -1635,6 +1648,24 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     a[field] = value;
     await widget.apiService.saveVersorgungsamtAntrag(widget.userId, _fullAntragPayload(a));
     setState(() {});
+  }
+
+  /// Status-Optionen (Wert, Label, Farbe) — Farben spiegeln die Antrag-Card.
+  static const List<(String, String, MaterialColor)> _vaStatusOptions = [
+    ('eingereicht', 'Eingereicht', Colors.orange),
+    ('in_bearbeitung', 'In Bearbeitung', Colors.blue),
+    ('genehmigt', 'Genehmigt', Colors.green),
+    ('abgelehnt', 'Abgelehnt', Colors.red),
+    ('widerspruch', 'Widerspruch', Colors.purple),
+  ];
+
+  /// Speichert den Status und lädt die Antragsliste neu, damit die Karte den
+  /// echten Status zeigt.
+  Future<void> _saveStatus(Map<String, dynamic> a, String status) async {
+    a['status'] = status;
+    await widget.apiService.saveVersorgungsamtAntrag(widget.userId, _fullAntragPayload(a));
+    widget.onChanged();
+    if (mounted) setState(() {});
   }
 
   /// Speichert ein Wertmarke-Bescheid-Feld und übernimmt das (ggf. neu erstellte
