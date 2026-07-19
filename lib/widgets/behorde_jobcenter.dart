@@ -7008,12 +7008,28 @@ class _VmGeneratorTabState extends State<_VmGeneratorTab> {
       final filename = 'AnlageVM_${widget.userId}_$antragId.pdf';
       final path = '${dir.path}${Platform.pathSeparator}$filename';
       await File(path).writeAsBytes(bytes);
+      // Zweites Dokument — Ausfüllhilfe in der Sprache des Mitglieds (aus
+      // staatsangehoerigkeit). Deutsche Mitglieder → 204 → null. Fehler unkritisch:
+      // das deutsche Formular ist bereits gespeichert.
+      String? hilfePath;
+      try {
+        final hilfe = await widget.apiService.generateVmAusfuellhilfePdf(userId: widget.userId, antragId: antragId);
+        if (hilfe != null) {
+          final lang = hilfe.lang.isNotEmpty ? hilfe.lang : 'xx';
+          final hf = 'AnlageVM_Ausfuellhilfe_${lang}_${widget.userId}_$antragId.pdf';
+          hilfePath = '${dir.path}${Platform.pathSeparator}$hf';
+          await File(hilfePath).writeAsBytes(hilfe.bytes);
+        }
+      } catch (_) { /* Ausfüllhilfe optional */ }
       if (!mounted) return;
       setState(() { _busy = false; _lastPath = path; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('PDF gespeichert: $path'),
+        content: Text(hilfePath != null ? 'Anlage VM + Ausfüllhilfe gespeichert' : 'PDF gespeichert: $path'),
         backgroundColor: Colors.green,
-        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
+        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
+          OpenFilex.open(path);
+          if (hilfePath != null) OpenFilex.open(hilfePath!);
+        }),
       ));
     } catch (e) {
       if (!mounted) return;
