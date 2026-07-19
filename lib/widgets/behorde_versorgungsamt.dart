@@ -1796,6 +1796,15 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
           return Column(children: docs.map(_sozialDocRow).toList());
         },
       ),
+      const SizedBox(height: 22),
+      // ── Eingangsbestätigung ──
+      Row(children: [
+        Icon(Icons.mark_email_read, size: 20, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Expanded(child: Text('Eingangsbestätigung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+      ]),
+      Text('Bestätigung des Versorgungsamts über den Eingang des Wertmarke-Antrags.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      const SizedBox(height: 8),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_${widget.antragId}', korrespondenzId: 0),
     ]));
   }
 
@@ -2212,7 +2221,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         }))), const SizedBox(height: 8),
         Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
         const SizedBox(height: 4),
-        Wrap(spacing: 6, children: [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.local_post_office), ('fax', 'Fax', Icons.fax), ('persoenlich', 'Persönlich', Icons.person)].map((m) => ChoiceChip(
+        Wrap(spacing: 6, children: [('online', 'Online', Icons.language), ('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.local_post_office), ('fax', 'Fax', Icons.fax), ('persoenlich', 'Persönlich', Icons.person)].map((m) => ChoiceChip(
           label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 14, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 11, color: methode == m.$1 ? Colors.white : Colors.black87))]),
           selected: methode == m.$1, selectedColor: Colors.indigo, onSelected: (_) => setD(() => methode = m.$1),
         )).toList()),
