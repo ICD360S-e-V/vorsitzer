@@ -1303,6 +1303,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     final methode = {'online': 'Online', 'postalisch': 'Postalisch', 'persoenlich': 'Persönlich', 'email': 'Per E-Mail'}[a['methode']?.toString() ?? ''] ?? '';
     final isOk = status == 'genehmigt';
     final full = !_isService;
+    final isWertmarke = widget.antrag['art']?.toString() == 'wertmarke';
     final tabs = <Tab>[
       const Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
       const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
@@ -1311,6 +1312,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       const Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
       const Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
       if (full) const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
+      if (isWertmarke) const Tab(icon: Icon(Icons.confirmation_number, size: 18), text: 'Bescheid'),
     ];
     final views = <Widget>[
       _buildVerlauf(), _buildDetails(a),
@@ -1318,6 +1320,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       if (full) _buildBescheid(a),
       _buildDokumente(), _buildKorrespondenz(),
       if (full) _buildWiderspruch(a),
+      if (isWertmarke) _buildWertmarkeBescheid(a),
     ];
     return DefaultTabController(length: tabs.length, child: Column(children: [
       Container(
@@ -1615,6 +1618,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   /// columns (the PHP UPDATE rewrites every column from the payload).
   Map<String, dynamic> _fullAntragPayload(Map<String, dynamic> a) => {
     'id': widget.antragId, 'art': a['art'] ?? '', 'datum': a['datum'], 'methode': a['methode'], 'status': a['status'],
+    'wertmarke_von': a['wertmarke_von'] ?? '', 'wertmarke_bis': a['wertmarke_bis'] ?? '',
     'notiz': a['notiz'] ?? '',
     'bescheid_datum': a['bescheid_datum'] ?? '', 'bescheid_erhalten': a['bescheid_erhalten'] ?? '',
     'widerspruch_datum': a['widerspruch_datum'] ?? '', 'widerspruch_methode': a['widerspruch_methode'] ?? '',
@@ -1631,6 +1635,80 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     a[field] = value;
     await widget.apiService.saveVersorgungsamtAntrag(widget.userId, _fullAntragPayload(a));
     setState(() {});
+  }
+
+  /// Speichert ein Wertmarke-Bescheid-Feld und übernimmt das (ggf. neu erstellte
+  /// oder geschlossene) Verlängerungs-Ticket aus der Server-Antwort.
+  Future<void> _saveWertmarkeField(Map<String, dynamic> a, String field, String value) async {
+    a[field] = value;
+    final res = await widget.apiService.saveVersorgungsamtAntrag(widget.userId, _fullAntragPayload(a));
+    if (res.containsKey('wertmarke_ticket')) a['wertmarke_ticket'] = res['wertmarke_ticket'];
+    widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
+  // ============ WERTMARKE-BESCHEID (nur bei art='wertmarke') ============
+
+  Widget _buildWertmarkeBescheid(Map<String, dynamic> a) {
+    final aid = widget.antragId;
+    final bescheidDatum = a['bescheid_datum']?.toString() ?? '';
+    final von = a['wertmarke_von']?.toString() ?? '';
+    final bis = a['wertmarke_bis']?.toString() ?? '';
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Wertmarke-Bescheid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      const SizedBox(height: 4),
+      Text('Beiblatt mit Wertmarke (ÖPNV) — Ausstellung und Gültigkeit.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      const SizedBox(height: 12),
+      _datePickerRow(Icons.event_note, 'Bescheid-Datum (ausgestellt)', bescheidDatum, (d) => _saveWertmarkeField(a, 'bescheid_datum', d)),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.event_available, 'Gültig von', von, (d) => _saveWertmarkeField(a, 'wertmarke_von', d)),
+      const SizedBox(height: 6),
+      _datePickerRow(Icons.event_busy, 'Gültig bis', bis, (d) => _saveWertmarkeField(a, 'wertmarke_bis', d)),
+      const SizedBox(height: 16),
+      Text('Bescheid-Dokument (hochladen)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
+      const SizedBox(height: 6),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_wertmarke_$aid', korrespondenzId: 0),
+      const SizedBox(height: 16),
+      _wertmarkeTicketCard(a, bis),
+    ]));
+  }
+
+  String _fmtDe(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+  }
+
+  Widget _wertmarkeTicketCard(Map<String, dynamic> a, String bis) {
+    if (bis.isEmpty) {
+      return Container(width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 18, color: Colors.grey.shade500), const SizedBox(width: 8),
+          Expanded(child: Text('Setzen Sie „Gültig bis", damit automatisch 2 Monate vorher ein Verlängerungs-Ticket erstellt wird.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+        ]));
+    }
+    final bisDt = DateTime.tryParse(bis);
+    final faellig = bisDt != null ? DateTime(bisDt.year, bisDt.month - 2, bisDt.day) : null;
+    final t = a['wertmarke_ticket'];
+    final ticketId = (t is Map) ? t['ticket_id'] : null;
+    final schedRaw = (t is Map && t['scheduled_date'] != null) ? t['scheduled_date'].toString().split(' ').first : (faellig != null ? '${faellig.year}-${faellig.month.toString().padLeft(2, '0')}-${faellig.day.toString().padLeft(2, '0')}' : '');
+    return Container(width: double.infinity, padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.notifications_active, size: 18, color: Colors.green.shade700), const SizedBox(width: 6),
+          Text('Verlängerungs-Erinnerung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        ]),
+        const SizedBox(height: 6),
+        Text('Wertmarke gültig bis ${_fmtDe(bis)}', style: const TextStyle(fontSize: 12)),
+        Text('Erinnerung fällig am ${_fmtDe(schedRaw)} (2 Monate vorher)', style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Row(children: [
+          Icon(ticketId != null ? Icons.check_circle : Icons.hourglass_top, size: 14, color: ticketId != null ? Colors.green.shade600 : Colors.orange.shade600), const SizedBox(width: 4),
+          Text(ticketId != null ? 'Ticket #$ticketId aktiv' : 'Ticket wird beim Speichern erstellt', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        ]),
+      ]));
   }
 
   Widget _methodeRow(String label, String value, Function(String) onChanged) {
