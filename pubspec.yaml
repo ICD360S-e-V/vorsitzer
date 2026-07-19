@@ -71,7 +71,7 @@ dependencies:
   web_socket_channel: ^3.0.1
 
   # WebRTC for voice/video calls (works on all platforms)
-  flutter_webrtc: ^1.4.1
+  flutter_webrtc: ^1.5.2
 
   # Path provider for temp directory
   path_provider: ^2.1.0
