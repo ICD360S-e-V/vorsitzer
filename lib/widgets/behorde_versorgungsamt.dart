@@ -1263,6 +1263,9 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   List<Map<String, dynamic>> _korr = [];
   List<Map<String, dynamic>> _termine = [];
   bool _loaded = false;
+  /// Cached (lazy) pull of Jobcenter-Bewilligungsbescheid-Dokumente for the
+  /// "Sozialleistungen"-Sektion im Unterlagen-Tab (nur bei Wertmarke ÖPNV).
+  Future<List<Map<String, dynamic>>>? _sozialDocsFuture;
 
   /// Antragsarten ohne Verwaltungsakt: kein Bescheid/Widerspruch/Termine —
   /// reine Service-/Verwaltungsvorgänge.
@@ -1668,33 +1671,130 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
   }
 
   Widget _buildDokumente() {
-    return Column(children: [
-      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+    final isWertmarke = widget.antrag['art']?.toString() == 'wertmarke';
+    if (!isWertmarke) {
+      return Column(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
+          Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
+          Expanded(child: Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+          ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
+        ])),
+        Expanded(child: _docs.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500))]))
+          : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) => _vaDocRow(_docs[i]))),
+      ]);
+    }
+    // Wertmarke ÖPNV: zwei Sektionen — eigener Antrag + Sozialleistungs-Nachweis
+    _sozialDocsFuture ??= _loadSozialleistungenDocs();
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── Antrag hochladen ──
+      Row(children: [
         Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+        Expanded(child: Text('Antrag hochladen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
-      ])),
-      Expanded(child: _docs.isEmpty
-        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500))]))
-        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) {
-            final d = _docs[i];
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
-              child: Row(children: [
-                Icon(Icons.attach_file, size: 18, color: Colors.green.shade700), const SizedBox(width: 8),
-                Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-                IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), onPressed: () async {
-                  try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }} catch (_) {}
-                }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
-                IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), onPressed: () async {
-                  try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); await OpenFilex.open(file.path); }} catch (_) {}
-                }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
-                IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragDoc(d['id'] as int); _load(); },
-                  padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
-              ]));
-          })),
-    ]);
+      ]),
+      const SizedBox(height: 10),
+      if (_docs.isEmpty) _docsEmptyHint('Noch kein Antrag hochgeladen')
+      else ..._docs.map(_vaDocRow),
+      const SizedBox(height: 22),
+      // ── Sozialleistungen (Nachweis aus Jobcenter) ──
+      Row(children: [
+        Icon(Icons.verified_user, size: 20, color: Colors.blue.shade700), const SizedBox(width: 8),
+        Expanded(child: Text('Sozialleistungen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+        IconButton(icon: Icon(Icons.refresh, size: 18, color: Colors.blue.shade400), tooltip: 'Aktualisieren',
+          onPressed: () => setState(() => _sozialDocsFuture = _loadSozialleistungenDocs())),
+      ]),
+      Text('Bewilligungsbescheide vom Jobcenter — Nachweis Leistungsbezug (Wertmarke kostenlos/ermäßigt). Automatisch aus den Jobcenter-Anträgen übernommen.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      const SizedBox(height: 10),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: _sozialDocsFuture,
+        builder: (ctx, snap) {
+          if (snap.connectionState != ConnectionState.done) return const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()));
+          final docs = snap.data ?? [];
+          if (docs.isEmpty) return _docsEmptyHint('Keine Bewilligungsbescheid-Dokumente im Jobcenter gefunden');
+          return Column(children: docs.map(_jcDocRow).toList());
+        },
+      ),
+    ]));
+  }
+
+  Widget _docsEmptyHint(String text) => Container(width: double.infinity, padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+    child: Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)));
+
+  /// Eigenes Antrag-Dokument (Upload/Ansehen/Download/Löschen).
+  Widget _vaDocRow(Map<String, dynamic> d) {
+    return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+      child: Row(children: [
+        Icon(Icons.attach_file, size: 18, color: Colors.green.shade700), const SizedBox(width: 8),
+        Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+        IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), onPressed: () async {
+          try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }} catch (_) {}
+        }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+        IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), onPressed: () async {
+          try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); await OpenFilex.open(file.path); }} catch (_) {}
+        }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+        IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragDoc(d['id'] as int); _load(); },
+          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+      ]));
+  }
+
+  /// Jobcenter-Bewilligungsbescheid-Dokument (read-only Referenz — nur ansehen).
+  Widget _jcDocRow(Map<String, dynamic> d) {
+    final art = _jcArtLabel(d['_antrag_art']?.toString() ?? '');
+    final von = d['_bescheid_von']?.toString() ?? '';
+    final bis = d['_bescheid_bis']?.toString() ?? '';
+    final period = (von.isNotEmpty || bis.isNotEmpty) ? '$von – $bis' : '';
+    return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+      child: Row(children: [
+        Icon(Icons.description, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(d['filename']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+          Text('Jobcenter · $art${period.isNotEmpty ? ' · $period' : ''}', style: TextStyle(fontSize: 10, color: Colors.blue.shade600)),
+        ])),
+        IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Ansehen', onPressed: () async {
+          try { final resp = await widget.apiService.downloadAntragDokument(d['id'] as int); if (resp.statusCode == 200 && mounted) { await FileViewerDialog.showFromBytes(context, resp.bodyBytes, d['filename']?.toString() ?? 'dokument'); }} catch (_) {}
+        }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+      ]));
+  }
+
+  static String _jcArtLabel(String art) => const {
+    'erstantrag': 'Erstantrag',
+    'weiterbewilligung': 'Weiterbewilligungsantrag',
+    'aenderungsantrag': 'Änderungsantrag',
+    'mehrbedarf': 'Mehrbedarf',
+    'erstausstattung': 'Erstausstattung',
+    'umzugskosten': 'Umzugskosten',
+    'betriebskosten_nachforderung': 'Betriebskosten-Nachforderung',
+    'but': 'Bildung und Teilhabe',
+    'ueberpruefung': 'Überprüfungsantrag',
+  }[art] ?? (art.isEmpty ? 'Antrag' : art);
+
+  /// Sammelt Bescheid-Dokumente aller Jobcenter-Anträge mit Bewilligungsbescheid.
+  Future<List<Map<String, dynamic>>> _loadSozialleistungenDocs() async {
+    final out = <Map<String, dynamic>>[];
+    try {
+      final jc = await widget.apiService.getJobcenterData(widget.userId);
+      final antraege = (jc['antraege'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      for (final a in antraege) {
+        final von = a['bescheid_von']?.toString() ?? '';
+        final bis = a['bescheid_bis']?.toString() ?? '';
+        if (von.isEmpty && bis.isEmpty) continue; // kein Bewilligungsbescheid erfasst
+        final aid = a['id']?.toString() ?? '';
+        if (aid.isEmpty) continue;
+        final dr = await widget.apiService.getAntragDokumente(userId: widget.userId, behoerdeType: 'jobcenter', antragId: aid);
+        final list = ((dr['data']?['dokumente'] ?? dr['dokumente'] ?? []) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        for (final doc in list) {
+          out.add({...doc, '_antrag_art': a['art'], '_bescheid_von': von, '_bescheid_bis': bis});
+        }
+      }
+    } catch (_) {}
+    return out;
   }
 
   Future<void> _uploadDoc() async {
