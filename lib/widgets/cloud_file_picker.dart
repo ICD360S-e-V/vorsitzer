@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import 'file_viewer_dialog.dart';
 
 /// Reusable "Aus Cloud wählen" picker — Stage 2 of the member-cloud feature.
 ///
@@ -90,6 +94,31 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
     }
   }
 
+  /// Preview a cloud file before selecting it (download -> temp -> viewer).
+  Future<void> _preview(Map<String, dynamic> f) async {
+    final id = (f['id'] as num).toInt();
+    final name = f['filename']?.toString() ?? 'datei';
+    final r = await widget.apiService.downloadCloudFile(
+      cloudFileId: id,
+      mitgliedernummer: widget.mitgliedernummer,
+    );
+    if (!mounted) return;
+    if (r['success'] == true && r['content'] != null) {
+      final bytes = base64Decode(r['content']);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$name');
+      await file.writeAsBytes(bytes);
+      if (mounted) await FileViewerDialog.show(context, file.path, name);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(r['message']?.toString() ?? 'Vorschau fehlgeschlagen'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
+  }
+
   void _toggleAll() {
     setState(() {
       if (_selected.length == _files.length) {
@@ -151,14 +180,29 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
                             value: checked,
                             dense: true,
                             controlAffinity: ListTileControlAffinity.leading,
-                            secondary: Icon(_icon(ext), color: Colors.blueGrey.shade600),
-                            title: Text(
-                              f['filename']?.toString() ?? 'Datei',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13),
+                            title: Row(
+                              children: [
+                                Icon(_icon(ext), size: 18, color: Colors.blueGrey.shade600),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    f['filename']?.toString() ?? 'Datei',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              ],
                             ),
-                            subtitle: Text(_fmtBytes(size), style: const TextStyle(fontSize: 11)),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(left: 26),
+                              child: Text(_fmtBytes(size), style: const TextStyle(fontSize: 11)),
+                            ),
+                            secondary: IconButton(
+                              icon: Icon(Icons.visibility_outlined, size: 20, color: Colors.indigo.shade400),
+                              tooltip: 'Ansehen',
+                              onPressed: () => _preview(f),
+                            ),
                             onChanged: (v) => setState(() {
                               if (v == true) {
                                 _selected.add(id);
