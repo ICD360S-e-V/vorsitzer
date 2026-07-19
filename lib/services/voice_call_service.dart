@@ -61,6 +61,7 @@ class VoiceCallService {
 
   // Video call getters (audio-only call → _isVideoCall stays false)
   MediaStream? get localStream => _localStream;
+  MediaStream? get remoteStream => _remoteStream;
   bool get isVideoCall => _isVideoCall;
   bool get isCameraOn => _localStream?.getVideoTracks().any((t) => t.enabled) ?? false;
 

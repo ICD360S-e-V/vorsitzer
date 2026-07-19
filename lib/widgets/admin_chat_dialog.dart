@@ -1066,19 +1066,6 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     }
   }
 
-  void _toggleCamera() {
-    if (!mounted) return;
-    _voiceCallService.toggleCamera();
-    if (mounted) {
-      _safeSetState(() {}); // Trigger UI update
-    }
-  }
-
-  Future<void> _switchCamera() async {
-    if (!mounted) return;
-    await _voiceCallService.switchCamera();
-  }
-
   /// For a video call, present the full-screen [VideoCallScreen] once. The
   /// screen self-pops when the call ends (callStateStream → idle); the flag
   /// guards against pushing it twice.
