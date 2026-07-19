@@ -150,10 +150,11 @@ class VoiceCallService {
       // Create offer
       _log.info('VoiceCallService: [4/5] Creating SDP offer...', tag: 'CALL');
       final offerStart = DateTime.now();
-      final offer = await _peerConnection!.createOffer({
-        'offerToReceiveAudio': true,
-        'offerToReceiveVideo': video,
-      });
+      // Unified-plan: the m-lines (and their sendrecv direction) come from the
+      // transceivers added via addTrack above, NOT from legacy offerToReceive*
+      // constraints. Passing those constraints here could downgrade the video
+      // m-line and stop the encoder from ever producing RTP.
+      final offer = await _peerConnection!.createOffer();
       final offerDuration = DateTime.now().difference(offerStart);
       _log.info('VoiceCallService: ✓ SDP offer created in ${offerDuration.inMilliseconds}ms', tag: 'CALL');
       _log.info('VoiceCallService: Offer SDP type: ${offer.type}', tag: 'CALL');
@@ -163,6 +164,7 @@ class VoiceCallService {
         RTCSessionDescription(_tuneOpus(offer.sdp), offer.type),
       );
       _log.info('VoiceCallService: ✓ Local description set (Opus tuned: 64k+FEC+DTX)', tag: 'CALL');
+      _logSdpSummary('caller-local-offer', offer.sdp);
 
       // Send offer via WebSocket
       _log.info('VoiceCallService: [5/5] Sending call_offer via signaling...', tag: 'CALL');
@@ -273,6 +275,7 @@ class VoiceCallService {
       );
       final remoteDuration = DateTime.now().difference(remoteStart);
       _log.info('VoiceCallService: ✓ Remote description set in ${remoteDuration.inMilliseconds}ms', tag: 'CALL');
+      _logSdpSummary('callee-remote-offer', sdp);
       await _flushPendingCandidates();
 
       // Create answer
@@ -288,6 +291,7 @@ class VoiceCallService {
         RTCSessionDescription(_tuneOpus(answer.sdp), answer.type),
       );
       _log.info('VoiceCallService: ✓ Local description set (Opus tuned: 64k+FEC+DTX)', tag: 'CALL');
+      _logSdpSummary('callee-local-answer', answer.sdp);
 
       // Send answer via WebSocket
       _log.info('VoiceCallService: [6/6] Sending call_answer via signaling...', tag: 'CALL');
@@ -348,6 +352,7 @@ class VoiceCallService {
       );
       final remoteDuration = DateTime.now().difference(remoteStart);
       _log.info('VoiceCallService: ✓ Remote description (answer) set in ${remoteDuration.inMilliseconds}ms', tag: 'CALL');
+      _logSdpSummary('caller-remote-answer', sdp);
       await _flushPendingCandidates();
       _log.info('VoiceCallService: ⏳ Waiting for ICE negotiation to complete...', tag: 'CALL');
       _log.info('VoiceCallService: (Watch for ICE states and onTrack event)', tag: 'CALL');
@@ -433,6 +438,12 @@ class VoiceCallService {
             _log.info('[PAIR] state=${v['state']} nominated=${v['nominated']} sent=${v['bytesSent']} recv=${v['bytesReceived']}', tag: 'ICE-STATS');
           } else if (r.type == 'local-candidate' || r.type == 'remote-candidate') {
             _log.info('[CAND] ${r.type} ${v['candidateType']} ${v['protocol']} ${v['ip'] ?? v['address']}:${v['port']}', tag: 'ICE-STATS');
+          } else if (r.type == 'outbound-rtp') {
+            // Video debug: framesEncoded==0 → encoder never ran (track not sending);
+            // framesEncoded>0 but bytesSent low → transport/relay issue.
+            _log.info('[OUT-RTP] kind=${v['kind']} bytesSent=${v['bytesSent']} framesEncoded=${v['framesEncoded']} ${v['frameWidth']}x${v['frameHeight']} fps=${v['framesPerSecond']}', tag: 'ICE-STATS');
+          } else if (r.type == 'inbound-rtp') {
+            _log.info('[IN-RTP] kind=${v['kind']} bytesRecv=${v['bytesReceived']} framesDecoded=${v['framesDecoded']} ${v['frameWidth']}x${v['frameHeight']}', tag: 'ICE-STATS');
           }
         }
         _log.info('[SIGNAL] ice sent=$_iceSent recv=$_iceRecv', tag: 'ICE-STATS');
@@ -440,6 +451,42 @@ class VoiceCallService {
         _log.warning('[ICE-STATS] getStats error: $e', tag: 'ICE-STATS');
       }
     });
+  }
+
+  /// Log a one-line-per-media-section summary of an SDP: the m= line, its
+  /// negotiated direction (sendrecv/sendonly/recvonly/inactive) and its codecs.
+  /// This is the single most useful artifact for the "video track not sent"
+  /// bug: if the video section shows dir=recvonly/inactive on the offer/answer,
+  /// negotiation is the culprit; if it shows sendrecv but no OUT-RTP frames are
+  /// encoded, the encoder/track is.
+  void _logSdpSummary(String label, String? sdp) {
+    if (sdp == null || sdp.isEmpty) {
+      _log.warning('SDP[$label]: <empty>', tag: 'SDP');
+      return;
+    }
+    String? mLine;
+    String dir = '?';
+    final codecs = <String>[];
+    void flush() {
+      if (mLine != null) {
+        _log.info('SDP[$label] $mLine dir=$dir codecs=[${codecs.join(",")}]', tag: 'SDP');
+      }
+    }
+    for (final raw in sdp.split(RegExp(r'\r?\n'))) {
+      final l = raw.trim();
+      if (l.startsWith('m=')) {
+        flush();
+        mLine = l;
+        dir = '?';
+        codecs.clear();
+      } else if (l == 'a=sendrecv' || l == 'a=sendonly' || l == 'a=recvonly' || l == 'a=inactive') {
+        dir = l.substring(2);
+      } else if (l.startsWith('a=rtpmap:')) {
+        final parts = l.split(' ');
+        if (parts.length > 1) codecs.add(parts[1]);
+      }
+    }
+    flush();
   }
 
   /// End the current call
@@ -617,6 +664,12 @@ class VoiceCallService {
     // ~15s with no media. All media flows through our own coturn relay
     // (relay-to-relay = 0% loss); both peers allocate a relay on TURN.
     iceConfig['iceTransportPolicy'] = 'relay';
+    // Force unified-plan (transceiver-based). Video is negotiated purely from the
+    // sendrecv transceivers created by addTrack — we do NOT pass the legacy
+    // offerToReceiveAudio/Video constraints (a plan-b footgun that can leave the
+    // video m-line without a working sender → zero video RTP even though the
+    // local camera preview shows).
+    iceConfig['sdpSemantics'] = 'unified-plan';
     _log.debug('VoiceCallService: Creating RTCPeerConnection (relay-only) with our TURN servers...', tag: 'CALL');
     _peerConnection = await createPeerConnection(iceConfig);
     _log.info('VoiceCallService: RTCPeerConnection created successfully', tag: 'CALL');
