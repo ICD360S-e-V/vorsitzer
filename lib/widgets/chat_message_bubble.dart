@@ -18,6 +18,13 @@ class ChatMessageBubble extends StatefulWidget {
   /// Returns true on success; the bubble reverts its optimistic update on false.
   final Future<bool> Function(int messageId, String reactionKey)? onReact;
 
+  /// Save an attachment to the owning member's permanent cloud.
+  /// When null the cloud button is hidden.
+  final Function(Map<String, dynamic>)? onSaveAttachmentToCloud;
+
+  /// Attachment ids already stored in the member's cloud (renders ☁✓).
+  final Set<int>? savedCloudAttachmentIds;
+
   const ChatMessageBubble({
     super.key,
     required this.message,
@@ -25,6 +32,8 @@ class ChatMessageBubble extends StatefulWidget {
     required this.onDownloadAttachment,
     this.onOpenAttachment,
     this.onReact,
+    this.onSaveAttachmentToCloud,
+    this.savedCloudAttachmentIds,
   });
 
   @override
@@ -40,6 +49,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   int _tapCount = 0;
   DateTime? _lastTapTime;
   Offset _reactTapPos = Offset.zero;
+
+  /// True when [att]'s id is in the parent's saved-to-cloud set.
+  bool _isSavedToCloud(Map<String, dynamic> att) {
+    final id = att['id'];
+    final aid = id is int ? id : int.tryParse(id?.toString() ?? '');
+    return aid != null && (widget.savedCloudAttachmentIds?.contains(aid) ?? false);
+  }
 
   Future<void> _openReactionPicker(MessageEmotion? current) async {
     final pick = await showEmotionPicker(context, _reactTapPos, current: current);
@@ -328,6 +344,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         isOwn: widget.isOwn,
                         onDownload: widget.onDownloadAttachment,
                         onOpen: widget.onOpenAttachment,
+                        onSaveToCloud: widget.onSaveAttachmentToCloud,
+                        savedToCloud: _isSavedToCloud(att),
                       )),
                   ],
 

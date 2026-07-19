@@ -1222,6 +1222,108 @@ class ApiService {
     }
   }
 
+  // ============= MEMBER CLOUD (permanent per-member storage, 1 GB) =============
+
+  /// Save a chat attachment to the owning member's permanent cloud.
+  /// [mitgliedernummer] is the acting admin. Server enforces the 1 GB quota
+  /// and is idempotent per attachment.
+  Future<Map<String, dynamic>> saveAttachmentToCloud({
+    required int attachmentId,
+    required String mitgliedernummer,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/chat/save_to_cloud.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'attachment_id': attachmentId,
+          'mitgliedernummer': mitgliedernummer,
+        }),
+      ).timeout(const Duration(seconds: 30));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud save failed: $e'};
+    }
+  }
+
+  /// List a member's permanent cloud files + quota usage.
+  Future<Map<String, dynamic>> listMemberCloud({
+    required String mitgliedernummer,
+    int? memberId,
+    int? conversationId,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/member/cloud_list.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'mitgliedernummer': mitgliedernummer,
+          if (memberId != null) 'member_id': memberId,
+          if (conversationId != null) 'conversation_id': conversationId,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud list failed: $e'};
+    }
+  }
+
+  /// Download a member cloud file (decrypted). Returns base64 `content`.
+  Future<Map<String, dynamic>> downloadCloudFile({
+    required int cloudFileId,
+    required String mitgliedernummer,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/member/cloud_download.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'cloud_file_id': cloudFileId,
+          'mitgliedernummer': mitgliedernummer,
+        }),
+      ).timeout(const Duration(seconds: 60));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud download failed: $e'};
+    }
+  }
+
+  /// Delete a member cloud file (row + file on disk).
+  Future<Map<String, dynamic>> deleteCloudFile({
+    required int cloudFileId,
+    required String mitgliedernummer,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/member/cloud_delete.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'cloud_file_id': cloudFileId,
+          'mitgliedernummer': mitgliedernummer,
+        }),
+      ).timeout(const Duration(seconds: 15));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud delete failed: $e'};
+    }
+  }
+
   // Mark messages as read/delivered (WhatsApp-style read receipts)
   Future<Map<String, dynamic>> markMessagesRead({
     required int conversationId,

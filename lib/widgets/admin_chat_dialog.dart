@@ -137,6 +137,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   List<File> _selectedFiles = [];
   bool _isUploading = false;
 
+  // Member-cloud state (permanent per-member document storage, 1 GB).
+  // Reset on every conversation switch; populated by _loadMemberCloud().
+  Set<int> _savedCloudAttachmentIds = {}; // source_attachment_ids already in cloud
+  int _cloudFileCount = 0;
+  int _cloudQuotaUsed = 0;
+  int _cloudQuotaTotal = 1073741824; // 1 GiB
+
   // Admin status message (red banner)
   String? _statusMessage;
 
@@ -482,10 +489,18 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       _selectedConversation = conversation;
       _isLoadingMessages = true;
       _messages = [];
+      // Reset member-cloud state for the newly selected conversation.
+      _savedCloudAttachmentIds = {};
+      _cloudFileCount = 0;
+      _cloudQuotaUsed = 0;
     });
 
     // Start network status polling for this member
     _startNetworkPolling(conversation['mitgliedernummer']?.toString());
+
+    // Load the member's permanent cloud (badge count + which attachments
+    // are already saved). Fire-and-forget; never blocks conversation open.
+    _loadMemberCloud(conversation);
 
     // For anonymous visitors, fetch the per-visitor metadata (language,
     // platform, app version, first_open/last_active) and merge it into
@@ -635,6 +650,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           });
         });
         if (mounted) _scrollToBottom();
+
+        // A member message may carry an auto-archived attachment (upload.php
+        // saves it to the member's cloud synchronously). Refresh the cloud
+        // badge / ☁✓ state so it reflects any new file.
+        if (!isOwn && _selectedConversation != null) {
+          _loadMemberCloud(_selectedConversation!);
+        }
 
         // Fallback: if WS did NOT include translation, poll API for translated version
         if (!isOwn && !hasTranslation && _selectedConversation != null) {
@@ -1274,6 +1296,305 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       await _saveBytesViaPicker(bytes, fileName);
     } catch (e) {
       _showError('Download Fehler: $e');
+    }
+  }
+
+  // ============= MEMBER CLOUD =============
+
+  int? _memberIdOf(Map<String, dynamic> conversation) {
+    final v = conversation['member_id'];
+    return v is int ? v : int.tryParse(v?.toString() ?? '');
+  }
+
+  String _fmtBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  /// Load the member's cloud listing to populate the header badge and mark
+  /// which chat attachments are already saved (☁✓). Fire-and-forget.
+  Future<void> _loadMemberCloud(Map<String, dynamic> conversation) async {
+    if (AnonymousChatHelper.isAnonymousConversation(conversation)) return;
+    final memberId = _memberIdOf(conversation);
+    final convId = _parseConvId(conversation['id']);
+    final result = await _apiService.listMemberCloud(
+      mitgliedernummer: widget.mitgliedernummer,
+      memberId: memberId,
+      conversationId: memberId == null ? convId : null,
+    );
+    if (!mounted || result['success'] != true) return;
+    // Ignore if the user has since switched conversations.
+    if (_selectedConversation == null ||
+        _parseConvId(_selectedConversation!['id']) != convId) return;
+
+    final files = List<Map<String, dynamic>>.from(result['files'] ?? []);
+    final ids = <int>{};
+    for (final f in files) {
+      final sid = f['source_attachment_id'];
+      final s = sid is int ? sid : int.tryParse(sid?.toString() ?? '');
+      if (s != null) ids.add(s);
+    }
+    _safeSetState(() {
+      _savedCloudAttachmentIds = ids;
+      _cloudFileCount = files.length;
+      _cloudQuotaUsed = (result['quota_used'] as num?)?.toInt() ?? 0;
+      _cloudQuotaTotal = (result['quota_total'] as num?)?.toInt() ?? 1073741824;
+    });
+  }
+
+  /// Save one chat attachment to the owning member's permanent cloud.
+  Future<void> _saveToCloud(Map<String, dynamic> attachment) async {
+    final rawId = attachment['id'];
+    final attachmentId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+    if (attachmentId == null) return;
+
+    final result = await _apiService.saveAttachmentToCloud(
+      attachmentId: attachmentId,
+      mitgliedernummer: widget.mitgliedernummer,
+    );
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final used = (result['quota_used'] as num?)?.toInt() ?? _cloudQuotaUsed;
+      final total = (result['quota_total'] as num?)?.toInt() ?? _cloudQuotaTotal;
+      final alreadySaved = result['already_saved'] == true;
+      _safeSetState(() {
+        _savedCloudAttachmentIds = {..._savedCloudAttachmentIds, attachmentId};
+        _cloudQuotaUsed = used;
+        _cloudQuotaTotal = total;
+        if (!alreadySaved) _cloudFileCount += 1;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(alreadySaved
+            ? 'Bereits im Cloud gespeichert'
+            : 'In Cloud gespeichert  (${_fmtBytes(used)} / ${_fmtBytes(total)})'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+      ));
+    } else {
+      // 413 => quota full; server returns a German message.
+      _showError(result['message']?.toString() ?? 'Cloud-Speicherung fehlgeschlagen');
+    }
+  }
+
+  /// Open the member's permanent cloud (list + quota bar + download/delete).
+  Future<void> _showMemberCloudSheet() async {
+    final conv = _selectedConversation;
+    if (conv == null) return;
+    final memberId = _memberIdOf(conv);
+    final convId = _parseConvId(conv['id']);
+
+    final res = await _apiService.listMemberCloud(
+      mitgliedernummer: widget.mitgliedernummer,
+      memberId: memberId,
+      conversationId: memberId == null ? convId : null,
+    );
+    if (!mounted) return;
+    if (res['success'] != true) {
+      _showError(res['message']?.toString() ?? 'Cloud konnte nicht geladen werden');
+      return;
+    }
+
+    final List<Map<String, dynamic>> files =
+        List<Map<String, dynamic>>.from(res['files'] ?? []);
+    int used = (res['quota_used'] as num?)?.toInt() ?? 0;
+    final int total = (res['quota_total'] as num?)?.toInt() ?? 1073741824;
+    final displayName = conv['mitgliedernummer']?.toString() ??
+        conv['member_name']?.toString() ?? 'Mitglied';
+
+    // Keep the header badge/quota in sync with what the sheet just fetched.
+    _safeSetState(() {
+      _cloudFileCount = files.length;
+      _cloudQuotaUsed = used;
+      _cloudQuotaTotal = total;
+    });
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheet) {
+            Future<void> doDownload(Map<String, dynamic> f) async {
+              final cfid = (f['id'] as num).toInt();
+              final r = await _apiService.downloadCloudFile(
+                cloudFileId: cfid,
+                mitgliedernummer: widget.mitgliedernummer,
+              );
+              if (!mounted) return;
+              if (r['success'] == true && r['content'] != null) {
+                final bytes = base64Decode(r['content']);
+                await _saveBytesViaPicker(
+                    bytes, r['filename']?.toString() ?? (f['filename']?.toString() ?? 'datei'));
+              } else {
+                _showError(r['message']?.toString() ?? 'Download fehlgeschlagen');
+              }
+            }
+
+            Future<void> doDelete(Map<String, dynamic> f) async {
+              final cfid = (f['id'] as num).toInt();
+              final r = await _apiService.deleteCloudFile(
+                cloudFileId: cfid,
+                mitgliedernummer: widget.mitgliedernummer,
+              );
+              if (!mounted) return;
+              if (r['success'] == true) {
+                setSheet(() {
+                  files.removeWhere((x) => x['id'] == f['id']);
+                  used = (r['quota_used'] as num?)?.toInt() ?? used;
+                });
+                final sid = f['source_attachment_id'];
+                final s = sid is int ? sid : int.tryParse(sid?.toString() ?? '');
+                _safeSetState(() {
+                  _cloudFileCount = files.length;
+                  _cloudQuotaUsed = used;
+                  if (s != null) {
+                    _savedCloudAttachmentIds = {..._savedCloudAttachmentIds}..remove(s);
+                  }
+                });
+              } else {
+                _showError(r['message']?.toString() ?? 'Löschen fehlgeschlagen');
+              }
+            }
+
+            final pct = total > 0 ? (used / total).clamp(0.0, 1.0) : 0.0;
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetCtx).size.height * 0.72,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.cloud, color: Colors.blue.shade600),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Cloud · $displayName',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.of(sheetCtx).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Quota bar
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: pct,
+                            minHeight: 8,
+                            backgroundColor: Colors.grey.shade200,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              pct > 0.9 ? Colors.red : Colors.blue,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_fmtBytes(used)} / ${_fmtBytes(total)}  ·  ${files.length} Datei${files.length == 1 ? '' : 'en'}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Flexible(
+                    child: files.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Text(
+                              'Noch keine Dateien im Cloud.\nAuf ☁ bei einem Anhang tippen, um zu speichern.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            itemCount: files.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final f = files[i];
+                              final ext = (f['extension']?.toString() ?? '').toLowerCase();
+                              final size = (f['size'] as num?)?.toInt() ?? 0;
+                              final (ic, icColor) = _cloudIcon(ext);
+                              return ListTile(
+                                leading: Icon(ic, color: icColor),
+                                title: Text(
+                                  f['filename']?.toString() ?? 'Datei',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                subtitle: Text(_fmtBytes(size), style: const TextStyle(fontSize: 12)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.download, color: Colors.indigo.shade600),
+                                      tooltip: 'Herunterladen',
+                                      onPressed: () => doDownload(f),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                                      tooltip: 'Löschen',
+                                      onPressed: () => doDelete(f),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  SizedBox(height: MediaQuery.of(sheetCtx).padding.bottom + 8),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  (IconData, Color) _cloudIcon(String ext) {
+    switch (ext) {
+      case 'pdf':
+        return (Icons.picture_as_pdf, Colors.red);
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+        return (Icons.image, Colors.blue);
+      case 'txt':
+        return (Icons.description, Colors.grey);
+      default:
+        return (Icons.insert_drive_file, Colors.grey);
     }
   }
 
@@ -3315,6 +3636,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           aufgabenTotal: _aufgabenTotal,
           aufgabenOffen: _aufgabenOffen,
           hasActiveScheduled: _hasActiveScheduled,
+          onCloudTap: _showMemberCloudSheet,
+          cloudFileCount: _cloudFileCount,
         ),
         const SizedBox(height: 8),
 
@@ -3362,6 +3685,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       );
     }
 
+    // Anonymous visitors are not members and have no permanent cloud.
+    final isAnon = AnonymousChatHelper.isAnonymousConversation(_selectedConversation);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
@@ -3382,6 +3708,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               onDownloadAttachment: _downloadAttachment,
               onOpenAttachment: _previewAttachment,
               onReact: _reactToMessage,
+              onSaveAttachmentToCloud: isAnon ? null : _saveToCloud,
+              savedCloudAttachmentIds: _savedCloudAttachmentIds,
             );
           },
         )),

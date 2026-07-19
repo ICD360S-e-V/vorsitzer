@@ -18,6 +18,12 @@ class ConversationHeader extends StatelessWidget {
   final int aufgabenOffen;
   final bool hasActiveScheduled;
 
+  /// Open the member's permanent cloud (documents + 1 GB quota).
+  final VoidCallback? onCloudTap;
+
+  /// Number of files in the member's cloud (badge on the ☁ button).
+  final int cloudFileCount;
+
   const ConversationHeader({
     super.key,
     required this.conversation,
@@ -34,6 +40,8 @@ class ConversationHeader extends StatelessWidget {
     this.aufgabenTotal = 0,
     this.aufgabenOffen = 0,
     this.hasActiveScheduled = false,
+    this.onCloudTap,
+    this.cloudFileCount = 0,
   });
 
   @override
@@ -92,6 +100,33 @@ class ConversationHeader extends StatelessWidget {
               icon: const Icon(Icons.info_outline, color: Colors.lightBlueAccent),
               onPressed: onInfoTap,
               tooltip: 'Mitglied-Informationen',
+            ),
+          // Permanent member cloud (documents + quota) — real members only
+          if (!isAnonymous && onCloudTap != null)
+            Stack(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.cloud, color: Colors.lightBlue.shade200),
+                  onPressed: onCloudTap,
+                  tooltip: 'Cloud des Mitglieds (Dokumente)',
+                ),
+                if (cloudFileCount > 0)
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$cloudFileCount',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           // Aufgaben — only for real members (anonymous users have no record/Akte)
           if (!isAnonymous && onAufgabenTap != null)

@@ -11,12 +11,22 @@ class ChatAttachmentItem extends StatelessWidget {
   final Function(Map<String, dynamic>) onDownload;
   final Function(Map<String, dynamic>)? onOpen;
 
+  /// Save this attachment to the owning member's permanent 1 GB cloud.
+  /// When null the cloud button is hidden (e.g. non-admin contexts).
+  final Function(Map<String, dynamic>)? onSaveToCloud;
+
+  /// Whether this attachment is already stored in the member's cloud
+  /// (renders ☁✓ instead of the upload icon).
+  final bool savedToCloud;
+
   const ChatAttachmentItem({
     super.key,
     required this.attachment,
     required this.isOwn,
     required this.onDownload,
     this.onOpen,
+    this.onSaveToCloud,
+    this.savedToCloud = false,
   });
 
   @override
@@ -66,6 +76,21 @@ class ChatAttachmentItem extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
+            if (onSaveToCloud != null)
+              InkWell(
+                onTap: savedToCloud ? null : () => onSaveToCloud!(attachment),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(
+                    savedToCloud ? Icons.cloud_done : Icons.cloud_upload_outlined,
+                    size: 18,
+                    color: savedToCloud
+                        ? Colors.green.shade400
+                        : (isOwn ? Colors.white : Colors.indigo.shade600),
+                  ),
+                ),
+              ),
             InkWell(
               onTap: () => onDownload(attachment),
               borderRadius: BorderRadius.circular(20),
