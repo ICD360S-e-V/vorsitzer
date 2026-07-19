@@ -145,7 +145,7 @@ class VoiceCallService {
         _peerConnection!.addTrack(track, _localStream!);
       }
       _log.info('VoiceCallService: ✓ All local tracks added to peer connection', tag: 'CALL');
-      if (video) await _applyVideoBitrate();
+      if (video) await _applyMediaBitrates();
 
       // Create offer
       _log.info('VoiceCallService: [4/5] Creating SDP offer...', tag: 'CALL');
@@ -265,7 +265,7 @@ class VoiceCallService {
         _peerConnection!.addTrack(track, _localStream!);
       }
       _log.info('VoiceCallService: ✓ All tracks added', tag: 'CALL');
-      if (_isVideoCall) await _applyVideoBitrate();
+      if (_isVideoCall) await _applyMediaBitrates();
 
       // Set remote description (the offer)
       _log.info('VoiceCallService: [4/6] Setting remote description (offer from caller)...', tag: 'CALL');
@@ -580,30 +580,30 @@ class VoiceCallService {
     };
   }
 
-  /// Cap the outgoing video bitrate (~4 Mbps) so 1080p stays within what the
-  /// TURN relay and typical uplinks can carry. Called after the video track is
-  /// added to the peer connection.
-  Future<void> _applyVideoBitrate() async {
+  /// Cap the outgoing sender bitrates, identical to the Mitglieder app: video
+  /// ~8 Mbps / 60 fps (ceiling only — GCC scales down on weak mobile uplinks),
+  /// audio 64 kbps. Called after the tracks are added to the peer connection.
+  /// (Audio is also tuned at the Opus SDP level; this sender cap mirrors the
+  /// member app so both ends run the exact same media config.)
+  Future<void> _applyMediaBitrates() async {
     try {
       final senders = await _peerConnection!.getSenders();
-      RTCRtpSender? videoSender;
       for (final s in senders) {
-        if (s.track?.kind == 'video') {
-          videoSender = s;
-          break;
+        final kind = s.track?.kind;
+        if (kind == 'video') {
+          final params = s.parameters;
+          params.encodings = [RTCRtpEncoding(maxBitrate: 8000000, maxFramerate: 60)];
+          await s.setParameters(params);
+          _log.info('VoiceCallService: ✓ video bitrate capped at ~8 Mbps / 60 fps', tag: 'CALL');
+        } else if (kind == 'audio') {
+          final params = s.parameters;
+          params.encodings = [RTCRtpEncoding(maxBitrate: 64000)];
+          await s.setParameters(params);
+          _log.info('VoiceCallService: ✓ audio bitrate capped at 64 kbps', tag: 'CALL');
         }
       }
-      if (videoSender == null) return;
-      final params = videoSender.parameters;
-      // Ceiling only — GCC scales the actual rate down on constrained mobile
-      // uplinks, so a high cap just allows more quality on good networks.
-      // Kept identical to the Mitglieder app (8 Mbps / 60 fps) so both ends run
-      // the same media config.
-      params.encodings = [RTCRtpEncoding(maxBitrate: 8000000, maxFramerate: 60)];
-      await videoSender.setParameters(params);
-      _log.info('VoiceCallService: ✓ video bitrate capped at ~8 Mbps / 60 fps', tag: 'CALL');
     } catch (e) {
-      _log.warning('VoiceCallService: _applyVideoBitrate failed: $e', tag: 'CALL');
+      _log.warning('VoiceCallService: _applyMediaBitrates failed: $e', tag: 'CALL');
     }
   }
 
@@ -674,6 +674,12 @@ class VoiceCallService {
     // video m-line without a working sender → zero video RTP even though the
     // local camera preview shows).
     iceConfig['sdpSemantics'] = 'unified-plan';
+    // Bundle audio+video onto ONE transport/relay pair (single TURN allocation,
+    // RTP+RTCP muxed). Without max-bundle the video m-line can negotiate a
+    // SEPARATE transport that fails independently → audio flows but video does
+    // not. Kept identical to the Mitglieder app.
+    iceConfig['bundlePolicy'] = 'max-bundle';
+    iceConfig['rtcpMuxPolicy'] = 'require';
     _log.debug('VoiceCallService: Creating RTCPeerConnection (relay-only) with our TURN servers...', tag: 'CALL');
     _peerConnection = await createPeerConnection(iceConfig);
     _log.info('VoiceCallService: RTCPeerConnection created successfully', tag: 'CALL');
