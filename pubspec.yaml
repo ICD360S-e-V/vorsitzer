@@ -252,6 +252,7 @@ flutter:
   # Assets for system tray icon and badges
   assets:
     - assets/app_icon.ico
+    - assets/sounds/
     - assets/badges/
     - assets/tray_icons/
     - assets/card_logos/
