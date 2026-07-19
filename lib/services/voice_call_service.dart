@@ -47,6 +47,11 @@ class VoiceCallService {
   // ICE candidate queuing (fix for race condition)
   final List<Map<String, dynamic>> _pendingIceCandidates = [];
 
+  // ICE diagnostics (mobile relay debugging): periodic getStats + sent/recv counters
+  Timer? _statsTimer;
+  int _iceSent = 0;
+  int _iceRecv = 0;
+
   // Stream controllers for UI updates
   final _callStateController = StreamController<CallState>.broadcast();
   final _remoteStreamController = StreamController<MediaStream?>.broadcast();
@@ -370,14 +375,40 @@ class VoiceCallService {
   /// Add ICE candidate to peer connection
   Future<void> _addIceCandidate(String candidate, String sdpMid, int sdpMLineIndex) async {
     try {
-      _log.debug('VoiceCallService: ✓ Adding ICE candidate (mid: $sdpMid)', tag: 'CALL');
+      _iceRecv++;
+      final typ = RegExp(r'typ (\w+)').firstMatch(candidate)?.group(1) ?? '?';
+      _log.info('VoiceCallService: ⬅ [ICE] REMOTE cand typ=$typ (recv=$_iceRecv) mid=$sdpMid', tag: 'ICE');
       await _peerConnection!.addCandidate(
         RTCIceCandidate(candidate, sdpMid, sdpMLineIndex),
       );
-      _log.info('VoiceCallService: ✓ ICE candidate added successfully', tag: 'CALL');
     } catch (e) {
       _log.error('VoiceCallService: ❌ ICE candidate error: $e', tag: 'CALL');
     }
+  }
+
+  /// Periodic ICE diagnostics for the mobile relay case: logs candidate pairs
+  /// (state / nominated / bytes) + local/remote candidates + sent/recv counters.
+  /// Runs every 3s while the peer connection is alive; stopped in _cleanup().
+  void _startStatsLogging() {
+    _statsTimer?.cancel();
+    _statsTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      final pc = _peerConnection;
+      if (pc == null) return;
+      try {
+        final stats = await pc.getStats();
+        for (final r in stats) {
+          final v = r.values;
+          if (r.type == 'candidate-pair') {
+            _log.info('[PAIR] state=${v['state']} nominated=${v['nominated']} sent=${v['bytesSent']} recv=${v['bytesReceived']}', tag: 'ICE-STATS');
+          } else if (r.type == 'local-candidate' || r.type == 'remote-candidate') {
+            _log.info('[CAND] ${r.type} ${v['candidateType']} ${v['protocol']} ${v['ip'] ?? v['address']}:${v['port']}', tag: 'ICE-STATS');
+          }
+        }
+        _log.info('[SIGNAL] ice sent=$_iceSent recv=$_iceRecv', tag: 'ICE-STATS');
+      } catch (e) {
+        _log.warning('[ICE-STATS] getStats error: $e', tag: 'ICE-STATS');
+      }
+    });
   }
 
   /// End the current call
@@ -527,6 +558,7 @@ class VoiceCallService {
     _log.debug('VoiceCallService: Creating RTCPeerConnection (relay-only) with our TURN servers...', tag: 'CALL');
     _peerConnection = await createPeerConnection(iceConfig);
     _log.info('VoiceCallService: RTCPeerConnection created successfully', tag: 'CALL');
+    _startStatsLogging();
 
     // Initialize remote audio renderer for Windows playback
     _log.debug('VoiceCallService: Initializing remote audio renderer...', tag: 'CALL');
@@ -547,9 +579,9 @@ class VoiceCallService {
     // Handle ICE candidates (our local candidates to send to remote peer)
     _peerConnection!.onIceCandidate = (candidate) {
       if (candidate.candidate != null) {
-        _log.info('VoiceCallService: ➤ Generated local ICE candidate (mid: ${candidate.sdpMid}, index: ${candidate.sdpMLineIndex})', tag: 'CALL');
-        _log.debug('VoiceCallService: ➤ Candidate: ${candidate.candidate}', tag: 'CALL');
-        _log.info('VoiceCallService: ➤ Sending ICE candidate to remote peer via signaling', tag: 'CALL');
+        _iceSent++;
+        final typ = RegExp(r'typ (\w+)').firstMatch(candidate.candidate!)?.group(1) ?? '?';
+        _log.info('VoiceCallService: ➤ [ICE] LOCAL cand typ=$typ (sent=$_iceSent) mid=${candidate.sdpMid}', tag: 'ICE');
         onSignalingMessage?.call({
           'type': 'ice_candidate',
           'conversation_id': _currentConversationId,
@@ -814,6 +846,9 @@ class VoiceCallService {
     _isMuted = false;
     _isSpeakerOn = true;
     _isVideoCall = false;
+    _statsTimer?.cancel();
+    _iceSent = 0;
+    _iceRecv = 0;
 
     _setCallState(CallState.idle);
     _log.debug('VoiceCallService: Cleanup completed, state reset to idle', tag: 'CALL');
