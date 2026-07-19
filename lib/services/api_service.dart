@@ -5191,6 +5191,104 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== KFZ-ZULASSUNG (Landratsamt — eigene Tabelle, per-Spalten-Encryption) ==========
+
+  Future<Map<String, dynamic>> listKfzZulassung(int userId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_manage.php?user_id=$userId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveKfzZulassung(int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['user_id'] = userId;
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteKfzZulassung(int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> listKfzZulassungKorr(int kfzId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_detail.php?kfz_id=$kfzId&type=korr'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveKfzZulassungKorr(int kfzId, int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data);
+    body['type'] = 'korr'; body['kfz_id'] = kfzId; body['user_id'] = userId;
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_detail.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteKfzZulassungKorr(int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_detail.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> listKfzZulassungTermine(int kfzId) async {
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_detail.php?kfz_id=$kfzId&type=termine'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> saveKfzZulassungTermin(int kfzId, int userId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data);
+    body['type'] = 'termin'; body['kfz_id'] = kfzId; body['user_id'] = userId;
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_detail.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> deleteKfzZulassungTermin(int id) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/kfz_zulassung_detail.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'delete', 'type': 'termine', 'id': id}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  // FIN/VIN-Decoder (Proxy, server-seitig): interner Katalog → Vincario → NHTSA.
+  // HSN/TSN optional → erlaubt Typebenen-Treffer im eigenen Katalog.
+  Future<Map<String, dynamic>> decodeKfzVin(String vin, {String? hsn, String? tsn}) async {
+    final q = StringBuffer('vin=${Uri.encodeQueryComponent(vin)}');
+    if ((hsn ?? '').trim().isNotEmpty) q.write('&hsn=${Uri.encodeQueryComponent(hsn!.trim())}');
+    if ((tsn ?? '').trim().isNotEmpty) q.write('&tsn=${Uri.encodeQueryComponent(tsn!.trim())}');
+    final r = await _client.get(
+      Uri.parse('$baseUrl/admin/kfz_vin_decode.php?$q'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== VERSORGUNGSAMT KORRESPONDENZ DOCS ==========
 
   Future<Map<String, dynamic>> listVersorgungsamtKorrDocs(int userId, {String? korrDatum}) async {
