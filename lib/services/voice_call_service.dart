@@ -510,6 +510,21 @@ class VoiceCallService {
     }
   }
 
+  /// Auto-switch audio output when a Bluetooth/wired headset is (dis)connected
+  /// DURING a call: re-applies _applyAudioRoute() so BT is always preferred
+  /// while connected, and falls back to speaker/earpiece when unplugged — no
+  /// manual toggle needed. Cleared in _cleanup().
+  void _setupAudioDeviceListener() {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    navigator.mediaDevices.ondevicechange = (_) {
+      _log.info('VoiceCallService: 🎧 audio devices changed — re-routing', tag: 'CALL');
+      // Small delay so the OS finishes (dis)connecting the device before we route.
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (_callState != CallState.idle) _applyAudioRoute();
+      });
+    };
+  }
+
   /// Cap the outgoing video bitrate (~4 Mbps) so 1080p stays within what the
   /// TURN relay and typical uplinks can carry. Called after the video track is
   /// added to the peer connection.
@@ -598,6 +613,7 @@ class VoiceCallService {
     _peerConnection = await createPeerConnection(iceConfig);
     _log.info('VoiceCallService: RTCPeerConnection created successfully', tag: 'CALL');
     _startStatsLogging();
+    _setupAudioDeviceListener();
 
     // Initialize remote audio renderer for Windows playback
     _log.debug('VoiceCallService: Initializing remote audio renderer...', tag: 'CALL');
@@ -884,6 +900,9 @@ class VoiceCallService {
     _iceSent = 0;
     _iceRecv = 0;
     _remoteDescriptionSet = false;
+    if (Platform.isAndroid || Platform.isIOS) {
+      navigator.mediaDevices.ondevicechange = null; // stop audio-device auto-routing
+    }
 
     _setCallState(CallState.idle);
     _log.debug('VoiceCallService: Cleanup completed, state reset to idle', tag: 'CALL');
