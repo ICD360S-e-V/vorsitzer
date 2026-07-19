@@ -6,7 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import 'package:open_filex/open_filex.dart';
 import '../utils/file_picker_helper.dart';
+import '../services/global_chat_service.dart';
 import 'file_viewer_dialog.dart';
+import 'cloud_file_picker.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -1029,6 +1031,12 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
         Expanded(child: Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+        OutlinedButton.icon(
+          onPressed: _pickFromCloud,
+          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700),
+        ),
+        const SizedBox(width: 6),
         ElevatedButton.icon(
           onPressed: _uploadDoc,
           icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
@@ -1100,6 +1108,29 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
     }
     _load();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) hochgeladen'), backgroundColor: Colors.green));
+  }
+
+  /// Stage 2 "Aus Cloud": pick documents from the member's cloud and attach
+  /// them to this Bewilligung server-side (they never touch the PC).
+  Future<void> _pickFromCloud() async {
+    final bid = int.tryParse(_b?['id']?.toString() ?? '');
+    if (bid == null) return;
+    final mnr = GlobalChatService().currentMitgliedernummer;
+    if (mnr == null || mnr.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kein Admin angemeldet'), backgroundColor: Colors.red));
+      return;
+    }
+    final picked = await showCloudFilePicker(context, apiService: widget.apiService, memberId: widget.userId, mitgliedernummer: mnr);
+    if (picked == null || picked.isEmpty || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${picked.length} Datei(en) werden übernommen...'), duration: const Duration(seconds: 2)));
+    int ok = 0;
+    for (final cfId in picked) {
+      final r = await widget.apiService.attachBewilligungDocFromCloud(bewilligungId: bid, cloudFileId: cfId);
+      if (r['success'] == true) ok++;
+    }
+    if (!mounted) return;
+    _load();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$ok von ${picked.length} aus Cloud übernommen'), backgroundColor: ok == picked.length ? Colors.green : Colors.orange));
   }
 
   // ============ WIDERSPRUCH ============

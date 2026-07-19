@@ -4389,6 +4389,13 @@ class ApiService {
     final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_bewilligung_doc.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  /// Stage 2 "Aus Cloud": attach a member cloud file to a Bewilligung,
+  /// server-to-server (server enforces the owner-check).
+  Future<Map<String, dynamic>> attachBewilligungDocFromCloud({required int bewilligungId, required int cloudFileId}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/sozialamt_bewilligung_doc.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'bewilligung_id': bewilligungId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   Future<http.Response> downloadBewilligungDoc(int id) async {
     return await _client.get(Uri.parse('$baseUrl/admin/sozialamt_bewilligung_doc.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
   }
