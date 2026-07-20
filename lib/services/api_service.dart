@@ -4945,6 +4945,27 @@ class ApiService {
     final sr = await request.send(); final response = await http.Response.fromStream(sr);
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
+  // Stage 2 "Aus Cloud": attach a member cloud file to a per-Antrag docs endpoint (server-to-server, owner-check on server).
+  Future<Map<String, dynamic>> attachFkAntragDocFromCloud({required int antragId, required int cloudFileId}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> attachJaAntragDocFromCloud({required int antragId, required int cloudFileId}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/jugendamt_antrag_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> attachWgAntragDocFromCloud({required int antragId, required int cloudFileId}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/wohngeldstelle_antrag_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> attachVaAntragDocFromCloud({required int antragId, required int cloudFileId}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   Future<Map<String, dynamic>> deleteFkAntragDoc(int id) async {
     final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }

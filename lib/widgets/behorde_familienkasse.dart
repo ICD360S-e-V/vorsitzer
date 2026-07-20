@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -858,6 +859,15 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
         Icon(Icons.lock, size: 16, color: Colors.green.shade700),
         const SizedBox(width: 6),
         Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachFkAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+        const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),

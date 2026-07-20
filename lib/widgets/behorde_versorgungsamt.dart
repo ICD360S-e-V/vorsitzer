@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -1786,7 +1787,16 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
           Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
           Expanded(child: Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
-          ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+          OutlinedButton.icon(
+          onPressed: () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachVaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+        const SizedBox(width: 6),
+        ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
         ])),
         Expanded(child: _docs.isEmpty
@@ -1801,6 +1811,15 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       Row(children: [
         Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
         Expanded(child: Text('Antrag hochladen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachVaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+        const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ]),

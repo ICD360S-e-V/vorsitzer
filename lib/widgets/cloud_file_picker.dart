@@ -3,7 +3,40 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import 'file_viewer_dialog.dart';
+
+/// Convenience wrapper: open the cloud picker (admin mitgliedernummer taken
+/// from GlobalChatService) and attach each selected file via [attach].
+/// Returns (ok, total) counts, or null if cancelled / nothing selected.
+Future<({int ok, int total})?> pickAndAttachFromCloud(
+  BuildContext context, {
+  required ApiService apiService,
+  required int memberId,
+  required Future<Map<String, dynamic>> Function(int cloudFileId) attach,
+}) async {
+  final mnr = GlobalChatService().currentMitgliedernummer;
+  if (mnr == null || mnr.isEmpty) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Kein Admin angemeldet'), backgroundColor: Colors.red));
+    }
+    return null;
+  }
+  final picked = await showCloudFilePicker(
+    context,
+    apiService: apiService,
+    memberId: memberId,
+    mitgliedernummer: mnr,
+  );
+  if (picked == null || picked.isEmpty) return null;
+  var ok = 0;
+  for (final id in picked) {
+    final r = await attach(id);
+    if (r['success'] == true) ok++;
+  }
+  return (ok: ok, total: picked.length);
+}
 
 /// Reusable "Aus Cloud wählen" picker — Stage 2 of the member-cloud feature.
 ///
