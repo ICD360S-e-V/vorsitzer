@@ -4966,6 +4966,22 @@ class ApiService {
         body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  // Stage 2 "Aus Cloud" — per-Antrag endpoints WITH a kategorie column.
+  Future<Map<String, dynamic>> attachRfbAntragDocFromCloud({required int antragId, required int cloudFileId, required String kategorie}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rfb_antrag_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId, 'kategorie': kategorie})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> attachLbAntragDocFromCloud({required int antragId, required int cloudFileId, required String kategorie}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/lichtbild_antrag_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId, 'kategorie': kategorie})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> attachGerichtVorfallDocFromCloud({required int vorfallId, required int cloudFileId, required String kategorie}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/gericht_vorfall_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'vorfall_id': vorfallId, 'cloud_file_id': cloudFileId, 'kategorie': kategorie})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   Future<Map<String, dynamic>> deleteFkAntragDoc(int id) async {
     final r = await _client.post(Uri.parse('$baseUrl/admin/familienkasse_antrag_detail.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }

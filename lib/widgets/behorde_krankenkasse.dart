@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
@@ -4763,6 +4764,15 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
         Icon(Icons.mark_email_read, size: 16, color: teal),
         const SizedBox(width: 6),
         Expanded(child: Text('${_schreiben.length} Schreiben der Krankenkasse · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'schreiben'));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+        const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _busy ? null : () => _uploadDoc('schreiben'), icon: const Icon(Icons.upload_file, size: 16), label: const Text('Anhängen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white)),
       ])),
@@ -4789,6 +4799,15 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
         Icon(Icons.photo, size: 16, color: teal),
         const SizedBox(width: 6),
         Expanded(child: Text('${_foto.length} Foto(s) · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'foto'));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+        const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _busy ? null : _uploadFoto, icon: const Icon(Icons.add_a_photo, size: 16), label: const Text('Foto hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white)),
       ])),

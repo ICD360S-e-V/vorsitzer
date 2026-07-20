@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -1331,6 +1332,17 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
               Text('$title (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: widget.color.shade800)),
               if (hint != null) Text(hint, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
             ])),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                    attach: (id) => widget.apiService.attachGerichtVorfallDocFromCloud(vorfallId: widget.vorfallId, cloudFileId: id, kategorie: kategorie));
+                if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+              },
+              icon: const Icon(Icons.cloud_download, size: 14),
+              label: const Text('Aus Cloud', style: TextStyle(fontSize: 11)),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+            ),
+            const SizedBox(width: 6),
             ElevatedButton.icon(
               onPressed: () => _uploadDoc(kategorie),
               icon: const Icon(Icons.upload_file, size: 14),

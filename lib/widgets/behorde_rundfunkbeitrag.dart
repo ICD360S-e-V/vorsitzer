@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1198,6 +1199,15 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(hasAny ? Icons.check_circle : Icons.folder_open, size: 20, color: hasAny ? Colors.green.shade700 : Colors.grey.shade400), const SizedBox(width: 8),
         Expanded(child: Text('$title (${filtered.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: hasAny ? Colors.green.shade700 : Colors.grey.shade600))),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: kategorie));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+        const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: () => _uploadDoc(kategorie: kategorie), icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),
@@ -1494,6 +1504,16 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
             ),
           ),
         ),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'bewilligung'));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 14),
+          label: const Text('Aus Cloud', style: TextStyle(fontSize: 11)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
+        const SizedBox(width: 6),
         ElevatedButton.icon(
           onPressed: () => _uploadDoc(kategorie: 'bewilligung'),
           icon: const Icon(Icons.upload_file, size: 14),
