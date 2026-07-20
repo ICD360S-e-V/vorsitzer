@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
@@ -893,6 +894,18 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
         const SizedBox(width: 6),
         Text('Bescheid-Dokumente${_docs.isEmpty ? '' : ' (${_docs.length})'}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
         const Spacer(),
+        OutlinedButton.icon(
+          onPressed: _uploading ? null : () async {
+            if (_antragId.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Antrag speichern'))); return; }
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachBehoerdeAntragDocFromCloud(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId, cloudFileId: id));
+            if (res != null && mounted) { _loadDocs(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16),
+          label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+        ),
+        const SizedBox(width: 6),
         ElevatedButton.icon(
           onPressed: _uploading ? null : _uploadDoc,
           icon: _uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),

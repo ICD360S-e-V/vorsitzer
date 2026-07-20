@@ -543,6 +543,15 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                 const SizedBox(width: 8),
                 Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isChecked ? Colors.green.shade900 : Colors.black87, decoration: isChecked ? TextDecoration.lineThrough : null))),
                 IconButton(
+                  icon: Icon(Icons.cloud_download, size: 18, color: Colors.blue.shade600),
+                  tooltip: 'Aus Cloud',
+                  onPressed: () async {
+                    final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                        attach: (id) => widget.apiService.attachSozialamtAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, docTyp: docTyp));
+                    if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+                  },
+                ),
+                IconButton(
                   icon: Icon(Icons.upload_file, size: 18, color: Colors.indigo.shade600),
                   tooltip: 'Dokument hochladen',
                   onPressed: () => _uploadDoc(docTyp, label),
