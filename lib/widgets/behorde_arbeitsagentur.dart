@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -4894,7 +4895,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
         'sv_nummer': svC.text.trim(), 'gesundheitlich_faehig': faehig, 'notiz': notizC.text.trim(),
       })),
       const Divider(height: 28),
-      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'arbeitssuchendmeldung'),
+      _AaAntragDocsSection(apiService: widget.apiService, userId: widget.userId, antragId: widget.antragId, bereich:'arbeitssuchendmeldung'),
     ])));
   }
 
@@ -4922,7 +4923,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
         'krankengeld_ende': krankengeldC.text.trim(), 'datenschutz_kenntnisnahme': datenschutz, 'notiz': notizC.text.trim(),
       })),
       const Divider(height: 28),
-      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'arbeitslosenmeldung'),
+      _AaAntragDocsSection(apiService: widget.apiService, userId: widget.userId, antragId: widget.antragId, bereich:'arbeitslosenmeldung'),
     ])));
   }
 
@@ -4945,7 +4946,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
         'aktenzeichen': azC.text.trim(), 'notiz': notizC.text.trim(),
       })),
       const Divider(height: 28),
-      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'alg_antrag'),
+      _AaAntragDocsSection(apiService: widget.apiService, userId: widget.userId, antragId: widget.antragId, bereich:'alg_antrag'),
     ])));
   }
 
@@ -4986,7 +4987,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
         'restanspruch': restC.text.trim(), 'notiz': notizC.text.trim(),
       })),
       const Divider(height: 28),
-      _AaAntragDocsSection(apiService: widget.apiService, antragId: widget.antragId, bereich: 'bescheid'),
+      _AaAntragDocsSection(apiService: widget.apiService, userId: widget.userId, antragId: widget.antragId, bereich:'bescheid'),
     ])));
   }
 }
@@ -4994,9 +4995,10 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
 // ---- Unterlagen pro Antrag-Bereich (verschlüsselt) ----
 class _AaAntragDocsSection extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final int antragId;
   final String bereich;
-  const _AaAntragDocsSection({required this.apiService, required this.antragId, required this.bereich});
+  const _AaAntragDocsSection({required this.apiService, required this.userId, required this.antragId, required this.bereich});
   @override
   State<_AaAntragDocsSection> createState() => _AaAntragDocsSectionState();
 }
@@ -5080,6 +5082,15 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
         Icon(Icons.folder, size: 16, color: Colors.grey.shade600), const SizedBox(width: 6),
         Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
         const Spacer(),
+        TextButton.icon(
+          onPressed: _busy ? null : () async {
+            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachAaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, bereich: widget.bereich));
+            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+          },
+          icon: const Icon(Icons.cloud_download, size: 16),
+          label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+        ),
         TextButton.icon(
           onPressed: _busy ? null : _upload,
           icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.upload_file, size: 16),

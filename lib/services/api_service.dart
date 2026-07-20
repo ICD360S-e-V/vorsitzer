@@ -4987,6 +4987,11 @@ class ApiService {
         body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId, 'doc_typ': docTyp})).timeout(const Duration(seconds: 30));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  Future<Map<String, dynamic>> attachAaAntragDocFromCloud({required int antragId, required int cloudFileId, required String bereich}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/arbeitsagentur_antrag_detail.php'), headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'antrag_id': antragId, 'cloud_file_id': cloudFileId, 'bereich': bereich})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
   Future<Map<String, dynamic>> attachBehoerdeAntragDocFromCloud({required int userId, required String behoerdeType, required String antragId, required int cloudFileId}) async {
     final r = await _client.post(Uri.parse('$baseUrl/admin/behoerde_antrag_upload.php'), headers: _headers,
         body: jsonEncode({'action': 'attach_from_cloud', 'user_id': userId, 'behoerde_type': behoerdeType, 'antrag_id': antragId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
