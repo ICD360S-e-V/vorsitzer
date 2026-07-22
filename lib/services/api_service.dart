@@ -1324,6 +1324,125 @@ class ApiService {
     }
   }
 
+  // ========== ADMIN SECURE CLOUD (zero-knowledge, 50 GB, admin-only) ==========
+  // Files are encrypted ON-DEVICE before upload; the server stores only opaque
+  // ciphertext + a wrapped-DEK envelope it cannot read. Crypto lives in
+  // CloudCrypto; orchestration in SecureCloudService. Endpoints: api/admin/cloud_*.php
+
+  /// Get the wrapped-DEK key envelope (or has_key:false for first-time setup).
+  Future<Map<String, dynamic>> getCloudKeyEnvelope(String mitgliedernummer) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/cloud_key.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer, 'action': 'get'}),
+      ).timeout(const Duration(seconds: 15));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud key fetch failed: $e'};
+    }
+  }
+
+  /// First-time setup: store the wrapped-DEK envelope (server rejects if one exists).
+  Future<Map<String, dynamic>> setCloudKeyEnvelope(String mitgliedernummer, String envelopeJson) =>
+      _cloudKeyWrite(mitgliedernummer, 'set', envelopeJson);
+
+  /// Passphrase change: replace the wrapped-DEK envelope (same DEK, new wrap).
+  Future<Map<String, dynamic>> rewrapCloudKeyEnvelope(String mitgliedernummer, String envelopeJson) =>
+      _cloudKeyWrite(mitgliedernummer, 'rewrap', envelopeJson);
+
+  Future<Map<String, dynamic>> _cloudKeyWrite(String mitgliedernummer, String action, String envelopeJson) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/cloud_key.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer, 'action': action, 'envelope': envelopeJson}),
+      ).timeout(const Duration(seconds: 15));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud key write failed: $e'};
+    }
+  }
+
+  /// List admin cloud files (opaque meta_enc per file) + quota usage.
+  Future<Map<String, dynamic>> listAdminCloud(String mitgliedernummer) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/cloud_list.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer}),
+      ).timeout(const Duration(seconds: 20));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud list failed: $e'};
+    }
+  }
+
+  /// Upload an already-encrypted blob (multipart). [encryptedFile] is the local
+  /// ciphertext container; [metaEnc] is the opaque encrypted metadata (base64).
+  Future<Map<String, dynamic>> uploadAdminCloudFile({
+    required String mitgliedernummer,
+    required File encryptedFile,
+    required String metaEnc,
+    required String source, // 'device' | 'scan'
+  }) async {
+    try {
+      final deviceKey = _deviceKeyService.deviceKey;
+      if (deviceKey == null) return {'success': false, 'message': 'Device not registered'};
+      final uri = Uri.parse('$baseUrl/admin/cloud_upload.php');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
+      request.headers['X-Device-Key'] = deviceKey;
+      request.fields['mitgliedernummer'] = mitgliedernummer;
+      request.fields['meta_enc'] = metaEnc;
+      request.fields['source'] = source;
+      request.files.add(await http.MultipartFile.fromPath('file', encryptedFile.path));
+      final streamed = await _client.send(request).timeout(const Duration(minutes: 10));
+      final response = await http.Response.fromStream(streamed);
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud upload failed: $e'};
+    }
+  }
+
+  /// Download the raw OPAQUE ciphertext blob for a cloud file. Returns bytes on
+  /// success, null on failure. The caller decrypts locally with the DEK.
+  Future<Uint8List?> downloadAdminCloudBlob({
+    required String mitgliedernummer,
+    required int cloudFileId,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/cloud_download.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer, 'cloud_file_id': cloudFileId}),
+      ).timeout(const Duration(minutes: 10));
+      if (response.statusCode == 200) return response.bodyBytes;
+      LoggerService().warning('downloadAdminCloudBlob $cloudFileId -> HTTP ${response.statusCode}', tag: 'API');
+      return null;
+    } catch (e) {
+      LoggerService().error('downloadAdminCloudBlob failed: $e', tag: 'API');
+      return null;
+    }
+  }
+
+  /// Delete an admin cloud file (row + on-disk blob).
+  Future<Map<String, dynamic>> deleteAdminCloudFile({
+    required String mitgliedernummer,
+    required int cloudFileId,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/cloud_delete.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer, 'cloud_file_id': cloudFileId}),
+      ).timeout(const Duration(seconds: 20));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud delete failed: $e'};
+    }
+  }
+
   // Mark messages as read/delivered (WhatsApp-style read receipts)
   Future<Map<String, dynamic>> markMessagesRead({
     required int conversationId,
