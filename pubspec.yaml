@@ -227,6 +227,22 @@ dependencies:
   # Zero network calls, funcționează și offline pe device-uri cu on-device STT.
   speech_to_text: ^7.0.0
 
+  # Document scanner for the Secure Cloud "scan with camera" upload source.
+  # OpenCV-based (SmartPaperScan on Android, WeScan on iOS): automatic 4-corner
+  # edge detection + perspective crop, 100% ON-DEVICE. Deliberately NOT ML Kit:
+  # zero Google Play Services, zero telemetry — nothing leaves the device, in
+  # keeping with the cloud's zero-knowledge design. Android/iOS only; the scan
+  # source is guarded by Platform.isAndroid/isIOS, desktop uses the file picker.
+  #
+  # Pinned to a git commit, NOT pub 1.1.3: the published version is ~2 years old,
+  # declares no `namespace` (fails the AGP 8 build with compileSdk 36) and has a
+  # blank-screen bug in detectEdge on newer Flutter. This commit (2026-03) adds
+  # namespace + compileSdk 36 + the detectEdge fix.
+  edge_detection:
+    git:
+      url: https://github.com/sawankumarbundelkhandi/edge_detection.git
+      ref: 01bf3196b8b307f5a685f60dcabe30682d280cef
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

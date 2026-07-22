@@ -41,6 +41,7 @@ import '../widgets/incoming_call_dialog.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/moon.dart';
 import 'login_screen.dart';
+import 'secure_cloud_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../widgets/profile_dialog.dart';
 import '../utils/familie_selector_dialog.dart';
@@ -1470,6 +1471,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   ),
                 ),
             ],
+          ),
+          // Sichere Cloud (zero-knowledge, 50 GB) — right next to Live Chat.
+          IconButton(
+            icon: const Icon(Icons.cloud_outlined),
+            tooltip: 'Sichere Cloud',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => SecureCloudScreen(
+                mitgliedernummer: widget.currentMitgliedernummer,
+                userName: widget.userName,
+              ),
+            )),
           ),
           // Weather pill: full on tablets/desktop (width>=600), compact on phones.
           // Alerts count combines DWD warnings and locally-derived health alerts
