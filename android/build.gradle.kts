@@ -31,6 +31,13 @@ subprojects {
                     }
                 }
             }
+            // Some plugins declare a newer Java toolchain than the app/CI JDK.
+            // e.g. edge_detection targets Java 21, but the app and CI use JDK 17,
+            // which fails ':<plugin>:compileReleaseJavaWithJavac' with
+            // "invalid source release: 21". Pin every library plugin down to the
+            // app's Java 17 — their sources don't use newer language features.
+            androidExt.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+            androidExt.compileOptions.targetCompatibility = JavaVersion.VERSION_17
         }
     }
 }
