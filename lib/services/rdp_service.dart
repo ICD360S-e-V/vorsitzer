@@ -74,14 +74,28 @@ class RdpProfile {
 
 class RdpService {
   static const _kGateway = 'rdp_gateway_url';
+  static const _kGatewayKey = 'rdp_gateway_key';
   static const _kProfiles = 'rdp_profiles';
+
+  /// Default Guacamole gateway (public host — not a secret).
+  static const String defaultGateway = 'https://rdp.icd360s.de';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final DeviceKeyService _deviceKeyService = DeviceKeyService();
 
-  Future<String?> getGateway() async => _storage.read(key: _kGateway);
+  /// Stored gateway URL, or the default if none set.
+  Future<String> getGateway() async {
+    final v = await _storage.read(key: _kGateway);
+    return (v == null || v.trim().isEmpty) ? defaultGateway : v;
+  }
+
   Future<void> setGateway(String url) async =>
       _storage.write(key: _kGateway, value: url.trim());
+
+  /// Shared gateway secret (X-Gateway-Key) so the gateway accepts only our app.
+  Future<String?> getGatewayKey() async => _storage.read(key: _kGatewayKey);
+  Future<void> setGatewayKey(String key) async =>
+      _storage.write(key: _kGatewayKey, value: key.trim());
 
   Future<List<RdpProfile>> loadProfiles() async {
     final raw = await _storage.read(key: _kProfiles);
@@ -108,6 +122,7 @@ class RdpService {
       throw 'Gateway muss über HTTPS erreichbar sein';
     }
     final deviceKey = _deviceKeyService.deviceKey;
+    final gatewayKey = await getGatewayKey();
     try {
       final res = await http
           .post(
@@ -116,6 +131,8 @@ class RdpService {
               'Content-Type': 'application/json',
               'User-Agent': 'ICD360S-Vorsitzer/1.0',
               if (deviceKey != null) 'X-Device-Key': deviceKey,
+              if (gatewayKey != null && gatewayKey.isNotEmpty)
+                'X-Gateway-Key': gatewayKey,
             },
             body: jsonEncode({
               'protocol': 'rdp',
