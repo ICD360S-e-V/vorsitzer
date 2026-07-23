@@ -80,8 +80,9 @@ class RdpService {
   /// Default Guacamole gateway (public host — not a secret).
   static const String defaultGateway = 'https://rdp.icd360s.de';
 
-  /// Default RDP port (xrdp on the target listens here).
-  static const int defaultRdpPort = 9999;
+  /// Default RDP port (xrdp on the target listens on a non-standard,
+  /// localhost-only port — reachable only through the gateway, harder to scan).
+  static const int defaultRdpPort = 31456;
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final DeviceKeyService _deviceKeyService = DeviceKeyService();

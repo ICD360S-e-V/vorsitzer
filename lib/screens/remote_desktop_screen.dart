@@ -148,7 +148,7 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
               children: [
                 _field(name, 'Name', hint: 'z. B. Mint-Server'),
                 _field(host, 'IP / Host', hint: '192.168.1.50', keyboard: TextInputType.url),
-                _field(port, 'Port', hint: '9999', keyboard: TextInputType.number),
+                _field(port, 'Port', hint: '31456', keyboard: TextInputType.number),
                 _field(user, 'Benutzername'),
                 TextField(
                   controller: pass,
