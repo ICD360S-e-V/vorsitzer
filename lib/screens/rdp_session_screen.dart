@@ -89,7 +89,7 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
             if (_loading && _error == null)
               const Center(child: CircularProgressIndicator(color: Colors.white)),
             Positioned(
-              top: 6,
+              bottom: 6,
               left: 6,
               child: _showBar
                   ? Row(mainAxisSize: MainAxisSize.min, children: [
