@@ -37,7 +37,11 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
     try {
       final c = mobile_webview.WebViewController();
       await c.setJavaScriptMode(mobile_webview.JavaScriptMode.unrestricted);
-      await c.setBackgroundColor(Colors.black);
+      // setBackgroundColor throws "opaque is not implemented on macOS" (NSView
+      // lacks the opacity control UIView has) — only call it where supported.
+      if (!Platform.isMacOS) {
+        await c.setBackgroundColor(Colors.black);
+      }
       await c.setNavigationDelegate(mobile_webview.NavigationDelegate(
         onPageStarted: (_) {
           if (mounted) setState(() => _loading = true);
