@@ -473,6 +473,13 @@ jobs:
             echo "macos/ missing — generating platform folder for this build"
             flutter create --platforms=macos --org de.icd360s .
           fi
+          # Some plugins (speech_to_text, …) require a higher macOS deployment
+          # target than Flutter's default (10.14). Raise it in the Podfile AND
+          # the Xcode project so `pod install` can resolve them.
+          perl -pi -e "s/platform :osx, '[0-9.]+'/platform :osx, '11.0'/" macos/Podfile
+          perl -0pi -e "s/(flutter_additional_macos_build_settings\(target\))/\$1\n    target.build_configurations.each { |c| c.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '11.0' }/" macos/Podfile
+          perl -pi -e "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 11.0;/g" macos/Runner.xcodeproj/project.pbxproj
+          echo "--- Podfile (head) ---"; head -25 macos/Podfile
           ls -1 macos
 
       - name: Cache CocoaPods
