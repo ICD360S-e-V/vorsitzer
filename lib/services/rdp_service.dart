@@ -50,7 +50,7 @@ class RdpProfile {
         id: j['id'] as String,
         name: (j['name'] ?? '') as String,
         host: (j['host'] ?? '') as String,
-        port: (j['port'] as num?)?.toInt() ?? 3389,
+        port: (j['port'] as num?)?.toInt() ?? RdpService.defaultRdpPort,
         username: (j['username'] ?? '') as String,
         password: (j['password'] ?? '') as String,
       );
@@ -74,14 +74,43 @@ class RdpProfile {
 
 class RdpService {
   static const _kGateway = 'rdp_gateway_url';
+  static const _kGatewayKey = 'rdp_gateway_key';
   static const _kProfiles = 'rdp_profiles';
+
+  /// Default Guacamole gateway (public host — not a secret).
+  static const String defaultGateway = 'https://rdp.icd360s.de';
+
+  /// Default RDP port (xrdp on the target listens on a non-standard,
+  /// localhost-only port — reachable only through the gateway, harder to scan).
+  static const int defaultRdpPort = 31456;
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final DeviceKeyService _deviceKeyService = DeviceKeyService();
 
-  Future<String?> getGateway() async => _storage.read(key: _kGateway);
+  /// Stored gateway URL, or the default if none set.
+  Future<String> getGateway() async {
+    final v = await _storage.read(key: _kGateway);
+    return (v == null || v.trim().isEmpty) ? defaultGateway : v;
+  }
+
   Future<void> setGateway(String url) async =>
       _storage.write(key: _kGateway, value: url.trim());
+
+  /// Gateway secret baked at build time from a GitHub Secret via
+  /// --dart-define=RDP_GATEWAY_KEY (NOT stored in the public repo). Used
+  /// automatically so the user doesn't have to enter it.
+  static const String _bakedGatewayKey = String.fromEnvironment('RDP_GATEWAY_KEY');
+
+  /// Shared gateway secret (X-Gateway-Key) so the gateway accepts only our app.
+  /// Prefers a user-set value, otherwise the build-baked key.
+  Future<String?> getGatewayKey() async {
+    final v = await _storage.read(key: _kGatewayKey);
+    if (v != null && v.isNotEmpty) return v;
+    return _bakedGatewayKey.isNotEmpty ? _bakedGatewayKey : null;
+  }
+
+  Future<void> setGatewayKey(String key) async =>
+      _storage.write(key: _kGatewayKey, value: key.trim());
 
   Future<List<RdpProfile>> loadProfiles() async {
     final raw = await _storage.read(key: _kProfiles);
@@ -108,6 +137,7 @@ class RdpService {
       throw 'Gateway muss über HTTPS erreichbar sein';
     }
     final deviceKey = _deviceKeyService.deviceKey;
+    final gatewayKey = await getGatewayKey();
     try {
       final res = await http
           .post(
@@ -116,6 +146,8 @@ class RdpService {
               'Content-Type': 'application/json',
               'User-Agent': 'ICD360S-Vorsitzer/1.0',
               if (deviceKey != null) 'X-Device-Key': deviceKey,
+              if (gatewayKey != null && gatewayKey.isNotEmpty)
+                'X-Gateway-Key': gatewayKey,
             },
             body: jsonEncode({
               'protocol': 'rdp',
