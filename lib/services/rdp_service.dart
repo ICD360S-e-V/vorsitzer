@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'device_key_service.dart';
 
@@ -84,17 +85,40 @@ class RdpService {
   /// localhost-only port — reachable only through the gateway, harder to scan).
   static const int defaultRdpPort = 31456;
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
   final DeviceKeyService _deviceKeyService = DeviceKeyService();
+
+  // flutter_secure_storage uses the macOS Keychain, which an unsigned / ad-hoc
+  // signed build cannot write to (errSecMissingEntitlement / -34018), so RDP
+  // connections silently failed to save on macOS. Fall back to SharedPreferences
+  // there. On Android/iOS the Keystore/Keychain works, so this is never used.
+  Future<void> _write(String key, String value) async {
+    try {
+      await _storage.write(key: key, value: value);
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, value);
+    }
+  }
+
+  Future<String?> _read(String key) async {
+    try {
+      final v = await _storage.read(key: key);
+      if (v != null) return v;
+    } catch (_) {}
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(key);
+  }
 
   /// Stored gateway URL, or the default if none set.
   Future<String> getGateway() async {
-    final v = await _storage.read(key: _kGateway);
+    final v = await _read(_kGateway);
     return (v == null || v.trim().isEmpty) ? defaultGateway : v;
   }
 
-  Future<void> setGateway(String url) async =>
-      _storage.write(key: _kGateway, value: url.trim());
+  Future<void> setGateway(String url) async => _write(_kGateway, url.trim());
 
   /// Gateway secret baked at build time from a GitHub Secret via
   /// --dart-define=RDP_GATEWAY_KEY (NOT stored in the public repo). Used
@@ -104,16 +128,15 @@ class RdpService {
   /// Shared gateway secret (X-Gateway-Key) so the gateway accepts only our app.
   /// Prefers a user-set value, otherwise the build-baked key.
   Future<String?> getGatewayKey() async {
-    final v = await _storage.read(key: _kGatewayKey);
+    final v = await _read(_kGatewayKey);
     if (v != null && v.isNotEmpty) return v;
     return _bakedGatewayKey.isNotEmpty ? _bakedGatewayKey : null;
   }
 
-  Future<void> setGatewayKey(String key) async =>
-      _storage.write(key: _kGatewayKey, value: key.trim());
+  Future<void> setGatewayKey(String key) async => _write(_kGatewayKey, key.trim());
 
   Future<List<RdpProfile>> loadProfiles() async {
-    final raw = await _storage.read(key: _kProfiles);
+    final raw = await _read(_kProfiles);
     if (raw == null || raw.isEmpty) return [];
     try {
       final list = jsonDecode(raw) as List;
@@ -124,8 +147,7 @@ class RdpService {
   }
 
   Future<void> saveProfiles(List<RdpProfile> profiles) async {
-    await _storage.write(
-        key: _kProfiles, value: jsonEncode(profiles.map((e) => e.toJson()).toList()));
+    await _write(_kProfiles, jsonEncode(profiles.map((e) => e.toJson()).toList()));
   }
 
   /// Ask the gateway for a session URL for [p]. Returns the URL to open in the
