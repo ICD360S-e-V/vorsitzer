@@ -39,6 +39,8 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
   bool _busy = false;
   CloudListing? _listing;
 
+  static const int _maxBatch = 50; // max files per upload batch
+
   @override
   void initState() {
     super.initState();
@@ -106,14 +108,21 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
     final result = await FilePickerHelper.pickFiles(
       allowMultiple: true,
       type: FileType.any,
-      dialogTitle: 'Dateien in die Cloud hochladen',
+      dialogTitle: 'Dateien in die Cloud hochladen (max. $_maxBatch)',
     );
     if (result == null || result.files.isEmpty) return;
-    final files = result.files
-        .where((f) => f.path != null)
-        .map((f) => (File(f.path!), f.name))
+    var picked = result.files.where((f) => f.path != null).toList();
+    if (picked.length > _maxBatch) {
+      _snack('Max. $_maxBatch Dateien auf einmal — die ersten $_maxBatch werden hochgeladen.',
+          isError: true);
+      picked = picked.sublist(0, _maxBatch);
+    }
+    if (picked.isEmpty) return;
+    final items = picked
+        .map((f) => _Upload(
+            file: File(f.path!), name: f.name, mime: _guessMime(f.name), source: 'device'))
         .toList();
-    await _uploadAll(files, source: 'device');
+    await _startUpload(items);
   }
 
   Future<void> _scanAndUpload() async {
@@ -135,38 +144,24 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       );
       if (ok != true) return; // cancelled
       final name = 'Scan_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
-      await _uploadAll([(File(path), name)], source: 'scan');
+      await _startUpload([
+        _Upload(file: File(path), name: name, mime: 'image/jpeg', source: 'scan'),
+      ]);
     } catch (e) {
       _snack('Scan fehlgeschlagen: $e', isError: true);
     }
   }
 
-  Future<void> _uploadAll(List<(File, String)> files, {required String source}) async {
-    if (files.isEmpty) return;
-    setState(() => _busy = true);
-    var ok = 0;
-    String? lastErr;
-    for (final (file, name) in files) {
-      final err = await _svc.uploadFile(
-        plain: file,
-        displayName: name,
-        mime: _guessMime(name),
-        source: source,
-      );
-      if (err == null) {
-        ok++;
-      } else {
-        lastErr = err;
-      }
-    }
-    await _refresh();
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (lastErr != null) {
-      _snack('$ok/${files.length} hochgeladen. Fehler: $lastErr', isError: true);
-    } else {
-      _snack('$ok ${ok == 1 ? 'Datei' : 'Dateien'} verschlüsselt hochgeladen.');
-    }
+  Future<void> _startUpload(List<_Upload> items) async {
+    if (items.isEmpty) return;
+    // Modal progress dialog: encrypts + uploads each file, showing a per-file
+    // spinner that turns into a green check on success (red on error).
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _UploadProgressDialog(svc: _svc, items: items),
+    );
+    await _refresh(); // reflect the new files + updated quota
   }
 
   Future<void> _download(CloudFile f) async {
@@ -669,5 +664,134 @@ class _CenteredMessage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ── Upload progress ──────────────────────────────────────────────────────────
+
+enum _UploadStatus { pending, uploading, done, error }
+
+class _Upload {
+  final File file;
+  final String name;
+  final String? mime;
+  final String source; // 'device' | 'scan'
+  _UploadStatus status;
+  String? error;
+  _Upload({
+    required this.file,
+    required this.name,
+    required this.mime,
+    required this.source,
+    this.status = _UploadStatus.pending,
+    this.error,
+  });
+}
+
+/// Encrypts + uploads a batch sequentially, showing per-file status: a spinner
+/// while uploading that turns into a green check on success (red on error), plus
+/// an overall progress bar and X/N count. Can't be dismissed until it finishes.
+class _UploadProgressDialog extends StatefulWidget {
+  final SecureCloudService svc;
+  final List<_Upload> items;
+  const _UploadProgressDialog({required this.svc, required this.items});
+
+  @override
+  State<_UploadProgressDialog> createState() => _UploadProgressDialogState();
+}
+
+class _UploadProgressDialogState extends State<_UploadProgressDialog> {
+  bool _finished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    for (final it in widget.items) {
+      if (!mounted) return;
+      setState(() => it.status = _UploadStatus.uploading);
+      final err = await widget.svc.uploadFile(
+        plain: it.file,
+        displayName: it.name,
+        mime: it.mime,
+        source: it.source,
+      );
+      if (!mounted) return;
+      setState(() {
+        it.status = err == null ? _UploadStatus.done : _UploadStatus.error;
+        it.error = err;
+      });
+    }
+    if (mounted) setState(() => _finished = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.items.length;
+    final done = widget.items.where((i) => i.status == _UploadStatus.done).length;
+    final failed = widget.items.where((i) => i.status == _UploadStatus.error).length;
+    return PopScope(
+      canPop: _finished, // block dismissal (incl. Android back) until done
+      child: AlertDialog(
+        title: Text(_finished ? 'Fertig ($done/$total)' : 'Hochladen … ($done/$total)'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: total == 0 ? 0 : (done + failed) / total,
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: total,
+                  itemBuilder: (_, i) {
+                    final it = widget.items[i];
+                    return ListTile(
+                      dense: true,
+                      leading: _statusIcon(it.status),
+                      title: Text(it.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: it.status == _UploadStatus.error
+                          ? Text(it.error ?? 'Fehler',
+                              style: const TextStyle(color: Colors.red, fontSize: 11))
+                          : null,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _finished ? () => Navigator.of(context).pop() : null,
+            child: Text(_finished && failed > 0 ? 'Schließen ($failed fehlgeschlagen)' : 'Fertig'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusIcon(_UploadStatus s) {
+    switch (s) {
+      case _UploadStatus.pending:
+        return const Icon(Icons.schedule, color: Colors.grey, size: 22);
+      case _UploadStatus.uploading:
+        return const SizedBox(
+            width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4));
+      case _UploadStatus.done:
+        return const Icon(Icons.check_circle, color: Colors.green, size: 22);
+      case _UploadStatus.error:
+        return const Icon(Icons.error, color: Colors.red, size: 22);
+    }
   }
 }
