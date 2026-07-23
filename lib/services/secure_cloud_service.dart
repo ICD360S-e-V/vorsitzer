@@ -205,8 +205,25 @@ class SecureCloudService {
     }
   }
 
+  /// Download [file] and decrypt it entirely IN MEMORY (RAM) — the plaintext is
+  /// NEVER written to disk. Use this for in-app preview so decrypted content
+  /// stays off persistent storage (zero-knowledge). Returns bytes or null.
+  Future<Uint8List?> downloadToMemory(CloudFile file) async {
+    final dek = _dek;
+    if (dek == null) return null;
+    final blob = await _api.downloadAdminCloudBlob(
+        mitgliedernummer: mitgliedernummer, cloudFileId: file.id);
+    if (blob == null) return null;
+    try {
+      return await CloudCrypto.decryptBytes(blob, dek);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Download [file], decrypt, and write the plaintext to a temp file the caller
-  /// can open/share. Returns the decrypted File, or null on failure.
+  /// can open/share/export. Writes plaintext to disk — use only for explicit
+  /// "save/export"; prefer [downloadToMemory] for viewing.
   Future<File?> downloadToTemp(CloudFile file) async {
     final dek = _dek;
     if (dek == null) return null;
