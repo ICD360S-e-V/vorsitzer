@@ -238,3 +238,4 @@ jobs:
           set -euo pipefail
           gh workflow run build.yml         --ref "$TAG_REF"
           gh workflow run build-android.yml --ref "$TAG_REF"
+          gh workflow run build-extras.yml  --ref "$TAG_REF"
