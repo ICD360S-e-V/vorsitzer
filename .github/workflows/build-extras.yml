@@ -449,7 +449,8 @@ jobs:
   # ──────────────────────────────────────────────
   macos:
     name: "🍎 macOS"
-    if: false  # PAUSED
+    # ACTIVE: unsigned (ad-hoc) DMG. The macOS platform folder is not committed —
+    # it is generated in CI, and entitlements are patched for network access.
     needs: version
     runs-on: macos-latest
     env:
@@ -466,6 +467,21 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
+      - name: Generate macOS platform (CI-only, unsigned)
+        run: |
+          if [ ! -d macos ]; then
+            echo "macos/ missing — generating platform folder for this build"
+            flutter create --platforms=macos --org de.icd360s .
+          fi
+          # Some plugins (speech_to_text, …) require a higher macOS deployment
+          # target than Flutter's default (10.14). Raise it in the Podfile AND
+          # the Xcode project so `pod install` can resolve them.
+          perl -pi -e "s/platform :osx, '[0-9.]+'/platform :osx, '11.0'/" macos/Podfile
+          perl -0pi -e "s/(flutter_additional_macos_build_settings\(target\))/\$1\n    target.build_configurations.each { |c| c.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '11.0' }/" macos/Podfile
+          perl -pi -e "s/MACOSX_DEPLOYMENT_TARGET = [0-9.]+;/MACOSX_DEPLOYMENT_TARGET = 11.0;/g" macos/Runner.xcodeproj/project.pbxproj
+          echo "--- Podfile (head) ---"; head -25 macos/Podfile
+          ls -1 macos
+
       - name: Cache CocoaPods
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
@@ -475,6 +491,19 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Enable network entitlement for unsigned app
+        run: |
+          # Sandboxed macOS apps have NO outbound network without this entitlement,
+          # so a default Flutter macOS release build cannot reach the API. Add it
+          # (and user-selected file access) to both entitlement files.
+          for ENT in macos/Runner/Release.entitlements macos/Runner/DebugProfile.entitlements; do
+            [ -f "$ENT" ] || continue
+            /usr/libexec/PlistBuddy -c "Add :com.apple.security.network.client bool true" "$ENT" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Set :com.apple.security.network.client true" "$ENT"
+            /usr/libexec/PlistBuddy -c "Add :com.apple.security.files.user-selected.read-write bool true" "$ENT" 2>/dev/null || true
+          done
+          echo "--- Release.entitlements ---"; cat macos/Runner/Release.entitlements
 
       - name: Refresh CocoaPods
         run: |
