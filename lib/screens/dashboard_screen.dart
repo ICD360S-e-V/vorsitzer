@@ -1489,7 +1489,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             icon: const Icon(Icons.desktop_windows_outlined),
             tooltip: 'Remote Desktop (RDP)',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const RemoteDesktopScreen(),
+              builder: (_) => RemoteDesktopScreen(
+                mitgliedernummer: widget.currentMitgliedernummer,
+              ),
             )),
           ),
           // Weather pill: full on tablets/desktop (width>=600), compact on phones.

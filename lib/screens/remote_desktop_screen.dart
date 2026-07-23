@@ -1,13 +1,15 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 import '../services/rdp_service.dart';
 import 'rdp_session_screen.dart';
 
-/// Manages Guacamole RDP connections: the (separate) gateway URL, saved
-/// connection profiles, and launching a fullscreen in-app session.
+/// Remote Desktop (RDP via Guacamole). Connection profiles are stored SERVER-SIDE
+/// (encrypted in MariaDB, per-admin) and synced across the admin's devices. The
+/// password never lives on the device; the connect is done server-side. Runs
+/// in-app on Android, iOS and macOS (WebView); other desktops are not supported.
 class RemoteDesktopScreen extends StatefulWidget {
-  const RemoteDesktopScreen({super.key});
+  final String mitgliedernummer;
+  const RemoteDesktopScreen({super.key, required this.mitgliedernummer});
 
   @override
   State<RemoteDesktopScreen> createState() => _RemoteDesktopScreenState();
@@ -15,10 +17,10 @@ class RemoteDesktopScreen extends StatefulWidget {
 
 class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
   final RdpService _svc = RdpService();
-  String? _gateway;
   List<RdpProfile> _profiles = [];
   bool _loading = true;
   bool _busy = false;
+  String? _error;
 
   @override
   void initState() {
@@ -27,32 +29,36 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
   }
 
   Future<void> _load() async {
-    final g = await _svc.getGateway();
-    final p = await _svc.loadProfiles();
-    if (!mounted) return;
     setState(() {
-      _gateway = g;
-      _profiles = p;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final p = await _svc.loadProfiles(widget.mitgliedernummer);
+      if (!mounted) return;
+      setState(() {
+        _profiles = p;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
   }
 
-  bool get _canRunInApp => Platform.isAndroid || Platform.isIOS;
+  bool get _canRunInApp => Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
   Future<void> _connect(RdpProfile p) async {
     if (!_canRunInApp) {
-      _snack('Die RDP-Sitzung läuft nur auf Tablet/Handy (In-App-Browser).',
-          isError: true);
-      return;
-    }
-    final gw = _gateway;
-    if (gw == null || gw.isEmpty) {
-      _snack('Bitte zuerst das Guacamole-Gateway einstellen.', isError: true);
+      _snack('Die RDP-Sitzung läuft auf Tablet, Handy und macOS.', isError: true);
       return;
     }
     setState(() => _busy = true);
     try {
-      final url = await _svc.requestSessionUrl(gw, p);
+      final url = await _svc.requestSessionUrl(widget.mitgliedernummer, p.id);
       if (!mounted) return;
       setState(() => _busy = false);
       await Navigator.of(context).push(MaterialPageRoute(
@@ -65,83 +71,20 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
     }
   }
 
-  Future<void> _editGateway() async {
-    final urlCtrl = TextEditingController(text: _gateway ?? RdpService.defaultGateway);
-    final keyCtrl = TextEditingController(text: await _svc.getGatewayKey() ?? '');
-    if (!mounted) return;
-    var obscure = true;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          title: const Text('Guacamole-Gateway'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: urlCtrl,
-                  autocorrect: false,
-                  keyboardType: TextInputType.url,
-                  decoration: const InputDecoration(
-                    labelText: 'Gateway-URL',
-                    hintText: 'https://rdp.icd360s.de',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: keyCtrl,
-                  obscureText: obscure,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  decoration: InputDecoration(
-                    labelText: 'Gateway-Schlüssel',
-                    hintText: 'X-Gateway-Key',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setSt(() => obscure = !obscure),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Adresse + Schlüssel des separaten Guacamole-Servers (nicht der '
-                  'App-Server). Muss per HTTPS erreichbar sein. Der Schlüssel sorgt '
-                  'dafür, dass nur diese App verbinden darf.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
-          ],
-        ),
-      ),
-    );
-    if (ok == true) {
-      await _svc.setGateway(urlCtrl.text);
-      await _svc.setGatewayKey(keyCtrl.text);
-      await _load();
-    }
-  }
-
   Future<void> _editProfile({RdpProfile? existing}) async {
+    final isNew = existing == null;
     final name = TextEditingController(text: existing?.name ?? '');
     final host = TextEditingController(text: existing?.host ?? '');
     final port = TextEditingController(text: (existing?.port ?? RdpService.defaultRdpPort).toString());
     final user = TextEditingController(text: existing?.username ?? '');
-    final pass = TextEditingController(text: existing?.password ?? '');
+    final pass = TextEditingController();
     var obscure = true;
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          title: Text(existing == null ? 'Neue Verbindung' : 'Verbindung bearbeiten'),
+          title: Text(isNew ? 'Neue Verbindung' : 'Verbindung bearbeiten'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -157,12 +100,20 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
                   enableSuggestions: false,
                   decoration: InputDecoration(
                     labelText: 'Passwort',
+                    hintText: isNew ? null : 'Leer lassen = unverändert',
                     border: const OutlineInputBorder(),
+                    isDense: true,
                     suffixIcon: IconButton(
                       icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
                       onPressed: () => setSt(() => obscure = !obscure),
                     ),
                   ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Gespeichert wird verschlüsselt auf dem Server — das Passwort '
+                  'verlässt nie das Gerät und wird nie zurückgegeben.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
@@ -179,22 +130,27 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
       _snack('IP / Host darf nicht leer sein.', isError: true);
       return;
     }
-    final profile = RdpProfile(
-      id: existing?.id ?? const Uuid().v4(),
+
+    // On edit, an empty password means "keep the stored one" (send null).
+    final pw = pass.text;
+    final String? passwordArg = isNew ? pw : (pw.isEmpty ? null : pw);
+
+    setState(() => _busy = true);
+    final err = await _svc.saveProfile(
+      widget.mitgliedernummer,
+      id: existing?.id,
       name: name.text.trim().isEmpty ? host.text.trim() : name.text.trim(),
       host: host.text.trim(),
       port: int.tryParse(port.text.trim()) ?? RdpService.defaultRdpPort,
       username: user.text.trim(),
-      password: pass.text,
+      password: passwordArg,
     );
-    final list = [..._profiles];
-    final idx = list.indexWhere((e) => e.id == profile.id);
-    if (idx >= 0) {
-      list[idx] = profile;
-    } else {
-      list.add(profile);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (err != null) {
+      _snack(err, isError: true);
+      return;
     }
-    await _svc.saveProfiles(list);
     await _load();
   }
 
@@ -215,12 +171,18 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
       ),
     );
     if (ok != true) return;
-    await _svc.saveProfiles(_profiles.where((e) => e.id != p.id).toList());
+    setState(() => _busy = true);
+    final err = await _svc.deleteProfile(widget.mitgliedernummer, p.id);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (err != null) {
+      _snack(err, isError: true);
+      return;
+    }
     await _load();
   }
 
-  Widget _field(TextEditingController c, String label,
-      {String? hint, TextInputType? keyboard}) {
+  Widget _field(TextEditingController c, String label, {String? hint, TextInputType? keyboard}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
@@ -252,9 +214,9 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
         title: const Text('Remote Desktop (RDP)'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.dns),
-            tooltip: 'Gateway',
-            onPressed: _editGateway,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Aktualisieren',
+            onPressed: _loading ? null : _load,
           ),
         ],
       ),
@@ -265,22 +227,21 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
       ),
       body: Stack(
         children: [
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  children: [
-                    _gatewayBanner(),
-                    Expanded(
-                      child: _profiles.isEmpty
-                          ? _empty()
-                          : ListView.separated(
-                              itemCount: _profiles.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
-                              itemBuilder: (_, i) => _profileTile(_profiles[i]),
-                            ),
-                    ),
-                  ],
-                ),
+          if (_loading)
+            const Center(child: CircularProgressIndicator())
+          else if (_error != null)
+            _errorView()
+          else if (_profiles.isEmpty)
+            _empty()
+          else
+            RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.separated(
+                itemCount: _profiles.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) => _profileTile(_profiles[i]),
+              ),
+            ),
           if (_busy)
             const Positioned.fill(
               child: ColoredBox(
@@ -289,23 +250,6 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _gatewayBanner() {
-    final set = _gateway != null && _gateway!.isNotEmpty;
-    return Material(
-      color: set ? Colors.green.withValues(alpha: 0.08) : Colors.orange.withValues(alpha: 0.12),
-      child: ListTile(
-        leading: Icon(Icons.dns, color: set ? Colors.green : Colors.orange),
-        title: Text(set ? 'Gateway: $_gateway' : 'Kein Gateway eingestellt',
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(set
-            ? 'Guacamole-Server (separat)'
-            : 'Tippen, um die Adresse des Guacamole-Servers einzutragen'),
-        trailing: const Icon(Icons.edit, size: 18),
-        onTap: _editGateway,
       ),
     );
   }
@@ -327,6 +271,24 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
           PopupMenuItem(value: 'edit', child: Text('Bearbeiten')),
           PopupMenuItem(value: 'del', child: Text('Löschen')),
         ],
+      ),
+    );
+  }
+
+  Widget _errorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(_error ?? '', textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: _load, child: const Text('Erneut')),
+          ],
+        ),
       ),
     );
   }

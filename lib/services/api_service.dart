@@ -1443,6 +1443,79 @@ class ApiService {
     }
   }
 
+  // ─── Remote Desktop (RDP) — per-admin profiles stored server-side, AES-256-GCM
+  // encrypted in MariaDB. The password never comes back to the client; the
+  // connect (rdpSession) is done server-side, so the app only knows the id.
+  Future<Map<String, dynamic>> rdpListProfiles(String mitgliedernummer) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/rdp/profiles.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer, 'action': 'list'}),
+      ).timeout(const Duration(seconds: 20));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'RDP list failed: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> rdpSaveProfile(
+    String mitgliedernummer, {
+    int? id,
+    required String name,
+    required String host,
+    required int port,
+    required String username,
+    String? password, // omit (null) on edit to keep the stored password
+  }) async {
+    final body = <String, dynamic>{
+      'mitgliedernummer': mitgliedernummer,
+      'action': 'save',
+      'name': name,
+      'host': host,
+      'port': port,
+      'username': username,
+    };
+    if (id != null && id > 0) body['id'] = id;
+    if (password != null) body['password'] = password;
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/rdp/profiles.php'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 20));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'RDP save failed: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> rdpDeleteProfile(String mitgliedernummer, int id) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/rdp/profiles.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer, 'action': 'delete', 'id': id}),
+      ).timeout(const Duration(seconds: 20));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'RDP delete failed: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> rdpSession(String mitgliedernummer, int id) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/rdp/session.php'),
+        headers: _headers,
+        body: jsonEncode({'mitgliedernummer': mitgliedernummer, 'id': id}),
+      ).timeout(const Duration(seconds: 25));
+      try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'RDP session failed: $e'};
+    }
+  }
+
   // Mark messages as read/delivered (WhatsApp-style read receipts)
   Future<Map<String, dynamic>> markMessagesRead({
     required int conversationId,

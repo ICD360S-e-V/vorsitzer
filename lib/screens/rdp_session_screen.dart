@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart' as mobile_webview;
@@ -24,9 +25,11 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
   @override
   void initState() {
     super.initState();
-    // Go fullscreen; allow any orientation (RDP is nicer in landscape).
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    // Fullscreen + any orientation — only meaningful on mobile.
+    if (Platform.isAndroid || Platform.isIOS) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
     _init();
   }
 
@@ -65,10 +68,12 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
 
   @override
   void dispose() {
-    // Restore the normal system UI + orientations.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
-        overlays: SystemUiOverlay.values);
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    // Restore the normal system UI + orientations (mobile only).
+    if (Platform.isAndroid || Platform.isIOS) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+          overlays: SystemUiOverlay.values);
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
     super.dispose();
   }
 
@@ -139,6 +144,9 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    // Only Android's WebView drops hardware/Bluetooth keys; iOS/macOS WKWebView
+    // deliver them natively, so bridging there would double-type.
+    if (!Platform.isAndroid) return KeyEventResult.ignored;
     final ctrl = _controller;
     if (ctrl == null || _error != null) return KeyEventResult.ignored;
     final phys = e.physicalKey.usbHidUsage;

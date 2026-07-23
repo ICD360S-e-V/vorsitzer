@@ -1,33 +1,22 @@
-import 'dart:convert';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'device_key_service.dart';
+import 'api_service.dart';
 
-// ─── Remote Desktop (RDP via Guacamole gateway) ─────────────────────────────
+// ─── Remote Desktop (RDP) ────────────────────────────────────────────────────
 //
-// The app is only the CLIENT. Guacamole (guacamole-lite + guacd) runs on a
-// SEPARATE server that this app talks to. The gateway base URL is configurable
-// here (it is NOT this project's API server).
+// Connection profiles live SERVER-SIDE only: each admin's RDP connections are
+// stored AES-256-GCM encrypted in MariaDB (icd360sev). The password NEVER
+// reaches the device — the connect is performed server-side (session endpoint),
+// which decrypts the profile + gateway key and returns a ready Guacamole URL.
 //
-// Connection flow (the gateway on the other server must implement this):
-//   POST {gateway}/token
-//     headers: X-Device-Key, User-Agent: ICD360S-Vorsitzer/1.0
-//     body:    {"protocol":"rdp","hostname":..,"port":..,"username":..,"password":..}
-//     200  ->  {"url":"https://.../?token=<enc>"}   (preferred)
-//        or     {"token":"<enc>"}                   (app builds {gateway}/?token=)
-//
-// The gateway should reject requests that lack a valid X-Device-Key / are not
-// from the app (block browsers), and issue short-lived, single-use tokens, so
-// only THIS app can obtain a session.
+// This service is a thin wrapper over ApiService. No local storage, no baked
+// gateway secret: the gateway URL + key also live encrypted in the DB.
 
 class RdpProfile {
-  final String id;
+  final int id; // server id (0 = new/unsaved)
   final String name;
   final String host;
   final int port;
   final String username;
-  final String password;
+  // NB: no password field — it is server-only and never sent to the client.
 
   RdpProfile({
     required this.id,
@@ -35,164 +24,71 @@ class RdpProfile {
     required this.host,
     required this.port,
     required this.username,
-    required this.password,
   });
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'host': host,
-        'port': port,
-        'username': username,
-        'password': password,
-      };
-
   factory RdpProfile.fromJson(Map<String, dynamic> j) => RdpProfile(
-        id: j['id'] as String,
+        id: (j['id'] as num?)?.toInt() ?? 0,
         name: (j['name'] ?? '') as String,
         host: (j['host'] ?? '') as String,
         port: (j['port'] as num?)?.toInt() ?? RdpService.defaultRdpPort,
         username: (j['username'] ?? '') as String,
-        password: (j['password'] ?? '') as String,
-      );
-
-  RdpProfile copyWith({
-    String? name,
-    String? host,
-    int? port,
-    String? username,
-    String? password,
-  }) =>
-      RdpProfile(
-        id: id,
-        name: name ?? this.name,
-        host: host ?? this.host,
-        port: port ?? this.port,
-        username: username ?? this.username,
-        password: password ?? this.password,
       );
 }
 
 class RdpService {
-  static const _kGateway = 'rdp_gateway_url';
-  static const _kGatewayKey = 'rdp_gateway_key';
-  static const _kProfiles = 'rdp_profiles';
-
-  /// Default Guacamole gateway (public host — not a secret).
-  static const String defaultGateway = 'https://rdp.icd360s.de';
-
-  /// Default RDP port (xrdp on the target listens on a non-standard,
-  /// localhost-only port — reachable only through the gateway, harder to scan).
+  /// Default RDP port (the xrdp target listens on a non-standard, localhost-only
+  /// port on the gateway; still the sensible default for new connections).
   static const int defaultRdpPort = 31456;
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-  );
-  final DeviceKeyService _deviceKeyService = DeviceKeyService();
+  final ApiService _api = ApiService();
 
-  // flutter_secure_storage uses the macOS Keychain, which an unsigned / ad-hoc
-  // signed build cannot write to (errSecMissingEntitlement / -34018), so RDP
-  // connections silently failed to save on macOS. Fall back to SharedPreferences
-  // there. On Android/iOS the Keystore/Keychain works, so this is never used.
-  Future<void> _write(String key, String value) async {
-    try {
-      await _storage.write(key: key, value: value);
-    } catch (_) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(key, value);
+  /// List the acting admin's saved connections (no passwords).
+  Future<List<RdpProfile>> loadProfiles(String mitgliedernummer) async {
+    final r = await _api.rdpListProfiles(mitgliedernummer);
+    if (r['success'] != true) return [];
+    final list = (r['profiles'] as List?) ?? const [];
+    return list
+        .map((e) => RdpProfile.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
+  /// Create ([id] null/0) or update a connection. Pass [password] only when
+  /// setting/changing it; omit on edit to keep the stored one. Returns null on
+  /// success, else an error message.
+  Future<String?> saveProfile(
+    String mitgliedernummer, {
+    int? id,
+    required String name,
+    required String host,
+    required int port,
+    required String username,
+    String? password,
+  }) async {
+    final r = await _api.rdpSaveProfile(
+      mitgliedernummer,
+      id: id,
+      name: name,
+      host: host,
+      port: port,
+      username: username,
+      password: password,
+    );
+    return r['success'] == true ? null : (r['message']?.toString() ?? 'Speichern fehlgeschlagen');
+  }
+
+  /// Delete a connection. Returns null on success, else an error message.
+  Future<String?> deleteProfile(String mitgliedernummer, int id) async {
+    final r = await _api.rdpDeleteProfile(mitgliedernummer, id);
+    return r['success'] == true ? null : (r['message']?.toString() ?? 'Löschen fehlgeschlagen');
+  }
+
+  /// Ask the server to open a session for profile [id]. Returns the Guacamole
+  /// URL to load in the WebView. Throws a human-readable message on failure.
+  Future<String> requestSessionUrl(String mitgliedernummer, int id) async {
+    final r = await _api.rdpSession(mitgliedernummer, id);
+    if (r['success'] == true && r['url'] is String && (r['url'] as String).isNotEmpty) {
+      return r['url'] as String;
     }
-  }
-
-  Future<String?> _read(String key) async {
-    try {
-      final v = await _storage.read(key: key);
-      if (v != null) return v;
-    } catch (_) {}
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(key);
-  }
-
-  /// Stored gateway URL, or the default if none set.
-  Future<String> getGateway() async {
-    final v = await _read(_kGateway);
-    return (v == null || v.trim().isEmpty) ? defaultGateway : v;
-  }
-
-  Future<void> setGateway(String url) async => _write(_kGateway, url.trim());
-
-  /// Gateway secret baked at build time from a GitHub Secret via
-  /// --dart-define=RDP_GATEWAY_KEY (NOT stored in the public repo). Used
-  /// automatically so the user doesn't have to enter it.
-  static const String _bakedGatewayKey = String.fromEnvironment('RDP_GATEWAY_KEY');
-
-  /// Shared gateway secret (X-Gateway-Key) so the gateway accepts only our app.
-  /// Prefers a user-set value, otherwise the build-baked key.
-  Future<String?> getGatewayKey() async {
-    final v = await _read(_kGatewayKey);
-    if (v != null && v.isNotEmpty) return v;
-    return _bakedGatewayKey.isNotEmpty ? _bakedGatewayKey : null;
-  }
-
-  Future<void> setGatewayKey(String key) async => _write(_kGatewayKey, key.trim());
-
-  Future<List<RdpProfile>> loadProfiles() async {
-    final raw = await _read(_kProfiles);
-    if (raw == null || raw.isEmpty) return [];
-    try {
-      final list = jsonDecode(raw) as List;
-      return list.map((e) => RdpProfile.fromJson((e as Map).cast<String, dynamic>())).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<void> saveProfiles(List<RdpProfile> profiles) async {
-    await _write(_kProfiles, jsonEncode(profiles.map((e) => e.toJson()).toList()));
-  }
-
-  /// Ask the gateway for a session URL for [p]. Returns the URL to open in the
-  /// fullscreen WebView. Throws a human-readable message on failure.
-  Future<String> requestSessionUrl(String gateway, RdpProfile p) async {
-    final base = gateway.trim().replaceAll(RegExp(r'/+$'), '');
-    if (base.isEmpty) throw 'Kein Gateway konfiguriert';
-    if (!base.startsWith('https://')) {
-      throw 'Gateway muss über HTTPS erreichbar sein';
-    }
-    final deviceKey = _deviceKeyService.deviceKey;
-    final gatewayKey = await getGatewayKey();
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$base/token'),
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'ICD360S-Vorsitzer/1.0',
-              if (deviceKey != null) 'X-Device-Key': deviceKey,
-              if (gatewayKey != null && gatewayKey.isNotEmpty)
-                'X-Gateway-Key': gatewayKey,
-            },
-            body: jsonEncode({
-              'protocol': 'rdp',
-              'hostname': p.host,
-              'port': p.port,
-              'username': p.username,
-              'password': p.password,
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
-      if (res.statusCode != 200) {
-        throw 'Gateway-Fehler (HTTP ${res.statusCode})';
-      }
-      final data = (jsonDecode(res.body) as Map).cast<String, dynamic>();
-      if (data['url'] is String && (data['url'] as String).isNotEmpty) {
-        return data['url'] as String;
-      }
-      if (data['token'] is String && (data['token'] as String).isNotEmpty) {
-        return '$base/?token=${Uri.encodeComponent(data['token'] as String)}';
-      }
-      throw 'Ungültige Gateway-Antwort';
-    } on FormatException {
-      throw 'Ungültige Gateway-Antwort';
-    }
+    throw (r['message']?.toString() ?? 'Verbindung fehlgeschlagen');
   }
 }
