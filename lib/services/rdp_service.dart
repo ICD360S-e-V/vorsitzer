@@ -92,8 +92,19 @@ class RdpService {
   Future<void> setGateway(String url) async =>
       _storage.write(key: _kGateway, value: url.trim());
 
+  /// Gateway secret baked at build time from a GitHub Secret via
+  /// --dart-define=RDP_GATEWAY_KEY (NOT stored in the public repo). Used
+  /// automatically so the user doesn't have to enter it.
+  static const String _bakedGatewayKey = String.fromEnvironment('RDP_GATEWAY_KEY');
+
   /// Shared gateway secret (X-Gateway-Key) so the gateway accepts only our app.
-  Future<String?> getGatewayKey() async => _storage.read(key: _kGatewayKey);
+  /// Prefers a user-set value, otherwise the build-baked key.
+  Future<String?> getGatewayKey() async {
+    final v = await _storage.read(key: _kGatewayKey);
+    if (v != null && v.isNotEmpty) return v;
+    return _bakedGatewayKey.isNotEmpty ? _bakedGatewayKey : null;
+  }
+
   Future<void> setGatewayKey(String key) async =>
       _storage.write(key: _kGatewayKey, value: key.trim());
 
