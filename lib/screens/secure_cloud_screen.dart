@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -173,15 +172,30 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
   }
 
   Future<void> _download(CloudFile f) async {
+    // Decrypt in RAM (no plaintext temp file), then let the user pick where to
+    // save it via the native "save as" dialog.
     setState(() => _busy = true);
-    final file = await _svc.downloadToTemp(f);
+    final bytes = await _svc.downloadToMemory(f);
     if (!mounted) return;
     setState(() => _busy = false);
-    if (file == null) {
+    if (bytes == null) {
       _snack('Download/Entschlüsselung fehlgeschlagen.', isError: true);
       return;
     }
-    await OpenFilex.open(file.path);
+    final ext = f.name.contains('.') ? f.name.toLowerCase().split('.').last : '';
+    final savedPath = await FilePickerHelper.saveFile(
+      dialogTitle: 'Datei speichern',
+      fileName: f.name,
+      type: ext.isEmpty ? FileType.any : FileType.custom,
+      allowedExtensions: ext.isEmpty ? null : [ext],
+    );
+    if (savedPath == null) return; // user cancelled
+    try {
+      await File(savedPath).writeAsBytes(bytes, flush: true);
+      _snack('Gespeichert: $savedPath');
+    } catch (e) {
+      _snack('Speichern fehlgeschlagen: $e', isError: true);
+    }
   }
 
   /// Preview a file with the dedicated in-app viewer for its type — decrypted
@@ -549,6 +563,7 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
               compact(Icons.visibility_outlined, 'Ansehen (im RAM)', () => _preview(f)),
               compact(Icons.print_outlined, 'Drucken', () => _print(f)),
             ],
+            compact(Icons.download_outlined, 'Herunterladen', () => _download(f)),
             PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'view') _preview(f);

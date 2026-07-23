@@ -243,6 +243,73 @@ jobs:
           Categories=Office;Network;
           StartupWMClass=icd360sev_vorsitzer
           DESK
+          # ── Auto-update: a root systemd timer checks GitHub every minute and
+          #    installs a newer .deb silently. version_vorsitzer.json + the .deb
+          #    are stable GitHub Release assets (no API rate limit).
+          install -d "$ROOT/lib/systemd/system"
+          cat > "$ROOT/opt/$APP/auto-update.sh" <<'UPD'
+          #!/bin/bash
+          set -u
+          PKG=icd360sev-vorsitzer
+          REPO=ICD360S-e-V/vorsitzer
+          LOG=/var/log/vorsitzer-update.log
+          _log(){ echo "$(date '+%F %T') $*" >> "$LOG" 2>/dev/null; }
+          J=$(curl -fsSL --max-time 20 "https://github.com/$REPO/releases/latest/download/version_vorsitzer.json" 2>/dev/null) || exit 0
+          LATEST=$(printf '%s' "$J" | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | grep -oE '[0-9][0-9.]+' | head -1)
+          [ -z "$LATEST" ] && exit 0
+          INSTALLED=$(dpkg-query -W -f='${Version}' "$PKG" 2>/dev/null || echo 0)
+          dpkg --compare-versions "$LATEST" gt "$INSTALLED" 2>/dev/null || exit 0
+          _log "update available: $INSTALLED -> $LATEST"
+          URL="https://github.com/$REPO/releases/download/v${LATEST}/vorsitzer-${LATEST}.deb"
+          TMP=$(mktemp /tmp/vorsitzer-XXXXXX.deb) || exit 0
+          if curl -fsSL --max-time 600 -o "$TMP" "$URL" 2>/dev/null && [ -s "$TMP" ]; then
+            if dpkg -i "$TMP" >>"$LOG" 2>&1 || apt-get -y -f install >>"$LOG" 2>&1; then
+              _log "installed $LATEST"
+            else
+              _log "install FAILED for $LATEST"
+            fi
+          else
+            _log "download FAILED for $LATEST"
+          fi
+          rm -f "$TMP"
+          UPD
+          chmod 0755 "$ROOT/opt/$APP/auto-update.sh"
+          cat > "$ROOT/lib/systemd/system/vorsitzer-update.service" <<'SVC'
+          [Unit]
+          Description=Vorsitzer auto-update
+          After=network-online.target
+          Wants=network-online.target
+          [Service]
+          Type=oneshot
+          ExecStart=/opt/icd360sev-vorsitzer/auto-update.sh
+          SVC
+          cat > "$ROOT/lib/systemd/system/vorsitzer-update.timer" <<'TMR'
+          [Unit]
+          Description=Vorsitzer auto-update check (every minute)
+          [Timer]
+          OnBootSec=60
+          OnUnitActiveSec=60
+          Persistent=true
+          [Install]
+          WantedBy=timers.target
+          TMR
+          cat > "$ROOT/DEBIAN/postinst" <<'POST'
+          #!/bin/bash
+          set -e
+          chmod 0755 /opt/icd360sev-vorsitzer/auto-update.sh 2>/dev/null || true
+          systemctl daemon-reload 2>/dev/null || true
+          systemctl enable --now vorsitzer-update.timer 2>/dev/null || true
+          exit 0
+          POST
+          cat > "$ROOT/DEBIAN/prerm" <<'PRERM'
+          #!/bin/bash
+          set -e
+          if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+            systemctl disable --now vorsitzer-update.timer 2>/dev/null || true
+          fi
+          exit 0
+          PRERM
+          chmod 0755 "$ROOT/DEBIAN/postinst" "$ROOT/DEBIAN/prerm"
           INSTALLED_SIZE=$(du -sk "$ROOT/opt" | cut -f1)
           cat > "$ROOT/DEBIAN/control" <<CTRL
           Package: $APP
@@ -252,7 +319,7 @@ jobs:
           Architecture: amd64
           Maintainer: ICD360S e.V. <claudeai@icd360s.de>
           Installed-Size: ${INSTALLED_SIZE}
-          Depends: libgtk-3-0 | libgtk-3-0t64, libglib2.0-0 | libglib2.0-0t64, libsecret-1-0, libmpv2 | libmpv1, libayatana-appindicator3-1
+          Depends: libgtk-3-0 | libgtk-3-0t64, libglib2.0-0 | libglib2.0-0t64, libsecret-1-0, libmpv2 | libmpv1, libayatana-appindicator3-1, curl
           Description: ICD360S e.V. Vorsitzer Portal
            Vorsitzer-App (Flutter) fuer ICD360S e.V. - Verwaltung, Chat, Cloud,
            Remote-Desktop u.v.m.
