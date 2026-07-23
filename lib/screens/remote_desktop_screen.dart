@@ -66,40 +66,65 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
   }
 
   Future<void> _editGateway() async {
-    final ctrl = TextEditingController(text: _gateway ?? '');
+    final urlCtrl = TextEditingController(text: _gateway ?? RdpService.defaultGateway);
+    final keyCtrl = TextEditingController(text: await _svc.getGatewayKey() ?? '');
+    if (!mounted) return;
+    var obscure = true;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Guacamole-Gateway'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: ctrl,
-              autocorrect: false,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Gateway-URL',
-                hintText: 'https://rdp-gateway.example.de',
-                border: OutlineInputBorder(),
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: const Text('Guacamole-Gateway'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: urlCtrl,
+                  autocorrect: false,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    labelText: 'Gateway-URL',
+                    hintText: 'https://rdp.icd360s.de',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: keyCtrl,
+                  obscureText: obscure,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: InputDecoration(
+                    labelText: 'Gateway-Schlüssel',
+                    hintText: 'X-Gateway-Key',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setSt(() => obscure = !obscure),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Adresse + Schlüssel des separaten Guacamole-Servers (nicht der '
+                  'App-Server). Muss per HTTPS erreichbar sein. Der Schlüssel sorgt '
+                  'dafür, dass nur diese App verbinden darf.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Adresse des separaten Guacamole-Servers (nicht der App-Server). '
-              'Muss per HTTPS erreichbar sein.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
-        ],
       ),
     );
     if (ok == true) {
-      await _svc.setGateway(ctrl.text);
+      await _svc.setGateway(urlCtrl.text);
+      await _svc.setGatewayKey(keyCtrl.text);
       await _load();
     }
   }
@@ -107,7 +132,7 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
   Future<void> _editProfile({RdpProfile? existing}) async {
     final name = TextEditingController(text: existing?.name ?? '');
     final host = TextEditingController(text: existing?.host ?? '');
-    final port = TextEditingController(text: (existing?.port ?? 3389).toString());
+    final port = TextEditingController(text: (existing?.port ?? RdpService.defaultRdpPort).toString());
     final user = TextEditingController(text: existing?.username ?? '');
     final pass = TextEditingController(text: existing?.password ?? '');
     var obscure = true;
@@ -123,7 +148,7 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
               children: [
                 _field(name, 'Name', hint: 'z. B. Mint-Server'),
                 _field(host, 'IP / Host', hint: '192.168.1.50', keyboard: TextInputType.url),
-                _field(port, 'Port', hint: '3389', keyboard: TextInputType.number),
+                _field(port, 'Port', hint: '31456', keyboard: TextInputType.number),
                 _field(user, 'Benutzername'),
                 TextField(
                   controller: pass,
@@ -158,7 +183,7 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
       id: existing?.id ?? const Uuid().v4(),
       name: name.text.trim().isEmpty ? host.text.trim() : name.text.trim(),
       host: host.text.trim(),
-      port: int.tryParse(port.text.trim()) ?? 3389,
+      port: int.tryParse(port.text.trim()) ?? RdpService.defaultRdpPort,
       username: user.text.trim(),
       password: pass.text,
     );
