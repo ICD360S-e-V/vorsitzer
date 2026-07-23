@@ -132,7 +132,7 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
   Future<void> _editProfile({RdpProfile? existing}) async {
     final name = TextEditingController(text: existing?.name ?? '');
     final host = TextEditingController(text: existing?.host ?? '');
-    final port = TextEditingController(text: (existing?.port ?? 3389).toString());
+    final port = TextEditingController(text: (existing?.port ?? RdpService.defaultRdpPort).toString());
     final user = TextEditingController(text: existing?.username ?? '');
     final pass = TextEditingController(text: existing?.password ?? '');
     var obscure = true;
@@ -148,7 +148,7 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
               children: [
                 _field(name, 'Name', hint: 'z. B. Mint-Server'),
                 _field(host, 'IP / Host', hint: '192.168.1.50', keyboard: TextInputType.url),
-                _field(port, 'Port', hint: '3389', keyboard: TextInputType.number),
+                _field(port, 'Port', hint: '9999', keyboard: TextInputType.number),
                 _field(user, 'Benutzername'),
                 TextField(
                   controller: pass,
@@ -183,7 +183,7 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
       id: existing?.id ?? const Uuid().v4(),
       name: name.text.trim().isEmpty ? host.text.trim() : name.text.trim(),
       host: host.text.trim(),
-      port: int.tryParse(port.text.trim()) ?? 3389,
+      port: int.tryParse(port.text.trim()) ?? RdpService.defaultRdpPort,
       username: user.text.trim(),
       password: pass.text,
     );

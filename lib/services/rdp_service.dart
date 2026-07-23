@@ -50,7 +50,7 @@ class RdpProfile {
         id: j['id'] as String,
         name: (j['name'] ?? '') as String,
         host: (j['host'] ?? '') as String,
-        port: (j['port'] as num?)?.toInt() ?? 3389,
+        port: (j['port'] as num?)?.toInt() ?? RdpService.defaultRdpPort,
         username: (j['username'] ?? '') as String,
         password: (j['password'] ?? '') as String,
       );
@@ -79,6 +79,9 @@ class RdpService {
 
   /// Default Guacamole gateway (public host — not a secret).
   static const String defaultGateway = 'https://rdp.icd360s.de';
+
+  /// Default RDP port (xrdp on the target listens here).
+  static const int defaultRdpPort = 9999;
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final DeviceKeyService _deviceKeyService = DeviceKeyService();
