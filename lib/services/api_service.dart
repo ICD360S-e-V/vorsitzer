@@ -4,9 +4,9 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'device_key_service.dart';
+import 'secure_store.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
 import 'ntfy_service.dart';
@@ -27,9 +27,9 @@ class ApiService {
   /// das ISRG-Pinning des Haupt-Clients laufen.
   late http.Client _externalClient;
   final DeviceKeyService _deviceKeyService = DeviceKeyService();
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-  );
+  // On Linux this transparently falls back to an AES-GCM encrypted file when the
+  // system keyring is locked, so JWTs persist without touching plaintext disk.
+  final SecureStore _secureStorage = SecureStore();
 
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();
