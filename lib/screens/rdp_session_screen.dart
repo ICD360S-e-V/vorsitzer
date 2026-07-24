@@ -9,22 +9,57 @@ import 'package:webview_flutter/webview_flutter.dart' as mobile_webview;
 class RdpSessionScreen extends StatefulWidget {
   final String sessionUrl;
   final String title;
-  const RdpSessionScreen({super.key, required this.sessionUrl, required this.title});
+
+  /// Mints a FRESH session URL server-side (`/api/rdp/session.php`). A Guacamole
+  /// token is the session credential and dies shortly after its tunnel closes,
+  /// so a dropped connection must be recovered with a new token — reloading the
+  /// old URL always fails once the server-side grace window has passed. Null
+  /// disables automatic recovery.
+  final Future<String> Function()? onNeedNewUrl;
+
+  const RdpSessionScreen({
+    super.key,
+    required this.sessionUrl,
+    required this.title,
+    this.onNeedNewUrl,
+  });
 
   @override
   State<RdpSessionScreen> createState() => _RdpSessionScreenState();
 }
 
-class _RdpSessionScreenState extends State<RdpSessionScreen> {
+class _RdpSessionScreenState extends State<RdpSessionScreen>
+    with WidgetsBindingObserver {
   mobile_webview.WebViewController? _controller;
   bool _loading = true;
   String? _error;
   bool _showBar = true;
   final Map<int, int> _downSyms = {}; // physicalKey.usbHidUsage -> keysym sent on press
 
+  /// Kept just under the gateway's GUAC_TOKEN_GRACE_SEC (60 s): back within it
+  /// and the old token still works, past it we must re-mint.
+  static const _grace = Duration(seconds: 45);
+
+  /// The URL actually loaded — replaced on every re-mint, never reused after a
+  /// failure. [RdpSessionScreen.sessionUrl] is only the initial value.
+  late String _url = widget.sessionUrl;
+  bool _recovering = false;
+
+  /// Stops a re-mint loop when the failure is permanent (guacd down, server
+  /// unreachable): one automatic attempt, then surface the error. Cleared once
+  /// the page reports a live tunnel or the user explicitly retries.
+  bool _retried = false;
+  DateTime? _bgAt;
+
+  /// Set the moment the user leaves on purpose. The page reports the resulting
+  /// disconnect asynchronously, which would otherwise re-mint a session the
+  /// user just closed and leave it orphaned on the server.
+  bool _closing = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Fullscreen + any orientation — only meaningful on mobile.
     if (Platform.isAndroid || Platform.isIOS) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -35,6 +70,9 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
 
   Future<void> _init() async {
     try {
+      // A key held when the tunnel died never sends its release, which would
+      // leave the modifier stuck down in the new session.
+      _downSyms.clear();
       final c = mobile_webview.WebViewController();
       await c.setJavaScriptMode(mobile_webview.JavaScriptMode.unrestricted);
       // setBackgroundColor throws "opaque is not implemented on macOS" (NSView
@@ -42,6 +80,9 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
       if (!Platform.isMacOS) {
         await c.setBackgroundColor(Colors.black);
       }
+      // client.html posts tunnel state here — see _onBridge.
+      await c.addJavaScriptChannel('RdpBridge',
+          onMessageReceived: (m) => _onBridge(m.message));
       await c.setNavigationDelegate(mobile_webview.NavigationDelegate(
         onPageStarted: (_) {
           if (mounted) setState(() => _loading = true);
@@ -50,15 +91,12 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
           if (mounted) setState(() => _loading = false);
         },
         onWebResourceError: (e) {
-          if (mounted) {
-            setState(() {
-              _error = e.description;
-              _loading = false;
-            });
-          }
+          // Subresource failures (icons, fonts) don't mean the session is gone.
+          if (e.isForMainFrame == false) return;
+          _recover(e.description);
         },
       ));
-      await c.loadRequest(Uri.parse(widget.sessionUrl));
+      await c.loadRequest(Uri.parse(_url));
       if (mounted) setState(() => _controller = c);
     } catch (e) {
       if (mounted) {
@@ -70,8 +108,74 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
     }
   }
 
+  /// Tunnel state from client.html. 'connected' means the session is live;
+  /// anything else (Guacamole `error` instruction, tunnel closed) means the
+  /// token is spent — the status code is deliberately not parsed, since
+  /// Guacamole sends non-numeric codes like CONFIG_ERROR.
+  void _onBridge(String msg) {
+    if (msg == 'connected') {
+      _retried = false;
+      return;
+    }
+    _recover('Sitzung getrennt');
+  }
+
+  /// Ask the caller for a brand-new session URL and load that. The desktop
+  /// itself survives — xrdp re-attaches to the same X display, so the user
+  /// lands back in the same session.
+  Future<void> _recover(String reason) async {
+    if (_recovering || _closing || !mounted) return;
+    final mint = widget.onNeedNewUrl;
+    if (mint == null || _retried) {
+      setState(() {
+        _error = reason;
+        _loading = false;
+      });
+      return;
+    }
+    setState(() {
+      _recovering = true;
+      _retried = true;
+      _error = null;
+      _loading = true;
+    });
+    try {
+      final fresh = await mint();
+      if (!mounted) return;
+      _url = fresh;
+      setState(() => _recovering = false);
+      await _init();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _recovering = false;
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  /// A backgrounded app (locked screen, call, task switch) comes back to a
+  /// token the server has already destroyed, and the WebView gives no error for
+  /// that — it just sits on a dead tunnel. Re-mint proactively instead.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _bgAt = DateTime.now();
+      return;
+    }
+    if (state != AppLifecycleState.resumed) return;
+    final since = _bgAt;
+    _bgAt = null;
+    if (since == null || _controller == null || _error != null) return;
+    if (DateTime.now().difference(since) < _grace) return; // old token still valid
+    _retried = false; // a real user-visible event, not a retry loop
+    _recover('Sitzung abgelaufen');
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Restore the normal system UI + orientations (mobile only).
     if (Platform.isAndroid || Platform.isIOS) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
@@ -82,6 +186,7 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
   }
 
   void _exit() {
+    _closing = true;
     if (Navigator.canPop(context)) Navigator.pop(context);
   }
 
@@ -198,7 +303,12 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
                   ? Row(mainAxisSize: MainAxisSize.min, children: [
                       _circleBtn(Icons.close, 'Trennen', _exit),
                       const SizedBox(width: 6),
-                      _circleBtn(Icons.refresh, 'Neu laden', () => _controller?.reload()),
+                      // Re-mint rather than reload(): the loaded URL's token is
+                      // single-session and reloading it would fail.
+                      _circleBtn(Icons.refresh, 'Neu laden', () {
+                        _retried = false;
+                        _recover('Neu laden fehlgeschlagen');
+                      }),
                       const SizedBox(width: 6),
                       _circleBtn(Icons.keyboard, 'Tastatur', () {
                         _controller?.runJavaScript(
@@ -252,11 +362,8 @@ class _RdpSessionScreenState extends State<RdpSessionScreen> {
           ),
           FilledButton(
             onPressed: () {
-              setState(() {
-                _error = null;
-                _loading = true;
-              });
-              _init();
+              _retried = false; // explicit user action, allow a fresh attempt
+              _recover('Verbindung fehlgeschlagen');
             },
             child: const Text('Erneut'),
           ),

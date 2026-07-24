@@ -199,7 +199,6 @@ jobs:
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
             --dart-define=ROUTINE_AES_KEY_V2=${{ secrets.ROUTINE_AES_KEY_V2 }} \
             --dart-define=STARTUP_DIAG_KEY=${{ secrets.VORSITZER_STARTUP_DIAG_KEY }} \
-            --dart-define=RDP_GATEWAY_KEY=${{ secrets.RDP_GATEWAY_KEY }} \
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 

@@ -62,7 +62,13 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
       if (!mounted) return;
       setState(() => _busy = false);
       await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => RdpSessionScreen(sessionUrl: url, title: p.name),
+        builder: (_) => RdpSessionScreen(
+          sessionUrl: url,
+          title: p.name,
+          // Session tokens expire with their tunnel, so the session screen
+          // re-mints instead of reloading a dead URL.
+          onNeedNewUrl: () => _svc.requestSessionUrl(widget.mitgliedernummer, p.id),
+        ),
       ));
     } catch (e) {
       if (!mounted) return;
