@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
+import 'secure_store.dart';
 import 'platform_service.dart';
 import 'device_integrity_service.dart';
 import 'desktop_security_service.dart';
@@ -22,9 +22,7 @@ class DeviceKeyService {
   static const String _deviceKeyStorageKey = 'device_key';
   static const String _deviceIdStorageKey = 'device_id';
 
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-  );
+  final SecureStore _secureStore = SecureStore();
   final LoggerService _logger = LoggerService();
   bool _useSharedPrefsFallback = false;
 
@@ -63,22 +61,32 @@ class DeviceKeyService {
     _logger.info('Device credentials set from activation code', tag: 'DEVICE');
   }
 
-  /// Read from storage with SharedPreferences fallback
+  /// Storage-only device_key/device_id load (NO server round-trip). Used by the
+  /// login screen's auto-login gate so it never triggers validate/register.
+  Future<String?> loadStoredDeviceKey() => _readFromStorage(_deviceKeyStorageKey);
+  Future<String?> loadStoredDeviceId() => _readFromStorage(_deviceIdStorageKey);
+
+  /// Read from storage. On Linux, [SecureStore] transparently handles the
+  /// encrypted-file fallback + legacy plaintext migration; elsewhere a
+  /// SharedPreferences backup covers keychain unavailability.
   Future<String?> _readFromStorage(String key) async {
     if (_useSharedPrefsFallback) {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getString(key);
     }
     try {
-      final value = await _secureStorage.read(key: key);
+      final value = await _secureStore.read(key: key);
       if (value != null) return value;
-      // SecureStorage empty — try SharedPreferences backup
+      // On Linux, SecureStore already consulted the encrypted fallback file and
+      // migrated any legacy plaintext copy, so a null here is authoritative.
+      if (Platform.isLinux) return null;
+      // non-Linux: SecureStorage empty — try SharedPreferences backup
       final prefs = await SharedPreferences.getInstance();
       final backup = prefs.getString(key);
       if (backup != null) {
         _logger.info('Recovered $key from SharedPreferences backup', tag: 'DEVICE');
         // Re-save to secure storage
-        try { await _secureStorage.write(key: key, value: backup); } catch (_) {}
+        try { await _secureStore.write(key: key, value: backup); } catch (_) {}
       }
       return backup;
     } catch (e) {
@@ -90,15 +98,19 @@ class DeviceKeyService {
     }
   }
 
-  /// Write to storage — always writes to both SecureStorage + SharedPreferences backup
+  /// Write to storage. Non-Linux keeps a plaintext SharedPreferences backup
+  /// (survives macOS code-signing changes); Linux does NOT — SecureStore's
+  /// AES-GCM encrypted-file fallback replaces it, so the secret never lands in
+  /// plaintext there even when the keyring is locked.
   Future<void> _writeToStorage(String key, String value) async {
-    // Always save to SharedPreferences as backup (survives signing changes)
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
+    if (!Platform.isLinux) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, value);
+    }
 
     if (_useSharedPrefsFallback) return;
     try {
-      await _secureStorage.write(key: key, value: value);
+      await _secureStore.write(key: key, value: value);
     } catch (e) {
       if (Platform.isMacOS && e.toString().contains('-34018')) {
         _logger.warning('Secure storage write failed, using SharedPreferences fallback', tag: 'DEVICE');
@@ -111,7 +123,8 @@ class DeviceKeyService {
     }
   }
 
-  /// Delete from storage with SharedPreferences fallback for macOS
+  /// Delete from storage. SecureStore.delete already clears the Linux encrypted
+  /// fallback + any SharedPreferences copy; macOS keeps its SP-removal fallback.
   Future<void> _deleteFromStorage(String key) async {
     if (_useSharedPrefsFallback) {
       final prefs = await SharedPreferences.getInstance();
@@ -119,7 +132,7 @@ class DeviceKeyService {
       return;
     }
     try {
-      await _secureStorage.delete(key: key);
+      await _secureStore.delete(key: key);
     } catch (e) {
       if (Platform.isMacOS) {
         final prefs = await SharedPreferences.getInstance();
