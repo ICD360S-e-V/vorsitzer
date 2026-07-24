@@ -42,20 +42,28 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
 
   Future<void> _checkExistingActivation() async {
     try {
-      // Read directly from SharedPreferences — DO NOT call _deviceKeyService.initialize()
-      // which triggers server validation + _collectExtendedDeviceData (osascript admin
-      // prompts on old builds) and destructively clears the key on ANY failure.
-      // The per-request validateApiKey() middleware validates device_key on every API call anyway.
+      // DO NOT call _deviceKeyService.initialize() here — it triggers server
+      // validation + _collectExtendedDeviceData (osascript admin prompts on old
+      // builds) and destructively clears the key on ANY failure. The per-request
+      // validateApiKey() middleware validates device_key on every API call anyway.
+      //
+      // Non-secret gate markers (mitgliedernummer, auto_login) live in
+      // SharedPreferences; the secret device_key is loaded via DeviceKeyService
+      // (keyring → Linux AES-GCM encrypted-file fallback → legacy-plaintext
+      // migration), never read from plaintext SharedPreferences.
       final prefs = await SharedPreferences.getInstance();
-      final storedKey = prefs.getString('device_key');
       final mgnum = prefs.getString('mitgliedernummer') ?? '';
       final autoLogin = prefs.getBool('auto_login') ?? false;
 
       // ─── Path A: local creds present → instant auto-login ───
-      if (storedKey != null && storedKey.isNotEmpty && mgnum.isNotEmpty && autoLogin) {
-        _log.info('Device key found in storage ($mgnum) — auto-login', tag: 'AUTH');
-        await _completeAutoLogin(storedKey, prefs.getString('device_id') ?? '', mgnum, prefs);
-        return;
+      if (mgnum.isNotEmpty && autoLogin) {
+        final storedKey = await _deviceKeyService.loadStoredDeviceKey();
+        if (storedKey != null && storedKey.isNotEmpty) {
+          final storedId = await _deviceKeyService.loadStoredDeviceId() ?? '';
+          _log.info('Device key found in storage ($mgnum) — auto-login', tag: 'AUTH');
+          await _completeAutoLogin(storedKey, storedId, mgnum, prefs);
+          return;
+        }
       }
 
       // ─── Path B: no local creds → try server-side recovery by device_id ───
@@ -70,8 +78,9 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
           final dk = recovery['device_key'] as String;
           final mn = (recovery['mitgliedernummer'] as String?) ?? '';
           _log.info('Device recovered by fingerprint ($mn) — skipping activation code', tag: 'AUTH');
-          await prefs.setString('device_key', dk);
-          await prefs.setString('device_id', deviceId);
+          // Persist the recovered secret securely (Linux → encrypted file);
+          // only non-secret markers go to SharedPreferences.
+          await _deviceKeyService.setActivatedCredentials(dk, deviceId);
           await prefs.setString('mitgliedernummer', mn);
           await prefs.setBool('auto_login', true);
           await _completeAutoLogin(dk, deviceId, mn, prefs);
@@ -417,10 +426,13 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
     });
 
     try {
-      // Read existing device_id (if available) without triggering full device registration.
-      // DeviceKeyService._readFromStorage handles macOS SharedPreferences fallback.
+      // Read existing device_id (if available) without triggering full device
+      // registration. Prefer any already-stored id, then fall back to the STABLE
+      // hardware fingerprint (not a throwaway timestamp) so server-side recovery
+      // (Path B) can re-issue this device_key later without a new activation code.
       String deviceId = _deviceKeyService.deviceId
-          ?? '${_platformString().toUpperCase()}_${DateTime.now().millisecondsSinceEpoch}';
+          ?? await _deviceKeyService.loadStoredDeviceId()
+          ?? await _deviceKeyService.getOrGenerateDeviceId();
 
       final deviceInfo = <String, dynamic>{
         'name': _deviceName(),
