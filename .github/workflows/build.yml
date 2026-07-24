@@ -172,6 +172,11 @@ jobs:
         # GTK are what `flutter build linux` itself needs; the rest are plugin
         # requirements: libmpv (media_kit), appindicator (tray_manager),
         # libsecret (flutter_secure_storage), cups (printing), alsa (audio).
+        env:
+          # Ubuntu 24.04 pulls in needrestart, which without a noninteractive
+          # frontend opens a service-restart prompt mid-install and hangs the
+          # step forever (no TTY to answer it). Force apt fully non-interactive.
+          DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -360,6 +365,8 @@ jobs:
           path: flatpak/bundle
 
       - name: Install flatpak + flatpak-builder
+        env:
+          DEBIAN_FRONTEND: noninteractive  # see Linux job — avoids the needrestart hang
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flatpak flatpak-builder
