@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../services/api_service.dart';
 import '../services/cloud_crypto_service.dart';
 import '../services/secure_cloud_service.dart';
+import 'document_crop_screen.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/file_viewer_dialog.dart';
 
@@ -161,10 +163,21 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       MaterialPageRoute(builder: (_) => const _CameraCaptureScreen()),
     );
     if (shot == null || !mounted) return; // cancelled
+    final raw = await File(shot.path).readAsBytes();
+    if (!mounted) return;
+    // Review step: auto-detect the document corners (OpenCV), let the user
+    // adjust, then de-skew/crop. Returns the final JPEG bytes, or null on cancel.
+    final Uint8List? out = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(builder: (_) => DocumentCropScreen(jpg: raw)),
+    );
+    if (out == null || !mounted) return;
+    final tmp = File(
+        '${(await getTemporaryDirectory()).path}/scan_${DateTime.now().millisecondsSinceEpoch}.jpg');
+    await tmp.writeAsBytes(out, flush: true);
     final name =
-        'Foto_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
+        'Scan_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
     await _startUpload([
-      _Upload(file: File(shot.path), name: name, mime: 'image/jpeg', source: 'scan'),
+      _Upload(file: tmp, name: name, mime: 'image/jpeg', source: 'scan'),
     ]);
   }
 
