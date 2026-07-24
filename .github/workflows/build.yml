@@ -409,6 +409,39 @@ jobs:
           rm -rf flatpak/shared-modules
           git clone --depth 1 --branch master https://github.com/flathub/shared-modules.git flatpak/shared-modules
 
+      - name: Force lib (not lib64) for shared-modules cmake builds
+        # The ayatana modules (cmake-ninja) use GNUInstallDirs, which under
+        # flatpak-builder 1.4.2 + the freedesktop SDK installs to /app/lib64.
+        # But the sandbox's PKG_CONFIG_PATH and runtime LD path only cover
+        # /app/lib, so libayatana-indicator's cmake can't find libayatana-ido3's
+        # .pc ("Package 'libayatana-ido3-0.4' not found") and, even if it built,
+        # the .so would be unreachable at runtime. The self-hosted VM hid this
+        # behind a warm cache. Pin CMAKE_INSTALL_LIBDIR=lib on every cmake module
+        # in the clone so everything lands in /app/lib. Autotools modules
+        # (libdbusmenu) already default to lib and are left untouched.
+        run: |
+          python3 - <<'PY'
+          import json, glob
+          def force(m):
+              if isinstance(m, dict):
+                  if str(m.get('buildsystem', '')).startswith('cmake'):
+                      opts = m.setdefault('config-opts', [])
+                      if '-DCMAKE_INSTALL_LIBDIR=lib' not in opts:
+                          opts.append('-DCMAKE_INSTALL_LIBDIR=lib')
+                  for sub in m.get('modules', []):
+                      force(sub)
+          for path in glob.glob('flatpak/shared-modules/**/*.json', recursive=True):
+              try:
+                  with open(path) as f:
+                      data = json.load(f)
+              except (ValueError, OSError):
+                  continue
+              force(data)
+              with open(path, 'w') as f:
+                  json.dump(data, f, indent=4)
+          print("patched shared-modules cmake libdir -> lib")
+          PY
+
       - name: Inject current version into AppStream metainfo
         run: |
           VERSION="${{ needs.version.outputs.version_name }}"
