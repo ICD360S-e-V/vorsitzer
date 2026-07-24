@@ -53,20 +53,21 @@ class SecureCloudService {
 
   bool get isUnlocked => _dek != null;
 
-  // ── Ephemeral "resume" across an external Activity (camera / file picker) ──
+  // ── Ephemeral "resume" across the external file-picker Activity ────────────
   //
-  // Taking a scan (or picking a file) launches a separate, memory-heavy native
-  // Activity. On Android — especially low-RAM devices or with "Don't keep
+  // Picking a file launches a separate native Activity (Storage Access
+  // Framework). On Android — especially low-RAM devices or with "Don't keep
   // activities" — the OS may kill our whole process while that Activity is in
   // the foreground. On return the app cold-starts, the in-RAM DEK is gone, and
-  // the user would be forced to re-type the passphrase (and the just-captured
-  // scan would be lost).
+  // the user would be forced to re-type the passphrase.
   //
   // To avoid that WITHOUT weakening the zero-knowledge model, we stash the DEK
   // (hardware-encrypted via Keystore/Keychain) ONLY for the few seconds around
   // that external Activity, tagged with a timestamp. On the next open we
-  // auto-unlock if the token is still fresh, then wipe it immediately. The
-  // pending-scan record lets us finish the interrupted upload after a restart.
+  // auto-unlock if the token is still fresh, then wipe it immediately.
+  //
+  // (Photo capture no longer needs this — the in-app camera never leaves our
+  // Activity, so the process is never killed mid-capture.)
   static const Duration _resumeMaxAge = Duration(minutes: 10);
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage(
@@ -75,7 +76,6 @@ class SecureCloudService {
 
   String get _kDek => 'cloud_resume_dek_$mitgliedernummer';
   String get _kTs => 'cloud_resume_ts_$mitgliedernummer';
-  String get _kScan => 'cloud_resume_scan_$mitgliedernummer';
 
   /// Persist the unlocked DEK briefly so returning from an external Activity
   /// that Android killed the process for can auto-unlock. No-op when locked.
@@ -121,50 +121,14 @@ class SecureCloudService {
     } catch (_) {}
   }
 
-  /// Record a just-captured scan whose upload may be interrupted by process
-  /// death, so it can be resumed after the app restarts. Stores only a local
-  /// file path + display name (the jpg itself already sits in the cache dir).
-  Future<void> setPendingScan(String path, String name, String mime) async {
-    try {
-      await _secure.write(
-          key: _kScan,
-          value: jsonEncode({'path': path, 'name': name, 'mime': mime}));
-    } catch (_) {}
-  }
-
-  /// Read the pending scan WITHOUT clearing it, so an upload interrupted by
-  /// another process kill can be retried. Call [clearPendingScan] only after
-  /// the upload actually succeeds. Null when none.
-  Future<({String path, String name, String mime})?> peekPendingScan() async {
-    try {
-      final s = await _secure.read(key: _kScan);
-      if (s == null) return null;
-      final m = (jsonDecode(s) as Map).cast<String, dynamic>();
-      return (
-        path: (m['path'] ?? '').toString(),
-        name: (m['name'] ?? 'Scan.jpg').toString(),
-        mime: (m['mime'] ?? 'image/jpeg').toString(),
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> clearPendingScan() async {
-    try {
-      await _secure.delete(key: _kScan);
-    } catch (_) {}
-  }
-
   /// Wipe the in-memory key. Call when leaving the screen / on inactivity.
-  /// Also drops any ephemeral resume/pending-scan token — a deliberate exit
-  /// must not leave a token behind that would silently re-unlock later.
+  /// Also drops any ephemeral resume token — a deliberate exit must not leave a
+  /// token behind that would silently re-unlock later.
   void lock() {
     _dek = null;
     // Fire-and-forget: a genuine exit clears the resume token too. (Process
     // death never reaches here, so the token still survives that path.)
     clearResume();
-    clearPendingScan();
   }
 
   /// true = cloud exists (unlock), false = not set up (setup), null = network error.

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../services/api_service.dart';
@@ -11,9 +11,6 @@ import '../services/cloud_crypto_service.dart';
 import '../services/secure_cloud_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/file_viewer_dialog.dart';
-
-// Scanner (OpenCV, offline, no Google). Android/iOS only — guarded at call site.
-import 'package:edge_detection/edge_detection.dart';
 
 /// Admin "Sichere Cloud" — 50 GB, client-side zero-knowledge storage.
 /// The recovery passphrase is requested on every open; the key lives only in
@@ -79,65 +76,17 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       return;
     }
     // Existing cloud. Before prompting, try to silently resume a session that
-    // the camera / file-picker Activity killed our process for — so returning
-    // from a scan neither re-asks the passphrase nor loses the captured photo.
+    // the file-picker Activity may have killed our process for — so returning
+    // from picking a file doesn't re-ask the passphrase. (Camera capture is now
+    // in-process and never kills us; see _capturePhotoAndUpload.)
     final resumed = await _svc.tryResume();
     if (!mounted) return;
     if (resumed) {
       setState(() => _stage = _Stage.ready);
       await _refresh();
-      await _resumePendingScan();
     } else {
       setState(() => _stage = _Stage.needsUnlock);
     }
-  }
-
-  /// After an auto-resume, finish an upload that was interrupted mid-scan by
-  /// process death. The plaintext jpg lives in durable app storage; if it
-  /// survived the restart we upload it now (clearing the tokens only once the
-  /// upload succeeds), otherwise we drop the record.
-  Future<void> _resumePendingScan() async {
-    final pending = await _svc.peekPendingScan();
-    if (pending == null || !mounted) return;
-    final file = File(pending.path);
-    if (!await file.exists() || await file.length() == 0) {
-      await _svc.clearPendingScan(); // the photo didn't survive — nothing to do
-      return;
-    }
-    if (!mounted) return;
-    _snack('Gescanntes Dokument wird hochgeladen …');
-    final uploaded = await _startUpload([
-      _Upload(
-          file: file, name: pending.name, mime: pending.mime, source: 'scan'),
-    ]);
-    if (uploaded) {
-      await _svc.clearResume();
-      await _svc.clearPendingScan();
-      await _cleanupScanFile(pending.path);
-    }
-  }
-
-  /// Delete a plaintext scan we durably stored, once it is safely uploaded.
-  Future<void> _cleanupScanFile(String path) async {
-    try {
-      final f = File(path);
-      if (await f.exists()) await f.delete();
-    } catch (_) {}
-  }
-
-  /// Drop leftover plaintext scans older than 7 days (uploads that never
-  /// completed) so decrypted images don't pile up in app storage.
-  Future<void> _purgeStaleScans(Directory dir) async {
-    try {
-      final now = DateTime.now();
-      await for (final e in dir.list()) {
-        if (e is File && now.difference((await e.stat()).modified).inDays >= 7) {
-          try {
-            await e.delete();
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
   }
 
   Future<void> _refresh() async {
@@ -199,59 +148,24 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
     await _startUpload(items);
   }
 
-  Future<void> _scanAndUpload() async {
+  /// Take a photo with an IN-APP camera (the `camera` plugin renders the preview
+  /// inside our own Activity). Because we never launch an external app, Android
+  /// can't kill our process mid-capture — the DEK stays in RAM and the photo is
+  /// never lost. The captured jpg comes back as an [XFile] we upload directly.
+  Future<void> _capturePhotoAndUpload() async {
     if (!(Platform.isAndroid || Platform.isIOS)) {
-      _snack('Scannen ist nur auf dem Tablet/Handy verfügbar.', isError: true);
+      _snack('Kamera ist nur auf dem Handy/Tablet verfügbar.', isError: true);
       return;
     }
-    try {
-      // Write the scan to DURABLE app storage (not the cache): the cache can be
-      // wiped exactly when Android kills our process for memory, which would
-      // lose the photo. A durable path survives the cold restart so the resume
-      // can still find and upload it.
-      final scanDir = Directory(
-          '${(await getApplicationSupportDirectory()).path}/pending_scans');
-      if (!await scanDir.exists()) await scanDir.create(recursive: true);
-      await _purgeStaleScans(scanDir);
-      final path =
-          '${scanDir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final name = 'Scan_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
-      // Guard against Android killing our process while the camera is in the
-      // foreground: stash the DEK (briefly, hardware-encrypted) + the intended
-      // upload, so we can auto-unlock and finish it after a cold restart.
-      await _svc.armResume();
-      await _svc.setPendingScan(path, name, 'image/jpeg');
-      await EdgeDetection.detectEdge(
-        path,
-        canUseGallery: false,
-        androidScanTitle: 'Dokument scannen',
-        androidCropTitle: 'Zuschneiden',
-        androidCropBlackWhiteTitle: 'S/W',
-        androidCropReset: 'Zurücksetzen',
-      );
-      // Trust the FILE, not the return value: this edge_detection fork returns
-      // an unreliable boolean, so a captured scan can come back as false. If no
-      // file was written, the user genuinely cancelled.
-      final file = File(path);
-      final captured = await file.exists() && await file.length() > 0;
-      if (!captured) {
-        await _svc.clearResume();
-        await _svc.clearPendingScan();
-        return;
-      }
-      // Keep the resume token + pending record until the upload SUCCEEDS, so a
-      // kill mid-upload is retried on the next open (idempotent).
-      final uploaded = await _startUpload([
-        _Upload(file: file, name: name, mime: 'image/jpeg', source: 'scan'),
-      ]);
-      if (uploaded) {
-        await _svc.clearResume();
-        await _svc.clearPendingScan();
-        await _cleanupScanFile(path);
-      }
-    } catch (e) {
-      _snack('Scan fehlgeschlagen: $e', isError: true);
-    }
+    final XFile? shot = await Navigator.of(context).push<XFile>(
+      MaterialPageRoute(builder: (_) => const _CameraCaptureScreen()),
+    );
+    if (shot == null || !mounted) return; // cancelled
+    final name =
+        'Foto_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
+    await _startUpload([
+      _Upload(file: File(shot.path), name: name, mime: 'image/jpeg', source: 'scan'),
+    ]);
   }
 
   /// Returns true only if every item uploaded successfully.
@@ -700,12 +614,12 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
             ),
             if (canScan)
               ListTile(
-                leading: const Icon(Icons.document_scanner),
-                title: const Text('Dokument scannen'),
-                subtitle: const Text('Kamera · automatische Randerkennung · offline'),
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Foto aufnehmen'),
+                subtitle: const Text('Kamera in der App · direkt verschlüsselt'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _scanAndUpload();
+                  _capturePhotoAndUpload();
                 },
               ),
           ],
@@ -1187,5 +1101,155 @@ class _UploadProgressDialogState extends State<_UploadProgressDialog> {
       case _UploadStatus.error:
         return const Icon(Icons.error, color: Colors.red, size: 22);
     }
+  }
+}
+
+// ── In-app camera ────────────────────────────────────────────────────────────
+
+/// Full-screen camera that renders the preview INSIDE our own Activity (the
+/// `camera` plugin), so taking a photo never launches an external app. That is
+/// the whole point: Android can't kill our process mid-capture, so the unlocked
+/// DEK stays in RAM and the photo is never lost. Pops with the captured [XFile]
+/// (or null if the user backs out). Handles init, permission/hardware errors,
+/// and pausing/resuming the controller with the app lifecycle.
+class _CameraCaptureScreen extends StatefulWidget {
+  const _CameraCaptureScreen();
+
+  @override
+  State<_CameraCaptureScreen> createState() => _CameraCaptureScreenState();
+}
+
+class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
+    with WidgetsBindingObserver {
+  CameraController? _controller;
+  String? _error;
+  bool _taking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _setupCamera();
+  }
+
+  Future<void> _setupCamera() async {
+    try {
+      final cams = await availableCameras();
+      if (cams.isEmpty) {
+        if (mounted) setState(() => _error = 'Keine Kamera gefunden.');
+        return;
+      }
+      final back = cams.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cams.first,
+      );
+      // Prefer a legible resolution for documents; fall back if unsupported.
+      CameraController ctrl;
+      try {
+        ctrl = await _make(back, ResolutionPreset.veryHigh);
+      } on CameraException {
+        ctrl = await _make(back, ResolutionPreset.high);
+      }
+      if (!mounted) {
+        await ctrl.dispose();
+        return;
+      }
+      setState(() {
+        _controller = ctrl;
+        _error = null;
+      });
+    } on CameraException catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Kamera nicht verfügbar: ${e.description ?? e.code}');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Kamera-Fehler: $e');
+    }
+  }
+
+  Future<CameraController> _make(CameraDescription cam, ResolutionPreset p) async {
+    final ctrl = CameraController(
+      cam,
+      p,
+      enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    await ctrl.initialize();
+    return ctrl;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (state == AppLifecycleState.inactive) {
+      _controller = null;
+      ctrl?.dispose();
+      if (mounted) setState(() {});
+    } else if (state == AppLifecycleState.resumed && ctrl == null) {
+      _setupCamera();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _take() async {
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized || _taking) return;
+    setState(() => _taking = true);
+    try {
+      final XFile file = await ctrl.takePicture();
+      if (!mounted) return;
+      Navigator.of(context).pop(file);
+    } on CameraException catch (e) {
+      if (!mounted) return;
+      setState(() => _taking = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Aufnahme fehlgeschlagen: ${e.description ?? e.code}'),
+        backgroundColor: Colors.red.shade700,
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = _controller?.value.isInitialized ?? false;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text('Foto aufnehmen'),
+      ),
+      body: _buildBody(ready),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: ready && _error == null
+          ? FloatingActionButton.large(
+              onPressed: _taking ? null : _take,
+              child: _taking
+                  ? const SizedBox(
+                      width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 3))
+                  : const Icon(Icons.camera_alt, size: 34),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildBody(bool ready) {
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_error!,
+              textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
+        ),
+      );
+    }
+    if (!ready) return const Center(child: CircularProgressIndicator());
+    return Center(child: CameraPreview(_controller!));
   }
 }
