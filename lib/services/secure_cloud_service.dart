@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
 import 'cloud_crypto_service.dart';
@@ -52,8 +53,118 @@ class SecureCloudService {
 
   bool get isUnlocked => _dek != null;
 
+  // ── Ephemeral "resume" across an external Activity (camera / file picker) ──
+  //
+  // Taking a scan (or picking a file) launches a separate, memory-heavy native
+  // Activity. On Android — especially low-RAM devices or with "Don't keep
+  // activities" — the OS may kill our whole process while that Activity is in
+  // the foreground. On return the app cold-starts, the in-RAM DEK is gone, and
+  // the user would be forced to re-type the passphrase (and the just-captured
+  // scan would be lost).
+  //
+  // To avoid that WITHOUT weakening the zero-knowledge model, we stash the DEK
+  // (hardware-encrypted via Keystore/Keychain) ONLY for the few seconds around
+  // that external Activity, tagged with a timestamp. On the next open we
+  // auto-unlock if the token is still fresh, then wipe it immediately. The
+  // pending-scan record lets us finish the interrupted upload after a restart.
+  static const Duration _resumeMaxAge = Duration(minutes: 10);
+
+  final FlutterSecureStorage _secure = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
+
+  String get _kDek => 'cloud_resume_dek_$mitgliedernummer';
+  String get _kTs => 'cloud_resume_ts_$mitgliedernummer';
+  String get _kScan => 'cloud_resume_scan_$mitgliedernummer';
+
+  /// Persist the unlocked DEK briefly so returning from an external Activity
+  /// that Android killed the process for can auto-unlock. No-op when locked.
+  Future<void> armResume() async {
+    final dek = _dek;
+    if (dek == null) return;
+    try {
+      final bytes = Uint8List.fromList(await dek.extractBytes());
+      await _secure.write(key: _kDek, value: base64.encode(bytes));
+      await _secure.write(
+          key: _kTs, value: DateTime.now().millisecondsSinceEpoch.toString());
+    } catch (_) {
+      // Best-effort — a missing token just means the user re-enters the pass.
+    }
+  }
+
+  /// Restore a freshly-armed session (see [armResume]). Returns true and sets
+  /// [_dek] on success; stale/absent tokens are ignored and cleaned up.
+  Future<bool> tryResume() async {
+    try {
+      final tsStr = await _secure.read(key: _kTs);
+      final b64 = await _secure.read(key: _kDek);
+      if (tsStr == null || b64 == null) return false;
+      final ts = int.tryParse(tsStr) ?? 0;
+      final age = DateTime.now().millisecondsSinceEpoch - ts;
+      if (age < 0 || age > _resumeMaxAge.inMilliseconds) {
+        await clearResume();
+        return false;
+      }
+      _dek = SecretKey(base64.decode(b64));
+      return true;
+    } catch (_) {
+      await clearResume();
+      return false;
+    }
+  }
+
+  /// Drop the ephemeral resume token (call once the round-trip is over).
+  Future<void> clearResume() async {
+    try {
+      await _secure.delete(key: _kDek);
+      await _secure.delete(key: _kTs);
+    } catch (_) {}
+  }
+
+  /// Record a just-captured scan whose upload may be interrupted by process
+  /// death, so it can be resumed after the app restarts. Stores only a local
+  /// file path + display name (the jpg itself already sits in the cache dir).
+  Future<void> setPendingScan(String path, String name, String mime) async {
+    try {
+      await _secure.write(
+          key: _kScan,
+          value: jsonEncode({'path': path, 'name': name, 'mime': mime}));
+    } catch (_) {}
+  }
+
+  /// Consume the pending scan (deletes the record). Null when none.
+  Future<({String path, String name, String mime})?> takePendingScan() async {
+    try {
+      final s = await _secure.read(key: _kScan);
+      if (s == null) return null;
+      await _secure.delete(key: _kScan);
+      final m = (jsonDecode(s) as Map).cast<String, dynamic>();
+      return (
+        path: (m['path'] ?? '').toString(),
+        name: (m['name'] ?? 'Scan.jpg').toString(),
+        mime: (m['mime'] ?? 'image/jpeg').toString(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> clearPendingScan() async {
+    try {
+      await _secure.delete(key: _kScan);
+    } catch (_) {}
+  }
+
   /// Wipe the in-memory key. Call when leaving the screen / on inactivity.
-  void lock() => _dek = null;
+  /// Also drops any ephemeral resume/pending-scan token — a deliberate exit
+  /// must not leave a token behind that would silently re-unlock later.
+  void lock() {
+    _dek = null;
+    // Fire-and-forget: a genuine exit clears the resume token too. (Process
+    // death never reaches here, so the token still survives that path.)
+    clearResume();
+    clearPendingScan();
+  }
 
   /// true = cloud exists (unlock), false = not set up (setup), null = network error.
   Future<bool?> hasCloud() async {
