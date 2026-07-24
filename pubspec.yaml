@@ -231,6 +231,7 @@ dependencies:
   # native speech recognizer (Android SpeechRecognizer / iOS Speech.framework).
   # Zero network calls, funcționează și offline pe device-uri cu on-device STT.
   speech_to_text: ^7.0.0
+  opencv_core: ^1.4.5
 
 dev_dependencies:
   flutter_test:
