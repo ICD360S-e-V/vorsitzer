@@ -980,6 +980,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       barrierDismissible: false,
       builder: (ctx) => IncomingCallDialog(
         callerName: event.callerName,
+        isVideo: _voiceCallService.offerSendsVideo(event.sdp),
         onAccept: () {
           _log.info('AdminChat: User pressed ACCEPT in dialog', tag: 'CALL');
           Navigator.of(ctx).pop();
