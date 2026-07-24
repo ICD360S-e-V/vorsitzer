@@ -369,7 +369,10 @@ jobs:
           DEBIAN_FRONTEND: noninteractive  # see Linux job — avoids the needrestart hang
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder
+          # elfutils provides eu-strip, which flatpak-builder calls to strip
+          # debug symbols from built modules (libdbusmenu et al). Pre-installed
+          # on the old VM; absent on cloud runners.
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils
           flatpak remote-add --if-not-exists --user \
             flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y --noninteractive \
