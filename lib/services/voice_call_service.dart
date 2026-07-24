@@ -229,8 +229,10 @@ class VoiceCallService {
 
     try {
       _setCallState(CallState.connecting);
-      // The offer's SDP tells us whether the caller wants video (m=video line).
-      _isVideoCall = sdp.contains('m=video');
+      // Whether the caller is actually SENDING video (real video call). A plain
+      // voice call may still carry a passive (recvonly/inactive) video m-line —
+      // that must NOT turn our camera on. See _offerSendsVideo().
+      _isVideoCall = _offerSendsVideo(sdp);
       _log.info('VoiceCallService: ✓ State changed to: connecting (video: $_isVideoCall)', tag: 'CALL');
 
       // Get local audio stream
@@ -655,6 +657,45 @@ class VoiceCallService {
     } catch (e) {
       _log.warning('VoiceCallService: switchCamera failed: $e', tag: 'CALL');
     }
+  }
+
+  /// Whether the caller's offer actually SENDS video — i.e. this is a real
+  /// video call, not a voice call that merely carries a passive video m-line.
+  ///
+  /// `sdp.contains('m=video')` was too loose: an *audio* call can still include
+  /// a `recvonly`/`inactive` video m-line (e.g. a recvonly transceiver kept open
+  /// so the call could later be upgraded). Treating that as a video call made
+  /// this side open its own camera on a plain voice call. We count it as video
+  /// only when the m=video section is not rejected (port ≠ 0) and its direction
+  /// lets the caller send (sendrecv / sendonly).
+  bool _offerSendsVideo(String? sdp) {
+    if (sdp == null || sdp.isEmpty) return false;
+    final lines = sdp.split(RegExp(r'\r\n|\r|\n'));
+    var inVideo = false;
+    var videoActive = false; // m=video port != 0 (not a rejected m-line)
+    String? direction;
+    for (final line in lines) {
+      if (line.startsWith('m=')) {
+        if (inVideo) break; // reached the next m-section → video section done
+        if (line.startsWith('m=video')) {
+          inVideo = true;
+          // "m=video <port> ..." — port 0 means the m-line is rejected/disabled.
+          final parts = line.split(' ');
+          videoActive = parts.length > 1 && parts[1] != '0';
+        }
+        continue;
+      }
+      if (inVideo &&
+          (line == 'a=sendrecv' ||
+              line == 'a=sendonly' ||
+              line == 'a=recvonly' ||
+              line == 'a=inactive')) {
+        direction = line.substring(2);
+      }
+    }
+    if (!inVideo || !videoActive) return false;
+    final dir = direction ?? 'sendrecv'; // SDP default when unspecified
+    return dir == 'sendrecv' || dir == 'sendonly';
   }
 
   /// Create WebRTC peer connection
