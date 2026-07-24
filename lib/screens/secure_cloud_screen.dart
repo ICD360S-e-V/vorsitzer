@@ -72,9 +72,39 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
         _stage = _Stage.error;
         _error = 'Keine Verbindung zum Server.';
       });
-    } else {
-      setState(() => _stage = has ? _Stage.needsUnlock : _Stage.needsSetup);
+      return;
     }
+    if (!has) {
+      setState(() => _stage = _Stage.needsSetup);
+      return;
+    }
+    // Existing cloud. Before prompting, try to silently resume a session that
+    // the camera / file-picker Activity killed our process for — so returning
+    // from a scan neither re-asks the passphrase nor loses the captured photo.
+    final resumed = await _svc.tryResume();
+    if (!mounted) return;
+    if (resumed) {
+      setState(() => _stage = _Stage.ready);
+      await _refresh();
+      await _resumePendingScan();
+    } else {
+      setState(() => _stage = _Stage.needsUnlock);
+    }
+  }
+
+  /// After an auto-resume, finish an upload that was interrupted mid-scan by
+  /// process death. The plaintext jpg lives in the cache dir; if it survived
+  /// the restart we upload it now, otherwise we silently drop the record.
+  Future<void> _resumePendingScan() async {
+    final pending = await _svc.takePendingScan();
+    if (pending == null || !mounted) return;
+    final file = File(pending.path);
+    if (!await file.exists() || !mounted) return;
+    _snack('Gescanntes Dokument wird hochgeladen …');
+    await _startUpload([
+      _Upload(
+          file: file, name: pending.name, mime: pending.mime, source: 'scan'),
+    ]);
   }
 
   Future<void> _refresh() async {
@@ -112,11 +142,15 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
   }
 
   Future<void> _pickAndUpload() async {
+    // The file picker opens a separate Activity too — arm the resume token so
+    // returning after a process kill auto-unlocks instead of re-prompting.
+    await _svc.armResume();
     final result = await FilePickerHelper.pickFiles(
       allowMultiple: true,
       type: FileType.any,
       dialogTitle: 'Dateien in die Cloud hochladen (max. $_maxBatch)',
     );
+    await _svc.clearResume(); // survived the round-trip
     if (result == null || result.files.isEmpty) return;
     var picked = result.files.where((f) => f.path != null).toList();
     if (picked.length > _maxBatch) {
@@ -141,6 +175,12 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       final dir = await getTemporaryDirectory();
       final path =
           '${dir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final name = 'Scan_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
+      // Guard against Android killing our process while the camera is in the
+      // foreground: stash the DEK (briefly, hardware-encrypted) + the intended
+      // upload, so we can auto-unlock and finish it after a cold restart.
+      await _svc.armResume();
+      await _svc.setPendingScan(path, name, 'image/jpeg');
       final ok = await EdgeDetection.detectEdge(
         path,
         canUseGallery: false,
@@ -149,12 +189,17 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
         androidCropBlackWhiteTitle: 'S/W',
         androidCropReset: 'Zurücksetzen',
       );
+      // We're still alive here → the process survived; no resume needed and the
+      // upload happens right now, so drop both tokens.
+      await _svc.clearResume();
+      await _svc.clearPendingScan();
       if (ok != true) return; // cancelled
-      final name = 'Scan_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
       await _startUpload([
         _Upload(file: File(path), name: name, mime: 'image/jpeg', source: 'scan'),
       ]);
     } catch (e) {
+      await _svc.clearResume();
+      await _svc.clearPendingScan();
       _snack('Scan fehlgeschlagen: $e', isError: true);
     }
   }
