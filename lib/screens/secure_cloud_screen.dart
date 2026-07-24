@@ -93,18 +93,51 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
   }
 
   /// After an auto-resume, finish an upload that was interrupted mid-scan by
-  /// process death. The plaintext jpg lives in the cache dir; if it survived
-  /// the restart we upload it now, otherwise we silently drop the record.
+  /// process death. The plaintext jpg lives in durable app storage; if it
+  /// survived the restart we upload it now (clearing the tokens only once the
+  /// upload succeeds), otherwise we drop the record.
   Future<void> _resumePendingScan() async {
-    final pending = await _svc.takePendingScan();
+    final pending = await _svc.peekPendingScan();
     if (pending == null || !mounted) return;
     final file = File(pending.path);
-    if (!await file.exists() || !mounted) return;
+    if (!await file.exists() || await file.length() == 0) {
+      await _svc.clearPendingScan(); // the photo didn't survive — nothing to do
+      return;
+    }
+    if (!mounted) return;
     _snack('Gescanntes Dokument wird hochgeladen …');
-    await _startUpload([
+    final uploaded = await _startUpload([
       _Upload(
           file: file, name: pending.name, mime: pending.mime, source: 'scan'),
     ]);
+    if (uploaded) {
+      await _svc.clearResume();
+      await _svc.clearPendingScan();
+      await _cleanupScanFile(pending.path);
+    }
+  }
+
+  /// Delete a plaintext scan we durably stored, once it is safely uploaded.
+  Future<void> _cleanupScanFile(String path) async {
+    try {
+      final f = File(path);
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
+  }
+
+  /// Drop leftover plaintext scans older than 7 days (uploads that never
+  /// completed) so decrypted images don't pile up in app storage.
+  Future<void> _purgeStaleScans(Directory dir) async {
+    try {
+      final now = DateTime.now();
+      await for (final e in dir.list()) {
+        if (e is File && now.difference((await e.stat()).modified).inDays >= 7) {
+          try {
+            await e.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _refresh() async {
@@ -172,16 +205,23 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       return;
     }
     try {
-      final dir = await getTemporaryDirectory();
+      // Write the scan to DURABLE app storage (not the cache): the cache can be
+      // wiped exactly when Android kills our process for memory, which would
+      // lose the photo. A durable path survives the cold restart so the resume
+      // can still find and upload it.
+      final scanDir = Directory(
+          '${(await getApplicationSupportDirectory()).path}/pending_scans');
+      if (!await scanDir.exists()) await scanDir.create(recursive: true);
+      await _purgeStaleScans(scanDir);
       final path =
-          '${dir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          '${scanDir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final name = 'Scan_${DateTime.now().toIso8601String().substring(0, 19).replaceAll(':', '-')}.jpg';
       // Guard against Android killing our process while the camera is in the
       // foreground: stash the DEK (briefly, hardware-encrypted) + the intended
       // upload, so we can auto-unlock and finish it after a cold restart.
       await _svc.armResume();
       await _svc.setPendingScan(path, name, 'image/jpeg');
-      final ok = await EdgeDetection.detectEdge(
+      await EdgeDetection.detectEdge(
         path,
         canUseGallery: false,
         androidScanTitle: 'Dokument scannen',
@@ -189,23 +229,34 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
         androidCropBlackWhiteTitle: 'S/W',
         androidCropReset: 'Zurücksetzen',
       );
-      // We're still alive here → the process survived; no resume needed and the
-      // upload happens right now, so drop both tokens.
-      await _svc.clearResume();
-      await _svc.clearPendingScan();
-      if (ok != true) return; // cancelled
-      await _startUpload([
-        _Upload(file: File(path), name: name, mime: 'image/jpeg', source: 'scan'),
+      // Trust the FILE, not the return value: this edge_detection fork returns
+      // an unreliable boolean, so a captured scan can come back as false. If no
+      // file was written, the user genuinely cancelled.
+      final file = File(path);
+      final captured = await file.exists() && await file.length() > 0;
+      if (!captured) {
+        await _svc.clearResume();
+        await _svc.clearPendingScan();
+        return;
+      }
+      // Keep the resume token + pending record until the upload SUCCEEDS, so a
+      // kill mid-upload is retried on the next open (idempotent).
+      final uploaded = await _startUpload([
+        _Upload(file: file, name: name, mime: 'image/jpeg', source: 'scan'),
       ]);
+      if (uploaded) {
+        await _svc.clearResume();
+        await _svc.clearPendingScan();
+        await _cleanupScanFile(path);
+      }
     } catch (e) {
-      await _svc.clearResume();
-      await _svc.clearPendingScan();
       _snack('Scan fehlgeschlagen: $e', isError: true);
     }
   }
 
-  Future<void> _startUpload(List<_Upload> items) async {
-    if (items.isEmpty) return;
+  /// Returns true only if every item uploaded successfully.
+  Future<bool> _startUpload(List<_Upload> items) async {
+    if (items.isEmpty) return false;
     // Modal progress dialog: encrypts + uploads each file, showing a per-file
     // spinner that turns into a green check on success (red on error).
     await showDialog<void>(
@@ -214,6 +265,7 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       builder: (_) => _UploadProgressDialog(svc: _svc, items: items),
     );
     await _refresh(); // reflect the new files + updated quota
+    return items.every((i) => i.status == _UploadStatus.done);
   }
 
   Future<void> _download(CloudFile f) async {

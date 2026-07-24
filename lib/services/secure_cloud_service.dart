@@ -132,12 +132,13 @@ class SecureCloudService {
     } catch (_) {}
   }
 
-  /// Consume the pending scan (deletes the record). Null when none.
-  Future<({String path, String name, String mime})?> takePendingScan() async {
+  /// Read the pending scan WITHOUT clearing it, so an upload interrupted by
+  /// another process kill can be retried. Call [clearPendingScan] only after
+  /// the upload actually succeeds. Null when none.
+  Future<({String path, String name, String mime})?> peekPendingScan() async {
     try {
       final s = await _secure.read(key: _kScan);
       if (s == null) return null;
-      await _secure.delete(key: _kScan);
       final m = (jsonDecode(s) as Map).cast<String, dynamic>();
       return (
         path: (m['path'] ?? '').toString(),
