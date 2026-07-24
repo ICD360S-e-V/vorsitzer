@@ -539,6 +539,19 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER =
           EOF
 
+      - name: Free disk space (macOS runner)
+        run: |
+          # macOS runners ship with only ~14 GB free but carry 20-80 GB of iOS
+          # simulator runtimes we never use. OpenCV (opencv_core / DartCvMacOS)
+          # adds a large universal static lib, so `hdiutil create` for the DMG
+          # ran out of space at v6.67.0. Reclaim the simulator space up front so
+          # the build + DMG have headroom.
+          echo "--- before ---"; df -h /
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* || true
+          xcrun simctl delete unavailable || true
+          rm -rf ~/Library/Developer/CoreSimulator/Caches/* || true
+          echo "--- after ---"; df -h /
+
       - name: Build macOS
         run: |
           flutter build macos \

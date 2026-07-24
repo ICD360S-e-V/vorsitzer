@@ -10,12 +10,14 @@ final _log = LoggerService();
 /// Incoming Call Dialog - shown when receiving a voice call
 class IncomingCallDialog extends StatefulWidget {
   final String callerName;
+  final bool isVideo;
   final VoidCallback onAccept;
   final VoidCallback onReject;
 
   const IncomingCallDialog({
     super.key,
     required this.callerName,
+    this.isVideo = false,
     required this.onAccept,
     required this.onReject,
   });
@@ -90,10 +92,10 @@ class _IncomingCallDialogState extends State<IncomingCallDialog>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            // Incoming call text
-            const Text(
-              'Eingehender Anruf',
-              style: TextStyle(
+            // Incoming call text (audio vs video)
+            Text(
+              widget.isVideo ? 'Eingehender Videoanruf' : 'Eingehender Anruf',
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 14,
               ),
