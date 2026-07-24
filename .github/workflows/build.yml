@@ -71,25 +71,14 @@ jobs:
   # ──────────────────────────────────────────────
   version:
     name: "📋 Version Info"
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
     steps:
-      # Self-hosted runner: a cancelled/failed Flatpak build leaves
-      # flatpak-builder rofiles-fuse mounts locked under flatpak/.flatpak-builder/
-      # (flatpak-builder runs with working-directory: flatpak, so its state dir
-      # lands in the checked-out tree). The next run's actions/checkout then dies
-      # while resetting the workspace with "EBUSY: resource busy or locked, rmdir
-      # ... rofiles-XXXXXX", taking down the whole pipeline right here at Version
-      # Info. Unmount any stragglers and drop the state dir BEFORE checkout so it
-      # can clean the tree. Runs on the leftover workspace; safe no-op when fresh.
-      - name: Cleanup stale flatpak-builder mounts
-        run: |
-          for m in $(mount 2>/dev/null | awk '/\.flatpak-builder\/rofiles\/rofiles-/{print $3}'); do
-            fusermount -u "$m" 2>/dev/null || umount -l "$m" 2>/dev/null || true
-          done
-          rm -rf "${GITHUB_WORKSPACE:-.}/flatpak/.flatpak-builder" 2>/dev/null || true
+      # (The old self-hosted runner needed a pre-checkout step here to unmount
+      # leftover flatpak-builder rofiles-fuse mounts from a cancelled run. Cloud
+      # runners start from a clean VM every time, so it is gone.)
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Extract version from pubspec.yaml
         id: version
@@ -130,24 +119,26 @@ jobs:
   # ══════════════════════════════════════════════
   #
   # Run flutter analyze BEFORE the Linux build. If analyze finds errors,
-  # we fail in ~30 s instead of wasting 1-2 min on a build whose artifact
-  # would be thrown away. Pub cache is on NVMe so this is effectively free
-  # after the first run.
+  # we fail early instead of wasting the whole build on an artifact that
+  # would be thrown away. flutter-action's cache keeps the SDK + pub cache
+  # warm between runs.
   analyze:
     name: "🔍 Static analysis"
     needs: version
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.38.4' }}
+          cache: true
+
       - name: flutter pub get
-        run: |
-          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
-          flutter pub get
+        run: flutter pub get
 
       - name: flutter analyze
         run: |
-          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
           # Errors fail the build; warnings + infos are tolerated (the
           # codebase still has legitimate deprecation warnings around the
           # Radio API migration to RadioGroup and a few unused private
@@ -165,29 +156,44 @@ jobs:
   linux:
     name: "🐧 Linux"
     needs: [version, analyze]
-    # Self-hosted runner on 10.10.10.60 (Ubuntu 26.04 LTS, 8 vCPU/30 GB/97 GB).
-    # All apt deps, Flutter SDK (/opt/flutter), Android SDK, JDK 17, flatpak +
-    # runtime, libmpv-dev/mpv are pre-installed on the VM. No cache actions
-    # needed — the NVMe disk IS the cache. See README §self-hosted-runner.
-    runs-on: [self-hosted, linux, x64]
+    # GitHub-hosted runner. Everything the old self-hosted VM had pre-installed
+    # (Flutter SDK, GTK/clang toolchain, libmpv) has to be set up per run below.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      - name: Install dependencies
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ github.event.inputs.flutter_version || '3.38.4' }}
+          cache: true
+
+      - name: Install Linux build dependencies
+        # Cloud runners ship none of the desktop toolchain. clang/cmake/ninja +
+        # GTK are what `flutter build linux` itself needs; the rest are plugin
+        # requirements: libmpv (media_kit), appindicator (tray_manager),
+        # libsecret (flutter_secure_storage), cups (printing), alsa (audio).
         run: |
-          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
-          flutter pub get
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libmpv-dev mpv \
+            libayatana-appindicator3-dev \
+            libsecret-1-dev libjsoncpp-dev \
+            libcups2-dev libasound2-dev
+
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Build Linux
         env:
-          # Ubuntu 26.04 ships clang-21 with -Werror on deprecated-declarations
-          # by default. The tray_manager plugin calls app_indicator_new() which
-          # libayatana-appindicator has marked deprecated upstream; that's a
-          # warning we can't fix without forking the plugin. Demote to warning.
+          # tray_manager calls app_indicator_new(), which libayatana-appindicator
+          # marks deprecated upstream — a warning we can't fix without forking the
+          # plugin. Harmless on the cloud runner's clang-18, kept because newer
+          # toolchains promote it to an error by default.
           CFLAGS: "-Wno-error=deprecated-declarations"
           CXXFLAGS: "-Wno-error=deprecated-declarations"
         run: |
-          export PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH"
           flutter config --enable-linux-desktop
           # --no-tree-shake-icons saves ~15 s by skipping the icon font
           # tree-shaking step. We ship the material icons font as-is; the
@@ -339,11 +345,12 @@ jobs:
   flatpak:
     name: "📦 Flatpak"
     needs: [version, linux]
-    # Self-hosted runner. flatpak + flatpak-builder + org.freedesktop.{Platform,Sdk}//24.08
-    # already installed on the VM. Cache (~/.cache/flatpak-builder/) lives on
-    # NVMe — libass/libplacebo/uchardet/libmpv stay compiled across builds,
-    # rebuild only when flatpak/de.icd360s.Vorsitzer.yml or *.patch change.
-    runs-on: [self-hosted, linux, x64]
+    # GitHub-hosted runner: flatpak, flatpak-builder and the freedesktop runtime
+    # are installed per run below. The old self-hosted VM kept
+    # ~/.cache/flatpak-builder/ on NVMe so libass/libplacebo/uchardet/libmpv
+    # stayed compiled between builds; here actions/cache stands in for that,
+    # keyed on the manifest + patches so it only rebuilds when they change.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -352,14 +359,29 @@ jobs:
           name: linux-bundle
           path: flatpak/bundle
 
+      - name: Install flatpak + flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user \
+            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive \
+            flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+
+      - name: Cache flatpak-builder build state
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ~/.cache/flatpak-builder
+          key: flatpak-builder-${{ hashFiles('flatpak/de.icd360s.Vorsitzer.yml', 'flatpak/*.patch') }}
+          restore-keys: flatpak-builder-
+
       - name: Make binary executable
         run: chmod +x flatpak/bundle/icd360sev_vorsitzer
 
-      - name: Import Flatpak signing GPG key (idempotent)
-        # The key (ID 244C2F8A661420E8, "ICD360S e.V. Flatpak Builds") is
-        # already on the self-hosted runner's keyring. We re-import the
-        # secret on every run so a fresh VM / rebuilt runner image can
-        # sign without manual intervention. gpg --import is idempotent.
+      - name: Import Flatpak signing GPG key
+        # Key ID 244C2F8A661420E8, "ICD360S e.V. Flatpak Builds". The cloud
+        # runner starts with an empty keyring, so this import is what makes
+        # signing work at all. gpg --import is idempotent.
         env:
           GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
         run: |
@@ -402,16 +424,15 @@ jobs:
           cat flatpak/de.icd360s.Vorsitzer.metainfo.xml
 
       - name: Build Flatpak
-        # Direct flatpak-builder call instead of the GitHub action wrapper —
-        # on a self-hosted runner the action's cache-key / state-dir / repo-dir
-        # are irrelevant (NVMe is persistent). flatpak-builder's own cache
-        # under ~/.cache/flatpak-builder/build/ skips libass/libplacebo/
-        # uchardet/libmpv when manifest is unchanged → ~20-30 s for Dart-only
-        # changes vs full rebuild only on manifest/patch edits.
+        # Direct flatpak-builder call instead of the GitHub action wrapper, so
+        # we control the state dir ourselves. flatpak-builder's own cache under
+        # ~/.cache/flatpak-builder/build/ skips libass/libplacebo/uchardet/
+        # libmpv when the manifest is unchanged — restored by the actions/cache
+        # step above, so a Dart-only change avoids the full libmpv rebuild.
         #
         # No --force-clean — that flag wipes ~/.cache/flatpak-builder/build/
-        # before every build, defeating the whole point of the persistent
-        # NVMe cache (libmpv stack rebuild every run, ~3 min wasted).
+        # before every build, which would defeat the restored cache and rebuild
+        # the libmpv stack every run (~3 min wasted).
         # --ccache caches C/C++ object files in ~/.cache/ccache so partial
         # invalidations (one module changed) still hit object-level cache.
         # We do clean the output dir ourselves to avoid stale .flatpak from
