@@ -699,6 +699,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
       barrierDismissible: false,
       builder: (ctx) => IncomingCallDialog(
         callerName: event.callerName,
+        isVideo: _voiceCallService.offerSendsVideo(event.sdp),
         onAccept: () {
           _log.info('LiveChat: User pressed ACCEPT in dialog', tag: 'CALL');
           Navigator.of(ctx).pop();

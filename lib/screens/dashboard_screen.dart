@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../services/chat_service.dart';
+import '../services/voice_call_service.dart';
 import '../services/heartbeat_service.dart';
 import '../services/tray_service.dart';
 import '../services/ticket_service.dart';
@@ -357,6 +358,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       barrierDismissible: false,
       builder: (ctx) => IncomingCallDialog(
         callerName: event.callerName,
+        isVideo: VoiceCallService().offerSendsVideo(event.sdp),
         onAccept: () {
           Navigator.of(ctx).pop();
           // Open AdminChatDialog with pending call

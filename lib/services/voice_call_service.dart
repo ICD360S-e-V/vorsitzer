@@ -82,6 +82,10 @@ class VoiceCallService {
   bool get isVideoCall => _isVideoCall;
   bool get isCameraOn => _localStream?.getVideoTracks().any((t) => t.enabled) ?? false;
 
+  /// Whether an incoming offer SDP is a real (sending) video call. Lets the
+  /// incoming-call UI label the ring "Videoanruf" vs "Anruf" before accepting.
+  bool offerSendsVideo(String? sdp) => _offerSendsVideo(sdp);
+
   // Getters
   CallState get callState => _callState;
   bool get isMuted => _isMuted;
