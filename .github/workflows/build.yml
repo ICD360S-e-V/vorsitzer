@@ -350,12 +350,18 @@ jobs:
   flatpak:
     name: "📦 Flatpak"
     needs: [version, linux]
-    # GitHub-hosted runner: flatpak, flatpak-builder and the freedesktop runtime
-    # are installed per run below. The old self-hosted VM kept
-    # ~/.cache/flatpak-builder/ on NVMe so libass/libplacebo/uchardet/libmpv
-    # stayed compiled between builds; here actions/cache stands in for that,
-    # keyed on the manifest + patches so it only rebuilds when they change.
     runs-on: ubuntu-latest
+    # Build inside Flathub's official image for our exact runtime. It ships a
+    # modern flatpak-builder (≥1.4.4, which forces cmake CMAKE_INSTALL_LIBDIR=lib)
+    # plus the freedesktop 24.08 Platform+Sdk with the patched meson (no lib64) —
+    # so every module installs to /app/lib. That is the root fix for the lib64
+    # breakage (cmake AND meson) we hit on a bare ubuntu-latest runner with apt's
+    # old flatpak-builder 1.4.2; it also brings eu-strip and all build tooling,
+    # so no apt/runtime install is needed here. --privileged is required for the
+    # bwrap sandbox flatpak-builder runs each module in.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -364,24 +370,17 @@ jobs:
           name: linux-bundle
           path: flatpak/bundle
 
-      - name: Install flatpak + flatpak-builder
-        env:
-          DEBIAN_FRONTEND: noninteractive  # see Linux job — avoids the needrestart hang
+      - name: Ensure flathub remote (for --install-deps-from)
         run: |
-          sudo apt-get update
-          # elfutils provides eu-strip, which flatpak-builder calls to strip
-          # debug symbols from built modules (libdbusmenu et al). Pre-installed
-          # on the old VM; absent on cloud runners.
-          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils
           flatpak remote-add --if-not-exists --user \
             flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y --noninteractive \
-            flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
 
       - name: Cache flatpak-builder build state
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
-          path: ~/.cache/flatpak-builder
+          # flatpak-builder runs in working-directory: flatpak, so its default
+          # state dir (downloads + per-module build cache + ccache) is here.
+          path: flatpak/.flatpak-builder
           key: flatpak-builder-${{ hashFiles('flatpak/de.icd360s.Vorsitzer.yml', 'flatpak/*.patch') }}
           restore-keys: flatpak-builder-
 
@@ -389,9 +388,9 @@ jobs:
         run: chmod +x flatpak/bundle/icd360sev_vorsitzer
 
       - name: Import Flatpak signing GPG key
-        # Key ID 244C2F8A661420E8, "ICD360S e.V. Flatpak Builds". The cloud
-        # runner starts with an empty keyring, so this import is what makes
-        # signing work at all. gpg --import is idempotent.
+        # Key ID 244C2F8A661420E8, "ICD360S e.V. Flatpak Builds". The container
+        # starts with an empty keyring, so this import is what makes signing work
+        # at all. gpg --import is idempotent.
         env:
           GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
         run: |
@@ -408,39 +407,6 @@ jobs:
         run: |
           rm -rf flatpak/shared-modules
           git clone --depth 1 --branch master https://github.com/flathub/shared-modules.git flatpak/shared-modules
-
-      - name: Force lib (not lib64) for shared-modules cmake builds
-        # The ayatana modules (cmake-ninja) use GNUInstallDirs, which under
-        # flatpak-builder 1.4.2 + the freedesktop SDK installs to /app/lib64.
-        # But the sandbox's PKG_CONFIG_PATH and runtime LD path only cover
-        # /app/lib, so libayatana-indicator's cmake can't find libayatana-ido3's
-        # .pc ("Package 'libayatana-ido3-0.4' not found") and, even if it built,
-        # the .so would be unreachable at runtime. The self-hosted VM hid this
-        # behind a warm cache. Pin CMAKE_INSTALL_LIBDIR=lib on every cmake module
-        # in the clone so everything lands in /app/lib. Autotools modules
-        # (libdbusmenu) already default to lib and are left untouched.
-        run: |
-          python3 - <<'PY'
-          import json, glob
-          def force(m):
-              if isinstance(m, dict):
-                  if str(m.get('buildsystem', '')).startswith('cmake'):
-                      opts = m.setdefault('config-opts', [])
-                      if '-DCMAKE_INSTALL_LIBDIR=lib' not in opts:
-                          opts.append('-DCMAKE_INSTALL_LIBDIR=lib')
-                  for sub in m.get('modules', []):
-                      force(sub)
-          for path in glob.glob('flatpak/shared-modules/**/*.json', recursive=True):
-              try:
-                  with open(path) as f:
-                      data = json.load(f)
-              except (ValueError, OSError):
-                  continue
-              force(data)
-              with open(path, 'w') as f:
-                  json.dump(data, f, indent=4)
-          print("patched shared-modules cmake libdir -> lib")
-          PY
 
       - name: Inject current version into AppStream metainfo
         run: |
@@ -468,18 +434,17 @@ jobs:
 
       - name: Build Flatpak
         # Direct flatpak-builder call instead of the GitHub action wrapper, so
-        # we control the state dir ourselves. flatpak-builder's own cache under
-        # ~/.cache/flatpak-builder/build/ skips libass/libplacebo/uchardet/
-        # libmpv when the manifest is unchanged — restored by the actions/cache
-        # step above, so a Dart-only change avoids the full libmpv rebuild.
+        # we keep control of GPG signing + repo layout. The per-module build
+        # cache under flatpak/.flatpak-builder/ (restored by actions/cache above)
+        # skips libass/libplacebo/uchardet/libmpv when the manifest is unchanged,
+        # so a Dart-only change avoids the full libmpv rebuild.
         #
-        # No --force-clean — that flag wipes ~/.cache/flatpak-builder/build/
-        # before every build, which would defeat the restored cache and rebuild
-        # the libmpv stack every run (~3 min wasted).
-        # --ccache caches C/C++ object files in ~/.cache/ccache so partial
-        # invalidations (one module changed) still hit object-level cache.
-        # We do clean the output dir ourselves to avoid stale .flatpak from
-        # a prior run polluting the new bundle.
+        # No --force-clean — that flag wipes the state dir before every build,
+        # defeating the restored cache and rebuilding the libmpv stack every run.
+        # --ccache caches C/C++ object files so partial invalidations still hit
+        # object-level cache. --disable-rofiles-fuse: rofiles-fuse is unreliable
+        # inside a container even with --privileged, so use plain copies. We
+        # clean the output dir ourselves to avoid a stale .flatpak leaking in.
         working-directory: flatpak
         run: |
           rm -rf ../build ../repo
@@ -488,7 +453,7 @@ jobs:
           # modern Flatpak refuses to install from custom remotes ("Can't
           # pull from untrusted non-gpg verified remote").
           flatpak-builder --user --install-deps-from=flathub \
-            --repo=../repo --ccache \
+            --repo=../repo --ccache --disable-rofiles-fuse \
             --gpg-sign=244C2F8A661420E8 \
             ../build de.icd360s.Vorsitzer.yml
           flatpak build-bundle \
