@@ -6,11 +6,13 @@ list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
   file_selector_windows
   flutter_secure_storage_windows
+  flutter_tts
   flutter_webrtc
   geolocator_windows
   media_kit_libs_windows_audio
   printing
   screen_retriever_windows
+  speech_to_text_windows
   tray_manager
   url_launcher_windows
   webview_windows

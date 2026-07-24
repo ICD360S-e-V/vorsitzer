@@ -14,7 +14,6 @@ import 'services/startup_service.dart';
 import 'services/update_service.dart';
 import 'services/platform_service.dart';
 import 'utils/keyboard_rdp_fix.dart';
-import 'widgets/global_chat_overlay.dart';
 
 // Desktop-only packages (compile on all platforms, but only used on desktop)
 import 'package:window_manager/window_manager.dart';

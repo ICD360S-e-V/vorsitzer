@@ -795,6 +795,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                         userId: widget.userId,
                       );
                       if (!mounted) return;
+                      if (!btnCtx.mounted) return;
                       if (err == null) {
                         ScaffoldMessenger.of(btnCtx).showSnackBar(const SnackBar(
                           content: Text('Chromium gestartet — Auto-Login läuft im Hintergrund'),
@@ -872,10 +873,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
           'passkey_access': passkeyC.text.trim(),
         });
         // After save, switch back to read-only for both credential fields
-        if (mounted) setLocal(() {
+        if (mounted) {
+          setLocal(() {
           if (emailC.text.isNotEmpty) emailEdit = false;
           if (passwordC.text.isNotEmpty) { passwordEdit = false; passwordVisible = false; }
         });
+        }
       }),
     ])));
   }
@@ -5086,7 +5089,7 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
           onPressed: _busy ? null : () async {
             final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
                 attach: (id) => widget.apiService.attachAaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, bereich: widget.bereich));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && context.mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16),
           label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),

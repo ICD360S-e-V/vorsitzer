@@ -3198,7 +3198,7 @@ class _HistoricalComparisonCard extends StatelessWidget {
     ];
     final monthLabel = months[start.month - 1];
     return 'Vor ${yearsAgo == 1 ? "1 Jahr" : "$yearsAgo Jahren"} '
-        '(${monthLabel} ${start.year})';
+        '($monthLabel ${start.year})';
   }
 
   static bool _anyHistoryHasDailies(List<HistoricalWeekSummary> h) =>

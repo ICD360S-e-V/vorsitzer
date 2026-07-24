@@ -421,7 +421,9 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
       if (d.stopName.isEmpty) continue;
       if (productTypes != null && !productTypes.contains(d.productType)) continue;
       if (d.minutesUntil < 0 ||
-          (d.realtimeTime ?? d.plannedTime).isBefore(now.subtract(const Duration(minutes: 1)))) continue;
+          (d.realtimeTime ?? d.plannedTime).isBefore(now.subtract(const Duration(minutes: 1)))) {
+        continue;
+      }
       grouped.putIfAbsent(d.stopName, () => []).add(d);
     }
     return grouped;
@@ -473,7 +475,9 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     final n = name.toLowerCase();
     // Excludem doar cazuri clare de street (nu de gări).
     if (n.contains('bahnhofstr') || n.contains('bahnhofspl') ||
-        n.contains('bahnhofsvor') || n.contains('bahnhofsvi')) return false;
+        n.contains('bahnhofsvor') || n.contains('bahnhofsvi')) {
+      return false;
+    }
     if (RegExp(r'bahnhof\s+\d').hasMatch(n)) return false;
     // 2026-07-12: exclude stațiile de bus/parking din fața Bhf.
     if (RegExp(r'\bbus\b').hasMatch(n)) return false;
@@ -1420,32 +1424,6 @@ class _CoarseState extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  final bool loading;
-  final String? error;
-  const _EmptyState({required this.loading, this.error});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(loading ? Icons.schedule : Icons.location_off, size: 48, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text(
-            loading
-                ? 'Abfahrten werden geladen…'
-                : (error ?? 'Keine Haltestellen in der Nähe gefunden'),
-            style: TextStyle(color: Colors.grey.shade500),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _StopSection extends StatelessWidget {
   final TransitStop stop;
   final List<Departure> departures;
@@ -1985,9 +1963,13 @@ class _DepartureRow extends StatelessWidget {
         '${dep.platform != null ? " Gleis ${dep.platform}." : ""}';
 
     Color? bg;
-    if (isCancelled) bg = p.dark ? const Color(0xFF3D2A2A) : Colors.red.shade100.withValues(alpha: 0.4);
-    else if (isImminent) bg = p.dark ? const Color(0xFF3D1F1F) : Colors.red.shade50;
-    else if (isSoon) bg = p.dark ? const Color(0xFF3D2F1A) : Colors.orange.shade50;
+    if (isCancelled) {
+      bg = p.dark ? const Color(0xFF3D2A2A) : Colors.red.shade100.withValues(alpha: 0.4);
+    } else if (isImminent) {
+      bg = p.dark ? const Color(0xFF3D1F1F) : Colors.red.shade50;
+    } else if (isSoon) {
+      bg = p.dark ? const Color(0xFF3D2F1A) : Colors.orange.shade50;
+    }
 
     return Semantics(
       label: sem,
@@ -3768,7 +3750,7 @@ class _LocationFieldState extends State<_LocationField> {
     if (!_voiceReady || !mounted) return;
     setState(() => _listening = true);
     await _speech.listen(
-      localeId: 'de_DE',
+      listenOptions: stt.SpeechListenOptions(localeId: 'de_DE'),
       onResult: (r) async {
         controller.text = r.recognizedWords;
         controller.selection = TextSelection.fromPosition(
@@ -5242,7 +5224,7 @@ class _UmstiegBanner extends StatelessWidget {
                 Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.warning_amber, size: 10, color: Colors.red.shade600),
                   const SizedBox(width: 3),
-                  Text('+${arrDelay} Min. Verspätung',
+                  Text('+$arrDelay Min. Verspätung',
                       style: TextStyle(fontSize: 9.5, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
                 ]),
               if (platformChange)
@@ -5507,7 +5489,7 @@ class _TripMapViewState extends State<_TripMapView> {
     // Source 1: HAFAS radar (in-app, HAFAS providers)
     try {
       final hafasVehicles = await widget.transitService.fetchVehiclePositionsRadar(
-        minLat: minLat! - pad, maxLat: maxLat! + pad,
+        minLat: minLat - pad, maxLat: maxLat! + pad,
         minLon: minLon! - pad, maxLon: maxLon! + pad,
       );
       all.addAll(hafasVehicles);
@@ -5518,7 +5500,7 @@ class _TripMapViewState extends State<_TripMapView> {
       if (!tracker.isConnected) {
         // Conectat la geOps cu bbox curent.
         final bboxStr = '${(minLon! - pad).toStringAsFixed(5)} '
-            '${(minLat! - pad).toStringAsFixed(5)} '
+            '${(minLat - pad).toStringAsFixed(5)} '
             '${(maxLon! + pad).toStringAsFixed(5)} '
             '${(maxLat! + pad).toStringAsFixed(5)} 13';
         tracker.connect(bboxStr);

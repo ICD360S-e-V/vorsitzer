@@ -397,15 +397,26 @@ class TerminWeatherService {
   double _slotScore(int code, double temp, double apparent, double wind,
       double precip, int precipProb) {
     double s = 0;
-    if (code >= 95) s += 20; // thunder
-    else if (code >= 71 && code <= 86) s += 12; // snow/sleet
-    else if (code >= 51 && code <= 82) s += 6; // rain
-    if (precipProb >= 70) s += 4;
-    else if (precipProb >= 40) s += 2;
+    if (code >= 95) {
+      s += 20; // thunder
+    } else if (code >= 71 && code <= 86) {
+      s += 12; // snow/sleet
+    } else if (code >= 51 && code <= 82) {
+      s += 6; // rain
+    }
+    if (precipProb >= 70) {
+      s += 4;
+    } else if (precipProb >= 40) {
+      s += 2;
+    }
     if (precip >= 1) s += 3;
-    if (wind >= 60) s += 8;
-    else if (wind >= 40) s += 4;
-    else if (wind >= 20) s += 1;
+    if (wind >= 60) {
+      s += 8;
+    } else if (wind >= 40) {
+      s += 4;
+    } else if (wind >= 20) {
+      s += 1;
+    }
     if (apparent >= 32) s += (apparent - 32).clamp(0, 10);
     if (apparent <= 0) s += (-apparent).clamp(0, 10);
     return s;

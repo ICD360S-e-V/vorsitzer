@@ -592,9 +592,13 @@ class _MitgliederverwaltungVertraegeVersicherungState
               // Explicit validation with visible feedback — silent return
               // was confusing the Vorstand ("Nichts passiert!").
               String? missing;
-              if (selVersId == null) missing = 'Bitte Versicherung auswählen';
-              else if (nrC.text.trim().isEmpty) missing = 'Bitte Vertragsnummer eintragen';
-              else if (beginnC.text.trim().isEmpty) missing = 'Bitte Vertragsbeginn wählen';
+              if (selVersId == null) {
+                missing = 'Bitte Versicherung auswählen';
+              } else if (nrC.text.trim().isEmpty) {
+                missing = 'Bitte Vertragsnummer eintragen';
+              } else if (beginnC.text.trim().isEmpty) {
+                missing = 'Bitte Vertragsbeginn wählen';
+              }
               if (missing != null) {
                 ScaffoldMessenger.of(ctx2).showSnackBar(SnackBar(
                   content: Text(missing),

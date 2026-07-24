@@ -306,6 +306,95 @@ class ApiService {
     }
   }
 
+  // ==================== Mail (icd@icd360s.de Postfach) ====================
+  // Proxied through icd360sev -> mail.icd360s.de API. Auth via the existing
+  // JWT + Device Key (see _headers). The mailbox is resolved server-side from
+  // the logged-in Vorsitzer, so the client never names a mailbox.
+
+  /// Posteingang / Ordner-Listung. box: 'INBOX' | 'Trash' | 'Sent'.
+  Future<Map<String, dynamic>> getMailInbox({int limit = 50, int offset = 0, String box = 'INBOX'}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/list.php'),
+      headers: _headers,
+      body: jsonEncode({'limit': limit, 'offset': offset, 'box': box}),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Vollständige Nachricht (entschlüsselter Text + Anhang-Metadaten).
+  Future<Map<String, dynamic>> getMailMessage(int uid, {String box = 'INBOX'}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/message.php'),
+      headers: _headers,
+      body: jsonEncode({'uid': uid, 'box': box}),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// E-Mail senden (Absender wird serverseitig auf das eigene Postfach gesetzt).
+  Future<Map<String, dynamic>> sendMail({required String to, required String subject, required String body}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/send.php'),
+      headers: _headers,
+      body: jsonEncode({'to': to, 'subject': subject, 'body': body}),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Nachricht als gelesen/ungelesen markieren.
+  Future<Map<String, dynamic>> flagMail(int uid, {bool seen = true}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/flag.php'),
+      headers: _headers,
+      body: jsonEncode({'uid': uid, 'seen': seen}),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Nachricht in den Papierkorb verschieben.
+  Future<Map<String, dynamic>> deleteMail(int uid) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/delete.php'),
+      headers: _headers,
+      body: jsonEncode({'uid': uid}),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Postfach-Speicherplatz (Quota).
+  Future<Map<String, dynamic>> getMailQuota() async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/quota.php'),
+      headers: _headers,
+      body: jsonEncode({}),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   Future<Map<String, dynamic>> getConnectedDevices() async {
     final response = await _client.get(
       Uri.parse('$baseUrl/admin/connected_devices.php'),
@@ -333,6 +422,46 @@ class ApiService {
         if (data is Map<String, dynamic> && data['success'] == true && data['uris'] is List) {
           return data;
         }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fernwartung audit: record a remote-support session lifecycle event in
+  /// `remote_sessions`. [action] is start | active | declined | end. Returns the
+  /// parsed response (with session_id on start) or null. Fire-and-forget — never
+  /// block the WebRTC signaling on this.
+  Future<Map<String, dynamic>?> remoteSession({
+    required String mitgliedernummer,
+    required String action,
+    String? targetMitgliedernummer,
+    int? sessionId,
+    int? conversationId,
+    bool? controlAllowed,
+    String? memberPlatform,
+    String? reason,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'mitgliedernummer': mitgliedernummer,
+        'action': action,
+        if (targetMitgliedernummer != null) 'target_mitgliedernummer': targetMitgliedernummer,
+        if (sessionId != null) 'session_id': sessionId,
+        if (conversationId != null) 'conversation_id': conversationId,
+        if (controlAllowed != null) 'control_allowed': controlAllowed,
+        if (memberPlatform != null) 'member_platform': memberPlatform,
+        if (reason != null) 'reason': reason,
+      };
+      final response = await _client.post(
+        Uri.parse('$baseUrl/remote/session.php'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) return data;
       }
       return null;
     } catch (_) {
@@ -6123,7 +6252,7 @@ class ApiService {
   /// Returns { is_arbeitslos, arbeitslos_quelle, motive_options: [...] }
   /// or null on failure.
   ///
-  /// Server: /api/admin/beratungshilfe_sources.php?user_id=<int>
+  /// Server: `/api/admin/beratungshilfe_sources.php?user_id=<int>`
   Future<Map<String, dynamic>?> getBeratungshilfeSources(int userId) async {
     try {
       final r = await _client.get(
@@ -6305,7 +6434,7 @@ class ApiService {
   /// stays in its original module; the client opens it via the
   /// per-module download endpoint.
   ///
-  /// Server: /api/admin/related_docs.php?user_id=<int>&vorfall_id=<int>
+  /// Server: `/api/admin/related_docs.php?user_id=<int>&vorfall_id=<int>`
   /// When vorfall_id is set, the server reads gericht_vorfaelle.linked_cases
   /// for that vorfall and only returns Korrespondenz items that match one
   /// of those (behoerde, case_type, case_id) triples. Without it (or when

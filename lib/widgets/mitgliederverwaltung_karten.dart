@@ -796,7 +796,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        if (await _confirmClose() && mounted) Navigator.pop(context, _id != null);
+        if (await _confirmClose() && context.mounted) Navigator.pop(context, _id != null);
       },
       child: Dialog(
         insetPadding: const EdgeInsets.all(20),
@@ -818,7 +818,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
                   IconButton(onPressed: _enterEdit, icon: const Icon(Icons.edit), color: Colors.deepPurple.shade700, tooltip: 'Bearbeiten'),
                 if (_id != null && _editMode)
                   IconButton(onPressed: _delete, icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Löschen'),
-                IconButton(onPressed: () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, icon: const Icon(Icons.close)),
+                IconButton(onPressed: () async { if (await _confirmClose() && context.mounted) Navigator.pop(context, _id != null); }, icon: const Icon(Icons.close)),
               ]),
             ),
             TabBar(
@@ -843,7 +843,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
                 if (_editMode && !isNew)
                   TextButton(onPressed: _saving ? null : _cancelEdit, child: const Text('Abbrechen'))
                 else
-                  TextButton(onPressed: _saving ? null : () async { if (await _confirmClose() && mounted) Navigator.pop(context, _id != null); }, child: const Text('Schließen')),
+                  TextButton(onPressed: _saving ? null : () async { if (await _confirmClose() && context.mounted) Navigator.pop(context, _id != null); }, child: const Text('Schließen')),
                 if (_editMode) ...[
                   const SizedBox(width: 6),
                   OutlinedButton.icon(
@@ -1157,6 +1157,7 @@ class _KartenDocsSectionState extends State<_KartenDocsSection> {
     final files = pick.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
     if (files.length > 20) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Max 20 Dateien gleichzeitig')));
       return;
     }

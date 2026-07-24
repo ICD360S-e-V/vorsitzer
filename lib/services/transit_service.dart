@@ -1201,49 +1201,6 @@ class TransitService {
         'ort=$ort plz=$plz bundesland=$bl', tag: 'TRANSIT');
   }
 
-  /// Returnează providerii relevanți pentru membrul curent (Stufe-1 + GPS).
-  /// Reduce lista de la 23 la 3-6 candidați → autocomplete 3× mai rapid +
-  /// zero AUTH-spam de la provideri nerelevanți.
-  ///
-  /// Include:
-  ///   • activeProvider (dacă e setat)
-  ///   • provideri ale căror bounding-box include coords GPS (dacă avem GPS)
-  ///   • provideri ale căror city-list overlaps cu ort-ul membrului
-  ///
-  /// Dacă nu găsim niciun match → returnăm toată lista (fallback fail-open).
-  List<TransitProviderConfig> _relevantProviders() {
-    final relevant = <TransitProviderConfig>{};
-    if (activeProvider != null) relevant.add(activeProvider!);
-
-    // GPS-based: bounding box hit.
-    final lat = _latitude;
-    final lon = _longitude;
-    if (lat != null && lon != null) {
-      for (final p in _providers) {
-        if (p.containsCoord(lat, lon)) relevant.add(p);
-      }
-    }
-
-    // Stufe-1 based: match după ort în city list.
-    final ort = _memberHomeOrt;
-    if (ort != null && ort.isNotEmpty) {
-      for (final entry in _providerCities.entries) {
-        for (final city in entry.value) {
-          if (city.toLowerCase().contains(ort) || ort.contains(city.toLowerCase())) {
-            try {
-              final p = _providers.firstWhere((x) => x.type == entry.key);
-              relevant.add(p);
-              break;
-            } catch (_) {}
-          }
-        }
-      }
-    }
-
-    if (relevant.isEmpty) return _providers; // fallback fail-open
-    return relevant.toList();
-  }
-
   /// Start transit monitoring — tries GPS first, falls back to city geocoding
   Future<void> start(String cityName) async {
     city = cityName;
@@ -3465,7 +3422,7 @@ class TransitService {
   /// fetch DB (HAFAS via transport.rest) departures in parallel and merge them.
   ///
   /// Match is strict: token-boundary on "Hbf" / "Hauptbahnhof", or the name
-  /// STARTS with "Bahnhof <Ort>". This avoids false positives like
+  /// STARTS with `Bahnhof <Ort>`. This avoids false positives like
   /// "Klinikum am Bahnhof" or "Am Bahnhof 12" which are bus stops, not
   /// railway stations, and don't need DB augmentation.
   // 2026-07-13 Sprint B cleanup: _augmentWithDbRailDepartures() +
@@ -3846,7 +3803,7 @@ class TransitService {
   /// Algoritm (după `public-transport/hafas-client lib/request.js`):
   ///   1. mic = MD5(body_bytes)                    → hex string
   ///   2. mac = MD5(hex(mic) || salt_utf8_bytes)   → hex string
-  ///   3. URL = baseUrl?mic=<hex>&mac=<hex>
+  ///   3. URL = `baseUrl?mic=<hex>&mac=<hex>`
   ///
   /// Provideri care NU au salt → returnează baseUrl neschimbat.
   String _hafasSignedUrl(TransitProviderConfig? p, String body) {
@@ -4355,14 +4312,6 @@ class TransitService {
 
   /// Legacy int.bahn.de (dbweb) constants — păstrate pentru fallback + docs.
   /// NU e folosit după 2026-07-11 (params `[]` producea 422).
-  static const _bahnDeBase = 'https://int.bahn.de/web/api/reiseloesung';
-  static const _bahnDeHeaders = {
-    'Accept': 'application/json',
-    'Accept-Language': 'de-DE,de;q=0.9',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-  };
-
   // ════════════════════════════════════════════════════════════════
   // HAFAS AUTH CIRCUIT-BREAKER — mulți provideri au migrat la request
   // signing (MIC/MAC HMAC-SHA1); AID-ul singur nu mai e suficient și
@@ -4812,8 +4761,9 @@ class TransitService {
         continue;
       }
       if (c == '"') { inStr = true; continue; }
-      if (c == '[') depth++;
-      else if (c == ']') {
+      if (c == '[') {
+        depth++;
+      } else if (c == ']') {
         depth--;
         if (depth == 0) { endIdx = i; break; }
       }
@@ -5762,9 +5712,6 @@ class TransitService {
   ///   Aceste linii cu numărul concret sunt acceptate — verificate pe leg.line.
   ///
   /// Case-insensitive, strips leading/trailing whitespace înainte de check.
-  static const _dTicketAllowedProductTypes = <String>{
-    'regional', 'suburban', 'subway', 'tram', 'bus', 'ferry', 'walk',
-  };
 
   /// IC-Linien speciale care sunt integrate în tarife locale (D-Ticket OK).
   /// Actualizat 2026 din bahn.de/service/nahverkehrsfreigabe.
@@ -6012,291 +5959,9 @@ class TransitService {
 
   // ── EFA trip/location endpoints ────────────────────────────────
 
-  Future<List<TransitLocation>> _efaLocationSearch(TransitProviderConfig p, String q) async {
-    // EFA circuit-breaker: skip dacă providerul e blacklist-uit
-    // (endpoint mutat, întorc HTML în loc de JSON etc.).
-    if (_isHafasBlacklisted(p.type)) return [];
-    final uri = Uri.parse(
-      '${p.baseUrl}/XSLT_STOPFINDER_REQUEST'
-      '?outputFormat=JSON&locationServerActive=1&type_sf=any&anyObjFilter_sf=126'
-      '&name_sf=${Uri.encodeComponent(q)}',
-    );
-    final response = await _client.get(uri).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) return [];
-    final body = _decodeUtf8(response);
-    // Sanity check — dacă EFA returnează HTML (endpoint mutat, redirect la
-    // landing page), blacklist providerul ca să nu spamăm log + latency.
-    final trim = body.trimLeft();
-    if (trim.startsWith('<') || trim.toLowerCase().startsWith('<!doctype')) {
-      _markHafasAuthFail(p, 'EFA returns HTML — endpoint moved/broken');
-      return [];
-    }
-    final data = jsonDecode(body);
-    final points = data['stopFinder']?['points'];
-    List raw;
-    if (points is List) {
-      raw = points;
-    } else if (points is Map && points['point'] is List) {
-      raw = points['point'];
-    } else if (points is Map && points['point'] is Map) {
-      raw = [points['point']];
-    } else {
-      return [];
-    }
-    return raw.map<TransitLocation?>((e) {
-      final ref = e['ref'] ?? {};
-      final refId = ref['id']?.toString() ?? '';
-      final stateless = e['stateless']?.toString() ?? '';
-      final anyType = e['anyType']?.toString() ?? '';
-      // For "stop" the short refId works. For "singlehouse"/"poi"/"address"
-      // refId is generic (whole street), stateless carries the house number
-      // (`streetID:XXX:13:...`) — required for trip search to hit the exact address.
-      final id = anyType == 'stop'
-          ? (refId.isNotEmpty ? refId : stateless)
-          : (stateless.isNotEmpty ? stateless : refId);
-      final name = e['name']?.toString() ?? e['object']?.toString() ?? '';
-      if (id.isEmpty || name.isEmpty) return null;
-      final coords = ref['coords']?.toString().split(',');
-      double? lat, lon;
-      if (coords != null && coords.length == 2) {
-        lon = double.tryParse(coords[0]);
-        lat = double.tryParse(coords[1]);
-      }
-      return TransitLocation(
-        id: id, name: name, type: anyType, lat: lat, lon: lon,
-      );
-    }).whereType<TransitLocation>().toList();
-  }
-
-  Future<List<Journey>> _efaTripSearch(
-    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when, {
-    bool arriveBy = false,
-  }) async {
-    final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
-    final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}';
-    final uri = Uri.parse(
-      '${p.baseUrl}/XSLT_TRIP_REQUEST2'
-      '?outputFormat=JSON&locationServerActive=1&useRealtime=1&calcNumberOfTrips=4'
-      '&type_origin=any&name_origin=${Uri.encodeComponent(from.id)}'
-      '&type_destination=any&name_destination=${Uri.encodeComponent(to.id)}'
-      '&itdDate=$dateStr&itdTime=$timeStr'
-      '&itdTripDateTimeDepArr=${arriveBy ? "arr" : "dep"}',
-    );
-    final response = await _client.get(uri).timeout(const Duration(seconds: 20));
-    if (response.statusCode != 200) return [];
-    final data = jsonDecode(_decodeUtf8(response));
-    final trips = data['trips'];
-    if (trips is! List) return [];
-    return trips.map<Journey?>(_parseEfaTrip).whereType<Journey>().toList();
-  }
-
-  Journey? _parseEfaTrip(dynamic trip) {
-    try {
-      final legsRaw = trip['legs'];
-      if (legsRaw is! List || legsRaw.isEmpty) return null;
-      final legs = <JourneyLeg>[];
-      for (final leg in legsRaw) {
-        final points = leg['points'] as List? ?? [];
-        if (points.length < 2) continue;
-        final depPoint = points.first;
-        final arrPoint = points.last;
-        // Trip response uses DIFFERENT dateTime format than departure monitor:
-        //   DM:   {year, month, day, hour, minute}   (integers as strings)
-        //   Trip: {date: "01.07.2026", time: "17:10", rtDate, rtTime}
-        // Try trip parser first, fall back to DM parser.
-        final depDT = _parseEfaTripDateTime(depPoint['dateTime']) ?? _parseEfaDateTime(depPoint['dateTime'] ?? {});
-        final arrDT = _parseEfaTripDateTime(arrPoint['dateTime']) ?? _parseEfaDateTime(arrPoint['dateTime'] ?? {});
-        if (depDT == null || arrDT == null) continue;
-
-        final mode = leg['mode'] ?? {};
-        final motType = mode['type']?.toString() ?? '';
-        final isWalk = motType == '100' || motType == '99' || (mode['name']?.toString().toLowerCase().contains('fuß') ?? false);
-        String productType;
-        switch (motType) {
-          case '0': productType = 'train'; break;
-          case '1': productType = 'suburban'; break;
-          case '4': productType = 'tram'; break;
-          case '100': case '99': productType = 'walk'; break;
-          default: productType = 'bus';
-        }
-
-        legs.add(JourneyLeg(
-          line: isWalk ? 'Fußweg' : (mode['number']?.toString() ?? mode['symbol']?.toString() ?? '?'),
-          direction: mode['destination']?.toString() ?? '',
-          fromName: depPoint['name']?.toString() ?? '',
-          toName: arrPoint['name']?.toString() ?? '',
-          depTime: depDT,
-          arrTime: arrDT,
-          fromPlatform: _cleanEfaPlatform(depPoint['platform']),
-          toPlatform: _cleanEfaPlatform(arrPoint['platform']),
-          productType: productType,
-          isWalk: isWalk,
-        ));
-      }
-      if (legs.isEmpty) return null;
-      return Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime);
-    } catch (e) {
-      return null;
-    }
-  }
 
   // ── HAFAS trip/location endpoints ──────────────────────────────
 
-  Future<List<TransitLocation>> _hafasLocationSearch(TransitProviderConfig p, String q) async {
-    // Skip immediately dacă providerul e blacklist-uit (evită request + log spam).
-    if (_isHafasBlacklisted(p.type)) return [];
-    final call = _buildSignedHafasCall(p, [
-      {
-        'meth': 'LocMatch',
-        'req': {
-          'input': {
-            'field': 'S',
-            'loc': {'name': q, 'type': 'ALL'},
-            'maxLoc': 15,
-          },
-        },
-      },
-    ]);
-    final response = await _client.post(
-      Uri.parse(call.url),
-      headers: {'Content-Type': 'application/json'},
-      body: call.body,
-    ).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) return [];
-    final data = jsonDecode(_decodeUtf8(response));
-    // HAFAS reports auth failures at root level, not in svcResL — check both
-    final rootErr = data['err']?.toString();
-    if (rootErr != null && rootErr != 'OK') {
-      if (rootErr == 'AUTH') {
-        _markHafasAuthFail(p, '${data['errTxt'] ?? rootErr}');
-      } else {
-        _log.error('Transit [${p.name}]: HAFAS root err=$rootErr '
-            '${data['errTxt'] ?? ''}', tag: 'TRANSIT');
-      }
-      return [];
-    }
-    final match = data['svcResL']?[0]?['res']?['match']?['locL'] as List? ?? [];
-    return match.map<TransitLocation?>((loc) {
-      final name = loc['name']?.toString() ?? '';
-      final lid = loc['lid']?.toString() ?? '';
-      if (name.isEmpty || lid.isEmpty) return null;
-      final crd = loc['crd'];
-      double? lat, lon;
-      if (crd is Map) {
-        final x = crd['x']; final y = crd['y'];
-        if (x is num) lon = x / 1000000;
-        if (y is num) lat = y / 1000000;
-      }
-      return TransitLocation(id: lid, name: name, type: loc['type']?.toString(), lat: lat, lon: lon);
-    }).whereType<TransitLocation>().toList();
-  }
-
-  Future<List<Journey>> _hafasTripSearch(
-    TransitProviderConfig p, TransitLocation from, TransitLocation to, DateTime when, {
-    bool arriveBy = false,
-  }) async {
-    if (_isHafasBlacklisted(p.type)) return [];
-    final dateStr = '${when.year}${when.month.toString().padLeft(2, '0')}${when.day.toString().padLeft(2, '0')}';
-    final timeStr = '${when.hour.toString().padLeft(2, '0')}${when.minute.toString().padLeft(2, '0')}00';
-    final call = _buildSignedHafasCall(p, [
-      {
-        'meth': 'TripSearch',
-        'req': {
-          'depLocL': [{'lid': from.id}],
-          'arrLocL': [{'lid': to.id}],
-          'outDate': dateStr,
-          'outTime': timeStr,
-          'numF': 4,
-          'outFrwd': !arriveBy, // true = depart-at, false = arrive-by
-        },
-      },
-    ]);
-    final response = await _client.post(
-      Uri.parse(call.url),
-      headers: {'Content-Type': 'application/json'},
-      body: call.body,
-    ).timeout(const Duration(seconds: 20));
-    if (response.statusCode != 200) return [];
-    final data = jsonDecode(_decodeUtf8(response));
-    return _parseHafasTripResponse(data, providerHint: p);
-  }
-
-  List<Journey> _parseHafasTripResponse(Map<String, dynamic> data,
-      {TransitProviderConfig? providerHint}) {
-    final rootErr = data['err']?.toString();
-    if (rootErr != null && rootErr != 'OK') {
-      if (rootErr == 'AUTH' && providerHint != null) {
-        _markHafasAuthFail(providerHint, '${data['errTxt'] ?? rootErr}');
-      } else {
-        _log.error('Transit: HAFAS trip root err=$rootErr '
-            '${data['errTxt'] ?? ''}', tag: 'TRANSIT');
-      }
-      return [];
-    }
-    final svc = data['svcResL']?[0]?['res'];
-    if (svc == null) return [];
-    final common = svc['common'] ?? {};
-    final locL = common['locL'] as List? ?? [];
-    final prodL = common['prodL'] as List? ?? [];
-    final outConL = svc['outConL'] as List? ?? [];
-
-    final journeys = <Journey>[];
-    for (final con in outConL) {
-      try {
-        final date = con['date']?.toString() ?? '';
-        final secL = con['secL'] as List? ?? [];
-        final legs = <JourneyLeg>[];
-        for (final sec in secL) {
-          final type = sec['type']?.toString() ?? '';
-          final isWalk = type == 'WALK' || type == 'TRSF';
-          final dep = sec['dep'] ?? {};
-          final arr = sec['arr'] ?? {};
-          final depDT = _parseHafasDateTime(date, dep['dTimeR']?.toString() ?? dep['dTimeS']?.toString() ?? '');
-          final arrDT = _parseHafasDateTime(date, arr['aTimeR']?.toString() ?? arr['aTimeS']?.toString() ?? '');
-          if (depDT == null || arrDT == null) continue;
-
-          final depLocIdx = dep['locX'] as int? ?? 0;
-          final arrLocIdx = arr['locX'] as int? ?? 0;
-          final fromName = depLocIdx < locL.length ? (locL[depLocIdx]['name']?.toString() ?? '') : '';
-          final toName = arrLocIdx < locL.length ? (locL[arrLocIdx]['name']?.toString() ?? '') : '';
-
-          String line = 'Fußweg';
-          String direction = '';
-          String productType = 'walk';
-          if (!isWalk) {
-            final jny = sec['jny'] ?? {};
-            direction = jny['dirTxt']?.toString() ?? '';
-            final prodX = jny['prodX'] as int?;
-            if (prodX != null && prodX < prodL.length) {
-              final prod = prodL[prodX];
-              final nameStr = prod['name']?.toString().trim() ?? '?';
-              final m = RegExp(r'([A-Z]*\s?\d+\w*)$').firstMatch(nameStr);
-              line = m?.group(1)?.trim() ?? nameStr;
-              // Same catOut-preferred mapping as StationBoard parsing — fixes
-              // saarVV mislabeling of Saarbahn as bus and RE/RB as S-Bahn.
-              productType = _hafasProductType(prod);
-            }
-          }
-
-          legs.add(JourneyLeg(
-            line: line,
-            direction: direction,
-            fromName: fromName,
-            toName: toName,
-            depTime: depDT,
-            arrTime: arrDT,
-            fromPlatform: dep['dPlatfR']?.toString() ?? dep['dPlatfS']?.toString(),
-            toPlatform: arr['aPlatfR']?.toString() ?? arr['aPlatfS']?.toString(),
-            productType: productType,
-            isWalk: isWalk,
-          ));
-        }
-        if (legs.isEmpty) continue;
-        journeys.add(Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime));
-      } catch (_) {}
-    }
-    return journeys;
-  }
 
   // ── bahn.de fallback (Germany-wide, no auth) ───────────────────
 
@@ -6358,90 +6023,6 @@ class TransitService {
     );
   }
 
-  /// dbnav backend — `POST /mob/angebote/fahrplan` cu Content-Type
-  /// `application/x.db.vendo.mob.verbindungssuche.v9+json`. Returnează
-  /// `verbindungen[].verbindungsAbschnitte[].mitteltext` = "ICE 617"
-  /// (prefix + line), care alimentează corect D-Ticket filter.
-  Future<List<Journey>> _dbnavTripSearch(
-    TransitLocation from, TransitLocation to, DateTime when,
-    {bool arriveBy = false, bool onlyDeutschlandTicket = false}
-  ) async {
-    final uri = Uri.parse('$_dbNavBase/mob/angebote/fahrplan');
-    // dbnav așteaptă ISO local FĂRĂ offset ("2026-07-11T08:00:00").
-    String twoDigit(int n) => n.toString().padLeft(2, '0');
-    final local = when.toLocal();
-    final isoNoTz = '${local.year}-${twoDigit(local.month)}-${twoDigit(local.day)}'
-        'T${twoDigit(local.hour)}:${twoDigit(local.minute)}:${twoDigit(local.second)}';
-
-    // D-Ticket only → limit produs list la Nahverkehr. Numele dbnav diferă
-    // de cele dbweb: enum "verkehrsmittel" (nu "produktgattungen").
-    // https://github.com/public-transport/db-vendo-client/blob/main/p/dbnav/journeys-req.js
-    final verkehrsmittel = onlyDeutschlandTicket
-        ? const ['NAHVERKEHRSONSTIGEZUEGE','SBAHNEN','UBAHN','STRASSENBAHN','BUSSE','SCHIFFE','ANRUFPFLICHTIGEVERKEHRE']
-        : const ['ALL'];
-
-    final body = jsonEncode({
-      'autonomeReservierung': false,
-      'einstiegsTypList': ['STANDARD'],
-      'klasse': 'KLASSE_2',
-      'reisendenProfil': {
-        'reisende': [{
-          'typ': 'ERWACHSENER',
-          'alter': [],
-          'anzahl': 1,
-          'ermaessigungen': [
-            {'art': 'KEINE_ERMAESSIGUNG', 'klasse': 'KLASSENLOS'}
-          ],
-        }],
-      },
-      'reservierungsKontingenteVorhanden': false,
-      'fahrverguenstigungen': [],
-      'nurDeutschlandTicketVerbindungen': onlyDeutschlandTicket,
-      'reiseHin': {
-        'wunsch': {
-          'abgangsLocationId': from.id,
-          'zielLocationId': to.id,
-          'zeitWunsch': {
-            'reiseDatum': isoNoTz,
-            'zeitPunktArt': arriveBy ? 'ANKUNFT' : 'ABFAHRT',
-          },
-          'verkehrsmittel': verkehrsmittel,
-          'maxUmstiege': 3,
-          'minUmstiegsdauer': 0,
-        },
-      },
-    });
-
-    try {
-      final response = await _client.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/x.db.vendo.mob.verbindungssuche.v9+json',
-          'Accept': 'application/x.db.vendo.mob.verbindungssuche.v9+json',
-          'X-Correlation-ID': _dbNavCorrelationId(),
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-        },
-        body: body,
-      ).timeout(const Duration(seconds: 20));
-      if (response.statusCode != 200) {
-        _log.info('Transit: dbnav fahrplan HTTP ${response.statusCode}, '
-            'falling back to dbweb', tag: 'TRANSIT');
-        return [];
-      }
-      final data = jsonDecode(_decodeUtf8(response));
-      final verb = (data['verbindungen'] as List?) ?? [];
-      return verb
-          .map<Journey?>(_parseDbnavConnection)
-          .whereType<Journey>()
-          .take(4)
-          .toList();
-    } catch (e) {
-      _log.info('Transit: dbnav fahrplan error: $e', tag: 'TRANSIT');
-      return [];
-    }
-  }
-
   /// Legacy dbweb parser — folosit ca fallback dacă dbnav pică. Bug-ul e
   /// că `kurzText` = "9557" (fără prefix ICE), dar cu `name` primim uneori
   /// "ICE 9557" — dacă chiar cade la dbweb măcar avem ceva.
@@ -6494,88 +6075,6 @@ class TransitService {
   /// Parse un `verbindung` din răspunsul dbnav `/mob/angebote/fahrplan`.
   /// Cheia principală: `verbindungsAbschnitte[].mitteltext` = "ICE 617"
   /// (product + line number cu prefix — exact ce cere D-Ticket filter).
-  Journey? _parseDbnavConnection(dynamic conn) {
-    try {
-      final segments = conn['verbindungsAbschnitte'] as List? ?? [];
-      if (segments.isEmpty) return null;
-      final legs = <JourneyLeg>[];
-      for (final seg in segments) {
-        final typ = seg['typ']?.toString().toUpperCase() ?? '';
-        final isWalk = typ == 'FUSSWEG' || typ == 'WALK' || typ == 'TRANSFER';
-        // dbnav timestamps: `abfahrtsZeitpunkt` sau `abgangsDatum`, ISO cu offset.
-        final depIso = seg['abfahrtsZeitpunkt']?.toString()
-            ?? seg['abgangsDatum']?.toString();
-        final arrIso = seg['ankunftsZeitpunkt']?.toString()
-            ?? seg['ankunftsDatum']?.toString();
-        if (depIso == null || arrIso == null) continue;
-        final depDT = DateTime.tryParse(depIso)?.toLocal();
-        final arrDT = DateTime.tryParse(arrIso)?.toLocal();
-        if (depDT == null || arrDT == null) continue;
-
-        // mitteltext = "ICE 617" / "RB 82" / "S 3" — canonical HAFAS label.
-        // kurztext = "ICE" / "RB" / "S" (product only)
-        // langtext = "ICE 617 (12345)" (adaugă numărul de tren)
-        final mitteltext = seg['mitteltext']?.toString().trim();
-        final kurztext = seg['kurztext']?.toString().trim();
-        final line = isWalk
-            ? 'Fußweg'
-            : (mitteltext?.isNotEmpty == true
-                ? mitteltext!
-                : (kurztext?.isNotEmpty == true ? kurztext! : '?'));
-
-        // Product mapping via kurztext (product code) — mai fiabil decât enum.
-        final k = (kurztext ?? '').toUpperCase();
-        String productType;
-        if (isWalk) {
-          productType = 'walk';
-        } else if (k == 'ICE' || k == 'ECE') {
-          productType = 'train';
-        } else if (k == 'IC' || k == 'EC' || k == 'IR' || k == 'FLX'
-            || k == 'RJ' || k == 'RJX' || k == 'NJ' || k == 'EN' || k == 'TGV') {
-          productType = 'train';
-        } else if (k == 'RE' || k == 'RB' || k == 'IRE' || k == 'MEX'
-            || k == 'RS' || k == 'RJ' || k.startsWith('R')) {
-          productType = 'regional';
-        } else if (k == 'S' || k.startsWith('S')) {
-          productType = 'suburban';
-        } else if (k == 'U' || k.startsWith('U')) {
-          productType = 'subway';
-        } else if (k == 'STR' || k == 'TRAM' || k == 'M') {
-          productType = 'tram';
-        } else if (k == 'BUS' || k == 'SEV' || k == 'EV') {
-          productType = 'bus';
-        } else if (k == 'FÄHRE' || k == 'FAEHRE' || k == 'F') {
-          productType = 'ferry';
-        } else {
-          productType = 'bus';
-        }
-
-        legs.add(JourneyLeg(
-          line: line,
-          direction: seg['richtung']?.toString()
-              ?? seg['verkehrsmittel']?['richtung']?.toString()
-              ?? '',
-          fromName: seg['abgangsOrt']?['name']?.toString()
-              ?? seg['abfahrtsOrt']?.toString()
-              ?? '',
-          toName: seg['ankunftsOrt']?['name']?.toString()
-              ?? seg['ankunftsOrt']?.toString()
-              ?? '',
-          depTime: depDT,
-          arrTime: arrDT,
-          fromPlatform: seg['abgangsGleis']?.toString()
-              ?? seg['abfahrtsGleis']?.toString(),
-          toPlatform: seg['ankunftsGleis']?.toString(),
-          productType: productType,
-          isWalk: isWalk,
-        ));
-      }
-      if (legs.isEmpty) return null;
-      return Journey(legs: legs, depTime: legs.first.depTime, arrTime: legs.last.arrTime);
-    } catch (_) {
-      return null;
-    }
-  }
 
   Journey? _parseBahnConnection(dynamic conn) {
     try {
@@ -6723,12 +6222,12 @@ class TransitService {
       // WGS84 * 1e6 as int
       int c(double v) => (v * 1000000).round();
       final body = jsonEncode({
-        'ver': provider.hafasVer ?? '1.20',
+        'ver': provider.hafasVer,
         'lang': 'de',
         'auth': {'type': 'AID', 'aid': aid},
         'client': {
           'id': provider.hafasClientId ?? 'HAFAS',
-          'type': provider.hafasClientType ?? 'WEB',
+          'type': provider.hafasClientType,
           'name': provider.hafasClientName ?? 'webapp',
           'v': provider.hafasClientVersion ?? '',
         },
@@ -6785,12 +6284,19 @@ class TransitService {
           if (line.isEmpty) line = (prod['name'] ?? prod['nameS'] ?? '').toString();
           final cls = prod['cls'] as int? ?? 0;
           // HAFAS product class bitmask
-          if (cls & 1 != 0 || cls & 2 != 0) productType = 'train';
-          else if (cls & 4 != 0 || cls & 8 != 0) productType = 'regional';
-          else if (cls & 16 != 0) productType = 'suburban';
-          else if (cls & 32 != 0) productType = 'subway';
-          else if (cls & 64 != 0) productType = 'tram';
-          else if (cls & 128 != 0) productType = 'bus';
+          if (cls & 1 != 0 || cls & 2 != 0) {
+            productType = 'train';
+          } else if (cls & 4 != 0 || cls & 8 != 0) {
+            productType = 'regional';
+          } else if (cls & 16 != 0) {
+            productType = 'suburban';
+          } else if (cls & 32 != 0) {
+            productType = 'subway';
+          } else if (cls & 64 != 0) {
+            productType = 'tram';
+          } else if (cls & 128 != 0) {
+            productType = 'bus';
+          }
         }
         final direction = jny['dirTxt']?.toString() ?? '';
         out.add(VehiclePosition(

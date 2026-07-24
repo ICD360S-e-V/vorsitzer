@@ -319,30 +319,34 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                 const SizedBox(height: 14),
                 Text('Diagnose / Indikation (ICD-10):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
                 const SizedBox(height: 6),
-                ..._diagnosen.map((d) => RadioListTile<String>(
-                  value: d['icd10']!,
+                RadioGroup<String>(
                   groupValue: selectedIcd,
                   onChanged: (v) => setDlg(() {
                     selectedIcd = v ?? '';
-                    selectedLabel = d['label']!;
+                    selectedLabel = v == 'andere'
+                        ? 'Andere'
+                        : _diagnosen.firstWhere(
+                            (d) => d['icd10'] == v,
+                            orElse: () => const <String, String>{'label': ''},
+                          )['label']!;
                   }),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  visualDensity: const VisualDensity(vertical: -3),
-                  title: Text(d['label']!, style: const TextStyle(fontSize: 12)),
-                  subtitle: Text(d['icd10']!, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                )),
-                RadioListTile<String>(
-                  value: 'andere',
-                  groupValue: selectedIcd,
-                  onChanged: (v) => setDlg(() {
-                    selectedIcd = 'andere';
-                    selectedLabel = 'Andere';
-                  }),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  visualDensity: const VisualDensity(vertical: -3),
-                  title: const Text('Andere — freier Text', style: TextStyle(fontSize: 12)),
+                  child: Column(children: [
+                    ..._diagnosen.map((d) => RadioListTile<String>(
+                      value: d['icd10']!,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: const VisualDensity(vertical: -3),
+                      title: Text(d['label']!, style: const TextStyle(fontSize: 12)),
+                      subtitle: Text(d['icd10']!, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    )),
+                    RadioListTile<String>(
+                      value: 'andere',
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: const VisualDensity(vertical: -3),
+                      title: const Text('Andere — freier Text', style: TextStyle(fontSize: 12)),
+                    ),
+                  ]),
                 ),
                 if (selectedIcd == 'andere')
                   Padding(
@@ -359,13 +363,17 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   ),
                 const SizedBox(height: 12),
                 Text('Anzahl Paare:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-                Row(children: [
-                  Radio<int>(value: 1, groupValue: anzahlPaare, onChanged: (v) => setDlg(() => anzahlPaare = v ?? 1)),
-                  const Text('1 Paar', style: TextStyle(fontSize: 12)),
-                  const SizedBox(width: 16),
-                  Radio<int>(value: 2, groupValue: anzahlPaare, onChanged: (v) => setDlg(() => anzahlPaare = v ?? 2)),
-                  const Text('2 Paare (Wechselversorgung)', style: TextStyle(fontSize: 12)),
-                ]),
+                RadioGroup<int>(
+                  groupValue: anzahlPaare,
+                  onChanged: (v) => setDlg(() => anzahlPaare = v ?? 1),
+                  child: Row(children: [
+                    Radio<int>(value: 1),
+                    const Text('1 Paar', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 16),
+                    Radio<int>(value: 2),
+                    const Text('2 Paare (Wechselversorgung)', style: TextStyle(fontSize: 12)),
+                  ]),
+                ),
                 if (anzahlPaare == 2)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -416,12 +424,14 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   'notizen': notizenC.text.trim(),
                 });
                 if (r['success'] == true) {
-                  if (mounted) Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                   await _load();
                 } else {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Fehler: ${r['message'] ?? ''}'), backgroundColor: Colors.red),
                   );
+                  }
                 }
               },
               child: const Text('Speichern'),
@@ -1005,12 +1015,14 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                 };
                 final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, payload);
                 if (r['success'] == true) {
-                  if (mounted) Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                   await _refresh();
                 } else {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Fehler: ${r['message'] ?? ''}'), backgroundColor: Colors.red),
                   );
+                  }
                 }
               },
               child: const Text('Speichern'),

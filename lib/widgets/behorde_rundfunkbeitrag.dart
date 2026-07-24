@@ -1357,7 +1357,6 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
   Widget _buildBescheid(Map<String, dynamic> a) {
     final existingRenewalId = a['renewal_ticket_id'];
     final hasRenewal = existingRenewalId != null && existingRenewalId.toString().isNotEmpty;
-    final bid = widget.antragId;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

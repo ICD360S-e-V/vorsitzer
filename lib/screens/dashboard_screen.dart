@@ -34,7 +34,6 @@ import '../widgets/chat_bubble_overlay.dart';
 import '../widgets/weather_widget.dart';
 import '../services/weather_auto_broadcast_service.dart';
 import '../widgets/sturmwarnung_broadcast_dialog.dart';
-import '../widgets/chat_bubble_popup.dart';
 import '../services/global_chat_service.dart';
 import '../widgets/update_dialog.dart';
 import '../widgets/incoming_call_dialog.dart';
@@ -43,6 +42,7 @@ import '../widgets/moon.dart';
 import 'login_screen.dart';
 import 'secure_cloud_screen.dart';
 import 'remote_desktop_screen.dart';
+import 'mail_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../widgets/profile_dialog.dart';
 import '../utils/familie_selector_dialog.dart';
@@ -152,10 +152,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Populated by the messageStream listener; cleared when the user opens
   // that conversation in the admin chat dialog.
   final Map<int, ChatBubbleEntry> _chatBubbles = {};
-
-  // Currently-open mini chat popup. Null when no bubble is expanded.
-  int? _openPopupConvId;
-  String? _openPopupName;
 
   // Ticket management
   final _ticketService = TicketService();
@@ -1215,36 +1211,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _showAdminChatDialogInternal(_pendingCall);
   }
 
-  /// Open the admin chat with a specific conversation auto-selected.
-  void _showAdminChatForConversation(int conversationId) {
-    _showAdminChatDialogInternal(null, initialConversationId: conversationId);
-  }
-
-  /// Open the inline mini chat popup for a conversation (chat bubble tap).
-  /// Bubble stays in the right-side stack — only the unread badge is cleared,
-  /// so the user can still reach this member quickly after reading.
-  void _openPopupForConversation(int conversationId) {
-    final bubble = _chatBubbles[conversationId];
-    setState(() {
-      _openPopupConvId = conversationId;
-      _openPopupName = bubble?.senderName ?? 'Mitglied';
-      if (bubble != null && bubble.unreadCount > 0) {
-        _chatBubbles[conversationId] = ChatBubbleEntry(
-          conversationId: bubble.conversationId,
-          senderName: bubble.senderName,
-          unreadCount: 0,
-          lastMessagePreview: bubble.lastMessagePreview,
-        );
-      }
-      // The popup is a read surface — clear the dashboard badge so the
-      // icon doesn't stay marked unread after the user has opened the chat.
-      _unreadChatCount = 0;
-    });
-    // And the tray badge, which has its own counter incremented by
-    // NotificationService.showChatMessage when the dialog isn't open.
-    TrayService().clearUnread();
-  }
-
   void _showAdminChatDialogInternal(CallOfferEvent? pendingCall, {int? initialConversationId}) {
     // Clear unread count when opening chat. Bubbles stay (user closes them
     // explicitly with the × on each bubble); just zero their unread badges.
@@ -1472,6 +1438,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   ),
                 ),
             ],
+          ),
+          // E-Mail (icd@icd360s.de Postfach) — direkt neben Live Chat.
+          IconButton(
+            icon: const Icon(Icons.mail_outline),
+            tooltip: 'E-Mail',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => MailScreen(
+                mitgliedernummer: widget.currentMitgliedernummer,
+                userName: widget.userName,
+                email: widget.currentEmail,
+              ),
+            )),
           ),
           // Sichere Cloud (zero-knowledge, 50 GB) — right next to Live Chat.
           IconButton(

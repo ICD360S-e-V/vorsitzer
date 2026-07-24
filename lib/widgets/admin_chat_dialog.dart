@@ -17,6 +17,7 @@ import 'conversation_list_item.dart';
 import 'chat_message_bubble.dart';
 import 'chat_input_area.dart';
 import 'chat_header.dart';
+import '../screens/remote_control_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'eastern.dart';
 import '../utils/file_picker_helper.dart';
@@ -887,6 +888,29 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     }
   }
 
+  /// Start a Fernwartung (remote-support) session with the selected member.
+  /// Opens the viewer; the member must consent before any screen is shared.
+  /// This is separate from voice calls and from the RDP office remote desktop.
+  void _startFernwartung() {
+    if (_selectedConversation == null) return;
+    final convId = _parseConvId(_selectedConversation!['id']);
+    final memberName = (_selectedConversation!['member_name'] ?? 'Benutzer').toString();
+    final memberNumber = (_selectedConversation!['mitgliedernummer'] ?? '').toString();
+    if (memberNumber.isEmpty) {
+      _showError('Fernwartung nicht möglich: keine Mitgliedsnummer.');
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => RemoteControlScreen(
+        conversationId: convId,
+        targetUserId: memberNumber,
+        targetName: memberName,
+        controllerMitgliedernummer: widget.mitgliedernummer,
+        controllerName: widget.userName,
+      ),
+    ));
+  }
+
   /// Handle answer from member when admin initiated the call - REFACTORED to use VoiceCallService
   Future<void> _handleCallAnswer(String sdp, String sdpType, String answererName) async {
     _log.info('AdminChat: _handleCallAnswer() from $answererName, sdpType: $sdpType (using VoiceCallService)', tag: 'CALL');
@@ -1327,7 +1351,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     if (!mounted || result['success'] != true) return;
     // Ignore if the user has since switched conversations.
     if (_selectedConversation == null ||
-        _parseConvId(_selectedConversation!['id']) != convId) return;
+        _parseConvId(_selectedConversation!['id']) != convId) {
+      return;
+    }
 
     final files = List<Map<String, dynamic>>.from(result['files'] ?? []);
     final ids = <int>{};
@@ -3645,6 +3671,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           conversation: _selectedConversation!,
           canCall: canCall,
           onVideoCall: () => _startCall(video: true),
+          onRemoteControl: _startFernwartung,
           isOpen: isOpen,
           isMuted: _selectedConversation!['is_muted'] == true,
           onCall: _startCall,

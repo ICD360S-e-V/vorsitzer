@@ -324,9 +324,11 @@ class _DokTabState extends State<_DokTab> {
     var files = result.files;
     if (files.length > 20) {
       files = files.sublist(0, 20);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Maximal 20 Dateien gleichzeitig — nur die ersten 20 werden hochgeladen'), backgroundColor: Colors.orange),
       );
+      }
     }
     setState(() { _uploading = true; _uploadProgress = '0 / ${files.length}'; });
     int done = 0;
@@ -385,9 +387,11 @@ class _DokTabState extends State<_DokTab> {
     try {
       final r = await widget.apiService.downloadKindergartenDokument(id);
       if (r.statusCode != 200) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Vorschau fehlgeschlagen (${r.statusCode})'), backgroundColor: Colors.red),
         );
+        }
         return;
       }
       if (!mounted) return;
@@ -398,9 +402,11 @@ class _DokTabState extends State<_DokTab> {
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
       );
+      }
     }
   }
 
@@ -408,9 +414,11 @@ class _DokTabState extends State<_DokTab> {
     try {
       final r = await widget.apiService.downloadKindergartenDokument(id);
       if (r.statusCode != 200) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Download fehlgeschlagen (${r.statusCode})'), backgroundColor: Colors.red),
         );
+        }
         return;
       }
       final dir = await getTemporaryDirectory();
@@ -418,9 +426,11 @@ class _DokTabState extends State<_DokTab> {
       await file.writeAsBytes(r.bodyBytes);
       await OpenFilex.open(file.path);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
       );
+      }
     }
   }
 
@@ -648,9 +658,11 @@ class _KuendigungTabState extends State<_KuendigungTab> {
     var files = result.files;
     if (files.length > 20) {
       files = files.sublist(0, 20);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Max 20 Dateien — die ersten 20 werden hochgeladen'), backgroundColor: Colors.orange),
       );
+      }
     }
     int done = 0, failed = 0;
     for (final f in files) {

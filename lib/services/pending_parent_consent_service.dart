@@ -63,7 +63,7 @@ class PendingParentConsent {
   }
 
   String get childFullName => [vorname, nachname].where((s) => s.isNotEmpty).join(' ');
-  String get parentFullName => [parentVorname, parentNachname].where((s) => s != null && s!.isNotEmpty).join(' ');
+  String get parentFullName => [parentVorname, parentNachname].where((s) => s != null && s.isNotEmpty).join(' ');
 
   String get relationLabel {
     switch (parentRelation) {

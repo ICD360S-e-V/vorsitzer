@@ -10,7 +10,7 @@ import 'transit_service.dart';
 /// geOps Tralis WebSocket client — LIVE vehicle positions worldwide.
 ///
 /// Docs: https://backend.developer.geops.io/tralis-docs/asyncapi_html/
-/// Endpoint: wss://api.geops.io/realtime-ws/v1/?key=<KEY>
+/// Endpoint: `wss://api.geops.io/realtime-ws/v1/?key=<KEY>`
 ///
 /// Cover: SBB + DB + BVG + HVV + MVG + more via geOps partnerships.
 /// API key: gratis via `support@geops.io` cu use-case scurt.
@@ -170,10 +170,15 @@ class TransitLiveTrackerService extends ChangeNotifier {
           ?? props['long_name']?.toString() ?? '';
       final vehType = (props['vehicle_type'] ?? props['type'] ?? '').toString().toLowerCase();
       String productType = 'bus';
-      if (vehType.contains('rail') || vehType.contains('train')) productType = 'train';
-      else if (vehType.contains('sbahn') || vehType.contains('suburban')) productType = 'suburban';
-      else if (vehType.contains('subway') || vehType.contains('ubahn') || vehType.contains('metro')) productType = 'subway';
-      else if (vehType.contains('tram') || vehType.contains('street')) productType = 'tram';
+      if (vehType.contains('rail') || vehType.contains('train')) {
+        productType = 'train';
+      } else if (vehType.contains('sbahn') || vehType.contains('suburban')) {
+        productType = 'suburban';
+      } else if (vehType.contains('subway') || vehType.contains('ubahn') || vehType.contains('metro')) {
+        productType = 'subway';
+      } else if (vehType.contains('tram') || vehType.contains('street')) {
+        productType = 'tram';
+      }
 
       _vehicles[trainId] = VehiclePosition(
         tripId: trainId, line: line, direction: direction,

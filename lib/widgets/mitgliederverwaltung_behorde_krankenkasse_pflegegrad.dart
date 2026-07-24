@@ -497,7 +497,6 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   int? _gutachterLoadedForMdId;
 
   static const _wsMethoden = ['schriftlich per Post', 'per Fax', 'per E-Mail (online)', 'persönlich beim Termin'];
-  static const _klageMethoden = _wsMethoden; // gleiche Optionen
   static const _pflegegrade = ['', '1', '2', '3', '4', '5'];
 
   @override
@@ -757,7 +756,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       if (_a[s['flag']] == marker) continue;
       final dt = _parseDateTime(datum, s['uhrzeit'] as String);
       if (dt == null) continue;
-      final loc = _terminLocation(s['ort'] as String, s['md_name'] as String?);
+      final loc = _terminLocation(s['ort'] as String, s['md_name']);
       try {
         final res = await widget.apiService.createTermin(
           title: s['title'] as String,

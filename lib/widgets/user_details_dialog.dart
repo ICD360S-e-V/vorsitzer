@@ -2902,7 +2902,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     final date = DateTime.tryParse(dateStr);
     if (date == null) return dateStr;
     final d = date.toLocal();
-    final pad = (int v) => v.toString().padLeft(2, '0');
+    String pad(int v) => v.toString().padLeft(2, '0');
     return '${pad(d.day)}.${pad(d.month)}.${d.year} ${pad(d.hour)}:${pad(d.minute)}:${pad(d.second)}';
   }
 

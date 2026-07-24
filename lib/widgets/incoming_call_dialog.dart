@@ -739,7 +739,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: true,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         // Leaving via system back ends the call if it is still active.
         if (didPop && _svc.callState != CallState.idle) widget.onEndCall();
       },

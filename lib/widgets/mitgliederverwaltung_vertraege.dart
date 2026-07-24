@@ -667,7 +667,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
 class VertragKorrTab extends StatefulWidget {
   final ApiService apiService;
   final int vertragId;
-  const VertragKorrTab({required this.apiService, required this.vertragId});
+  const VertragKorrTab({super.key, required this.apiService, required this.vertragId});
 
   @override
   State<VertragKorrTab> createState() => _KorrTabState();
@@ -928,7 +928,7 @@ class VertragDokTab extends StatefulWidget {
   final String kategorie;
   final String label;
   final VoidCallback? onChanged;
-  const VertragDokTab({required this.apiService, required this.vertragId, required this.kategorie, required this.label, this.onChanged});
+  const VertragDokTab({super.key, required this.apiService, required this.vertragId, required this.kategorie, required this.label, this.onChanged});
 
   @override
   State<VertragDokTab> createState() => _DokTabState();
@@ -2670,6 +2670,7 @@ class _AktenzeichenAkteneinsichtTabState extends State<_AktenzeichenAkteneinsich
     );
     if (r == null || r.files.isEmpty) return;
     var files = r.files.where((f) => f.path != null).toList();
+    if (!mounted) return;
     if (files.length > 20) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Max. 20 Dateien gleichzeitig — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));
       files = files.sublist(0, 20);
@@ -3336,6 +3337,7 @@ class _InkassoDocsSectionState extends State<_InkassoDocsSection> {
     );
     if (r == null || r.files.isEmpty) return;
     var files = r.files.where((f) => f.path != null).toList();
+    if (!mounted) return;
     final scaffold = ScaffoldMessenger.of(context);
     if (files.length > 20) {
       scaffold.showSnackBar(SnackBar(content: Text('Max. 20 Dateien — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));

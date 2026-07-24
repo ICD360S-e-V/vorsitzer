@@ -630,7 +630,11 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                       contentPadding: EdgeInsets.zero,
                       value: selected.contains(key(c)),
                       onChanged: (v) => setD(() {
-                        if (v == true) selected.add(key(c)); else selected.remove(key(c));
+                        if (v == true) {
+                          selected.add(key(c));
+                        } else {
+                          selected.remove(key(c));
+                        }
                       }),
                       title: Text((c['label'] ?? '').toString(), style: const TextStyle(fontSize: 12)),
                       subtitle: Text(
@@ -2942,8 +2946,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           }
           if (adr != null && adr.isNotEmpty) _wohnungAdresse = adr;
           final ka = w['kinder_anzahl'];
-          if (ka is int) _kinderAnzahl = ka;
-          else if (ka != null) _kinderAnzahl = int.tryParse(ka.toString()) ?? 0;
+          if (ka is int) {
+            _kinderAnzahl = ka;
+          } else if (ka != null) {
+            _kinderAnzahl = int.tryParse(ka.toString()) ?? 0;
+          }
         }
         // Section F — bank block from Finanzen-Modul.
         final bank = s['bank'];
@@ -2993,12 +3000,6 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
     final o = (_user['ort'] ?? '').toString();
     return '${[s, h].where((x) => x.isNotEmpty).join(' ')}, ${[p, o].where((x) => x.isNotEmpty).join(' ')}'
         .replaceAll(RegExp(r'^,\s*|\s*,$'), '');
-  }
-
-  String _telefon() {
-    final m = (_user['telefon_mobil'] ?? '').toString();
-    final f = (_user['telefon_fix'] ?? '').toString();
-    return m.isNotEmpty ? m : f;
   }
 
   Future<void> _generate() async {

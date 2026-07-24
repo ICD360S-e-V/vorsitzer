@@ -42,7 +42,6 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
   List<ChatMessage> _messages = [];
   bool _loading = true;
   bool _sending = false;
-  int? _lastMessageId;
 
   @override
   void initState() {
@@ -56,7 +55,6 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
       if (_messages.any((x) => x.id == m.id)) return;
       setState(() {
         _messages.add(m);
-        _lastMessageId = m.id;
       });
       _scrollToBottom();
       // NU mai apelăm markRead aici — declanșa notifyListeners pe service,
@@ -83,7 +81,6 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
     if (r['success'] == true) {
       final raw = (r['messages'] as List? ?? []);
       _messages = raw.map((e) => ChatMessage.fromJson(Map<String, dynamic>.from(e as Map))).toList();
-      if (_messages.isNotEmpty) _lastMessageId = _messages.last.id;
     }
     setState(() => _loading = false);
     _scrollToBottom();
@@ -129,19 +126,22 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
             message: text,
             createdAt: DateTime.now(),
           ));
-          _lastMessageId = id;
         }
         _scrollToBottom();
       } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Fehler: ${r['message'] ?? 'Senden fehlgeschlagen'}'), backgroundColor: Colors.red),
         );
+        }
       }
     } catch (e) {
       _log.error('mini-panel send failed: $e', tag: 'GLOBAL_CHAT');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
       );
+      }
     }
     if (mounted) setState(() => _sending = false);
   }

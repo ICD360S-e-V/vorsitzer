@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -899,7 +898,7 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
             if (_antragId.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Antrag speichern'))); return; }
             final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
                 attach: (id) => widget.apiService.attachBehoerdeAntragDocFromCloud(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId, cloudFileId: id));
-            if (res != null && mounted) { _loadDocs(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
+            if (res != null && context.mounted) { _loadDocs(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16),
           label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
@@ -6287,7 +6286,10 @@ class _EigenbemEditDialog extends StatefulWidget {
   final ApiService apiService;
   final int userId, userAvId;
   final String defaultMonat;
+  // Edit-mode hook: read internally (widget.existing) to prefill/update an
+  // entry. No call site passes it yet, so the param reads as "unused".
   final Map<String, dynamic>? existing;
+  // ignore: unused_element_parameter
   const _EigenbemEditDialog({required this.apiService, required this.userId, required this.userAvId, required this.defaultMonat, this.existing});
   @override State<_EigenbemEditDialog> createState() => _EigenbemEditDialogState();
 }
@@ -7041,7 +7043,7 @@ class _VmGeneratorTabState extends State<_VmGeneratorTab> {
         backgroundColor: Colors.green,
         action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
           OpenFilex.open(path);
-          if (hilfePath != null) OpenFilex.open(hilfePath!);
+          if (hilfePath != null) OpenFilex.open(hilfePath);
         }),
       ));
     } catch (e) {
@@ -7164,7 +7166,7 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
         backgroundColor: Colors.green,
         action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
           OpenFilex.open(path);
-          if (hilfePath != null) OpenFilex.open(hilfePath!);
+          if (hilfePath != null) OpenFilex.open(hilfePath);
         }),
       ));
     } catch (e) {

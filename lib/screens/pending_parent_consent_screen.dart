@@ -811,7 +811,6 @@ class _SignatureDialogState extends State<_SignatureDialog> {
     final sig = Map<String, dynamic>.from(_data!['signature'] as Map);
     final integ = Map<String, dynamic>.from(_data!['integrity'] as Map);
     final hashOk = integ['hash_ok'] == true;
-    final countryOk = integ['country_ok'] == true;
     final manualReview = integ['manual_review_required'] == true;
     final autoValidated = sig['auto_validated'] == 1;
     final svg = (sig['signature_svg'] ?? '').toString();

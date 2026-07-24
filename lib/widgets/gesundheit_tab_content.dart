@@ -11395,7 +11395,7 @@ erstellt und versendet.''';
           verfuegbarText = 'Bevorzugte Zeitfenster: werktags von $verfuegbarVon Uhr bis $verfuegbarBis Uhr.\n';
         }
         final freqClamped = frequenzProWoche.clamp(1, 3);
-        final frequenzText = 'Gewünschte Behandlungsfrequenz: ${freqClamped} Termin${freqClamped == 1 ? "" : "e"} pro Woche.\n';
+        final frequenzText = 'Gewünschte Behandlungsfrequenz: $freqClamped Termin${freqClamped == 1 ? "" : "e"} pro Woche.\n';
         inhalt = '''Sehr geehrtes Praxis-Team,
 
 mein Name ist $vollName${geb.isNotEmpty ? ', geboren am $geb' : ''}.
@@ -14053,6 +14053,7 @@ $vollName$footer''';
               }
               await _reloadHaertefallList(data);
               if (!mounted) return;
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
               setLocalState(() {});
             }, child: Text(existing != null ? 'Speichern' : 'Hinzufügen')),
@@ -14490,6 +14491,7 @@ $vollName$footer''';
           });
           if (!mounted) return;
           if (res['success'] != true) {
+            if (!ctx.mounted) return;
             ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
             return;
           }
@@ -14499,6 +14501,7 @@ $vollName$footer''';
             a['korrespondenz'] = (r2['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
           }
           if (!mounted) return;
+          if (!ctx.mounted) return;
           Navigator.pop(ctx);
           setModal(() {});
           setLocal(() {});
@@ -18032,6 +18035,7 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
     );
     if (r == null || r.files.isEmpty) return;
     var files = r.files.where((f) => f.path != null).toList();
+    if (!mounted) return;
     final scaffold = ScaffoldMessenger.of(context);
     if (files.length > 20) {
       scaffold.showSnackBar(SnackBar(content: Text('Max. 20 Dateien — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));

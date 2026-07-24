@@ -1214,31 +1214,6 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
   String _fmtD(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
-  DateTime? _parseDeDate(String s) {
-    final m = RegExp(r'^(\d{2})\.(\d{2})\.(\d{4})$').firstMatch(s.trim());
-    if (m == null) return null;
-    final d = int.tryParse(m.group(1)!);
-    final mo = int.tryParse(m.group(2)!);
-    final y = int.tryParse(m.group(3)!);
-    if (d == null || mo == null || y == null) return null;
-    return DateTime(y, mo, d);
-  }
-
-  Widget _stepHeader(String num, String title, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 6),
-      child: Row(children: [
-        Container(
-          width: 20, height: 20, alignment: Alignment.center,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          child: Text(num, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-        ),
-        const SizedBox(width: 8),
-        Expanded(child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color))),
-      ]),
-    );
-  }
-
 
   // Ziel-Maße Passbild (35:45 @ 300 dpi ≈ 413×531 px)
   static const int _fotoTargetW = 413;
@@ -1273,12 +1248,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     } else {
       final w = img.width, h = img.height;
       if (w < 320 || h < 411) {
-        issues.add('Auflösung zu gering: ${w}×$h px (mind. 320×411 px)');
+        issues.add('Auflösung zu gering: $w×$h px (mind. 320×411 px)');
       } else if (w < _fotoTargetW || h < _fotoTargetH) {
-        warns.add('Auflösung ${w}×$h px — empfohlen mind. ${_fotoTargetW}×$_fotoTargetH px');
+        warns.add('Auflösung $w×$h px — empfohlen mind. $_fotoTargetW×$_fotoTargetH px');
       }
       if (h < w) {
-        issues.add('Querformat (${w}×$h px) — ein Passbild muss Hochformat sein');
+        issues.add('Querformat ($w×$h px) — ein Passbild muss Hochformat sein');
       } else {
         final ratio = w / h;
         const ideal = 35 / 45; // 0,778
@@ -1359,7 +1334,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     if (choice == null || !mounted) return;
     if (choice == 'adapted' && adapted != null) {
       final path = await _writeTemp(adapted, 'egk_lichtbild_${DateTime.now().millisecondsSinceEpoch}.png');
-      await _doUploadFotoToAntrag(antragId, 'eGK-Lichtbild_${_fotoTargetW}x$_fotoTargetH.png', path, messenger, 'automatisch angepasst auf ${_fotoTargetW}×$_fotoTargetH px');
+      await _doUploadFotoToAntrag(antragId, 'eGK-Lichtbild_${_fotoTargetW}x$_fotoTargetH.png', path, messenger, 'automatisch angepasst auf $_fotoTargetW×$_fotoTargetH px');
     } else {
       await _doUploadFotoToAntrag(antragId, f.name, f.path!, messenger, 'Original (nicht angepasst)');
     }
@@ -1619,7 +1594,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               Icon(Icons.arrow_forward, size: 18, color: Colors.teal.shade600),
               const SizedBox(width: 8),
               adaptedBytes != null
-                  ? frame('Angepasst (${_fotoTargetW}×$_fotoTargetH)', Image.memory(adaptedBytes, fit: BoxFit.cover), Colors.teal.shade600)
+                  ? frame('Angepasst ($_fotoTargetW×$_fotoTargetH)', Image.memory(adaptedBytes, fit: BoxFit.cover), Colors.teal.shade600)
                   : frame('Angepasst', Container(color: Colors.grey.shade100, child: Icon(Icons.block, color: Colors.grey.shade400)), Colors.grey.shade400),
             ]),
             const SizedBox(height: 10),
@@ -1642,7 +1617,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   ]),
                 )),
             const SizedBox(height: 6),
-            Text('„Angepasst" schneidet mittig auf 35:45 zu und skaliert auf ${_fotoTargetW}×$_fotoTargetH px (PNG).', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+            Text('„Angepasst" schneidet mittig auf 35:45 zu und skaliert auf $_fotoTargetW×$_fotoTargetH px (PNG).', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
           ]),
         ),
         actions: [
@@ -3797,8 +3772,11 @@ class _KgKorrEditDialogState extends State<_KgKorrEditDialog> {
     final res = await widget.apiService.saveKrankengeldKorr(widget.dossierId, korr);
     if (!mounted) return;
     setState(() => _saving = false);
-    if (res['success'] == true) Navigator.pop(context, true);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   @override
@@ -3974,8 +3952,11 @@ class _KgAuszahlungEditDialogState extends State<_KgAuszahlungEditDialog> {
     final res = await widget.apiService.saveKrankengeldAuszahlung(widget.dossierId, body);
     if (!mounted) return;
     setState(() => _saving = false);
-    if (res['success'] == true) Navigator.pop(context, true);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   @override
@@ -4165,8 +4146,11 @@ class _KgTerminEditDialogState extends State<_KgTerminEditDialog> {
     final res = await widget.apiService.saveKrankengeldTermin(widget.dossierId, body);
     if (!mounted) return;
     setState(() => _saving = false);
-    if (res['success'] == true) Navigator.pop(context, true);
-    else ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Fehler'), backgroundColor: Colors.red));
+    }
   }
 
   @override
@@ -4344,6 +4328,7 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
     );
     if (r == null || r.files.isEmpty) return;
     var files = r.files.where((f) => f.path != null).toList();
+    if (!mounted) return;
     final scaffold = ScaffoldMessenger.of(context);
     if (files.length > 20) {
       scaffold.showSnackBar(SnackBar(content: Text('Max. 20 Dateien — ${files.length - 20} ausgelassen'), backgroundColor: Colors.orange));
@@ -4469,8 +4454,8 @@ class _FotoCheck {
 
 /// Zeichnet den EU-Sternenkranz (12 goldene Sterne im Kreis) fuer die EHIC-Rueckseite.
 class _EuStarsPainter extends CustomPainter {
-  final Color color;
-  const _EuStarsPainter({this.color = const Color(0xFFFFCC00)});
+  final Color color = const Color(0xFFFFCC00);
+  const _EuStarsPainter();
 
   @override
   void paint(Canvas canvas, Size size) {

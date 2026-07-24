@@ -293,10 +293,12 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
           final korr = (res[1]['data'] as List?) ?? const [];
           hasLichtbild = korr.any((k) { final m = k as Map; return (m['titel']?.toString() ?? '').contains('eGK-Lichtbild') && m['dokumente'] is List && (m['dokumente'] as List).isNotEmpty; });
         } catch (_) {}
-        if (dlgOpen) setDlg(() {
+        if (dlgOpen) {
+          setDlg(() {
           lcPassbild = hasLichtbild;
           lcNachweis = lobbyGrund.startsWith('Bürgergeld') && hasBewilligung;
         });
+        }
       }());
     }
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(

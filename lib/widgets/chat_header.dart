@@ -9,6 +9,8 @@ class ConversationHeader extends StatelessWidget {
   final bool isMuted;
   final VoidCallback onCall;
   final VoidCallback? onVideoCall;
+  /// Start a Fernwartung (remote-support) session with this member.
+  final VoidCallback? onRemoteControl;
   final VoidCallback onClose;
   final VoidCallback onMuteToggle;
   final VoidCallback? onScheduledSettings;
@@ -31,6 +33,7 @@ class ConversationHeader extends StatelessWidget {
     required this.isOpen,
     required this.onCall,
     this.onVideoCall,
+    this.onRemoteControl,
     required this.onClose,
     this.isMuted = false,
     required this.onMuteToggle,
@@ -191,6 +194,14 @@ class ConversationHeader extends StatelessWidget {
                 tooltip: 'Videoanruf',
               ),
           ],
+          // Fernwartung (remote support) — see + control the member's screen
+          // after they consent. Separate from the RDP office remote desktop.
+          if (!isAnonymous && isOpen && onRemoteControl != null)
+            IconButton(
+              icon: const Icon(Icons.screen_share, color: Colors.lightBlueAccent),
+              onPressed: onRemoteControl,
+              tooltip: 'Fernwartung (Bildschirm)',
+            ),
           if (isOpen)
             IconButton(
               icon: const Icon(Icons.close, color: Colors.white),
