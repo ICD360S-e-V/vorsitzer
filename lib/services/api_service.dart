@@ -631,17 +631,22 @@ class ApiService {
   }
 
   /// Nachricht als gelesen/ungelesen bzw. markiert/unmarkiert setzen.
+  /// Flags setzen — fuer eine Nachricht ([uid]) oder fuer eine Auswahl ([uids]).
+  ///
+  /// Die Antwort enthaelt `ok` und `failed` pro UID: der Server verschweigt
+  /// nicht, wenn ein Teil der Auswahl nicht durchgekommen ist.
   Future<Map<String, dynamic>> flagMail(
     int uid, {
     bool? seen,
     bool? flagged,
     String box = 'INBOX',
+    List<int> uids = const [],
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/flag.php'),
       headers: _headers,
       body: jsonEncode({
-        'uid': uid,
+        if (uids.isEmpty) 'uid': uid else 'uids': uids,
         'box': box,
         if (seen != null) 'seen': seen,
         if (flagged != null) 'flagged': flagged,
@@ -655,15 +660,30 @@ class ApiService {
   }
 
   /// Nachricht in einen anderen Ordner verschieben (z. B. Spam, Archiv).
+  ///
+  /// Normalfall ist die [uid]. Beim Rückgängigmachen liegt die Nachricht aber
+  /// schon im Zielordner und hat dort eine andere UID — dann benennt sie die
+  /// [messageId]. Der Server nimmt die nur an, wenn sie genau eine trifft.
   Future<Map<String, dynamic>> moveMail({
-    required int uid,
+    int uid = 0,
     required String target,
     String box = 'INBOX',
+    String messageId = '',
+    List<int> uids = const [],
+    List<String> messageIds = const [],
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/move.php'),
       headers: _headers,
-      body: jsonEncode({'uid': uid, 'box': box, 'target': target}),
+      body: jsonEncode({
+        if (uids.isEmpty) 'uid': uid else 'uids': uids,
+        'box': box,
+        'target': target,
+        if (messageIds.isNotEmpty)
+          'message_ids': messageIds
+        else if (messageId.isNotEmpty)
+          'message_id': messageId,
+      }),
     ).timeout(const Duration(seconds: 25));
     try {
       return jsonDecode(response.body);
@@ -673,11 +693,15 @@ class ApiService {
   }
 
   /// In den Papierkorb verschieben — aus dem Papierkorb heraus endgültig löschen.
-  Future<Map<String, dynamic>> deleteMail(int uid, {String box = 'INBOX'}) async {
+  Future<Map<String, dynamic>> deleteMail(int uid,
+      {String box = 'INBOX', List<int> uids = const []}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/delete.php'),
       headers: _headers,
-      body: jsonEncode({'uid': uid, 'box': box}),
+      body: jsonEncode({
+        if (uids.isEmpty) 'uid': uid else 'uids': uids,
+        'box': box,
+      }),
     ).timeout(const Duration(seconds: 25));
     try {
       return jsonDecode(response.body);

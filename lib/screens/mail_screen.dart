@@ -54,6 +54,10 @@ class _MailScreenState extends State<MailScreen> {
 
   static const int _pageSize = 50;
 
+  /// UIDs im Auswahlmodus. Leer heisst: kein Auswahlmodus. Die Auswahl gilt nur
+  /// fuer den aktuellen Ordner und wird beim Wechseln verworfen.
+  final Set<int> _selected = {};
+
   String _box = 'INBOX';
   bool _loading = true;
   bool _loadingMore = false;
@@ -177,6 +181,7 @@ class _MailScreenState extends State<MailScreen> {
       _box = box;
       _messages = [];
       _total = 0;
+      _selected.clear();
       _search = '';
       _searchCtrl.clear();
     });
@@ -346,28 +351,32 @@ class _MailScreenState extends State<MailScreen> {
     }
   }
 
+  /// Rückfrage vor dem endgültigen Löschen. Nur im Papierkorb nötig — überall
+  /// sonst landet die Nachricht dort und ist zurückholbar.
+  Future<bool> _confirmPermanentDelete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Endgültig löschen?'),
+        content: const Text(
+            'Die Nachricht wird aus dem Papierkorb entfernt und ist danach weg.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Endgültig löschen')),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _deleteMessage(Map<String, dynamic> msg) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
     final permanent = _box == 'Trash';
-    if (permanent) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Endgültig löschen?'),
-          content: const Text(
-              'Die Nachricht wird aus dem Papierkorb entfernt und ist danach weg.'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Abbrechen')),
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Endgültig löschen')),
-          ],
-        ),
-      );
-      if (ok != true) return;
-    }
+    if (permanent && !await _confirmPermanentDelete()) return;
     final res = await _api.deleteMail(uid, box: _box);
     if (!mounted) return;
     if (res['success'] == true) {
@@ -405,6 +414,335 @@ class _MailScreenState extends State<MailScreen> {
     }
   }
 
+  // ---------------- Mehrfachauswahl ----------------
+
+  bool get _selecting => _selected.isNotEmpty;
+
+  List<Map<String, dynamic>> get _selectedMessages => _messages
+      .where((m) => _selected.contains((m['uid'] as num?)?.toInt() ?? -1))
+      .toList();
+
+  void _toggleSelected(int uid) {
+    setState(() {
+      if (!_selected.remove(uid)) _selected.add(uid);
+    });
+  }
+
+  void _clearSelection() => setState(_selected.clear);
+
+  void _selectAllLoaded() {
+    setState(() {
+      for (final m in _messages) {
+        final uid = (m['uid'] as num?)?.toInt() ?? 0;
+        if (uid > 0) _selected.add(uid);
+      }
+    });
+  }
+
+  /// Der Ordner hat mehr Nachrichten, als geladen sind. Erst nachladen, dann
+  /// auswaehlen — sonst hiesse „alle" in Wahrheit „alle sichtbaren", und man
+  /// loescht 50 statt der 312, die man gemeint hat.
+  Future<void> _selectAllInFolder() async {
+    while (mounted && _messages.length < _total && !_loadingMore) {
+      final before = _messages.length;
+      await _loadMore();
+      if (!mounted || _messages.length == before) break; // kein Fortschritt
+    }
+    if (mounted) _selectAllLoaded();
+  }
+
+  /// Meldet, was wirklich passiert ist. `ok`/`failed` kommen pro UID vom Server;
+  /// ein stilles „fertig" bei drei fehlgeschlagenen Nachrichten waere genau der
+  /// Fehler, den Sammelaktionen ueblicherweise machen.
+  void _reportBulk(Map<String, dynamic> res, String verb, {VoidCallback? undo}) {
+    final ok = (res['ok'] as List?)?.length ?? 0;
+    final failed = (res['failed'] as List?)?.length ?? 0;
+    final text = failed == 0
+        ? '$ok $verb'
+        : '$ok $verb, $failed fehlgeschlagen';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      action: (undo != null && ok > 0)
+          ? SnackBarAction(label: 'Rückgängig', onPressed: undo)
+          : null,
+    ));
+  }
+
+  Future<void> _bulkFlag() async {
+    final picked = _selectedMessages;
+    if (picked.isEmpty) return;
+    // Ist irgendetwas ungelesen, liest die Aktion alles — sonst umgekehrt.
+    final markSeen = picked.any((m) => m['seen'] != true);
+    final uids = picked
+        .map((m) => (m['uid'] as num?)?.toInt() ?? 0)
+        .where((u) => u > 0)
+        .toList();
+    final res = await _api.flagMail(0, uids: uids, seen: markSeen, box: _box);
+    if (!mounted) return;
+    setState(() {
+      for (final m in picked) {
+        m['seen'] = markSeen;
+      }
+      _selected.clear();
+    });
+    _loadFolders();
+    _reportBulk(res, markSeen ? 'als gelesen markiert' : 'als ungelesen markiert');
+  }
+
+  Future<void> _bulkMove(String target, String verb) async {
+    final picked = _selectedMessages;
+    if (picked.isEmpty) return;
+    final origin = _box;
+    final uids = picked
+        .map((m) => (m['uid'] as num?)?.toInt() ?? 0)
+        .where((u) => u > 0)
+        .toList();
+    // Vor dem Verschieben merken: danach haben die Nachrichten im Zielordner
+    // andere UIDs, und nur die Message-ID findet sie fuer das Rueckgaengig.
+    final mids = picked
+        .map((m) => '${m['message_id'] ?? ''}')
+        .where((s) => s.isNotEmpty)
+        .toList();
+    setState(() {
+      _messages.removeWhere((m) => picked.contains(m));
+      _total = (_total - picked.length).clamp(0, 1 << 30);
+      if (_openUid != null && uids.contains(_openUid)) _openUid = null;
+      _selected.clear();
+    });
+    final res = await _api.moveMail(target: target, box: origin, uids: uids);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      // Auch bei einem Teilerfolg neu laden: die fehlgeschlagenen Nachrichten
+      // liegen noch im Ordner, sind aber oben schon aus der Liste geflogen.
+      _load(keepOpen: true);
+    }
+    _loadFolders();
+    _reportBulk(res, verb,
+        undo: mids.isEmpty
+            ? null
+            : () => _undoBulk(mids, from: target, to: origin));
+  }
+
+  Future<void> _bulkDelete() async {
+    final picked = _selectedMessages;
+    if (picked.isEmpty) return;
+    final origin = _box;
+    final permanent = origin == 'Trash';
+    if (permanent && !await _confirmPermanentDeleteMany(picked.length)) return;
+    final uids = picked
+        .map((m) => (m['uid'] as num?)?.toInt() ?? 0)
+        .where((u) => u > 0)
+        .toList();
+    final mids = picked
+        .map((m) => '${m['message_id'] ?? ''}')
+        .where((s) => s.isNotEmpty)
+        .toList();
+    setState(() {
+      _messages.removeWhere((m) => picked.contains(m));
+      _total = (_total - picked.length).clamp(0, 1 << 30);
+      if (_openUid != null && uids.contains(_openUid)) _openUid = null;
+      _selected.clear();
+    });
+    final res = await _api.deleteMail(0, uids: uids, box: origin);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      _load(keepOpen: true);
+    }
+    _loadFolders();
+    _reportBulk(res, permanent ? 'endgültig gelöscht' : 'in den Papierkorb verschoben',
+        // Endgueltig geloescht gibt es nichts zurueckzuholen.
+        undo: (permanent || mids.isEmpty)
+            ? null
+            : () => _undoBulk(mids, from: 'Trash', to: origin));
+  }
+
+  Future<void> _undoBulk(List<String> messageIds,
+      {required String from, required String to}) async {
+    final res = await _api.moveMail(target: to, box: from, messageIds: messageIds);
+    if (!mounted) return;
+    _load(keepOpen: true);
+    _loadFolders();
+    if (res['success'] != true) {
+      _reportBulk(res, 'zurückgeholt');
+    }
+  }
+
+  Future<bool> _confirmPermanentDeleteMany(int count) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$count Nachrichten endgültig löschen?'),
+        content: const Text(
+            'Sie werden aus dem Papierkorb entfernt und sind danach weg.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Endgültig löschen')),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  // ---------------- Wischgesten ----------------
+
+  /// Entfernt die Zeile sofort und stellt sie wieder her, wenn der Server
+  /// ablehnt. Sofortiges Verschwinden ist der Punkt der Geste — auf die Antwort
+  /// zu warten würde sich anfühlen, als hätte der Wisch nicht gezählt.
+  ///
+  /// [undoFrom] ist der Ordner, in dem die Nachricht danach liegt, [undoTo] der,
+  /// aus dem sie kam. Fehlt eines davon, gibt es kein Rückgängig — beim
+  /// endgültigen Löschen gibt es nichts mehr zurückzuholen.
+  Future<void> _removeWithRollback(
+    Map<String, dynamic> m, {
+    required Future<Map<String, dynamic>> Function() call,
+    required String doneText,
+    String? undoFrom,
+    String? undoTo,
+  }) async {
+    final uid = (m['uid'] as num?)?.toInt() ?? 0;
+    final index = _messages.indexOf(m);
+    final reopen = _openUid == uid;
+    setState(() {
+      _messages.remove(m);
+      _total = _total > 0 ? _total - 1 : 0;
+      if (reopen) _openUid = null;
+    });
+    final res = await call();
+    if (!mounted) return;
+    if (res['success'] != true) {
+      setState(() {
+        _messages.insert(index < 0 ? 0 : index.clamp(0, _messages.length), m);
+        _total += 1;
+        if (reopen) _openUid = uid;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message']?.toString() ?? 'Aktion fehlgeschlagen.')));
+      return;
+    }
+    _loadFolders();
+    final mid = '${m['message_id'] ?? ''}';
+    final canUndo = undoFrom != null && undoTo != null && mid.isNotEmpty;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(doneText),
+      action: canUndo
+          ? SnackBarAction(
+              label: 'Rückgängig',
+              onPressed: () => _undoMove(mid, from: undoFrom, to: undoTo))
+          : null,
+    ));
+  }
+
+  /// Holt eine verschobene Nachricht zurück. Im Zielordner hat sie eine andere
+  /// UID, deshalb wird sie über ihre Message-ID benannt.
+  Future<void> _undoMove(String messageId,
+      {required String from, required String to}) async {
+    final res = await _api.moveMail(target: to, box: from, messageId: messageId);
+    if (!mounted) return;
+    if (res['success'] == true) {
+      _load(keepOpen: true);
+      _loadFolders();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message']?.toString() ?? 'Rückgängig fehlgeschlagen.')));
+    }
+  }
+
+  Future<void> _swipeMove(
+      Map<String, dynamic> m, String target, String doneText) {
+    final origin = _box;
+    return _removeWithRollback(m,
+        call: () => _api.moveMail(
+            uid: (m['uid'] as num?)?.toInt() ?? 0, target: target, box: origin),
+        doneText: doneText,
+        undoFrom: target,
+        undoTo: origin);
+  }
+
+  Future<void> _swipeDelete(Map<String, dynamic> m) {
+    final origin = _box;
+    final permanent = origin == 'Trash';
+    return _removeWithRollback(m,
+        call: () =>
+            _api.deleteMail((m['uid'] as num?)?.toInt() ?? 0, box: origin),
+        doneText:
+            permanent ? 'Endgültig gelöscht' : 'In den Papierkorb verschoben',
+        undoFrom: permanent ? null : 'Trash',
+        undoTo: permanent ? null : origin);
+  }
+
+  /// Nach rechts wischen: die aufbauende Geste. Was das heißt, hängt vom Ordner
+  /// ab — im Eingang gelesen/ungelesen, im Spam „kein Spam", im Papierkorb
+  /// wiederherstellen. In Gesendet und Entwürfe gibt es nichts Sinnvolles, dort
+  /// bleibt die Richtung aus.
+  _SwipeAction? _swipeRightAction(Map<String, dynamic> m) {
+    switch (_box) {
+      case 'INBOX':
+      case 'Archive':
+        final seen = m['seen'] == true;
+        return _SwipeAction(
+          icon: seen ? Icons.mark_email_unread_outlined : Icons.drafts_outlined,
+          label: seen ? 'Ungelesen' : 'Gelesen',
+          color: const Color(0xFF4a90d9),
+          removesRow: false,
+          run: () => _toggleSeen(m),
+        );
+      case 'Junk':
+        return _SwipeAction(
+          icon: Icons.inbox_outlined,
+          label: 'Kein Spam',
+          color: const Color(0xFF2E7D32),
+          removesRow: true,
+          run: () => _swipeMove(m, 'INBOX', 'Als „kein Spam" in den Eingang'),
+        );
+      case 'Trash':
+        return _SwipeAction(
+          icon: Icons.restore_from_trash_outlined,
+          label: 'Wiederherstellen',
+          color: const Color(0xFF2E7D32),
+          removesRow: true,
+          run: () => _swipeMove(m, 'INBOX', 'Wiederhergestellt'),
+        );
+      default:
+        return null;
+    }
+  }
+
+  /// Nach links wischen: raus aus diesem Ordner. Im Papierkorb heißt das
+  /// endgültig, deshalb dort die Rückfrage.
+  _SwipeAction _swipeLeftAction(Map<String, dynamic> m) {
+    final permanent = _box == 'Trash';
+    return _SwipeAction(
+      icon: permanent ? Icons.delete_forever_outlined : Icons.delete_outline,
+      label: permanent ? 'Endgültig löschen' : 'Papierkorb',
+      color: permanent ? const Color(0xFFB3261E) : const Color(0xFFD32F2F),
+      removesRow: true,
+      confirm: permanent ? _confirmPermanentDelete : null,
+      run: () => _swipeDelete(m),
+    );
+  }
+
+  Widget _swipeBackground(_SwipeAction a, {required bool fromLeft}) {
+    const text = TextStyle(color: Colors.white, fontWeight: FontWeight.w600);
+    final parts = <Widget>[
+      Icon(a.icon, color: Colors.white),
+      const SizedBox(width: 8),
+      Text(a.label, style: text),
+    ];
+    return Container(
+      color: a.color,
+      alignment: fromLeft ? Alignment.centerLeft : Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: fromLeft ? parts : parts.reversed.toList(),
+      ),
+    );
+  }
+
   // ---------------- layout ----------------
 
   int get _unread => _folders['INBOX']?.unseen ?? 0;
@@ -420,34 +758,8 @@ class _MailScreenState extends State<MailScreen> {
 
       return Scaffold(
         key: _scaffoldKey,
-        appBar: AppBar(
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(showRail ? MailBoxInfo.labelFor(_box) : 'E-Mail'),
-              // Quota lives in the bar at the bottom, so the subtitle stays clean.
-              Text(
-                widget.email,
-                style: const TextStyle(fontSize: 11, color: Colors.white70),
-              ),
-            ],
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Aktualisieren',
-              onPressed: _loading ? null : () => _load(keepOpen: true),
-            ),
-            if (!showRail)
-              IconButton(
-                icon: const Icon(Icons.draw_outlined),
-                tooltip: 'Signatur',
-                onPressed: _openSignature,
-              ),
-          ],
-        ),
-        drawer: showRail
+        appBar: _selecting ? _selectionAppBar() : _normalAppBar(showRail: showRail),
+        drawer: (showRail || _selecting)
             ? null
             : Drawer(
                 child: MailFolderRail(
@@ -460,7 +772,7 @@ class _MailScreenState extends State<MailScreen> {
                   onOpenSignature: _openSignature,
                 ),
               ),
-        floatingActionButton: showRail
+        floatingActionButton: (showRail || _selecting)
             ? null
             : FloatingActionButton.extended(
                 onPressed: () => _compose(),
@@ -520,10 +832,112 @@ class _MailScreenState extends State<MailScreen> {
     });
   }
 
+  PreferredSizeWidget _normalAppBar({required bool showRail}) {
+    return AppBar(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(showRail ? MailBoxInfo.labelFor(_box) : 'E-Mail'),
+          // Quota lives in the bar at the bottom, so the subtitle stays clean.
+          Text(
+            widget.email,
+            style: const TextStyle(fontSize: 11, color: Colors.white70),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Aktualisieren',
+          onPressed: _loading ? null : () => _load(keepOpen: true),
+        ),
+        if (!showRail)
+          IconButton(
+            icon: const Icon(Icons.draw_outlined),
+            tooltip: 'Signatur',
+            onPressed: _openSignature,
+          ),
+      ],
+    );
+  }
+
+  /// Die Leiste im Auswahlmodus. Sie ersetzt die normale, damit auf einen Blick
+  /// klar ist, dass die naechste Aktion mehrere Nachrichten trifft.
+  PreferredSizeWidget _selectionAppBar() {
+    final cs = Theme.of(context).colorScheme;
+    final anyUnread = _selectedMessages.any((m) => m['seen'] != true);
+    return AppBar(
+      backgroundColor: cs.secondaryContainer,
+      foregroundColor: cs.onSecondaryContainer,
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        tooltip: 'Auswahl beenden',
+        onPressed: _clearSelection,
+      ),
+      title: Text('${_selected.length} ausgewählt'),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.select_all),
+          tooltip: 'Alle geladenen auswählen',
+          onPressed: _selectAllLoaded,
+        ),
+        IconButton(
+          icon: Icon(anyUnread ? Icons.drafts_outlined : Icons.mark_email_unread_outlined),
+          tooltip: anyUnread ? 'Als gelesen markieren' : 'Als ungelesen markieren',
+          onPressed: _bulkFlag,
+        ),
+        if (_box == 'INBOX')
+          IconButton(
+            icon: const Icon(Icons.report_outlined),
+            tooltip: 'Als Spam markieren',
+            onPressed: () => _bulkMove('Junk', 'als Spam markiert'),
+          ),
+        if (_box == 'Junk' || _box == 'Trash')
+          IconButton(
+            icon: const Icon(Icons.inbox_outlined),
+            tooltip: 'In den Eingang',
+            onPressed: () => _bulkMove('INBOX', 'in den Eingang verschoben'),
+          ),
+        IconButton(
+          icon: Icon(_box == 'Trash' ? Icons.delete_forever_outlined : Icons.delete_outline),
+          tooltip: _box == 'Trash' ? 'Endgültig löschen' : 'In den Papierkorb',
+          onPressed: _bulkDelete,
+        ),
+      ],
+    );
+  }
+
   Widget _listColumn({required bool showPane}) {
+    final cs = Theme.of(context).colorScheme;
+    // Alles Geladene ist markiert, im Ordner liegt aber mehr. Ohne diesen
+    // Hinweis heisst „alle auswaehlen" stillschweigend „alle sichtbaren".
+    final moreInFolder = _selecting &&
+        _selected.length >= _messages.length &&
+        _total > _messages.length;
     return Column(
       children: [
         _searchBar(),
+        if (moreInFolder)
+          Container(
+            width: double.infinity,
+            color: cs.secondaryContainer,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Alle ${_messages.length} geladenen ausgewählt.',
+                    style: TextStyle(fontSize: 12, color: cs.onSecondaryContainer),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _selectAllInFolder,
+                  child: Text('Alle $_total im Ordner'),
+                ),
+              ],
+            ),
+          ),
         if (_box == 'INBOX' && _unread > 0)
           Container(
             width: double.infinity,
@@ -687,6 +1101,7 @@ class _MailScreenState extends State<MailScreen> {
     final seen = m['seen'] == true;
     final uid = (m['uid'] as num?)?.toInt() ?? 0;
     final selected = showPane && uid == _openUid;
+    final picked = _selected.contains(uid);
     // In Ausgang/Entwürfe the recipient is the useful name, not the sender.
     final outgoing = _box == 'Sent' || _box == 'Drafts';
     final who = _displayName('${(outgoing ? m['to'] : m['from']) ?? ''}');
@@ -695,19 +1110,30 @@ class _MailScreenState extends State<MailScreen> {
         ? MailDelivery.fromJson(Map<String, dynamic>.from(m['delivery']))
         : null;
 
-    return Material(
-      color: selected ? cs.secondaryContainer.withValues(alpha: 0.55) : Colors.transparent,
+    final tile = Material(
+      // Ausgewaehlt und geoeffnet muessen sich unterscheiden — sonst weiss man
+      // im Lesebereich nicht, ob eine Zeile markiert oder nur offen ist.
+      color: picked
+          ? cs.primaryContainer.withValues(alpha: 0.75)
+          : selected
+              ? cs.secondaryContainer.withValues(alpha: 0.55)
+              : Colors.transparent,
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: seen ? cs.surfaceContainerHighest : cs.primary,
-          child: Text(
-            who.isNotEmpty ? who[0].toUpperCase() : '?',
-            style: TextStyle(
-              color: seen ? cs.onSurfaceVariant : cs.onPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
+        leading: picked
+            ? CircleAvatar(
+                backgroundColor: cs.primary,
+                child: Icon(Icons.check, color: cs.onPrimary),
+              )
+            : CircleAvatar(
+                backgroundColor: seen ? cs.surfaceContainerHighest : cs.primary,
+                child: Text(
+                  who.isNotEmpty ? who[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    color: seen ? cs.onSurfaceVariant : cs.onPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
         title: Row(
           children: [
             if (outgoing)
@@ -770,7 +1196,9 @@ class _MailScreenState extends State<MailScreen> {
             ],
           ],
         ),
-        trailing: PopupMenuButton<String>(
+        trailing: _selecting
+            ? null
+            : PopupMenuButton<String>(
           tooltip: 'Aktionen',
           icon: Icon(
             m['flagged'] == true ? Icons.star : Icons.more_vert,
@@ -815,10 +1243,77 @@ class _MailScreenState extends State<MailScreen> {
             ),
           ],
         ),
-        onTap: () => _openMessage(m, wide: showPane),
+        onTap: () => _selecting
+            ? _toggleSelected(uid)
+            : _openMessage(m, wide: showPane),
+        // Langes Druecken startet die Auswahl — die uebliche Geste dafuer.
+        onLongPress: uid > 0 ? () => _toggleSelected(uid) : null,
       ),
     );
+
+    // Im Auswahlmodus kein Wischen: die Geste wuerde eine einzelne Nachricht
+    // treffen, waehrend die Leiste oben mehrere meint.
+    if (_selecting) return tile;
+
+    final right = _swipeRightAction(m);
+    final left = _swipeLeftAction(m);
+    return Dismissible(
+      key: ValueKey('$_box:$uid'),
+      direction: right == null
+          ? DismissDirection.endToStart
+          : DismissDirection.horizontal,
+      background: right == null
+          ? const SizedBox.shrink()
+          : _swipeBackground(right, fromLeft: true),
+      secondaryBackground: _swipeBackground(left, fromLeft: false),
+      // Ein Viertel Zeile reicht nicht: beim Scrollen darf nichts aus Versehen
+      // im Papierkorb landen.
+      dismissThresholds: const {
+        DismissDirection.startToEnd: 0.45,
+        DismissDirection.endToStart: 0.45,
+      },
+      confirmDismiss: (dir) async {
+        final a = dir == DismissDirection.startToEnd ? right : left;
+        if (a == null) return false;
+        if (a.confirm != null && !await a.confirm!()) return false;
+        // Gelesen/ungelesen entfernt die Zeile nicht — sie federt zurück, und
+        // die Aktion läuft hier statt in onDismissed.
+        if (!a.removesRow) {
+          await a.run();
+          return false;
+        }
+        return true;
+      },
+      onDismissed: (dir) {
+        final a = dir == DismissDirection.startToEnd ? right : left;
+        a?.run();
+      },
+      child: tile,
+    );
   }
+}
+
+/// Eine Wischgeste auf einer Nachrichtenzeile.
+class _SwipeAction {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  /// true = die Zeile verschwindet, false = sie federt zurück.
+  final bool removesRow;
+
+  /// Rückfrage vor dem Wegwischen; null heißt: ohne Nachfrage.
+  final Future<bool> Function()? confirm;
+  final Future<void> Function() run;
+
+  const _SwipeAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.removesRow,
+    required this.run,
+    this.confirm,
+  });
 }
 
 // ---------------- helpers ----------------

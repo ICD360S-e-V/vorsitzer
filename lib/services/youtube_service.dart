@@ -5,18 +5,23 @@ import 'logger_service.dart';
 
 final _log = LoggerService();
 
-/// One upload from a channel's public feed.
+/// One upload from a channel's Videos tab.
 class YoutubeVideo {
   final String id;
   final String title;
   final DateTime? published;
   final String thumbnail;
 
+  /// Opened from the app at some point. It says nothing about whether the
+  /// video was actually watched — YouTube does not tell us that.
+  final bool seen;
+
   const YoutubeVideo({
     required this.id,
     required this.title,
     required this.published,
     required this.thumbnail,
+    required this.seen,
   });
 
   factory YoutubeVideo.fromJson(Map<String, dynamic> j) => YoutubeVideo(
@@ -24,9 +29,29 @@ class YoutubeVideo {
         title: (j['title'] ?? '') as String,
         published: DateTime.tryParse((j['published'] ?? '') as String)?.toLocal(),
         thumbnail: (j['thumbnail'] ?? '') as String,
+        seen: j['seen'] == true,
+      );
+
+  YoutubeVideo copyWith({bool? seen}) => YoutubeVideo(
+        id: id,
+        title: title,
+        published: published,
+        thumbnail: thumbnail,
+        seen: seen ?? this.seen,
       );
 
   String get watchUrl => 'https://www.youtube.com/watch?v=$id';
+
+  String get ageLabel => _ageLabel(published);
+}
+
+String _ageLabel(DateTime? p) {
+  if (p == null) return '';
+  final d = DateTime.now().difference(p);
+  if (d.inMinutes < 60) return 'vor ${d.inMinutes} Min.';
+  if (d.inHours < 24) return 'vor ${d.inHours} Std.';
+  if (d.inDays < 7) return 'vor ${d.inDays} Tag${d.inDays > 1 ? 'en' : ''}';
+  return '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
 }
 
 /// A saved YouTube channel. Everything except the badge/sort bookkeeping is
@@ -40,7 +65,11 @@ class YoutubeChannel {
   final String? latestThumbnail;
   final DateTime? latestPublished;
   final List<YoutubeVideo> videos;
-  final bool hasNew;
+
+  /// 1 while the channel's newest upload has not been opened from the app,
+  /// 0 otherwise. Older unopened videos deliberately do not count — see the
+  /// NEU rule in the channel list.
+  final int unseenCount;
 
   const YoutubeChannel({
     required this.id,
@@ -51,8 +80,10 @@ class YoutubeChannel {
     required this.latestThumbnail,
     required this.latestPublished,
     required this.videos,
-    required this.hasNew,
+    required this.unseenCount,
   });
+
+  bool get hasNew => unseenCount > 0;
 
   factory YoutubeChannel.fromJson(Map<String, dynamic> j) => YoutubeChannel(
         id: (j['id'] as num?)?.toInt() ?? 0,
@@ -67,10 +98,13 @@ class YoutubeChannel {
             .whereType<Map>()
             .map((v) => YoutubeVideo.fromJson(Map<String, dynamic>.from(v)))
             .toList(),
-        hasNew: j['has_new'] == true,
+        unseenCount: (j['unseen_count'] as num?)?.toInt() ??
+            // Older server without per-video tracking: one flag for the lot.
+            (j['has_new'] == true ? 1 : 0),
       );
 
-  YoutubeChannel copyWith({bool? hasNew}) => YoutubeChannel(
+  YoutubeChannel copyWith({List<YoutubeVideo>? videos, int? unseenCount}) =>
+      YoutubeChannel(
         id: id,
         channelId: channelId,
         title: title,
@@ -78,8 +112,8 @@ class YoutubeChannel {
         latestTitle: latestTitle,
         latestThumbnail: latestThumbnail,
         latestPublished: latestPublished,
-        videos: videos,
-        hasNew: hasNew ?? this.hasNew,
+        videos: videos ?? this.videos,
+        unseenCount: unseenCount ?? this.unseenCount,
       );
 
   String get channelUrl => 'https://www.youtube.com/channel/$channelId';
@@ -115,7 +149,7 @@ class YoutubeService {
   List<YoutubeChannel> _channels = const [];
   List<YoutubeChannel> get channels => _channels;
 
-  /// Number of channels with an unseen upload — drives the header badge.
+  /// Videos nobody has opened yet, across all channels — the header badge.
   final ValueNotifier<int> newCount = ValueNotifier<int>(0);
 
   bool _loading = false;
@@ -127,8 +161,23 @@ class YoutubeService {
         .whereType<Map>()
         .map((e) => YoutubeChannel.fromJson(Map<String, dynamic>.from(e)))
         .toList();
-    newCount.value = (resp['new_count'] as num?)?.toInt() ??
-        _channels.where((c) => c.hasNew).length;
+    newCount.value = (resp['unseen_total'] as num?)?.toInt() ?? _localUnseen();
+  }
+
+  int _localUnseen() =>
+      _channels.fold<int>(0, (sum, c) => sum + c.unseenCount);
+
+  YoutubeChannel? _find(int id) {
+    for (final c in _channels) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  void _replaceChannel(YoutubeChannel updated) {
+    _channels =
+        _channels.map((c) => c.id == updated.id ? updated : c).toList();
+    newCount.value = _localUnseen();
   }
 
   /// Read the saved list. [refresh] additionally re-polls every feed on the
@@ -173,12 +222,32 @@ class YoutubeService {
     );
   }
 
+  /// One video was opened. Applied locally first so the NEU badge disappears
+  /// under the finger, then persisted.
+  Future<void> markVideoSeen(int channelId, String videoId) async {
+    final channel = _find(channelId);
+    if (channel != null) {
+      final videos = channel.videos
+          .map((v) => v.id == videoId ? v.copyWith(seen: true) : v)
+          .toList();
+      _replaceChannel(channel.copyWith(
+        videos: videos,
+        // Same rule the server applies: only the newest upload counts.
+        unseenCount: videos.isNotEmpty && !videos.first.seen ? 1 : 0,
+      ));
+    }
+    await _api.youtubeAction('seen_video', {'id': channelId, 'video_id': videoId});
+  }
+
+  /// Whole channel marked as read.
   Future<void> markSeen(int id) async {
-    // Optimistic: the badge should drop the moment the video is opened.
-    _channels = _channels
-        .map((c) => c.id == id ? c.copyWith(hasNew: false) : c)
-        .toList();
-    newCount.value = _channels.where((c) => c.hasNew).length;
+    final channel = _find(id);
+    if (channel != null) {
+      _replaceChannel(channel.copyWith(
+        videos: channel.videos.map((v) => v.copyWith(seen: true)).toList(),
+        unseenCount: 0,
+      ));
+    }
     await _api.youtubeAction('seen', {'id': id});
   }
 
