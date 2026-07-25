@@ -655,15 +655,25 @@ class ApiService {
   }
 
   /// Nachricht in einen anderen Ordner verschieben (z. B. Spam, Archiv).
+  ///
+  /// Normalfall ist die [uid]. Beim Rückgängigmachen liegt die Nachricht aber
+  /// schon im Zielordner und hat dort eine andere UID — dann benennt sie die
+  /// [messageId]. Der Server nimmt die nur an, wenn sie genau eine trifft.
   Future<Map<String, dynamic>> moveMail({
-    required int uid,
+    int uid = 0,
     required String target,
     String box = 'INBOX',
+    String messageId = '',
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/move.php'),
       headers: _headers,
-      body: jsonEncode({'uid': uid, 'box': box, 'target': target}),
+      body: jsonEncode({
+        'uid': uid,
+        'box': box,
+        'target': target,
+        if (messageId.isNotEmpty) 'message_id': messageId,
+      }),
     ).timeout(const Duration(seconds: 25));
     try {
       return jsonDecode(response.body);
