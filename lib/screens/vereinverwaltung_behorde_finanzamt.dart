@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -5,9 +6,37 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../services/external_browser_service.dart';
 import '../services/secure_cloud_service.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
+
+// ─── Korrespondenz vocabulary ───────────────────────────────────────────────
+
+/// The channel an exchange went through. 'anruf' is the odd one out: it carries
+/// no document at all, so there the note IS the record — the server rejects an
+/// Anruf without one.
+const List<String> _wegValues = ['email', 'anruf', 'online', 'fax', 'post', 'persoenlich'];
+
+const Map<String, String> _wegLabel = {
+  'email': 'E-Mail',
+  'anruf': 'Anruf',
+  'online': 'Online',
+  'fax': 'Fax',
+  'post': 'Post',
+  'persoenlich': 'Persönlich',
+};
+
+const Map<String, IconData> _wegIcon = {
+  'email': Icons.mail_outline,
+  'anruf': Icons.phone_outlined,
+  'online': Icons.language,
+  'fax': Icons.print_outlined,
+  'post': Icons.markunread_mailbox_outlined,
+  'persoenlich': Icons.handshake_outlined,
+};
+
+const List<String> _korrExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff'];
 
 // ─── Nachweis slots ─────────────────────────────────────────────────────────
 //
@@ -80,7 +109,10 @@ class FinanzamtScreen extends StatefulWidget {
   State<FinanzamtScreen> createState() => _FinanzamtScreenState();
 }
 
-class _FinanzamtScreenState extends State<FinanzamtScreen> {
+class _FinanzamtScreenState extends State<FinanzamtScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(length: 6, vsync: this);
+
   // Finanzamt contact data (from finanzaemter table)
   Map<String, dynamic>? _finanzamtData;
   // Verein-specific Finanzamt data (from vereinverwaltung_behorde_finanzamt table)
@@ -91,8 +123,16 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
   List<Map<String, dynamic>> _dokumente = [];
   _Slot? _uploadingSlot;
 
-  // Narrow layout: the read-only Behörde panel collapses out of the way.
-  bool _behoerdeExpanded = false;
+  // Korrespondenz
+  List<Map<String, dynamic>> _korrespondenz = [];
+  bool _korrLoading = false;
+  String _korrFilterRichtung = '';
+  String _korrFilterWeg = '';
+
+  // ELSTER access (status only — the certificate itself is fetched on demand)
+  Map<String, dynamic>? _elster;
+  bool _elsterBusy = false;
+
   bool _weitereExpanded = false;
 
   @override
@@ -101,14 +141,46 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
     _loadAll();
   }
 
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
     await Future.wait([
       _loadFinanzamtData(),
       _loadVereinFinanzamt(),
       _loadDokumente(),
+      _loadKorrespondenz(),
+      _loadElster(),
     ]);
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadKorrespondenz() async {
+    _korrLoading = true;
+    try {
+      final result = await widget.apiService.getVereinKorrespondenz(
+        richtung: _korrFilterRichtung.isEmpty ? null : _korrFilterRichtung,
+        weg: _korrFilterWeg.isEmpty ? null : _korrFilterWeg,
+      );
+      if (mounted && result['success'] == true) {
+        final data = result['data'] ?? result;
+        _korrespondenz = List<Map<String, dynamic>>.from(data['korrespondenz'] ?? []);
+      }
+    } catch (_) {}
+    _korrLoading = false;
+  }
+
+  Future<void> _loadElster() async {
+    try {
+      final result = await widget.apiService.getElsterZugang();
+      if (mounted && result['success'] == true) {
+        _elster = Map<String, dynamic>.from(result['data'] ?? result);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadFinanzamtData() async {
@@ -633,7 +705,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -658,84 +730,95 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          TabBar(
+            controller: _tabs,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            labelColor: Colors.teal.shade700,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Colors.teal.shade600,
+            tabs: [
+              const Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Zuständiges Finanzamt'),
+              const Tab(icon: Icon(Icons.person, size: 18), text: 'Ansprechpartner'),
+              const Tab(icon: Icon(Icons.tag, size: 18), text: 'Steuernummer'),
+              const Tab(icon: Icon(Icons.verified, size: 18), text: 'Gemeinnützigkeit'),
+              Tab(
+                icon: const Icon(Icons.forum_outlined, size: 18),
+                text: 'Korrespondenz'
+                    '${_korrespondenz.isEmpty ? '' : ' (${_korrespondenz.length})'}',
+              ),
+              const Tab(icon: Icon(Icons.lock_outline, size: 18), text: 'ELSTER Online'),
+            ],
+          ),
+          const Divider(height: 1),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _finanzamtData == null
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 12),
-                            Text('Keine Finanzamt-Daten vorhanden',
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
-                          ],
-                        ),
-                      )
-                    : LayoutBuilder(
-                        builder: (context, constraints) => constraints.maxWidth >= 900
-                            ? _buildWideLayout()
-                            : _buildNarrowLayout(),
-                      ),
+                : TabBarView(
+                    controller: _tabs,
+                    children: [
+                      _tabBehoerde(),
+                      _tabAnsprechpartner(),
+                      _tabSteuernummer(),
+                      _tabGemeinnuetzigkeit(),
+                      _tabKorrespondenz(),
+                      _tabElster(),
+                    ],
+                  ),
           ),
         ],
       ),
     );
   }
 
-  /// Two columns: read-only Behörde (flex 2) beside the editable Verein data
-  /// with its inline Nachweise (flex 3).
-  Widget _buildWideLayout() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(flex: 2, child: _buildBehoerdeCard()),
-        const SizedBox(width: 16),
-        Expanded(flex: 3, child: _buildVereinPanel()),
-      ],
+  Widget _pad(Widget child) => SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: child,
+      );
+
+  Widget _emptyState(IconData icon, String text) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 12),
+          Text(text,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+        ],
+      ),
     );
   }
 
-  /// Stacked, with the Behörde block collapsed by default — on a narrow screen
-  /// the editable data matters more than the (unchanging) contact details.
-  Widget _buildNarrowLayout() {
-    return SingleChildScrollView(
-      child: Column(
+  // ── Tab 1: the Finanzamt itself ───────────────────────────────────────────
+
+  Widget _tabBehoerde() {
+    if (_finanzamtData == null) {
+      return _emptyState(Icons.account_balance, 'Keine Finanzamt-Daten vorhanden');
+    }
+    return _pad(_buildBehoerdeCard());
+  }
+
+  // ── Tab 2: Ansprechpartner ────────────────────────────────────────────────
+
+  Widget _tabAnsprechpartner() => _pad(_buildSachbearbeiterCard());
+
+  // ── Tab 3: Steuernummer ───────────────────────────────────────────────────
+
+  Widget _tabSteuernummer() => _pad(Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.teal.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.account_balance, color: Colors.teal, size: 20),
-                  ),
-                  title: Text(_finanzamtData?['name'] ?? 'Finanzamt',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  trailing: Icon(_behoerdeExpanded ? Icons.expand_less : Icons.expand_more),
-                  onTap: () => setState(() => _behoerdeExpanded = !_behoerdeExpanded),
-                ),
-                if (_behoerdeExpanded)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: _buildBehoerdeDetails(),
-                  ),
-              ],
-            ),
-          ),
+          _buildSteuernummerCard(),
           const SizedBox(height: 12),
-          _buildVereinPanel(scrollable: false),
+          _buildWeitereDokumenteCard(),
         ],
-      ),
-    );
-  }
+      ));
+
+  // ── Tab 4: Gemeinnützigkeit ───────────────────────────────────────────────
+
+  Widget _tabGemeinnuetzigkeit() => _pad(_buildGemeinnuetzigkeitCard());
 
   // ── Left panel: the Behörde itself (read-only) ─────────────────────────────
 
@@ -821,24 +904,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
     );
   }
 
-  // ── Right panel: Verein data, each field carrying its own Nachweise ────────
-
-  Widget _buildVereinPanel({bool scrollable = true}) {
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildSteuernummerCard(),
-        const SizedBox(height: 12),
-        _buildGemeinnuetzigkeitCard(),
-        const SizedBox(height: 12),
-        _buildSachbearbeiterCard(),
-        const SizedBox(height: 12),
-        _buildWeitereDokumenteCard(),
-      ],
-    );
-    if (!scrollable) return content;
-    return SingleChildScrollView(child: content);
-  }
+  // ── Verein data cards, one per tab ────────────────────────────────────────
 
   Widget _buildSteuernummerCard() {
     final steuernummer = (_vereinFinanzamt?['steuernummer'] ?? '').toString();
@@ -1032,6 +1098,792 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
         ],
       ),
     );
+  }
+
+  // ── Tab 5: Korrespondenz ──────────────────────────────────────────────────
+
+  Widget _tabKorrespondenz() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _filterChip('Alle',
+                          _korrFilterRichtung.isEmpty && _korrFilterWeg.isEmpty,
+                          () => _setKorrFilter('', '')),
+                      const SizedBox(width: 6),
+                      _filterChip('↓ Eingang', _korrFilterRichtung == 'eingang',
+                          () => _setKorrFilter('eingang', _korrFilterWeg)),
+                      const SizedBox(width: 6),
+                      _filterChip('↑ Ausgang', _korrFilterRichtung == 'ausgang',
+                          () => _setKorrFilter('ausgang', _korrFilterWeg)),
+                      const SizedBox(width: 14),
+                      for (final w in _wegValues) ...[
+                        _wegChip(w),
+                        const SizedBox(width: 6),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Erfassen'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal.shade600,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _erfassenKorrespondenz,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _korrLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _korrespondenz.isEmpty
+                  ? _emptyState(
+                      Icons.forum_outlined,
+                      _korrFilterRichtung.isEmpty && _korrFilterWeg.isEmpty
+                          ? 'Noch keine Korrespondenz erfasst.\n'
+                            'E-Mails an elster@icd360s.de werden automatisch übernommen.'
+                          : 'Kein Eintrag für diesen Filter.')
+                  : ListView.separated(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      itemCount: _korrespondenz.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) => _buildKorrCard(_korrespondenz[i]),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  void _setKorrFilter(String richtung, String weg) {
+    setState(() {
+      _korrFilterRichtung = richtung;
+      _korrFilterWeg = weg;
+      _korrLoading = true;
+    });
+    _loadKorrespondenz().then((_) { if (mounted) setState(() {}); });
+  }
+
+  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
+    return ChoiceChip(
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _wegChip(String weg) {
+    final selected = _korrFilterWeg == weg;
+    return ChoiceChip(
+      avatar: Icon(_wegIcon[weg], size: 14),
+      label: Text(_wegLabel[weg]!, style: const TextStyle(fontSize: 12)),
+      selected: selected,
+      onSelected: (_) => _setKorrFilter(_korrFilterRichtung, selected ? '' : weg),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _buildKorrCard(Map<String, dynamic> k) {
+    final richtung = (k['richtung'] ?? 'eingang').toString();
+    final weg = (k['weg'] ?? 'post').toString();
+    final isEingang = richtung == 'eingang';
+    final betreff = (k['betreff'] ?? '').toString();
+    final absender = (k['absender'] ?? '').toString();
+    final empfaenger = (k['empfaenger'] ?? '').toString();
+    final partner = (k['gespraechspartner'] ?? '').toString();
+    final notiz = (k['notiz'] ?? '').toString();
+    final quelle = (k['quelle'] ?? 'manual').toString();
+    final dateien = List<Map<String, dynamic>>.from(k['dateien'] ?? []);
+    final accent = isEingang ? Colors.indigo : Colors.teal;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 4,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(isEingang ? Icons.south_west : Icons.north_east,
+                        size: 16, color: accent.shade600),
+                    const SizedBox(width: 6),
+                    Text(isEingang ? 'EINGANG' : 'AUSGANG',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6, color: accent.shade700)),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_wegIcon[weg], size: 14, color: Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Text(_wegLabel[weg] ?? weg,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  ],
+                ),
+                Text(_formatDateTime((k['datum'] ?? '').toString()),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                if (quelle == 'mail')
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt, size: 10, color: Colors.blue.shade400),
+                        const SizedBox(width: 2),
+                        Text('automatisch',
+                            style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (betreff.isNotEmpty)
+                        Text(betreff,
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (absender.isNotEmpty) absender,
+                          if (empfaenger.isNotEmpty) '→ $empfaenger',
+                          if (partner.isNotEmpty) '· $partner',
+                        ].join(' '),
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.attach_file, size: 18),
+                  tooltip: 'Dokumente hinzufügen',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _addFilesToKorrespondenz(k),
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                  tooltip: 'Löschen',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _deleteKorrespondenz(k),
+                ),
+              ],
+            ),
+            if (notiz.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text(notiz, style: const TextStyle(fontSize: 12)),
+              ),
+            ],
+            if (dateien.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: dateien.map(_buildKorrFileChip).toList(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKorrFileChip(Map<String, dynamic> f) {
+    final name = (f['original_name'] ?? 'Datei').toString();
+    final rolle = (f['rolle'] ?? 'attachment').toString();
+    final size = f['file_size'];
+    final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
+    final (icon, color) =
+        rolle == 'eml' ? (Icons.mail_outline, Colors.blueGrey) : _iconFor(ext);
+
+    return InkWell(
+      onTap: () => _viewKorrFile(f),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 200),
+              child: Text(name,
+                  style: const TextStyle(fontSize: 12),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            if (size != null) ...[
+              const SizedBox(width: 6),
+              Text(_fmtBytes(size is int ? size : int.tryParse('$size') ?? 0),
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _viewKorrFile(Map<String, dynamic> file) async {
+    final id = file['id'] is int ? file['id'] : int.parse(file['id'].toString());
+    final response = await widget.apiService.downloadVereinKorrespondenzFile(id);
+    if (!mounted) return;
+    if (response == null) {
+      _snack('Datei konnte nicht geladen werden', isError: true);
+      return;
+    }
+    await _openBytes(response.bodyBytes, file['original_name']?.toString() ?? 'datei');
+  }
+
+  Future<void> _openBytes(Uint8List bytes, String name) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$name';
+      await File(filePath).writeAsBytes(bytes);
+      if (mounted) await FileViewerDialog.show(context, filePath, name);
+    } catch (e) {
+      if (mounted) _snack('Fehler: $e', isError: true);
+    }
+  }
+
+  Future<void> _deleteKorrespondenz(Map<String, dynamic> k) async {
+    final betreff = (k['betreff'] ?? '').toString();
+    final confirmed = await _confirmDelete('Korrespondenz löschen?',
+        'Der Eintrag${betreff.isEmpty ? '' : ' "$betreff"'} und alle zugehörigen '
+        'Dokumente werden gelöscht.');
+    if (!confirmed) return;
+
+    final id = k['id'] is int ? k['id'] : int.parse(k['id'].toString());
+    final result = await widget.apiService.deleteVereinKorrespondenz(id);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      _snack('Korrespondenz gelöscht');
+      _loadKorrespondenz().then((_) { if (mounted) setState(() {}); });
+    } else {
+      _snack(result['message'] ?? 'Löschen fehlgeschlagen', isError: true);
+    }
+  }
+
+  Future<void> _erfassenKorrespondenz() async {
+    final entry = await showDialog<_KorrDraft>(
+      context: context,
+      builder: (_) => _KorrespondenzDialog(
+        defaultPartner: (_vereinFinanzamt?['sachbearbeiter_name'] ?? '').toString(),
+        finanzamtName: (_finanzamtData?['name'] ?? 'Finanzamt').toString(),
+      ),
+    );
+    if (entry == null || !mounted) return;
+
+    final created = await widget.apiService.createVereinKorrespondenz(
+      richtung: entry.richtung,
+      weg: entry.weg,
+      datum: entry.datum,
+      betreff: entry.betreff,
+      absender: entry.absender,
+      empfaenger: entry.empfaenger,
+      gespraechspartner: entry.gespraechspartner,
+      notiz: entry.notiz,
+    );
+    if (!mounted) return;
+    if (created['success'] != true) {
+      _snack(created['message'] ?? 'Anlegen fehlgeschlagen', isError: true);
+      return;
+    }
+    final data = created['data'] ?? created;
+    final korrId = data['id'] is int ? data['id'] : int.tryParse('${data['id']}') ?? 0;
+
+    if (entry.files.isNotEmpty && korrId > 0) {
+      await _uploadKorrFiles(korrId, entry.files);
+    }
+    if (!mounted) return;
+    _snack('Korrespondenz gespeichert');
+    await _loadKorrespondenz();
+    if (mounted) setState(() {});
+  }
+
+  /// Upload attachments one request at a time.
+  ///
+  /// Not a stylistic choice: nginx caps a single body at 200 MiB, PHP's
+  /// max_file_uploads is exactly 20, and ClamAV scans every write synchronously
+  /// inside a 30 s execution budget. A batched POST would fail at nginx with a
+  /// bodyless 413 that the app's error handling cannot even parse.
+  Future<void> _uploadKorrFiles(int korrId, List<PlatformFile> files) async {
+    final items = files.where((f) => f.path != null).toList();
+    if (items.isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _KorrUploadProgressDialog(
+        files: items,
+        upload: (f) async {
+          final r = await widget.apiService.attachVereinKorrespondenzFile(
+            korrespondenzId: korrId,
+            filePath: f.path!,
+            fileName: f.name,
+          );
+          return r['success'] == true ? null : (r['message']?.toString() ?? 'Fehler');
+        },
+      ),
+    );
+  }
+
+  Future<void> _addFilesToKorrespondenz(Map<String, dynamic> k) async {
+    final picked = await FilePickerHelper.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: _korrExtensions,
+      allowMultiple: true,
+      dialogTitle: 'Dokumente auswählen',
+    );
+    if (picked == null || picked.files.isEmpty) return;
+
+    // The macOS picker branch drops the extension filter, so re-check here.
+    final valid = picked.files.where((f) {
+      final ext = f.name.contains('.') ? f.name.split('.').last.toLowerCase() : '';
+      return f.path != null && _korrExtensions.contains(ext);
+    }).toList();
+
+    if (!mounted) return;
+    if (valid.isEmpty) {
+      _snack('Nur PDF, JPG und PNG sind erlaubt.', isError: true);
+      return;
+    }
+    if (valid.length < picked.files.length) {
+      _snack('${picked.files.length - valid.length} Datei(en) übersprungen — '
+             'nur PDF, JPG und PNG.', isError: true);
+    }
+
+    final id = k['id'] is int ? k['id'] : int.parse(k['id'].toString());
+    await _uploadKorrFiles(id, valid);
+    await _loadKorrespondenz();
+    if (mounted) setState(() {});
+  }
+
+  // ── Tab 6: ELSTER Online ──────────────────────────────────────────────────
+
+  Widget _tabElster() {
+    final e = _elster;
+    final configured = e != null && e['configured'] == true;
+    final certName = (e?['zertifikat_name'] ?? '').toString();
+    final certSize = e?['zertifikat_size'];
+    final hasPw = e?['has_passwort'] == true;
+    final gueltigBis = (e?['gueltig_bis'] ?? '').toString();
+
+    return _pad(Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.lock_outline, size: 18, color: Colors.deepPurple.shade600),
+                    const SizedBox(width: 8),
+                    Text('ELSTER-ZUGANG',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6, color: Colors.grey.shade700)),
+                  ],
+                ),
+                const Divider(height: 16),
+
+                // Certificate
+                if (!configured)
+                  _EmptyValue(
+                    label: 'Kein Zertifikat hinterlegt',
+                    actionLabel: 'Zertifikatsdatei (.pfx) wählen',
+                    onTap: _pickElsterCertificate,
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.vpn_key, size: 20, color: Colors.deepPurple.shade400),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(certName.isEmpty ? 'Zertifikat' : certName,
+                                  style: const TextStyle(
+                                      fontSize: 13, fontWeight: FontWeight.w600)),
+                              Text(
+                                [
+                                  if (certSize != null)
+                                    _fmtBytes(certSize is int
+                                        ? certSize
+                                        : int.tryParse('$certSize') ?? 0),
+                                  hasPw ? 'Passwort gespeichert' : 'kein Passwort',
+                                  if (gueltigBis.isNotEmpty)
+                                    'gültig bis ${_formatDate(gueltigBis)}',
+                                ].join('  ·  '),
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _pickElsterCertificate,
+                          child: const Text('Ersetzen'),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.password, size: 16),
+                      label: Text(hasPw ? 'Passwort ändern' : 'Passwort setzen'),
+                      onPressed: _setElsterPassword,
+                    ),
+                    const SizedBox(width: 8),
+                    if (configured)
+                      TextButton.icon(
+                        icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                        label: Text('Entfernen',
+                            style: TextStyle(color: Colors.red.shade400)),
+                        onPressed: _deleteElster,
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade200),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.shield_outlined, size: 16, color: Colors.amber.shade800),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Zertifikat und Passwort werden verschlüsselt gespeichert und '
+                          'sind nur für Vorsitzende lesbar. Wer beides besitzt, kann '
+                          'Erklärungen im Namen des Vereins abgeben — eine Kopie lässt '
+                          'sich nicht einzeln widerrufen.',
+                          style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('ANMELDEN',
+                    style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6, color: Colors.grey.shade700)),
+                const Divider(height: 16),
+                Text(
+                  Platform.isLinux
+                      ? 'Öffnet ELSTER im externen Chromium. Zertifikat und Passwort '
+                        'werden dort automatisch eingesetzt.'
+                      : 'Öffnet die ELSTER-Anmeldung im integrierten Browser und setzt '
+                        'Zertifikat und Passwort ein.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: _elsterBusy
+                          ? const SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.login, size: 18),
+                      label: const Text('Bei ELSTER anmelden'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple.shade600,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: (!configured || _elsterBusy) ? null : _loginToElster,
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Nur öffnen'),
+                      onPressed: () => _openUrl(_elsterLoginUrl),
+                    ),
+                  ],
+                ),
+                if (!configured) ...[
+                  const SizedBox(height: 8),
+                  Text('Zuerst Zertifikat und Passwort hinterlegen.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    ));
+  }
+
+  static const String _elsterLoginUrl =
+      'https://www.elster.de/eportal/login/softpse?isErstlogin=true';
+
+  Future<void> _pickElsterCertificate() async {
+    final picked = await FilePickerHelper.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pfx', 'p12'],
+      dialogTitle: 'ELSTER-Zertifikat (.pfx) wählen',
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    final f = picked.files.first;
+    if (f.path == null) return;
+
+    // ELSTER issues PKCS#12, never PEM — catch the mix-up before upload.
+    final ext = f.name.contains('.') ? f.name.split('.').last.toLowerCase() : '';
+    if (ext != 'pfx' && ext != 'p12') {
+      _snack('ELSTER liefert eine .pfx-Datei (PKCS#12), keine .pem.', isError: true);
+      return;
+    }
+
+    final pw = await _askPassword('Passwort des Zertifikats');
+    if (pw == null) return;
+
+    setState(() => _elsterBusy = true);
+    final r = await widget.apiService.saveElsterZugang(
+      certificatePath: f.path!,
+      certificateName: f.name,
+      passwort: pw,
+    );
+    if (!mounted) return;
+    setState(() => _elsterBusy = false);
+    if (r['success'] == true) {
+      _snack('Zertifikat gespeichert');
+      await _loadElster();
+      if (mounted) setState(() {});
+    } else {
+      _snack(r['message'] ?? 'Speichern fehlgeschlagen', isError: true);
+    }
+  }
+
+  Future<void> _setElsterPassword() async {
+    final pw = await _askPassword('Passwort des Zertifikats');
+    if (pw == null) return;
+    setState(() => _elsterBusy = true);
+    final r = await widget.apiService.saveElsterZugang(passwort: pw);
+    if (!mounted) return;
+    setState(() => _elsterBusy = false);
+    if (r['success'] == true) {
+      _snack('Passwort gespeichert');
+      await _loadElster();
+      if (mounted) setState(() {});
+    } else {
+      _snack(r['message'] ?? 'Speichern fehlgeschlagen', isError: true);
+    }
+  }
+
+  Future<String?> _askPassword(String label) async {
+    final controller = TextEditingController();
+    bool obscure = true;
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(label),
+          content: TextField(
+            controller: controller,
+            obscureText: obscure,
+            autofocus: true,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              isDense: true,
+              suffixIcon: IconButton(
+                icon: Icon(obscure ? Icons.visibility : Icons.visibility_off, size: 18),
+                onPressed: () => setD(() => obscure = !obscure),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteElster() async {
+    final ok = await _confirmDelete('ELSTER-Zugang entfernen?',
+        'Zertifikat und Passwort werden gelöscht.');
+    if (!ok) return;
+    final r = await widget.apiService.deleteElsterZugang();
+    if (!mounted) return;
+    if (r['success'] == true) {
+      _snack('Entfernt');
+      await _loadElster();
+      if (mounted) setState(() {});
+    } else {
+      _snack(r['message'] ?? 'Löschen fehlgeschlagen', isError: true);
+    }
+  }
+
+  /// Open the ELSTER certificate login with the keystore and password filled in.
+  ///
+  /// ELSTER's certificate login runs in page JavaScript rather than as a TLS
+  /// client-certificate handshake, which is the only reason this is possible at
+  /// all. On Linux we drive the external Chromium over CDP, where
+  /// DOM.setFileInputFiles takes a real path; the embedded-webview platforms
+  /// are not wired up yet and fall back to opening the page.
+  Future<void> _loginToElster() async {
+    setState(() => _elsterBusy = true);
+    File? tmp;
+    try {
+      final r = await widget.apiService.revealElsterZugang();
+      if (!mounted) return;
+      if (r['success'] != true) {
+        _snack(r['message'] ?? 'Zugangsdaten konnten nicht geladen werden', isError: true);
+        return;
+      }
+      final data = r['data'] ?? r;
+      final b64 = (data['zertifikat_base64'] ?? '').toString();
+      final pw = (data['passwort'] ?? '').toString();
+      if (b64.isEmpty) {
+        _snack('Kein Zertifikat hinterlegt.', isError: true);
+        return;
+      }
+
+      // The keystore has to exist as a file for the browser to pick it up.
+      // Written 0600 into the temp dir and removed again below.
+      final dir = await getTemporaryDirectory();
+      tmp = File('${dir.path}/elster_${DateTime.now().millisecondsSinceEpoch}.pfx');
+      await tmp.writeAsBytes(base64Decode(b64));
+
+      if (Platform.isLinux) {
+        final err = await ExternalBrowserService.openWithAutoFill(
+          url: _elsterLoginUrl,
+          autoFillJs: _elsterAutoFillJs(pw),
+          fileInputSelector: 'input[type="file"]',
+          fileToUpload: tmp,
+        );
+        if (!mounted) return;
+        if (err != null) {
+          _snack(err, isError: true);
+        } else {
+          _snack('ELSTER geöffnet — bitte im Browser bestätigen.');
+        }
+      } else {
+        // No embedded-webview path yet: opening the page is still useful, and
+        // claiming otherwise would be worse than saying so.
+        await _openUrl(_elsterLoginUrl);
+        if (mounted) {
+          _snack('Automatisches Ausfüllen ist derzeit nur unter Linux verfügbar.',
+              isError: true);
+        }
+      }
+    } catch (e) {
+      if (mounted) _snack('Fehler: $e', isError: true);
+    } finally {
+      // Never leave the keystore lying around in temp.
+      if (tmp != null) {
+        try { if (await tmp.exists()) await tmp.delete(); } catch (_) {}
+      }
+      if (mounted) setState(() => _elsterBusy = false);
+    }
+  }
+
+  /// JS injected into the ELSTER login page: select the certificate-file pane
+  /// and put the password in. Written defensively — the page's markup is not
+  /// ours and may change, so every step is optional and failure is silent
+  /// rather than throwing inside the page.
+  String _elsterAutoFillJs(String password) {
+    final escaped = jsonEncode(password);
+    return '''
+(function () {
+  try {
+    var pw = $escaped;
+    var fill = function () {
+      var pwField = document.querySelector('input[type="password"]');
+      if (pwField && !pwField.value) {
+        var setter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype, 'value').set;
+        setter.call(pwField, pw);
+        pwField.dispatchEvent(new Event('input', { bubbles: true }));
+        pwField.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    };
+    fill();
+    // The pane is rendered client-side, so the field may appear later.
+    var obs = new MutationObserver(fill);
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(function () { obs.disconnect(); }, 15000);
+  } catch (e) { /* page still usable by hand */ }
+})();
+''';
   }
 
   // ── Nachweis section shared by the field cards ─────────────────────────────
@@ -1247,6 +2099,38 @@ class _FinanzamtScreenState extends State<FinanzamtScreen> {
     }
     if (best == null) return null;
     return _Validity(until: best, from: from);
+  }
+
+  Future<bool> _confirmDelete(String title, String body) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  /// Like [_formatDate] but keeps the time when there is one — a phone call at
+  /// 10:15 is a different record from "some time that day".
+  String _formatDateTime(String dateStr) {
+    final dt = DateTime.tryParse(dateStr);
+    if (dt == null) return dateStr;
+    final d = '${dt.day.toString().padLeft(2, '0')}.'
+        '${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+    if (dt.hour == 0 && dt.minute == 0) return d;
+    return '$d ${dt.hour.toString().padLeft(2, '0')}:'
+        '${dt.minute.toString().padLeft(2, '0')}';
   }
 
   String _formatDate(String dateStr) {
@@ -1800,6 +2684,362 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
           Text(text,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Korrespondenz capture ──────────────────────────────────────────────────
+
+class _KorrDraft {
+  final String richtung;
+  final String weg;
+  final String datum;
+  final String betreff;
+  final String absender;
+  final String empfaenger;
+  final String gespraechspartner;
+  final String notiz;
+  final List<PlatformFile> files;
+  _KorrDraft({
+    required this.richtung,
+    required this.weg,
+    required this.datum,
+    required this.betreff,
+    required this.absender,
+    required this.empfaenger,
+    required this.gespraechspartner,
+    required this.notiz,
+    required this.files,
+  });
+}
+
+class _KorrespondenzDialog extends StatefulWidget {
+  final String defaultPartner;
+  final String finanzamtName;
+  const _KorrespondenzDialog({required this.defaultPartner, required this.finanzamtName});
+
+  @override
+  State<_KorrespondenzDialog> createState() => _KorrespondenzDialogState();
+}
+
+class _KorrespondenzDialogState extends State<_KorrespondenzDialog> {
+  String _richtung = 'eingang';
+  String _weg = 'post';
+  DateTime _datum = DateTime.now();
+
+  final _betreff = TextEditingController();
+  late final TextEditingController _partner =
+      TextEditingController(text: widget.defaultPartner);
+  final _notiz = TextEditingController();
+
+  final List<PlatformFile> _files = [];
+  String? _error;
+
+  bool get _isAnruf => _weg == 'anruf';
+
+  @override
+  void dispose() {
+    _betreff.dispose();
+    _partner.dispose();
+    _notiz.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFiles() async {
+    final picked = await FilePickerHelper.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: _korrExtensions,
+      allowMultiple: true,
+      dialogTitle: 'Dokumente auswählen',
+    );
+    if (picked == null) return;
+    // The macOS picker branch silently drops the extension filter, so re-check.
+    final valid = picked.files.where((f) {
+      final ext = f.name.contains('.') ? f.name.split('.').last.toLowerCase() : '';
+      return f.path != null && _korrExtensions.contains(ext);
+    }).toList();
+    if (!mounted) return;
+    setState(() {
+      _files.addAll(valid);
+      _error = valid.length < picked.files.length
+          ? 'Nur PDF, JPG und PNG — ${picked.files.length - valid.length} '
+            'Datei(en) übersprungen.'
+          : null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Korrespondenz erfassen'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Richtung',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'eingang', label: Text('Eingang'),
+                      icon: Icon(Icons.south_west, size: 16)),
+                  ButtonSegment(value: 'ausgang', label: Text('Ausgang'),
+                      icon: Icon(Icons.north_east, size: 16)),
+                ],
+                selected: {_richtung},
+                onSelectionChanged: (s) => setState(() => _richtung = s.first),
+              ),
+              const SizedBox(height: 16),
+              const Text('Weg', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _wegValues.map((v) => ChoiceChip(
+                      avatar: Icon(_wegIcon[v], size: 14),
+                      label: Text(_wegLabel[v]!, style: const TextStyle(fontSize: 12)),
+                      selected: _weg == v,
+                      onSelected: (_) => setState(() => _weg = v),
+                    )).toList(),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.calendar_today, size: 16),
+                label: Text(
+                  '${_datum.day.toString().padLeft(2, '0')}.'
+                  '${_datum.month.toString().padLeft(2, '0')}.${_datum.year}'
+                  '${_isAnruf ? '  ${_datum.hour.toString().padLeft(2, '0')}:'
+                               '${_datum.minute.toString().padLeft(2, '0')}' : ''}',
+                ),
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: context,
+                    initialDate: _datum,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                    locale: const Locale('de'),
+                  );
+                  if (d == null || !context.mounted) return;
+                  // A phone call needs the time of day; a letter does not.
+                  TimeOfDay? t;
+                  if (_isAnruf) {
+                    t = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.fromDateTime(_datum),
+                    );
+                  }
+                  if (!mounted) return;
+                  setState(() => _datum = DateTime(d.year, d.month, d.day,
+                      t?.hour ?? _datum.hour, t?.minute ?? _datum.minute));
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _partner,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(), isDense: true,
+                  labelText: 'Gesprächspartner / Sachbearbeiter',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _betreff,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(), isDense: true, labelText: 'Betreff',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notiz,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  labelText: _isAnruf ? 'Notiz (erforderlich)' : 'Notiz',
+                  helperText: _isAnruf
+                      ? 'Bei einem Anruf ist die Notiz der einzige Nachweis.'
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text('Dokumente${_isAnruf ? ' (optional)' : ''}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  TextButton.icon(
+                    icon: const Icon(Icons.attach_file, size: 16),
+                    label: const Text('Hinzufügen'),
+                    onPressed: _pickFiles,
+                  ),
+                ],
+              ),
+              if (_files.isEmpty)
+                Text('PDF, JPG oder PNG',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500))
+              else
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: _files.map((f) => Chip(
+                        label: Text(f.name, style: const TextStyle(fontSize: 11)),
+                        onDeleted: () => setState(() => _files.remove(f)),
+                        visualDensity: VisualDensity.compact,
+                      )).toList(),
+                ),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(_error!, style: TextStyle(fontSize: 12, color: Colors.orange.shade800)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal.shade600, foregroundColor: Colors.white),
+          onPressed: () {
+            // Mirrors the server rule — a call with no note leaves no record.
+            if (_isAnruf && _notiz.text.trim().isEmpty) {
+              setState(() => _error = 'Bei einem Anruf ist eine Notiz erforderlich.');
+              return;
+            }
+            final isEingang = _richtung == 'eingang';
+            Navigator.pop(
+              context,
+              _KorrDraft(
+                richtung: _richtung,
+                weg: _weg,
+                datum: '${_datum.year}-${_datum.month.toString().padLeft(2, '0')}-'
+                       '${_datum.day.toString().padLeft(2, '0')} '
+                       '${_datum.hour.toString().padLeft(2, '0')}:'
+                       '${_datum.minute.toString().padLeft(2, '0')}:00',
+                betreff: _betreff.text.trim(),
+                absender: isEingang ? widget.finanzamtName : 'ICD360S e.V.',
+                empfaenger: isEingang ? 'ICD360S e.V.' : widget.finanzamtName,
+                gespraechspartner: _partner.text.trim(),
+                notiz: _notiz.text.trim(),
+                files: _files,
+              ),
+            );
+          },
+          child: const Text('Speichern'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Sequential upload with per-file status; cannot be dismissed until finished.
+///
+/// Modelled on the Secure Cloud batch dialog — the one place in this app that
+/// gets the Android back-button case right — but parameterised by an upload
+/// callback instead of being welded to one service.
+class _KorrUploadProgressDialog extends StatefulWidget {
+  final List<PlatformFile> files;
+  final Future<String?> Function(PlatformFile) upload;
+  const _KorrUploadProgressDialog({required this.files, required this.upload});
+
+  @override
+  State<_KorrUploadProgressDialog> createState() => _KorrUploadProgressDialogState();
+}
+
+class _KorrUploadProgressDialogState extends State<_KorrUploadProgressDialog> {
+  final Map<int, String> _errors = {};
+  final Set<int> _done = {};
+  int _current = -1;
+  bool _finished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    for (var i = 0; i < widget.files.length; i++) {
+      if (!mounted) return;
+      setState(() => _current = i);
+      final err = await widget.upload(widget.files[i]);
+      if (!mounted) return;
+      setState(() {
+        _done.add(i);
+        if (err != null) _errors[i] = err;
+      });
+    }
+    if (mounted) setState(() { _finished = true; _current = -1; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.files.length;
+    final failed = _errors.length;
+    return PopScope(
+      canPop: _finished,
+      child: AlertDialog(
+        title: Text(_finished
+            ? 'Fertig (${_done.length - failed}/$total)'
+            : 'Hochladen … (${_done.length}/$total)'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: total == 0 ? 0 : _done.length / total,
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: total,
+                  itemBuilder: (_, i) {
+                    final Widget icon;
+                    if (_errors.containsKey(i)) {
+                      icon = const Icon(Icons.error, color: Colors.red, size: 20);
+                    } else if (_done.contains(i)) {
+                      icon = const Icon(Icons.check_circle, color: Colors.green, size: 20);
+                    } else if (i == _current) {
+                      icon = const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.4));
+                    } else {
+                      icon = const Icon(Icons.schedule, color: Colors.grey, size: 20);
+                    }
+                    return ListTile(
+                      dense: true,
+                      leading: icon,
+                      title: Text(widget.files[i].name,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13)),
+                      subtitle: _errors[i] == null
+                          ? null
+                          : Text(_errors[i]!,
+                              style: const TextStyle(color: Colors.red, fontSize: 11)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _finished ? () => Navigator.of(context).pop() : null,
+            child: Text(_finished && failed > 0
+                ? 'Schließen ($failed fehlgeschlagen)' : 'Fertig'),
+          ),
         ],
       ),
     );
