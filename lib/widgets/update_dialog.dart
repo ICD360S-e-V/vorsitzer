@@ -167,10 +167,19 @@ class _UpdateDialogState extends State<UpdateDialog> {
     );
 
     if (installerPath != null) {
-      await updateService.launchInstaller(installerPath);
+      final started = await updateService.launchInstaller(installerPath);
       // On Android, close dialog - system handles APK installation
       if (Platform.isAndroid && mounted) {
         Navigator.pop(context);
+      } else if (!started && mounted) {
+        // Desktop: a successful install never returns here (the app exits), so
+        // reaching this point means the installer could not be started. Drop
+        // the spinner instead of leaving it running forever.
+        setState(() {
+          _isDownloading = false;
+          _errorMessage = 'Update konnte nicht installiert werden. '
+              'Bitte laden Sie die neue Version manuell herunter.';
+        });
       }
     } else {
       setState(() {

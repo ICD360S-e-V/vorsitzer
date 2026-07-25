@@ -78,6 +78,21 @@ class UpdateService {
 
           // Compare versions
           if (_isNewerVersion(serverVersion, serverBuildNumber)) {
+            // The manifest must advertise an artifact that matches this
+            // platform. If `download_url_macos` is missing, the fallback above
+            // hands macOS the Android APK from `download_url`; we then save it
+            // as .dmg and hdiutil reports "disk image corrupt". Same for
+            // Windows, where an APK is a valid ZIP and would be extracted over
+            // the installed app. Rather offer no update than a wrong artifact.
+            final expectedExt = _expectedArtifactExtension();
+            if (expectedExt != null && !_urlHasExtension(downloadUrl, expectedExt)) {
+              _log.warning(
+                'Update $serverVersion advertises no $expectedExt artifact for '
+                '${PlatformService.platformName} (got: $downloadUrl) — skipping',
+                tag: 'UPDATE',
+              );
+              return null;
+            }
             return UpdateInfo(
               version: serverVersion,
               buildNumber: serverBuildNumber,
@@ -115,6 +130,21 @@ class UpdateService {
     }
 
     return false;
+  }
+
+  /// File extension the update artifact must have on this platform, or null
+  /// when the artifact type isn't checkable (Linux is Flatpak-managed and
+  /// returns early; iOS has no direct install path).
+  String? _expectedArtifactExtension() {
+    if (Platform.isWindows) return '.zip';
+    if (Platform.isMacOS) return '.dmg';
+    if (Platform.isAndroid) return '.apk';
+    return null;
+  }
+
+  bool _urlHasExtension(String url, String ext) {
+    final path = Uri.tryParse(url)?.path ?? url;
+    return path.toLowerCase().endsWith(ext);
   }
 
   /// Get platform-specific filename for the installer
@@ -176,7 +206,10 @@ class UpdateService {
   /// - Linux: Make AppImage executable and run
   /// - Android: Install APK via file manager
   /// - iOS: Open TestFlight URL (direct install not supported)
-  Future<void> launchInstaller(String installerPath, {bool silent = true}) async {
+  ///
+  /// Returns false when the update could not be started, so the caller can drop
+  /// the progress spinner and show an error instead of waiting forever.
+  Future<bool> launchInstaller(String installerPath, {bool silent = true}) async {
     _log.info('Launching installer: $installerPath (${PlatformService.platformName})', tag: 'UPDATE');
 
     if (Platform.isWindows) {
@@ -260,11 +293,12 @@ Stop-Transcript | Out-Null
         exit(0);
       } catch (e) {
         _log.error('Windows update failed: $e', tag: 'UPDATE');
+        return false;
       }
 
     } else if (Platform.isMacOS) {
       // macOS: Mount DMG, copy .app to /Applications, unmount, relaunch
-      await _macOSAutoUpdate(installerPath);
+      return await _macOSAutoUpdate(installerPath);
 
     } else if (Platform.isLinux) {
       // Linux: Make AppImage executable and run
@@ -288,12 +322,27 @@ Stop-Transcript | Out-Null
       // iOS: Direct installation not supported - redirect to download page
       _log.warning('iOS direct update not supported - use TestFlight', tag: 'UPDATE');
       // Could open a URL to TestFlight or download page
+      return false;
     }
+    return true;
   }
 
   /// macOS: Mount DMG, copy .app to /Applications, unmount DMG, relaunch
-  Future<void> _macOSAutoUpdate(String dmgPath) async {
+  Future<bool> _macOSAutoUpdate(String dmgPath) async {
     try {
+      // 0. Verify the download really is a disk image before handing it to
+      //    hdiutil. HTTP 200 is no proof: a manifest pointing at the wrong
+      //    artifact, a captive portal or an error page all produce a file that
+      //    macOS then reports as a corrupt disk image. Never `open` such a
+      //    file — that is exactly what raises the Finder "corrupt" dialog.
+      if (!await _isDiskImage(dmgPath)) {
+        _log.error('Downloaded file is not a macOS disk image — aborting update', tag: 'UPDATE');
+        try {
+          await File(dmgPath).delete();
+        } catch (_) {}
+        return false;
+      }
+
       // 1. Mount the DMG silently with -plist for reliable mount-point parsing
       //    NOTE: -quiet suppresses ALL stdout (including mount point) so we must NOT use it.
       //    -nobrowse prevents the volume from appearing in Finder.
@@ -305,7 +354,7 @@ Stop-Transcript | Out-Null
       if (mountResult.exitCode != 0) {
         _log.error('Failed to mount DMG: ${mountResult.stderr}', tag: 'UPDATE');
         await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
-        return;
+        return false;
       }
 
       // 2. Extract mount point from plist output using python3 (always available on macOS)
@@ -330,7 +379,7 @@ Stop-Transcript | Out-Null
       if (mountPoint.isEmpty) {
         _log.error('Could not parse mount point from hdiutil plist output', tag: 'UPDATE');
         await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
-        return;
+        return false;
       }
 
       _log.info('DMG mounted at: $mountPoint', tag: 'UPDATE');
@@ -343,7 +392,7 @@ Stop-Transcript | Out-Null
         _log.error('No .app found in $mountPoint', tag: 'UPDATE');
         await Process.run('hdiutil', ['detach', mountPoint, '-force']);
         await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
-        return;
+        return false;
       }
 
       final appName = appPath.split('/').last; // e.g. "vorsitzer.app"
@@ -399,6 +448,34 @@ Stop-Transcript | Out-Null
       _log.error('macOS auto-update failed: $e', tag: 'UPDATE');
       // Fallback: just open the DMG for manual installation
       await Process.start('open', [dmgPath], mode: ProcessStartMode.detached);
+      return false;
+    }
+  }
+
+  /// A UDIF disk image (what `hdiutil create -format UDZO` produces) ends with
+  /// a 512-byte trailer whose first four bytes are "koly". Cheap offline check
+  /// that the download is a real DMG and not an APK, HTML error page or a
+  /// truncated transfer.
+  Future<bool> _isDiskImage(String path) async {
+    try {
+      final file = File(path);
+      final length = await file.length();
+      if (length < 512) return false;
+      final handle = await file.open();
+      try {
+        await handle.setPosition(length - 512);
+        final magic = await handle.read(4);
+        return magic.length == 4 &&
+            magic[0] == 0x6B && // k
+            magic[1] == 0x6F && // o
+            magic[2] == 0x6C && // l
+            magic[3] == 0x79;   // y
+      } finally {
+        await handle.close();
+      }
+    } catch (e) {
+      _log.error('Could not inspect downloaded disk image: $e', tag: 'UPDATE');
+      return false;
     }
   }
 
