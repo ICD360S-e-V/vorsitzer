@@ -13,6 +13,11 @@ import 'ntfy_service.dart';
 import '../models/mail_models.dart';
 import '../utils/role_helpers.dart';
 
+/// Outcome of an auth call. `rejected` and `unreachable` must stay apart:
+/// a refused token is dead for good and has to be replaced, while a network
+/// failure says nothing about the token and must never cost the user a login.
+enum _AuthResult { ok, rejected, unreachable }
+
 class ApiService {
   static const String baseUrl = 'https://icd360sev.icd360s.de/api';
 
@@ -51,11 +56,14 @@ class ApiService {
       return false;
     }
     await loadTokens();
-    // If we have a refresh token but the access token might be stale
-    // (loaded from SP after app restart), proactively refresh now so
-    // all services (ntfy, heartbeat, etc.) get a fresh JWT immediately.
-    if (_refreshToken != null) {
-      await _refreshAccessToken();
+    // Settle the JWT before anything else runs. What we just loaded from disk
+    // may be stale (app restart), or dead beyond repair (JWT_SECRET rotation,
+    // refresh token past its 30 days). _refreshAccessToken() walks refresh →
+    // device_key → clearTokens, so every service that copies the JWT (ntfy,
+    // admin endpoints) starts with a live one or with none at all — never with
+    // a dead one that 401s in silence.
+    await _refreshAccessToken();
+    if (_token != null || _refreshToken != null) {
       _startTokenRefreshTimer();
     }
     return true;
@@ -104,6 +112,12 @@ class ApiService {
         await prefs.setString('refresh_token', refreshToken);
       } catch (_) {}
     }
+    // Push the new JWT to subscribers holding their own copy. ntfy fetches the
+    // ntfy_token with it, so a stale copy means a silent 401 loop. Done here so
+    // every path that produces tokens — login, refresh, device_token — covers it.
+    try {
+      NtfyService().updateJwtToken(token);
+    } catch (_) {}
     // Start proactive token refresh — access token expires in 1 hour,
     // refresh 5 minutes before expiry to avoid "invalid or expired token" errors
     _startTokenRefreshTimer();
@@ -143,15 +157,52 @@ class ApiService {
   String? get refreshToken => _refreshToken;
   bool _isRefreshing = false;
 
-  /// Refresh the access token using the refresh token.
-  /// Returns true if refresh succeeded, false if user must re-login.
+  /// Obtain a usable access token, whatever it takes.
+  ///
+  /// Tries the refresh token first, then falls back to re-issuing a pair from
+  /// the enrolled device_key. The fallback matters because refresh.php checks
+  /// the refresh token with JWT_SECRET: a secret rotation kills it, and so does
+  /// its hard 30-day expiry (refresh.php never issues a new one). Without a way
+  /// back, the app keeps a dead JWT, still reports itself logged in, and every
+  /// JWT-backed endpoint 401s in silence.
+  ///
+  /// Returns true when we end up holding a live access token.
   Future<bool> _refreshAccessToken() async {
     if (_isRefreshing) return false;
-    if (_refreshToken == null) return false;
 
     _isRefreshing = true;
     try {
-      final deviceKey = _deviceKeyService.deviceKey;
+      if (_refreshToken != null) {
+        final refreshed = await _postRefresh();
+        if (refreshed == _AuthResult.ok) return true;
+        // Server unreachable — the stored tokens may still be perfectly good,
+        // so keep them and let the next attempt decide.
+        if (refreshed == _AuthResult.unreachable) return false;
+        LoggerService().warning('Refresh token rejected — re-issuing from device key', tag: 'AUTH');
+      }
+
+      final reissued = await _reissueTokensFromDeviceKey();
+      if (reissued == _AuthResult.ok) return true;
+      if (reissued == _AuthResult.unreachable) return false;
+
+      // Both paths refused: this token pair is dead and cannot be revived.
+      // Holding on to it would leave the app looking logged in while every
+      // JWT endpoint 401s forever, so drop it and force a real re-auth.
+      LoggerService().error('Session dead (refresh + device key both refused) — clearing tokens', tag: 'AUTH');
+      await clearTokens();
+      return false;
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
+  /// Public entry point for services that hold their own copy of the JWT
+  /// (ntfy) and just got a 401 back from a JWT-authenticated endpoint.
+  Future<bool> ensureFreshToken() => _refreshAccessToken();
+
+  Future<_AuthResult> _postRefresh() async {
+    final deviceKey = _deviceKeyService.deviceKey;
+    try {
       final response = await _client.post(
         Uri.parse('$baseUrl/auth/refresh.php'),
         headers: {
@@ -162,38 +213,63 @@ class ApiService {
         body: jsonEncode({'refresh_token': _refreshToken}),
       ).timeout(const Duration(seconds: 10));
 
-      final result = jsonDecode(response.body);
-      if (response.statusCode == 200 && result['success'] == true) {
-        final newToken = result['token'] as String;
-        // Some backends rotate the refresh token on each use; keep current one if not returned.
-        final newRefreshToken = (result['refresh_token'] as String?) ?? _refreshToken!;
-        _token = newToken;
-        _refreshToken = newRefreshToken;
-        try {
-          await _secureStorage.write(key: 'access_token', value: newToken);
-          await _secureStorage.write(key: 'refresh_token', value: newRefreshToken);
-        } catch (e) {
-          LoggerService().warning('Keychain write failed on refresh, using SharedPreferences fallback: $e', tag: 'AUTH');
-          try {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('access_token', newToken);
-            await prefs.setString('refresh_token', newRefreshToken);
-          } catch (_) {}
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result['success'] == true && result['token'] != null) {
+          await saveTokens(
+            result['token'] as String,
+            // refresh.php does not rotate the refresh token; keep the current one.
+            (result['refresh_token'] as String?) ?? _refreshToken!,
+          );
+          LoggerService().info('Access token refreshed successfully', tag: 'AUTH');
+          return _AuthResult.ok;
         }
-        // Push the new JWT to subscribers that hold their own copy
-        // (ntfy fetches the ntfy_token using this JWT — stale = silent 401 loop).
-        try {
-          NtfyService().updateJwtToken(newToken);
-        } catch (_) {}
-        LoggerService().info('Access token refreshed successfully', tag: 'AUTH');
-        return true;
       }
+      return _AuthResult.rejected;
     } catch (e) {
-      LoggerService().error('Token refresh failed: $e', tag: 'AUTH');
-    } finally {
-      _isRefreshing = false;
+      LoggerService().warning('Token refresh unreachable: $e', tag: 'AUTH');
+      return _AuthResult.unreachable;
     }
-    return false;
+  }
+
+  /// Ask the server for a fresh JWT pair using the enrolled device_key.
+  /// Same trust level as every other call — the device key already authenticates
+  /// all of them — it just spares the user a re-activation each time the refresh
+  /// token dies.
+  Future<_AuthResult> _reissueTokensFromDeviceKey() async {
+    final deviceKey = _deviceKeyService.deviceKey;
+    if (deviceKey == null) return _AuthResult.rejected;
+
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/auth/device_token.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'ICD360S-Vorsitzer/1.0',
+          'X-Device-Key': deviceKey,
+        },
+        body: '{}',
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result['success'] == true &&
+            result['token'] != null &&
+            result['refresh_token'] != null) {
+          await saveTokens(result['token'] as String, result['refresh_token'] as String);
+          LoggerService().info('Tokens re-issued from device key', tag: 'AUTH');
+          return _AuthResult.ok;
+        }
+      }
+      LoggerService().warning(
+        'Device-key token re-issue refused (HTTP ${response.statusCode})',
+        tag: 'AUTH',
+      );
+      return _AuthResult.rejected;
+    } catch (e) {
+      LoggerService().warning('Device-key token re-issue unreachable: $e', tag: 'AUTH');
+      return _AuthResult.unreachable;
+    }
   }
 
   /// Headers pentru request-uri - folosește Device Key dinamic
