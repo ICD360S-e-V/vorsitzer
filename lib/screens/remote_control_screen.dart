@@ -87,6 +87,8 @@ class _RemoteControlScreenState extends State<RemoteControlScreen> {
         return 'Verbindung getrennt.';
       case RemoteControlEnd.error:
         return 'Fehler bei der Fernwartung.';
+      case RemoteControlEnd.timeout:
+        return '${widget.targetName} hat nicht geantwortet.';
       case RemoteControlEnd.none:
         return null;
     }

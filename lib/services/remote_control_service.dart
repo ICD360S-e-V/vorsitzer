@@ -12,7 +12,7 @@ final _log = LoggerService();
 enum RemoteControlState { idle, calling, connected, ended }
 
 /// Why a session ended / failed, so the UI can explain it.
-enum RemoteControlEnd { declined, memberStopped, disconnected, error, none }
+enum RemoteControlEnd { declined, memberStopped, disconnected, error, timeout, none }
 
 /// RemoteControlService — the Vorsitzer side of Fernwartung (RustDesk-style
 /// remote support). Separate from voice calls and from the RDP/Guacamole office
@@ -42,6 +42,9 @@ class RemoteControlService {
   // Audit trail (remote_sessions) — best-effort, never blocks signaling.
   int? _sessionId;
   String? _controllerMnr;
+
+  // Gives up if the member never answers (no consent) within the window.
+  Timer? _answerTimeout;
 
   StreamSubscription<RemoteAnswerEvent>? _answerSub;
   StreamSubscription<RemoteRejectedEvent>? _rejectSub;
@@ -143,6 +146,14 @@ class RemoteControlService {
       );
 
       _subscribe();
+
+      // Give up if the member never answers (no consent) within 60s, so the
+      // Vorsitzer doesn't sit on "waiting for consent" forever.
+      _answerTimeout = Timer(const Duration(seconds: 60), () {
+        if (_state == RemoteControlState.calling) {
+          end(notifyPeer: true, reason: RemoteControlEnd.timeout);
+        }
+      });
 
       // Audit (fire-and-forget): open a 'requested' row and remember its id.
       ApiService().remoteSession(
@@ -268,6 +279,7 @@ class RemoteControlService {
   void _subscribe() {
     _answerSub = _chat.remoteAnswerStream.listen((e) async {
       if (e.conversationId != _conversationId || _pc == null) return;
+      _answerTimeout?.cancel();
       try {
         await _pc!.setRemoteDescription(RTCSessionDescription(e.sdp, e.sdpType));
         _remoteDescriptionSet = true;
@@ -315,6 +327,8 @@ class RemoteControlService {
   }
 
   void _cleanup() {
+    _answerTimeout?.cancel();
+    _answerTimeout = null;
     _answerSub?.cancel();
     _rejectSub?.cancel();
     _endedSub?.cancel();
