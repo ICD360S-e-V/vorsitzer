@@ -47,7 +47,11 @@ dependencies:
   crypto: ^3.0.0
 
   # HTML parsing for client-side handelsregister.de scraping
-  html: ^0.15.4
+  # Exakt gepinnt: der Sanitizer und flutter_widget_from_html_core müssen
+  # DENSELBEN html5lib-Port benutzen. Die mXSS-Bypässe bei DOMPurify, Proton
+  # und Tuta entstanden alle daraus, dass Sanitizer und Renderer
+  # unterschiedlich geparst haben.
+  html: 0.15.6
 
   # Local storage for tokens
   shared_preferences: ^2.5.5
@@ -232,6 +236,7 @@ dependencies:
   # Zero network calls, funcționează și offline pe device-uri cu on-device STT.
   speech_to_text: ^7.0.0
   opencv_core: ^1.4.5
+  flutter_widget_from_html_core: ^0.17.2
 
 dev_dependencies:
   flutter_test:
