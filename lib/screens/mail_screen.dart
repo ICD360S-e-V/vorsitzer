@@ -54,6 +54,9 @@ class _MailScreenState extends State<MailScreen> {
   bool _loading = true;
   bool _loadingMore = false;
   String? _error;
+
+  /// Der Server hat den Token abgelehnt — dann hilft nur neu anmelden.
+  bool _sessionExpired = false;
   List<Map<String, dynamic>> _messages = [];
   int _total = 0;
   Map<String, MailFolder> _folders = {};
@@ -95,7 +98,12 @@ class _MailScreenState extends State<MailScreen> {
         _messages = List<Map<String, dynamic>>.from(res['messages'] ?? []);
         _total = (res['total'] as num?)?.toInt() ?? _messages.length;
       } else {
-        _error = res['message']?.toString() ?? 'Der Ordner konnte nicht geladen werden.';
+        final msg = res['message']?.toString() ?? '';
+        _error = _isAuthError(msg)
+            ? 'Die Sitzung ist abgelaufen. Bitte ab- und wieder anmelden — '
+                'danach ist das Postfach sofort wieder da.'
+            : (msg.isNotEmpty ? msg : 'Der Ordner konnte nicht geladen werden.');
+        _sessionExpired = _isAuthError(msg);
       }
     } catch (e) {
       _error = 'Keine Verbindung zum Server.';
@@ -578,15 +586,29 @@ class _MailScreenState extends State<MailScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+              Icon(_sessionExpired ? Icons.lock_clock : Icons.error_outline,
+                  size: 48,
+                  color: _sessionExpired
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.redAccent),
               const SizedBox(height: 12),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Erneut versuchen'),
-              ),
+              // Retrying cannot fix a rejected token, so do not offer it.
+              if (_sessionExpired)
+                Text(
+                  'Abmelden und neu anmelden',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Erneut versuchen'),
+                ),
             ],
           ),
         ),
@@ -794,6 +816,17 @@ class _MailScreenState extends State<MailScreen> {
 }
 
 // ---------------- helpers ----------------
+
+/// Erkennt die 401-Meldungen von `requireAuth()` serverseitig.
+///
+/// Wird gebraucht, weil ein abgelaufener Token sonst als „Ordner konnte nicht
+/// geladen werden“ erscheint und man an der falschen Stelle sucht.
+bool _isAuthError(String message) {
+  final m = message.toLowerCase();
+  return m.contains('invalid or expired token') ||
+      m.contains('missing or invalid authorization') ||
+      m.contains('konto deaktiviert');
+}
 
 String _extractEmail(String raw) {
   final m = RegExp(r'<([^>]+)>').firstMatch(raw);

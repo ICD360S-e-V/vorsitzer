@@ -55,12 +55,11 @@ class MailFolderRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    // Only offer folders that exist server-side; Eingang/Ausgang always show so
-    // the rail never looks broken while the counts are still loading.
-    final visible = MailBoxInfo.all.where((b) {
-      if (b.box == 'INBOX' || b.box == 'Sent') return true;
-      return folders.containsKey(b.box);
-    }).toList();
+    // Only ever show folders the server actually reported. Faking Eingang and
+    // Ausgang when the folder call failed made a broken session look like a
+    // working mailbox, which is worse than showing nothing.
+    final visible =
+        MailBoxInfo.all.where((b) => folders.containsKey(b.box)).toList();
 
     return Container(
       width: isDrawer ? null : 232,
@@ -87,12 +86,37 @@ class MailFolderRail extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: [
-                  for (final b in visible) _tile(context, cs, b),
-                ],
-              ),
+              child: visible.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.folder_off_outlined, size: 32, color: cs.outline),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Ordner nicht geladen',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Der Server hat das Postfach nicht geliefert.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      children: [
+                        for (final b in visible) _tile(context, cs, b),
+                      ],
+                    ),
             ),
             if (onOpenSignature != null) ...[
               const Divider(height: 1),
