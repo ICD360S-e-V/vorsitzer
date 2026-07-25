@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'api_service.dart';
 import 'notification_service.dart';
 import 'logger_service.dart';
 import 'http_client_factory.dart';
@@ -18,7 +19,8 @@ class NtfyService {
   static const String _ntfyUrl = 'https://icd360sev.icd360s.de/ntfy';
   static const String _tokenUrl = 'https://icd360sev.icd360s.de/api/auth/ntfy_token.php';
   static const String _topicPrefix = 'vorsitzer_';
-  static const Duration _reconnectDelay = Duration(seconds: 5);
+  static const Duration _baseReconnectDelay = Duration(seconds: 5);
+  static const Duration _maxReconnectDelay = Duration(minutes: 5);
 
   final _log = LoggerService();
 
@@ -29,6 +31,7 @@ class NtfyService {
   StreamSubscription? _subscription;
   Timer? _reconnectTimer;
   bool _running = false;
+  int _reconnectAttempts = 0;
 
   /// Start listening for ntfy notifications.
   /// [mitgliedernummer] - e.g. "V12345" (will be lowercased)
@@ -39,6 +42,7 @@ class NtfyService {
     _mitgliedernummer = mitgliedernummer.toLowerCase();
     _jwtToken = jwtToken;
     _running = true;
+    _reconnectAttempts = 0;
     _log.info('ntfy: Starting for $_mitgliedernummer', tag: 'NTFY');
     _fetchTokenAndConnect();
   }
@@ -66,6 +70,18 @@ class NtfyService {
 
   Future<void> _fetchTokenAndConnect() async {
     if (!_running) return;
+
+    if (_ntfyToken == null && _jwtToken == null) {
+      // Dashboard can start us before ApiService has settled its tokens, and
+      // a cleared session leaves us with nothing to authenticate with. Either
+      // way, silently doing nothing is what hid this failure for months.
+      _log.warning('ntfy: No JWT yet — requesting one', tag: 'NTFY');
+      await ApiService().ensureFreshToken();
+      if (_jwtToken == null) {
+        _scheduleReconnect();
+        return;
+      }
+    }
 
     // Fetch ntfy token from server
     if (_ntfyToken == null && _jwtToken != null) {
@@ -98,6 +114,11 @@ class NtfyService {
           }
         } else {
           _log.error('ntfy: Token fetch HTTP ${response.statusCode}', tag: 'NTFY');
+          if (response.statusCode == 401 || response.statusCode == 403) {
+            // A refused JWT never heals by being sent again. Ask ApiService for
+            // a live one — it pushes the result back here via updateJwtToken().
+            await ApiService().ensureFreshToken();
+          }
           _scheduleReconnect();
           return;
         }
@@ -147,6 +168,7 @@ class NtfyService {
       }
 
       _log.info('ntfy: Connected to $topic', tag: 'NTFY');
+      _reconnectAttempts = 0;
 
       _subscription = response.stream
           .transform(utf8.decoder)
@@ -196,6 +218,14 @@ class NtfyService {
   void _scheduleReconnect() {
     if (!_running) return;
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(_reconnectDelay, _fetchTokenAndConnect);
+    // Exponential backoff, capped. Retrying every 5s against a failure that
+    // cannot fix itself — a dead JWT, say — costs thousands of requests a day
+    // and buries the real error under its own noise.
+    final delay = _reconnectAttempts >= 6
+        ? _maxReconnectDelay
+        : Duration(seconds: _baseReconnectDelay.inSeconds << _reconnectAttempts);
+    _reconnectAttempts++;
+    _log.debug('ntfy: Reconnect in ${delay.inSeconds}s', tag: 'NTFY');
+    _reconnectTimer = Timer(delay, _fetchTokenAndConnect);
   }
 }
