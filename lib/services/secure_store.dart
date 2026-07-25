@@ -69,6 +69,15 @@ class SecureStore {
   // each other's keys.
   static Future<void> _ioGate = Future<void>.value();
 
+  // Once the keyring fails (locked / no secrets service), stop calling it for
+  // the rest of the process. A locked libsecret call blocks for the FULL ~25s
+  // D-Bus timeout before throwing, so re-trying it on every secret read/write
+  // adds minutes of startup hang (observed in the field). Process-wide so the
+  // first failure in ANY SecureStore instance short-circuits the others, and a
+  // per-call timeout caps even that first probe.
+  static bool _linuxKeyringDown = false;
+  static const Duration _keyringTimeout = Duration(seconds: 5);
+
   SecretKey? _cachedKey;
   bool _warnedFallbackOnce = false;
   bool _warnedFatalOnce = false;
@@ -82,12 +91,16 @@ class SecureStore {
       return _storage.read(key: key);
     }
 
-    // 1) Prefer the real keyring when it works.
-    try {
-      final viaKeyring = await _storage.read(key: key);
-      if (viaKeyring != null) return viaKeyring;
-    } catch (e) {
-      _warnFallbackOnce(e);
+    // 1) Prefer the real keyring when it works — but only until it first fails,
+    //    and never let a locked keyring block startup for its full 25s timeout.
+    if (!_linuxKeyringDown) {
+      try {
+        final viaKeyring =
+            await _storage.read(key: key).timeout(_keyringTimeout);
+        if (viaKeyring != null) return viaKeyring;
+      } catch (e) {
+        _markKeyringDown(e);
+      }
     }
 
     // 2) Encrypted fallback file.
@@ -125,10 +138,12 @@ class SecureStore {
     // Best-effort keyring write (kept in sync for when it later works), but the
     // encrypted file is the source of truth on Linux so persistence never
     // depends on the keyring being unlocked at this exact moment.
-    try {
-      await _storage.write(key: key, value: value);
-    } catch (e) {
-      _warnFallbackOnce(e);
+    if (!_linuxKeyringDown) {
+      try {
+        await _storage.write(key: key, value: value).timeout(_keyringTimeout);
+      } catch (e) {
+        _markKeyringDown(e);
+      }
     }
 
     await _synchronized(() async {
@@ -142,9 +157,13 @@ class SecureStore {
     if (!Platform.isLinux) {
       return _storage.delete(key: key);
     }
-    try {
-      await _storage.delete(key: key);
-    } catch (_) {}
+    if (!_linuxKeyringDown) {
+      try {
+        await _storage.delete(key: key).timeout(_keyringTimeout);
+      } catch (e) {
+        _markKeyringDown(e);
+      }
+    }
     await _synchronized(() async {
       final map = await _readFileMap();
       if (map.remove(key) != null) {
@@ -283,12 +302,13 @@ class SecureStore {
     return key;
   }
 
-  void _warnFallbackOnce(Object e) {
+  void _markKeyringDown(Object e) {
+    _linuxKeyringDown = true;
     if (_warnedFallbackOnce) return;
     _warnedFallbackOnce = true;
     _log.warning(
         'System keyring unavailable on Linux ($e) — using encrypted-file '
-        'fallback for secrets',
+        'fallback for secrets (keyring skipped for the rest of this session)',
         tag: 'SECSTORE');
   }
 }
