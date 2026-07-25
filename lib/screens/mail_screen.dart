@@ -346,28 +346,32 @@ class _MailScreenState extends State<MailScreen> {
     }
   }
 
+  /// Rückfrage vor dem endgültigen Löschen. Nur im Papierkorb nötig — überall
+  /// sonst landet die Nachricht dort und ist zurückholbar.
+  Future<bool> _confirmPermanentDelete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Endgültig löschen?'),
+        content: const Text(
+            'Die Nachricht wird aus dem Papierkorb entfernt und ist danach weg.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Endgültig löschen')),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _deleteMessage(Map<String, dynamic> msg) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
     final permanent = _box == 'Trash';
-    if (permanent) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Endgültig löschen?'),
-          content: const Text(
-              'Die Nachricht wird aus dem Papierkorb entfernt und ist danach weg.'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Abbrechen')),
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Endgültig löschen')),
-          ],
-        ),
-      );
-      if (ok != true) return;
-    }
+    if (permanent && !await _confirmPermanentDelete()) return;
     final res = await _api.deleteMail(uid, box: _box);
     if (!mounted) return;
     if (res['success'] == true) {
@@ -403,6 +407,162 @@ class _MailScreenState extends State<MailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(res['message']?.toString() ?? 'Verschieben fehlgeschlagen.')));
     }
+  }
+
+  // ---------------- Wischgesten ----------------
+
+  /// Entfernt die Zeile sofort und stellt sie wieder her, wenn der Server
+  /// ablehnt. Sofortiges Verschwinden ist der Punkt der Geste — auf die Antwort
+  /// zu warten würde sich anfühlen, als hätte der Wisch nicht gezählt.
+  ///
+  /// [undoFrom] ist der Ordner, in dem die Nachricht danach liegt, [undoTo] der,
+  /// aus dem sie kam. Fehlt eines davon, gibt es kein Rückgängig — beim
+  /// endgültigen Löschen gibt es nichts mehr zurückzuholen.
+  Future<void> _removeWithRollback(
+    Map<String, dynamic> m, {
+    required Future<Map<String, dynamic>> Function() call,
+    required String doneText,
+    String? undoFrom,
+    String? undoTo,
+  }) async {
+    final uid = (m['uid'] as num?)?.toInt() ?? 0;
+    final index = _messages.indexOf(m);
+    final reopen = _openUid == uid;
+    setState(() {
+      _messages.remove(m);
+      _total = _total > 0 ? _total - 1 : 0;
+      if (reopen) _openUid = null;
+    });
+    final res = await call();
+    if (!mounted) return;
+    if (res['success'] != true) {
+      setState(() {
+        _messages.insert(index < 0 ? 0 : index.clamp(0, _messages.length), m);
+        _total += 1;
+        if (reopen) _openUid = uid;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message']?.toString() ?? 'Aktion fehlgeschlagen.')));
+      return;
+    }
+    _loadFolders();
+    final mid = '${m['message_id'] ?? ''}';
+    final canUndo = undoFrom != null && undoTo != null && mid.isNotEmpty;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(doneText),
+      action: canUndo
+          ? SnackBarAction(
+              label: 'Rückgängig',
+              onPressed: () => _undoMove(mid, from: undoFrom, to: undoTo))
+          : null,
+    ));
+  }
+
+  /// Holt eine verschobene Nachricht zurück. Im Zielordner hat sie eine andere
+  /// UID, deshalb wird sie über ihre Message-ID benannt.
+  Future<void> _undoMove(String messageId,
+      {required String from, required String to}) async {
+    final res = await _api.moveMail(target: to, box: from, messageId: messageId);
+    if (!mounted) return;
+    if (res['success'] == true) {
+      _load(keepOpen: true);
+      _loadFolders();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['message']?.toString() ?? 'Rückgängig fehlgeschlagen.')));
+    }
+  }
+
+  Future<void> _swipeMove(
+      Map<String, dynamic> m, String target, String doneText) {
+    final origin = _box;
+    return _removeWithRollback(m,
+        call: () => _api.moveMail(
+            uid: (m['uid'] as num?)?.toInt() ?? 0, target: target, box: origin),
+        doneText: doneText,
+        undoFrom: target,
+        undoTo: origin);
+  }
+
+  Future<void> _swipeDelete(Map<String, dynamic> m) {
+    final origin = _box;
+    final permanent = origin == 'Trash';
+    return _removeWithRollback(m,
+        call: () =>
+            _api.deleteMail((m['uid'] as num?)?.toInt() ?? 0, box: origin),
+        doneText:
+            permanent ? 'Endgültig gelöscht' : 'In den Papierkorb verschoben',
+        undoFrom: permanent ? null : 'Trash',
+        undoTo: permanent ? null : origin);
+  }
+
+  /// Nach rechts wischen: die aufbauende Geste. Was das heißt, hängt vom Ordner
+  /// ab — im Eingang gelesen/ungelesen, im Spam „kein Spam", im Papierkorb
+  /// wiederherstellen. In Gesendet und Entwürfe gibt es nichts Sinnvolles, dort
+  /// bleibt die Richtung aus.
+  _SwipeAction? _swipeRightAction(Map<String, dynamic> m) {
+    switch (_box) {
+      case 'INBOX':
+      case 'Archive':
+        final seen = m['seen'] == true;
+        return _SwipeAction(
+          icon: seen ? Icons.mark_email_unread_outlined : Icons.drafts_outlined,
+          label: seen ? 'Ungelesen' : 'Gelesen',
+          color: const Color(0xFF4a90d9),
+          removesRow: false,
+          run: () => _toggleSeen(m),
+        );
+      case 'Junk':
+        return _SwipeAction(
+          icon: Icons.inbox_outlined,
+          label: 'Kein Spam',
+          color: const Color(0xFF2E7D32),
+          removesRow: true,
+          run: () => _swipeMove(m, 'INBOX', 'Als „kein Spam" in den Eingang'),
+        );
+      case 'Trash':
+        return _SwipeAction(
+          icon: Icons.restore_from_trash_outlined,
+          label: 'Wiederherstellen',
+          color: const Color(0xFF2E7D32),
+          removesRow: true,
+          run: () => _swipeMove(m, 'INBOX', 'Wiederhergestellt'),
+        );
+      default:
+        return null;
+    }
+  }
+
+  /// Nach links wischen: raus aus diesem Ordner. Im Papierkorb heißt das
+  /// endgültig, deshalb dort die Rückfrage.
+  _SwipeAction _swipeLeftAction(Map<String, dynamic> m) {
+    final permanent = _box == 'Trash';
+    return _SwipeAction(
+      icon: permanent ? Icons.delete_forever_outlined : Icons.delete_outline,
+      label: permanent ? 'Endgültig löschen' : 'Papierkorb',
+      color: permanent ? const Color(0xFFB3261E) : const Color(0xFFD32F2F),
+      removesRow: true,
+      confirm: permanent ? _confirmPermanentDelete : null,
+      run: () => _swipeDelete(m),
+    );
+  }
+
+  Widget _swipeBackground(_SwipeAction a, {required bool fromLeft}) {
+    const text = TextStyle(color: Colors.white, fontWeight: FontWeight.w600);
+    final parts = <Widget>[
+      Icon(a.icon, color: Colors.white),
+      const SizedBox(width: 8),
+      Text(a.label, style: text),
+    ];
+    return Container(
+      color: a.color,
+      alignment: fromLeft ? Alignment.centerLeft : Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: fromLeft ? parts : parts.reversed.toList(),
+      ),
+    );
   }
 
   // ---------------- layout ----------------
@@ -695,7 +855,7 @@ class _MailScreenState extends State<MailScreen> {
         ? MailDelivery.fromJson(Map<String, dynamic>.from(m['delivery']))
         : null;
 
-    return Material(
+    final tile = Material(
       color: selected ? cs.secondaryContainer.withValues(alpha: 0.55) : Colors.transparent,
       child: ListTile(
         leading: CircleAvatar(
@@ -818,7 +978,66 @@ class _MailScreenState extends State<MailScreen> {
         onTap: () => _openMessage(m, wide: showPane),
       ),
     );
+
+    final right = _swipeRightAction(m);
+    final left = _swipeLeftAction(m);
+    return Dismissible(
+      key: ValueKey('$_box:$uid'),
+      direction: right == null
+          ? DismissDirection.endToStart
+          : DismissDirection.horizontal,
+      background: right == null
+          ? const SizedBox.shrink()
+          : _swipeBackground(right, fromLeft: true),
+      secondaryBackground: _swipeBackground(left, fromLeft: false),
+      // Ein Viertel Zeile reicht nicht: beim Scrollen darf nichts aus Versehen
+      // im Papierkorb landen.
+      dismissThresholds: const {
+        DismissDirection.startToEnd: 0.45,
+        DismissDirection.endToStart: 0.45,
+      },
+      confirmDismiss: (dir) async {
+        final a = dir == DismissDirection.startToEnd ? right : left;
+        if (a == null) return false;
+        if (a.confirm != null && !await a.confirm!()) return false;
+        // Gelesen/ungelesen entfernt die Zeile nicht — sie federt zurück, und
+        // die Aktion läuft hier statt in onDismissed.
+        if (!a.removesRow) {
+          await a.run();
+          return false;
+        }
+        return true;
+      },
+      onDismissed: (dir) {
+        final a = dir == DismissDirection.startToEnd ? right : left;
+        a?.run();
+      },
+      child: tile,
+    );
   }
+}
+
+/// Eine Wischgeste auf einer Nachrichtenzeile.
+class _SwipeAction {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  /// true = die Zeile verschwindet, false = sie federt zurück.
+  final bool removesRow;
+
+  /// Rückfrage vor dem Wegwischen; null heißt: ohne Nachfrage.
+  final Future<bool> Function()? confirm;
+  final Future<void> Function() run;
+
+  const _SwipeAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.removesRow,
+    required this.run,
+    this.confirm,
+  });
 }
 
 // ---------------- helpers ----------------
