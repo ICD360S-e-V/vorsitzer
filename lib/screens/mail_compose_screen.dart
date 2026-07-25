@@ -26,6 +26,10 @@ class MailComposeScreen extends StatefulWidget {
   /// Message-ID der Nachricht, auf die geantwortet wird (Threading).
   final String? inReplyTo;
 
+  /// References-Kette der Elternnachricht. Ohne sie verliert eine Antwort auf
+  /// eine Antwort ihre Historie, und Gmail fädelt sie gar nicht mehr ein.
+  final String? references;
+
   /// Bereits übernommene Anhänge (Weiterleitung).
   final List<MailOutgoingAttachment> initialAttachments;
 
@@ -40,6 +44,7 @@ class MailComposeScreen extends StatefulWidget {
     this.subject,
     this.quotedBody,
     this.inReplyTo,
+    this.references,
     this.initialAttachments = const [],
     this.draft,
   });
@@ -215,6 +220,7 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
         body: _bodyCtrl.text,
         requestReceipt: _requestReceipt,
         inReplyTo: widget.draft?.inReplyTo ?? widget.inReplyTo ?? '',
+        references: widget.draft?.references ?? widget.references ?? '',
         keepAttachments: _storedAttachments.map((a) => a.index).toList(),
         newAttachments: uploading,
       );
@@ -431,6 +437,7 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
         body: _bodyCtrl.text,
         requestReceipt: _requestReceipt,
         inReplyTo: widget.draft?.inReplyTo ?? widget.inReplyTo ?? '',
+        references: widget.draft?.references ?? widget.references ?? '',
         attachments: _newAttachments,
         // Attachments already in the draft stay on the server — naming them
         // spares a download-and-re-upload of everything.

@@ -45,6 +45,7 @@ class MailDraft {
   final String subject;
   final String body;
   final String inReplyTo;
+  final String references;
   final bool requestReceipt;
   final List<MailStoredAttachment> attachments;
 
@@ -57,6 +58,7 @@ class MailDraft {
     this.subject = '',
     this.body = '',
     this.inReplyTo = '',
+    this.references = '',
     this.requestReceipt = false,
     this.attachments = const [],
   });
@@ -70,6 +72,7 @@ class MailDraft {
         subject: '${d['subject'] ?? ''}' == '(kein Betreff)' ? '' : '${d['subject'] ?? ''}',
         body: '${d['text'] ?? ''}',
         inReplyTo: '${d['in_reply_to'] ?? ''}',
+        references: '${d['references'] ?? ''}',
         requestReceipt: d['request_receipt'] == true,
         attachments: ((d['attachments'] as List?) ?? const [])
             .whereType<Map>()
