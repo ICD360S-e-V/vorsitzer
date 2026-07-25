@@ -213,9 +213,48 @@ class _MailScreenState extends State<MailScreen> {
 
   // ---------------- actions ----------------
 
+  /// Öffnet einen Entwurf zum Weiterschreiben statt in der Leseansicht.
+  Future<void> _openDraft(Map<String, dynamic> msg) async {
+    final uid = (msg['uid'] as num?)?.toInt() ?? 0;
+    if (uid <= 0) return;
+    setState(() => _loading = true);
+    MailDraft? draft;
+    try {
+      final res = await _api.getMailMessage(uid, box: 'Drafts');
+      if (res['success'] == true) {
+        draft = MailDraft.fromMessageData(
+            Map<String, dynamic>.from(res['message_data'] ?? {}));
+      }
+    } catch (_) {/* fall through to the error below */}
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (draft == null || draft.draftId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Dieser Entwurf konnte nicht geöffnet werden.'),
+      ));
+      return;
+    }
+    final sent = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => MailComposeScreen(selfEmail: widget.email, draft: draft),
+    ));
+    if (!mounted) return;
+    if (sent == true) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('E-Mail gesendet — der Zustellstatus steht im Ausgang.'),
+      ));
+      _pollDeliveryAfterSend();
+    }
+    _load();
+  }
+
   Future<void> _openMessage(Map<String, dynamic> msg, {required bool wide}) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
     if (uid <= 0) return;
+    // A draft is for writing, not reading.
+    if (_box == 'Drafts') {
+      await _openDraft(msg);
+      return;
+    }
     if (wide) {
       setState(() => _openUid = uid);
       // Opening marks it read, so the rail counter has to catch up.
