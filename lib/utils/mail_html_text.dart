@@ -49,6 +49,67 @@ const int _maxDepth = 200;
 /// nicht selbst einschmuggeln kann.
 const String _preMark = '\u0000';
 
+/// Leere Elemente — sie schließen nie, dürfen also nicht als Verschachtelung
+/// zählen, sonst sieht `<br>` ×1000 wie Tiefe 1000 aus.
+const Set<String> _voidElements = {
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
+  'meta', 'param', 'source', 'track', 'wbr',
+};
+
+/// Billiger Vorab-Scan gegen Verschachtelungsbomben.
+///
+/// Nötig, weil html5lib den Baum komplett aufbaut, BEVOR irgendeine unserer
+/// Grenzen greifen könnte: ein Byte-Limit allein lässt 512 KB verschachtelte
+/// `<div>` vollständig parsen. Dieser Scan ist O(n) und läuft vor dem Parser.
+bool _looksHostile(String s, {int maxTags = 20000, int maxNestDepth = 100}) {
+  var tags = 0, depth = 0, i = 0;
+  while (true) {
+    i = s.indexOf('<', i);
+    if (i < 0) return false;
+    tags++;
+    if (tags > maxTags) return true;
+    var j = i + 1;
+    final closing = j < s.length && s.codeUnitAt(j) == 0x2F; // '/'
+    if (closing) j++;
+    final nameStart = j;
+    while (j < s.length) {
+      final c = s.codeUnitAt(j);
+      final alnum = (c >= 0x61 && c <= 0x7A) ||
+          (c >= 0x41 && c <= 0x5A) ||
+          (c >= 0x30 && c <= 0x39);
+      if (!alnum) break;
+      j++;
+    }
+    if (j == nameStart) {
+      i += 1; // ein '<' das kein Tag ist
+      continue;
+    }
+    final name = s.substring(nameStart, j).toLowerCase();
+    if (closing) {
+      if (depth > 0) depth--;
+    } else if (!_voidElements.contains(name)) {
+      final gt = s.indexOf('>', j);
+      final selfClosing = gt > 0 && s.codeUnitAt(gt - 1) == 0x2F;
+      if (!selfClosing) {
+        depth++;
+        if (depth > maxNestDepth) return true;
+      }
+    }
+    i = j;
+  }
+}
+
+/// Unsichtbare bzw. anzeige-manipulierende Zeichen.
+///
+/// Die Bidi-Overrides und -Isolates sind der "Trojan Source"-Satz
+/// (CVE-2021-42574): sie kehren die Anzeige um, ohne den Text zu ändern — in
+/// einem offengelegten Linkziel heißt das, die angezeigte Domain kann eine
+/// andere sein als die echte. U+200C/U+200D bleiben absichtlich stehen, die
+/// braucht arabischer und indischer Text legitim.
+final RegExp _unsafeChars = RegExp(
+    r'[\u202a-\u202e\u2066-\u2069\u200b\ufeff\u00ad'
+    r'\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]');
+
 /// HTML-Teil einer Nachricht als Text.
 String mailHtmlToText(
   String html, {
@@ -59,6 +120,11 @@ String mailHtmlToText(
 
   // Kappen VOR dem Parsen: der Parser ist rekursiv.
   final source = html.length > maxInputChars ? html.substring(0, maxInputChars) : html;
+
+  // Vor dem Parser, nicht danach: sonst ist der teure Schritt schon passiert.
+  if (_looksHostile(source)) {
+    return _normalize(_stripTagsFallback(source), maxOutputChars);
+  }
 
   dom.Document doc;
   try {
@@ -187,7 +253,9 @@ String _normalize(String s, int maxOutputChars) {
   // Einrückung zitierter Logs oder Texttabellen wieder zerstört.
   final parts = t.split(_preMark);
   for (var i = 0; i < parts.length; i++) {
-    if (i.isOdd) continue; // innerhalb <pre>
+    // Unsichtbare/umkehrende Zeichen überall entfernen, auch in <pre>.
+    parts[i] = parts[i].replaceAll(_unsafeChars, '');
+    if (i.isOdd) continue; // innerhalb <pre>: Einrückung bleibt
     parts[i] = parts[i]
         .split('\n')
         .map((line) => line.replaceAll(RegExp(r'[ \t]+$'), ''))
