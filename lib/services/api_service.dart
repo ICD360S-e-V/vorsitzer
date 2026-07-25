@@ -2268,6 +2268,32 @@ class ApiService {
     }
   }
 
+  /// TV / YouTube-Kanäle (gespeicherte Kanäle + Neue-Video-Erkennung).
+  /// Actions: list | add | delete | seen | seen_all | refresh.
+  /// `refresh` re-reads every feed server-side, so it needs a wider timeout
+  /// than the rest — 60 saved channels are 60 outbound fetches.
+  Future<Map<String, dynamic>> youtubeAction(
+    String action, [
+    Map<String, dynamic> data = const {},
+  ]) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/admin/youtube_manage.php'),
+            headers: _headers,
+            body: jsonEncode({'action': action, ...data}),
+          )
+          .timeout(Duration(seconds: action == 'refresh' ? 90 : 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Ungültige Serverantwort'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Server nicht erreichbar: $e'};
+    }
+  }
+
   // Create platform Aufgabe
   Future<Map<String, dynamic>> createPlatformAufgabe({
     required String platform,
