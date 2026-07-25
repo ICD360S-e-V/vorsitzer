@@ -741,6 +741,23 @@ class ApiService {
     }
   }
 
+  /// Eigene Signatur verwerfen und zur automatisch erzeugten zurückkehren.
+  ///
+  /// Die automatische Fassung wird aus dem angemeldeten Benutzer und den
+  /// Vereinsdaten gebaut, bleibt also synchron, wenn sich der Vorstand ändert.
+  Future<Map<String, dynamic>> resetMailSignature() async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/signature.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'reset'}),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   /// Postfach-Speicherplatz (Quota).
   Future<Map<String, dynamic>> getMailQuota() async {
     final response = await _client.post(
