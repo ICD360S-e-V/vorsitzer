@@ -1725,6 +1725,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           users: _users,
           getRoleColor: getRoleColor,
           getRoleText: getRoleText,
+          mitgliedernummer: widget.currentMitgliedernummer,
         );
       case 5:
         return const NetzwerkScreen();
