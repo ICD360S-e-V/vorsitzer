@@ -10,6 +10,7 @@ import 'secure_store.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
 import 'ntfy_service.dart';
+import '../models/mail_models.dart';
 import '../utils/role_helpers.dart';
 
 class ApiService {
@@ -311,13 +312,38 @@ class ApiService {
   // JWT + Device Key (see _headers). The mailbox is resolved server-side from
   // the logged-in Vorsitzer, so the client never names a mailbox.
 
-  /// Posteingang / Ordner-Listung. box: 'INBOX' | 'Trash' | 'Sent'.
-  Future<Map<String, dynamic>> getMailInbox({int limit = 50, int offset = 0, String box = 'INBOX'}) async {
+  /// Ordnerliste mit Anzahl gesamt/ungelesen (Eingang, Ausgang, Spam, ...).
+  Future<Map<String, dynamic>> getMailFolders() async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/folders.php'),
+      headers: _headers,
+      body: jsonEncode({}),
+    ).timeout(const Duration(seconds: 25));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Ordner-Listung. box: 'INBOX' | 'Sent' | 'Trash' | 'Junk' | 'Drafts'.
+  /// Für 'Sent' liefert der Server pro Nachricht zusätzlich `delivery`.
+  Future<Map<String, dynamic>> getMailInbox({
+    int limit = 50,
+    int offset = 0,
+    String box = 'INBOX',
+    String? search,
+  }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/list.php'),
       headers: _headers,
-      body: jsonEncode({'limit': limit, 'offset': offset, 'box': box}),
-    ).timeout(const Duration(seconds: 30));
+      body: jsonEncode({
+        'limit': limit,
+        'offset': offset,
+        'box': box,
+        if (search != null && search.isNotEmpty) 'search': search,
+      }),
+    ).timeout(const Duration(seconds: 40));
     try {
       return jsonDecode(response.body);
     } on FormatException {
@@ -339,13 +365,17 @@ class ApiService {
     }
   }
 
-  /// E-Mail senden (Absender wird serverseitig auf das eigene Postfach gesetzt).
-  Future<Map<String, dynamic>> sendMail({required String to, required String subject, required String body}) async {
+  /// Einzelnen Anhang herunterladen (Base64 im JSON).
+  Future<Map<String, dynamic>> getMailAttachment({
+    required int uid,
+    required int index,
+    String box = 'INBOX',
+  }) async {
     final response = await _client.post(
-      Uri.parse('$baseUrl/mail/send.php'),
+      Uri.parse('$baseUrl/mail/attachment.php'),
       headers: _headers,
-      body: jsonEncode({'to': to, 'subject': subject, 'body': body}),
-    ).timeout(const Duration(seconds: 30));
+      body: jsonEncode({'uid': uid, 'index': index, 'box': box}),
+    ).timeout(const Duration(seconds: 120));
     try {
       return jsonDecode(response.body);
     } on FormatException {
@@ -353,12 +383,96 @@ class ApiService {
     }
   }
 
-  /// Nachricht als gelesen/ungelesen markieren.
-  Future<Map<String, dynamic>> flagMail(int uid, {bool seen = true}) async {
+  /// Maximale Gesamtgröße aller Anhänge einer E-Mail (25 MB, wie serverseitig).
+  static const int mailMaxAttachmentBytes = 25 * 1024 * 1024;
+
+  /// E-Mail senden (Absender wird serverseitig auf das eigene Postfach gesetzt).
+  /// Mit Anhängen wird automatisch multipart/form-data verwendet.
+  Future<Map<String, dynamic>> sendMail({
+    required String to,
+    required String subject,
+    required String body,
+    String cc = '',
+    String bcc = '',
+    bool requestReceipt = false,
+    String inReplyTo = '',
+    List<MailOutgoingAttachment> attachments = const [],
+  }) async {
+    if (attachments.isEmpty) {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/mail/send.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'to': to,
+          'cc': cc,
+          'bcc': bcc,
+          'subject': subject,
+          'body': body,
+          'request_receipt': requestReceipt,
+          'in_reply_to': inReplyTo,
+        }),
+      ).timeout(const Duration(seconds: 60));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    }
+
+    final total = attachments.fold<int>(0, (s, a) => s + a.bytes.length);
+    if (total > mailMaxAttachmentBytes) {
+      return {
+        'success': false,
+        'message': 'Anhänge zu groß (max. 25 MB, gewählt: '
+            '${(total / 1024 / 1024).toStringAsFixed(1)} MB)',
+      };
+    }
+
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/mail/send.php'));
+    req.headers.addAll(_headers);
+    req.fields['to'] = to;
+    req.fields['cc'] = cc;
+    req.fields['bcc'] = bcc;
+    req.fields['subject'] = subject;
+    req.fields['body'] = body;
+    req.fields['request_receipt'] = requestReceipt ? '1' : '0';
+    req.fields['in_reply_to'] = inReplyTo;
+    for (var i = 0; i < attachments.length; i++) {
+      final a = attachments[i];
+      // No explicit content type: the mail backend derives it from the
+      // filename, which avoids pulling http_parser in as a direct dependency.
+      req.files.add(http.MultipartFile.fromBytes(
+        'attachments[$i]',
+        a.bytes,
+        filename: a.filename,
+      ));
+    }
+    // 25 MB over a slow uplink needs room; the server-side cap is authoritative.
+    final stream = await req.send().timeout(const Duration(minutes: 5));
+    final respBody = await stream.stream.bytesToString();
+    try {
+      return jsonDecode(respBody);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Nachricht als gelesen/ungelesen bzw. markiert/unmarkiert setzen.
+  Future<Map<String, dynamic>> flagMail(
+    int uid, {
+    bool? seen,
+    bool? flagged,
+    String box = 'INBOX',
+  }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/flag.php'),
       headers: _headers,
-      body: jsonEncode({'uid': uid, 'seen': seen}),
+      body: jsonEncode({
+        'uid': uid,
+        'box': box,
+        if (seen != null) 'seen': seen,
+        if (flagged != null) 'flagged': flagged,
+      }),
     ).timeout(const Duration(seconds: 20));
     try {
       return jsonDecode(response.body);
@@ -367,12 +481,93 @@ class ApiService {
     }
   }
 
-  /// Nachricht in den Papierkorb verschieben.
-  Future<Map<String, dynamic>> deleteMail(int uid) async {
+  /// Nachricht in einen anderen Ordner verschieben (z. B. Spam, Archiv).
+  Future<Map<String, dynamic>> moveMail({
+    required int uid,
+    required String target,
+    String box = 'INBOX',
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/move.php'),
+      headers: _headers,
+      body: jsonEncode({'uid': uid, 'box': box, 'target': target}),
+    ).timeout(const Duration(seconds: 25));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// In den Papierkorb verschieben — aus dem Papierkorb heraus endgültig löschen.
+  Future<Map<String, dynamic>> deleteMail(int uid, {String box = 'INBOX'}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/delete.php'),
       headers: _headers,
-      body: jsonEncode({'uid': uid}),
+      body: jsonEncode({'uid': uid, 'box': box}),
+    ).timeout(const Duration(seconds: 25));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Zustellstatus (aus dem Postfix-Log) für eigene Message-IDs nachladen.
+  Future<Map<String, dynamic>> getMailDelivery(List<String> messageIds) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/delivery.php'),
+      headers: _headers,
+      body: jsonEncode({'message_ids': messageIds}),
+    ).timeout(const Duration(seconds: 40));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Lesebestätigung für eine empfangene Nachricht senden.
+  Future<Map<String, dynamic>> sendMailReadReceipt(int uid, {String box = 'INBOX'}) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/mdn.php'),
+      headers: _headers,
+      body: jsonEncode({'uid': uid, 'box': box}),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Signatur + Standard für Lesebestätigung lesen.
+  Future<Map<String, dynamic>> getMailSignature() async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/signature.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'get'}),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Signatur + Standard für Lesebestätigung speichern.
+  Future<Map<String, dynamic>> saveMailSignature({
+    required String signature,
+    required bool requestReceiptDefault,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/signature.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'set',
+        'signature': signature,
+        'request_receipt_default': requestReceiptDefault,
+      }),
     ).timeout(const Duration(seconds: 20));
     try {
       return jsonDecode(response.body);
