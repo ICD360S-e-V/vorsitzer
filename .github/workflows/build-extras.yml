@@ -150,6 +150,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: android-universal-apk
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-universal.apk
 
@@ -212,6 +215,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: samsung-apks
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-samsung-*.apk
 
@@ -270,6 +276,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: googleplay-aab
           path: build/app/outputs/bundle/release/${{ env.APP_NAME }}-*-googleplay.aab
 
@@ -329,6 +338,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: fdroid-apk
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-fdroid.apk
 
@@ -388,6 +400,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: huawei-apk
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*-huawei.apk
 
@@ -431,6 +446,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: windows-zip
           path: build/${{ env.APP_NAME }}-*-windows-x64.zip
 
@@ -589,6 +607,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: macos-dmg
           path: build/${{ env.APP_NAME }}-*-macos.dmg
 
@@ -687,6 +708,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: ios-ipa
           path: build/${{ env.APP_NAME }}-*-ios*.ipa
 
