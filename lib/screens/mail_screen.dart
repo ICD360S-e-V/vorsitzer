@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/mail_models.dart';
 import '../services/api_service.dart';
+import '../utils/mail_html_text.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_folder_rail.dart';
 import '../widgets/mail_quota_bar.dart';
@@ -848,20 +849,6 @@ String _shortDate(String raw) {
   return raw.length > 16 ? raw.substring(0, 16) : raw;
 }
 
-String _stripHtml(String html) => html
-    .replaceAll(RegExp(r'<(script|style)[^>]*>.*?</\1>', dotAll: true, caseSensitive: false), ' ')
-    .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-    .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n\n')
-    .replaceAll(RegExp(r'<[^>]+>'), ' ')
-    .replaceAll('&nbsp;', ' ')
-    .replaceAll('&amp;', '&')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll(RegExp(r'[ \t]+'), ' ')
-    .replaceAll(RegExp(r'\n{3,}'), '\n\n')
-    .trim();
-
 String _fmtSize(int bytes) {
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
@@ -961,7 +948,7 @@ class _MailMessageViewState extends State<MailMessageView> {
   String get _bodyText {
     final text = '${_msg['text'] ?? ''}'.trim();
     if (text.isNotEmpty) return text;
-    return _stripHtml('${_msg['html'] ?? ''}');
+    return mailHtmlToText('${_msg['html'] ?? ''}');
   }
 
   void _toast(String msg) {
