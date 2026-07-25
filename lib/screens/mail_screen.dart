@@ -9,9 +9,11 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/mail_models.dart';
 import '../services/api_service.dart';
+import '../services/mail_html_sanitizer.dart';
 import '../utils/mail_html_text.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_folder_rail.dart';
+import '../widgets/mail_html_view.dart';
 import '../widgets/mail_quota_bar.dart';
 import 'mail_compose_screen.dart';
 import 'mail_signature_screen.dart';
@@ -905,6 +907,14 @@ class _MailMessageViewState extends State<MailMessageView> {
 
   /// Anhänge werden für eine Weiterleitung geholt.
   bool _forwarding = false;
+
+  /// Formatierte Ansicht ist AUS, solange sie nicht angefordert wird.
+  ///
+  /// BSI IT-Grundschutz APP.5.3.A1 ist ein Basis-MUSS: E-Mail-Clients MÜSSEN so
+  /// konfiguriert sein, dass HTML nicht automatisch interpretiert wird. Der
+  /// Textpfad ist also die Voreinstellung, nicht ein Notbehelf.
+  bool _showFormatted = false;
+  MailSanitizedHtml? _sanitized;
   final Set<int> _downloading = {};
 
   @override
@@ -1123,6 +1133,62 @@ class _MailMessageViewState extends State<MailMessageView> {
   static String _safeName(String name) =>
       name.replaceAll(RegExp(r'[^A-Za-z0-9._\-]'), '_');
 
+  bool get _hasHtml => '${_msg['html'] ?? ''}'.trim().isNotEmpty;
+
+  void _toggleFormatted() {
+    if (!_showFormatted) {
+      // Erst beim Anfordern sanitisieren, und das Ergebnis behalten.
+      _sanitized ??= sanitizeMailHtml('${_msg['html'] ?? ''}');
+    }
+    setState(() => _showFormatted = !_showFormatted);
+  }
+
+  /// Löst `cid:` gegen die Teile DIESER Nachricht auf. Kein Netzzugriff nach
+  /// außen — der Teil kommt aus derselben Mail über das eigene Backend.
+  Future<Uint8List?> _loadInlineImage(String contentId) async {
+    final parts = (_msg['attachments'] as List?) ?? const [];
+    for (final raw in parts.whereType<Map>()) {
+      final a = Map<String, dynamic>.from(raw);
+      if ('${a['content_id'] ?? ''}' != contentId) continue;
+      final index = (a['index'] as num?)?.toInt() ?? -1;
+      if (index < 0) return null;
+      try {
+        final res = await _api.getMailAttachment(
+            uid: widget.uid, index: index, box: widget.box);
+        if (res['success'] != true) return null;
+        return Uint8List.fromList(base64Decode('${res['data_base64'] ?? ''}'));
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  Widget _viewToggle(ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(_showFormatted ? Icons.article : Icons.text_fields,
+              size: 16, color: cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _showFormatted
+                  ? 'Formatierte Ansicht'
+                  : 'Textansicht — Formatierung und Bilder des Absenders sind aus',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+          ),
+          TextButton(
+            onPressed: _toggleFormatted,
+            child: Text(_showFormatted ? 'Nur Text' : 'Formatiert anzeigen'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
@@ -1157,6 +1223,16 @@ class _MailMessageViewState extends State<MailMessageView> {
     final cs = Theme.of(context).colorScheme;
     final subject = '${_msg['subject'] ?? '(kein Betreff)'}';
     final attachments = (_msg['attachments'] as List?) ?? [];
+    // Wird die formatierte Ansicht gezeigt, stehen eingebettete Bilder schon im
+    // Text — dann gehören sie nicht zusätzlich in die Anhangsliste.
+    final hideInline = _showFormatted && _hasHtml;
+    final fileAttachments = attachments
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((a) => !(hideInline &&
+            a['inline'] == true &&
+            '${a['content_id'] ?? ''}'.isNotEmpty))
+        .toList();
     final mdnRequestedBy = '${_msg['mdn_requested_by'] ?? ''}';
     final delivery = _msg['delivery'] is Map
         ? MailDelivery.fromJson(Map<String, dynamic>.from(_msg['delivery']))
@@ -1199,20 +1275,29 @@ class _MailMessageViewState extends State<MailMessageView> {
                 ),
               ],
               const Divider(height: 26),
-              SelectableText(_bodyText,
-                  style: const TextStyle(fontSize: 15, height: 1.45)),
-              if (attachments.isNotEmpty) ...[
+              if (_hasHtml) _viewToggle(cs),
+              if (_showFormatted && _hasHtml)
+                MailHtmlView(
+                  sanitized: _sanitized!,
+                  loadInlineImage: _loadInlineImage,
+                )
+              else
+                SelectableText(_bodyText,
+                    style: const TextStyle(fontSize: 15, height: 1.45)),
+              if (fileAttachments.isNotEmpty) ...[
                 const Divider(height: 26),
                 Row(
                   children: [
                     const Icon(Icons.attach_file, size: 18),
                     const SizedBox(width: 6),
-                    Text('${attachments.length} Anhang${attachments.length == 1 ? '' : 'e'}',
+                    Text(
+                        '${fileAttachments.length} Anhang'
+                        '${fileAttachments.length == 1 ? '' : 'e'}',
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),
                 const SizedBox(height: 4),
-                ...attachments.whereType<Map>().map((raw) {
+                ...fileAttachments.map((raw) {
                   final a = Map<String, dynamic>.from(raw);
                   final index = (a['index'] as num?)?.toInt() ?? -1;
                   final busy = _downloading.contains(index);
