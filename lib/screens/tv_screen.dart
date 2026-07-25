@@ -52,9 +52,13 @@ class _TvScreenState extends State<TvScreen> {
     if (mounted) await _load();
   }
 
+  /// Tap on a channel: its Videos-tab list, newest first, so you can see which
+  /// ones are new rather than being thrown straight into the newest video.
   Future<void> _openChannel(YoutubeChannel c) async {
-    if (c.hasNew) await _yt.markSeen(c.id);
-    await _openBrowser(c.targetUrl, title: c.title);
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _ChannelVideosScreen(channelId: c.id),
+    ));
+    if (mounted) await _load();
   }
 
   Future<void> _addByUrlDialog() async {
@@ -226,7 +230,7 @@ class _TvScreenState extends State<TvScreen> {
                     )
                   : _thumbFallback(),
             ),
-            if (c.hasNew)
+            if (c.unseenCount > 0)
               Positioned(
                 left: 0,
                 top: 0,
@@ -281,18 +285,22 @@ class _TvScreenState extends State<TvScreen> {
         ],
       ),
       trailing: PopupMenuButton<String>(
-        onSelected: (v) {
+        onSelected: (v) async {
           switch (v) {
             case 'channel':
               _openBrowser(c.channelUrl, title: c.title);
+              break;
+            case 'seen':
+              await _yt.markSeen(c.id);
+              if (mounted) setState(() {});
               break;
             case 'delete':
               _confirmRemove(c);
               break;
           }
         },
-        itemBuilder: (_) => const [
-          PopupMenuItem(
+        itemBuilder: (_) => [
+          const PopupMenuItem(
             value: 'channel',
             child: ListTile(
               dense: true,
@@ -300,7 +308,16 @@ class _TvScreenState extends State<TvScreen> {
               title: Text('Kanalseite öffnen'),
             ),
           ),
-          PopupMenuItem(
+          if (c.unseenCount > 0)
+            const PopupMenuItem(
+              value: 'seen',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.done_all),
+                title: Text('Alle als gesehen markieren'),
+              ),
+            ),
+          const PopupMenuItem(
             value: 'delete',
             child: ListTile(
               dense: true,
@@ -312,9 +329,160 @@ class _TvScreenState extends State<TvScreen> {
       ),
     );
   }
+}
 
-  Widget _thumbFallback() => Container(
-        color: Colors.grey.shade300,
-        child: Icon(Icons.play_arrow, color: Colors.grey.shade600),
-      );
+Widget _thumbFallback() => Container(
+      color: Colors.grey.shade300,
+      child: Icon(Icons.play_arrow, color: Colors.grey.shade600),
+    );
+
+/// The Videos tab of one saved channel: newest first, NEU on everything that
+/// was never opened from here. Reads its channel back out of [YoutubeService]
+/// on every build so the marks stay in step with the list behind it.
+class _ChannelVideosScreen extends StatefulWidget {
+  final int channelId;
+
+  const _ChannelVideosScreen({required this.channelId});
+
+  @override
+  State<_ChannelVideosScreen> createState() => _ChannelVideosScreenState();
+}
+
+class _ChannelVideosScreenState extends State<_ChannelVideosScreen> {
+  final _yt = YoutubeService();
+
+  YoutubeChannel? get _channel {
+    for (final c in _yt.channels) {
+      if (c.id == widget.channelId) return c;
+    }
+    return null;
+  }
+
+  Future<void> _openVideo(YoutubeChannel c, YoutubeVideo v) async {
+    if (!v.seen) await _yt.markVideoSeen(c.id, v.id);
+    if (!mounted) return;
+    setState(() {});
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => WebViewScreen(
+        title: c.title,
+        url: v.watchUrl,
+        onFavorite: _yt.addFromUrl,
+        favoriteTooltip: 'Kanal speichern',
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _channel;
+    if (c == null) {
+      // Channel removed while we were on it.
+      return const Scaffold(body: Center(child: Text('Kanal nicht mehr vorhanden')));
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(c.title),
+        backgroundColor: const Color(0xFF4a90d9),
+        foregroundColor: Colors.white,
+        actions: [
+          if (c.unseenCount > 0)
+            IconButton(
+              icon: const Icon(Icons.done_all),
+              tooltip: 'Alle als gesehen markieren',
+              onPressed: () async {
+                await _yt.markSeen(c.id);
+                if (mounted) setState(() {});
+              },
+            ),
+          IconButton(
+            icon: const Icon(Icons.subscriptions_outlined),
+            tooltip: 'Kanalseite öffnen',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => WebViewScreen(
+                title: c.title,
+                url: c.channelUrl,
+                onFavorite: _yt.addFromUrl,
+                favoriteTooltip: 'Kanal speichern',
+              ),
+            )),
+          ),
+        ],
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: c.videos.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (_, i) {
+          final v = c.videos[i];
+          // Only the newest entry can carry NEU. A badge on every unseen
+          // video would turn a channel that posts three times a day into a
+          // wall of red, and the question being asked is only ever "is there
+          // something newer than last time".
+          final isNew = i == 0 && !v.seen;
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            onTap: () => _openVideo(c, v),
+            leading: SizedBox(
+              width: 110,
+              height: 62,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: v.thumbnail.isNotEmpty
+                    ? Image.network(
+                        v.thumbnail,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _thumbFallback(),
+                      )
+                    : _thumbFallback(),
+              ),
+            ),
+            title: Text(
+              v.title,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: isNew ? FontWeight.bold : FontWeight.normal,
+                color: v.seen ? Colors.grey.shade700 : null,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  if (isNew)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade700,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: const Text(
+                        'NEU',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  if (v.seen) ...[
+                    Icon(Icons.visibility_outlined,
+                        size: 14, color: Colors.grey.shade500),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    v.ageLabel,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
