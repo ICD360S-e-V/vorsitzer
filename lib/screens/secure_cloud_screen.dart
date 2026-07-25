@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:printing/printing.dart';
@@ -9,10 +11,13 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/cloud_crypto_service.dart';
+import '../services/live_document_detector.dart';
+import '../services/scan_geometry.dart';
 import '../services/secure_cloud_service.dart';
 import 'document_crop_screen.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/file_viewer_dialog.dart';
+import '../widgets/scan_overlay.dart';
 
 /// Admin "Sichere Cloud" — 50 GB, client-side zero-knowledge storage.
 /// The recovery passphrase is requested on every open; the key lives only in
@@ -159,16 +164,19 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       _snack('Kamera ist nur auf dem Handy/Tablet verfügbar.', isError: true);
       return;
     }
-    final XFile? shot = await Navigator.of(context).push<XFile>(
+    final _ScanShot? shot = await Navigator.of(context).push<_ScanShot>(
       MaterialPageRoute(builder: (_) => const _CameraCaptureScreen()),
     );
     if (shot == null || !mounted) return; // cancelled
-    final raw = await File(shot.path).readAsBytes();
+    final raw = await File(shot.file.path).readAsBytes();
     if (!mounted) return;
-    // Review step: auto-detect the document corners (OpenCV), let the user
-    // adjust, then de-skew/crop. Returns the final JPEG bytes, or null on cancel.
+    // Review step. When the live overlay was locked on the document as the
+    // shutter fired it hands over a [ScanHint]; if the still detection agrees,
+    // the crop happens automatically and this screen is never shown.
     final Uint8List? out = await Navigator.of(context).push<Uint8List>(
-      MaterialPageRoute(builder: (_) => DocumentCropScreen(jpg: raw)),
+      MaterialPageRoute(
+        builder: (_) => DocumentCropScreen(jpg: raw, hint: shot.hint),
+      ),
     );
     if (out == null || !mounted) return;
     final tmp = File(
@@ -1114,15 +1122,30 @@ class _UploadProgressDialogState extends State<_UploadProgressDialog> {
     }
   }
 }
+// ── In-app live document scanner ─────────────────────────────────────────────
 
-// ── In-app camera ────────────────────────────────────────────────────────────
+/// What [_CameraCaptureScreen] pops: the captured still, plus — when the live
+/// overlay was locked onto the document as the shutter fired — its belief about
+/// where the corners are, so the crop screen can skip the manual step.
+class _ScanShot {
+  final XFile file;
+  final ScanHint? hint;
+  const _ScanShot(this.file, this.hint);
+}
 
 /// Full-screen camera that renders the preview INSIDE our own Activity (the
 /// `camera` plugin), so taking a photo never launches an external app. That is
 /// the whole point: Android can't kill our process mid-capture, so the unlocked
-/// DEK stays in RAM and the photo is never lost. Pops with the captured [XFile]
-/// (or null if the user backs out). Handles init, permission/hardware errors,
-/// and pausing/resuming the controller with the app lifecycle.
+/// DEK stays in RAM and the photo is never lost.
+///
+/// On top of that it runs live document detection on the preview frames: the
+/// detected corners are drawn as you aim, and once they hold still the shutter
+/// fires by itself after a visible 5 · 4 · 3 · 2 · 1 · 0 countdown. Detection is
+/// pure OpenCV in a background isolate — no ML Kit, no Play Services, which
+/// also keeps the F-Droid and Huawei builds honest.
+///
+/// Pops a [_ScanShot], or null if the user backs out. Handles init,
+/// permission/hardware errors, and pausing/resuming with the app lifecycle.
 class _CameraCaptureScreen extends StatefulWidget {
   const _CameraCaptureScreen();
 
@@ -1131,19 +1154,106 @@ class _CameraCaptureScreen extends StatefulWidget {
 }
 
 class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  // ── tuning ─────────────────────────────────────────────────────────────────
+  /// One countdown step. Five of them, so arming to shutter is exactly 5 s.
+  static const Duration _kTick = Duration(seconds: 1);
+  static const int _kSteps = 5;
+
+  /// Quad turns teal and arming becomes possible at [_kLockOn]; it only counts
+  /// as lost below [_kLockOff]. The gap is what stops single-frame chatter.
+  static const double _kLockOn = 0.62;
+  static const double _kLockOff = 0.50;
+  static const int _kBadFrames = 2;
+
+  /// Good, still frames required before the countdown arms (~350 ms).
+  static const int _kSettleFrames = 5;
+
+  /// Max deviation of any corner from the window mean, in isotropic upright
+  /// units (1.0 == frame height). Measuring against the mean rather than the
+  /// previous frame is what catches a slow steady slide.
+  static const double _kSettleDrift = 0.010;
+
+  /// Movement since arming that cancels the countdown outright.
+  static const double _kBreakDrift = 0.035;
+
+  static const int _kMissBreak = 3;
+  static const Duration _kRearmDelay = Duration(milliseconds: 400);
+
+  // ── camera ─────────────────────────────────────────────────────────────────
   CameraController? _controller;
   String? _error;
   bool _taking = false;
+  bool _disposed = false;
+  bool _streamStopped = false;
+  int _generation = 0;
+
+  // ── live detection ─────────────────────────────────────────────────────────
+  LiveDocumentDetector? _detector;
+  StreamSubscription<DetectionResult>? _sub;
+  bool _liveEnabled = false;
+  bool _auto = true;
+  bool _loggedFrame = false;
+
+  final ValueNotifier<ScanFrame> _frame = ValueNotifier(ScanFrame.empty);
+  late final AnimationController _countdown = AnimationController(
+    vsync: this,
+    duration: _kTick * _kSteps,
+  );
+
+  ScanPhase _phase = ScanPhase.searching;
+  bool _flash = false;
+
+  // Tracking state. `raw` values feed the arming decision, `smoothed` values
+  // feed the drawing — mixing them would arm the countdown off a filtered
+  // signal that lags real motion by design.
+  List<double>? _smoothed; // upright-normalized, TL TR BR BL
+  List<double>? _prevRawIso;
+  final List<List<double>> _window = [];
+  final List<double> _windowConf = [];
+  List<double>? _armIso;
+  double _jitterEwma = 0;
+  double _gEwma = 0;
+  double _confidence = 0;
+  double _ua = 1.0;
+  int _missStreak = 0;
+  int _badStreak = 0;
+  int _lastShown = _kSteps;
+  DateTime _lastCancel = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Pinning the display rotation keeps `deviceOrientation` at portraitUp, so
+    // the buffer→preview rotation is a constant, and makes takePicture() write
+    // a deterministic EXIF orientation. Cheaper and less invasive than
+    // lockCaptureOrientation, which permanently flips plugin-global state.
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    _countdown
+      ..addListener(_onCountdownTick)
+      ..addStatusListener(_onCountdownStatus);
+    _bootDetector();
     _setupCamera();
   }
 
+  Future<void> _bootDetector() async {
+    try {
+      final d = await LiveDocumentDetector.start();
+      if (!mounted || _disposed) {
+        await d.dispose();
+        return;
+      }
+      _detector = d;
+      _sub = d.results.listen(_onResult);
+    } catch (_) {
+      // No live detection — the manual shutter still works.
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _setupCamera() async {
+    final gen = ++_generation;
     try {
       final cams = await availableCameras();
       if (cams.isEmpty) {
@@ -1161,14 +1271,16 @@ class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
       } on CameraException {
         ctrl = await _make(back, ResolutionPreset.high);
       }
-      if (!mounted) {
+      if (!mounted || gen != _generation) {
         await ctrl.dispose();
         return;
       }
       setState(() {
         _controller = ctrl;
         _error = null;
+        _liveEnabled = supportsLiveDetection(back);
       });
+      if (_liveEnabled) unawaited(_startStream(gen));
     } on CameraException catch (e) {
       if (mounted) {
         setState(() => _error = 'Kamera nicht verfügbar: ${e.description ?? e.code}');
@@ -1183,42 +1295,300 @@ class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
       cam,
       p,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
+      // yuv420, NOT jpeg. On Android `jpeg` is a silent no-op for image streams
+      // (the CameraX delegate maps it to no analysis format at all), and on iOS
+      // it falls back to bgra8888 where plane 0 is interleaved BGRA rather than
+      // luma. yuv420 gives us planes[0] == Y on both platforms.
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
     await ctrl.initialize();
     return ctrl;
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  Future<void> _startStream(int gen) async {
     final ctrl = _controller;
-    if (state == AppLifecycleState.inactive) {
-      _controller = null;
-      ctrl?.dispose();
+    if (ctrl == null || gen != _generation || _disposed) return;
+    try {
+      _streamStopped = false;
+      await ctrl.startImageStream(_onFrame);
+    } catch (_) {
+      _liveEnabled = false; // manual shutter only
       if (mounted) setState(() {});
-    } else if (state == AppLifecycleState.resumed && ctrl == null) {
-      _setupCamera();
     }
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _controller?.dispose();
-    super.dispose();
+  void _onFrame(CameraImage image) {
+    if (_streamStopped || _disposed || _taking || !mounted) return;
+    final d = _detector;
+    if (d == null || d.dead) return;
+    if (!_loggedFrame) {
+      _loggedFrame = true;
+      // One-shot bring-up diagnostic. If the preview's aspect ratio does not
+      // match the frame's, preview and analysis resolved to different fields of
+      // view and the overlay will be off by exactly that delta — this turns a
+      // baffling misalignment into a ten-second diagnosis.
+      debugPrint('[scan] frame=${image.width}x${image.height} '
+          'fmt=${image.format.group} planes=${image.planes.length} '
+          'stride=${image.planes.first.bytesPerRow} '
+          'preview=${_controller?.value.previewSize} '
+          'sensor=${_controller?.description.sensorOrientation} '
+          'rotCW=${previewRotationCW(_controller!)}');
+    }
+    // Copies synchronously: on iOS the plane bytes may be recycled the instant
+    // this callback returns.
+    d.submit(image);
   }
 
-  Future<void> _take() async {
+  // ── detection results ──────────────────────────────────────────────────────
+
+  static List<double> _iso(List<double> q, double ua) =>
+      [for (var i = 0; i < 8; i += 2) ...[q[i] * ua, q[i + 1]]];
+
+  void _onResult(DetectionResult r) {
+    if (!mounted || _disposed || _taking) return;
+    final ctrl = _controller;
+    if (ctrl == null) return;
+
+    if (r.quadN == null) {
+      _missStreak++;
+      if (_missStreak >= _kMissBreak) _cancelCountdown();
+      if (_missStreak > 6) {
+        _resetTracking();
+        _frame.value = ScanFrame.empty;
+        return;
+      }
+      // Hold the last quad and fade it: a single dropped detection should not
+      // make the outline blink.
+      _frame.value = ScanFrame(
+        quadN: _smoothed,
+        uprightAspect: _ua,
+        confidence: _confidence,
+        opacity: (1.0 - _missStreak / 4.0).clamp(0.0, 1.0),
+      );
+      return;
+    }
+
+    _missStreak = 0;
+    final rotCW = previewRotationCW(ctrl);
+    final ua = ScanGeometry.uprightAspect(r.frameWidth, r.frameHeight, rotCW);
+    _ua = ua;
+
+    final q = r.quadN!;
+    final upright = <double>[];
+    for (var i = 0; i < 8; i += 2) {
+      // Live detection is gated to the back lens, so the buffer is never
+      // mirrored — the front-camera mirror differs between Android's two
+      // preview delegates and cannot be resolved from Dart.
+      final (u, v) = ScanGeometry.toUpright(q[i], q[i + 1], rotCW, false);
+      upright
+        ..add(u)
+        ..add(v);
+    }
+    // Rotation moves which physical corner is top-left, so re-order after it.
+    final ordered = ScanGeometry.orderQuad(upright);
+    final rawIso = _iso(ordered, ua);
+
+    // Jitter → stability. Raw, never smoothed.
+    final prev = _prevRawIso;
+    if (prev != null) {
+      final d = ScanGeometry.meanCornerDistance(rawIso, prev);
+      _jitterEwma = 0.30 * d + 0.70 * _jitterEwma;
+    }
+    _prevRawIso = rawIso;
+    _gEwma = _gEwma == 0 ? r.score : 0.25 * r.score + 0.75 * _gEwma;
+    final stability = 1.0 - (_jitterEwma / 0.012).clamp(0.0, 1.0);
+    _confidence = (0.65 * _gEwma + 0.35 * stability).clamp(0.0, 1.0);
+
+    _updateSmoothed(ordered, rawIso, ua);
+
+    _window.add(rawIso);
+    _windowConf.add(_confidence);
+    if (_window.length > _kSettleFrames) {
+      _window.removeAt(0);
+      _windowConf.removeAt(0);
+    }
+
+    _frame.value = ScanFrame(
+      quadN: _smoothed,
+      uprightAspect: ua,
+      confidence: _confidence,
+      opacity: 1.0,
+    );
+
+    _advance(rawIso);
+  }
+
+  void _updateSmoothed(List<double> ordered, List<double> rawIso, double ua) {
+    final s = _smoothed;
+    if (s == null ||
+        ScanGeometry.maxCornerDistance(_iso(s, ua), rawIso) >
+            ScanGeometry.snapDistance) {
+      _smoothed = List<double>.of(ordered); // different document — snap
+      return;
+    }
+    final next = List<double>.of(s);
+    for (var i = 0; i < 8; i += 2) {
+      final dx = (ordered[i] - s[i]) * ua;
+      final dy = ordered[i + 1] - s[i + 1];
+      final a = ScanGeometry.alphaFor(math.sqrt(dx * dx + dy * dy));
+      next[i] = s[i] + (ordered[i] - s[i]) * a;
+      next[i + 1] = s[i + 1] + (ordered[i + 1] - s[i + 1]) * a;
+    }
+    _smoothed = next;
+  }
+
+  /// Drive the state machine from the freshly accepted raw quad.
+  void _advance(List<double> rawIso) {
+    final dead = _detector?.dead ?? true;
+    if (!_auto || dead || !_liveEnabled) {
+      if (_phase != ScanPhase.searching) _setPhase(ScanPhase.searching);
+      return;
+    }
+
+    if (_phase == ScanPhase.counting) {
+      final arm = _armIso;
+      if (_confidence < _kLockOff) {
+        _badStreak++;
+        if (_badStreak >= _kBadFrames) _cancelCountdown();
+        return;
+      }
+      _badStreak = 0;
+      // A deliberate reposition must cancel instantly rather than let a
+      // countdown run out over a document that is no longer where it was.
+      if (arm != null &&
+          ScanGeometry.maxCornerDistance(rawIso, arm) > _kBreakDrift) {
+        _cancelCountdown();
+      }
+      return;
+    }
+
+    if (_confidence < _kLockOff) {
+      _badStreak++;
+      if (_badStreak >= _kBadFrames && _phase != ScanPhase.searching) {
+        _setPhase(ScanPhase.searching);
+      }
+      return;
+    }
+    _badStreak = 0;
+    if (_confidence >= _kLockOn && _phase == ScanPhase.searching) {
+      _setPhase(ScanPhase.holding);
+    }
+
+    if (_phase != ScanPhase.holding) return;
+    if (_window.length < _kSettleFrames) return;
+    if (_windowConf.any((c) => c < _kLockOn)) return;
+    if (DateTime.now().difference(_lastCancel) < _kRearmDelay) return;
+    if (_maxDriftFromMean() > _kSettleDrift) return;
+
+    _armIso = rawIso;
+    _lastShown = _kSteps;
+    _setPhase(ScanPhase.counting);
+    _countdown.forward(from: 0);
+  }
+
+  /// Largest deviation of any corner from its mean across the settle window.
+  double _maxDriftFromMean() {
+    if (_window.isEmpty) return double.infinity;
+    final mean = List<double>.filled(8, 0);
+    for (final q in _window) {
+      for (var i = 0; i < 8; i++) {
+        mean[i] += q[i];
+      }
+    }
+    for (var i = 0; i < 8; i++) {
+      mean[i] /= _window.length;
+    }
+    var worst = 0.0;
+    for (final q in _window) {
+      worst = math.max(worst, ScanGeometry.maxCornerDistance(q, mean));
+    }
+    return worst;
+  }
+
+  void _resetTracking() {
+    _smoothed = null;
+    _prevRawIso = null;
+    _window.clear();
+    _windowConf.clear();
+    _armIso = null;
+    _jitterEwma = 0;
+    _gEwma = 0;
+    _confidence = 0;
+    _badStreak = 0;
+  }
+
+  void _setPhase(ScanPhase p) {
+    if (_phase == p) return;
+    setState(() => _phase = p);
+  }
+
+  void _cancelCountdown() {
+    _armIso = null;
+    _badStreak = 0;
+    if (_countdown.isAnimating || _countdown.value != 0) {
+      _countdown.stop();
+      _countdown.value = 0;
+    }
+    _lastCancel = DateTime.now();
+    _window.clear();
+    _windowConf.clear();
+    if (_phase == ScanPhase.counting) _setPhase(ScanPhase.searching);
+  }
+
+  void _onCountdownTick() {
+    if (_phase != ScanPhase.counting) return;
+    final shown = (_kSteps - (_countdown.value * _kSteps).floor()).clamp(0, _kSteps);
+    if (shown != _lastShown) {
+      _lastShown = shown;
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  void _onCountdownStatus(AnimationStatus s) {
+    if (s == AnimationStatus.completed && _phase == ScanPhase.counting) {
+      HapticFeedback.mediumImpact();
+      _fire(auto: true);
+    }
+  }
+
+  // ── capture ────────────────────────────────────────────────────────────────
+
+  ScanHint? _buildHint() {
+    final q = _smoothed;
+    if (q == null || q.length != 8) return null;
+    return ScanHint(List<double>.of(q), _ua, _confidence);
+  }
+
+  Future<void> _fire({required bool auto}) async {
     final ctrl = _controller;
     if (ctrl == null || !ctrl.value.isInitialized || _taking) return;
-    setState(() => _taking = true);
+    _cancelCountdown();
+    setState(() {
+      _taking = true;
+      _phase = ScanPhase.capturing;
+      _flash = true;
+    });
+    // Freeze the overlay: the quad on screen IS the quad about to be captured.
+    _detector?.pause();
+    // A manual tap never carries a hint, so it always shows the editor — the
+    // user asked to frame it themselves.
+    final hint = auto ? _buildHint() : null;
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (mounted && !_disposed) setState(() => _flash = false);
+    });
     try {
       final XFile file = await ctrl.takePicture();
       if (!mounted) return;
-      Navigator.of(context).pop(file);
+      Navigator.of(context).pop(_ScanShot(file, hint));
     } on CameraException catch (e) {
       if (!mounted) return;
-      setState(() => _taking = false);
+      setState(() {
+        _taking = false;
+        _phase = ScanPhase.searching;
+        _flash = false;
+      });
+      _resetTracking();
+      _detector?.resume();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Aufnahme fehlgeschlagen: ${e.description ?? e.code}'),
         backgroundColor: Colors.red.shade700,
@@ -1226,21 +1596,90 @@ class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
     }
   }
 
+  // ── lifecycle ──────────────────────────────────────────────────────────────
+
+  /// `CameraController.dispose()` does NOT stop the image stream, and the
+  /// CameraX analyze callback ends in two null-asserted lookups — a frame in
+  /// flight during teardown throws an uncatchable null-check error.
+  Future<void> _teardown(CameraController? c) async {
+    if (c == null) return;
+    _streamStopped = true;
+    if (c.value.isStreamingImages) {
+      try {
+        await c.stopImageStream();
+      } catch (_) {
+        // already gone
+      }
+    }
+    await c.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (state == AppLifecycleState.inactive) {
+      _generation++; // invalidate any _setupCamera still awaiting
+      _cancelCountdown();
+      _resetTracking();
+      _frame.value = ScanFrame.empty;
+      _detector?.pause(); // keep the isolate — no respawn cost on resume
+      _controller = null;
+      unawaited(_teardown(ctrl));
+      if (mounted) setState(() {});
+    } else if (state == AppLifecycleState.resumed && ctrl == null) {
+      _detector?.resume();
+      _setupCamera();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    _countdown
+      ..removeListener(_onCountdownTick)
+      ..removeStatusListener(_onCountdownStatus)
+      ..dispose();
+    _sub?.cancel();
+    _frame.dispose();
+    unawaited(_teardown(_controller));
+    _controller = null;
+    unawaited(_detector?.dispose() ?? Future<void>.value());
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    super.dispose();
+  }
+
+  // ── UI ─────────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final ready = _controller?.value.isInitialized ?? false;
+    final dead = _detector?.dead ?? false;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: const Text('Foto aufnehmen'),
+        actions: [
+          if (_liveEnabled && !dead)
+            IconButton(
+              tooltip: 'Automatisch auslösen',
+              icon: Icon(_auto
+                  ? Icons.motion_photos_auto
+                  : Icons.motion_photos_off_outlined),
+              onPressed: () {
+                setState(() => _auto = !_auto);
+                if (!_auto) _cancelCountdown();
+              },
+            ),
+        ],
       ),
       body: _buildBody(ready),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: ready && _error == null
           ? FloatingActionButton.large(
-              onPressed: _taking ? null : _take,
+              onPressed: _taking ? null : () => _fire(auto: false),
               child: _taking
                   ? const SizedBox(
                       width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 3))
@@ -1261,6 +1700,64 @@ class _CameraCaptureScreenState extends State<_CameraCaptureScreen>
       );
     }
     if (!ready) return const Center(child: CircularProgressIndicator());
-    return Center(child: CameraPreview(_controller!));
+
+    final hint = _liveEnabled
+        ? scanHintText(
+            phase: _phase,
+            autoEnabled: _auto,
+            detectorDead: _detector?.dead ?? false,
+            frame: _frame.value,
+          )
+        : null;
+
+    return Stack(
+      children: [
+        Center(
+          child: CameraPreview(
+            _controller!,
+            // CameraPreview puts this child in a Stack(fit: expand) INSIDE the
+            // AspectRatio and OUTSIDE the RotatedBox, so the overlay's
+            // constraints are exactly the preview box: no AppBar, SafeArea or
+            // letterbox offset ever needs subtracting, and it is not rotated.
+            child: _liveEnabled
+                ? IgnorePointer(
+                    child: LayoutBuilder(
+                      builder: (_, c) => ScanOverlay(
+                        box: Size(c.maxWidth, c.maxHeight),
+                        frame: _frame,
+                        countdown: _countdown,
+                        phase: _phase,
+                        lockThreshold: _kLockOn,
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+        if (hint != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 120,
+            child: Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0x99000000),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(hint,
+                      style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                ),
+              ),
+            ),
+          ),
+        if (_flash)
+          const Positioned.fill(
+            child: IgnorePointer(child: ColoredBox(color: Colors.white70)),
+          ),
+      ],
+    );
   }
 }
